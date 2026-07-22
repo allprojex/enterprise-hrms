@@ -1,4 +1,5 @@
 import { Router } from "express";
+import rateLimit from "express-rate-limit";
 import { eq } from "drizzle-orm";
 import { db, usersTable, sessionsTable } from "@workspace/db";
 import { LoginBody, ForgotPasswordBody } from "@workspace/api-zod";
@@ -6,6 +7,16 @@ import { hashPassword, verifyPassword, generateToken } from "../lib/auth";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 
 const router = Router();
+
+// Limits brute-force password guessing per IP; does not change the auth
+// model itself, just throttles how often /auth/login can be called.
+const loginRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many login attempts. Please try again later." },
+});
 
 function formatUser(user: typeof usersTable.$inferSelect) {
   return {
@@ -24,7 +35,7 @@ function formatUser(user: typeof usersTable.$inferSelect) {
 }
 
 // POST /auth/login
-router.post("/auth/login", async (req, res): Promise<void> => {
+router.post("/auth/login", loginRateLimiter, async (req, res): Promise<void> => {
   const parsed = LoginBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });

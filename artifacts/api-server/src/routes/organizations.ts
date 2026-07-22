@@ -2,6 +2,7 @@ import { Router } from "express";
 import { eq } from "drizzle-orm";
 import { db, organizationsTable } from "@workspace/db";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
+import { canAccessOrganization, isSuperAdmin } from "../lib/authorization";
 
 const router = Router();
 
@@ -22,11 +23,11 @@ function formatOrg(org: typeof organizationsTable.$inferSelect) {
 // GET /organizations
 router.get("/organizations", requireAuth as any, async (req: AuthenticatedRequest, res): Promise<void> => {
   const user = req.user!;
-  // Users see only their own organization; super_admins could see all
+  // Users see only their own organization; super_admins see all
   const orgs = await db
     .select()
     .from(organizationsTable)
-    .where(user.role === "super_admin" ? undefined : eq(organizationsTable.id, user.organizationId));
+    .where(isSuperAdmin(user) ? undefined : eq(organizationsTable.id, user.organizationId));
 
   res.json(orgs.map(formatOrg));
 });
@@ -37,6 +38,12 @@ router.get("/organizations/:id", requireAuth as any, async (req: AuthenticatedRe
   const id = parseInt(raw, 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid ID" });
+    return;
+  }
+
+  const user = req.user!;
+  if (!canAccessOrganization(user, id)) {
+    res.status(403).json({ error: "Forbidden" });
     return;
   }
 
