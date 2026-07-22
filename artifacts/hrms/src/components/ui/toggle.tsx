@@ -39,4 +39,5 @@ const Toggle = React.forwardRef<
 
 Toggle.displayName = TogglePrimitive.Root.displayName;
 
+// eslint-disable-next-line react-refresh/only-export-components -- shadcn/ui convention colocates the variant helper with its component; splitting only affects HMR granularity, not runtime behavior.
 export { Toggle, toggleVariants };

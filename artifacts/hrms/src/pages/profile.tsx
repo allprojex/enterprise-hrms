@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { User, Loader2, Building, Briefcase, Phone, Mail } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -26,15 +26,19 @@ export default function Profile() {
   const [department, setDepartment] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
 
-  useEffect(() => {
-    if (user) {
-      setFirstName(user.firstName);
-      setLastName(user.lastName);
-      setJobTitle(user.jobTitle || '');
-      setDepartment(user.department || '');
-      setPhoneNumber(user.phoneNumber || '');
-    }
-  }, [user]);
+  // Sync local editable state from the fetched profile. Adjusting state
+  // directly during render (rather than in an effect) avoids an extra
+  // render pass and a synchronous setState call inside an effect body —
+  // see https://react.dev/learn/you-might-not-need-an-effect
+  const [prevUser, setPrevUser] = useState(user);
+  if (user && user !== prevUser) {
+    setPrevUser(user);
+    setFirstName(user.firstName);
+    setLastName(user.lastName);
+    setJobTitle(user.jobTitle || '');
+    setDepartment(user.department || '');
+    setPhoneNumber(user.phoneNumber || '');
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

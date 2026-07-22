@@ -115,6 +115,7 @@ NavigationMenuIndicator.displayName =
   NavigationMenuPrimitive.Indicator.displayName;
 
 export {
+  // eslint-disable-next-line react-refresh/only-export-components -- shadcn/ui convention colocates the variant helper with its components; splitting only affects HMR granularity, not runtime behavior.
   navigationMenuTriggerStyle,
   NavigationMenu,
   NavigationMenuList,

@@ -606,10 +606,11 @@ function SidebarMenuSkeleton({
 }: React.ComponentProps<'div'> & {
   showIcon?: boolean;
 }) {
-  // Random width between 50 to 90%.
-  const width = React.useMemo(() => {
-    return `${Math.floor(Math.random() * 40) + 50}%`;
-  }, []);
+  // Random width between 50 to 90%. A useState lazy initializer is
+  // guaranteed to run exactly once per mount (unlike useMemo, which React
+  // may re-invoke), so it's the correct way to generate a one-time
+  // non-deterministic value during render.
+  const [width] = React.useState(() => `${Math.floor(Math.random() * 40) + 50}%`);
 
   return (
     <div
@@ -722,5 +723,6 @@ export {
   SidebarRail,
   SidebarSeparator,
   SidebarTrigger,
+  // eslint-disable-next-line react-refresh/only-export-components -- shadcn/ui convention colocates the sidebar-context hook with its components; splitting only affects HMR granularity, not runtime behavior.
   useSidebar,
 };

@@ -108,7 +108,10 @@ const Carousel = React.forwardRef<
         return;
       }
 
-      onSelect(api);
+      // Deferred to a microtask so the initial sync doesn't call setState
+      // synchronously within the effect body (React's set-state-in-effect
+      // rule) — runs before paint, so there's no visible behavior change.
+      queueMicrotask(() => onSelect(api));
       api.on('reInit', onSelect);
       api.on('select', onSelect);
 

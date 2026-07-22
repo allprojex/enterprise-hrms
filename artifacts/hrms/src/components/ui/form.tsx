@@ -167,6 +167,7 @@ const FormMessage = React.forwardRef<
 FormMessage.displayName = 'FormMessage';
 
 export {
+  // eslint-disable-next-line react-refresh/only-export-components -- shadcn/ui convention colocates the form-context hook with its components; splitting only affects HMR granularity, not runtime behavior.
   useFormField,
   Form,
   FormItem,
