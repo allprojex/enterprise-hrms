@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "Enterprise HRMS"
+version = "1.0.0"
+id = "artifacts/hrms"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24170
+
+[services.development]
+run = "pnpm --filter @workspace/hrms run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/hrms", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/hrms/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24170"
+BASE_PATH = "/"

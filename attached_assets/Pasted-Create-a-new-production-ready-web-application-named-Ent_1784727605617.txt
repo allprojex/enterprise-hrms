@@ -1,0 +1,98 @@
+Create a new production-ready web application named:
+
+Enterprise HRMS
+
+This is a configurable, multi-tenant Human Resource Management System for businesses, churches, NGOs, schools, hospitals, hotels, government institutions and other organizations.
+
+For now, create only the technical foundation and user-interface shell.
+
+Do not attempt to build every HR module in one operation.
+
+Use a modern TypeScript architecture that is portable and can later be hosted on:
+
+• Replit
+• Hostinger VPS
+• GoDaddy VPS
+• DigitalOcean
+• Hetzner
+• AWS
+• Azure
+• Google Cloud
+• Oracle Cloud
+• Organization-owned Linux servers
+• Organization-owned Windows servers
+• Docker
+• On-premise infrastructure
+• Hybrid infrastructure
+
+The code must not depend permanently on Replit-specific services.
+
+Preferred stack:
+
+• TypeScript
+• React
+• Vite or a suitable full-stack React framework
+• Node.js
+• PostgreSQL
+• Tailwind CSS
+• Accessible reusable UI components
+• Server-side API layer
+• Schema-based input validation
+• Database migrations
+• Automated tests
+• Environment-variable configuration
+
+Do not use payroll in the current product scope.
+
+Create an initial professional application shell containing:
+
+• Public landing page
+• Login page
+• Forgotten-password page
+• Secure application layout
+• Sidebar navigation
+• Top navigation
+• Organization selector placeholder
+• Dashboard placeholder
+• User profile menu
+• Notifications area
+• Settings area
+• Unauthorized page
+• Not-found page
+• Loading states
+• Empty states
+• Error boundaries
+
+Use a clean enterprise design suitable for HR managers and ordinary employees.
+
+The interface must be responsive for:
+
+• Desktop
+• Tablet
+• Mobile
+
+Use a professional but simple visual style.
+
+Do not use fake statistics or claim that unfinished modules are implemented.
+
+Create a README explaining:
+
+• The technology stack
+• How to run the app
+• Required environment variables
+• Database setup
+• Testing commands
+• Build commands
+• Deployment portability
+
+When the initial scaffold is complete, stop and provide:
+
+1. Files created
+2. Technology choices
+3. Commands run
+4. Current build status
+5. Current test status
+6. Features intentionally not implemented
+7. Recommended next step
+
+Do not build the complete HRMS yet.

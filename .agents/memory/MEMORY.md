@@ -1,0 +1,3 @@
+- [HRMS auth pattern](hrms-auth.md) — token-based Bearer sessions in `sessions` table; scrypt via node:crypto (no bcrypt dep)
+- [Zod format:email issue](zod-email-format.md) — `format: email` in OpenAPI spec generates `zod.email()` which doesn't exist in Zod v3; omit that format
+- [DB lib rebuild rule](db-lib-rebuild.md) — after adding new schema files, run `pnpm run typecheck:libs` before leaf artifact typechecks or @workspace/db exports won't be visible
