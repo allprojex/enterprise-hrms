@@ -1,167 +1,241 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'wouter';
-import { 
-  Building2, 
-  LayoutDashboard, 
-  Users, 
-  Bell, 
-  Settings, 
-  Search, 
-  Menu, 
-  X, 
-  User, 
+import {
+  Building2,
+  LayoutDashboard,
+  Bell,
+  Settings,
+  Search,
+  Menu,
+  X,
   LogOut,
   ChevronDown,
-  Building
+  Building,
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { useGetMe, getGetMeQueryKey, useListNotifications, getListNotificationsQueryKey, useListOrganizations, getListOrganizationsQueryKey, useLogout } from '@workspace/api-client-react';
+import {
+  useGetMe,
+  getGetMeQueryKey,
+  useListNotifications,
+  getListNotificationsQueryKey,
+  useListOrganizations,
+  getListOrganizationsQueryKey,
+  useLogout,
+} from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
+import { clearToken } from '@/lib/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface AppShellProps {
   children: React.ReactNode;
 }
 
+interface NavItem {
+  href: string;
+  label: string;
+  icon: React.ElementType;
+  badge?: number;
+}
+
+function NavLinks({
+  items,
+  location,
+  onNavigate,
+}: {
+  items: NavItem[];
+  location: string;
+  onNavigate?: () => void;
+}) {
+  return (
+    <ul className="space-y-1" role="list">
+      {items.map((item) => {
+        const isActive = location === item.href;
+        return (
+          <li key={item.href}>
+            <Link
+              href={item.href}
+              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                isActive
+                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                  : 'text-sidebar-foreground hover:bg-sidebar-border/50'
+              }`}
+              aria-current={isActive ? 'page' : undefined}
+              data-testid={`link-nav-${item.label.toLowerCase()}`}
+              onClick={onNavigate}
+            >
+              <item.icon className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
+              <span>{item.label}</span>
+              {item.badge !== undefined && item.badge > 0 && (
+                <Badge
+                  variant="secondary"
+                  className="ml-auto h-5 min-w-5 px-1 text-xs"
+                  aria-label={`${item.badge} unread`}
+                >
+                  {item.badge}
+                </Badge>
+              )}
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export function AppShell({ children }: AppShellProps) {
   const [location, setLocation] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: user, isLoading: userLoading, error: userError } = useGetMe({
-    query: { queryKey: getGetMeQueryKey() }
-  });
+  const {
+    data: user,
+    isLoading: userLoading,
+    error: userError,
+  } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
 
   const { data: notifications } = useListNotifications({
-    query: { queryKey: getListNotificationsQueryKey() }
+    query: { queryKey: getListNotificationsQueryKey() },
   });
 
   const { data: organizations } = useListOrganizations({
-    query: { queryKey: getListOrganizationsQueryKey() }
+    query: { queryKey: getListOrganizationsQueryKey() },
   });
 
   const logoutMutation = useLogout();
 
-  // Redirect to login if not authenticated
+  // Redirect to login when session is invalid or expired.
   useEffect(() => {
     if (userError && 'status' in userError && userError.status === 401) {
+      clearToken();
       setLocation('/login');
     }
   }, [userError, setLocation]);
 
+  // Move focus to the close button when the mobile sidebar opens.
+  useEffect(() => {
+    if (sidebarOpen) {
+      closeButtonRef.current?.focus();
+    }
+  }, [sidebarOpen]);
+
+  // Close the sidebar on Escape.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && sidebarOpen) {
+        setSidebarOpen(false);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [sidebarOpen]);
+
   const handleLogout = () => {
     logoutMutation.mutate(undefined, {
       onSuccess: () => {
+        clearToken();
         queryClient.clear();
         setLocation('/login');
-        toast({
-          title: 'Logged out successfully',
-          description: 'You have been logged out of your account.',
-        });
+        toast({ title: 'Logged out successfully' });
       },
       onError: () => {
-        toast({
-          title: 'Logout failed',
-          description: 'An error occurred while logging out. Please try again.',
-          variant: 'destructive',
-        });
-      }
+        // Even if the server call fails, clear the local token so the user
+        // is not stuck in an authenticated-looking state.
+        clearToken();
+        queryClient.clear();
+        setLocation('/login');
+      },
     });
   };
 
-  const unreadCount = notifications?.filter(n => !n.read).length || 0;
-  const currentOrg = organizations?.find(org => org.id === user?.organizationId);
+  const unreadCount = notifications?.filter((n) => !n.read).length ?? 0;
+  const currentOrg = organizations?.find((org) => org.id === user?.organizationId);
+  const userInitials = user
+    ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
+    : '??';
 
-  const navItems = [
-    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/organizations', label: 'Organizations', icon: Building },
-    { href: '/notifications', label: 'Notifications', icon: Bell, badge: unreadCount },
-    { href: '/settings', label: 'Settings', icon: Settings },
+  const navItems: NavItem[] = [
+    { href: '/dashboard',      label: 'Dashboard',      icon: LayoutDashboard },
+    { href: '/organizations',  label: 'Organisations',  icon: Building },
+    { href: '/notifications',  label: 'Notifications',  icon: Bell, badge: unreadCount },
+    { href: '/settings',       label: 'Settings',       icon: Settings },
   ];
-
-  const userInitials = user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : '?';
 
   if (userLoading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-background">
+      <div
+        className="flex h-screen w-full items-center justify-center bg-background"
+        aria-label="Loading application"
+        aria-busy="true"
+      >
         <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary" />
-          <p className="text-sm text-muted-foreground">Loading...</p>
+          <div
+            className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary"
+            role="status"
+            aria-label="Loading"
+          />
+          <p className="text-sm text-muted-foreground">Loading…</p>
         </div>
       </div>
     );
   }
 
+  // If there's no user and no loading, auth redirect is in progress — render nothing.
   if (!user) {
     return null;
   }
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">
-      {/* Sidebar - Desktop */}
-      <aside className="hidden lg:flex lg:flex-col lg:w-64 border-r border-sidebar-border bg-sidebar">
+      {/* ── Desktop sidebar ─────────────────────────────────────────────── */}
+      <aside
+        className="hidden lg:flex lg:flex-col lg:w-64 border-r border-sidebar-border bg-sidebar"
+        aria-label="Main navigation"
+      >
+        {/* Logo */}
         <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-6">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
+          <div
+            className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary"
+            aria-hidden="true"
+          >
             <Building2 className="h-6 w-6 text-primary-foreground" />
           </div>
-          <div className="flex flex-col">
-            <h1 className="text-base font-semibold text-sidebar-foreground font-sans">Enterprise HRMS</h1>
-          </div>
+          <span className="text-base font-semibold text-sidebar-foreground">
+            Enterprise HRMS
+          </span>
         </div>
 
-        {/* Organization Selector */}
+        {/* Organisation selector */}
         {currentOrg && (
           <div className="border-b border-sidebar-border px-4 py-3">
-            <button 
-              className="flex w-full items-center justify-between gap-2 rounded-lg border border-sidebar-border bg-card px-3 py-2 text-left transition-colors hover:bg-muted"
+            <button
+              className="flex w-full items-center justify-between gap-2 rounded-lg border border-sidebar-border bg-card px-3 py-2 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label={`Current organisation: ${currentOrg.name}. Organisation switcher — coming soon`}
+              aria-disabled="true"
               data-testid="button-org-selector"
             >
               <div className="flex items-center gap-2 min-w-0">
-                <Building className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                <span className="text-sm font-medium text-card-foreground truncate">{currentOrg.name}</span>
+                <Building className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
+                <span className="text-sm font-medium text-card-foreground truncate">
+                  {currentOrg.name}
+                </span>
               </div>
-              <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
             </button>
           </div>
         )}
 
-        {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
-          <ul className="space-y-1">
-            {navItems.map((item) => {
-              const isActive = location === item.href;
-              return (
-                <li key={item.href}>
-                  <Link 
-                    href={item.href}
-                    className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                      isActive 
-                        ? 'bg-sidebar-accent text-sidebar-accent-foreground' 
-                        : 'text-sidebar-foreground hover:bg-sidebar-border/50'
-                    }`}
-                    data-testid={`link-nav-${item.label.toLowerCase()}`}
-                  >
-                    <item.icon className="h-5 w-5" />
-                    <span>{item.label}</span>
-                    {item.badge !== undefined && item.badge > 0 && (
-                      <Badge variant="secondary" className="ml-auto h-5 min-w-5 px-1 text-xs">
-                        {item.badge}
-                      </Badge>
-                    )}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+        {/* Nav */}
+        <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Primary">
+          <NavLinks items={navItems} location={location} />
         </nav>
 
-        {/* User Profile */}
+        {/* User profile */}
         <div className="border-t border-sidebar-border p-4">
           <div className="flex items-center gap-3 mb-3">
             <Avatar className="h-10 w-10">
@@ -170,38 +244,53 @@ export function AppShell({ children }: AppShellProps) {
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <Link href="/profile" className="block text-sm font-medium text-sidebar-foreground hover:underline truncate" data-testid="link-profile">
+              <Link
+                href="/profile"
+                className="block text-sm font-medium text-sidebar-foreground hover:underline truncate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+                data-testid="link-profile"
+                aria-label={`View profile for ${user.firstName} ${user.lastName}`}
+              >
                 {user.firstName} {user.lastName}
               </Link>
-              <p className="text-xs text-muted-foreground truncate">{user.role.replace('_', ' ')}</p>
+              <p className="text-xs text-muted-foreground truncate capitalize">
+                {user.role.replace(/_/g, ' ')}
+              </p>
             </div>
           </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="w-full justify-start gap-2" 
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full justify-start gap-2"
             onClick={handleLogout}
             disabled={logoutMutation.isPending}
             data-testid="button-logout"
+            aria-label="Log out of your account"
           >
-            <LogOut className="h-4 w-4" />
-            Logout
+            <LogOut className="h-4 w-4" aria-hidden="true" />
+            Log out
           </Button>
         </div>
       </aside>
 
-      {/* Mobile Sidebar Overlay */}
+      {/* ── Mobile sidebar overlay ───────────────────────────────────────── */}
       <AnimatePresence>
         {sidebarOpen && (
           <>
+            {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+              aria-hidden="true"
               onClick={() => setSidebarOpen(false)}
             />
+
+            {/* Drawer */}
             <motion.aside
+              role="dialog"
+              aria-modal="true"
+              aria-label="Navigation menu"
               initial={{ x: '-100%' }}
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
@@ -210,55 +299,52 @@ export function AppShell({ children }: AppShellProps) {
             >
               <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
+                  <div
+                    className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary"
+                    aria-hidden="true"
+                  >
                     <Building2 className="h-6 w-6 text-primary-foreground" />
                   </div>
-                  <h1 className="text-base font-semibold text-sidebar-foreground font-sans">Enterprise HRMS</h1>
+                  <span className="text-base font-semibold text-sidebar-foreground">
+                    Enterprise HRMS
+                  </span>
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)} data-testid="button-close-menu">
-                  <X className="h-5 w-5" />
+                <Button
+                  ref={closeButtonRef}
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setSidebarOpen(false)}
+                  data-testid="button-close-menu"
+                  aria-label="Close navigation menu"
+                >
+                  <X className="h-5 w-5" aria-hidden="true" />
                 </Button>
               </div>
 
               {currentOrg && (
                 <div className="border-b border-sidebar-border px-4 py-3">
-                  <button className="flex w-full items-center justify-between gap-2 rounded-lg border border-sidebar-border bg-card px-3 py-2 text-left transition-colors hover:bg-muted">
+                  <button
+                    className="flex w-full items-center justify-between gap-2 rounded-lg border border-sidebar-border bg-card px-3 py-2 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    aria-label={`Current organisation: ${currentOrg.name}`}
+                    aria-disabled="true"
+                  >
                     <div className="flex items-center gap-2 min-w-0">
-                      <Building className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      <span className="text-sm font-medium text-card-foreground truncate">{currentOrg.name}</span>
+                      <Building className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
+                      <span className="text-sm font-medium text-card-foreground truncate">
+                        {currentOrg.name}
+                      </span>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
                   </button>
                 </div>
               )}
 
-              <nav className="flex-1 overflow-y-auto px-3 py-4">
-                <ul className="space-y-1">
-                  {navItems.map((item) => {
-                    const isActive = location === item.href;
-                    return (
-                      <li key={item.href}>
-                        <Link 
-                          href={item.href}
-                          className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                            isActive 
-                              ? 'bg-sidebar-accent text-sidebar-accent-foreground' 
-                              : 'text-sidebar-foreground hover:bg-sidebar-border/50'
-                          }`}
-                          onClick={() => setSidebarOpen(false)}
-                        >
-                          <item.icon className="h-5 w-5" />
-                          <span>{item.label}</span>
-                          {item.badge !== undefined && item.badge > 0 && (
-                            <Badge variant="secondary" className="ml-auto h-5 min-w-5 px-1 text-xs">
-                              {item.badge}
-                            </Badge>
-                          )}
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ul>
+              <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Primary">
+                <NavLinks
+                  items={navItems}
+                  location={location}
+                  onNavigate={() => setSidebarOpen(false)}
+                />
               </nav>
 
               <div className="border-t border-sidebar-border p-4">
@@ -269,21 +355,28 @@ export function AppShell({ children }: AppShellProps) {
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
-                    <Link href="/profile" className="block text-sm font-medium text-sidebar-foreground hover:underline truncate" onClick={() => setSidebarOpen(false)}>
+                    <Link
+                      href="/profile"
+                      className="block text-sm font-medium text-sidebar-foreground hover:underline truncate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+                      onClick={() => setSidebarOpen(false)}
+                    >
                       {user.firstName} {user.lastName}
                     </Link>
-                    <p className="text-xs text-muted-foreground truncate">{user.role.replace('_', ' ')}</p>
+                    <p className="text-xs text-muted-foreground truncate capitalize">
+                      {user.role.replace(/_/g, ' ')}
+                    </p>
                   </div>
                 </div>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="w-full justify-start gap-2" 
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start gap-2"
                   onClick={handleLogout}
                   disabled={logoutMutation.isPending}
+                  aria-label="Log out of your account"
                 >
-                  <LogOut className="h-4 w-4" />
-                  Logout
+                  <LogOut className="h-4 w-4" aria-hidden="true" />
+                  Log out
                 </Button>
               </div>
             </motion.aside>
@@ -291,45 +384,73 @@ export function AppShell({ children }: AppShellProps) {
         )}
       </AnimatePresence>
 
-      {/* Main Content */}
+      {/* ── Main content ─────────────────────────────────────────────────── */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Top Bar */}
-        <header className="flex h-16 items-center gap-4 border-b border-border bg-card px-4 lg:px-6">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="lg:hidden" 
+        {/* Topbar */}
+        <header
+          className="flex h-16 items-center gap-4 border-b border-border bg-card px-4 lg:px-6"
+          aria-label="Top navigation"
+        >
+          <Button
+            variant="ghost"
+            size="icon"
+            className="lg:hidden"
             onClick={() => setSidebarOpen(true)}
             data-testid="button-open-menu"
+            aria-label="Open navigation menu"
+            aria-expanded={sidebarOpen}
+            aria-controls="mobile-nav"
           >
-            <Menu className="h-5 w-5" />
+            <Menu className="h-5 w-5" aria-hidden="true" />
           </Button>
 
           {/* Search */}
           <div className="flex-1 max-w-md">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input 
-                type="search" 
-                placeholder="Search..." 
+              <Search
+                className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <Input
+                type="search"
+                placeholder="Search…"
                 className="pl-9 bg-muted/50 border-muted"
                 data-testid="input-search"
+                aria-label="Search the application"
+                // Search is UI-only in this shell release.
+                readOnly
               />
             </div>
           </div>
 
-          {/* Right Actions */}
+          {/* Actions */}
           <div className="flex items-center gap-2">
             <Link href="/notifications" data-testid="button-notifications">
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell className="h-5 w-5" />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="relative"
+                aria-label={
+                  unreadCount > 0
+                    ? `Notifications — ${unreadCount} unread`
+                    : 'Notifications'
+                }
+              >
+                <Bell className="h-5 w-5" aria-hidden="true" />
                 {unreadCount > 0 && (
-                  <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-accent" />
+                  <span
+                    className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-accent"
+                    aria-hidden="true"
+                  />
                 )}
               </Button>
             </Link>
             <Link href="/profile" data-testid="button-user-menu">
-              <Button variant="ghost" size="icon">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={`Your profile — ${user.firstName} ${user.lastName}`}
+              >
                 <Avatar className="h-8 w-8">
                   <AvatarFallback className="bg-primary text-primary-foreground text-xs font-medium">
                     {userInitials}
@@ -340,8 +461,8 @@ export function AppShell({ children }: AppShellProps) {
           </div>
         </header>
 
-        {/* Page Content */}
-        <main className="flex-1 overflow-y-auto">
+        {/* Page content */}
+        <main id="main-content" className="flex-1 overflow-y-auto" tabIndex={-1}>
           {children}
         </main>
       </div>

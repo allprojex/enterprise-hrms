@@ -3,6 +3,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Route, Switch, Router as WouterRouter } from 'wouter';
 import { AppShell } from '@/components/layout/app-shell';
+import { ErrorBoundary } from '@/components/error-boundary';
 import Landing from '@/pages/landing';
 import Login from '@/pages/login';
 import ForgotPassword from '@/pages/forgot-password';
@@ -26,7 +27,9 @@ const queryClient = new QueryClient({
 function SecureRoute({ component: Component }: { component: React.ComponentType }) {
   return (
     <AppShell>
-      <Component />
+      <ErrorBoundary>
+        <Component />
+      </ErrorBoundary>
     </AppShell>
   );
 }
@@ -39,7 +42,7 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/unauthorized" component={Unauthorized} />
-      
+
       {/* Secure routes */}
       <Route path="/dashboard">
         {() => <SecureRoute component={Dashboard} />}
@@ -56,7 +59,7 @@ function Router() {
       <Route path="/settings">
         {() => <SecureRoute component={Settings} />}
       </Route>
-      
+
       {/* 404 fallback */}
       <Route component={NotFound} />
     </Switch>
@@ -65,14 +68,16 @@ function Router() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-          <Router />
-        </WouterRouter>
-        <Toaster />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+            <Router />
+          </WouterRouter>
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 
