@@ -8,7 +8,7 @@ A configurable, multi-tenant Human Resource Management System for businesses, ch
 
 | Layer | Technology |
 |-------|------------|
-| Frontend | React 18, Vite, TypeScript |
+| Frontend | React 19, Vite, TypeScript |
 | Styling | Tailwind CSS v4, shadcn/ui components |
 | Routing | Wouter |
 | State / Data fetching | TanStack React Query |
@@ -40,6 +40,8 @@ lib/
 
 ## Required Environment Variables
 
+See `.env.example` at the repo root for a copyable template.
+
 ### Backend (`artifacts/api-server`)
 
 | Variable | Description |
@@ -47,6 +49,7 @@ lib/
 | `DATABASE_URL` | PostgreSQL connection string (e.g. `postgres://user:pass@host:5432/dbname`) |
 | `PORT` | Port the API server listens on |
 | `NODE_ENV` | `development` or `production` |
+| `CORS_ORIGIN` | Comma-separated allowlist of origins permitted to call the API. Unset allows all origins (fine for local dev; set explicitly in production) |
 
 ### Frontend (`artifacts/hrms`)
 
@@ -73,14 +76,19 @@ pnpm --filter @workspace/db run push
 
 This creates all tables. Run this after any schema change during development.
 
-### 3. Seed demo data (optional)
+### 3. Seed demo data (optional, development only)
 
-Demo credentials after seeding:
+Demo credentials referenced elsewhere in project docs:
 
 | Role | Email | Password |
 |------|-------|----------|
 | HR Manager | admin@acme.com | Admin@1234 |
 | Employee | james@acme.com | Employee@1234 |
+
+No seed script exists in this repository yet — these are documented for
+whoever adds one. **Any seed script must refuse to run when
+`NODE_ENV=production`** (or equivalent), so demo credentials can never be
+created in a production database.
 
 ---
 
@@ -102,6 +110,9 @@ pnpm --filter @workspace/api-server run dev
 # Start the frontend (in a separate terminal)
 PORT=5173 BASE_PATH=/ pnpm --filter @workspace/hrms run dev
 ```
+
+Works on Linux, macOS, and Windows 11 (PowerShell or Git Bash) — no POSIX
+shell is required for any workspace script.
 
 ### Production build
 
@@ -143,9 +154,20 @@ pnpm run typecheck:libs
 # Typecheck a specific package
 pnpm --filter @workspace/api-server run typecheck
 pnpm --filter @workspace/hrms run typecheck
+
+# Run backend tests (Vitest + Supertest, no real database required —
+# @workspace/db is mocked)
+pnpm --filter @workspace/api-server run test
+
+# Run frontend tests (Vitest + Testing Library)
+pnpm --filter @workspace/hrms run test
 ```
 
-> Automated test suites (Jest/Vitest unit tests, Playwright e2e) are planned for a future milestone. The foundation is in place; test configuration is not yet wired.
+Current coverage: frontend auth-token helpers and the error boundary;
+backend health check, the `canAccessOrganization`/`isSuperAdmin`
+authorization helpers, and `GET /organizations/:id` authorization
+(unauthenticated, same-org, cross-org, super_admin). Playwright e2e is not
+set up. HR modules have no tests since none are implemented yet.
 
 ---
 
@@ -181,6 +203,14 @@ This project has **no hard dependency on any hosting provider**. It runs on:
 - PostgreSQL 14+ (managed or self-hosted)
 - A reverse proxy (nginx, Caddy, Traefik) to route traffic to the API server and serve static files
 
+### Windows 11 local development
+
+`pnpm install` and all `dev`/`build`/`typecheck`/`test` scripts run under
+Windows 11 (PowerShell or Git Bash) as well as Linux/macOS — no script
+depends on a POSIX shell (`sh`), and `pnpm-workspace.yaml` resolves native
+build tooling (esbuild, Rollup, Tailwind's oxide engine) for both
+`linux-x64` and `win32-x64/arm64`.
+
 ### Docker (example Dockerfile for the API server)
 
 ```dockerfile
@@ -192,6 +222,16 @@ COPY . .
 RUN pnpm --filter @workspace/api-server run build
 CMD ["node", "--enable-source-maps", "artifacts/api-server/dist/index.mjs"]
 ```
+
+---
+
+## Security
+
+- **Login rate limiting**: `POST /auth/login` allows 10 attempts per IP per 15 minutes (`express-rate-limit`), independent of the auth model itself.
+- **CORS**: configurable via `CORS_ORIGIN` (see Environment Variables above). Unset allows all origins — set it explicitly in production.
+- **Security headers / CSP**: `helmet` is applied to the API server with a strict default (`default-src 'none'`), safe because this API only ever returns JSON. The frontend document itself is served separately (static host/CDN) and should set its own CSP/security headers at that layer.
+- **Organization authorization**: every route that reads or writes organization-scoped data must call `canAccessOrganization`/`isSuperAdmin` from `artifacts/api-server/src/lib/authorization.ts` rather than re-implementing the role/ownership check inline.
+- **Demo credentials**: no seed script exists in this repo. If one is added, it must check `NODE_ENV` and refuse to run in production.
 
 ---
 
@@ -222,7 +262,7 @@ CMD ["node", "--enable-source-maps", "artifacts/api-server/dist/index.mjs"]
 - Document management
 - Payroll (out of scope)
 - Email delivery (forgot-password sends no real email in this shell)
-- Role-based access control enforcement beyond basic auth guard
+- Fine-grained role-based permissions per action (organization-ownership authorization exists; per-role feature permissions do not)
 - Multi-factor authentication
 
 ---
@@ -231,6 +271,6 @@ CMD ["node", "--enable-source-maps", "artifacts/api-server/dist/index.mjs"]
 
 1. Add an employee directory module (CRUD for employee records)
 2. Wire up a real email provider (e.g. Resend, Postmark) for password resets
-3. Add role-based route guards on the backend
-4. Set up Vitest for unit tests on API routes
-5. Set up Playwright for end-to-end tests on auth flows
+3. Add fine-grained role-based permissions on top of the existing organization-authorization helper
+4. Set up Playwright for end-to-end tests on auth flows
+5. Add indexes on `sessions.userId`, `notifications.userId`, and `users.organizationId` before production-scale data
