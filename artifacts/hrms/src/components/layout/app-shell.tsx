@@ -11,19 +11,35 @@ import {
   LogOut,
   ChevronDown,
   Building,
+  MapPin,
+  Network,
+  Briefcase,
+  Users,
+  ShieldCheck,
+  Check,
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   useGetMe,
   getGetMeQueryKey,
   useListNotifications,
   getListNotificationsQueryKey,
-  useListOrganizations,
-  getListOrganizationsQueryKey,
+  useListMyOrganizations,
+  getListMyOrganizationsQueryKey,
+  useSwitchOrganization,
   useLogout,
+  type MembershipSummary,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -86,6 +102,57 @@ function NavLinks({
   );
 }
 
+function OrgSwitcher({
+  currentOrg,
+  organizations,
+  disabled,
+  onSwitch,
+}: {
+  currentOrg: MembershipSummary;
+  organizations: MembershipSummary[];
+  disabled: boolean;
+  onSwitch: (organization: MembershipSummary) => void;
+}) {
+  return (
+    <div className="border-b border-sidebar-border px-4 py-3">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            className="flex w-full items-center justify-between gap-2 rounded-lg border border-sidebar-border bg-card px-3 py-2 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+            aria-label={`Current organisation: ${currentOrg.organizationName}. Switch organisation`}
+            disabled={disabled}
+            data-testid="button-org-selector"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <Building className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
+              <span className="text-sm font-medium text-card-foreground truncate">
+                {currentOrg.organizationName}
+              </span>
+            </div>
+            <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-56">
+          <DropdownMenuLabel>Switch organisation</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {organizations.map((org) => (
+            <DropdownMenuItem
+              key={org.organizationId}
+              onSelect={() => onSwitch(org)}
+              data-testid={`option-org-${org.organizationId}`}
+            >
+              <span className="flex-1 truncate">{org.organizationName}</span>
+              {org.organizationId === currentOrg.organizationId && (
+                <Check className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+              )}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
 export function AppShell({ children }: AppShellProps) {
   const [location, setLocation] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -103,11 +170,12 @@ export function AppShell({ children }: AppShellProps) {
     query: { queryKey: getListNotificationsQueryKey() },
   });
 
-  const { data: organizations } = useListOrganizations({
-    query: { queryKey: getListOrganizationsQueryKey() },
+  const { data: myOrganizations } = useListMyOrganizations({
+    query: { queryKey: getListMyOrganizationsQueryKey() },
   });
 
   const logoutMutation = useLogout();
+  const switchOrganizationMutation = useSwitchOrganization();
 
   // Redirect to login when session is invalid or expired.
   useEffect(() => {
@@ -154,15 +222,51 @@ export function AppShell({ children }: AppShellProps) {
   };
 
   const unreadCount = notifications?.filter((n) => !n.read).length ?? 0;
-  const currentOrg = organizations?.find((org) => org.id === user?.organizationId);
+  const activeOrganizationId = user?.activeOrganizationId ?? user?.organizationId;
+  const currentOrg = myOrganizations?.find((m) => m.organizationId === activeOrganizationId);
   const userInitials = user
     ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
     : '??';
 
+  // Admin console access is a UX convenience gate only — every admin
+  // endpoint independently enforces its own permission server-side
+  // (requireMembership + requirePermission). This just avoids showing a
+  // link to a page whose actions would all 403 for this user's roles.
+  const isOrgAdmin = currentOrg?.roles.some((r) => r === 'org_admin' || r === 'super_admin') ?? false;
+
+  const handleSwitchOrganization = (organization: MembershipSummary) => {
+    if (organization.organizationId === activeOrganizationId) return;
+    switchOrganizationMutation.mutate(
+      { data: { organizationId: organization.organizationId } },
+      {
+        onSuccess: () => {
+          // organizationId is baked into every org-scoped query key, so once
+          // getMe resolves to the new active org, those queries refetch
+          // under new keys automatically — no manual cache clearing needed.
+          queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getListMyOrganizationsQueryKey() });
+          toast({ title: `Switched to ${organization.organizationName}` });
+        },
+        onError: () => {
+          toast({
+            title: 'Could not switch organization',
+            description: 'Please try again.',
+            variant: 'destructive',
+          });
+        },
+      },
+    );
+  };
+
   const navItems: NavItem[] = [
     { href: '/dashboard',      label: 'Dashboard',      icon: LayoutDashboard },
+    { href: '/employees',      label: 'Employees',      icon: Users },
+    { href: '/branches',       label: 'Branches',       icon: MapPin },
+    { href: '/departments',    label: 'Departments',    icon: Network },
+    { href: '/positions',      label: 'Positions',      icon: Briefcase },
     { href: '/organizations',  label: 'Organisations',  icon: Building },
     { href: '/notifications',  label: 'Notifications',  icon: Bell, badge: unreadCount },
+    ...(isOrgAdmin ? [{ href: '/admin', label: 'Admin', icon: ShieldCheck } satisfies NavItem] : []),
     { href: '/settings',       label: 'Settings',       icon: Settings },
   ];
 
@@ -212,22 +316,12 @@ export function AppShell({ children }: AppShellProps) {
 
         {/* Organisation selector */}
         {currentOrg && (
-          <div className="border-b border-sidebar-border px-4 py-3">
-            <button
-              className="flex w-full items-center justify-between gap-2 rounded-lg border border-sidebar-border bg-card px-3 py-2 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label={`Current organisation: ${currentOrg.name}. Organisation switcher — coming soon`}
-              aria-disabled="true"
-              data-testid="button-org-selector"
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <Building className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
-                <span className="text-sm font-medium text-card-foreground truncate">
-                  {currentOrg.name}
-                </span>
-              </div>
-              <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
-            </button>
-          </div>
+          <OrgSwitcher
+            currentOrg={currentOrg}
+            organizations={myOrganizations ?? []}
+            disabled={switchOrganizationMutation.isPending}
+            onSwitch={handleSwitchOrganization}
+          />
         )}
 
         {/* Nav */}
@@ -322,21 +416,12 @@ export function AppShell({ children }: AppShellProps) {
               </div>
 
               {currentOrg && (
-                <div className="border-b border-sidebar-border px-4 py-3">
-                  <button
-                    className="flex w-full items-center justify-between gap-2 rounded-lg border border-sidebar-border bg-card px-3 py-2 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    aria-label={`Current organisation: ${currentOrg.name}`}
-                    aria-disabled="true"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Building className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
-                      <span className="text-sm font-medium text-card-foreground truncate">
-                        {currentOrg.name}
-                      </span>
-                    </div>
-                    <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
-                  </button>
-                </div>
+                <OrgSwitcher
+                  currentOrg={currentOrg}
+                  organizations={myOrganizations ?? []}
+                  disabled={switchOrganizationMutation.isPending}
+                  onSwitch={handleSwitchOrganization}
+                />
               )}
 
               <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Primary">

@@ -44,6 +44,11 @@ export interface UserProfile {
   lastName: string;
   role: UserProfileRole;
   organizationId: number;
+  /**
+     * The organization currently in scope for this session, resolved server-side from the session's switched organization (falling back to organizationId, then to any other active membership). Org-scoped requests should use this value, not organizationId.
+     * @nullable
+     */
+  activeOrganizationId?: number | null;
   /** @nullable */
   avatarUrl?: string | null;
   /** @nullable */
@@ -109,6 +114,483 @@ export interface Organization {
   createdAt?: string;
 }
 
+export type CreateOrganizationInputType = typeof CreateOrganizationInputType[keyof typeof CreateOrganizationInputType];
+
+
+export const CreateOrganizationInputType = {
+  business: 'business',
+  church: 'church',
+  ngo: 'ngo',
+  school: 'school',
+  hospital: 'hospital',
+  hotel: 'hotel',
+  government: 'government',
+  other: 'other',
+} as const;
+
+export interface CreateOrganizationInput {
+  /** @minLength 1 */
+  name: string;
+  /** @minLength 1 */
+  slug: string;
+  type: CreateOrganizationInputType;
+}
+
+export type MembershipSummaryStatus = typeof MembershipSummaryStatus[keyof typeof MembershipSummaryStatus];
+
+
+export const MembershipSummaryStatus = {
+  invited: 'invited',
+  active: 'active',
+  suspended: 'suspended',
+  expired: 'expired',
+  revoked: 'revoked',
+} as const;
+
+export interface MembershipSummary {
+  organizationId: number;
+  organizationName: string;
+  organizationSlug: string;
+  status: MembershipSummaryStatus;
+  roles: string[];
+  isPrimaryHr: boolean;
+}
+
+export interface SwitchOrganizationInput {
+  organizationId: number;
+}
+
+export interface Address {
+  /** @nullable */
+  line1?: string | null;
+  /** @nullable */
+  line2?: string | null;
+  /** @nullable */
+  city?: string | null;
+  /** @nullable */
+  state?: string | null;
+  /** @nullable */
+  postalCode?: string | null;
+  /** @nullable */
+  country?: string | null;
+}
+
+export interface EmergencyContact {
+  name: string;
+  relationship: string;
+  phone: string;
+}
+
+export type BranchStatus = typeof BranchStatus[keyof typeof BranchStatus];
+
+
+export const BranchStatus = {
+  active: 'active',
+  inactive: 'inactive',
+} as const;
+
+export interface Branch {
+  id: number;
+  organizationId: number;
+  name: string;
+  code: string;
+  status: BranchStatus;
+  createdAt: string;
+}
+
+export interface CreateBranchInput {
+  /** @minLength 1 */
+  name: string;
+  /** @minLength 1 */
+  code: string;
+}
+
+export interface Department {
+  id: number;
+  organizationId: number;
+  /** @nullable */
+  branchId?: number | null;
+  /** @nullable */
+  parentDepartmentId?: number | null;
+  name: string;
+  code: string;
+  createdAt: string;
+}
+
+export interface CreateDepartmentInput {
+  /** @minLength 1 */
+  name: string;
+  /** @minLength 1 */
+  code: string;
+  /** @nullable */
+  branchId?: number | null;
+  /** @nullable */
+  parentDepartmentId?: number | null;
+}
+
+export interface Position {
+  id: number;
+  organizationId: number;
+  title: string;
+  /** @nullable */
+  departmentId?: number | null;
+  createdAt: string;
+}
+
+export interface CreatePositionInput {
+  /** @minLength 1 */
+  title: string;
+  /** @nullable */
+  departmentId?: number | null;
+}
+
+/**
+ * @nullable
+ */
+export type EmployeeGender = typeof EmployeeGender[keyof typeof EmployeeGender] | null;
+
+
+export const EmployeeGender = {
+  male: 'male',
+  female: 'female',
+  other: 'other',
+  prefer_not_to_say: 'prefer_not_to_say',
+} as const;
+
+/**
+ * @nullable
+ */
+export type EmployeeMaritalStatus = typeof EmployeeMaritalStatus[keyof typeof EmployeeMaritalStatus] | null;
+
+
+export const EmployeeMaritalStatus = {
+  single: 'single',
+  married: 'married',
+  divorced: 'divorced',
+  widowed: 'widowed',
+  other: 'other',
+} as const;
+
+/**
+ * @nullable
+ */
+export type EmployeeEmploymentType = typeof EmployeeEmploymentType[keyof typeof EmployeeEmploymentType] | null;
+
+
+export const EmployeeEmploymentType = {
+  full_time: 'full_time',
+  part_time: 'part_time',
+  contract: 'contract',
+  intern: 'intern',
+  temporary: 'temporary',
+} as const;
+
+export type EmployeeEmploymentStatus = typeof EmployeeEmploymentStatus[keyof typeof EmployeeEmploymentStatus];
+
+
+export const EmployeeEmploymentStatus = {
+  active: 'active',
+  probation: 'probation',
+  on_leave: 'on_leave',
+  suspended: 'suspended',
+  terminated: 'terminated',
+} as const;
+
+export interface Employee {
+  id: number;
+  organizationId: number;
+  /** @nullable */
+  employeeNumber?: string | null;
+  hasProfilePicture?: boolean;
+  firstName: string;
+  /** @nullable */
+  middleName?: string | null;
+  lastName: string;
+  /** @nullable */
+  preferredName?: string | null;
+  /** @nullable */
+  gender?: EmployeeGender;
+  /** @nullable */
+  dateOfBirth?: string | null;
+  /** @nullable */
+  maritalStatus?: EmployeeMaritalStatus;
+  /** @nullable */
+  nationality?: string | null;
+  /** @nullable */
+  nationalId?: string | null;
+  /** @nullable */
+  passportNumber?: string | null;
+  /** @nullable */
+  personalEmail?: string | null;
+  /** @nullable */
+  workEmail?: string | null;
+  /** @nullable */
+  phoneNumber?: string | null;
+  /** @nullable */
+  alternatePhoneNumber?: string | null;
+  residentialAddress?: Address | null;
+  /** @nullable */
+  emergencyContacts?: EmergencyContact[] | null;
+  /** @nullable */
+  departmentId?: number | null;
+  /** @nullable */
+  departmentName?: string | null;
+  /** @nullable */
+  branchId?: number | null;
+  /** @nullable */
+  branchName?: string | null;
+  /** @nullable */
+  positionId?: number | null;
+  /** @nullable */
+  positionName?: string | null;
+  /** @nullable */
+  reportingManagerId?: number | null;
+  /** @nullable */
+  reportingManagerName?: string | null;
+  /** @nullable */
+  employmentType?: EmployeeEmploymentType;
+  /** @nullable */
+  hireDate?: string | null;
+  /** @nullable */
+  probationEndDate?: string | null;
+  employmentStatus: EmployeeEmploymentStatus;
+  /** @nullable */
+  workLocation?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  createdBy?: number | null;
+  /** @nullable */
+  updatedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * @nullable
+ */
+export type CreateEmployeeInputGender = typeof CreateEmployeeInputGender[keyof typeof CreateEmployeeInputGender] | null;
+
+
+export const CreateEmployeeInputGender = {
+  male: 'male',
+  female: 'female',
+  other: 'other',
+  prefer_not_to_say: 'prefer_not_to_say',
+} as const;
+
+/**
+ * @nullable
+ */
+export type CreateEmployeeInputMaritalStatus = typeof CreateEmployeeInputMaritalStatus[keyof typeof CreateEmployeeInputMaritalStatus] | null;
+
+
+export const CreateEmployeeInputMaritalStatus = {
+  single: 'single',
+  married: 'married',
+  divorced: 'divorced',
+  widowed: 'widowed',
+  other: 'other',
+} as const;
+
+/**
+ * @nullable
+ */
+export type CreateEmployeeInputEmploymentType = typeof CreateEmployeeInputEmploymentType[keyof typeof CreateEmployeeInputEmploymentType] | null;
+
+
+export const CreateEmployeeInputEmploymentType = {
+  full_time: 'full_time',
+  part_time: 'part_time',
+  contract: 'contract',
+  intern: 'intern',
+  temporary: 'temporary',
+} as const;
+
+export type CreateEmployeeInputEmploymentStatus = typeof CreateEmployeeInputEmploymentStatus[keyof typeof CreateEmployeeInputEmploymentStatus];
+
+
+export const CreateEmployeeInputEmploymentStatus = {
+  active: 'active',
+  probation: 'probation',
+  on_leave: 'on_leave',
+  suspended: 'suspended',
+  terminated: 'terminated',
+} as const;
+
+export interface CreateEmployeeInput {
+  /** @nullable */
+  employeeNumber?: string | null;
+  /** @minLength 1 */
+  firstName: string;
+  /** @nullable */
+  middleName?: string | null;
+  /** @minLength 1 */
+  lastName: string;
+  /** @nullable */
+  preferredName?: string | null;
+  /** @nullable */
+  gender?: CreateEmployeeInputGender;
+  /** @nullable */
+  dateOfBirth?: string | null;
+  /** @nullable */
+  maritalStatus?: CreateEmployeeInputMaritalStatus;
+  /** @nullable */
+  nationality?: string | null;
+  /** @nullable */
+  nationalId?: string | null;
+  /** @nullable */
+  passportNumber?: string | null;
+  /** @nullable */
+  personalEmail?: string | null;
+  /** @nullable */
+  workEmail?: string | null;
+  /** @nullable */
+  phoneNumber?: string | null;
+  /** @nullable */
+  alternatePhoneNumber?: string | null;
+  residentialAddress?: Address | null;
+  /** @nullable */
+  emergencyContacts?: EmergencyContact[] | null;
+  /** @nullable */
+  departmentId?: number | null;
+  /** @nullable */
+  branchId?: number | null;
+  /** @nullable */
+  positionId?: number | null;
+  /** @nullable */
+  reportingManagerId?: number | null;
+  /** @nullable */
+  employmentType?: CreateEmployeeInputEmploymentType;
+  /** @nullable */
+  hireDate?: string | null;
+  /** @nullable */
+  probationEndDate?: string | null;
+  employmentStatus?: CreateEmployeeInputEmploymentStatus;
+  /** @nullable */
+  workLocation?: string | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
+/**
+ * @nullable
+ */
+export type UpdateEmployeeInputGender = typeof UpdateEmployeeInputGender[keyof typeof UpdateEmployeeInputGender] | null;
+
+
+export const UpdateEmployeeInputGender = {
+  male: 'male',
+  female: 'female',
+  other: 'other',
+  prefer_not_to_say: 'prefer_not_to_say',
+} as const;
+
+/**
+ * @nullable
+ */
+export type UpdateEmployeeInputMaritalStatus = typeof UpdateEmployeeInputMaritalStatus[keyof typeof UpdateEmployeeInputMaritalStatus] | null;
+
+
+export const UpdateEmployeeInputMaritalStatus = {
+  single: 'single',
+  married: 'married',
+  divorced: 'divorced',
+  widowed: 'widowed',
+  other: 'other',
+} as const;
+
+/**
+ * @nullable
+ */
+export type UpdateEmployeeInputEmploymentType = typeof UpdateEmployeeInputEmploymentType[keyof typeof UpdateEmployeeInputEmploymentType] | null;
+
+
+export const UpdateEmployeeInputEmploymentType = {
+  full_time: 'full_time',
+  part_time: 'part_time',
+  contract: 'contract',
+  intern: 'intern',
+  temporary: 'temporary',
+} as const;
+
+export type UpdateEmployeeInputEmploymentStatus = typeof UpdateEmployeeInputEmploymentStatus[keyof typeof UpdateEmployeeInputEmploymentStatus];
+
+
+export const UpdateEmployeeInputEmploymentStatus = {
+  active: 'active',
+  probation: 'probation',
+  on_leave: 'on_leave',
+  suspended: 'suspended',
+  terminated: 'terminated',
+} as const;
+
+export interface UpdateEmployeeInput {
+  /** @nullable */
+  employeeNumber?: string | null;
+  /** @minLength 1 */
+  firstName?: string;
+  /** @nullable */
+  middleName?: string | null;
+  /** @minLength 1 */
+  lastName?: string;
+  /** @nullable */
+  preferredName?: string | null;
+  /** @nullable */
+  gender?: UpdateEmployeeInputGender;
+  /** @nullable */
+  dateOfBirth?: string | null;
+  /** @nullable */
+  maritalStatus?: UpdateEmployeeInputMaritalStatus;
+  /** @nullable */
+  nationality?: string | null;
+  /** @nullable */
+  nationalId?: string | null;
+  /** @nullable */
+  passportNumber?: string | null;
+  /** @nullable */
+  personalEmail?: string | null;
+  /** @nullable */
+  workEmail?: string | null;
+  /** @nullable */
+  phoneNumber?: string | null;
+  /** @nullable */
+  alternatePhoneNumber?: string | null;
+  residentialAddress?: Address | null;
+  /** @nullable */
+  emergencyContacts?: EmergencyContact[] | null;
+  /** @nullable */
+  departmentId?: number | null;
+  /** @nullable */
+  branchId?: number | null;
+  /** @nullable */
+  positionId?: number | null;
+  /** @nullable */
+  reportingManagerId?: number | null;
+  /** @nullable */
+  employmentType?: UpdateEmployeeInputEmploymentType;
+  /** @nullable */
+  hireDate?: string | null;
+  /** @nullable */
+  probationEndDate?: string | null;
+  employmentStatus?: UpdateEmployeeInputEmploymentStatus;
+  /** @nullable */
+  workLocation?: string | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface EmployeeListResponse {
+  items: Employee[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface LinkEmployeeUserInput {
+  applicationUserId: number;
+}
+
 export type NotificationType = typeof NotificationType[keyof typeof NotificationType];
 
 
@@ -134,4 +616,163 @@ export interface DashboardSummary {
   pendingRequests: number;
   unreadNotifications: number;
 }
+
+export interface Role {
+  id: number;
+  key: string;
+  label: string;
+  /** @nullable */
+  description?: string | null;
+  isSystemRole: boolean;
+}
+
+export interface Permission {
+  id: number;
+  key: string;
+  resource: string;
+  action: string;
+  /** @nullable */
+  description?: string | null;
+}
+
+export type OrganizationMemberStatus = typeof OrganizationMemberStatus[keyof typeof OrganizationMemberStatus];
+
+
+export const OrganizationMemberStatus = {
+  invited: 'invited',
+  active: 'active',
+  suspended: 'suspended',
+  expired: 'expired',
+  revoked: 'revoked',
+} as const;
+
+export interface OrganizationMember {
+  membershipId: number;
+  applicationUserId: number;
+  email: string;
+  firstName: string;
+  lastName: string;
+  status: OrganizationMemberStatus;
+  roles: string[];
+  isPrimaryHr: boolean;
+  /** @nullable */
+  joinedAt?: string | null;
+}
+
+export interface AddMemberInput {
+  /** @minLength 1 */
+  email: string;
+}
+
+export interface AssignRoleInput {
+  roleId: number;
+}
+
+export interface PrimaryHrAssignment {
+  id: number;
+  organizationId: number;
+  membershipId: number;
+  assignedAt: string;
+  /** @nullable */
+  assignedBy?: number | null;
+  /** @nullable */
+  revokedAt?: string | null;
+  /** @nullable */
+  revokedBy?: number | null;
+}
+
+/**
+ * @nullable
+ */
+export type PrimaryHrAssignmentOrNull = {
+  id?: number;
+  organizationId?: number;
+  membershipId?: number;
+  assignedAt?: string;
+  /** @nullable */
+  assignedBy?: number | null;
+  /** @nullable */
+  revokedAt?: string | null;
+  /** @nullable */
+  revokedBy?: number | null;
+} | null;
+
+export interface SetPrimaryHrInput {
+  membershipId: number;
+}
+
+export type OrganizationSettingsSettings = { [key: string]: unknown };
+
+export interface OrganizationSettings {
+  id: number;
+  organizationId: number;
+  settings: OrganizationSettingsSettings;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type UpdateOrganizationSettingsInputSettings = { [key: string]: unknown };
+
+export interface UpdateOrganizationSettingsInput {
+  settings: UpdateOrganizationSettingsInputSettings;
+}
+
+/**
+ * @nullable
+ */
+export type AuditEventMetadata = { [key: string]: unknown } | null;
+
+export interface AuditEvent {
+  id: number;
+  occurredAt: string;
+  /** @nullable */
+  actorApplicationUserId?: number | null;
+  /** @nullable */
+  actorMembershipId?: number | null;
+  /** @nullable */
+  organizationId?: number | null;
+  eventType: string;
+  targetType: string;
+  /** @nullable */
+  targetId?: string | null;
+  /** @nullable */
+  metadata?: AuditEventMetadata;
+}
+
+export interface AuditEventListResponse {
+  items: AuditEvent[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export type ListEmployeesParams = {
+search?: string;
+departmentId?: number;
+branchId?: number;
+positionId?: number;
+employmentStatus?: ListEmployeesEmploymentStatus;
+page?: number;
+pageSize?: number;
+};
+
+export type ListEmployeesEmploymentStatus = typeof ListEmployeesEmploymentStatus[keyof typeof ListEmployeesEmploymentStatus];
+
+
+export const ListEmployeesEmploymentStatus = {
+  active: 'active',
+  probation: 'probation',
+  on_leave: 'on_leave',
+  suspended: 'suspended',
+  terminated: 'terminated',
+} as const;
+
+export type UploadEmployeeProfilePictureBody = {
+  file: Blob;
+};
+
+export type ListAuditEventsParams = {
+page?: number;
+pageSize?: number;
+};
 

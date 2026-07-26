@@ -5,6 +5,7 @@ import { eq, and, gt } from "drizzle-orm";
 export interface AuthenticatedRequest extends Request {
   userId?: number;
   user?: typeof usersTable.$inferSelect;
+  session?: typeof sessionsTable.$inferSelect;
 }
 
 export async function requireAuth(
@@ -40,5 +41,6 @@ export async function requireAuth(
 
   req.userId = sessions[0].user.id;
   req.user = sessions[0].user;
+  req.session = sessions[0].session;
   next();
 }

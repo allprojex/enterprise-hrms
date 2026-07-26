@@ -2,9 +2,11 @@ import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { eq } from "drizzle-orm";
 import { db, usersTable, sessionsTable } from "@workspace/db";
-import { LoginBody, ForgotPasswordBody } from "@workspace/api-zod";
+import { LoginBody, ForgotPasswordBody, SwitchOrganizationBody } from "@workspace/api-zod";
 import { hashPassword, verifyPassword, generateToken } from "../lib/auth";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
+import { getActiveMembership, resolveActiveOrganizationId } from "../lib/membership";
+import { recordAuditEvent } from "../lib/auditLog";
 
 const router = Router();
 
@@ -18,7 +20,7 @@ const loginRateLimiter = rateLimit({
   message: { error: "Too many login attempts. Please try again later." },
 });
 
-function formatUser(user: typeof usersTable.$inferSelect) {
+function formatUser(user: typeof usersTable.$inferSelect, activeOrganizationId: number | null) {
   return {
     id: user.id,
     email: user.email,
@@ -26,6 +28,7 @@ function formatUser(user: typeof usersTable.$inferSelect) {
     lastName: user.lastName,
     role: user.role,
     organizationId: user.organizationId,
+    activeOrganizationId,
     avatarUrl: user.avatarUrl,
     jobTitle: user.jobTitle,
     department: user.department,
@@ -68,7 +71,9 @@ router.post("/auth/login", loginRateLimiter, async (req, res): Promise<void> => 
 
   await db.insert(sessionsTable).values({ token, userId: user.id, expiresAt });
 
-  res.json({ user: formatUser(user), token });
+  const activeOrganizationId = await resolveActiveOrganizationId(user.id, null, user.organizationId);
+
+  res.json({ user: formatUser(user, activeOrganizationId), token });
 });
 
 // POST /auth/logout
@@ -90,9 +95,48 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
   res.json({ message: "If that email is registered, a reset link has been sent." });
 });
 
+// POST /auth/switch-organization
+router.post(
+  "/auth/switch-organization",
+  requireAuth as any,
+  async (req: AuthenticatedRequest, res): Promise<void> => {
+    const parsed = SwitchOrganizationBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+
+    const { organizationId } = parsed.data;
+    const membership = await getActiveMembership(req.userId!, organizationId);
+    if (!membership) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
+    const token = req.headers.authorization!.slice(7);
+    await db.update(sessionsTable).set({ activeOrganizationId: organizationId }).where(eq(sessionsTable.token, token));
+
+    await recordAuditEvent({
+      actorApplicationUserId: req.userId!,
+      actorMembershipId: membership.id,
+      organizationId,
+      eventType: "session.org_switch",
+      targetType: "session",
+      targetId: null,
+    });
+
+    res.json({ message: "Active organization switched" });
+  },
+);
+
 // GET /auth/me
 router.get("/auth/me", requireAuth as any, async (req: AuthenticatedRequest, res): Promise<void> => {
-  res.json(formatUser(req.user!));
+  const activeOrganizationId = await resolveActiveOrganizationId(
+    req.userId!,
+    req.session?.activeOrganizationId,
+    req.user!.organizationId,
+  );
+  res.json(formatUser(req.user!, activeOrganizationId));
 });
 
 export { hashPassword };

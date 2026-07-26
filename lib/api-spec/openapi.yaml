@@ -18,6 +18,24 @@ tags:
     description: Organization operations
   - name: notifications
     description: Notification operations
+  - name: employees
+    description: Employee directory operations
+  - name: branches
+    description: Branch operations
+  - name: departments
+    description: Department operations
+  - name: positions
+    description: Position operations
+  - name: roles
+    description: Role operations
+  - name: permissions
+    description: Permission operations
+  - name: members
+    description: Organization membership management
+  - name: primary-hr
+    description: Primary HR assignment operations
+  - name: audit-events
+    description: Audit log operations
 
 paths:
   /healthz:
@@ -94,6 +112,41 @@ paths:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
 
+  /auth/switch-organization:
+    post:
+      operationId: switchOrganization
+      tags: [auth]
+      summary: Switch active organization
+      description: >-
+        Switches the caller's active organization context for the current
+        session. Only succeeds if the caller has an active membership in the
+        target organization; never trusts the client beyond that check.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SwitchOrganizationInput"
+      responses:
+        "200":
+          description: Active organization switched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: No active membership in the requested organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /auth/me:
     get:
       operationId: getMe
@@ -155,6 +208,38 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Organization"
+    post:
+      operationId: createOrganization
+      tags: [organizations]
+      summary: Create (onboard) an organization
+      description: >-
+        Creates a new organization and, atomically, makes the caller its
+        first active member with the org_admin role and Primary HR.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrganizationInput"
+      responses:
+        "201":
+          description: Organization created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Slug already in use
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /organizations/{id}:
     get:
@@ -177,6 +262,449 @@ paths:
                 $ref: "#/components/schemas/Organization"
         "404":
           description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /me/organizations:
+    get:
+      operationId: listMyOrganizations
+      tags: [organizations]
+      summary: List my organization memberships
+      description: >-
+        Returns every organization the caller has an active membership in,
+        with their role(s) and Primary HR status in each.
+      responses:
+        "200":
+          description: List of memberships
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MembershipSummary"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees:
+    get:
+      operationId: listEmployees
+      tags: [employees]
+      summary: List employees
+      description: Search, filter, and paginate the organization's employee directory
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: departmentId
+          in: query
+          schema:
+            type: integer
+        - name: branchId
+          in: query
+          schema:
+            type: integer
+        - name: positionId
+          in: query
+          schema:
+            type: integer
+        - name: employmentStatus
+          in: query
+          schema:
+            type: string
+            enum: [active, probation, on_leave, suspended, terminated]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Paginated employee list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeListResponse"
+        "403":
+          description: No active membership in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createEmployee
+      tags: [employees]
+      summary: Create an employee
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEmployeeInput"
+      responses:
+        "201":
+          description: Employee created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "400":
+          description: Invalid input, or a referenced department/branch/position/manager is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}:
+    get:
+      operationId: getEmployee
+      tags: [employees]
+      summary: Get an employee
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Employee details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    patch:
+      operationId: updateEmployee
+      tags: [employees]
+      summary: Update an employee
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEmployeeInput"
+      responses:
+        "200":
+          description: Employee updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "400":
+          description: Invalid input, or a referenced department/branch/position/manager is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}/profile-picture:
+    post:
+      operationId: uploadEmployeeProfilePicture
+      tags: [employees]
+      summary: Upload or replace an employee's profile picture
+      description: >-
+        multipart/form-data upload. JPEG/PNG/WebP only, validated by file
+        signature (not just Content-Type), 5MB max. Re-encoded to a resized,
+        EXIF-stripped JPEG before storage.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Profile picture updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "400":
+          description: Invalid file
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    delete:
+      operationId: removeEmployeeProfilePicture
+      tags: [employees]
+      summary: Remove an employee's profile picture
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Profile picture removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+
+  /organizations/{organizationId}/employees/{employeeId}/link-user:
+    post:
+      operationId: linkEmployeeToUser
+      tags: [employees]
+      summary: Link an employee record to a login account
+      description: >-
+        Optional. The target application user must already have an active
+        membership in this organization — linking never grants access on its
+        own.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LinkEmployeeUserInput"
+      responses:
+        "200":
+          description: Linked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          description: Target user has no active membership in this organization, or is already linked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/branches:
+    get:
+      operationId: listBranches
+      tags: [branches]
+      summary: List branches
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of branches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Branch"
+    post:
+      operationId: createBranch
+      tags: [branches]
+      summary: Create a branch
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBranchInput"
+      responses:
+        "201":
+          description: Branch created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Branch"
+        "409":
+          description: A branch with this code already exists in the organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/departments:
+    get:
+      operationId: listDepartments
+      tags: [departments]
+      summary: List departments
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of departments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Department"
+    post:
+      operationId: createDepartment
+      tags: [departments]
+      summary: Create a department
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDepartmentInput"
+      responses:
+        "201":
+          description: Department created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Department"
+        "409":
+          description: A department with this code already exists in the organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/positions:
+    get:
+      operationId: listPositions
+      tags: [positions]
+      summary: List positions
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of positions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Position"
+    post:
+      operationId: createPosition
+      tags: [positions]
+      summary: Create a position
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePositionInput"
+      responses:
+        "201":
+          description: Position created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Position"
+        "409":
+          description: A position with this title already exists in the organization
           content:
             application/json:
               schema:
@@ -252,6 +780,317 @@ paths:
               schema:
                 $ref: "#/components/schemas/DashboardSummary"
 
+  /roles:
+    get:
+      operationId: listRoles
+      tags: [roles]
+      summary: List roles
+      description: System-wide role catalog (not org-scoped)
+      responses:
+        "200":
+          description: List of roles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Role"
+
+  /permissions:
+    get:
+      operationId: listPermissions
+      tags: [permissions]
+      summary: List permissions
+      description: System-wide permission catalog (not org-scoped)
+      responses:
+        "200":
+          description: List of permissions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Permission"
+
+  /organizations/{organizationId}/members:
+    get:
+      operationId: listMembers
+      tags: [members]
+      summary: List organization members
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrganizationMember"
+    post:
+      operationId: addMember
+      tags: [members]
+      summary: Add an existing user as a member
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddMemberInput"
+      responses:
+        "201":
+          description: Member added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationMember"
+        "404":
+          description: No user with that email
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: User is already an active member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/members/{membershipId}:
+    delete:
+      operationId: revokeMember
+      tags: [members]
+      summary: Revoke a membership
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: membershipId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Membership revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationMember"
+        "404":
+          description: Membership not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/members/{membershipId}/roles:
+    post:
+      operationId: assignMemberRole
+      tags: [members]
+      summary: Assign a role to a member
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: membershipId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignRoleInput"
+      responses:
+        "200":
+          description: Role assigned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationMember"
+        "404":
+          description: Membership or role not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/members/{membershipId}/roles/{roleId}:
+    delete:
+      operationId: revokeMemberRole
+      tags: [members]
+      summary: Revoke a role from a member
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: membershipId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: roleId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Role revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationMember"
+        "404":
+          description: Membership not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/primary-hr:
+    get:
+      operationId: getPrimaryHr
+      tags: [primary-hr]
+      summary: Get the current Primary HR assignment
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Current Primary HR assignment, or null if none is set
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrimaryHrAssignmentOrNull"
+    post:
+      operationId: setPrimaryHr
+      tags: [primary-hr]
+      summary: Appoint or transfer Primary HR
+      description: Atomically revokes the current Primary HR (if any) and appoints the given membership.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetPrimaryHrInput"
+      responses:
+        "200":
+          description: Primary HR appointed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrimaryHrAssignment"
+        "400":
+          description: Target membership does not belong to this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/settings:
+    get:
+      operationId: getOrganizationSettings
+      tags: [organizations]
+      summary: Get organization settings
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Organization settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationSettings"
+    patch:
+      operationId: updateOrganizationSettings
+      tags: [organizations]
+      summary: Update organization settings
+      description: Merges the given keys into the existing settings object.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOrganizationSettingsInput"
+      responses:
+        "200":
+          description: Updated organization settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationSettings"
+
+  /organizations/{organizationId}/audit-events:
+    get:
+      operationId: listAuditEvents
+      tags: [audit-events]
+      summary: List audit events
+      description: Paginated, most recent first.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Paginated audit event list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditEventListResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -321,6 +1160,13 @@ components:
           enum: [super_admin, org_admin, hr_manager, employee]
         organizationId:
           type: integer
+        activeOrganizationId:
+          type: ["integer", "null"]
+          description: >-
+            The organization currently in scope for this session, resolved
+            server-side from the session's switched organization (falling
+            back to organizationId, then to any other active membership).
+            Org-scoped requests should use this value, not organizationId.
         avatarUrl:
           type: ["string", "null"]
         jobTitle:
@@ -373,6 +1219,424 @@ components:
           type: string
           format: date-time
 
+    CreateOrganizationInput:
+      type: object
+      required: [name, slug, type]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        slug:
+          type: string
+          minLength: 1
+        type:
+          type: string
+          enum: [business, church, ngo, school, hospital, hotel, government, other]
+
+    MembershipSummary:
+      type: object
+      required: [organizationId, organizationName, organizationSlug, status, roles, isPrimaryHr]
+      properties:
+        organizationId:
+          type: integer
+        organizationName:
+          type: string
+        organizationSlug:
+          type: string
+        status:
+          type: string
+          enum: [invited, active, suspended, expired, revoked]
+        roles:
+          type: array
+          items:
+            type: string
+        isPrimaryHr:
+          type: boolean
+
+    SwitchOrganizationInput:
+      type: object
+      required: [organizationId]
+      properties:
+        organizationId:
+          type: integer
+
+    Address:
+      type: object
+      properties:
+        line1:
+          type: ["string", "null"]
+        line2:
+          type: ["string", "null"]
+        city:
+          type: ["string", "null"]
+        state:
+          type: ["string", "null"]
+        postalCode:
+          type: ["string", "null"]
+        country:
+          type: ["string", "null"]
+
+    EmergencyContact:
+      type: object
+      required: [name, relationship, phone]
+      properties:
+        name:
+          type: string
+        relationship:
+          type: string
+        phone:
+          type: string
+
+    Branch:
+      type: object
+      required: [id, organizationId, name, code, status, createdAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        name:
+          type: string
+        code:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive]
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateBranchInput:
+      type: object
+      required: [name, code]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        code:
+          type: string
+          minLength: 1
+
+    Department:
+      type: object
+      required: [id, organizationId, name, code, createdAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        branchId:
+          type: ["integer", "null"]
+        parentDepartmentId:
+          type: ["integer", "null"]
+        name:
+          type: string
+        code:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateDepartmentInput:
+      type: object
+      required: [name, code]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        code:
+          type: string
+          minLength: 1
+        branchId:
+          type: ["integer", "null"]
+        parentDepartmentId:
+          type: ["integer", "null"]
+
+    Position:
+      type: object
+      required: [id, organizationId, title, createdAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        title:
+          type: string
+        departmentId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    CreatePositionInput:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+        departmentId:
+          type: ["integer", "null"]
+
+    Employee:
+      type: object
+      required: [id, organizationId, firstName, lastName, employmentStatus, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        employeeNumber:
+          type: ["string", "null"]
+        hasProfilePicture:
+          type: boolean
+        firstName:
+          type: string
+        middleName:
+          type: ["string", "null"]
+        lastName:
+          type: string
+        preferredName:
+          type: ["string", "null"]
+        gender:
+          type: ["string", "null"]
+          enum: [male, female, other, prefer_not_to_say, null]
+        dateOfBirth:
+          type: ["string", "null"]
+          format: date-time
+        maritalStatus:
+          type: ["string", "null"]
+          enum: [single, married, divorced, widowed, other, null]
+        nationality:
+          type: ["string", "null"]
+        nationalId:
+          type: ["string", "null"]
+        passportNumber:
+          type: ["string", "null"]
+        personalEmail:
+          type: ["string", "null"]
+        workEmail:
+          type: ["string", "null"]
+        phoneNumber:
+          type: ["string", "null"]
+        alternatePhoneNumber:
+          type: ["string", "null"]
+        residentialAddress:
+          anyOf:
+            - $ref: "#/components/schemas/Address"
+            - type: "null"
+        emergencyContacts:
+          type: ["array", "null"]
+          items:
+            $ref: "#/components/schemas/EmergencyContact"
+        departmentId:
+          type: ["integer", "null"]
+        departmentName:
+          type: ["string", "null"]
+        branchId:
+          type: ["integer", "null"]
+        branchName:
+          type: ["string", "null"]
+        positionId:
+          type: ["integer", "null"]
+        positionName:
+          type: ["string", "null"]
+        reportingManagerId:
+          type: ["integer", "null"]
+        reportingManagerName:
+          type: ["string", "null"]
+        employmentType:
+          type: ["string", "null"]
+          enum: [full_time, part_time, contract, intern, temporary, null]
+        hireDate:
+          type: ["string", "null"]
+          format: date-time
+        probationEndDate:
+          type: ["string", "null"]
+          format: date-time
+        employmentStatus:
+          type: string
+          enum: [active, probation, on_leave, suspended, terminated]
+        workLocation:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        createdBy:
+          type: ["integer", "null"]
+        updatedBy:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateEmployeeInput:
+      type: object
+      required: [firstName, lastName]
+      properties:
+        employeeNumber:
+          type: ["string", "null"]
+        firstName:
+          type: string
+          minLength: 1
+        middleName:
+          type: ["string", "null"]
+        lastName:
+          type: string
+          minLength: 1
+        preferredName:
+          type: ["string", "null"]
+        gender:
+          type: ["string", "null"]
+          enum: [male, female, other, prefer_not_to_say, null]
+        dateOfBirth:
+          type: ["string", "null"]
+          format: date-time
+        maritalStatus:
+          type: ["string", "null"]
+          enum: [single, married, divorced, widowed, other, null]
+        nationality:
+          type: ["string", "null"]
+        nationalId:
+          type: ["string", "null"]
+        passportNumber:
+          type: ["string", "null"]
+        personalEmail:
+          type: ["string", "null"]
+        workEmail:
+          type: ["string", "null"]
+        phoneNumber:
+          type: ["string", "null"]
+        alternatePhoneNumber:
+          type: ["string", "null"]
+        residentialAddress:
+          anyOf:
+            - $ref: "#/components/schemas/Address"
+            - type: "null"
+        emergencyContacts:
+          type: ["array", "null"]
+          items:
+            $ref: "#/components/schemas/EmergencyContact"
+        departmentId:
+          type: ["integer", "null"]
+        branchId:
+          type: ["integer", "null"]
+        positionId:
+          type: ["integer", "null"]
+        reportingManagerId:
+          type: ["integer", "null"]
+        employmentType:
+          type: ["string", "null"]
+          enum: [full_time, part_time, contract, intern, temporary, null]
+        hireDate:
+          type: ["string", "null"]
+          format: date-time
+        probationEndDate:
+          type: ["string", "null"]
+          format: date-time
+        employmentStatus:
+          type: string
+          enum: [active, probation, on_leave, suspended, terminated]
+        workLocation:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+
+    UpdateEmployeeInput:
+      type: object
+      properties:
+        employeeNumber:
+          type: ["string", "null"]
+        firstName:
+          type: string
+          minLength: 1
+        middleName:
+          type: ["string", "null"]
+        lastName:
+          type: string
+          minLength: 1
+        preferredName:
+          type: ["string", "null"]
+        gender:
+          type: ["string", "null"]
+          enum: [male, female, other, prefer_not_to_say, null]
+        dateOfBirth:
+          type: ["string", "null"]
+          format: date-time
+        maritalStatus:
+          type: ["string", "null"]
+          enum: [single, married, divorced, widowed, other, null]
+        nationality:
+          type: ["string", "null"]
+        nationalId:
+          type: ["string", "null"]
+        passportNumber:
+          type: ["string", "null"]
+        personalEmail:
+          type: ["string", "null"]
+        workEmail:
+          type: ["string", "null"]
+        phoneNumber:
+          type: ["string", "null"]
+        alternatePhoneNumber:
+          type: ["string", "null"]
+        residentialAddress:
+          anyOf:
+            - $ref: "#/components/schemas/Address"
+            - type: "null"
+        emergencyContacts:
+          type: ["array", "null"]
+          items:
+            $ref: "#/components/schemas/EmergencyContact"
+        departmentId:
+          type: ["integer", "null"]
+        branchId:
+          type: ["integer", "null"]
+        positionId:
+          type: ["integer", "null"]
+        reportingManagerId:
+          type: ["integer", "null"]
+        employmentType:
+          type: ["string", "null"]
+          enum: [full_time, part_time, contract, intern, temporary, null]
+        hireDate:
+          type: ["string", "null"]
+          format: date-time
+        probationEndDate:
+          type: ["string", "null"]
+          format: date-time
+        employmentStatus:
+          type: string
+          enum: [active, probation, on_leave, suspended, terminated]
+        workLocation:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+
+    EmployeeListResponse:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Employee"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+
+    LinkEmployeeUserInput:
+      type: object
+      required: [applicationUserId]
+      properties:
+        applicationUserId:
+          type: integer
+
     Notification:
       type: object
       required: [id, title, message, type, read, createdAt]
@@ -403,4 +1667,190 @@ components:
         pendingRequests:
           type: integer
         unreadNotifications:
+          type: integer
+
+    Role:
+      type: object
+      required: [id, key, label, isSystemRole]
+      properties:
+        id:
+          type: integer
+        key:
+          type: string
+        label:
+          type: string
+        description:
+          type: ["string", "null"]
+        isSystemRole:
+          type: boolean
+
+    Permission:
+      type: object
+      required: [id, key, resource, action]
+      properties:
+        id:
+          type: integer
+        key:
+          type: string
+        resource:
+          type: string
+        action:
+          type: string
+        description:
+          type: ["string", "null"]
+
+    OrganizationMember:
+      type: object
+      required: [membershipId, applicationUserId, email, firstName, lastName, status, roles, isPrimaryHr]
+      properties:
+        membershipId:
+          type: integer
+        applicationUserId:
+          type: integer
+        email:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        status:
+          type: string
+          enum: [invited, active, suspended, expired, revoked]
+        roles:
+          type: array
+          items:
+            type: string
+        isPrimaryHr:
+          type: boolean
+        joinedAt:
+          type: ["string", "null"]
+          format: date-time
+
+    AddMemberInput:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          minLength: 1
+
+    AssignRoleInput:
+      type: object
+      required: [roleId]
+      properties:
+        roleId:
+          type: integer
+
+    PrimaryHrAssignment:
+      type: object
+      required: [id, organizationId, membershipId, assignedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        membershipId:
+          type: integer
+        assignedAt:
+          type: string
+          format: date-time
+        assignedBy:
+          type: ["integer", "null"]
+        revokedAt:
+          type: ["string", "null"]
+          format: date-time
+        revokedBy:
+          type: ["integer", "null"]
+
+    PrimaryHrAssignmentOrNull:
+      type: ["object", "null"]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        membershipId:
+          type: integer
+        assignedAt:
+          type: string
+          format: date-time
+        assignedBy:
+          type: ["integer", "null"]
+        revokedAt:
+          type: ["string", "null"]
+          format: date-time
+        revokedBy:
+          type: ["integer", "null"]
+
+    SetPrimaryHrInput:
+      type: object
+      required: [membershipId]
+      properties:
+        membershipId:
+          type: integer
+
+    OrganizationSettings:
+      type: object
+      required: [id, organizationId, settings]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        settings:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    UpdateOrganizationSettingsInput:
+      type: object
+      required: [settings]
+      properties:
+        settings:
+          type: object
+          additionalProperties: true
+
+    AuditEvent:
+      type: object
+      required: [id, occurredAt, eventType, targetType]
+      properties:
+        id:
+          type: integer
+        occurredAt:
+          type: string
+          format: date-time
+        actorApplicationUserId:
+          type: ["integer", "null"]
+        actorMembershipId:
+          type: ["integer", "null"]
+        organizationId:
+          type: ["integer", "null"]
+        eventType:
+          type: string
+        targetType:
+          type: string
+        targetId:
+          type: ["string", "null"]
+        metadata:
+          type: ["object", "null"]
+          additionalProperties: true
+
+    AuditEventListResponse:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditEvent"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
           type: integer

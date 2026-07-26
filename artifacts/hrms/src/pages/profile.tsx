@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useGetMe, getGetMeQueryKey, useUpdateMyProfile, useListOrganizations, getListOrganizationsQueryKey } from '@workspace/api-client-react';
+import { useGetMe, getGetMeQueryKey, useUpdateMyProfile, useListMyOrganizations, getListMyOrganizationsQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 
@@ -16,7 +16,7 @@ export default function Profile() {
   const { toast } = useToast();
   
   const { data: user, isLoading } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
-  const { data: organizations } = useListOrganizations({ query: { queryKey: getListOrganizationsQueryKey() } });
+  const { data: organizations } = useListMyOrganizations({ query: { queryKey: getListMyOrganizationsQueryKey() } });
   const updateProfileMutation = useUpdateMyProfile();
 
   const [isEditing, setIsEditing] = useState(false);
@@ -84,7 +84,8 @@ export default function Profile() {
     setIsEditing(false);
   };
 
-  const currentOrg = organizations?.find(org => org.id === user?.organizationId);
+  const activeOrganizationId = user?.activeOrganizationId ?? user?.organizationId;
+  const currentOrg = organizations?.find(org => org.organizationId === activeOrganizationId);
   const userInitials = user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : '?';
 
   if (isLoading) {
@@ -141,7 +142,7 @@ export default function Profile() {
                   <Building className="h-4 w-4 text-muted-foreground" />
                   <div>
                     <p className="text-xs text-muted-foreground">Organization</p>
-                    <p className="font-medium text-foreground">{currentOrg.name}</p>
+                    <p className="font-medium text-foreground">{currentOrg.organizationName}</p>
                   </div>
                 </div>
                 {user.jobTitle && (

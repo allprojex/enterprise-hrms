@@ -1,10 +1,15 @@
 import { Router } from "express";
 import { eq } from "drizzle-orm";
-import { db, usersTable, notificationsTable } from "@workspace/db";
+import { db, usersTable, notificationsTable, employeesTable } from "@workspace/db";
 import { UpdateMyProfileBody } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
+import { resolveActiveOrganizationId } from "../lib/membership";
 
 const router = Router();
+
+// Modules with a working screen in the frontend today — bump this when a
+// new one ships. See artifacts/hrms/src/pages/dashboard.tsx for the tiles.
+const ACTIVE_MODULE_COUNT = 4; // Employees, Branches, Departments, Positions
 
 // PATCH /users/me
 router.patch("/users/me", requireAuth as any, async (req: AuthenticatedRequest, res): Promise<void> => {
@@ -26,6 +31,11 @@ router.patch("/users/me", requireAuth as any, async (req: AuthenticatedRequest, 
   }
 
   const user = updated[0];
+  const activeOrganizationId = await resolveActiveOrganizationId(
+    req.userId!,
+    req.session?.activeOrganizationId,
+    user.organizationId,
+  );
   res.json({
     id: user.id,
     email: user.email,
@@ -33,6 +43,7 @@ router.patch("/users/me", requireAuth as any, async (req: AuthenticatedRequest, 
     lastName: user.lastName,
     role: user.role,
     organizationId: user.organizationId,
+    activeOrganizationId,
     avatarUrl: user.avatarUrl,
     jobTitle: user.jobTitle,
     department: user.department,
@@ -44,12 +55,18 @@ router.patch("/users/me", requireAuth as any, async (req: AuthenticatedRequest, 
 // GET /dashboard/summary
 router.get("/dashboard/summary", requireAuth as any, async (req: AuthenticatedRequest, res): Promise<void> => {
   const user = req.user!;
+  const activeOrganizationId = await resolveActiveOrganizationId(
+    req.userId!,
+    req.session?.activeOrganizationId,
+    user.organizationId,
+  );
 
-  // Count employees in same org
-  const employees = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.organizationId, user.organizationId));
+  const employees = activeOrganizationId
+    ? await db
+        .select()
+        .from(employeesTable)
+        .where(eq(employeesTable.organizationId, activeOrganizationId))
+    : [];
 
   const unreadNotifications = await db
     .select()
@@ -60,7 +77,7 @@ router.get("/dashboard/summary", requireAuth as any, async (req: AuthenticatedRe
 
   res.json({
     totalEmployees: employees.length,
-    activeModules: 0,
+    activeModules: ACTIVE_MODULE_COUNT,
     pendingRequests: 0,
     unreadNotifications: unreadCount,
   });

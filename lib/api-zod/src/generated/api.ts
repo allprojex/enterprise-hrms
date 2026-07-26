@@ -38,6 +38,7 @@ export const LoginResponse = zod.object({
   "lastName": zod.string(),
   "role": zod.enum(['super_admin', 'org_admin', 'hr_manager', 'employee']),
   "organizationId": zod.number(),
+  "activeOrganizationId": zod.number().nullish().describe('The organization currently in scope for this session, resolved server-side from the session\'s switched organization (falling back to organizationId, then to any other active membership). Org-scoped requests should use this value, not organizationId.'),
   "avatarUrl": zod.string().nullish(),
   "jobTitle": zod.string().nullish(),
   "department": zod.string().nullish(),
@@ -71,6 +72,19 @@ export const ForgotPasswordResponse = zod.object({
 
 
 /**
+ * Switches the caller's active organization context for the current session. Only succeeds if the caller has an active membership in the target organization; never trusts the client beyond that check.
+ * @summary Switch active organization
+ */
+export const SwitchOrganizationBody = zod.object({
+  "organizationId": zod.number()
+})
+
+export const SwitchOrganizationResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
  * Returns the authenticated user's profile
  * @summary Get current user
  */
@@ -81,6 +95,7 @@ export const GetMeResponse = zod.object({
   "lastName": zod.string(),
   "role": zod.enum(['super_admin', 'org_admin', 'hr_manager', 'employee']),
   "organizationId": zod.number(),
+  "activeOrganizationId": zod.number().nullish().describe('The organization currently in scope for this session, resolved server-side from the session\'s switched organization (falling back to organizationId, then to any other active membership). Org-scoped requests should use this value, not organizationId.'),
   "avatarUrl": zod.string().nullish(),
   "jobTitle": zod.string().nullish(),
   "department": zod.string().nullish(),
@@ -108,6 +123,7 @@ export const UpdateMyProfileResponse = zod.object({
   "lastName": zod.string(),
   "role": zod.enum(['super_admin', 'org_admin', 'hr_manager', 'employee']),
   "organizationId": zod.number(),
+  "activeOrganizationId": zod.number().nullish().describe('The organization currently in scope for this session, resolved server-side from the session\'s switched organization (falling back to organizationId, then to any other active membership). Org-scoped requests should use this value, not organizationId.'),
   "avatarUrl": zod.string().nullish(),
   "jobTitle": zod.string().nullish(),
   "department": zod.string().nullish(),
@@ -135,6 +151,33 @@ export const ListOrganizationsResponse = zod.array(ListOrganizationsResponseItem
 
 
 /**
+ * Creates a new organization and, atomically, makes the caller its first active member with the org_admin role and Primary HR.
+ * @summary Create (onboard) an organization
+ */
+
+
+
+
+export const CreateOrganizationBody = zod.object({
+  "name": zod.string().min(1),
+  "slug": zod.string().min(1),
+  "type": zod.enum(['business', 'church', 'ngo', 'school', 'hospital', 'hotel', 'government', 'other'])
+})
+
+export const CreateOrganizationResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "type": zod.enum(['business', 'church', 'ngo', 'school', 'hospital', 'hotel', 'government', 'other']),
+  "status": zod.enum(['active', 'suspended', 'trial']),
+  "logoUrl": zod.string().nullish(),
+  "industry": zod.string().nullish(),
+  "employeeCount": zod.number().nullish(),
+  "createdAt": zod.coerce.date().optional()
+})
+
+
+/**
  * Returns an organization by ID
  * @summary Get organization
  */
@@ -152,6 +195,650 @@ export const GetOrganizationResponse = zod.object({
   "industry": zod.string().nullish(),
   "employeeCount": zod.number().nullish(),
   "createdAt": zod.coerce.date().optional()
+})
+
+
+/**
+ * Returns every organization the caller has an active membership in, with their role(s) and Primary HR status in each.
+ * @summary List my organization memberships
+ */
+export const ListMyOrganizationsResponseItem = zod.object({
+  "organizationId": zod.number(),
+  "organizationName": zod.string(),
+  "organizationSlug": zod.string(),
+  "status": zod.enum(['invited', 'active', 'suspended', 'expired', 'revoked']),
+  "roles": zod.array(zod.string()),
+  "isPrimaryHr": zod.boolean()
+})
+export const ListMyOrganizationsResponse = zod.array(ListMyOrganizationsResponseItem)
+
+
+/**
+ * Search, filter, and paginate the organization's employee directory
+ * @summary List employees
+ */
+export const ListEmployeesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const listEmployeesQueryPageDefault = 1;
+export const listEmployeesQueryPageSizeDefault = 20;
+
+export const ListEmployeesQueryParams = zod.object({
+  "search": zod.coerce.string().optional(),
+  "departmentId": zod.coerce.number().optional(),
+  "branchId": zod.coerce.number().optional(),
+  "positionId": zod.coerce.number().optional(),
+  "employmentStatus": zod.enum(['active', 'probation', 'on_leave', 'suspended', 'terminated']).optional(),
+  "page": zod.coerce.number().default(listEmployeesQueryPageDefault),
+  "pageSize": zod.coerce.number().default(listEmployeesQueryPageSizeDefault)
+})
+
+export const ListEmployeesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeNumber": zod.string().nullish(),
+  "hasProfilePicture": zod.boolean().optional(),
+  "firstName": zod.string(),
+  "middleName": zod.string().nullish(),
+  "lastName": zod.string(),
+  "preferredName": zod.string().nullish(),
+  "gender": zod.union([zod.literal('male'),zod.literal('female'),zod.literal('other'),zod.literal('prefer_not_to_say'),zod.literal(null)]).nullish(),
+  "dateOfBirth": zod.coerce.date().nullish(),
+  "maritalStatus": zod.union([zod.literal('single'),zod.literal('married'),zod.literal('divorced'),zod.literal('widowed'),zod.literal('other'),zod.literal(null)]).nullish(),
+  "nationality": zod.string().nullish(),
+  "nationalId": zod.string().nullish(),
+  "passportNumber": zod.string().nullish(),
+  "personalEmail": zod.string().nullish(),
+  "workEmail": zod.string().nullish(),
+  "phoneNumber": zod.string().nullish(),
+  "alternatePhoneNumber": zod.string().nullish(),
+  "residentialAddress": zod.union([zod.object({
+  "line1": zod.string().nullish(),
+  "line2": zod.string().nullish(),
+  "city": zod.string().nullish(),
+  "state": zod.string().nullish(),
+  "postalCode": zod.string().nullish(),
+  "country": zod.string().nullish()
+}),zod.null()]).optional(),
+  "emergencyContacts": zod.array(zod.object({
+  "name": zod.string(),
+  "relationship": zod.string(),
+  "phone": zod.string()
+})).nullish(),
+  "departmentId": zod.number().nullish(),
+  "departmentName": zod.string().nullish(),
+  "branchId": zod.number().nullish(),
+  "branchName": zod.string().nullish(),
+  "positionId": zod.number().nullish(),
+  "positionName": zod.string().nullish(),
+  "reportingManagerId": zod.number().nullish(),
+  "reportingManagerName": zod.string().nullish(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullish(),
+  "hireDate": zod.coerce.date().nullish(),
+  "probationEndDate": zod.coerce.date().nullish(),
+  "employmentStatus": zod.enum(['active', 'probation', 'on_leave', 'suspended', 'terminated']),
+  "workLocation": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "updatedBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "pageSize": zod.number()
+})
+
+
+/**
+ * @summary Create an employee
+ */
+export const CreateEmployeeParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+
+
+
+export const CreateEmployeeBody = zod.object({
+  "employeeNumber": zod.string().nullish(),
+  "firstName": zod.string().min(1),
+  "middleName": zod.string().nullish(),
+  "lastName": zod.string().min(1),
+  "preferredName": zod.string().nullish(),
+  "gender": zod.union([zod.literal('male'),zod.literal('female'),zod.literal('other'),zod.literal('prefer_not_to_say'),zod.literal(null)]).nullish(),
+  "dateOfBirth": zod.coerce.date().nullish(),
+  "maritalStatus": zod.union([zod.literal('single'),zod.literal('married'),zod.literal('divorced'),zod.literal('widowed'),zod.literal('other'),zod.literal(null)]).nullish(),
+  "nationality": zod.string().nullish(),
+  "nationalId": zod.string().nullish(),
+  "passportNumber": zod.string().nullish(),
+  "personalEmail": zod.string().nullish(),
+  "workEmail": zod.string().nullish(),
+  "phoneNumber": zod.string().nullish(),
+  "alternatePhoneNumber": zod.string().nullish(),
+  "residentialAddress": zod.union([zod.object({
+  "line1": zod.string().nullish(),
+  "line2": zod.string().nullish(),
+  "city": zod.string().nullish(),
+  "state": zod.string().nullish(),
+  "postalCode": zod.string().nullish(),
+  "country": zod.string().nullish()
+}),zod.null()]).optional(),
+  "emergencyContacts": zod.array(zod.object({
+  "name": zod.string(),
+  "relationship": zod.string(),
+  "phone": zod.string()
+})).nullish(),
+  "departmentId": zod.number().nullish(),
+  "branchId": zod.number().nullish(),
+  "positionId": zod.number().nullish(),
+  "reportingManagerId": zod.number().nullish(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullish(),
+  "hireDate": zod.coerce.date().nullish(),
+  "probationEndDate": zod.coerce.date().nullish(),
+  "employmentStatus": zod.enum(['active', 'probation', 'on_leave', 'suspended', 'terminated']).optional(),
+  "workLocation": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateEmployeeResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeNumber": zod.string().nullish(),
+  "hasProfilePicture": zod.boolean().optional(),
+  "firstName": zod.string(),
+  "middleName": zod.string().nullish(),
+  "lastName": zod.string(),
+  "preferredName": zod.string().nullish(),
+  "gender": zod.union([zod.literal('male'),zod.literal('female'),zod.literal('other'),zod.literal('prefer_not_to_say'),zod.literal(null)]).nullish(),
+  "dateOfBirth": zod.coerce.date().nullish(),
+  "maritalStatus": zod.union([zod.literal('single'),zod.literal('married'),zod.literal('divorced'),zod.literal('widowed'),zod.literal('other'),zod.literal(null)]).nullish(),
+  "nationality": zod.string().nullish(),
+  "nationalId": zod.string().nullish(),
+  "passportNumber": zod.string().nullish(),
+  "personalEmail": zod.string().nullish(),
+  "workEmail": zod.string().nullish(),
+  "phoneNumber": zod.string().nullish(),
+  "alternatePhoneNumber": zod.string().nullish(),
+  "residentialAddress": zod.union([zod.object({
+  "line1": zod.string().nullish(),
+  "line2": zod.string().nullish(),
+  "city": zod.string().nullish(),
+  "state": zod.string().nullish(),
+  "postalCode": zod.string().nullish(),
+  "country": zod.string().nullish()
+}),zod.null()]).optional(),
+  "emergencyContacts": zod.array(zod.object({
+  "name": zod.string(),
+  "relationship": zod.string(),
+  "phone": zod.string()
+})).nullish(),
+  "departmentId": zod.number().nullish(),
+  "departmentName": zod.string().nullish(),
+  "branchId": zod.number().nullish(),
+  "branchName": zod.string().nullish(),
+  "positionId": zod.number().nullish(),
+  "positionName": zod.string().nullish(),
+  "reportingManagerId": zod.number().nullish(),
+  "reportingManagerName": zod.string().nullish(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullish(),
+  "hireDate": zod.coerce.date().nullish(),
+  "probationEndDate": zod.coerce.date().nullish(),
+  "employmentStatus": zod.enum(['active', 'probation', 'on_leave', 'suspended', 'terminated']),
+  "workLocation": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "updatedBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get an employee
+ */
+export const GetEmployeeParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const GetEmployeeResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeNumber": zod.string().nullish(),
+  "hasProfilePicture": zod.boolean().optional(),
+  "firstName": zod.string(),
+  "middleName": zod.string().nullish(),
+  "lastName": zod.string(),
+  "preferredName": zod.string().nullish(),
+  "gender": zod.union([zod.literal('male'),zod.literal('female'),zod.literal('other'),zod.literal('prefer_not_to_say'),zod.literal(null)]).nullish(),
+  "dateOfBirth": zod.coerce.date().nullish(),
+  "maritalStatus": zod.union([zod.literal('single'),zod.literal('married'),zod.literal('divorced'),zod.literal('widowed'),zod.literal('other'),zod.literal(null)]).nullish(),
+  "nationality": zod.string().nullish(),
+  "nationalId": zod.string().nullish(),
+  "passportNumber": zod.string().nullish(),
+  "personalEmail": zod.string().nullish(),
+  "workEmail": zod.string().nullish(),
+  "phoneNumber": zod.string().nullish(),
+  "alternatePhoneNumber": zod.string().nullish(),
+  "residentialAddress": zod.union([zod.object({
+  "line1": zod.string().nullish(),
+  "line2": zod.string().nullish(),
+  "city": zod.string().nullish(),
+  "state": zod.string().nullish(),
+  "postalCode": zod.string().nullish(),
+  "country": zod.string().nullish()
+}),zod.null()]).optional(),
+  "emergencyContacts": zod.array(zod.object({
+  "name": zod.string(),
+  "relationship": zod.string(),
+  "phone": zod.string()
+})).nullish(),
+  "departmentId": zod.number().nullish(),
+  "departmentName": zod.string().nullish(),
+  "branchId": zod.number().nullish(),
+  "branchName": zod.string().nullish(),
+  "positionId": zod.number().nullish(),
+  "positionName": zod.string().nullish(),
+  "reportingManagerId": zod.number().nullish(),
+  "reportingManagerName": zod.string().nullish(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullish(),
+  "hireDate": zod.coerce.date().nullish(),
+  "probationEndDate": zod.coerce.date().nullish(),
+  "employmentStatus": zod.enum(['active', 'probation', 'on_leave', 'suspended', 'terminated']),
+  "workLocation": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "updatedBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update an employee
+ */
+export const UpdateEmployeeParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+
+
+
+
+export const UpdateEmployeeBody = zod.object({
+  "employeeNumber": zod.string().nullish(),
+  "firstName": zod.string().min(1).optional(),
+  "middleName": zod.string().nullish(),
+  "lastName": zod.string().min(1).optional(),
+  "preferredName": zod.string().nullish(),
+  "gender": zod.union([zod.literal('male'),zod.literal('female'),zod.literal('other'),zod.literal('prefer_not_to_say'),zod.literal(null)]).nullish(),
+  "dateOfBirth": zod.coerce.date().nullish(),
+  "maritalStatus": zod.union([zod.literal('single'),zod.literal('married'),zod.literal('divorced'),zod.literal('widowed'),zod.literal('other'),zod.literal(null)]).nullish(),
+  "nationality": zod.string().nullish(),
+  "nationalId": zod.string().nullish(),
+  "passportNumber": zod.string().nullish(),
+  "personalEmail": zod.string().nullish(),
+  "workEmail": zod.string().nullish(),
+  "phoneNumber": zod.string().nullish(),
+  "alternatePhoneNumber": zod.string().nullish(),
+  "residentialAddress": zod.union([zod.object({
+  "line1": zod.string().nullish(),
+  "line2": zod.string().nullish(),
+  "city": zod.string().nullish(),
+  "state": zod.string().nullish(),
+  "postalCode": zod.string().nullish(),
+  "country": zod.string().nullish()
+}),zod.null()]).optional(),
+  "emergencyContacts": zod.array(zod.object({
+  "name": zod.string(),
+  "relationship": zod.string(),
+  "phone": zod.string()
+})).nullish(),
+  "departmentId": zod.number().nullish(),
+  "branchId": zod.number().nullish(),
+  "positionId": zod.number().nullish(),
+  "reportingManagerId": zod.number().nullish(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullish(),
+  "hireDate": zod.coerce.date().nullish(),
+  "probationEndDate": zod.coerce.date().nullish(),
+  "employmentStatus": zod.enum(['active', 'probation', 'on_leave', 'suspended', 'terminated']).optional(),
+  "workLocation": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateEmployeeResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeNumber": zod.string().nullish(),
+  "hasProfilePicture": zod.boolean().optional(),
+  "firstName": zod.string(),
+  "middleName": zod.string().nullish(),
+  "lastName": zod.string(),
+  "preferredName": zod.string().nullish(),
+  "gender": zod.union([zod.literal('male'),zod.literal('female'),zod.literal('other'),zod.literal('prefer_not_to_say'),zod.literal(null)]).nullish(),
+  "dateOfBirth": zod.coerce.date().nullish(),
+  "maritalStatus": zod.union([zod.literal('single'),zod.literal('married'),zod.literal('divorced'),zod.literal('widowed'),zod.literal('other'),zod.literal(null)]).nullish(),
+  "nationality": zod.string().nullish(),
+  "nationalId": zod.string().nullish(),
+  "passportNumber": zod.string().nullish(),
+  "personalEmail": zod.string().nullish(),
+  "workEmail": zod.string().nullish(),
+  "phoneNumber": zod.string().nullish(),
+  "alternatePhoneNumber": zod.string().nullish(),
+  "residentialAddress": zod.union([zod.object({
+  "line1": zod.string().nullish(),
+  "line2": zod.string().nullish(),
+  "city": zod.string().nullish(),
+  "state": zod.string().nullish(),
+  "postalCode": zod.string().nullish(),
+  "country": zod.string().nullish()
+}),zod.null()]).optional(),
+  "emergencyContacts": zod.array(zod.object({
+  "name": zod.string(),
+  "relationship": zod.string(),
+  "phone": zod.string()
+})).nullish(),
+  "departmentId": zod.number().nullish(),
+  "departmentName": zod.string().nullish(),
+  "branchId": zod.number().nullish(),
+  "branchName": zod.string().nullish(),
+  "positionId": zod.number().nullish(),
+  "positionName": zod.string().nullish(),
+  "reportingManagerId": zod.number().nullish(),
+  "reportingManagerName": zod.string().nullish(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullish(),
+  "hireDate": zod.coerce.date().nullish(),
+  "probationEndDate": zod.coerce.date().nullish(),
+  "employmentStatus": zod.enum(['active', 'probation', 'on_leave', 'suspended', 'terminated']),
+  "workLocation": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "updatedBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * multipart/form-data upload. JPEG/PNG/WebP only, validated by file signature (not just Content-Type), 5MB max. Re-encoded to a resized, EXIF-stripped JPEG before storage.
+ * @summary Upload or replace an employee's profile picture
+ */
+export const UploadEmployeeProfilePictureParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const UploadEmployeeProfilePictureBody = zod.object({
+  "file": zod.instanceof(File)
+})
+
+export const UploadEmployeeProfilePictureResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeNumber": zod.string().nullish(),
+  "hasProfilePicture": zod.boolean().optional(),
+  "firstName": zod.string(),
+  "middleName": zod.string().nullish(),
+  "lastName": zod.string(),
+  "preferredName": zod.string().nullish(),
+  "gender": zod.union([zod.literal('male'),zod.literal('female'),zod.literal('other'),zod.literal('prefer_not_to_say'),zod.literal(null)]).nullish(),
+  "dateOfBirth": zod.coerce.date().nullish(),
+  "maritalStatus": zod.union([zod.literal('single'),zod.literal('married'),zod.literal('divorced'),zod.literal('widowed'),zod.literal('other'),zod.literal(null)]).nullish(),
+  "nationality": zod.string().nullish(),
+  "nationalId": zod.string().nullish(),
+  "passportNumber": zod.string().nullish(),
+  "personalEmail": zod.string().nullish(),
+  "workEmail": zod.string().nullish(),
+  "phoneNumber": zod.string().nullish(),
+  "alternatePhoneNumber": zod.string().nullish(),
+  "residentialAddress": zod.union([zod.object({
+  "line1": zod.string().nullish(),
+  "line2": zod.string().nullish(),
+  "city": zod.string().nullish(),
+  "state": zod.string().nullish(),
+  "postalCode": zod.string().nullish(),
+  "country": zod.string().nullish()
+}),zod.null()]).optional(),
+  "emergencyContacts": zod.array(zod.object({
+  "name": zod.string(),
+  "relationship": zod.string(),
+  "phone": zod.string()
+})).nullish(),
+  "departmentId": zod.number().nullish(),
+  "departmentName": zod.string().nullish(),
+  "branchId": zod.number().nullish(),
+  "branchName": zod.string().nullish(),
+  "positionId": zod.number().nullish(),
+  "positionName": zod.string().nullish(),
+  "reportingManagerId": zod.number().nullish(),
+  "reportingManagerName": zod.string().nullish(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullish(),
+  "hireDate": zod.coerce.date().nullish(),
+  "probationEndDate": zod.coerce.date().nullish(),
+  "employmentStatus": zod.enum(['active', 'probation', 'on_leave', 'suspended', 'terminated']),
+  "workLocation": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "updatedBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Remove an employee's profile picture
+ */
+export const RemoveEmployeeProfilePictureParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const RemoveEmployeeProfilePictureResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeNumber": zod.string().nullish(),
+  "hasProfilePicture": zod.boolean().optional(),
+  "firstName": zod.string(),
+  "middleName": zod.string().nullish(),
+  "lastName": zod.string(),
+  "preferredName": zod.string().nullish(),
+  "gender": zod.union([zod.literal('male'),zod.literal('female'),zod.literal('other'),zod.literal('prefer_not_to_say'),zod.literal(null)]).nullish(),
+  "dateOfBirth": zod.coerce.date().nullish(),
+  "maritalStatus": zod.union([zod.literal('single'),zod.literal('married'),zod.literal('divorced'),zod.literal('widowed'),zod.literal('other'),zod.literal(null)]).nullish(),
+  "nationality": zod.string().nullish(),
+  "nationalId": zod.string().nullish(),
+  "passportNumber": zod.string().nullish(),
+  "personalEmail": zod.string().nullish(),
+  "workEmail": zod.string().nullish(),
+  "phoneNumber": zod.string().nullish(),
+  "alternatePhoneNumber": zod.string().nullish(),
+  "residentialAddress": zod.union([zod.object({
+  "line1": zod.string().nullish(),
+  "line2": zod.string().nullish(),
+  "city": zod.string().nullish(),
+  "state": zod.string().nullish(),
+  "postalCode": zod.string().nullish(),
+  "country": zod.string().nullish()
+}),zod.null()]).optional(),
+  "emergencyContacts": zod.array(zod.object({
+  "name": zod.string(),
+  "relationship": zod.string(),
+  "phone": zod.string()
+})).nullish(),
+  "departmentId": zod.number().nullish(),
+  "departmentName": zod.string().nullish(),
+  "branchId": zod.number().nullish(),
+  "branchName": zod.string().nullish(),
+  "positionId": zod.number().nullish(),
+  "positionName": zod.string().nullish(),
+  "reportingManagerId": zod.number().nullish(),
+  "reportingManagerName": zod.string().nullish(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullish(),
+  "hireDate": zod.coerce.date().nullish(),
+  "probationEndDate": zod.coerce.date().nullish(),
+  "employmentStatus": zod.enum(['active', 'probation', 'on_leave', 'suspended', 'terminated']),
+  "workLocation": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "updatedBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Optional. The target application user must already have an active membership in this organization — linking never grants access on its own.
+ * @summary Link an employee record to a login account
+ */
+export const LinkEmployeeToUserParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const LinkEmployeeToUserBody = zod.object({
+  "applicationUserId": zod.number()
+})
+
+export const LinkEmployeeToUserResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary List branches
+ */
+export const ListBranchesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListBranchesResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "code": zod.string(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdAt": zod.coerce.date()
+})
+export const ListBranchesResponse = zod.array(ListBranchesResponseItem)
+
+
+/**
+ * @summary Create a branch
+ */
+export const CreateBranchParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+
+
+
+export const CreateBranchBody = zod.object({
+  "name": zod.string().min(1),
+  "code": zod.string().min(1)
+})
+
+export const CreateBranchResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "code": zod.string(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List departments
+ */
+export const ListDepartmentsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListDepartmentsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "branchId": zod.number().nullish(),
+  "parentDepartmentId": zod.number().nullish(),
+  "name": zod.string(),
+  "code": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+export const ListDepartmentsResponse = zod.array(ListDepartmentsResponseItem)
+
+
+/**
+ * @summary Create a department
+ */
+export const CreateDepartmentParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+
+
+
+export const CreateDepartmentBody = zod.object({
+  "name": zod.string().min(1),
+  "code": zod.string().min(1),
+  "branchId": zod.number().nullish(),
+  "parentDepartmentId": zod.number().nullish()
+})
+
+export const CreateDepartmentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "branchId": zod.number().nullish(),
+  "parentDepartmentId": zod.number().nullish(),
+  "name": zod.string(),
+  "code": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List positions
+ */
+export const ListPositionsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListPositionsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "title": zod.string(),
+  "departmentId": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListPositionsResponse = zod.array(ListPositionsResponseItem)
+
+
+/**
+ * @summary Create a position
+ */
+export const CreatePositionParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+
+
+export const CreatePositionBody = zod.object({
+  "title": zod.string().min(1),
+  "departmentId": zod.number().nullish()
+})
+
+export const CreatePositionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "title": zod.string(),
+  "departmentId": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
 })
 
 
@@ -206,6 +893,262 @@ export const GetDashboardSummaryResponse = zod.object({
   "activeModules": zod.number(),
   "pendingRequests": zod.number(),
   "unreadNotifications": zod.number()
+})
+
+
+/**
+ * System-wide role catalog (not org-scoped)
+ * @summary List roles
+ */
+export const ListRolesResponseItem = zod.object({
+  "id": zod.number(),
+  "key": zod.string(),
+  "label": zod.string(),
+  "description": zod.string().nullish(),
+  "isSystemRole": zod.boolean()
+})
+export const ListRolesResponse = zod.array(ListRolesResponseItem)
+
+
+/**
+ * System-wide permission catalog (not org-scoped)
+ * @summary List permissions
+ */
+export const ListPermissionsResponseItem = zod.object({
+  "id": zod.number(),
+  "key": zod.string(),
+  "resource": zod.string(),
+  "action": zod.string(),
+  "description": zod.string().nullish()
+})
+export const ListPermissionsResponse = zod.array(ListPermissionsResponseItem)
+
+
+/**
+ * @summary List organization members
+ */
+export const ListMembersParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListMembersResponseItem = zod.object({
+  "membershipId": zod.number(),
+  "applicationUserId": zod.number(),
+  "email": zod.string(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "status": zod.enum(['invited', 'active', 'suspended', 'expired', 'revoked']),
+  "roles": zod.array(zod.string()),
+  "isPrimaryHr": zod.boolean(),
+  "joinedAt": zod.coerce.date().nullish()
+})
+export const ListMembersResponse = zod.array(ListMembersResponseItem)
+
+
+/**
+ * @summary Add an existing user as a member
+ */
+export const AddMemberParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+
+
+export const AddMemberBody = zod.object({
+  "email": zod.string().min(1)
+})
+
+export const AddMemberResponse = zod.object({
+  "membershipId": zod.number(),
+  "applicationUserId": zod.number(),
+  "email": zod.string(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "status": zod.enum(['invited', 'active', 'suspended', 'expired', 'revoked']),
+  "roles": zod.array(zod.string()),
+  "isPrimaryHr": zod.boolean(),
+  "joinedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Revoke a membership
+ */
+export const RevokeMemberParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "membershipId": zod.coerce.number()
+})
+
+export const RevokeMemberResponse = zod.object({
+  "membershipId": zod.number(),
+  "applicationUserId": zod.number(),
+  "email": zod.string(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "status": zod.enum(['invited', 'active', 'suspended', 'expired', 'revoked']),
+  "roles": zod.array(zod.string()),
+  "isPrimaryHr": zod.boolean(),
+  "joinedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Assign a role to a member
+ */
+export const AssignMemberRoleParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "membershipId": zod.coerce.number()
+})
+
+export const AssignMemberRoleBody = zod.object({
+  "roleId": zod.number()
+})
+
+export const AssignMemberRoleResponse = zod.object({
+  "membershipId": zod.number(),
+  "applicationUserId": zod.number(),
+  "email": zod.string(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "status": zod.enum(['invited', 'active', 'suspended', 'expired', 'revoked']),
+  "roles": zod.array(zod.string()),
+  "isPrimaryHr": zod.boolean(),
+  "joinedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Revoke a role from a member
+ */
+export const RevokeMemberRoleParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "membershipId": zod.coerce.number(),
+  "roleId": zod.coerce.number()
+})
+
+export const RevokeMemberRoleResponse = zod.object({
+  "membershipId": zod.number(),
+  "applicationUserId": zod.number(),
+  "email": zod.string(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "status": zod.enum(['invited', 'active', 'suspended', 'expired', 'revoked']),
+  "roles": zod.array(zod.string()),
+  "isPrimaryHr": zod.boolean(),
+  "joinedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Get the current Primary HR assignment
+ */
+export const GetPrimaryHrParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetPrimaryHrResponse = zod.object({
+  "id": zod.number().optional(),
+  "organizationId": zod.number().optional(),
+  "membershipId": zod.number().optional(),
+  "assignedAt": zod.coerce.date().optional(),
+  "assignedBy": zod.number().nullish(),
+  "revokedAt": zod.coerce.date().nullish(),
+  "revokedBy": zod.number().nullish()
+}).nullable()
+
+
+/**
+ * Atomically revokes the current Primary HR (if any) and appoints the given membership.
+ * @summary Appoint or transfer Primary HR
+ */
+export const SetPrimaryHrParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const SetPrimaryHrBody = zod.object({
+  "membershipId": zod.number()
+})
+
+export const SetPrimaryHrResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "membershipId": zod.number(),
+  "assignedAt": zod.coerce.date(),
+  "assignedBy": zod.number().nullish(),
+  "revokedAt": zod.coerce.date().nullish(),
+  "revokedBy": zod.number().nullish()
+})
+
+
+/**
+ * @summary Get organization settings
+ */
+export const GetOrganizationSettingsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetOrganizationSettingsResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "settings": zod.record(zod.string(), zod.unknown()),
+  "createdAt": zod.coerce.date().optional(),
+  "updatedAt": zod.coerce.date().optional()
+})
+
+
+/**
+ * Merges the given keys into the existing settings object.
+ * @summary Update organization settings
+ */
+export const UpdateOrganizationSettingsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const UpdateOrganizationSettingsBody = zod.object({
+  "settings": zod.record(zod.string(), zod.unknown())
+})
+
+export const UpdateOrganizationSettingsResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "settings": zod.record(zod.string(), zod.unknown()),
+  "createdAt": zod.coerce.date().optional(),
+  "updatedAt": zod.coerce.date().optional()
+})
+
+
+/**
+ * Paginated, most recent first.
+ * @summary List audit events
+ */
+export const ListAuditEventsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const listAuditEventsQueryPageDefault = 1;
+export const listAuditEventsQueryPageSizeDefault = 20;
+
+export const ListAuditEventsQueryParams = zod.object({
+  "page": zod.coerce.number().default(listAuditEventsQueryPageDefault),
+  "pageSize": zod.coerce.number().default(listAuditEventsQueryPageSizeDefault)
+})
+
+export const ListAuditEventsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "occurredAt": zod.coerce.date(),
+  "actorApplicationUserId": zod.number().nullish(),
+  "actorMembershipId": zod.number().nullish(),
+  "organizationId": zod.number().nullish(),
+  "eventType": zod.string(),
+  "targetType": zod.string(),
+  "targetId": zod.string().nullish(),
+  "metadata": zod.record(zod.string(), zod.unknown()).nullish()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "pageSize": zod.number()
 })
 
 
