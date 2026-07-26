@@ -1082,39 +1082,42 @@ export const SetPrimaryHrResponse = zod.object({
 
 
 /**
- * @summary Get organization settings
+ * Returns the namespace's saved configuration, or its safe defaults if nothing has been saved yet. 404s for a namespace the Configuration Engine doesn't recognize.
+ * @summary Get an organization configuration namespace
  */
-export const GetOrganizationSettingsParams = zod.object({
-  "organizationId": zod.coerce.number()
+export const GetOrganizationConfigParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "namespace": zod.coerce.string().describe('One of the namespaces registered with the Configuration Engine (currently general, terminology — see artifacts\/api-server\/src\/services\/organizationConfig.ts for the authoritative list). Left as an open string, not an enum, so new namespaces can be registered in code without an API contract change; an unrecognized namespace 404s at request time.')
 })
 
-export const GetOrganizationSettingsResponse = zod.object({
-  "id": zod.number(),
+export const GetOrganizationConfigResponse = zod.object({
   "organizationId": zod.number(),
-  "settings": zod.record(zod.string(), zod.unknown()),
-  "createdAt": zod.coerce.date().optional(),
-  "updatedAt": zod.coerce.date().optional()
+  "namespace": zod.string(),
+  "schemaVersion": zod.number(),
+  "data": zod.record(zod.string(), zod.unknown()),
+  "updatedAt": zod.coerce.date().nullish().describe('Null when the namespace has never been saved and the response reflects its defaults.')
 })
 
 
 /**
- * Merges the given keys into the existing settings object.
- * @summary Update organization settings
+ * Merges the given keys into the namespace's existing configuration and validates the merged result against that namespace's schema before saving.
+ * @summary Update an organization configuration namespace
  */
-export const UpdateOrganizationSettingsParams = zod.object({
-  "organizationId": zod.coerce.number()
+export const UpdateOrganizationConfigParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "namespace": zod.coerce.string().describe('One of the namespaces registered with the Configuration Engine (currently general, terminology — see artifacts\/api-server\/src\/services\/organizationConfig.ts for the authoritative list). Left as an open string, not an enum, so new namespaces can be registered in code without an API contract change; an unrecognized namespace 404s at request time.')
 })
 
-export const UpdateOrganizationSettingsBody = zod.object({
-  "settings": zod.record(zod.string(), zod.unknown())
+export const UpdateOrganizationConfigBody = zod.object({
+  "data": zod.record(zod.string(), zod.unknown())
 })
 
-export const UpdateOrganizationSettingsResponse = zod.object({
-  "id": zod.number(),
+export const UpdateOrganizationConfigResponse = zod.object({
   "organizationId": zod.number(),
-  "settings": zod.record(zod.string(), zod.unknown()),
-  "createdAt": zod.coerce.date().optional(),
-  "updatedAt": zod.coerce.date().optional()
+  "namespace": zod.string(),
+  "schemaVersion": zod.number(),
+  "data": zod.record(zod.string(), zod.unknown()),
+  "updatedAt": zod.coerce.date().nullish().describe('Null when the namespace has never been saved and the response reflects its defaults.')
 })
 
 

@@ -701,20 +701,24 @@ export interface SetPrimaryHrInput {
   membershipId: number;
 }
 
-export type OrganizationSettingsSettings = { [key: string]: unknown };
+export type OrganizationConfigData = { [key: string]: unknown };
 
-export interface OrganizationSettings {
-  id: number;
+export interface OrganizationConfig {
   organizationId: number;
-  settings: OrganizationSettingsSettings;
-  createdAt?: string;
-  updatedAt?: string;
+  namespace: string;
+  schemaVersion: number;
+  data: OrganizationConfigData;
+  /**
+     * Null when the namespace has never been saved and the response reflects its defaults.
+     * @nullable
+     */
+  updatedAt?: string | null;
 }
 
-export type UpdateOrganizationSettingsInputSettings = { [key: string]: unknown };
+export type UpdateOrganizationConfigInputData = { [key: string]: unknown };
 
-export interface UpdateOrganizationSettingsInput {
-  settings: UpdateOrganizationSettingsInputSettings;
+export interface UpdateOrganizationConfigInput {
+  data: UpdateOrganizationConfigInputData;
 }
 
 /**

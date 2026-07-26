@@ -36,9 +36,9 @@ import {
   useGetPrimaryHr,
   getGetPrimaryHrQueryKey,
   useSetPrimaryHr,
-  useGetOrganizationSettings,
-  getGetOrganizationSettingsQueryKey,
-  useUpdateOrganizationSettings,
+  useGetOrganizationConfig,
+  getGetOrganizationConfigQueryKey,
+  useUpdateOrganizationConfig,
   useListAuditEvents,
   getListAuditEventsQueryKey,
   useListMyOrganizations,
@@ -286,6 +286,92 @@ function MembersTab({ organizationId }: { organizationId: number }) {
   );
 }
 
+function NamespaceConfigCard({
+  organizationId,
+  namespace,
+  title,
+  description,
+}: {
+  organizationId: number;
+  namespace: 'general' | 'terminology';
+  title: string;
+  description: string;
+}) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const { data: config, isLoading } = useGetOrganizationConfig(organizationId, namespace, {
+    query: { queryKey: getGetOrganizationConfigQueryKey(organizationId, namespace), enabled: organizationId > 0 },
+  });
+  const updateMutation = useUpdateOrganizationConfig();
+
+  const [json, setJson] = useState('');
+  const [touched, setTouched] = useState(false);
+
+  if (config && !touched) {
+    const formatted = JSON.stringify(config.data, null, 2);
+    if (formatted !== json) setJson(formatted);
+  }
+
+  const handleSave = () => {
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(json);
+    } catch {
+      toast({ title: 'Invalid JSON', description: `${title} must be valid JSON.`, variant: 'destructive' });
+      return;
+    }
+    updateMutation.mutate(
+      { organizationId, namespace, data: { data: parsed } },
+      {
+        onSuccess: (updated) => {
+          queryClient.setQueryData(getGetOrganizationConfigQueryKey(organizationId, namespace), updated);
+          setTouched(false);
+          toast({ title: `${title} saved` });
+        },
+        onError: (err) =>
+          toast({ title: `Could not save ${title.toLowerCase()}`, description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading ? (
+          <Skeleton className="h-32 w-full" />
+        ) : (
+          <>
+            <Textarea
+              value={json}
+              onChange={(e) => {
+                setJson(e.target.value);
+                setTouched(true);
+              }}
+              rows={8}
+              className="font-mono text-sm"
+              data-testid={`textarea-config-${namespace}`}
+              aria-label={`${title} JSON`}
+            />
+            <Button
+              onClick={handleSave}
+              disabled={updateMutation.isPending}
+              data-testid={`button-save-config-${namespace}`}
+            >
+              <Settings2 className="h-4 w-4" aria-hidden="true" />
+              Save {title}
+            </Button>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function PrimaryHrAndSettingsTab({ organizationId }: { organizationId: number }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -296,21 +382,10 @@ function PrimaryHrAndSettingsTab({ organizationId }: { organizationId: number })
   const { data: members } = useListMembers(organizationId, {
     query: { queryKey: getListMembersQueryKey(organizationId), enabled: organizationId > 0 },
   });
-  const { data: settings, isLoading: settingsLoading } = useGetOrganizationSettings(organizationId, {
-    query: { queryKey: getGetOrganizationSettingsQueryKey(organizationId), enabled: organizationId > 0 },
-  });
 
   const [newPrimaryHrId, setNewPrimaryHrId] = useState('');
-  const [settingsJson, setSettingsJson] = useState('');
-  const [settingsTouched, setSettingsTouched] = useState(false);
-
-  if (settings && !settingsTouched) {
-    const formatted = JSON.stringify(settings.settings, null, 2);
-    if (formatted !== settingsJson) setSettingsJson(formatted);
-  }
 
   const setPrimaryHrMutation = useSetPrimaryHr();
-  const updateSettingsMutation = useUpdateOrganizationSettings();
 
   const currentPrimaryHrMember = members?.find((m) => primaryHr && m.membershipId === primaryHr.membershipId);
 
@@ -326,27 +401,6 @@ function PrimaryHrAndSettingsTab({ organizationId }: { organizationId: number })
           toast({ title: 'Primary HR updated' });
         },
         onError: (err) => toast({ title: 'Could not update Primary HR', description: errorMessage(err), variant: 'destructive' }),
-      },
-    );
-  };
-
-  const handleSaveSettings = () => {
-    let parsed: Record<string, unknown>;
-    try {
-      parsed = JSON.parse(settingsJson);
-    } catch {
-      toast({ title: 'Invalid JSON', description: 'Settings must be valid JSON.', variant: 'destructive' });
-      return;
-    }
-    updateSettingsMutation.mutate(
-      { organizationId, data: { settings: parsed } },
-      {
-        onSuccess: (updated) => {
-          queryClient.setQueryData(getGetOrganizationSettingsQueryKey(organizationId), updated);
-          setSettingsTouched(false);
-          toast({ title: 'Settings saved' });
-        },
-        onError: (err) => toast({ title: 'Could not save settings', description: errorMessage(err), variant: 'destructive' }),
       },
     );
   };
@@ -396,39 +450,18 @@ function PrimaryHrAndSettingsTab({ organizationId }: { organizationId: number })
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Organisation Settings</CardTitle>
-          <CardDescription>Free-form settings, stored as JSON</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {settingsLoading ? (
-            <Skeleton className="h-32 w-full" />
-          ) : (
-            <>
-              <Textarea
-                value={settingsJson}
-                onChange={(e) => {
-                  setSettingsJson(e.target.value);
-                  setSettingsTouched(true);
-                }}
-                rows={8}
-                className="font-mono text-sm"
-                data-testid="textarea-org-settings"
-                aria-label="Organisation settings JSON"
-              />
-              <Button
-                onClick={handleSaveSettings}
-                disabled={updateSettingsMutation.isPending}
-                data-testid="button-save-settings"
-              >
-                <Settings2 className="h-4 w-4" aria-hidden="true" />
-                Save Settings
-              </Button>
-            </>
-          )}
-        </CardContent>
-      </Card>
+      <NamespaceConfigCard
+        organizationId={organizationId}
+        namespace="general"
+        title="General Settings"
+        description="Organization-wide configuration, validated and stored as JSON"
+      />
+      <NamespaceConfigCard
+        organizationId={organizationId}
+        namespace="terminology"
+        title="Terminology"
+        description="Override the labels used for employees, branches, departments and positions"
+      />
     </div>
   );
 }

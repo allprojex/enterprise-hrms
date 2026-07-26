@@ -1018,48 +1018,85 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
-  /organizations/{organizationId}/settings:
+  /organizations/{organizationId}/config/{namespace}:
     get:
-      operationId: getOrganizationSettings
+      operationId: getOrganizationConfig
       tags: [organizations]
-      summary: Get organization settings
+      summary: Get an organization configuration namespace
+      description: >-
+        Returns the namespace's saved configuration, or its safe defaults if
+        nothing has been saved yet. 404s for a namespace the Configuration
+        Engine doesn't recognize.
       parameters:
         - name: organizationId
           in: path
           required: true
           schema:
             type: integer
+        - name: namespace
+          in: path
+          required: true
+          schema:
+            type: string
+          description: >-
+            One of the namespaces registered with the Configuration Engine
+            (currently general, terminology — see
+            artifacts/api-server/src/services/organizationConfig.ts for the
+            authoritative list). Left as an open string, not an enum, so new
+            namespaces can be registered in code without an API contract
+            change; an unrecognized namespace 404s at request time.
       responses:
         "200":
-          description: Organization settings
+          description: Organization configuration namespace
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/OrganizationSettings"
+                $ref: "#/components/schemas/OrganizationConfig"
     patch:
-      operationId: updateOrganizationSettings
+      operationId: updateOrganizationConfig
       tags: [organizations]
-      summary: Update organization settings
-      description: Merges the given keys into the existing settings object.
+      summary: Update an organization configuration namespace
+      description: >-
+        Merges the given keys into the namespace's existing configuration and
+        validates the merged result against that namespace's schema before
+        saving.
       parameters:
         - name: organizationId
           in: path
           required: true
           schema:
             type: integer
+        - name: namespace
+          in: path
+          required: true
+          schema:
+            type: string
+          description: >-
+            One of the namespaces registered with the Configuration Engine
+            (currently general, terminology — see
+            artifacts/api-server/src/services/organizationConfig.ts for the
+            authoritative list). Left as an open string, not an enum, so new
+            namespaces can be registered in code without an API contract
+            change; an unrecognized namespace 404s at request time.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateOrganizationSettingsInput"
+              $ref: "#/components/schemas/UpdateOrganizationConfigInput"
       responses:
         "200":
-          description: Updated organization settings
+          description: Updated organization configuration namespace
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/OrganizationSettings"
+                $ref: "#/components/schemas/OrganizationConfig"
+        "400":
+          description: The merged configuration failed namespace validation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /organizations/{organizationId}/audit-events:
     get:
@@ -1789,29 +1826,29 @@ components:
         membershipId:
           type: integer
 
-    OrganizationSettings:
+    OrganizationConfig:
       type: object
-      required: [id, organizationId, settings]
+      required: [organizationId, namespace, schemaVersion, data]
       properties:
-        id:
-          type: integer
         organizationId:
           type: integer
-        settings:
+        namespace:
+          type: string
+        schemaVersion:
+          type: integer
+        data:
           type: object
           additionalProperties: true
-        createdAt:
-          type: string
-          format: date-time
         updatedAt:
-          type: string
+          type: ["string", "null"]
           format: date-time
+          description: Null when the namespace has never been saved and the response reflects its defaults.
 
-    UpdateOrganizationSettingsInput:
+    UpdateOrganizationConfigInput:
       type: object
-      required: [settings]
+      required: [data]
       properties:
-        settings:
+        data:
           type: object
           additionalProperties: true
 

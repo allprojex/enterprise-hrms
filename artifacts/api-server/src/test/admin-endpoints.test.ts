@@ -1,0 +1,458 @@
+/**
+ * Integration tests for the small admin-facing endpoints added alongside
+ * membership management: role/permission catalogs, Primary HR, organization
+ * settings, and audit event listing. @workspace/db is mocked — no real
+ * database connection is made. Focuses on auth/permission gating plus one
+ * happy path per endpoint, matching the depth already used for
+ * branches/departments/positions in this suite.
+ */
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import request from "supertest";
+
+function mockTable(name: string, columns: string[]) {
+  const table: Record<string, string> & { __name: string } = { __name: name } as never;
+  for (const col of columns) table[col] = `${name}.${col}`;
+  return table;
+}
+
+const {
+  fixtures,
+  usersTable,
+  sessionsTable,
+  organizationMembershipsTable,
+  membershipRolesTable,
+  rolePermissionsTable,
+  permissionsTable,
+  rolesTable,
+  primaryHrAssignmentsTable,
+  organizationSettingsTable,
+  auditEventsTable,
+} = vi.hoisted(() => {
+  function mockTable(name: string, columns: string[]) {
+    const table: Record<string, string> & { __name: string } = { __name: name } as never;
+    for (const col of columns) table[col] = `${name}.${col}`;
+    return table;
+  }
+  return {
+    fixtures: {
+      sessionRows: [] as unknown[],
+      membershipRows: [] as Record<string, unknown>[],
+      membershipRoleRows: [] as { membershipId: number; roleId: number }[],
+      permissionRows: [] as { roleId: number; key: string }[],
+      roleRows: [] as { id: number; key: string; label: string; isSystemRole: boolean }[],
+      permissionCatalogRows: [] as { id: number; key: string }[],
+      primaryHrRows: [] as Record<string, unknown>[],
+      settingsRows: [] as Record<string, unknown>[],
+      auditRows: [] as Record<string, unknown>[],
+      inserted: [] as { table: string; values: unknown }[],
+      idCounters: new Map<string, number>(),
+    },
+    usersTable: mockTable("users", ["id", "email"]),
+    sessionsTable: mockTable("sessions", ["token", "userId", "expiresAt"]),
+    organizationMembershipsTable: mockTable("organization_memberships", [
+      "id",
+      "applicationUserId",
+      "organizationId",
+      "status",
+    ]),
+    membershipRolesTable: mockTable("membership_roles", ["membershipId", "roleId"]),
+    rolePermissionsTable: mockTable("role_permissions", ["roleId", "permissionId"]),
+    permissionsTable: mockTable("permissions", ["id", "key"]),
+    rolesTable: mockTable("roles", ["id", "key"]),
+    primaryHrAssignmentsTable: mockTable("primary_hr_assignments", ["organizationId", "membershipId", "revokedAt"]),
+    organizationSettingsTable: mockTable("organization_settings", ["id", "organizationId", "namespace", "schemaVersion", "settings"]),
+    auditEventsTable: mockTable("audit_events", ["organizationId"]),
+  };
+});
+
+function nextId(table: { __name: string }): number {
+  const current = fixtures.idCounters.get(table.__name) ?? 0;
+  const id = current + 1;
+  fixtures.idCounters.set(table.__name, id);
+  return id;
+}
+
+type Cond =
+  | { __op: "eq"; field: string; val: unknown }
+  | { __op: "in"; field: string; vals: unknown[] }
+  | { __op: "and"; conds: Cond[] }
+  | undefined;
+function matches(row: Record<string, unknown>, cond: Cond): boolean {
+  if (!cond) return true;
+  if (cond.__op === "eq") return row[cond.field] === cond.val;
+  if (cond.__op === "in") return cond.vals.includes(row[cond.field]);
+  if (cond.__op === "and") return cond.conds.every((c) => matches(row, c));
+  return true;
+}
+
+const dbMock = {
+    select: () => ({
+      from(table: { __name: string }) {
+        if (table === sessionsTable) {
+          const rows = fixtures.sessionRows;
+          const builder = {
+            innerJoin: () => builder,
+            where: () => builder,
+            limit: () => Promise.resolve(rows),
+            then: (resolve: (v: unknown) => void, reject?: (e: unknown) => void) =>
+              Promise.resolve(rows).then(resolve, reject),
+          };
+          return builder;
+        }
+
+        let rows: Record<string, unknown>[] = [];
+        if (table === organizationMembershipsTable) rows = fixtures.membershipRows;
+        else if (table === membershipRolesTable) rows = fixtures.membershipRoleRows as never;
+        else if (table === rolePermissionsTable) rows = fixtures.permissionRows as never;
+        else if (table === rolesTable) rows = fixtures.roleRows as never;
+        else if (table === permissionsTable) rows = fixtures.permissionCatalogRows as never;
+        else if (table === primaryHrAssignmentsTable) rows = fixtures.primaryHrRows;
+        else if (table === organizationSettingsTable) rows = fixtures.settingsRows;
+        else if (table === auditEventsTable) rows = fixtures.auditRows;
+
+        let filtered = rows;
+        const builder = {
+          innerJoin: () => builder,
+          where(cond: Cond) {
+            filtered = rows.filter((r) => matches(r, cond));
+            return builder;
+          },
+          orderBy: () => builder,
+          limit(n: number) {
+            filtered = filtered.slice(0, n);
+            return builder;
+          },
+          offset(n: number) {
+            filtered = filtered.slice(n);
+            return builder;
+          },
+          then: (resolve: (v: unknown) => void, reject?: (e: unknown) => void) =>
+            Promise.resolve(filtered).then(resolve, reject),
+        };
+        return builder;
+      },
+    }),
+    insert: (table: { __name: string }) => ({
+      values: (v: Record<string, unknown>) => {
+        fixtures.inserted.push({ table: table.__name, values: v });
+        return {
+          returning: () => Promise.resolve([{ id: nextId(table), ...v }]),
+          onConflictDoNothing: () => ({
+            returning: () => Promise.resolve([{ id: nextId(table), ...v }]),
+          }),
+        };
+      },
+    }),
+    update: (table: { __name: string }) => ({
+      set: (v: Record<string, unknown>) => ({
+        where: () => ({
+          returning: () => {
+            fixtures.inserted.push({ table: table.__name, values: v });
+            const base =
+              table === primaryHrAssignmentsTable
+                ? fixtures.primaryHrRows[0]
+                : fixtures.settingsRows[0];
+            return Promise.resolve(base ? [{ ...base, ...v }] : []);
+          },
+        }),
+      }),
+    }),
+    transaction: (cb: (tx: unknown) => Promise<unknown>) => cb(dbMock),
+};
+
+vi.mock("@workspace/db", () => ({
+  usersTable,
+  sessionsTable,
+  organizationMembershipsTable,
+  membershipRolesTable,
+  rolePermissionsTable,
+  permissionsTable,
+  rolesTable,
+  primaryHrAssignmentsTable,
+  organizationSettingsTable,
+  auditEventsTable,
+  db: dbMock,
+}));
+
+vi.mock("drizzle-orm", () => ({
+  eq: (col: string, val: unknown) => ({ __op: "eq", field: col.split(".").pop(), val }),
+  and: (...conds: Cond[]) => ({ __op: "and", conds: conds.filter(Boolean) }),
+  or: () => undefined,
+  isNull: () => undefined,
+  gt: () => undefined,
+  desc: () => undefined,
+  count: () => "count",
+  inArray: (col: string, vals: unknown[]) => ({ __op: "in", field: col.split(".").pop(), vals }),
+}));
+
+const { default: app } = await import("../app");
+
+function mockSession(userId = 1) {
+  fixtures.sessionRows = [
+    {
+      session: { id: 1, token: "valid-token", userId, expiresAt: new Date(Date.now() + 100000) },
+      user: {
+        id: userId,
+        email: "user@example.com",
+        firstName: "Test",
+        lastName: "User",
+        role: "employee",
+        organizationId: 10,
+        avatarUrl: null,
+        jobTitle: null,
+        department: null,
+        phoneNumber: null,
+        createdAt: new Date(),
+      },
+    },
+  ];
+}
+
+function mockActiveMembership(membershipId = 5, organizationId = 10) {
+  fixtures.membershipRows = [
+    { id: membershipId, applicationUserId: 1, organizationId, status: "active" },
+  ];
+}
+
+function mockPermissions(permissionKeys: string[], membershipId = 5, roleId = 1) {
+  fixtures.membershipRoleRows = [{ membershipId, roleId }];
+  fixtures.permissionRows = permissionKeys.map((key) => ({ roleId, key }));
+}
+
+beforeEach(() => {
+  fixtures.sessionRows = [];
+  fixtures.membershipRows = [];
+  fixtures.membershipRoleRows = [];
+  fixtures.permissionRows = [];
+  fixtures.roleRows = [];
+  fixtures.permissionCatalogRows = [];
+  fixtures.primaryHrRows = [];
+  fixtures.settingsRows = [];
+  fixtures.auditRows = [];
+  fixtures.inserted = [];
+  fixtures.idCounters = new Map();
+});
+
+describe("GET /api/roles", () => {
+  it("returns 401 when unauthenticated", async () => {
+    const res = await request(app).get("/api/roles");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns the role catalog for any authenticated user", async () => {
+    mockSession();
+    fixtures.roleRows = [{ id: 1, key: "org_admin", label: "Organization Admin", isSystemRole: true }];
+
+    const res = await request(app).get("/api/roles").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].key).toBe("org_admin");
+  });
+});
+
+describe("GET /api/permissions", () => {
+  it("returns the permission catalog for any authenticated user", async () => {
+    mockSession();
+    fixtures.permissionCatalogRows = [{ id: 1, key: "employee.read" }];
+
+    const res = await request(app).get("/api/permissions").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body[0].key).toBe("employee.read");
+  });
+});
+
+describe("GET/POST /api/organizations/:organizationId/primary-hr", () => {
+  it("returns 403 without primary_hr.manage", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions([]);
+
+    const res = await request(app)
+      .get("/api/organizations/10/primary-hr")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(403);
+  });
+
+  it("returns null when no Primary HR is set", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["primary_hr.manage"]);
+    fixtures.primaryHrRows = [];
+
+    const res = await request(app)
+      .get("/api/organizations/10/primary-hr")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toBeNull();
+  });
+
+  it("rejects appointing a membership from a different organization", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["primary_hr.manage"]);
+    // Only the caller's own membership (org 10) exists in the fixture rows —
+    // membershipId 77 (claimed to be org 10) simply isn't among them.
+
+    const res = await request(app)
+      .post("/api/organizations/10/primary-hr")
+      .set("Authorization", "Bearer valid-token")
+      .send({ membershipId: 77 });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("appoints Primary HR when the target membership belongs to the organization", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["primary_hr.manage"]);
+    fixtures.membershipRows.push({ id: 6, applicationUserId: 2, organizationId: 10, status: "active" });
+
+    const res = await request(app)
+      .post("/api/organizations/10/primary-hr")
+      .set("Authorization", "Bearer valid-token")
+      .send({ membershipId: 6 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.membershipId).toBe(6);
+  });
+});
+
+describe("GET/PATCH /api/organizations/:organizationId/config/:namespace", () => {
+  it("returns 403 without organization.read", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions([]);
+
+    const res = await request(app)
+      .get("/api/organizations/10/config/general")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 404 for a namespace the Configuration Engine doesn't know", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["organization.read"]);
+
+    const res = await request(app)
+      .get("/api/organizations/10/config/bogus")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(404);
+  });
+
+  it("returns safe defaults, without creating a row, when nothing has been saved yet", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["organization.read"]);
+    fixtures.settingsRows = [];
+
+    const res = await request(app)
+      .get("/api/organizations/10/config/terminology")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.namespace).toBe("terminology");
+    expect(res.body.data.employeeLabel).toBe("Employee");
+    expect(res.body.updatedAt).toBeNull();
+    expect(fixtures.inserted).toHaveLength(0);
+  });
+
+  it("reads a legacy row (no namespace column set at write time) as the general namespace", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["organization.read"]);
+    fixtures.settingsRows = [
+      { id: 1, organizationId: 10, namespace: "general", schemaVersion: 1, settings: { theme: "dark" } },
+    ];
+
+    const res = await request(app)
+      .get("/api/organizations/10/config/general")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ theme: "dark" });
+  });
+
+  it("rejects updates without organization.update", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["organization.read"]);
+
+    const res = await request(app)
+      .patch("/api/organizations/10/config/general")
+      .set("Authorization", "Bearer valid-token")
+      .send({ data: { theme: "dark" } });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("rejects a merged config that fails the namespace's schema", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["organization.update"]);
+    fixtures.settingsRows = [];
+
+    const res = await request(app)
+      .patch("/api/organizations/10/config/general")
+      .set("Authorization", "Bearer valid-token")
+      .send({ data: { contactEmail: "not-an-email" } });
+
+    expect(res.status).toBe(400);
+    expect(fixtures.inserted).toHaveLength(0);
+  });
+
+  it("merges the patch into existing data and persists the namespace's current schema version", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["organization.update"]);
+    fixtures.settingsRows = [
+      { id: 1, organizationId: 10, namespace: "terminology", schemaVersion: 1, settings: { employeeLabel: "Worker" } },
+    ];
+
+    const res = await request(app)
+      .patch("/api/organizations/10/config/terminology")
+      .set("Authorization", "Bearer valid-token")
+      .send({ data: { branchLabel: "Site" } });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ employeeLabel: "Worker", branchLabel: "Site" });
+    expect(res.body.schemaVersion).toBe(1);
+  });
+});
+
+describe("GET /api/organizations/:organizationId/audit-events", () => {
+  it("returns 403 without audit.read", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions([]);
+
+    const res = await request(app)
+      .get("/api/organizations/10/audit-events")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(403);
+  });
+
+  it("returns a paginated list when authorized", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["audit.read"]);
+    fixtures.auditRows = [
+      { id: 1, organizationId: 10, eventType: "organization.onboarded", targetType: "organization", occurredAt: new Date() },
+    ];
+
+    const res = await request(app)
+      .get("/api/organizations/10/audit-events")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.items).toHaveLength(1);
+    expect(res.body.page).toBe(1);
+  });
+});

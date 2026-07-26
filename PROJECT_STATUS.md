@@ -55,8 +55,9 @@ All of the above is staged locally, not committed, not pushed.
 Authoritative, approved plan: see `docs/FOUNDATION_IMPLEMENTATION_PLAN.md` (21 dependency-ordered workstreams, W1–W21) and `DECISIONS.md` ADR-008–017 for the architecture decisions behind it. Phase 2A (Core Employee Domain) does not begin until this plan's Definition of Foundation Complete is met.
 
 - **W1 — Active Organization Context & Safe Tenant Switching — Complete.** See Known Issue #2 below (resolved).
-- **W2 — Organization Configuration Engine — Not started (next).**
-- W3–W21 — Not started.
+- **W2 — Organization Configuration Engine — Complete.** See Known Issue #4 below (resolved). Pending: the generated `0001_loving_william_stryker.sql` migration has not been applied to any database — additive only (2 new columns with defaults + an index swap), awaiting your approval per CLAUDE.md's Database Rules.
+- **W3 — Module Registry — Not started (next).**
+- W4–W21 — Not started.
 
 ---
 
@@ -65,7 +66,7 @@ Authoritative, approved plan: see `docs/FOUNDATION_IMPLEMENTATION_PLAN.md` (21 d
 1. No Module Management system — the most structurally significant gap (see above). Targeted by W3/W4.
 2. ~~Organization switcher is non-functional...~~ **Resolved by W1.** `GET /auth/me` now resolves and returns `activeOrganizationId` server-side (session's switched org → legacy `user.organizationId` → any other active membership → null), and every org-scoped page/query and the dashboard summary use it instead of the legacy field. The sidebar switcher is a working dropdown over `/me/organizations`.
 3. No user registration/creation UI anywhere — limits realistic multi-user testing. Targeted by W7 (invitation-first admin user management).
-4. Organization Settings is a raw JSON blob, not structured configuration.
+4. ~~Organization Settings is a raw JSON blob, not structured configuration.~~ **Resolved by W2.** Replaced by the Organization Configuration Engine: `organization_settings` now stores one validated, versioned row per (organization, namespace) instead of one uncontrolled blob per organization. `general` and `terminology` namespaces are implemented now; further namespaces (module enablement, numbering formats, branding, ...) register into the same engine as their owning workstream lands. Existing data preserved automatically via a column default, no migration script needed.
 5. Roles and permissions are fixed seed data — no admin path to define org-specific ones.
 6. Core Reports not started.
 7. Profile picture upload not yet verified live in the browser.

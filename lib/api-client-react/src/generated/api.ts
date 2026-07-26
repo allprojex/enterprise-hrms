@@ -45,8 +45,8 @@ import type {
   MessageResponse,
   Notification,
   Organization,
+  OrganizationConfig,
   OrganizationMember,
-  OrganizationSettings,
   Permission,
   Position,
   PrimaryHrAssignment,
@@ -55,7 +55,7 @@ import type {
   SetPrimaryHrInput,
   SwitchOrganizationInput,
   UpdateEmployeeInput,
-  UpdateOrganizationSettingsInput,
+  UpdateOrganizationConfigInput,
   UploadEmployeeProfilePictureBody,
   UserProfile,
   UserProfileUpdate
@@ -2877,20 +2877,23 @@ export const useSetPrimaryHr = <TError = ErrorType<ApiError>,
       return useMutation(getSetPrimaryHrMutationOptions(options));
     }
 
-export const getGetOrganizationSettingsUrl = (organizationId: number,) => {
+export const getGetOrganizationConfigUrl = (organizationId: number,
+    namespace: string,) => {
 
 
 
 
-  return `/api/organizations/${organizationId}/settings`
+  return `/api/organizations/${organizationId}/config/${namespace}`
 }
 
 /**
- * @summary Get organization settings
+ * Returns the namespace's saved configuration, or its safe defaults if nothing has been saved yet. 404s for a namespace the Configuration Engine doesn't recognize.
+ * @summary Get an organization configuration namespace
  */
-export const getOrganizationSettings = async (organizationId: number, options?: RequestInit): Promise<OrganizationSettings> => {
+export const getOrganizationConfig = async (organizationId: number,
+    namespace: string, options?: RequestInit): Promise<OrganizationConfig> => {
 
-  return customFetch<OrganizationSettings>(getGetOrganizationSettingsUrl(organizationId),
+  return customFetch<OrganizationConfig>(getGetOrganizationConfigUrl(organizationId,namespace),
   {
     ...options,
     method: 'GET'
@@ -2903,45 +2906,48 @@ export const getOrganizationSettings = async (organizationId: number, options?: 
 
 
 
-export const getGetOrganizationSettingsQueryKey = (organizationId: number,) => {
+export const getGetOrganizationConfigQueryKey = (organizationId: number,
+    namespace: string,) => {
     return [
-    `/api/organizations/${organizationId}/settings`
+    `/api/organizations/${organizationId}/config/${namespace}`
     ] as const;
     }
 
 
-export const getGetOrganizationSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getOrganizationSettings>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOrganizationSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetOrganizationConfigQueryOptions = <TData = Awaited<ReturnType<typeof getOrganizationConfig>>, TError = ErrorType<unknown>>(organizationId: number,
+    namespace: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOrganizationConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetOrganizationSettingsQueryKey(organizationId);
+  const queryKey =  queryOptions?.queryKey ?? getGetOrganizationConfigQueryKey(organizationId,namespace);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOrganizationSettings>>> = ({ signal }) => getOrganizationSettings(organizationId, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOrganizationConfig>>> = ({ signal }) => getOrganizationConfig(organizationId,namespace, { signal, ...requestOptions });
 
 
 
 
 
-   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOrganizationSettings>>, TError, TData> & { queryKey: QueryKey }
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && namespace !== null && namespace !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOrganizationConfig>>, TError, TData> & { queryKey: QueryKey }
 }
 
-export type GetOrganizationSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getOrganizationSettings>>>
-export type GetOrganizationSettingsQueryError = ErrorType<unknown>
+export type GetOrganizationConfigQueryResult = NonNullable<Awaited<ReturnType<typeof getOrganizationConfig>>>
+export type GetOrganizationConfigQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Get organization settings
+ * @summary Get an organization configuration namespace
  */
 
-export function useGetOrganizationSettings<TData = Awaited<ReturnType<typeof getOrganizationSettings>>, TError = ErrorType<unknown>>(
- organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOrganizationSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export function useGetOrganizationConfig<TData = Awaited<ReturnType<typeof getOrganizationConfig>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    namespace: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOrganizationConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetOrganizationSettingsQueryOptions(organizationId,options)
+  const queryOptions = getGetOrganizationConfigQueryOptions(organizationId,namespace,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -2954,27 +2960,29 @@ export function useGetOrganizationSettings<TData = Awaited<ReturnType<typeof get
 
 
 
-export const getUpdateOrganizationSettingsUrl = (organizationId: number,) => {
+export const getUpdateOrganizationConfigUrl = (organizationId: number,
+    namespace: string,) => {
 
 
 
 
-  return `/api/organizations/${organizationId}/settings`
+  return `/api/organizations/${organizationId}/config/${namespace}`
 }
 
 /**
- * Merges the given keys into the existing settings object.
- * @summary Update organization settings
+ * Merges the given keys into the namespace's existing configuration and validates the merged result against that namespace's schema before saving.
+ * @summary Update an organization configuration namespace
  */
-export const updateOrganizationSettings = async (organizationId: number,
-    updateOrganizationSettingsInput: UpdateOrganizationSettingsInput, options?: RequestInit): Promise<OrganizationSettings> => {
+export const updateOrganizationConfig = async (organizationId: number,
+    namespace: string,
+    updateOrganizationConfigInput: UpdateOrganizationConfigInput, options?: RequestInit): Promise<OrganizationConfig> => {
 
-  return customFetch<OrganizationSettings>(getUpdateOrganizationSettingsUrl(organizationId),
+  return customFetch<OrganizationConfig>(getUpdateOrganizationConfigUrl(organizationId,namespace),
   {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(updateOrganizationSettingsInput)
+    body: JSON.stringify(updateOrganizationConfigInput)
   }
 );}
 
@@ -2982,11 +2990,11 @@ export const updateOrganizationSettings = async (organizationId: number,
 
 
 
-export const getUpdateOrganizationSettingsMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateOrganizationSettings>>, TError,{organizationId: number;data: BodyType<UpdateOrganizationSettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof updateOrganizationSettings>>, TError,{organizationId: number;data: BodyType<UpdateOrganizationSettingsInput>}, TContext> => {
+export const getUpdateOrganizationConfigMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateOrganizationConfig>>, TError,{organizationId: number;namespace: string;data: BodyType<UpdateOrganizationConfigInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateOrganizationConfig>>, TError,{organizationId: number;namespace: string;data: BodyType<UpdateOrganizationConfigInput>}, TContext> => {
 
-const mutationKey = ['updateOrganizationSettings'];
+const mutationKey = ['updateOrganizationConfig'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -2996,10 +3004,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateOrganizationSettings>>, {organizationId: number;data: BodyType<UpdateOrganizationSettingsInput>}> = (props) => {
-          const {organizationId,data} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateOrganizationConfig>>, {organizationId: number;namespace: string;data: BodyType<UpdateOrganizationConfigInput>}> = (props) => {
+          const {organizationId,namespace,data} = props ?? {};
 
-          return  updateOrganizationSettings(organizationId,data,requestOptions)
+          return  updateOrganizationConfig(organizationId,namespace,data,requestOptions)
         }
 
 
@@ -3009,22 +3017,22 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type UpdateOrganizationSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof updateOrganizationSettings>>>
-    export type UpdateOrganizationSettingsMutationBody = BodyType<UpdateOrganizationSettingsInput>
-    export type UpdateOrganizationSettingsMutationError = ErrorType<unknown>
+    export type UpdateOrganizationConfigMutationResult = NonNullable<Awaited<ReturnType<typeof updateOrganizationConfig>>>
+    export type UpdateOrganizationConfigMutationBody = BodyType<UpdateOrganizationConfigInput>
+    export type UpdateOrganizationConfigMutationError = ErrorType<ApiError>
 
     /**
- * @summary Update organization settings
+ * @summary Update an organization configuration namespace
  */
-export const useUpdateOrganizationSettings = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateOrganizationSettings>>, TError,{organizationId: number;data: BodyType<UpdateOrganizationSettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+export const useUpdateOrganizationConfig = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateOrganizationConfig>>, TError,{organizationId: number;namespace: string;data: BodyType<UpdateOrganizationConfigInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
-        Awaited<ReturnType<typeof updateOrganizationSettings>>,
+        Awaited<ReturnType<typeof updateOrganizationConfig>>,
         TError,
-        {organizationId: number;data: BodyType<UpdateOrganizationSettingsInput>},
+        {organizationId: number;namespace: string;data: BodyType<UpdateOrganizationConfigInput>},
         TContext
       > => {
-      return useMutation(getUpdateOrganizationSettingsMutationOptions(options));
+      return useMutation(getUpdateOrganizationConfigMutationOptions(options));
     }
 
 export const getListAuditEventsUrl = (organizationId: number,
