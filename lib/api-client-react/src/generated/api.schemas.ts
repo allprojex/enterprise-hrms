@@ -791,6 +791,56 @@ export interface AssignRoleInput {
   roleId: number;
 }
 
+export interface CreateInvitationInput {
+  /** @minLength 1 */
+  email: string;
+  roleId?: number;
+}
+
+export type InvitationCreatedStatus = typeof InvitationCreatedStatus[keyof typeof InvitationCreatedStatus];
+
+
+export const InvitationCreatedStatus = {
+  invited: 'invited',
+  active: 'active',
+  suspended: 'suspended',
+  expired: 'expired',
+  revoked: 'revoked',
+} as const;
+
+export interface InvitationCreated {
+  membershipId: number;
+  applicationUserId: number;
+  organizationId: number;
+  status: InvitationCreatedStatus;
+  /** Build the accept link as `/invite/{inviteToken}` on the frontend origin. Share it with the invitee out-of-band -- no email is sent. */
+  inviteToken: string;
+}
+
+export type InvitationPreviewStatus = typeof InvitationPreviewStatus[keyof typeof InvitationPreviewStatus];
+
+
+export const InvitationPreviewStatus = {
+  pending: 'pending',
+  expired: 'expired',
+  accepted: 'accepted',
+} as const;
+
+export interface InvitationPreview {
+  organizationName: string;
+  email: string;
+  status: InvitationPreviewStatus;
+}
+
+export interface AcceptInvitationInput {
+  /** @minLength 1 */
+  firstName: string;
+  /** @minLength 1 */
+  lastName: string;
+  /** @minLength 8 */
+  password: string;
+}
+
 export interface PrimaryHrAssignment {
   id: number;
   organizationId: number;

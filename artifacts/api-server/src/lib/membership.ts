@@ -6,9 +6,14 @@ import {
   membershipRolesTable,
   usersTable,
   primaryHrAssignmentsTable,
+  organizationsTable,
 } from "@workspace/db";
+import { hashPassword, generateToken } from "./auth";
 
 export type Membership = typeof organizationMembershipsTable.$inferSelect;
+export type User = typeof usersTable.$inferSelect;
+
+const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // matches session TTL (auth.ts)
 
 function activeAndUnexpired() {
   const now = new Date();
@@ -211,4 +216,144 @@ export async function revokeMembership(membershipId: number, revokedBy: number):
     .where(eq(organizationMembershipsTable.id, membershipId))
     .returning();
   return updated ?? null;
+}
+
+// --- Administrative User Management (W10): invitation-first onboarding ---
+// Invite -> Accept -> Set Password -> First Login -> forced password change
+// if required (ADR-014). No email is ever sent (ADR-017's "never fake email
+// delivery" applies equally here) -- the invite endpoint returns the accept
+// link/token to the inviting admin, who shares it out-of-band. The
+// membership row IS the invitation (status "invited" + invitedAt already
+// existed in the schema for exactly this); inviteToken/inviteTokenExpiresAt
+// are the only new columns, added by this workstream.
+
+export class InvitationNotFoundError extends Error {}
+export class InvitationExpiredError extends Error {}
+export class InvitationNotPendingError extends Error {}
+
+export interface Invitation {
+  membership: Membership;
+  user: User;
+  organizationName: string;
+}
+
+/** Any membership row for this (user, org) pair, regardless of status — unlike getActiveMembership. */
+async function getAnyMembership(applicationUserId: number, organizationId: number): Promise<Membership | null> {
+  const rows = await db
+    .select()
+    .from(organizationMembershipsTable)
+    .where(
+      and(
+        eq(organizationMembershipsTable.applicationUserId, applicationUserId),
+        eq(organizationMembershipsTable.organizationId, organizationId),
+      ),
+    )
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/**
+ * Invites `email` to `organizationId`. If no user with that email exists
+ * yet, creates one with a placeholder name and an unusable random password
+ * (nobody can log in with it — the invitee sets their real password on
+ * accept). If a user with that email already exists, reuses that account
+ * rather than creating a duplicate; throws AlreadyMemberError if they
+ * already have any membership (invited or otherwise) in this organization.
+ */
+export async function inviteMember(params: {
+  organizationId: number;
+  email: string;
+  roleId?: number;
+}): Promise<{ membership: Membership; user: User; token: string }> {
+  const email = params.email.toLowerCase();
+
+  let [user] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
+  if (user) {
+    const existingMembership = await getAnyMembership(user.id, params.organizationId);
+    if (existingMembership) throw new AlreadyMemberError(`User already has a membership in this organization`);
+  } else {
+    const localPart = email.split("@")[0] || "New";
+    [user] = await db
+      .insert(usersTable)
+      .values({
+        email,
+        passwordHash: await hashPassword(generateToken()),
+        firstName: localPart,
+        lastName: "",
+        organizationId: params.organizationId,
+      })
+      .returning();
+  }
+
+  const token = generateToken();
+  const [membership] = await db
+    .insert(organizationMembershipsTable)
+    .values({
+      applicationUserId: user.id,
+      organizationId: params.organizationId,
+      status: "invited",
+      invitedAt: new Date(),
+      inviteToken: token,
+      inviteTokenExpiresAt: new Date(Date.now() + INVITATION_TTL_MS),
+    })
+    .returning();
+
+  if (params.roleId) {
+    await db.insert(membershipRolesTable).values({ membershipId: membership.id, roleId: params.roleId });
+  }
+
+  return { membership, user, token };
+}
+
+/** Preview an invitation by its token, for the public accept page. Does not mutate anything. */
+export async function getInvitationByToken(token: string): Promise<Invitation | null> {
+  const rows = await db
+    .select({ membership: organizationMembershipsTable, user: usersTable, organizationName: organizationsTable.name })
+    .from(organizationMembershipsTable)
+    .innerJoin(usersTable, eq(organizationMembershipsTable.applicationUserId, usersTable.id))
+    .innerJoin(organizationsTable, eq(organizationMembershipsTable.organizationId, organizationsTable.id))
+    .where(eq(organizationMembershipsTable.inviteToken, token))
+    .limit(1);
+
+  return rows[0] ?? null;
+}
+
+function assertPendingAndUnexpired(invitation: Invitation): void {
+  if (invitation.membership.status !== "invited") {
+    throw new InvitationNotPendingError("This invitation has already been used or revoked");
+  }
+  if (invitation.membership.inviteTokenExpiresAt && invitation.membership.inviteTokenExpiresAt < new Date()) {
+    throw new InvitationExpiredError("This invitation has expired");
+  }
+}
+
+/**
+ * Accepts an invitation: sets the invitee's real name and password, and
+ * activates the membership. Clears the token so the link can't be replayed.
+ * Does not log the user in — First Login (ADR-014) is a separate, normal
+ * /auth/login call afterward.
+ */
+export async function acceptInvitation(params: {
+  token: string;
+  firstName: string;
+  lastName: string;
+  password: string;
+}): Promise<{ membership: Membership; user: User }> {
+  const invitation = await getInvitationByToken(params.token);
+  if (!invitation) throw new InvitationNotFoundError("Invalid invitation link");
+  assertPendingAndUnexpired(invitation);
+
+  const [user] = await db
+    .update(usersTable)
+    .set({ firstName: params.firstName, lastName: params.lastName, passwordHash: await hashPassword(params.password) })
+    .where(eq(usersTable.id, invitation.user.id))
+    .returning();
+
+  const [membership] = await db
+    .update(organizationMembershipsTable)
+    .set({ status: "active", joinedAt: new Date(), inviteToken: null, inviteTokenExpiresAt: null })
+    .where(eq(organizationMembershipsTable.id, invitation.membership.id))
+    .returning();
+
+  return { membership, user };
 }

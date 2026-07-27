@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
-import { ShieldCheck, UserPlus, Trash2, Star, History, Settings2 } from 'lucide-react';
+import { ShieldCheck, UserPlus, Trash2, Star, History, Settings2, Mail, Copy } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,6 +29,7 @@ import {
   useListMembers,
   getListMembersQueryKey,
   useAddMember,
+  useCreateInvitation,
   useRevokeMember,
   useAssignMemberRole,
   useRevokeMemberRole,
@@ -66,6 +67,9 @@ function MembersTab({ organizationId }: { organizationId: number }) {
   const { toast } = useToast();
   const [email, setEmail] = useState('');
   const [roleToAssign, setRoleToAssign] = useState<Record<number, string>>({});
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRoleId, setInviteRoleId] = useState('');
+  const [inviteLink, setInviteLink] = useState<{ email: string; url: string } | null>(null);
 
   const { data: members, isLoading, error, refetch } = useListMembers(organizationId, {
     query: { queryKey: getListMembersQueryKey(organizationId), enabled: organizationId > 0 },
@@ -76,6 +80,7 @@ function MembersTab({ organizationId }: { organizationId: number }) {
     queryClient.invalidateQueries({ queryKey: getListMembersQueryKey(organizationId) });
 
   const addMutation = useAddMember();
+  const inviteMutation = useCreateInvitation();
   const revokeMutation = useRevokeMember();
   const assignRoleMutation = useAssignMemberRole();
   const revokeRoleMutation = useRevokeMemberRole();
@@ -99,6 +104,38 @@ function MembersTab({ organizationId }: { organizationId: number }) {
         },
       },
     );
+  };
+
+  const handleInvite = (e: React.FormEvent) => {
+    e.preventDefault();
+    inviteMutation.mutate(
+      {
+        organizationId,
+        data: { email: inviteEmail.trim(), roleId: inviteRoleId ? Number(inviteRoleId) : undefined },
+      },
+      {
+        onSuccess: (result) => {
+          invalidateMembers();
+          setInviteEmail('');
+          setInviteRoleId('');
+          setInviteLink({ email: inviteEmail.trim(), url: `${window.location.origin}/invite/${result.inviteToken}` });
+          toast({ title: 'Invitation created', description: 'Share the link below with the invitee -- no email is sent automatically.' });
+        },
+        onError: (err) => {
+          toast({
+            title: 'Could not create invitation',
+            description: errorMessage(err) ?? 'Check the email and try again.',
+            variant: 'destructive',
+          });
+        },
+      },
+    );
+  };
+
+  const handleCopyInviteLink = () => {
+    if (!inviteLink) return;
+    navigator.clipboard.writeText(inviteLink.url);
+    toast({ title: 'Link copied' });
   };
 
   const handleAssignRole = (membershipId: number) => {
@@ -167,6 +204,63 @@ function MembersTab({ organizationId }: { organizationId: number }) {
               Add
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Invite New User</CardTitle>
+          <CardDescription>
+            Invite someone who doesn't have an account yet. No email is sent -- you'll get a link to share with them.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <form onSubmit={handleInvite} className="flex flex-wrap gap-2 max-w-lg">
+            <Label htmlFor="invite-email" className="sr-only">
+              Email
+            </Label>
+            <Input
+              id="invite-email"
+              type="email"
+              placeholder="user@example.com"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              required
+              className="flex-1 min-w-48"
+              data-testid="input-invite-email"
+            />
+            <Select value={inviteRoleId} onValueChange={setInviteRoleId}>
+              <SelectTrigger className="w-40" data-testid="select-invite-role">
+                <SelectValue placeholder="Role (optional)" />
+              </SelectTrigger>
+              <SelectContent>
+                {(roles ?? []).map((r) => (
+                  <SelectItem key={r.id} value={String(r.id)}>
+                    {r.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button type="submit" disabled={inviteMutation.isPending} data-testid="button-invite-member">
+              <Mail className="h-4 w-4" aria-hidden="true" />
+              Invite
+            </Button>
+          </form>
+
+          {inviteLink && (
+            <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2" data-testid="card-invite-link">
+              <p className="text-sm text-muted-foreground">
+                Invitation link for <span className="font-medium text-foreground">{inviteLink.email}</span> -- share it
+                with them directly:
+              </p>
+              <div className="flex gap-2">
+                <Input readOnly value={inviteLink.url} className="text-xs" data-testid="input-invite-link" />
+                <Button type="button" variant="outline" size="sm" onClick={handleCopyInviteLink} data-testid="button-copy-invite-link">
+                  <Copy className="h-4 w-4" aria-hidden="true" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

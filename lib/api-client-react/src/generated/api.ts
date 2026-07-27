@@ -20,6 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AcceptInvitationInput,
   AddMemberInput,
   ApiError,
   AssignRoleInput,
@@ -29,6 +30,7 @@ import type {
   CreateBranchInput,
   CreateDepartmentInput,
   CreateEmployeeInput,
+  CreateInvitationInput,
   CreateMasterDataItemInput,
   CreateOrganizationInput,
   CreatePositionInput,
@@ -38,6 +40,8 @@ import type {
   EmployeeListResponse,
   ForgotPasswordInput,
   HealthStatus,
+  InvitationCreated,
+  InvitationPreview,
   LinkEmployeeUserInput,
   ListAuditEventsParams,
   ListEmployeesParams,
@@ -3027,6 +3031,230 @@ export const useRevokeMemberRole = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getRevokeMemberRoleMutationOptions(options));
+    }
+
+export const getCreateInvitationUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/invitations`
+}
+
+/**
+ * Invites someone who may not yet have an account. Returns the accept link's token directly -- no email is sent; the inviting admin shares the link out-of-band.
+ * @summary Invite a new user to the organization
+ */
+export const createInvitation = async (organizationId: number,
+    createInvitationInput: CreateInvitationInput, options?: RequestInit): Promise<InvitationCreated> => {
+
+  return customFetch<InvitationCreated>(getCreateInvitationUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createInvitationInput)
+  }
+);}
+
+
+
+
+
+export const getCreateInvitationMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createInvitation>>, TError,{organizationId: number;data: BodyType<CreateInvitationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createInvitation>>, TError,{organizationId: number;data: BodyType<CreateInvitationInput>}, TContext> => {
+
+const mutationKey = ['createInvitation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createInvitation>>, {organizationId: number;data: BodyType<CreateInvitationInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createInvitation(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateInvitationMutationResult = NonNullable<Awaited<ReturnType<typeof createInvitation>>>
+    export type CreateInvitationMutationBody = BodyType<CreateInvitationInput>
+    export type CreateInvitationMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Invite a new user to the organization
+ */
+export const useCreateInvitation = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createInvitation>>, TError,{organizationId: number;data: BodyType<CreateInvitationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createInvitation>>,
+        TError,
+        {organizationId: number;data: BodyType<CreateInvitationInput>},
+        TContext
+      > => {
+      return useMutation(getCreateInvitationMutationOptions(options));
+    }
+
+export const getGetInvitationUrl = (token: string,) => {
+
+
+
+
+  return `/api/invitations/${token}`
+}
+
+/**
+ * Public -- no authentication required. Used by the accept-invitation page.
+ * @summary Preview an invitation
+ */
+export const getInvitation = async (token: string, options?: RequestInit): Promise<InvitationPreview> => {
+
+  return customFetch<InvitationPreview>(getGetInvitationUrl(token),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetInvitationQueryKey = (token: string,) => {
+    return [
+    `/api/invitations/${token}`
+    ] as const;
+    }
+
+
+export const getGetInvitationQueryOptions = <TData = Awaited<ReturnType<typeof getInvitation>>, TError = ErrorType<ApiError>>(token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInvitation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetInvitationQueryKey(token);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getInvitation>>> = ({ signal }) => getInvitation(token, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: token !== null && token !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getInvitation>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetInvitationQueryResult = NonNullable<Awaited<ReturnType<typeof getInvitation>>>
+export type GetInvitationQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Preview an invitation
+ */
+
+export function useGetInvitation<TData = Awaited<ReturnType<typeof getInvitation>>, TError = ErrorType<ApiError>>(
+ token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInvitation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetInvitationQueryOptions(token,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAcceptInvitationUrl = (token: string,) => {
+
+
+
+
+  return `/api/invitations/${token}/accept`
+}
+
+/**
+ * Public -- no authentication required. Sets the invitee's name and password and activates their membership. Does not log them in; first login is a separate /auth/login call.
+ * @summary Accept an invitation
+ */
+export const acceptInvitation = async (token: string,
+    acceptInvitationInput: AcceptInvitationInput, options?: RequestInit): Promise<MessageResponse> => {
+
+  return customFetch<MessageResponse>(getAcceptInvitationUrl(token),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(acceptInvitationInput)
+  }
+);}
+
+
+
+
+
+export const getAcceptInvitationMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptInvitation>>, TError,{token: string;data: BodyType<AcceptInvitationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof acceptInvitation>>, TError,{token: string;data: BodyType<AcceptInvitationInput>}, TContext> => {
+
+const mutationKey = ['acceptInvitation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof acceptInvitation>>, {token: string;data: BodyType<AcceptInvitationInput>}> = (props) => {
+          const {token,data} = props ?? {};
+
+          return  acceptInvitation(token,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AcceptInvitationMutationResult = NonNullable<Awaited<ReturnType<typeof acceptInvitation>>>
+    export type AcceptInvitationMutationBody = BodyType<AcceptInvitationInput>
+    export type AcceptInvitationMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Accept an invitation
+ */
+export const useAcceptInvitation = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptInvitation>>, TError,{token: string;data: BodyType<AcceptInvitationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof acceptInvitation>>,
+        TError,
+        {token: string;data: BodyType<AcceptInvitationInput>},
+        TContext
+      > => {
+      return useMutation(getAcceptInvitationMutationOptions(options));
     }
 
 export const getGetPrimaryHrUrl = (organizationId: number,) => {

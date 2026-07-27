@@ -6,6 +6,7 @@ import { AppShell } from '@/components/layout/app-shell';
 import { ErrorBoundary } from '@/components/error-boundary';
 import Login from '@/pages/login';
 import ForgotPassword from '@/pages/forgot-password';
+import InviteAccept from '@/pages/invite-accept';
 import Dashboard from '@/pages/dashboard';
 import Profile from '@/pages/profile';
 import Notifications from '@/pages/notifications';
@@ -46,6 +47,7 @@ function Router() {
       <Route path="/" component={Login} />
       <Route path="/login" component={Login} />
       <Route path="/forgot-password" component={ForgotPassword} />
+      <Route path="/invite/:token" component={InviteAccept} />
       <Route path="/unauthorized" component={Unauthorized} />
 
       {/* Secure routes */}

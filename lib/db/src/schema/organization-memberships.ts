@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, timestamp, pgEnum, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, timestamp, pgEnum, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
@@ -24,6 +24,10 @@ export const organizationMembershipsTable = pgTable(
       .references(() => organizationsTable.id, { onDelete: "restrict" }),
     status: membershipStatusEnum("status").notNull().default("active"),
     invitedAt: timestamp("invited_at", { withTimezone: true }),
+    // Set while status is "invited"; cleared (set null) on acceptance so the
+    // link can't be replayed. Null for every non-invitation-created membership.
+    inviteToken: text("invite_token").unique(),
+    inviteTokenExpiresAt: timestamp("invite_token_expires_at", { withTimezone: true }),
     joinedAt: timestamp("joined_at", { withTimezone: true }),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),

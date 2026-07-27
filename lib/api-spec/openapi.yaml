@@ -36,6 +36,8 @@ tags:
     description: Primary HR assignment operations
   - name: audit-events
     description: Audit log operations
+  - name: invitations
+    description: Administrative user invitation operations
 
 paths:
   /healthz:
@@ -1094,6 +1096,114 @@ paths:
                 $ref: "#/components/schemas/OrganizationMember"
         "404":
           description: Membership not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/invitations:
+    post:
+      operationId: createInvitation
+      tags: [invitations]
+      summary: Invite a new user to the organization
+      description: >-
+        Invites someone who may not yet have an account. Returns the accept
+        link's token directly -- no email is sent; the inviting admin shares
+        the link out-of-band.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInvitationInput"
+      responses:
+        "201":
+          description: Invitation created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvitationCreated"
+        "409":
+          description: User already has a membership in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /invitations/{token}:
+    get:
+      operationId: getInvitation
+      tags: [invitations]
+      summary: Preview an invitation
+      description: Public -- no authentication required. Used by the accept-invitation page.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Invitation preview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvitationPreview"
+        "404":
+          description: Invalid invitation link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /invitations/{token}/accept:
+    post:
+      operationId: acceptInvitation
+      tags: [invitations]
+      summary: Accept an invitation
+      description: >-
+        Public -- no authentication required. Sets the invitee's name and
+        password and activates their membership. Does not log them in;
+        first login is a separate /auth/login call.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AcceptInvitationInput"
+      responses:
+        "200":
+          description: Invitation accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "404":
+          description: Invalid invitation link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Invitation already used or revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "410":
+          description: Invitation expired
           content:
             application/json:
               schema:
@@ -2220,6 +2330,59 @@ components:
       properties:
         roleId:
           type: integer
+
+    CreateInvitationInput:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          minLength: 1
+        roleId:
+          type: integer
+
+    InvitationCreated:
+      type: object
+      required: [membershipId, applicationUserId, organizationId, status, inviteToken]
+      properties:
+        membershipId:
+          type: integer
+        applicationUserId:
+          type: integer
+        organizationId:
+          type: integer
+        status:
+          type: string
+          enum: [invited, active, suspended, expired, revoked]
+        inviteToken:
+          type: string
+          description: Build the accept link as `/invite/{inviteToken}` on the frontend origin. Share it with the invitee out-of-band -- no email is sent.
+
+    InvitationPreview:
+      type: object
+      required: [organizationName, email, status]
+      properties:
+        organizationName:
+          type: string
+        email:
+          type: string
+        status:
+          type: string
+          enum: [pending, expired, accepted]
+
+    AcceptInvitationInput:
+      type: object
+      required: [firstName, lastName, password]
+      properties:
+        firstName:
+          type: string
+          minLength: 1
+        lastName:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 8
 
     PrimaryHrAssignment:
       type: object

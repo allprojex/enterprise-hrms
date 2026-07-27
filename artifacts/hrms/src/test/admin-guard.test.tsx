@@ -24,6 +24,7 @@ vi.mock('@workspace/api-client-react', () => ({
   useListMembers: emptyList,
   getListMembersQueryKey: (id: number) => ['members', id],
   useAddMember: () => ({ mutate: vi.fn(), isPending: false }),
+  useCreateInvitation: () => ({ mutate: vi.fn(), isPending: false }),
   useRevokeMember: () => ({ mutate: vi.fn(), isPending: false }),
   useAssignMemberRole: () => ({ mutate: vi.fn(), isPending: false }),
   useRevokeMemberRole: () => ({ mutate: vi.fn(), isPending: false }),

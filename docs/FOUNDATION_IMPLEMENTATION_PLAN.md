@@ -337,7 +337,7 @@ Organization Permission Gates — **Complete.**
 
 ## W10
 
-Administrative User Management
+Administrative User Management — **Complete.**
 
 ---
 

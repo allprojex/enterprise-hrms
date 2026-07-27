@@ -1136,6 +1136,71 @@ export const RevokeMemberRoleResponse = zod.object({
 
 
 /**
+ * Invites someone who may not yet have an account. Returns the accept link's token directly -- no email is sent; the inviting admin shares the link out-of-band.
+ * @summary Invite a new user to the organization
+ */
+export const CreateInvitationParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+
+
+export const CreateInvitationBody = zod.object({
+  "email": zod.string().min(1),
+  "roleId": zod.number().optional()
+})
+
+export const CreateInvitationResponse = zod.object({
+  "membershipId": zod.number(),
+  "applicationUserId": zod.number(),
+  "organizationId": zod.number(),
+  "status": zod.enum(['invited', 'active', 'suspended', 'expired', 'revoked']),
+  "inviteToken": zod.string().describe('Build the accept link as `\/invite\/{inviteToken}` on the frontend origin. Share it with the invitee out-of-band -- no email is sent.')
+})
+
+
+/**
+ * Public -- no authentication required. Used by the accept-invitation page.
+ * @summary Preview an invitation
+ */
+export const GetInvitationParams = zod.object({
+  "token": zod.coerce.string()
+})
+
+export const GetInvitationResponse = zod.object({
+  "organizationName": zod.string(),
+  "email": zod.string(),
+  "status": zod.enum(['pending', 'expired', 'accepted'])
+})
+
+
+/**
+ * Public -- no authentication required. Sets the invitee's name and password and activates their membership. Does not log them in; first login is a separate /auth/login call.
+ * @summary Accept an invitation
+ */
+export const AcceptInvitationParams = zod.object({
+  "token": zod.coerce.string()
+})
+
+
+
+export const acceptInvitationBodyPasswordMin = 8;
+
+
+
+export const AcceptInvitationBody = zod.object({
+  "firstName": zod.string().min(1),
+  "lastName": zod.string().min(1),
+  "password": zod.string().min(acceptInvitationBodyPasswordMin)
+})
+
+export const AcceptInvitationResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
  * @summary Get the current Primary HR assignment
  */
 export const GetPrimaryHrParams = zod.object({
