@@ -77,7 +77,7 @@ const {
     rolesTable: mockTable("roles", ["id", "key", "organizationId", "label", "description", "isSystemRole"]),
     primaryHrAssignmentsTable: mockTable("primary_hr_assignments", ["organizationId", "membershipId", "revokedAt"]),
     organizationSettingsTable: mockTable("organization_settings", ["id", "organizationId", "namespace", "schemaVersion", "settings"]),
-    auditEventsTable: mockTable("audit_events", ["organizationId"]),
+    auditEventsTable: mockTable("audit_events", ["organizationId", "eventType", "targetType", "targetId", "actorApplicationUserId"]),
     modulesTable: mockTable("modules", ["id", "key", "name", "status"]),
     organizationModulesTable: mockTable("organization_modules", ["id", "organizationId", "moduleId", "enabled"]),
     masterDataDomainsTable: mockTable("master_data_domains", ["id", "key", "label", "classification"]),
@@ -1040,5 +1040,104 @@ describe("GET /api/organizations/:organizationId/audit-events", () => {
     expect(res.status).toBe(200);
     expect(res.body.items).toHaveLength(1);
     expect(res.body.page).toBe(1);
+  });
+
+  it("includes beforeState/afterState/metadata in the response", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["audit.read"]);
+    fixtures.auditRows = [
+      {
+        id: 1,
+        organizationId: 10,
+        eventType: "employee.separated",
+        targetType: "employee",
+        targetId: "42",
+        occurredAt: new Date(),
+        beforeState: { employmentStatus: "active" },
+        afterState: { employmentStatus: "terminated" },
+        metadata: { note: "reorg" },
+      },
+    ];
+
+    const res = await request(app)
+      .get("/api/organizations/10/audit-events")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.items[0].beforeState).toEqual({ employmentStatus: "active" });
+    expect(res.body.items[0].afterState).toEqual({ employmentStatus: "terminated" });
+  });
+
+  it("filters by eventType", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["audit.read"]);
+    fixtures.auditRows = [
+      { id: 1, organizationId: 10, eventType: "employee.separated", targetType: "employee", occurredAt: new Date() },
+      { id: 2, organizationId: 10, eventType: "employee.rehired", targetType: "employee", occurredAt: new Date() },
+    ];
+
+    const res = await request(app)
+      .get("/api/organizations/10/audit-events?eventType=employee.rehired")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.items).toHaveLength(1);
+    expect(res.body.items[0].id).toBe(2);
+  });
+
+  it("filters by targetType and targetId", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["audit.read"]);
+    fixtures.auditRows = [
+      { id: 1, organizationId: 10, eventType: "employee.separated", targetType: "employee", targetId: "42", occurredAt: new Date() },
+      { id: 2, organizationId: 10, eventType: "branch.archived", targetType: "branch", targetId: "7", occurredAt: new Date() },
+    ];
+
+    const res = await request(app)
+      .get("/api/organizations/10/audit-events?targetType=employee&targetId=42")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.items).toHaveLength(1);
+    expect(res.body.items[0].id).toBe(1);
+  });
+
+  it("filters by actorApplicationUserId", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["audit.read"]);
+    fixtures.auditRows = [
+      { id: 1, organizationId: 10, eventType: "employee.separated", targetType: "employee", actorApplicationUserId: 5, occurredAt: new Date() },
+      { id: 2, organizationId: 10, eventType: "employee.rehired", targetType: "employee", actorApplicationUserId: 9, occurredAt: new Date() },
+    ];
+
+    const res = await request(app)
+      .get("/api/organizations/10/audit-events?actorApplicationUserId=9")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.items).toHaveLength(1);
+    expect(res.body.items[0].id).toBe(2);
+  });
+
+  it("never returns another organization's audit events regardless of filters", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["audit.read"]);
+    fixtures.auditRows = [
+      { id: 1, organizationId: 10, eventType: "employee.separated", targetType: "employee", occurredAt: new Date() },
+      { id: 2, organizationId: 99, eventType: "employee.separated", targetType: "employee", occurredAt: new Date() },
+    ];
+
+    const res = await request(app)
+      .get("/api/organizations/10/audit-events?eventType=employee.separated")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.items).toHaveLength(1);
+    expect(res.body.items[0].id).toBe(1);
   });
 });

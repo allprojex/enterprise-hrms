@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and, desc, count } from "drizzle-orm";
+import { eq, and, desc, count, type SQL } from "drizzle-orm";
 import { db, auditEventsTable } from "@workspace/db";
 import { ListAuditEventsQueryParams } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -18,6 +18,10 @@ function formatEvent(event: typeof auditEventsTable.$inferSelect) {
     eventType: event.eventType,
     targetType: event.targetType,
     targetId: event.targetId,
+    beforeState: event.beforeState,
+    afterState: event.afterState,
+    ipAddress: event.ipAddress,
+    userAgent: event.userAgent,
     metadata: event.metadata,
   };
 }
@@ -36,8 +40,14 @@ router.get(
     }
 
     const organizationId = req.membership!.organizationId;
-    const { page, pageSize } = parsed.data;
-    const where = and(eq(auditEventsTable.organizationId, organizationId));
+    const { page, pageSize, eventType, targetType, targetId, actorApplicationUserId } = parsed.data;
+
+    const conditions: SQL[] = [eq(auditEventsTable.organizationId, organizationId)];
+    if (eventType) conditions.push(eq(auditEventsTable.eventType, eventType));
+    if (targetType) conditions.push(eq(auditEventsTable.targetType, targetType));
+    if (targetId) conditions.push(eq(auditEventsTable.targetId, targetId));
+    if (actorApplicationUserId != null) conditions.push(eq(auditEventsTable.actorApplicationUserId, actorApplicationUserId));
+    const where = and(...conditions);
 
     const [totalRow] = await db.select({ value: count() }).from(auditEventsTable).where(where);
     const total = totalRow?.value ?? 0;

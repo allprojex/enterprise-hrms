@@ -23,6 +23,7 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   useGetMe,
   getGetMeQueryKey,
@@ -61,6 +62,7 @@ import {
   useListPermissions,
   getListPermissionsQueryKey,
 } from '@workspace/api-client-react';
+import type { AuditEvent } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { QueryError } from '@/components/query-error';
@@ -984,16 +986,102 @@ function RolesTab({ organizationId }: { organizationId: number }) {
 
 function AuditLogTab({ organizationId }: { organizationId: number }) {
   const [page, setPage] = useState(1);
-  const { data: result, isLoading, error, refetch } = useListAuditEvents(
-    organizationId,
-    { page, pageSize: 20 },
-    { query: { queryKey: getListAuditEventsQueryKey(organizationId, { page, pageSize: 20 }), enabled: organizationId > 0 } },
-  );
+  const [eventType, setEventType] = useState('');
+  const [targetType, setTargetType] = useState('');
+  const [targetId, setTargetId] = useState('');
+  const [actorApplicationUserId, setActorApplicationUserId] = useState('');
+  const [detailEvent, setDetailEvent] = useState<AuditEvent | null>(null);
+
+  const { data: members } = useListMembers(organizationId, {
+    query: { queryKey: getListMembersQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+
+  const filters = {
+    page,
+    pageSize: 20,
+    eventType: eventType || undefined,
+    targetType: targetType || undefined,
+    targetId: targetId || undefined,
+    actorApplicationUserId: actorApplicationUserId ? Number(actorApplicationUserId) : undefined,
+  };
+
+  const { data: result, isLoading, error, refetch } = useListAuditEvents(organizationId, filters, {
+    query: { queryKey: getListAuditEventsQueryKey(organizationId, filters), enabled: organizationId > 0 },
+  });
 
   const totalPages = Math.max(1, Math.ceil((result?.total ?? 0) / 20));
+  const hasFilters = !!(eventType || targetType || targetId || actorApplicationUserId);
+
+  const resetFilters = () => {
+    setEventType('');
+    setTargetType('');
+    setTargetId('');
+    setActorApplicationUserId('');
+    setPage(1);
+  };
 
   return (
     <div className="space-y-4">
+      <Card>
+        <CardContent className="pt-6 flex flex-wrap items-end gap-3">
+          <div className="space-y-1">
+            <Label htmlFor="audit-filter-event-type">Event type</Label>
+            <Input
+              id="audit-filter-event-type"
+              placeholder="e.g. employee.separated"
+              value={eventType}
+              onChange={(e) => { setEventType(e.target.value); setPage(1); }}
+              className="w-56"
+              data-testid="input-audit-filter-event-type"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="audit-filter-target-type">Target type</Label>
+            <Input
+              id="audit-filter-target-type"
+              placeholder="e.g. employee"
+              value={targetType}
+              onChange={(e) => { setTargetType(e.target.value); setPage(1); }}
+              className="w-40"
+              data-testid="input-audit-filter-target-type"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="audit-filter-target-id">Target ID</Label>
+            <Input
+              id="audit-filter-target-id"
+              value={targetId}
+              onChange={(e) => { setTargetId(e.target.value); setPage(1); }}
+              className="w-28"
+              data-testid="input-audit-filter-target-id"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="audit-filter-actor">Actor</Label>
+            <Select
+              value={actorApplicationUserId}
+              onValueChange={(v) => { setActorApplicationUserId(v); setPage(1); }}
+            >
+              <SelectTrigger id="audit-filter-actor" className="w-56" data-testid="select-audit-filter-actor">
+                <SelectValue placeholder="Anyone" />
+              </SelectTrigger>
+              <SelectContent>
+                {(members ?? []).map((m) => (
+                  <SelectItem key={m.applicationUserId} value={String(m.applicationUserId)}>
+                    {m.firstName} {m.lastName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {hasFilters && (
+            <Button variant="ghost" size="sm" onClick={resetFilters} data-testid="button-audit-filter-reset">
+              Clear filters
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
       {isLoading ? (
         <div className="space-y-3" aria-busy="true" aria-label="Loading audit log">
           {[...Array(4)].map((_, i) => (
@@ -1008,9 +1096,13 @@ function AuditLogTab({ organizationId }: { organizationId: number }) {
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
               <History className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
             </div>
-            <h3 className="text-lg font-semibold text-foreground mb-2">No audit events yet</h3>
+            <h3 className="text-lg font-semibold text-foreground mb-2">
+              {hasFilters ? 'No matching audit events' : 'No audit events yet'}
+            </h3>
             <p className="text-sm text-muted-foreground max-w-sm">
-              Sensitive actions in this organisation will appear here as they happen.
+              {hasFilters
+                ? 'Try adjusting or clearing the filters above.'
+                : 'Sensitive actions in this organisation will appear here as they happen.'}
             </p>
           </CardContent>
         </Card>
@@ -1023,6 +1115,7 @@ function AuditLogTab({ organizationId }: { organizationId: number }) {
                   <TableHead>Event</TableHead>
                   <TableHead>Target</TableHead>
                   <TableHead>When</TableHead>
+                  <TableHead />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1035,6 +1128,16 @@ function AuditLogTab({ organizationId }: { organizationId: number }) {
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {new Date(event.occurredAt).toLocaleString()}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setDetailEvent(event)}
+                        data-testid={`button-audit-detail-${event.id}`}
+                      >
+                        Details
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -1056,6 +1159,57 @@ function AuditLogTab({ organizationId }: { organizationId: number }) {
           )}
         </>
       )}
+
+      <Dialog open={!!detailEvent} onOpenChange={(open) => !open && setDetailEvent(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{detailEvent?.eventType}</DialogTitle>
+          </DialogHeader>
+          {detailEvent && (
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-2 gap-2 text-muted-foreground">
+                <span>Target</span>
+                <span className="text-foreground">
+                  {detailEvent.targetType}
+                  {detailEvent.targetId ? ` #${detailEvent.targetId}` : ''}
+                </span>
+                <span>When</span>
+                <span className="text-foreground">{new Date(detailEvent.occurredAt).toLocaleString()}</span>
+                {detailEvent.ipAddress && (
+                  <>
+                    <span>IP address</span>
+                    <span className="text-foreground">{detailEvent.ipAddress}</span>
+                  </>
+                )}
+              </div>
+              {detailEvent.beforeState != null && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Before</p>
+                  <pre className="rounded-md bg-muted p-3 text-xs overflow-auto max-h-40">
+                    {JSON.stringify(detailEvent.beforeState, null, 2)}
+                  </pre>
+                </div>
+              )}
+              {detailEvent.afterState != null && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">After</p>
+                  <pre className="rounded-md bg-muted p-3 text-xs overflow-auto max-h-40">
+                    {JSON.stringify(detailEvent.afterState, null, 2)}
+                  </pre>
+                </div>
+              )}
+              {detailEvent.metadata != null && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Metadata</p>
+                  <pre className="rounded-md bg-muted p-3 text-xs overflow-auto max-h-40">
+                    {JSON.stringify(detailEvent.metadata, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

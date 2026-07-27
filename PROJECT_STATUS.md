@@ -1,6 +1,6 @@
 # Enterprise HRMS Project Status
 
-_Last updated: 2026-07-27, after W15 (Employee Separation). Formalized in `docs/FOUNDATION_IMPLEMENTATION_PLAN.md` (workstreams W1–W21, approved). Update this file per CLAUDE.md's Session End Checklist._
+_Last updated: 2026-07-27, after W16 (Tenant-safe Audit Log Reading). Formalized in `docs/FOUNDATION_IMPLEMENTATION_PLAN.md` (workstreams W1–W21, approved). Update this file per CLAUDE.md's Session End Checklist._
 
 ## Current Phase
 
@@ -31,7 +31,7 @@ Build a configurable, enterprise-grade Human Resource ERP foundation that suppor
 - Onboarding — **Complete**. Organization creation → membership → role → Primary HR, one transaction, tested (unit + live browser).
 - Dashboard — **Complete**. Real employee counts, real module-availability tiles with working links (was showing stale "Coming Soon" placeholders until fixed this session).
 - Notifications — **Complete**. Pre-existing, unmodified this session.
-- Audit Logs — In Progress. Write path is broad and solid. Read path exists only as an admin-console tab; no dedicated reporting/export/search UI.
+- Audit Logs — **Complete** (W16). Write path is broad and solid. Read path (`GET .../audit-events`) now supports filtering by event type, target type/ID, and actor, tenant-scoped via the existing membership/`audit.read` gate — admin console adds filter controls and a details view (before/after state, metadata, IP). No dedicated export UI (that's W17's Reporting Foundation).
 - Core Reports — **Planned, not started**.
 
 ---
@@ -69,7 +69,8 @@ Authoritative, approved plan: see `docs/FOUNDATION_IMPLEMENTATION_PLAN.md` (21 d
 - **W13 — Branch, Organizational Unit and Position Completion — Complete.** `departments`/`positions` gain a `status` column (mirrors `branches.status` exactly). `PATCH .../branches/:id`, `.../departments/:id`, `.../positions/:id` (name/code/title only — not structural placement, that stays `restructure`'s job from W12, nor status) + `POST .../archive` and `.../reactivate` for all three, wired to W12's already-built `assertBranchArchivable`/`assertDepartmentArchivable` dependency checks (positions have no downstream dependents in this service's scope, so no check needed there). Audit-logged. Admin console pages (Branches/Departments/Positions) get Edit + Archive/Reactivate actions. Migration `0007_smiling_nehzno.sql` (two new columns, purely additive) generated, not applied, same as W2–W4/W7/W10/W11's.
 - **W14 — Employee–User Linking Completion — Complete.** `employee_user_links` already existed with link-only support (Known Issue #8: no "already linked" indicator, re-linking just failed with a 409). `GET .../employees[/:employeeId]` now batch-resolves each employee's `linkedApplicationUserId` (same batching pattern as `resolveEmployeeLabels`'s department/branch/position/manager lookups) + new `DELETE .../employees/:employeeId/link-user` (404 if not linked), audit-logged. Employee detail page shows the linked account and an Unlink action instead of the link form once linked, resolving Known Issue #8. No schema change; no migration.
 - **W15 — Employee Separation — Complete.** `employees` gains `separation_date`/`separation_reason` (nullable; the reason is a free-text code from the existing W7 "separation_reason" Master Data domain, org-overridable). New `POST .../employees/:employeeId/separate` (sets `employmentStatus: terminated` + date/reason, 400 if already terminated) and `POST .../employees/:employeeId/rehire` (clears separation fields back to `active`, 400 if not currently terminated), both `employee.write`-gated and audit-logged (`employee.separated`/`employee.rehired`). Per ADR-013, the record is never deleted or duplicated — history lives in `audit_events`, not a new employment-periods table. Employee detail page adds a Separate dialog (date + reason picker) and a Rehire action, conditional on status. Migration `0008_wise_krista_starr` generated, not applied.
-- W16–W21 — Not started.
+- **W16 — Tenant-safe Audit Log Reading — Complete.** `GET .../organizations/:organizationId/audit-events` already enforced org isolation via `requireMembership`/`audit.read` (W-prior work); this workstream completes the *read* capability rather than just the list: new optional filters (`eventType`, `targetType`, `targetId`, `actorApplicationUserId`), each just another `AND`-ed condition scoped inside the existing org-id predicate so a filter can never leak across organizations. Response now also includes `beforeState`/`afterState`/`ipAddress`/`userAgent` (previously only `metadata` was exposed), since a read path that hides the state diff isn't useful for audit review. Admin console's Audit Log tab gains filter controls (event type, target type/ID, actor — reusing the existing member list) and a details dialog showing the before/after JSON. No schema change; no migration.
+- W17–W21 — Not started.
 
 ---
 

@@ -1900,6 +1900,10 @@ export const listAuditEventsQueryPageDefault = 1;
 export const listAuditEventsQueryPageSizeDefault = 20;
 
 export const ListAuditEventsQueryParams = zod.object({
+  "eventType": zod.coerce.string().optional(),
+  "targetType": zod.coerce.string().optional(),
+  "targetId": zod.coerce.string().optional(),
+  "actorApplicationUserId": zod.coerce.number().optional(),
   "page": zod.coerce.number().default(listAuditEventsQueryPageDefault),
   "pageSize": zod.coerce.number().default(listAuditEventsQueryPageSizeDefault)
 })
@@ -1914,6 +1918,10 @@ export const ListAuditEventsResponse = zod.object({
   "eventType": zod.string(),
   "targetType": zod.string(),
   "targetId": zod.string().nullish(),
+  "beforeState": zod.record(zod.string(), zod.unknown()).nullish(),
+  "afterState": zod.record(zod.string(), zod.unknown()).nullish(),
+  "ipAddress": zod.string().nullish(),
+  "userAgent": zod.string().nullish(),
   "metadata": zod.record(zod.string(), zod.unknown()).nullish()
 })),
   "total": zod.number(),

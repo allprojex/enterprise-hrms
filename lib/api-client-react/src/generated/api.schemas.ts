@@ -992,6 +992,16 @@ export interface UpdateOrganizationConfigInput {
 /**
  * @nullable
  */
+export type AuditEventBeforeState = { [key: string]: unknown } | null;
+
+/**
+ * @nullable
+ */
+export type AuditEventAfterState = { [key: string]: unknown } | null;
+
+/**
+ * @nullable
+ */
 export type AuditEventMetadata = { [key: string]: unknown } | null;
 
 export interface AuditEvent {
@@ -1007,6 +1017,14 @@ export interface AuditEvent {
   targetType: string;
   /** @nullable */
   targetId?: string | null;
+  /** @nullable */
+  beforeState?: AuditEventBeforeState;
+  /** @nullable */
+  afterState?: AuditEventAfterState;
+  /** @nullable */
+  ipAddress?: string | null;
+  /** @nullable */
+  userAgent?: string | null;
   /** @nullable */
   metadata?: AuditEventMetadata;
 }
@@ -1044,6 +1062,10 @@ export type UploadEmployeeProfilePictureBody = {
 };
 
 export type ListAuditEventsParams = {
+eventType?: string;
+targetType?: string;
+targetId?: string;
+actorApplicationUserId?: number;
 page?: number;
 pageSize?: number;
 };

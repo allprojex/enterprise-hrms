@@ -2196,6 +2196,22 @@ paths:
           required: true
           schema:
             type: integer
+        - name: eventType
+          in: query
+          schema:
+            type: string
+        - name: targetType
+          in: query
+          schema:
+            type: string
+        - name: targetId
+          in: query
+          schema:
+            type: string
+        - name: actorApplicationUserId
+          in: query
+          schema:
+            type: integer
         - name: page
           in: query
           schema:
@@ -3256,6 +3272,16 @@ components:
         targetType:
           type: string
         targetId:
+          type: ["string", "null"]
+        beforeState:
+          type: ["object", "null"]
+          additionalProperties: true
+        afterState:
+          type: ["object", "null"]
+          additionalProperties: true
+        ipAddress:
+          type: ["string", "null"]
+        userAgent:
           type: ["string", "null"]
         metadata:
           type: ["object", "null"]
