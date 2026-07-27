@@ -1,20 +1,92 @@
 import { useState } from 'react';
-import { Building, Users, Calendar, CheckCircle, Clock, Ban } from 'lucide-react';
+import { Building, Users, Calendar, CheckCircle, Clock, Ban, Plus } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import {
   useListOrganizations,
   getListOrganizationsQueryKey,
   useGetOrganization,
   getGetOrganizationQueryKey,
+  useCreateOrganization,
 } from '@workspace/api-client-react';
+import type { CreateOrganizationInputType } from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useToast } from '@/hooks/use-toast';
 import { motion } from 'framer-motion';
 import type { Organization } from '@workspace/api-client-react';
 import { QueryError } from '@/components/query-error';
 
+const ORG_TYPES: CreateOrganizationInputType[] = [
+  'business',
+  'church',
+  'ngo',
+  'school',
+  'hospital',
+  'hotel',
+  'government',
+  'other',
+];
+
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 export default function Organizations() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [selectedOrgId, setSelectedOrgId] = useState<number | null>(null);
+
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [slug, setSlug] = useState('');
+  const [slugTouched, setSlugTouched] = useState(false);
+  const [type, setType] = useState<CreateOrganizationInputType>('business');
+
+  const createMutation = useCreateOrganization();
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    createMutation.mutate(
+      { data: { name: name.trim(), slug: slug.trim(), type } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListOrganizationsQueryKey() });
+          setOpen(false);
+          setName('');
+          setSlug('');
+          setSlugTouched(false);
+          setType('business');
+          toast({ title: 'Organisation created' });
+        },
+        onError: (err) => {
+          const message =
+            err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
+          toast({
+            title: 'Could not create organisation',
+            description: message ?? 'Please check the details and try again.',
+            variant: 'destructive',
+          });
+        },
+      },
+    );
+  };
 
   const {
     data: organizations,
@@ -69,11 +141,76 @@ export default function Organizations() {
   return (
     <div className="p-6 lg:p-8 space-y-8">
       {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold text-foreground">Organisations</h1>
-        <p className="text-muted-foreground">
-          View and manage organisations you have access to
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold text-foreground">Organisations</h1>
+          <p className="text-muted-foreground">
+            View and manage organisations you have access to
+          </p>
+        </div>
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <Button data-testid="button-add-organization">
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              New Organisation
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <form onSubmit={handleSubmit}>
+              <DialogHeader>
+                <DialogTitle>Create Organisation</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="org-name">Name</Label>
+                  <Input
+                    id="org-name"
+                    value={name}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      if (!slugTouched) setSlug(slugify(e.target.value));
+                    }}
+                    required
+                    data-testid="input-org-name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="org-slug">Slug</Label>
+                  <Input
+                    id="org-slug"
+                    value={slug}
+                    onChange={(e) => {
+                      setSlug(e.target.value);
+                      setSlugTouched(true);
+                    }}
+                    required
+                    data-testid="input-org-slug"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="org-type">Type</Label>
+                  <Select value={type} onValueChange={(v) => setType(v as CreateOrganizationInputType)}>
+                    <SelectTrigger id="org-type" data-testid="select-org-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ORG_TYPES.map((t) => (
+                        <SelectItem key={t} value={t} className="capitalize">
+                          {t.replace('_', ' ')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="submit" disabled={createMutation.isPending} data-testid="button-submit-org">
+                  {createMutation.isPending ? 'Creating…' : 'Create Organisation'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">

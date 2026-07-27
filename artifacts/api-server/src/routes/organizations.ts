@@ -1,8 +1,11 @@
 import { Router } from "express";
 import { eq } from "drizzle-orm";
 import { db, organizationsTable } from "@workspace/db";
+import { CreateOrganizationBody } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { canAccessOrganization, isSuperAdmin } from "../lib/authorization";
+import { onboardOrganization } from "../lib/onboarding";
+import { isUniqueViolation } from "../lib/dbErrors";
 
 const router = Router();
 
@@ -30,6 +33,29 @@ router.get("/organizations", requireAuth as any, async (req: AuthenticatedReques
     .where(isSuperAdmin(user) ? undefined : eq(organizationsTable.id, user.organizationId));
 
   res.json(orgs.map(formatOrg));
+});
+
+// POST /organizations
+router.post("/organizations", requireAuth as any, async (req: AuthenticatedRequest, res): Promise<void> => {
+  const parsed = CreateOrganizationBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  try {
+    const { organization } = await onboardOrganization({
+      ...parsed.data,
+      creatorApplicationUserId: req.userId!,
+    });
+    res.status(201).json(formatOrg(organization));
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      res.status(409).json({ error: "Slug already in use" });
+      return;
+    }
+    throw err;
+  }
 });
 
 // GET /organizations/:id

@@ -1,3 +1,4 @@
+import { Link } from 'wouter';
 import { Users, Package, Clock, Bell } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +14,26 @@ export default function Dashboard() {
     {
       title: 'Employee Records',
       description: 'Manage comprehensive employee profiles, documents, and organizational structure',
-      status: 'coming-soon' as const
+      href: '/employees',
+      status: 'available' as const,
+    },
+    {
+      title: 'Branches',
+      description: "Manage your organisation's physical or regional locations",
+      href: '/branches',
+      status: 'available' as const,
+    },
+    {
+      title: 'Departments',
+      description: 'Organise employees into functional or organisational units',
+      href: '/departments',
+      status: 'available' as const,
+    },
+    {
+      title: 'Positions',
+      description: 'Define job titles employees can be assigned to',
+      href: '/positions',
+      status: 'available' as const,
     },
     {
       title: 'Leave & Attendance',
@@ -114,24 +134,23 @@ export default function Dashboard() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold text-foreground">Available Modules</h2>
-            <p className="text-muted-foreground">HR modules are currently in development</p>
+            <p className="text-muted-foreground">Organisation and workforce management modules</p>
           </div>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {modules.map((module, i) => (
-            <motion.div
-              key={module.title}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 + i * 0.05 }}
-            >
-              <Card className="h-full hover:shadow-md transition-shadow" data-testid={`card-module-${module.title.toLowerCase().replace(/\s+/g, '-')}`}>
+          {modules.map((module, i) => {
+            const isAvailable = module.status === 'available';
+            const card = (
+              <Card
+                className={`h-full transition-shadow ${isAvailable ? 'hover:shadow-md hover:border-primary/50' : ''}`}
+                data-testid={`card-module-${module.title.toLowerCase().replace(/\s+/g, '-')}`}
+              >
                 <CardHeader>
                   <div className="flex items-start justify-between gap-2">
                     <CardTitle className="text-lg">{module.title}</CardTitle>
-                    <Badge variant="secondary" className="text-xs">
-                      Coming Soon
+                    <Badge variant={isAvailable ? 'default' : 'secondary'} className="text-xs">
+                      {isAvailable ? 'Available' : 'Coming Soon'}
                     </Badge>
                   </div>
                   <CardDescription className="text-sm leading-relaxed">
@@ -139,8 +158,24 @@ export default function Dashboard() {
                   </CardDescription>
                 </CardHeader>
               </Card>
-            </motion.div>
-          ))}
+            );
+            return (
+              <motion.div
+                key={module.title}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 + i * 0.05 }}
+              >
+                {isAvailable && module.href ? (
+                  <Link href={module.href} data-testid={`link-module-${module.title.toLowerCase().replace(/\s+/g, '-')}`}>
+                    {card}
+                  </Link>
+                ) : (
+                  card
+                )}
+              </motion.div>
+            );
+          })}
         </div>
       </div>
 
@@ -149,7 +184,9 @@ export default function Dashboard() {
         <CardHeader>
           <CardTitle className="text-base">System Status</CardTitle>
           <CardDescription>
-            This is the UI shell for Enterprise HRMS. All HR modules are under development and will be available soon. The current version provides authentication, navigation, and the foundational layout for the complete system.
+            Authentication, organisation management, and the employee/branch/department/position
+            directory are live. Leave, performance, recruitment, training, and document management
+            are still under development.
           </CardDescription>
         </CardHeader>
       </Card>

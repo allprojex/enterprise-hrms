@@ -1,6 +1,7 @@
 import { pgTable, text, serial, timestamp, integer, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { organizationTypesTable } from "./organization-types";
 
 export const orgTypeEnum = pgEnum("org_type", [
   "business",
@@ -24,6 +25,11 @@ export const organizationsTable = pgTable("organizations", {
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
   type: orgTypeEnum("type").notNull().default("business"),
+  // Additive, nullable, not yet authoritative — `type` above remains the
+  // source of truth until a later phase migrates callers over.
+  organizationTypeId: integer("organization_type_id").references(() => organizationTypesTable.id, {
+    onDelete: "restrict",
+  }),
   status: orgStatusEnum("status").notNull().default("trial"),
   logoUrl: text("logo_url"),
   industry: text("industry"),

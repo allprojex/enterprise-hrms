@@ -51,7 +51,12 @@ export default defineConfig({
       workspace: apiZodSrc,
       client: "zod",
       target: "generated",
-      schemas: { path: "generated/types", type: "typescript" },
+      // No `schemas` output: it generates plain TS types (in
+      // generated/types/) for the same operations as the Zod schemas in
+      // generated/api.ts, under the same names — for any operation with
+      // query parameters or a file-upload body, that's a guaranteed
+      // `export *` ambiguity in src/index.ts. Nothing in this repo has
+      // ever imported from generated/types; only the Zod schemas are used.
       mode: "split",
       clean: true,
       prettier: true,

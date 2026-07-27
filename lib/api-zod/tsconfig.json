@@ -5,7 +5,11 @@
     "declarationMap": true,
     "emitDeclarationOnly": true,
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "src",
+    // multipart/form-data operations (file uploads) generate Zod schemas
+    // typed against the browser's File/Blob globals — type-only, never
+    // touched at runtime by this package's actual (Node) consumers.
+    "lib": ["es2022", "dom"]
   },
   "include": ["src"]
 }
