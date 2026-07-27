@@ -1,12 +1,18 @@
 import { Router } from "express";
 import { eq } from "drizzle-orm";
-import { db, departmentsTable, branchesTable } from "@workspace/db";
-import { CreateDepartmentBody } from "@workspace/api-zod";
+import { db, departmentsTable } from "@workspace/db";
+import { CreateDepartmentBody, RestructureDepartmentBody } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireMembership, type MembershipRequest } from "../middlewares/requireMembership";
 import { requirePermission } from "../middlewares/requirePermission";
 import { isUniqueViolation } from "../lib/dbErrors";
-import { assertBelongsToOrganization, CrossOrganizationReferenceError } from "../lib/orgScopedRefs";
+import {
+  assertValidDepartmentPlacement,
+  restructureDepartment,
+  CrossOrganizationReferenceError,
+  HierarchyCycleError,
+  StructureNotFoundError,
+} from "../lib/organizationStructureService";
 
 const router = Router();
 
@@ -53,13 +59,11 @@ router.post(
     const organizationId = req.membership!.organizationId;
 
     try {
-      await assertBelongsToOrganization(branchesTable, parsed.data.branchId, organizationId, "Branch");
-      await assertBelongsToOrganization(
-        departmentsTable,
-        parsed.data.parentDepartmentId,
+      await assertValidDepartmentPlacement({
         organizationId,
-        "Parent department",
-      );
+        branchId: parsed.data.branchId,
+        parentDepartmentId: parsed.data.parentDepartmentId,
+      });
 
       const [department] = await db
         .insert(departmentsTable)
@@ -73,6 +77,50 @@ router.post(
       }
       if (isUniqueViolation(err)) {
         res.status(409).json({ error: "A department with this code already exists in the organization" });
+        return;
+      }
+      throw err;
+    }
+  },
+);
+
+// PATCH /organizations/:organizationId/departments/:id/restructure
+router.patch(
+  "/organizations/:organizationId/departments/:id/restructure",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requirePermission("department.manage"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const departmentId = parseInt(raw, 10);
+    if (isNaN(departmentId)) {
+      res.status(400).json({ error: "Invalid department ID" });
+      return;
+    }
+
+    const parsed = RestructureDepartmentBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+
+    try {
+      const updated = await restructureDepartment({
+        organizationId: req.membership!.organizationId,
+        departmentId,
+        branchId: parsed.data.branchId,
+        parentDepartmentId: parsed.data.parentDepartmentId,
+        actorApplicationUserId: req.userId!,
+        actorMembershipId: req.membership!.id,
+      });
+      res.json(formatDepartment(updated));
+    } catch (err) {
+      if (err instanceof StructureNotFoundError) {
+        res.status(404).json({ error: err.message });
+        return;
+      }
+      if (err instanceof HierarchyCycleError || err instanceof CrossOrganizationReferenceError) {
+        res.status(400).json({ error: err.message });
         return;
       }
       throw err;

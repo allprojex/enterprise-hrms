@@ -19,6 +19,7 @@ import {
   useListPositions,
   getListPositionsQueryKey,
   useCreatePosition,
+  useRestructurePosition,
   useListDepartments,
   getListDepartmentsQueryKey,
   useGetMe,
@@ -54,8 +55,26 @@ export default function Positions() {
   const [departmentId, setDepartmentId] = useState(NONE);
 
   const createMutation = useCreatePosition();
+  const restructureMutation = useRestructurePosition();
 
   const departmentNameById = new Map((departments ?? []).map((d) => [d.id, d.name]));
+
+  const handleMoveDepartment = (positionId: number, value: string) => {
+    restructureMutation.mutate(
+      { organizationId, id: positionId, data: { departmentId: value === NONE ? null : Number(value) } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListPositionsQueryKey(organizationId) });
+          toast({ title: 'Position moved' });
+        },
+        onError: (err) => {
+          const message =
+            err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
+          toast({ title: 'Could not move position', description: message, variant: 'destructive' });
+        },
+      },
+    );
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -179,7 +198,22 @@ export default function Positions() {
                 <TableRow key={position.id} data-testid={`row-position-${position.id}`}>
                   <TableCell className="font-medium">{position.title}</TableCell>
                   <TableCell className="text-muted-foreground">
-                    {position.departmentId ? (departmentNameById.get(position.departmentId) ?? '—') : '—'}
+                    <Select
+                      value={position.departmentId != null ? String(position.departmentId) : NONE}
+                      onValueChange={(v) => handleMoveDepartment(position.id, v)}
+                    >
+                      <SelectTrigger className="w-40" data-testid={`select-move-department-${position.id}`}>
+                        <SelectValue>{position.departmentId ? (departmentNameById.get(position.departmentId) ?? '—') : 'No department'}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NONE}>No department</SelectItem>
+                        {(departments ?? []).map((d) => (
+                          <SelectItem key={d.id} value={String(d.id)}>
+                            {d.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </TableCell>
                 </TableRow>
               ))}

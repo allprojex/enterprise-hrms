@@ -878,6 +878,31 @@ export const CreateDepartmentResponse = zod.object({
 
 
 /**
+ * Structural placement only (branchId/parentDepartmentId) — not a general department update. Rejects a move that would make the department its own ancestor (Organization Structure Service, ADR-012).
+ * @summary Move a department to a different branch and/or parent department
+ */
+export const RestructureDepartmentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const RestructureDepartmentBody = zod.object({
+  "branchId": zod.number().nullish(),
+  "parentDepartmentId": zod.number().nullish()
+})
+
+export const RestructureDepartmentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "branchId": zod.number().nullish(),
+  "parentDepartmentId": zod.number().nullish(),
+  "name": zod.string(),
+  "code": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
  * @summary List positions
  */
 export const ListPositionsParams = zod.object({
@@ -910,6 +935,28 @@ export const CreatePositionBody = zod.object({
 })
 
 export const CreatePositionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "title": zod.string(),
+  "departmentId": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * Structural placement only (departmentId) — not a general position update (Organization Structure Service, ADR-012).
+ * @summary Move a position to a different department
+ */
+export const RestructurePositionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const RestructurePositionBody = zod.object({
+  "departmentId": zod.number().nullish()
+})
+
+export const RestructurePositionResponse = zod.object({
   "id": zod.number(),
   "organizationId": zod.number(),
   "title": zod.string(),

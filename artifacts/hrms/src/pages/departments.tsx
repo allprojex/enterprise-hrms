@@ -19,6 +19,7 @@ import {
   useListDepartments,
   getListDepartmentsQueryKey,
   useCreateDepartment,
+  useRestructureDepartment,
   useListBranches,
   getListBranchesQueryKey,
   useGetMe,
@@ -55,8 +56,26 @@ export default function Departments() {
   const [branchId, setBranchId] = useState(NONE);
 
   const createMutation = useCreateDepartment();
+  const restructureMutation = useRestructureDepartment();
 
   const branchNameById = new Map((branches ?? []).map((b) => [b.id, b.name]));
+
+  const handleMoveBranch = (departmentId: number, value: string) => {
+    restructureMutation.mutate(
+      { organizationId, id: departmentId, data: { branchId: value === NONE ? null : Number(value) } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListDepartmentsQueryKey(organizationId) });
+          toast({ title: 'Department moved' });
+        },
+        onError: (err) => {
+          const message =
+            err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
+          toast({ title: 'Could not move department', description: message, variant: 'destructive' });
+        },
+      },
+    );
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -198,7 +217,22 @@ export default function Departments() {
                   <TableCell className="font-medium">{department.name}</TableCell>
                   <TableCell className="font-mono text-sm">{department.code}</TableCell>
                   <TableCell className="text-muted-foreground">
-                    {department.branchId ? (branchNameById.get(department.branchId) ?? '—') : '—'}
+                    <Select
+                      value={department.branchId != null ? String(department.branchId) : NONE}
+                      onValueChange={(v) => handleMoveBranch(department.id, v)}
+                    >
+                      <SelectTrigger className="w-40" data-testid={`select-move-branch-${department.id}`}>
+                        <SelectValue>{department.branchId ? (branchNameById.get(department.branchId) ?? '—') : 'No branch'}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NONE}>No branch</SelectItem>
+                        {(branches ?? []).map((b) => (
+                          <SelectItem key={b.id} value={String(b.id)}>
+                            {b.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </TableCell>
                 </TableRow>
               ))}

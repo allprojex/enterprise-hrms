@@ -771,6 +771,52 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/departments/{id}/restructure:
+    patch:
+      operationId: restructureDepartment
+      tags: [departments]
+      summary: Move a department to a different branch and/or parent department
+      description: >-
+        Structural placement only (branchId/parentDepartmentId) — not a
+        general department update. Rejects a move that would make the
+        department its own ancestor (Organization Structure Service, ADR-012).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RestructureDepartmentInput"
+      responses:
+        "200":
+          description: Department restructured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Department"
+        "400":
+          description: Invalid placement (cross-organization reference or hierarchy cycle)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Department not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /organizations/{organizationId}/positions:
     get:
       operationId: listPositions
@@ -816,6 +862,51 @@ paths:
                 $ref: "#/components/schemas/Position"
         "409":
           description: A position with this title already exists in the organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/positions/{id}/restructure:
+    patch:
+      operationId: restructurePosition
+      tags: [positions]
+      summary: Move a position to a different department
+      description: >-
+        Structural placement only (departmentId) — not a general position
+        update (Organization Structure Service, ADR-012).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RestructurePositionInput"
+      responses:
+        "200":
+          description: Position restructured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Position"
+        "400":
+          description: Invalid placement (cross-organization reference)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Position not found in this organization
           content:
             application/json:
               schema:
@@ -1967,6 +2058,14 @@ components:
         parentDepartmentId:
           type: ["integer", "null"]
 
+    RestructureDepartmentInput:
+      type: object
+      properties:
+        branchId:
+          type: ["integer", "null"]
+        parentDepartmentId:
+          type: ["integer", "null"]
+
     Position:
       type: object
       required: [id, organizationId, title, createdAt]
@@ -1990,6 +2089,12 @@ components:
         title:
           type: string
           minLength: 1
+        departmentId:
+          type: ["integer", "null"]
+
+    RestructurePositionInput:
+      type: object
+      properties:
         departmentId:
           type: ["integer", "null"]
 

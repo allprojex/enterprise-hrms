@@ -256,6 +256,13 @@ export interface CreateDepartmentInput {
   parentDepartmentId?: number | null;
 }
 
+export interface RestructureDepartmentInput {
+  /** @nullable */
+  branchId?: number | null;
+  /** @nullable */
+  parentDepartmentId?: number | null;
+}
+
 export interface Position {
   id: number;
   organizationId: number;
@@ -268,6 +275,11 @@ export interface Position {
 export interface CreatePositionInput {
   /** @minLength 1 */
   title: string;
+  /** @nullable */
+  departmentId?: number | null;
+}
+
+export interface RestructurePositionInput {
   /** @nullable */
   departmentId?: number | null;
 }

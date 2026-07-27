@@ -63,6 +63,8 @@ import type {
   Position,
   PrimaryHrAssignment,
   PrimaryHrAssignmentOrNull,
+  RestructureDepartmentInput,
+  RestructurePositionInput,
   Role,
   SetPrimaryHrInput,
   SwitchOrganizationInput,
@@ -1982,6 +1984,81 @@ export const useCreateDepartment = <TError = ErrorType<ApiError>,
       return useMutation(getCreateDepartmentMutationOptions(options));
     }
 
+export const getRestructureDepartmentUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/departments/${id}/restructure`
+}
+
+/**
+ * Structural placement only (branchId/parentDepartmentId) — not a general department update. Rejects a move that would make the department its own ancestor (Organization Structure Service, ADR-012).
+ * @summary Move a department to a different branch and/or parent department
+ */
+export const restructureDepartment = async (organizationId: number,
+    id: number,
+    restructureDepartmentInput: RestructureDepartmentInput, options?: RequestInit): Promise<Department> => {
+
+  return customFetch<Department>(getRestructureDepartmentUrl(organizationId,id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(restructureDepartmentInput)
+  }
+);}
+
+
+
+
+
+export const getRestructureDepartmentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof restructureDepartment>>, TError,{organizationId: number;id: number;data: BodyType<RestructureDepartmentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof restructureDepartment>>, TError,{organizationId: number;id: number;data: BodyType<RestructureDepartmentInput>}, TContext> => {
+
+const mutationKey = ['restructureDepartment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof restructureDepartment>>, {organizationId: number;id: number;data: BodyType<RestructureDepartmentInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  restructureDepartment(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RestructureDepartmentMutationResult = NonNullable<Awaited<ReturnType<typeof restructureDepartment>>>
+    export type RestructureDepartmentMutationBody = BodyType<RestructureDepartmentInput>
+    export type RestructureDepartmentMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Move a department to a different branch and/or parent department
+ */
+export const useRestructureDepartment = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof restructureDepartment>>, TError,{organizationId: number;id: number;data: BodyType<RestructureDepartmentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof restructureDepartment>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<RestructureDepartmentInput>},
+        TContext
+      > => {
+      return useMutation(getRestructureDepartmentMutationOptions(options));
+    }
+
 export const getListPositionsUrl = (organizationId: number,) => {
 
 
@@ -2129,6 +2206,81 @@ export const useCreatePosition = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getCreatePositionMutationOptions(options));
+    }
+
+export const getRestructurePositionUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/positions/${id}/restructure`
+}
+
+/**
+ * Structural placement only (departmentId) — not a general position update (Organization Structure Service, ADR-012).
+ * @summary Move a position to a different department
+ */
+export const restructurePosition = async (organizationId: number,
+    id: number,
+    restructurePositionInput: RestructurePositionInput, options?: RequestInit): Promise<Position> => {
+
+  return customFetch<Position>(getRestructurePositionUrl(organizationId,id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(restructurePositionInput)
+  }
+);}
+
+
+
+
+
+export const getRestructurePositionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof restructurePosition>>, TError,{organizationId: number;id: number;data: BodyType<RestructurePositionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof restructurePosition>>, TError,{organizationId: number;id: number;data: BodyType<RestructurePositionInput>}, TContext> => {
+
+const mutationKey = ['restructurePosition'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof restructurePosition>>, {organizationId: number;id: number;data: BodyType<RestructurePositionInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  restructurePosition(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RestructurePositionMutationResult = NonNullable<Awaited<ReturnType<typeof restructurePosition>>>
+    export type RestructurePositionMutationBody = BodyType<RestructurePositionInput>
+    export type RestructurePositionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Move a position to a different department
+ */
+export const useRestructurePosition = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof restructurePosition>>, TError,{organizationId: number;id: number;data: BodyType<RestructurePositionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof restructurePosition>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<RestructurePositionInput>},
+        TContext
+      > => {
+      return useMutation(getRestructurePositionMutationOptions(options));
     }
 
 export const getListNotificationsUrl = () => {
