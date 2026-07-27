@@ -313,7 +313,7 @@ Backend Module Gating — **Complete.**
 
 ## W6
 
-Frontend Module Gating
+Frontend Module Gating — **Complete.**
 
 ---
 
