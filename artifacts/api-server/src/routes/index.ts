@@ -17,6 +17,7 @@ import organizationSettingsRouter from "./organizationSettings";
 import auditEventsRouter from "./auditEvents";
 import modulesRouter from "./modules";
 import organizationModulesRouter from "./organizationModules";
+import masterDataRouter from "./masterData";
 
 const router: IRouter = Router();
 
@@ -38,5 +39,6 @@ router.use(organizationSettingsRouter);
 router.use(auditEventsRouter);
 router.use(modulesRouter);
 router.use(organizationModulesRouter);
+router.use(masterDataRouter);
 
 export default router;

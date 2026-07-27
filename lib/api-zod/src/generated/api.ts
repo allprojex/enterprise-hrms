@@ -1193,6 +1193,65 @@ export const UpdateOrganizationModuleResponse = zod.object({
 
 
 /**
+ * System-wide catalog of Master Data domains (gender, marital_status, employment_type, ...) and their classification (system-defined, organization-overridable, organization-defined), not org-scoped.
+ * @summary List the Master Data domain registry
+ */
+export const ListMasterDataDomainsResponseItem = zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "classification": zod.enum(['system-defined', 'organization-overridable', 'organization-defined'])
+})
+export const ListMasterDataDomainsResponse = zod.array(ListMasterDataDomainsResponseItem)
+
+
+/**
+ * System-defined items (shared by every organization) plus this organization's own items for the domain, sorted by sortOrder.
+ * @summary List Master Data items for a domain
+ */
+export const ListMasterDataItemsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "domain": zod.coerce.string()
+})
+
+export const ListMasterDataItemsResponseItem = zod.object({
+  "id": zod.number(),
+  "domain": zod.string(),
+  "organizationId": zod.number().nullable().describe('Null for a system-defined item shared by every organization.'),
+  "code": zod.string(),
+  "label": zod.string(),
+  "sortOrder": zod.number(),
+  "status": zod.enum(['active', 'inactive'])
+})
+export const ListMasterDataItemsResponse = zod.array(ListMasterDataItemsResponseItem)
+
+
+/**
+ * Rejected for system-defined domains, which never accept organization-added items.
+ * @summary Add an organization-specific Master Data item
+ */
+export const CreateMasterDataItemParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "domain": zod.coerce.string()
+})
+
+export const CreateMasterDataItemBody = zod.object({
+  "code": zod.string(),
+  "label": zod.string(),
+  "sortOrder": zod.number().optional()
+})
+
+export const CreateMasterDataItemResponse = zod.object({
+  "id": zod.number(),
+  "domain": zod.string(),
+  "organizationId": zod.number().nullable().describe('Null for a system-defined item shared by every organization.'),
+  "code": zod.string(),
+  "label": zod.string(),
+  "sortOrder": zod.number(),
+  "status": zod.enum(['active', 'inactive'])
+})
+
+
+/**
  * Paginated, most recent first.
  * @summary List audit events
  */

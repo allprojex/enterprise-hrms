@@ -687,6 +687,49 @@ export interface UpdateOrganizationModuleInput {
   enabled: boolean;
 }
 
+export type MasterDataDomainClassification = typeof MasterDataDomainClassification[keyof typeof MasterDataDomainClassification];
+
+
+export const MasterDataDomainClassification = {
+  'system-defined': 'system-defined',
+  'organization-overridable': 'organization-overridable',
+  'organization-defined': 'organization-defined',
+} as const;
+
+export interface MasterDataDomain {
+  key: string;
+  label: string;
+  classification: MasterDataDomainClassification;
+}
+
+export type MasterDataItemStatus = typeof MasterDataItemStatus[keyof typeof MasterDataItemStatus];
+
+
+export const MasterDataItemStatus = {
+  active: 'active',
+  inactive: 'inactive',
+} as const;
+
+export interface MasterDataItem {
+  id: number;
+  domain: string;
+  /**
+     * Null for a system-defined item shared by every organization.
+     * @nullable
+     */
+  organizationId: number | null;
+  code: string;
+  label: string;
+  sortOrder: number;
+  status: MasterDataItemStatus;
+}
+
+export interface CreateMasterDataItemInput {
+  code: string;
+  label: string;
+  sortOrder?: number;
+}
+
 export type OrganizationMemberStatus = typeof OrganizationMemberStatus[keyof typeof OrganizationMemberStatus];
 
 

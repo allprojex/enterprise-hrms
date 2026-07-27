@@ -29,6 +29,7 @@ import type {
   CreateBranchInput,
   CreateDepartmentInput,
   CreateEmployeeInput,
+  CreateMasterDataItemInput,
   CreateOrganizationInput,
   CreatePositionInput,
   DashboardSummary,
@@ -41,6 +42,8 @@ import type {
   ListAuditEventsParams,
   ListEmployeesParams,
   LoginInput,
+  MasterDataDomain,
+  MasterDataItem,
   MembershipSummary,
   MessageResponse,
   Module,
@@ -3267,6 +3270,242 @@ export const useUpdateOrganizationModule = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getUpdateOrganizationModuleMutationOptions(options));
+    }
+
+export const getListMasterDataDomainsUrl = () => {
+
+
+
+
+  return `/api/master-data/domains`
+}
+
+/**
+ * System-wide catalog of Master Data domains (gender, marital_status, employment_type, ...) and their classification (system-defined, organization-overridable, organization-defined), not org-scoped.
+ * @summary List the Master Data domain registry
+ */
+export const listMasterDataDomains = async ( options?: RequestInit): Promise<MasterDataDomain[]> => {
+
+  return customFetch<MasterDataDomain[]>(getListMasterDataDomainsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMasterDataDomainsQueryKey = () => {
+    return [
+    `/api/master-data/domains`
+    ] as const;
+    }
+
+
+export const getListMasterDataDomainsQueryOptions = <TData = Awaited<ReturnType<typeof listMasterDataDomains>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMasterDataDomains>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMasterDataDomainsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMasterDataDomains>>> = ({ signal }) => listMasterDataDomains({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMasterDataDomains>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMasterDataDomainsQueryResult = NonNullable<Awaited<ReturnType<typeof listMasterDataDomains>>>
+export type ListMasterDataDomainsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List the Master Data domain registry
+ */
+
+export function useListMasterDataDomains<TData = Awaited<ReturnType<typeof listMasterDataDomains>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMasterDataDomains>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMasterDataDomainsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListMasterDataItemsUrl = (organizationId: number,
+    domain: string,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/master-data/${domain}`
+}
+
+/**
+ * System-defined items (shared by every organization) plus this organization's own items for the domain, sorted by sortOrder.
+ * @summary List Master Data items for a domain
+ */
+export const listMasterDataItems = async (organizationId: number,
+    domain: string, options?: RequestInit): Promise<MasterDataItem[]> => {
+
+  return customFetch<MasterDataItem[]>(getListMasterDataItemsUrl(organizationId,domain),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMasterDataItemsQueryKey = (organizationId: number,
+    domain: string,) => {
+    return [
+    `/api/organizations/${organizationId}/master-data/${domain}`
+    ] as const;
+    }
+
+
+export const getListMasterDataItemsQueryOptions = <TData = Awaited<ReturnType<typeof listMasterDataItems>>, TError = ErrorType<ApiError>>(organizationId: number,
+    domain: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMasterDataItems>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMasterDataItemsQueryKey(organizationId,domain);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMasterDataItems>>> = ({ signal }) => listMasterDataItems(organizationId,domain, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && domain !== null && domain !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMasterDataItems>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMasterDataItemsQueryResult = NonNullable<Awaited<ReturnType<typeof listMasterDataItems>>>
+export type ListMasterDataItemsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List Master Data items for a domain
+ */
+
+export function useListMasterDataItems<TData = Awaited<ReturnType<typeof listMasterDataItems>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    domain: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMasterDataItems>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMasterDataItemsQueryOptions(organizationId,domain,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateMasterDataItemUrl = (organizationId: number,
+    domain: string,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/master-data/${domain}`
+}
+
+/**
+ * Rejected for system-defined domains, which never accept organization-added items.
+ * @summary Add an organization-specific Master Data item
+ */
+export const createMasterDataItem = async (organizationId: number,
+    domain: string,
+    createMasterDataItemInput: CreateMasterDataItemInput, options?: RequestInit): Promise<MasterDataItem> => {
+
+  return customFetch<MasterDataItem>(getCreateMasterDataItemUrl(organizationId,domain),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createMasterDataItemInput)
+  }
+);}
+
+
+
+
+
+export const getCreateMasterDataItemMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMasterDataItem>>, TError,{organizationId: number;domain: string;data: BodyType<CreateMasterDataItemInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createMasterDataItem>>, TError,{organizationId: number;domain: string;data: BodyType<CreateMasterDataItemInput>}, TContext> => {
+
+const mutationKey = ['createMasterDataItem'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createMasterDataItem>>, {organizationId: number;domain: string;data: BodyType<CreateMasterDataItemInput>}> = (props) => {
+          const {organizationId,domain,data} = props ?? {};
+
+          return  createMasterDataItem(organizationId,domain,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateMasterDataItemMutationResult = NonNullable<Awaited<ReturnType<typeof createMasterDataItem>>>
+    export type CreateMasterDataItemMutationBody = BodyType<CreateMasterDataItemInput>
+    export type CreateMasterDataItemMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Add an organization-specific Master Data item
+ */
+export const useCreateMasterDataItem = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMasterDataItem>>, TError,{organizationId: number;domain: string;data: BodyType<CreateMasterDataItemInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createMasterDataItem>>,
+        TError,
+        {organizationId: number;domain: string;data: BodyType<CreateMasterDataItemInput>},
+        TContext
+      > => {
+      return useMutation(getCreateMasterDataItemMutationOptions(options));
     }
 
 export const getListAuditEventsUrl = (organizationId: number,

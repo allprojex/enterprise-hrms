@@ -1195,6 +1195,109 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /master-data/domains:
+    get:
+      operationId: listMasterDataDomains
+      tags: [master-data]
+      summary: List the Master Data domain registry
+      description: >-
+        System-wide catalog of Master Data domains (gender, marital_status,
+        employment_type, ...) and their classification (system-defined,
+        organization-overridable, organization-defined), not org-scoped.
+      responses:
+        "200":
+          description: List of Master Data domains
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MasterDataDomain"
+
+  /organizations/{organizationId}/master-data/{domain}:
+    get:
+      operationId: listMasterDataItems
+      tags: [master-data]
+      summary: List Master Data items for a domain
+      description: >-
+        System-defined items (shared by every organization) plus this
+        organization's own items for the domain, sorted by sortOrder.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: domain
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Master Data items for the domain
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MasterDataItem"
+        "404":
+          description: Unknown domain
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createMasterDataItem
+      tags: [master-data]
+      summary: Add an organization-specific Master Data item
+      description: >-
+        Rejected for system-defined domains, which never accept
+        organization-added items.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: domain
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMasterDataItemInput"
+      responses:
+        "201":
+          description: Master Data item created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MasterDataItem"
+        "400":
+          description: Domain is system-defined and does not accept organization-added items
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Unknown domain
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: An item with this code already exists for the domain in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /organizations/{organizationId}/audit-events:
     get:
       operationId: listAuditEvents
@@ -1903,6 +2006,50 @@ components:
       properties:
         enabled:
           type: boolean
+
+    MasterDataDomain:
+      type: object
+      required: [key, label, classification]
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        classification:
+          type: string
+          enum: [system-defined, organization-overridable, organization-defined]
+
+    MasterDataItem:
+      type: object
+      required: [id, domain, organizationId, code, label, sortOrder, status]
+      properties:
+        id:
+          type: integer
+        domain:
+          type: string
+        organizationId:
+          type: ["integer", "null"]
+          description: Null for a system-defined item shared by every organization.
+        code:
+          type: string
+        label:
+          type: string
+        sortOrder:
+          type: integer
+        status:
+          type: string
+          enum: [active, inactive]
+
+    CreateMasterDataItemInput:
+      type: object
+      required: [code, label]
+      properties:
+        code:
+          type: string
+        label:
+          type: string
+        sortOrder:
+          type: integer
 
     OrganizationMember:
       type: object

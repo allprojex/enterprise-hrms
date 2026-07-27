@@ -29,6 +29,8 @@ const {
   auditEventsTable,
   modulesTable,
   organizationModulesTable,
+  masterDataDomainsTable,
+  masterDataItemsTable,
 } = vi.hoisted(() => {
   function mockTable(name: string, columns: string[]) {
     const table: Record<string, string> & { __name: string } = { __name: name } as never;
@@ -48,6 +50,8 @@ const {
       auditRows: [] as Record<string, unknown>[],
       moduleRows: [] as Record<string, unknown>[],
       organizationModuleRows: [] as Record<string, unknown>[],
+      masterDataDomainRows: [] as Record<string, unknown>[],
+      masterDataItemRows: [] as Record<string, unknown>[],
       inserted: [] as { table: string; values: unknown }[],
       idCounters: new Map<string, number>(),
     },
@@ -58,6 +62,7 @@ const {
       "applicationUserId",
       "organizationId",
       "status",
+      "expiresAt",
     ]),
     membershipRolesTable: mockTable("membership_roles", ["membershipId", "roleId"]),
     rolePermissionsTable: mockTable("role_permissions", ["roleId", "permissionId"]),
@@ -68,6 +73,8 @@ const {
     auditEventsTable: mockTable("audit_events", ["organizationId"]),
     modulesTable: mockTable("modules", ["id", "key", "name", "status"]),
     organizationModulesTable: mockTable("organization_modules", ["id", "organizationId", "moduleId", "enabled"]),
+    masterDataDomainsTable: mockTable("master_data_domains", ["id", "key", "label", "classification"]),
+    masterDataItemsTable: mockTable("master_data_items", ["id", "domain", "organizationId", "code", "label", "sortOrder", "status"]),
   };
 });
 
@@ -82,12 +89,16 @@ type Cond =
   | { __op: "eq"; field: string; val: unknown }
   | { __op: "in"; field: string; vals: unknown[] }
   | { __op: "and"; conds: Cond[] }
+  | { __op: "or"; conds: Cond[] }
+  | { __op: "isNull"; field: string }
   | undefined;
 function matches(row: Record<string, unknown>, cond: Cond): boolean {
   if (!cond) return true;
   if (cond.__op === "eq") return row[cond.field] === cond.val;
   if (cond.__op === "in") return cond.vals.includes(row[cond.field]);
   if (cond.__op === "and") return cond.conds.every((c) => matches(row, c));
+  if (cond.__op === "or") return cond.conds.some((c) => matches(row, c));
+  if (cond.__op === "isNull") return row[cond.field] == null;
   return true;
 }
 
@@ -117,6 +128,8 @@ const dbMock = {
         else if (table === auditEventsTable) rows = fixtures.auditRows;
         else if (table === modulesTable) rows = fixtures.moduleRows;
         else if (table === organizationModulesTable) rows = fixtures.organizationModuleRows;
+        else if (table === masterDataDomainsTable) rows = fixtures.masterDataDomainRows;
+        else if (table === masterDataItemsTable) rows = fixtures.masterDataItemRows;
 
         let filtered = rows;
         const builder = {
@@ -142,6 +155,16 @@ const dbMock = {
     }),
     insert: (table: { __name: string }) => ({
       values: (v: Record<string, unknown>) => {
+        if (table === masterDataItemsTable) {
+          const conflict = fixtures.masterDataItemRows.find(
+            (r) => r.domain === v.domain && r.organizationId === v.organizationId && r.code === v.code,
+          );
+          if (conflict) {
+            return {
+              returning: () => Promise.reject(Object.assign(new Error("duplicate key"), { code: "23505" })),
+            };
+          }
+        }
         fixtures.inserted.push({ table: table.__name, values: v });
         return {
           returning: () => Promise.resolve([{ id: nextId(table), ...v }]),
@@ -183,14 +206,16 @@ vi.mock("@workspace/db", () => ({
   auditEventsTable,
   modulesTable,
   organizationModulesTable,
+  masterDataDomainsTable,
+  masterDataItemsTable,
   db: dbMock,
 }));
 
 vi.mock("drizzle-orm", () => ({
   eq: (col: string, val: unknown) => ({ __op: "eq", field: col.split(".").pop(), val }),
   and: (...conds: Cond[]) => ({ __op: "and", conds: conds.filter(Boolean) }),
-  or: () => undefined,
-  isNull: () => undefined,
+  or: (...conds: Cond[]) => ({ __op: "or", conds: conds.filter(Boolean) }),
+  isNull: (col: string) => ({ __op: "isNull", field: col.split(".").pop() }),
   gt: () => undefined,
   desc: () => undefined,
   count: () => "count",
@@ -243,6 +268,8 @@ beforeEach(() => {
   fixtures.auditRows = [];
   fixtures.moduleRows = [];
   fixtures.organizationModuleRows = [];
+  fixtures.masterDataDomainRows = [];
+  fixtures.masterDataItemRows = [];
   fixtures.inserted = [];
   fixtures.idCounters = new Map();
 });
@@ -506,6 +533,134 @@ describe("PATCH /api/organizations/:organizationId/modules/:moduleKey", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.enabled).toBe(false);
+  });
+});
+
+describe("GET /api/master-data/domains", () => {
+  it("returns 401 when unauthenticated", async () => {
+    const res = await request(app).get("/api/master-data/domains");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns the domain registry for any authenticated user, not org-scoped", async () => {
+    mockSession();
+    fixtures.masterDataDomainRows = [{ id: 1, key: "gender", label: "Gender", classification: "system-defined" }];
+
+    const res = await request(app).get("/api/master-data/domains").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([{ key: "gender", label: "Gender", classification: "system-defined" }]);
+  });
+});
+
+describe("GET /api/organizations/:organizationId/master-data/:domain", () => {
+  it("returns 403 without organization.read", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions([]);
+
+    const res = await request(app)
+      .get("/api/organizations/10/master-data/gender")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 404 for an unknown domain", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["organization.read"]);
+
+    const res = await request(app)
+      .get("/api/organizations/10/master-data/bogus")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(404);
+  });
+
+  it("merges system items with this organization's own items, and excludes another organization's items", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["organization.read"]);
+    fixtures.masterDataDomainRows = [{ id: 1, key: "gender", label: "Gender", classification: "system-defined" }];
+    fixtures.masterDataItemRows = [
+      { id: 1, domain: "gender", organizationId: null, code: "male", label: "Male", sortOrder: 2, status: "active" },
+      { id: 2, domain: "gender", organizationId: 10, code: "nonbinary", label: "Non-binary", sortOrder: 1, status: "active" },
+      { id: 3, domain: "gender", organizationId: 99, code: "other-org", label: "Other Org Item", sortOrder: 0, status: "active" },
+    ];
+
+    const res = await request(app)
+      .get("/api/organizations/10/master-data/gender")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.map((i: { code: string }) => i.code)).toEqual(["nonbinary", "male"]);
+  });
+});
+
+describe("POST /api/organizations/:organizationId/master-data/:domain", () => {
+  it("returns 403 without master_data.manage", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["organization.read"]);
+
+    const res = await request(app)
+      .post("/api/organizations/10/master-data/employment_type")
+      .set("Authorization", "Bearer valid-token")
+      .send({ code: "contractor", label: "Contractor" });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("rejects adding an item to a system-defined domain", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["master_data.manage"]);
+    fixtures.masterDataDomainRows = [{ id: 1, key: "gender", label: "Gender", classification: "system-defined" }];
+
+    const res = await request(app)
+      .post("/api/organizations/10/master-data/gender")
+      .set("Authorization", "Bearer valid-token")
+      .send({ code: "custom", label: "Custom" });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("creates an organization item for an overridable domain", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["master_data.manage"]);
+    fixtures.masterDataDomainRows = [
+      { id: 2, key: "employment_type", label: "Employment Type", classification: "organization-overridable" },
+    ];
+
+    const res = await request(app)
+      .post("/api/organizations/10/master-data/employment_type")
+      .set("Authorization", "Bearer valid-token")
+      .send({ code: "contractor", label: "Contractor" });
+
+    expect(res.status).toBe(201);
+    expect(res.body.code).toBe("contractor");
+    expect(res.body.organizationId).toBe(10);
+  });
+
+  it("returns 409 when the code already exists for this organization and domain", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["master_data.manage"]);
+    fixtures.masterDataDomainRows = [
+      { id: 2, key: "employment_type", label: "Employment Type", classification: "organization-overridable" },
+    ];
+    fixtures.masterDataItemRows = [
+      { id: 1, domain: "employment_type", organizationId: 10, code: "contractor", label: "Contractor", sortOrder: 0, status: "active" },
+    ];
+
+    const res = await request(app)
+      .post("/api/organizations/10/master-data/employment_type")
+      .set("Authorization", "Bearer valid-token")
+      .send({ code: "contractor", label: "Contractor Again" });
+
+    expect(res.status).toBe(409);
   });
 });
 

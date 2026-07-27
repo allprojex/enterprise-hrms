@@ -13,6 +13,7 @@
     "seed:roles": "tsx ./src/seed/seed-roles-permissions.ts",
     "seed:organization-types": "tsx ./src/seed/seed-organization-types.ts",
     "seed:modules": "tsx ./src/seed/seed-modules.ts",
+    "seed:master-data": "tsx ./src/seed/seed-master-data.ts",
     "backfill:memberships": "tsx ./src/backfill/backfill-memberships.ts",
     "push": "drizzle-kit push --config ./drizzle.config.ts",
     "push-force": "drizzle-kit push --force --config ./drizzle.config.ts"

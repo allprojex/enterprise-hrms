@@ -47,6 +47,11 @@ import {
   useListOrganizationModules,
   getListOrganizationModulesQueryKey,
   useUpdateOrganizationModule,
+  useListMasterDataDomains,
+  getListMasterDataDomainsQueryKey,
+  useListMasterDataItems,
+  getListMasterDataItemsQueryKey,
+  useCreateMasterDataItem,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -560,6 +565,120 @@ function ModulesTab({ organizationId }: { organizationId: number }) {
   );
 }
 
+function MasterDataTab({ organizationId }: { organizationId: number }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [domain, setDomain] = useState('');
+  const [code, setCode] = useState('');
+  const [label, setLabel] = useState('');
+
+  const { data: domains } = useListMasterDataDomains({ query: { queryKey: getListMasterDataDomainsQueryKey() } });
+  const selectedDomain = domains?.find((d) => d.key === domain);
+  const writable = selectedDomain && selectedDomain.classification !== 'system-defined';
+
+  const { data: items, isLoading, error, refetch } = useListMasterDataItems(organizationId, domain, {
+    query: { queryKey: getListMasterDataItemsQueryKey(organizationId, domain), enabled: organizationId > 0 && !!domain },
+  });
+  const createMutation = useCreateMasterDataItem();
+
+  const handleCreate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!domain) return;
+    createMutation.mutate(
+      { organizationId, domain, data: { code: code.trim(), label: label.trim() } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListMasterDataItemsQueryKey(organizationId, domain) });
+          setCode('');
+          setLabel('');
+          toast({ title: 'Item added' });
+        },
+        onError: (err) => toast({ title: 'Could not add item', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Master Data</CardTitle>
+          <CardDescription>Reference data used across the platform — pick a domain to view or extend it</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Select value={domain} onValueChange={setDomain}>
+            <SelectTrigger className="max-w-xs" data-testid="select-master-data-domain">
+              <SelectValue placeholder="Choose a domain" />
+            </SelectTrigger>
+            <SelectContent>
+              {(domains ?? []).map((d) => (
+                <SelectItem key={d.key} value={d.key}>
+                  {d.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {domain && writable && (
+            <form onSubmit={handleCreate} className="flex gap-2 max-w-md">
+              <Input
+                placeholder="Code"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                required
+                data-testid="input-master-data-code"
+              />
+              <Input
+                placeholder="Label"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                required
+                data-testid="input-master-data-label"
+              />
+              <Button type="submit" disabled={createMutation.isPending} data-testid="button-add-master-data-item">
+                Add
+              </Button>
+            </form>
+          )}
+
+          {!domain ? null : isLoading ? (
+            <div className="space-y-3" aria-busy="true" aria-label="Loading items">
+              {[...Array(3)].map((_, i) => (
+                <Skeleton key={i} className="h-10 w-full" />
+              ))}
+            </div>
+          ) : error ? (
+            <QueryError title="Failed to load items" message="Could not fetch master data items." onRetry={() => refetch()} />
+          ) : (
+            <Table aria-label="Master data items">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Code</TableHead>
+                  <TableHead>Label</TableHead>
+                  <TableHead>Source</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(items ?? []).map((item) => (
+                  <TableRow key={item.id} data-testid={`row-master-data-item-${item.id}`}>
+                    <TableCell className="font-mono text-sm">{item.code}</TableCell>
+                    <TableCell>{item.label}</TableCell>
+                    <TableCell>
+                      <Badge variant={item.organizationId === null ? 'secondary' : 'outline'}>
+                        {item.organizationId === null ? 'System' : 'Custom'}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function AuditLogTab({ organizationId }: { organizationId: number }) {
   const [page, setPage] = useState(1);
   const { data: result, isLoading, error, refetch } = useListAuditEvents(
@@ -692,6 +811,7 @@ export default function Admin() {
           <TabsTrigger value="members" data-testid="tab-members">Members</TabsTrigger>
           <TabsTrigger value="hr-settings" data-testid="tab-hr-settings">Primary HR &amp; Settings</TabsTrigger>
           <TabsTrigger value="modules" data-testid="tab-modules">Modules</TabsTrigger>
+          <TabsTrigger value="master-data" data-testid="tab-master-data">Master Data</TabsTrigger>
           <TabsTrigger value="audit" data-testid="tab-audit">Audit Log</TabsTrigger>
         </TabsList>
         <TabsContent value="members">
@@ -702,6 +822,9 @@ export default function Admin() {
         </TabsContent>
         <TabsContent value="modules">
           <ModulesTab organizationId={organizationId} />
+        </TabsContent>
+        <TabsContent value="master-data">
+          <MasterDataTab organizationId={organizationId} />
         </TabsContent>
         <TabsContent value="audit">
           <AuditLogTab organizationId={organizationId} />
