@@ -301,7 +301,7 @@ Module Registry — **Complete.**
 
 ## W4
 
-Per-Organization Module Enablement
+Per-Organization Module Enablement — **Complete.**
 
 ---
 
