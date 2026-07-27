@@ -1930,3 +1930,42 @@ export const ListAuditEventsResponse = zod.object({
 })
 
 
+/**
+ * System-wide catalog of registered reports (not org-scoped), per the Reporting Foundation (ADR-016). A report appearing here does not mean the caller can run it — that's gated per-report by requiredPermissionKey, checked at run time.
+ * @summary List the report registry
+ */
+export const ListReportsResponseItem = zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "description": zod.string(),
+  "category": zod.string()
+})
+export const ListReportsResponse = zod.array(ListReportsResponseItem)
+
+
+/**
+ * Computes a registered report scoped to this organization. Permission required varies by report (see GET /reports). Pass ?format=csv for a CSV download instead of JSON.
+ * @summary Run a report
+ */
+export const RunReportParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "reportKey": zod.coerce.string()
+})
+
+export const RunReportQueryParams = zod.object({
+  "format": zod.enum(['json', 'csv']).optional()
+})
+
+export const RunReportResponse = zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "description": zod.string(),
+  "generatedAt": zod.coerce.date(),
+  "columns": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string()
+})),
+  "rows": zod.array(zod.record(zod.string(), zod.unknown()))
+})
+
+

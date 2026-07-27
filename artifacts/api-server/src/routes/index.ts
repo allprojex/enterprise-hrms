@@ -20,6 +20,7 @@ import organizationModulesRouter from "./organizationModules";
 import masterDataRouter from "./masterData";
 import invitationsRouter from "./invitations";
 import organizationRolesRouter from "./organizationRoles";
+import reportsRouter from "./reports";
 
 const router: IRouter = Router();
 
@@ -44,5 +45,6 @@ router.use(organizationModulesRouter);
 router.use(masterDataRouter);
 router.use(invitationsRouter);
 router.use(organizationRolesRouter);
+router.use(reportsRouter);
 
 export default router;

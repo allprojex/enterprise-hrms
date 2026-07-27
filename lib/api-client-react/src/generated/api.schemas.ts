@@ -1036,6 +1036,29 @@ export interface AuditEventListResponse {
   pageSize: number;
 }
 
+export interface Report {
+  key: string;
+  label: string;
+  description: string;
+  category: string;
+}
+
+export interface ReportColumn {
+  key: string;
+  label: string;
+}
+
+export type ReportRunResultRowsItem = { [key: string]: unknown };
+
+export interface ReportRunResult {
+  key: string;
+  label: string;
+  description: string;
+  generatedAt: string;
+  columns: ReportColumn[];
+  rows: ReportRunResultRowsItem[];
+}
+
 export type ListEmployeesParams = {
 search?: string;
 departmentId?: number;
@@ -1069,4 +1092,16 @@ actorApplicationUserId?: number;
 page?: number;
 pageSize?: number;
 };
+
+export type RunReportParams = {
+format?: RunReportFormat;
+};
+
+export type RunReportFormat = typeof RunReportFormat[keyof typeof RunReportFormat];
+
+
+export const RunReportFormat = {
+  json: 'json',
+  csv: 'csv',
+} as const;
 

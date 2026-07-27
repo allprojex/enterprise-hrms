@@ -63,9 +63,12 @@ import type {
   Position,
   PrimaryHrAssignment,
   PrimaryHrAssignmentOrNull,
+  Report,
+  ReportRunResult,
   RestructureDepartmentInput,
   RestructurePositionInput,
   Role,
+  RunReportParams,
   SeparateEmployeeInput,
   SetPrimaryHrInput,
   SwitchOrganizationInput,
@@ -5380,6 +5383,179 @@ export function useListAuditEvents<TData = Awaited<ReturnType<typeof listAuditEv
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListAuditEventsQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListReportsUrl = () => {
+
+
+
+
+  return `/api/reports`
+}
+
+/**
+ * System-wide catalog of registered reports (not org-scoped), per the Reporting Foundation (ADR-016). A report appearing here does not mean the caller can run it — that's gated per-report by requiredPermissionKey, checked at run time.
+ * @summary List the report registry
+ */
+export const listReports = async ( options?: RequestInit): Promise<Report[]> => {
+
+  return customFetch<Report[]>(getListReportsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListReportsQueryKey = () => {
+    return [
+    `/api/reports`
+    ] as const;
+    }
+
+
+export const getListReportsQueryOptions = <TData = Awaited<ReturnType<typeof listReports>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listReports>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListReportsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listReports>>> = ({ signal }) => listReports({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listReports>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListReportsQueryResult = NonNullable<Awaited<ReturnType<typeof listReports>>>
+export type ListReportsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List the report registry
+ */
+
+export function useListReports<TData = Awaited<ReturnType<typeof listReports>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listReports>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListReportsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRunReportUrl = (organizationId: number,
+    reportKey: string,
+    params?: RunReportParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/reports/${reportKey}/run?${stringifiedParams}` : `/api/organizations/${organizationId}/reports/${reportKey}/run`
+}
+
+/**
+ * Computes a registered report scoped to this organization. Permission required varies by report (see GET /reports). Pass ?format=csv for a CSV download instead of JSON.
+ * @summary Run a report
+ */
+export const runReport = async (organizationId: number,
+    reportKey: string,
+    params?: RunReportParams, options?: RequestInit): Promise<ReportRunResult | string> => {
+
+  return customFetch<ReportRunResult | string>(getRunReportUrl(organizationId,reportKey,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getRunReportQueryKey = (organizationId: number,
+    reportKey: string,
+    params?: RunReportParams,) => {
+    return [
+    `/api/organizations/${organizationId}/reports/${reportKey}/run`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getRunReportQueryOptions = <TData = Awaited<ReturnType<typeof runReport>>, TError = ErrorType<unknown>>(organizationId: number,
+    reportKey: string,
+    params?: RunReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getRunReportQueryKey(organizationId,reportKey,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof runReport>>> = ({ signal }) => runReport(organizationId,reportKey,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && reportKey !== null && reportKey !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof runReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type RunReportQueryResult = NonNullable<Awaited<ReturnType<typeof runReport>>>
+export type RunReportQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Run a report
+ */
+
+export function useRunReport<TData = Awaited<ReturnType<typeof runReport>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    reportKey: string,
+    params?: RunReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getRunReportQueryOptions(organizationId,reportKey,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

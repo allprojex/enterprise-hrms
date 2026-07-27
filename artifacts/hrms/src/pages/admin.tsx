@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
-import { ShieldCheck, UserPlus, Trash2, Star, History, Settings2, Mail, Copy } from 'lucide-react';
+import { ShieldCheck, UserPlus, Trash2, Star, History, Settings2, Mail, Copy, FileBarChart, Download } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -61,8 +61,14 @@ import {
   useRevokeRolePermission,
   useListPermissions,
   getListPermissionsQueryKey,
+  useListReports,
+  getListReportsQueryKey,
+  useRunReport,
+  getRunReportQueryKey,
+  getRunReportUrl,
 } from '@workspace/api-client-react';
 import type { AuditEvent } from '@workspace/api-client-react';
+import { getStoredToken } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { QueryError } from '@/components/query-error';
@@ -1214,6 +1220,131 @@ function AuditLogTab({ organizationId }: { organizationId: number }) {
   );
 }
 
+function ReportsTab({ organizationId }: { organizationId: number }) {
+  const { toast } = useToast();
+  const [reportKey, setReportKey] = useState('');
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const { data: reports, isLoading: reportsLoading } = useListReports({
+    query: { queryKey: getListReportsQueryKey() },
+  });
+
+  const [prevReports, setPrevReports] = useState(reports);
+  if (reports && reports !== prevReports) {
+    setPrevReports(reports);
+    if (!reportKey && reports.length > 0) setReportKey(reports[0].key);
+  }
+
+  const { data: result, isLoading: resultLoading, error, refetch } = useRunReport(
+    organizationId,
+    reportKey,
+    {},
+    { query: { queryKey: getRunReportQueryKey(organizationId, reportKey, {}), enabled: organizationId > 0 && !!reportKey } },
+  );
+
+  const handleDownloadCsv = async () => {
+    setIsDownloading(true);
+    try {
+      const token = getStoredToken();
+      const res = await fetch(getRunReportUrl(organizationId, reportKey, { format: 'csv' }), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error('Download failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${reportKey}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: 'Could not download report', description: 'Please try again.', variant: 'destructive' });
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="pt-6 flex flex-wrap items-end gap-3">
+          <div className="space-y-1">
+            <Label htmlFor="report-select">Report</Label>
+            <Select value={reportKey} onValueChange={setReportKey}>
+              <SelectTrigger id="report-select" className="w-64" data-testid="select-report">
+                <SelectValue placeholder="Choose a report" />
+              </SelectTrigger>
+              <SelectContent>
+                {(reports ?? []).map((r) => (
+                  <SelectItem key={r.key} value={r.key}>
+                    {r.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleDownloadCsv}
+            disabled={!reportKey || isDownloading}
+            data-testid="button-download-report-csv"
+          >
+            <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+            Download CSV
+          </Button>
+        </CardContent>
+      </Card>
+
+      {reportsLoading || resultLoading ? (
+        <div className="space-y-3" aria-busy="true" aria-label="Loading report">
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-12 w-full" />
+          ))}
+        </div>
+      ) : error ? (
+        <QueryError title="Failed to run report" message="Could not compute this report." onRetry={() => refetch()} />
+      ) : !result || typeof result === 'string' ? null : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileBarChart className="h-5 w-5 text-primary" aria-hidden="true" />
+              {result.label}
+            </CardTitle>
+            <CardDescription>
+              {result.description} · Generated {new Date(result.generatedAt).toLocaleString()}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {result.rows.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-8 text-center">No data yet.</p>
+            ) : (
+              <Table aria-label={result.label}>
+                <TableHeader>
+                  <TableRow>
+                    {result.columns.map((col) => (
+                      <TableHead key={col.key}>{col.label}</TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {result.rows.map((row, i) => (
+                    <TableRow key={i} data-testid={`row-report-${i}`}>
+                      {result.columns.map((col) => (
+                        <TableCell key={col.key}>{String(row[col.key] ?? '')}</TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 export default function Admin() {
   const [, setLocation] = useLocation();
   const { data: user, isLoading: userLoading } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
@@ -1271,6 +1402,7 @@ export default function Admin() {
           <TabsTrigger value="roles" data-testid="tab-roles">Roles</TabsTrigger>
           <TabsTrigger value="master-data" data-testid="tab-master-data">Master Data</TabsTrigger>
           <TabsTrigger value="audit" data-testid="tab-audit">Audit Log</TabsTrigger>
+          <TabsTrigger value="reports" data-testid="tab-reports">Reports</TabsTrigger>
         </TabsList>
         <TabsContent value="members">
           <MembersTab organizationId={organizationId} />
@@ -1289,6 +1421,9 @@ export default function Admin() {
         </TabsContent>
         <TabsContent value="audit">
           <AuditLogTab organizationId={organizationId} />
+        </TabsContent>
+        <TabsContent value="reports">
+          <ReportsTab organizationId={organizationId} />
         </TabsContent>
       </Tabs>
     </div>
