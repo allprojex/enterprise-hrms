@@ -4,7 +4,6 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { Route, Switch, Router as WouterRouter } from 'wouter';
 import { AppShell } from '@/components/layout/app-shell';
 import { ErrorBoundary } from '@/components/error-boundary';
-import Landing from '@/pages/landing';
 import Login from '@/pages/login';
 import ForgotPassword from '@/pages/forgot-password';
 import Dashboard from '@/pages/dashboard';
@@ -14,6 +13,12 @@ import Organizations from '@/pages/organizations';
 import Settings from '@/pages/settings';
 import Unauthorized from '@/pages/unauthorized';
 import NotFound from '@/pages/not-found';
+import Branches from '@/pages/branches';
+import Departments from '@/pages/departments';
+import Positions from '@/pages/positions';
+import Employees from '@/pages/employees';
+import EmployeeDetail from '@/pages/employee-detail';
+import Admin from '@/pages/admin';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -38,7 +43,7 @@ function Router() {
   return (
     <Switch>
       {/* Public routes */}
-      <Route path="/" component={Landing} />
+      <Route path="/" component={Login} />
       <Route path="/login" component={Login} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/unauthorized" component={Unauthorized} />
@@ -58,6 +63,24 @@ function Router() {
       </Route>
       <Route path="/settings">
         {() => <SecureRoute component={Settings} />}
+      </Route>
+      <Route path="/branches">
+        {() => <SecureRoute component={Branches} />}
+      </Route>
+      <Route path="/departments">
+        {() => <SecureRoute component={Departments} />}
+      </Route>
+      <Route path="/positions">
+        {() => <SecureRoute component={Positions} />}
+      </Route>
+      <Route path="/employees/:id">
+        {() => <SecureRoute component={EmployeeDetail} />}
+      </Route>
+      <Route path="/employees">
+        {() => <SecureRoute component={Employees} />}
+      </Route>
+      <Route path="/admin">
+        {() => <SecureRoute component={Admin} />}
       </Route>
 
       {/* 404 fallback */}

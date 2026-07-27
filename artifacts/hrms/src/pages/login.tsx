@@ -159,16 +159,6 @@ export default function Login() {
                 )}
               </Button>
             </form>
-
-            <div className="text-center text-sm text-muted-foreground">
-              <Link
-                href="/"
-                className="text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
-                data-testid="link-back-home"
-              >
-                Back to home
-              </Link>
-            </div>
           </div>
         </div>
       </div>
