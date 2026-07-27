@@ -37,6 +37,7 @@ interface EmployeeLabels {
   branchNameById: Map<number, string>;
   positionTitleById: Map<number, string>;
   managerNameById: Map<number, string>;
+  linkedApplicationUserIdByEmployeeId: Map<number, number>;
 }
 
 async function resolveEmployeeLabels(employees: Employee[]): Promise<EmployeeLabels> {
@@ -46,8 +47,9 @@ async function resolveEmployeeLabels(employees: Employee[]): Promise<EmployeeLab
   const managerIds = [
     ...new Set(employees.map((e) => e.reportingManagerId).filter((id): id is number => id != null)),
   ];
+  const employeeIds = employees.map((e) => e.id);
 
-  const [departments, branches, positions, managers] = await Promise.all([
+  const [departments, branches, positions, managers, links] = await Promise.all([
     departmentIds.length
       ? db.select({ id: departmentsTable.id, name: departmentsTable.name }).from(departmentsTable).where(inArray(departmentsTable.id, departmentIds))
       : Promise.resolve([]),
@@ -63,6 +65,12 @@ async function resolveEmployeeLabels(employees: Employee[]): Promise<EmployeeLab
           .from(employeesTable)
           .where(inArray(employeesTable.id, managerIds))
       : Promise.resolve([]),
+    employeeIds.length
+      ? db
+          .select({ employeeId: employeeUserLinksTable.employeeId, applicationUserId: employeeUserLinksTable.applicationUserId })
+          .from(employeeUserLinksTable)
+          .where(inArray(employeeUserLinksTable.employeeId, employeeIds))
+      : Promise.resolve([]),
   ]);
 
   return {
@@ -70,6 +78,7 @@ async function resolveEmployeeLabels(employees: Employee[]): Promise<EmployeeLab
     branchNameById: new Map(branches.map((b) => [b.id, b.name])),
     positionTitleById: new Map(positions.map((p) => [p.id, p.title])),
     managerNameById: new Map(managers.map((m) => [m.id, `${m.firstName} ${m.lastName}`])),
+    linkedApplicationUserIdByEmployeeId: new Map(links.map((l) => [l.employeeId, l.applicationUserId])),
   };
 }
 
@@ -111,6 +120,7 @@ function formatEmployee(employee: Employee, labels: EmployeeLabels, canReadNotes
     employmentStatus: employee.employmentStatus,
     workLocation: employee.workLocation,
     notes: canReadNotes ? employee.notes : null,
+    linkedApplicationUserId: labels.linkedApplicationUserIdByEmployeeId.get(employee.id) ?? null,
     createdBy: employee.createdBy,
     updatedBy: employee.updatedBy,
     createdAt: employee.createdAt,
@@ -483,6 +493,53 @@ router.post(
     });
 
     res.json({ message: "Employee linked to login account" });
+  },
+);
+
+// DELETE /organizations/:organizationId/employees/:employeeId/link-user
+router.delete(
+  "/organizations/:organizationId/employees/:employeeId/link-user",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requirePermission("employee.write"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const employeeIdRaw = Array.isArray(req.params.employeeId) ? req.params.employeeId[0] : req.params.employeeId;
+    const employeeId = parseInt(employeeIdRaw, 10);
+    if (isNaN(employeeId)) {
+      res.status(400).json({ error: "Invalid employee ID" });
+      return;
+    }
+
+    const organizationId = req.membership!.organizationId;
+    const employee = await getEmployeeById(organizationId, employeeId);
+    if (!employee) {
+      res.status(404).json({ error: "Employee not found" });
+      return;
+    }
+
+    const [existingLink] = await db
+      .select()
+      .from(employeeUserLinksTable)
+      .where(eq(employeeUserLinksTable.employeeId, employeeId))
+      .limit(1);
+    if (!existingLink) {
+      res.status(404).json({ error: "This employee is not linked to a login account" });
+      return;
+    }
+
+    await db.delete(employeeUserLinksTable).where(eq(employeeUserLinksTable.employeeId, employeeId));
+
+    await recordAuditEvent({
+      actorApplicationUserId: req.userId!,
+      actorMembershipId: req.membership!.id,
+      organizationId,
+      eventType: "employee.unlinked_from_user",
+      targetType: "employee",
+      targetId: String(employeeId),
+      metadata: { applicationUserId: existingLink.applicationUserId },
+    });
+
+    res.json({ message: "Employee unlinked from login account" });
   },
 );
 

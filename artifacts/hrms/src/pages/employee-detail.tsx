@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'wouter';
-import { ArrowLeft, Loader2, Mail, Phone, Building, Network, Briefcase, Camera, UserPlus } from 'lucide-react';
+import { ArrowLeft, Loader2, Mail, Phone, Building, Network, Briefcase, Camera, UserPlus, UserCheck } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,7 @@ import {
   useUpdateEmployee,
   useUploadEmployeeProfilePicture,
   useLinkEmployeeToUser,
+  useUnlinkEmployeeFromUser,
   useListMembers,
   getListMembersQueryKey,
   getRemoveEmployeeProfilePictureUrl,
@@ -98,6 +99,7 @@ export default function EmployeeDetail() {
   const updateMutation = useUpdateEmployee();
   const uploadMutation = useUploadEmployeeProfilePicture();
   const linkMutation = useLinkEmployeeToUser();
+  const unlinkMutation = useUnlinkEmployeeFromUser();
 
   const [isEditing, setIsEditing] = useState(false);
   const [firstName, setFirstName] = useState('');
@@ -186,6 +188,23 @@ export default function EmployeeDetail() {
           const message =
             err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
           toast({ title: 'Could not link account', description: message ?? 'Please try again.', variant: 'destructive' });
+        },
+      },
+    );
+  };
+
+  const handleUnlink = () => {
+    unlinkMutation.mutate(
+      { organizationId, employeeId },
+      {
+        onSuccess: () => {
+          invalidate();
+          toast({ title: 'Employee unlinked from login account' });
+        },
+        onError: (err) => {
+          const message =
+            err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
+          toast({ title: 'Could not unlink account', description: message ?? 'Please try again.', variant: 'destructive' });
         },
       },
     );
@@ -301,33 +320,62 @@ export default function EmployeeDetail() {
               )}
             </div>
 
-            <form onSubmit={handleLink} className="pt-4 border-t border-border space-y-2">
-              <Label htmlFor="link-user" className="flex items-center gap-2">
-                <UserPlus className="h-4 w-4" aria-hidden="true" />
-                Link to a login account
-              </Label>
-              <div className="flex gap-2">
-                <Select value={linkUserId} onValueChange={setLinkUserId}>
-                  <SelectTrigger id="link-user" className="flex-1" data-testid="select-link-user">
-                    <SelectValue placeholder="Choose a member" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(members ?? []).map((m) => (
-                      <SelectItem key={m.applicationUserId} value={String(m.applicationUserId)}>
-                        {m.firstName} {m.lastName} ({m.email})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button type="submit" variant="outline" disabled={linkMutation.isPending || !linkUserId} data-testid="button-link-user">
-                  Link
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Connects this HR record to an existing member's login account. The member must already have an
-                active membership in this organisation.
-              </p>
-            </form>
+            {employee.linkedApplicationUserId != null ? (
+              (() => {
+                const linkedMember = (members ?? []).find(
+                  (m) => m.applicationUserId === employee.linkedApplicationUserId,
+                );
+                return (
+                  <div className="pt-4 border-t border-border space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <UserCheck className="h-4 w-4" aria-hidden="true" />
+                      Linked login account
+                    </Label>
+                    <p className="text-sm text-foreground" data-testid="text-linked-user">
+                      {linkedMember ? `${linkedMember.firstName} ${linkedMember.lastName} (${linkedMember.email})` : `User #${employee.linkedApplicationUserId}`}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleUnlink}
+                      disabled={unlinkMutation.isPending}
+                      data-testid="button-unlink-user"
+                    >
+                      Unlink
+                    </Button>
+                  </div>
+                );
+              })()
+            ) : (
+              <form onSubmit={handleLink} className="pt-4 border-t border-border space-y-2">
+                <Label htmlFor="link-user" className="flex items-center gap-2">
+                  <UserPlus className="h-4 w-4" aria-hidden="true" />
+                  Link to a login account
+                </Label>
+                <div className="flex gap-2">
+                  <Select value={linkUserId} onValueChange={setLinkUserId}>
+                    <SelectTrigger id="link-user" className="flex-1" data-testid="select-link-user">
+                      <SelectValue placeholder="Choose a member" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(members ?? []).map((m) => (
+                        <SelectItem key={m.applicationUserId} value={String(m.applicationUserId)}>
+                          {m.firstName} {m.lastName} ({m.email})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button type="submit" variant="outline" disabled={linkMutation.isPending || !linkUserId} data-testid="button-link-user">
+                    Link
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Connects this HR record to an existing member's login account. The member must already have an
+                  active membership in this organisation.
+                </p>
+              </form>
+            )}
           </CardContent>
         </Card>
 

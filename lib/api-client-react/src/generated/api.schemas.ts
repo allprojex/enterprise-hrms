@@ -435,6 +435,11 @@ export interface Employee {
   workLocation?: string | null;
   /** @nullable */
   notes?: string | null;
+  /**
+     * Set when this employee record is linked to a login account (see POST/DELETE .../link-user).
+     * @nullable
+     */
+  linkedApplicationUserId?: number | null;
   /** @nullable */
   createdBy?: number | null;
   /** @nullable */

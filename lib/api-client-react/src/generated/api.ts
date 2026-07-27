@@ -1689,6 +1689,79 @@ export const useLinkEmployeeToUser = <TError = ErrorType<ApiError>,
       return useMutation(getLinkEmployeeToUserMutationOptions(options));
     }
 
+export const getUnlinkEmployeeFromUserUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/link-user`
+}
+
+/**
+ * @summary Remove an employee record's link to a login account
+ */
+export const unlinkEmployeeFromUser = async (organizationId: number,
+    employeeId: number, options?: RequestInit): Promise<MessageResponse> => {
+
+  return customFetch<MessageResponse>(getUnlinkEmployeeFromUserUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getUnlinkEmployeeFromUserMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unlinkEmployeeFromUser>>, TError,{organizationId: number;employeeId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof unlinkEmployeeFromUser>>, TError,{organizationId: number;employeeId: number}, TContext> => {
+
+const mutationKey = ['unlinkEmployeeFromUser'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unlinkEmployeeFromUser>>, {organizationId: number;employeeId: number}> = (props) => {
+          const {organizationId,employeeId} = props ?? {};
+
+          return  unlinkEmployeeFromUser(organizationId,employeeId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UnlinkEmployeeFromUserMutationResult = NonNullable<Awaited<ReturnType<typeof unlinkEmployeeFromUser>>>
+
+    export type UnlinkEmployeeFromUserMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Remove an employee record's link to a login account
+ */
+export const useUnlinkEmployeeFromUser = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unlinkEmployeeFromUser>>, TError,{organizationId: number;employeeId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof unlinkEmployeeFromUser>>,
+        TError,
+        {organizationId: number;employeeId: number},
+        TContext
+      > => {
+      return useMutation(getUnlinkEmployeeFromUserMutationOptions(options));
+    }
+
 export const getListBranchesUrl = (organizationId: number,) => {
 
 

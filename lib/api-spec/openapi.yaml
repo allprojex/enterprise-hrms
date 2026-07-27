@@ -670,6 +670,34 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+    delete:
+      operationId: unlinkEmployeeFromUser
+      tags: [employees]
+      summary: Remove an employee record's link to a login account
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Unlinked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "404":
+          description: Employee not found, or not currently linked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /organizations/{organizationId}/branches:
     get:
@@ -2537,6 +2565,9 @@ components:
           type: ["string", "null"]
         notes:
           type: ["string", "null"]
+        linkedApplicationUserId:
+          type: ["integer", "null"]
+          description: Set when this employee record is linked to a login account (see POST/DELETE .../link-user).
         createdBy:
           type: ["integer", "null"]
         updatedBy:

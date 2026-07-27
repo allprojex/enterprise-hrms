@@ -357,6 +357,7 @@ export const ListEmployeesResponse = zod.object({
   "employmentStatus": zod.enum(['active', 'probation', 'on_leave', 'suspended', 'terminated']),
   "workLocation": zod.string().nullish(),
   "notes": zod.string().nullish(),
+  "linkedApplicationUserId": zod.number().nullish().describe('Set when this employee record is linked to a login account (see POST\/DELETE ...\/link-user).'),
   "createdBy": zod.number().nullish(),
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
@@ -466,6 +467,7 @@ export const CreateEmployeeResponse = zod.object({
   "employmentStatus": zod.enum(['active', 'probation', 'on_leave', 'suspended', 'terminated']),
   "workLocation": zod.string().nullish(),
   "notes": zod.string().nullish(),
+  "linkedApplicationUserId": zod.number().nullish().describe('Set when this employee record is linked to a login account (see POST\/DELETE ...\/link-user).'),
   "createdBy": zod.number().nullish(),
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
@@ -527,6 +529,7 @@ export const GetEmployeeResponse = zod.object({
   "employmentStatus": zod.enum(['active', 'probation', 'on_leave', 'suspended', 'terminated']),
   "workLocation": zod.string().nullish(),
   "notes": zod.string().nullish(),
+  "linkedApplicationUserId": zod.number().nullish().describe('Set when this employee record is linked to a login account (see POST\/DELETE ...\/link-user).'),
   "createdBy": zod.number().nullish(),
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
@@ -633,6 +636,7 @@ export const UpdateEmployeeResponse = zod.object({
   "employmentStatus": zod.enum(['active', 'probation', 'on_leave', 'suspended', 'terminated']),
   "workLocation": zod.string().nullish(),
   "notes": zod.string().nullish(),
+  "linkedApplicationUserId": zod.number().nullish().describe('Set when this employee record is linked to a login account (see POST\/DELETE ...\/link-user).'),
   "createdBy": zod.number().nullish(),
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
@@ -699,6 +703,7 @@ export const UploadEmployeeProfilePictureResponse = zod.object({
   "employmentStatus": zod.enum(['active', 'probation', 'on_leave', 'suspended', 'terminated']),
   "workLocation": zod.string().nullish(),
   "notes": zod.string().nullish(),
+  "linkedApplicationUserId": zod.number().nullish().describe('Set when this employee record is linked to a login account (see POST\/DELETE ...\/link-user).'),
   "createdBy": zod.number().nullish(),
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
@@ -760,6 +765,7 @@ export const RemoveEmployeeProfilePictureResponse = zod.object({
   "employmentStatus": zod.enum(['active', 'probation', 'on_leave', 'suspended', 'terminated']),
   "workLocation": zod.string().nullish(),
   "notes": zod.string().nullish(),
+  "linkedApplicationUserId": zod.number().nullish().describe('Set when this employee record is linked to a login account (see POST\/DELETE ...\/link-user).'),
   "createdBy": zod.number().nullish(),
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
@@ -781,6 +787,19 @@ export const LinkEmployeeToUserBody = zod.object({
 })
 
 export const LinkEmployeeToUserResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Remove an employee record's link to a login account
+ */
+export const UnlinkEmployeeFromUserParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const UnlinkEmployeeFromUserResponse = zod.object({
   "message": zod.string()
 })
 

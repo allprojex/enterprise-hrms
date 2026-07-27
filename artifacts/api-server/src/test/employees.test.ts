@@ -22,6 +22,8 @@ const {
   departmentsTable,
   branchesTable,
   positionsTable,
+  employeeUserLinksTable,
+  auditEventsTable,
 } = vi.hoisted(() => {
   return {
     fixtures: {
@@ -31,7 +33,9 @@ const {
       permissionRows: [] as { key: string }[],
       departmentRows: [] as { organizationId: number }[],
       employeeRows: [{ value: 0 }] as unknown[],
+      linkRows: [] as { employeeId: number; applicationUserId: number }[],
       inserted: [] as { table: string; values: unknown }[],
+      deleted: [] as { table: string }[],
       idCounters: new Map<string, number>(),
     },
     usersTable: { __name: "users" },
@@ -44,6 +48,8 @@ const {
     departmentsTable: { __name: "departments" },
     branchesTable: { __name: "branches" },
     positionsTable: { __name: "positions" },
+    employeeUserLinksTable: { __name: "employee_user_links" },
+    auditEventsTable: { __name: "audit_events" },
   };
 });
 
@@ -65,7 +71,8 @@ vi.mock("@workspace/db", () => ({
   departmentsTable,
   branchesTable,
   positionsTable,
-  employeeUserLinksTable: { __name: "employee_user_links" },
+  employeeUserLinksTable,
+  auditEventsTable,
   db: {
     select: () => ({
       from(table: { __name: string }) {
@@ -75,6 +82,7 @@ vi.mock("@workspace/db", () => ({
         else if (table === rolePermissionsTable) rows = fixtures.permissionRows;
         else if (table === departmentsTable) rows = fixtures.departmentRows;
         else if (table === employeesTable) rows = fixtures.employeeRows;
+        else if (table === employeeUserLinksTable) rows = fixtures.linkRows;
         else rows = fixtures.sessionRows;
 
         const builder = {
@@ -95,6 +103,12 @@ vi.mock("@workspace/db", () => ({
         return {
           returning: () => Promise.resolve([{ id: nextId(table), ...v }]),
         };
+      },
+    }),
+    delete: (table: { __name: string }) => ({
+      where: () => {
+        fixtures.deleted.push({ table: table.__name });
+        return Promise.resolve(undefined);
       },
     }),
   },
@@ -230,5 +244,102 @@ describe("POST /api/organizations/:organizationId/employees", () => {
 
     expect(res.status).toBe(400);
     expect(fixtures.inserted.find((i) => i.table === "employees")).toBeUndefined();
+  });
+});
+
+describe("GET /api/organizations/:organizationId/employees/:employeeId (link status)", () => {
+  beforeEach(() => {
+    fixtures.sessionRows = [];
+    fixtures.membershipRows = [];
+    fixtures.membershipRoleRows = [];
+    fixtures.permissionRows = [];
+    fixtures.employeeRows = [];
+    fixtures.linkRows = [];
+  });
+
+  it("returns linkedApplicationUserId null when the employee has no link", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.read"]);
+    fixtures.employeeRows = [{ id: 42, firstName: "Ada", lastName: "Lovelace", employmentStatus: "active" }];
+    fixtures.linkRows = [];
+
+    const res = await request(app)
+      .get("/api/organizations/10/employees/42")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.linkedApplicationUserId).toBeNull();
+  });
+
+  it("returns linkedApplicationUserId when the employee is linked", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.read"]);
+    fixtures.employeeRows = [{ id: 42, firstName: "Ada", lastName: "Lovelace", employmentStatus: "active" }];
+    fixtures.linkRows = [{ employeeId: 42, applicationUserId: 7 }];
+
+    const res = await request(app)
+      .get("/api/organizations/10/employees/42")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.linkedApplicationUserId).toBe(7);
+  });
+});
+
+describe("DELETE /api/organizations/:organizationId/employees/:employeeId/link-user", () => {
+  beforeEach(() => {
+    fixtures.sessionRows = [];
+    fixtures.membershipRows = [];
+    fixtures.membershipRoleRows = [];
+    fixtures.permissionRows = [];
+    fixtures.employeeRows = [];
+    fixtures.linkRows = [];
+    fixtures.deleted = [];
+  });
+
+  it("returns 403 when the membership's role lacks employee.write", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.read"]);
+    fixtures.employeeRows = [{ id: 42, firstName: "Ada", lastName: "Lovelace", employmentStatus: "active" }];
+    fixtures.linkRows = [{ employeeId: 42, applicationUserId: 7 }];
+
+    const res = await request(app)
+      .delete("/api/organizations/10/employees/42/link-user")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 404 when the employee is not linked", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.write"]);
+    fixtures.employeeRows = [{ id: 42, firstName: "Ada", lastName: "Lovelace", employmentStatus: "active" }];
+    fixtures.linkRows = [];
+
+    const res = await request(app)
+      .delete("/api/organizations/10/employees/42/link-user")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(404);
+  });
+
+  it("unlinks the employee and records an audit event", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.write"]);
+    fixtures.employeeRows = [{ id: 42, firstName: "Ada", lastName: "Lovelace", employmentStatus: "active" }];
+    fixtures.linkRows = [{ employeeId: 42, applicationUserId: 7 }];
+
+    const res = await request(app)
+      .delete("/api/organizations/10/employees/42/link-user")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(fixtures.deleted.some((d) => d.table === "employee_user_links")).toBe(true);
+    expect(fixtures.inserted.some((i) => i.table === "audit_events")).toBe(true);
   });
 });
