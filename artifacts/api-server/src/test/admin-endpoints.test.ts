@@ -43,7 +43,14 @@ const {
       membershipRows: [] as Record<string, unknown>[],
       membershipRoleRows: [] as { membershipId: number; roleId: number }[],
       permissionRows: [] as { roleId: number; key: string }[],
-      roleRows: [] as { id: number; key: string; label: string; isSystemRole: boolean }[],
+      roleRows: [] as {
+        id: number;
+        key: string;
+        label: string;
+        isSystemRole: boolean;
+        organizationId?: number | null;
+        description?: string | null;
+      }[],
       permissionCatalogRows: [] as { id: number; key: string }[],
       primaryHrRows: [] as Record<string, unknown>[],
       settingsRows: [] as Record<string, unknown>[],
@@ -67,7 +74,7 @@ const {
     membershipRolesTable: mockTable("membership_roles", ["membershipId", "roleId"]),
     rolePermissionsTable: mockTable("role_permissions", ["roleId", "permissionId"]),
     permissionsTable: mockTable("permissions", ["id", "key"]),
-    rolesTable: mockTable("roles", ["id", "key"]),
+    rolesTable: mockTable("roles", ["id", "key", "organizationId", "label", "description", "isSystemRole"]),
     primaryHrAssignmentsTable: mockTable("primary_hr_assignments", ["organizationId", "membershipId", "revokedAt"]),
     organizationSettingsTable: mockTable("organization_settings", ["id", "organizationId", "namespace", "schemaVersion", "settings"]),
     auditEventsTable: mockTable("audit_events", ["organizationId"]),
@@ -165,6 +172,16 @@ const dbMock = {
             };
           }
         }
+        if (table === rolesTable) {
+          const conflict = fixtures.roleRows.find(
+            (r) => r.key === v.key && (r.organizationId ?? null) === (v.organizationId ?? null),
+          );
+          if (conflict) {
+            return {
+              returning: () => Promise.reject(Object.assign(new Error("duplicate key"), { code: "23505" })),
+            };
+          }
+        }
         fixtures.inserted.push({ table: table.__name, values: v });
         return {
           returning: () => Promise.resolve([{ id: nextId(table), ...v }]),
@@ -189,6 +206,12 @@ const dbMock = {
           },
         }),
       }),
+    }),
+    delete: (table: { __name: string }) => ({
+      where: () => {
+        fixtures.inserted.push({ table: table.__name, values: "delete" });
+        return Promise.resolve(undefined);
+      },
     }),
     transaction: (cb: (tx: unknown) => Promise<unknown>) => cb(dbMock),
 };
@@ -661,6 +684,168 @@ describe("POST /api/organizations/:organizationId/master-data/:domain", () => {
       .send({ code: "contractor", label: "Contractor Again" });
 
     expect(res.status).toBe(409);
+  });
+});
+
+describe("GET /api/organizations/:organizationId/roles", () => {
+  it("returns 403 without organization.read", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions([]);
+
+    const res = await request(app).get("/api/organizations/10/roles").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(403);
+  });
+
+  it("merges system templates with this organization's own roles, excluding another organization's", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["organization.read"]);
+    fixtures.roleRows = [
+      { id: 1, key: "org_admin", label: "Organization Admin", isSystemRole: true, organizationId: null },
+      { id: 2, key: "hr_manager_custom", label: "Custom HR Manager", isSystemRole: false, organizationId: 10 },
+      { id: 3, key: "other_org_role", label: "Other Org Role", isSystemRole: false, organizationId: 99 },
+    ];
+
+    const res = await request(app).get("/api/organizations/10/roles").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.map((r: { key: string }) => r.key).sort()).toEqual(["hr_manager_custom", "org_admin"]);
+  });
+});
+
+describe("POST /api/organizations/:organizationId/roles", () => {
+  it("returns 403 without role.manage", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["organization.read"]);
+    fixtures.roleRows = [{ id: 1, key: "hr_manager", label: "HR Manager", isSystemRole: true, organizationId: null }];
+
+    const res = await request(app)
+      .post("/api/organizations/10/roles")
+      .set("Authorization", "Bearer valid-token")
+      .send({ templateRoleId: 1, key: "hr_manager_custom", label: "Custom HR Manager" });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 404 for an unknown template", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["role.manage"]);
+    fixtures.roleRows = [];
+
+    const res = await request(app)
+      .post("/api/organizations/10/roles")
+      .set("Authorization", "Bearer valid-token")
+      .send({ templateRoleId: 999, key: "custom", label: "Custom" });
+
+    expect(res.status).toBe(404);
+  });
+
+  it("copies the template's permissions into the new organization role", async () => {
+    mockSession();
+    mockActiveMembership();
+    // Caller's own grant uses roleId 99 so it doesn't collide with the
+    // template role (id 1) whose permission rows this test also seeds.
+    mockPermissions(["role.manage"], 5, 99);
+    fixtures.roleRows = [{ id: 1, key: "hr_manager", label: "HR Manager", isSystemRole: true, organizationId: null }];
+    fixtures.permissionRows.push(
+      { roleId: 1, key: "employee.read" },
+      { roleId: 1, key: "employee.write" },
+    );
+    fixtures.permissionCatalogRows = [
+      { id: 10, key: "employee.read" },
+      { id: 11, key: "employee.write" },
+    ];
+
+    const res = await request(app)
+      .post("/api/organizations/10/roles")
+      .set("Authorization", "Bearer valid-token")
+      .send({ templateRoleId: 1, key: "hr_manager_custom", label: "Custom HR Manager" });
+
+    expect(res.status).toBe(201);
+    expect(res.body.organizationId).toBe(10);
+    expect(res.body.isSystemRole).toBe(false);
+    const copiedPermissions = fixtures.inserted.filter(
+      (i) => i.table === "role_permissions" && (i.values as { roleId: number }).roleId === res.body.id,
+    );
+    expect(copiedPermissions).toHaveLength(2);
+  });
+
+  it("returns 409 when the key is already used in the organization", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["role.manage"]);
+    fixtures.roleRows = [
+      { id: 1, key: "hr_manager", label: "HR Manager", isSystemRole: true, organizationId: null },
+      { id: 2, key: "taken", label: "Taken", isSystemRole: false, organizationId: 10 },
+    ];
+
+    const res = await request(app)
+      .post("/api/organizations/10/roles")
+      .set("Authorization", "Bearer valid-token")
+      .send({ templateRoleId: 1, key: "taken", label: "Taken Again" });
+
+    expect(res.status).toBe(409);
+  });
+});
+
+describe("POST/DELETE .../roles/:roleId/permissions", () => {
+  it("rejects granting a permission to a system role template", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["role.manage"]);
+    fixtures.roleRows = [{ id: 1, key: "hr_manager", label: "HR Manager", isSystemRole: true, organizationId: null }];
+
+    const res = await request(app)
+      .post("/api/organizations/10/roles/1/permissions")
+      .set("Authorization", "Bearer valid-token")
+      .send({ permissionId: 10 });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("grants a permission to the organization's own role", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["role.manage"]);
+    fixtures.roleRows = [{ id: 2, key: "custom", label: "Custom", isSystemRole: false, organizationId: 10 }];
+    fixtures.permissionCatalogRows = [{ id: 10, key: "employee.read" }];
+
+    const res = await request(app)
+      .post("/api/organizations/10/roles/2/permissions")
+      .set("Authorization", "Bearer valid-token")
+      .send({ permissionId: 10 });
+
+    expect(res.status).toBe(204);
+  });
+
+  it("rejects revoking a permission from a system role template", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["role.manage"]);
+    fixtures.roleRows = [{ id: 1, key: "hr_manager", label: "HR Manager", isSystemRole: true, organizationId: null }];
+
+    const res = await request(app)
+      .delete("/api/organizations/10/roles/1/permissions/10")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(400);
+  });
+
+  it("revokes a permission from the organization's own role", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["role.manage"]);
+    fixtures.roleRows = [{ id: 2, key: "custom", label: "Custom", isSystemRole: false, organizationId: 10 }];
+
+    const res = await request(app)
+      .delete("/api/organizations/10/roles/2/permissions/10")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(204);
   });
 });
 

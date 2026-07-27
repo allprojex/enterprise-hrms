@@ -654,6 +654,34 @@ export interface Role {
   isSystemRole: boolean;
 }
 
+export interface OrganizationRole {
+  id: number;
+  key: string;
+  /**
+     * Null for a system role template shared by every organization.
+     * @nullable
+     */
+  organizationId: number | null;
+  label: string;
+  /** @nullable */
+  description?: string | null;
+  isSystemRole: boolean;
+  permissionKeys: string[];
+}
+
+export interface CopyRoleTemplateInput {
+  templateRoleId: number;
+  /** @minLength 1 */
+  key: string;
+  /** @minLength 1 */
+  label: string;
+  description?: string;
+}
+
+export interface GrantRolePermissionInput {
+  permissionId: number;
+}
+
 export interface Permission {
   id: number;
   key: string;

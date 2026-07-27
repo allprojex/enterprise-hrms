@@ -27,6 +27,7 @@ import type {
   AuditEventListResponse,
   AuthSession,
   Branch,
+  CopyRoleTemplateInput,
   CreateBranchInput,
   CreateDepartmentInput,
   CreateEmployeeInput,
@@ -39,6 +40,7 @@ import type {
   Employee,
   EmployeeListResponse,
   ForgotPasswordInput,
+  GrantRolePermissionInput,
   HealthStatus,
   InvitationCreated,
   InvitationPreview,
@@ -56,6 +58,7 @@ import type {
   OrganizationConfig,
   OrganizationMember,
   OrganizationModule,
+  OrganizationRole,
   Permission,
   Position,
   PrimaryHrAssignment,
@@ -3952,6 +3955,308 @@ export const useCreateMasterDataItem = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getCreateMasterDataItemMutationOptions(options));
+    }
+
+export const getListOrganizationRolesUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/roles`
+}
+
+/**
+ * System role templates (see GET /roles) plus this organization's own customized copies.
+ * @summary List roles available to this organization
+ */
+export const listOrganizationRoles = async (organizationId: number, options?: RequestInit): Promise<OrganizationRole[]> => {
+
+  return customFetch<OrganizationRole[]>(getListOrganizationRolesUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOrganizationRolesQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/roles`
+    ] as const;
+    }
+
+
+export const getListOrganizationRolesQueryOptions = <TData = Awaited<ReturnType<typeof listOrganizationRoles>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOrganizationRoles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOrganizationRolesQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOrganizationRoles>>> = ({ signal }) => listOrganizationRoles(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOrganizationRoles>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOrganizationRolesQueryResult = NonNullable<Awaited<ReturnType<typeof listOrganizationRoles>>>
+export type ListOrganizationRolesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List roles available to this organization
+ */
+
+export function useListOrganizationRoles<TData = Awaited<ReturnType<typeof listOrganizationRoles>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOrganizationRoles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOrganizationRolesQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCopyRoleTemplateUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/roles`
+}
+
+/**
+ * Creates the organization's own customizable copy of a system role template, including the template's current permissions. The template itself is never modified (ADR-015).
+ * @summary Copy a system role template into this organization
+ */
+export const copyRoleTemplate = async (organizationId: number,
+    copyRoleTemplateInput: CopyRoleTemplateInput, options?: RequestInit): Promise<OrganizationRole> => {
+
+  return customFetch<OrganizationRole>(getCopyRoleTemplateUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(copyRoleTemplateInput)
+  }
+);}
+
+
+
+
+
+export const getCopyRoleTemplateMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof copyRoleTemplate>>, TError,{organizationId: number;data: BodyType<CopyRoleTemplateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof copyRoleTemplate>>, TError,{organizationId: number;data: BodyType<CopyRoleTemplateInput>}, TContext> => {
+
+const mutationKey = ['copyRoleTemplate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof copyRoleTemplate>>, {organizationId: number;data: BodyType<CopyRoleTemplateInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  copyRoleTemplate(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CopyRoleTemplateMutationResult = NonNullable<Awaited<ReturnType<typeof copyRoleTemplate>>>
+    export type CopyRoleTemplateMutationBody = BodyType<CopyRoleTemplateInput>
+    export type CopyRoleTemplateMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Copy a system role template into this organization
+ */
+export const useCopyRoleTemplate = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof copyRoleTemplate>>, TError,{organizationId: number;data: BodyType<CopyRoleTemplateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof copyRoleTemplate>>,
+        TError,
+        {organizationId: number;data: BodyType<CopyRoleTemplateInput>},
+        TContext
+      > => {
+      return useMutation(getCopyRoleTemplateMutationOptions(options));
+    }
+
+export const getGrantRolePermissionUrl = (organizationId: number,
+    roleId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/roles/${roleId}/permissions`
+}
+
+/**
+ * Rejected for system role templates, which are never modified directly.
+ * @summary Grant a permission to an organization's own role
+ */
+export const grantRolePermission = async (organizationId: number,
+    roleId: number,
+    grantRolePermissionInput: GrantRolePermissionInput, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getGrantRolePermissionUrl(organizationId,roleId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(grantRolePermissionInput)
+  }
+);}
+
+
+
+
+
+export const getGrantRolePermissionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof grantRolePermission>>, TError,{organizationId: number;roleId: number;data: BodyType<GrantRolePermissionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof grantRolePermission>>, TError,{organizationId: number;roleId: number;data: BodyType<GrantRolePermissionInput>}, TContext> => {
+
+const mutationKey = ['grantRolePermission'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof grantRolePermission>>, {organizationId: number;roleId: number;data: BodyType<GrantRolePermissionInput>}> = (props) => {
+          const {organizationId,roleId,data} = props ?? {};
+
+          return  grantRolePermission(organizationId,roleId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GrantRolePermissionMutationResult = NonNullable<Awaited<ReturnType<typeof grantRolePermission>>>
+    export type GrantRolePermissionMutationBody = BodyType<GrantRolePermissionInput>
+    export type GrantRolePermissionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Grant a permission to an organization's own role
+ */
+export const useGrantRolePermission = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof grantRolePermission>>, TError,{organizationId: number;roleId: number;data: BodyType<GrantRolePermissionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof grantRolePermission>>,
+        TError,
+        {organizationId: number;roleId: number;data: BodyType<GrantRolePermissionInput>},
+        TContext
+      > => {
+      return useMutation(getGrantRolePermissionMutationOptions(options));
+    }
+
+export const getRevokeRolePermissionUrl = (organizationId: number,
+    roleId: number,
+    permissionId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/roles/${roleId}/permissions/${permissionId}`
+}
+
+/**
+ * Rejected for system role templates, which are never modified directly.
+ * @summary Revoke a permission from an organization's own role
+ */
+export const revokeRolePermission = async (organizationId: number,
+    roleId: number,
+    permissionId: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getRevokeRolePermissionUrl(organizationId,roleId,permissionId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRevokeRolePermissionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeRolePermission>>, TError,{organizationId: number;roleId: number;permissionId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revokeRolePermission>>, TError,{organizationId: number;roleId: number;permissionId: number}, TContext> => {
+
+const mutationKey = ['revokeRolePermission'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeRolePermission>>, {organizationId: number;roleId: number;permissionId: number}> = (props) => {
+          const {organizationId,roleId,permissionId} = props ?? {};
+
+          return  revokeRolePermission(organizationId,roleId,permissionId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokeRolePermissionMutationResult = NonNullable<Awaited<ReturnType<typeof revokeRolePermission>>>
+
+    export type RevokeRolePermissionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Revoke a permission from an organization's own role
+ */
+export const useRevokeRolePermission = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeRolePermission>>, TError,{organizationId: number;roleId: number;permissionId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof revokeRolePermission>>,
+        TError,
+        {organizationId: number;roleId: number;permissionId: number},
+        TContext
+      > => {
+      return useMutation(getRevokeRolePermissionMutationOptions(options));
     }
 
 export const getListAuditEventsUrl = (organizationId: number,

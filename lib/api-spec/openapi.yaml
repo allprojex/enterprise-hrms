@@ -1517,6 +1517,146 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/roles:
+    get:
+      operationId: listOrganizationRoles
+      tags: [roles]
+      summary: List roles available to this organization
+      description: >-
+        System role templates (see GET /roles) plus this organization's own
+        customized copies.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Roles available to this organization
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrganizationRole"
+    post:
+      operationId: copyRoleTemplate
+      tags: [roles]
+      summary: Copy a system role template into this organization
+      description: >-
+        Creates the organization's own customizable copy of a system role
+        template, including the template's current permissions. The
+        template itself is never modified (ADR-015).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CopyRoleTemplateInput"
+      responses:
+        "201":
+          description: Organization role created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationRole"
+        "404":
+          description: Unknown system role template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: A role with this key already exists in the organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/roles/{roleId}/permissions:
+    post:
+      operationId: grantRolePermission
+      tags: [roles]
+      summary: Grant a permission to an organization's own role
+      description: Rejected for system role templates, which are never modified directly.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: roleId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GrantRolePermissionInput"
+      responses:
+        "204":
+          description: Permission granted
+        "400":
+          description: Target role is a system role template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Role or permission not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/roles/{roleId}/permissions/{permissionId}:
+    delete:
+      operationId: revokeRolePermission
+      tags: [roles]
+      summary: Revoke a permission from an organization's own role
+      description: Rejected for system role templates, which are never modified directly.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: roleId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: permissionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Permission revoked
+        "400":
+          description: Target role is a system role template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Role not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /organizations/{organizationId}/audit-events:
     get:
       operationId: listAuditEvents
@@ -2158,6 +2298,50 @@ components:
           type: ["string", "null"]
         isSystemRole:
           type: boolean
+
+    OrganizationRole:
+      type: object
+      required: [id, key, organizationId, label, isSystemRole, permissionKeys]
+      properties:
+        id:
+          type: integer
+        key:
+          type: string
+        organizationId:
+          type: ["integer", "null"]
+          description: Null for a system role template shared by every organization.
+        label:
+          type: string
+        description:
+          type: ["string", "null"]
+        isSystemRole:
+          type: boolean
+        permissionKeys:
+          type: array
+          items:
+            type: string
+
+    CopyRoleTemplateInput:
+      type: object
+      required: [templateRoleId, key, label]
+      properties:
+        templateRoleId:
+          type: integer
+        key:
+          type: string
+          minLength: 1
+        label:
+          type: string
+          minLength: 1
+        description:
+          type: string
+
+    GrantRolePermissionInput:
+      type: object
+      required: [permissionId]
+      properties:
+        permissionId:
+          type: integer
 
     Permission:
       type: object

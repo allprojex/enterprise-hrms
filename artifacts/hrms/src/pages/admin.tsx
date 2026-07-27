@@ -53,6 +53,13 @@ import {
   useListMasterDataItems,
   getListMasterDataItemsQueryKey,
   useCreateMasterDataItem,
+  useListOrganizationRoles,
+  getListOrganizationRolesQueryKey,
+  useCopyRoleTemplate,
+  useGrantRolePermission,
+  useRevokeRolePermission,
+  useListPermissions,
+  getListPermissionsQueryKey,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -773,6 +780,208 @@ function MasterDataTab({ organizationId }: { organizationId: number }) {
   );
 }
 
+function RolesTab({ organizationId }: { organizationId: number }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const { data: roles, isLoading, error, refetch } = useListOrganizationRoles(organizationId, {
+    query: { queryKey: getListOrganizationRolesQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+  const { data: permissions } = useListPermissions({ query: { queryKey: getListPermissionsQueryKey() } });
+
+  const [copyingRoleId, setCopyingRoleId] = useState<number | null>(null);
+  const [copyKey, setCopyKey] = useState('');
+  const [copyLabel, setCopyLabel] = useState('');
+  const [permissionToAdd, setPermissionToAdd] = useState<Record<number, string>>({});
+
+  const copyMutation = useCopyRoleTemplate();
+  const grantMutation = useGrantRolePermission();
+  const revokeMutation = useRevokeRolePermission();
+
+  const invalidateRoles = () => queryClient.invalidateQueries({ queryKey: getListOrganizationRolesQueryKey(organizationId) });
+
+  const handleCopy = (templateRoleId: number) => {
+    copyMutation.mutate(
+      { organizationId, data: { templateRoleId, key: copyKey.trim(), label: copyLabel.trim() } },
+      {
+        onSuccess: () => {
+          invalidateRoles();
+          setCopyingRoleId(null);
+          setCopyKey('');
+          setCopyLabel('');
+          toast({ title: 'Role copied — customize its permissions below' });
+        },
+        onError: (err) => toast({ title: 'Could not copy role', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  const handleGrant = (roleId: number) => {
+    const permissionId = permissionToAdd[roleId];
+    if (!permissionId) return;
+    grantMutation.mutate(
+      { organizationId, roleId, data: { permissionId: Number(permissionId) } },
+      {
+        onSuccess: () => {
+          invalidateRoles();
+          setPermissionToAdd((prev) => ({ ...prev, [roleId]: '' }));
+        },
+        onError: (err) => toast({ title: 'Could not grant permission', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  const handleRevoke = (roleId: number, permissionId: number) => {
+    revokeMutation.mutate(
+      { organizationId, roleId, permissionId },
+      {
+        onSuccess: () => invalidateRoles(),
+        onError: (err) => toast({ title: 'Could not revoke permission', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Roles</CardTitle>
+          <CardDescription>
+            System role templates are protected — copy one to create your own customizable role.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="space-y-3" aria-busy="true" aria-label="Loading roles">
+              {[...Array(4)].map((_, i) => (
+                <Skeleton key={i} className="h-14 w-full" />
+              ))}
+            </div>
+          ) : error ? (
+            <QueryError title="Failed to load roles" message="Could not fetch roles." onRetry={() => refetch()} />
+          ) : (
+            <Table aria-label="Roles">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Permissions</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(roles ?? []).map((role) => (
+                  <TableRow key={role.id} data-testid={`row-role-${role.id}`}>
+                    <TableCell>
+                      <div className="font-medium text-foreground">{role.label}</div>
+                      <div className="text-sm text-muted-foreground font-mono">{role.key}</div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={role.isSystemRole ? 'secondary' : 'outline'}>
+                        {role.isSystemRole ? 'System' : 'Custom'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1 max-w-xs">
+                        {role.permissionKeys.length === 0 && <span className="text-sm text-muted-foreground">None</span>}
+                        {role.permissionKeys.map((key) => {
+                          const permission = (permissions ?? []).find((p) => p.key === key);
+                          return (
+                            <Badge key={key} variant="outline" className="gap-1">
+                              {key}
+                              {!role.isSystemRole && permission && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRevoke(role.id, permission.id)}
+                                  aria-label={`Remove ${key} permission`}
+                                  data-testid={`button-revoke-permission-${role.id}-${key}`}
+                                >
+                                  <Trash2 className="h-3 w-3" aria-hidden="true" />
+                                </button>
+                              )}
+                            </Badge>
+                          );
+                        })}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {role.isSystemRole ? (
+                        copyingRoleId === role.id ? (
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="Key"
+                              value={copyKey}
+                              onChange={(e) => setCopyKey(e.target.value)}
+                              className="w-32"
+                              data-testid={`input-copy-key-${role.id}`}
+                            />
+                            <Input
+                              placeholder="Label"
+                              value={copyLabel}
+                              onChange={(e) => setCopyLabel(e.target.value)}
+                              className="w-40"
+                              data-testid={`input-copy-label-${role.id}`}
+                            />
+                            <Button
+                              size="sm"
+                              onClick={() => handleCopy(role.id)}
+                              disabled={copyMutation.isPending}
+                              data-testid={`button-confirm-copy-${role.id}`}
+                            >
+                              Save
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setCopyingRoleId(role.id)}
+                            data-testid={`button-copy-role-${role.id}`}
+                          >
+                            <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                            Copy to customize
+                          </Button>
+                        )
+                      ) : (
+                        <div className="flex gap-2">
+                          <Select
+                            value={permissionToAdd[role.id] ?? ''}
+                            onValueChange={(v) => setPermissionToAdd((prev) => ({ ...prev, [role.id]: v }))}
+                          >
+                            <SelectTrigger className="w-44" data-testid={`select-permission-${role.id}`}>
+                              <SelectValue placeholder="Add permission" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(permissions ?? []).map((p) => (
+                                <SelectItem key={p.id} value={String(p.id)}>
+                                  {p.key}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleGrant(role.id)}
+                            disabled={!permissionToAdd[role.id] || grantMutation.isPending}
+                            data-testid={`button-grant-permission-${role.id}`}
+                          >
+                            Grant
+                          </Button>
+                        </div>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function AuditLogTab({ organizationId }: { organizationId: number }) {
   const [page, setPage] = useState(1);
   const { data: result, isLoading, error, refetch } = useListAuditEvents(
@@ -905,6 +1114,7 @@ export default function Admin() {
           <TabsTrigger value="members" data-testid="tab-members">Members</TabsTrigger>
           <TabsTrigger value="hr-settings" data-testid="tab-hr-settings">Primary HR &amp; Settings</TabsTrigger>
           <TabsTrigger value="modules" data-testid="tab-modules">Modules</TabsTrigger>
+          <TabsTrigger value="roles" data-testid="tab-roles">Roles</TabsTrigger>
           <TabsTrigger value="master-data" data-testid="tab-master-data">Master Data</TabsTrigger>
           <TabsTrigger value="audit" data-testid="tab-audit">Audit Log</TabsTrigger>
         </TabsList>
@@ -916,6 +1126,9 @@ export default function Admin() {
         </TabsContent>
         <TabsContent value="modules">
           <ModulesTab organizationId={organizationId} />
+        </TabsContent>
+        <TabsContent value="roles">
+          <RolesTab organizationId={organizationId} />
         </TabsContent>
         <TabsContent value="master-data">
           <MasterDataTab organizationId={organizationId} />

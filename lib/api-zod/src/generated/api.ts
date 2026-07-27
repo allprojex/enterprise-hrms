@@ -1393,6 +1393,85 @@ export const CreateMasterDataItemResponse = zod.object({
 
 
 /**
+ * System role templates (see GET /roles) plus this organization's own customized copies.
+ * @summary List roles available to this organization
+ */
+export const ListOrganizationRolesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListOrganizationRolesResponseItem = zod.object({
+  "id": zod.number(),
+  "key": zod.string(),
+  "organizationId": zod.number().nullable().describe('Null for a system role template shared by every organization.'),
+  "label": zod.string(),
+  "description": zod.string().nullish(),
+  "isSystemRole": zod.boolean(),
+  "permissionKeys": zod.array(zod.string())
+})
+export const ListOrganizationRolesResponse = zod.array(ListOrganizationRolesResponseItem)
+
+
+/**
+ * Creates the organization's own customizable copy of a system role template, including the template's current permissions. The template itself is never modified (ADR-015).
+ * @summary Copy a system role template into this organization
+ */
+export const CopyRoleTemplateParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+
+
+
+export const CopyRoleTemplateBody = zod.object({
+  "templateRoleId": zod.number(),
+  "key": zod.string().min(1),
+  "label": zod.string().min(1),
+  "description": zod.string().optional()
+})
+
+export const CopyRoleTemplateResponse = zod.object({
+  "id": zod.number(),
+  "key": zod.string(),
+  "organizationId": zod.number().nullable().describe('Null for a system role template shared by every organization.'),
+  "label": zod.string(),
+  "description": zod.string().nullish(),
+  "isSystemRole": zod.boolean(),
+  "permissionKeys": zod.array(zod.string())
+})
+
+
+/**
+ * Rejected for system role templates, which are never modified directly.
+ * @summary Grant a permission to an organization's own role
+ */
+export const GrantRolePermissionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "roleId": zod.coerce.number()
+})
+
+export const GrantRolePermissionBody = zod.object({
+  "permissionId": zod.number()
+})
+
+export const GrantRolePermissionResponse = zod.void()
+
+
+/**
+ * Rejected for system role templates, which are never modified directly.
+ * @summary Revoke a permission from an organization's own role
+ */
+export const RevokeRolePermissionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "roleId": zod.coerce.number(),
+  "permissionId": zod.coerce.number()
+})
+
+export const RevokeRolePermissionResponse = zod.void()
+
+
+/**
  * Paginated, most recent first.
  * @summary List audit events
  */
