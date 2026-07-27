@@ -68,15 +68,47 @@ The project uses Drizzle ORM with PostgreSQL.
 
 Any PostgreSQL 14+ instance works. Set `DATABASE_URL` to the connection string.
 
-### 2. Push the schema
+### 2. Push the schema (dev only) or apply migrations
 
 ```bash
+# Fast iteration during development — pushes the current schema directly
 pnpm --filter @workspace/db run push
+
+# Versioned migrations — generate a diff, then apply it
+pnpm --filter @workspace/db run generate
+pnpm --filter @workspace/db run migrate
 ```
 
-This creates all tables. Run this after any schema change during development.
+`push` is fine for local development. `generate`/`migrate` is the path for
+any database whose history you need to track (staging, production). **Read
+`lib/db/drizzle/README.md` before running `migrate` against a database that
+has ever been managed with `push`** — the first migration
+(`0000_init_core_platform_foundation`) was generated with no prior migration
+history, so it describes the entire schema rather than only what's new, and
+applying it as-is to an already-`push`-managed database will fail on
+duplicate tables. Always back up the database before applying migrations.
 
-### 3. Seed demo data (optional, development only)
+### 3. Seed reference data (idempotent, safe to re-run)
+
+```bash
+pnpm --filter @workspace/db run seed:roles
+pnpm --filter @workspace/db run seed:organization-types
+```
+
+These insert the system roles/permissions catalog and the built-in
+organization types. They never modify or delete existing rows.
+
+If you're bringing an existing `users` table onto the new
+`organization_memberships` model, also run:
+
+```bash
+pnpm --filter @workspace/db run backfill:memberships
+```
+
+This derives one `organization_memberships` row per existing user from
+their current `organizationId`/`role` — it's additive and idempotent.
+
+### 4. Demo data (optional, development only)
 
 Demo credentials referenced elsewhere in project docs:
 
@@ -85,20 +117,17 @@ Demo credentials referenced elsewhere in project docs:
 | HR Manager | admin@acme.com | Admin@1234 |
 | Employee | james@acme.com | Employee@1234 |
 
-No seed script exists in this repository yet — these are documented for
-whoever adds one. **Any seed script must refuse to run when
-`NODE_ENV=production`** (or equivalent), so demo credentials can never be
-created in a production database.
+No script creates these demo *user* accounts yet — the seed scripts above
+only cover reference data (roles/permissions/organization types), not
+sample users. If a demo-user seed is added later, it **must refuse to run
+when `NODE_ENV=production`**, so demo credentials can never be created in a
+production database.
 
 ---
 
 ## Running the App
 
-### Development (Replit)
-
-Workflows are pre-configured. The API server and frontend start automatically.
-
-### Development (local)
+### Development
 
 ```bash
 # Install dependencies
@@ -165,9 +194,15 @@ pnpm --filter @workspace/hrms run test
 
 Current coverage: frontend auth-token helpers and the error boundary;
 backend health check, the `canAccessOrganization`/`isSuperAdmin`
-authorization helpers, and `GET /organizations/:id` authorization
-(unauthenticated, same-org, cross-org, super_admin). Playwright e2e is not
-set up. HR modules have no tests since none are implemented yet.
+authorization helpers, `GET /organizations/:id` authorization
+(unauthenticated, same-org, cross-org, super_admin), the
+`organization_memberships`-based permission model (`getEffectivePermissions`/
+`hasPermission`), employee directory tenant isolation and cross-organization
+reference rejection, Primary HR appointment (including the unique-constraint
+conflict path), and organization switching (`POST
+/auth/switch-organization`). Playwright e2e is not set up. Leave/attendance,
+performance reviews, recruitment, training, document management, and payroll
+remain unimplemented and untested.
 
 ---
 
@@ -190,7 +225,6 @@ pnpm --filter @workspace/hrms run build
 
 This project has **no hard dependency on any hosting provider**. It runs on:
 
-- **Replit** — via pre-configured workflows and managed PostgreSQL
 - **Hostinger / GoDaddy / DigitalOcean / Hetzner / Linode VPS** — run the Node.js API server and serve the static frontend via nginx
 - **AWS / Azure / Google Cloud / Oracle Cloud** — containerise with Docker or deploy directly to VM/PaaS
 - **Docker** — wrap the API server in a Dockerfile; serve the frontend build via nginx
@@ -230,8 +264,11 @@ CMD ["node", "--enable-source-maps", "artifacts/api-server/dist/index.mjs"]
 - **Login rate limiting**: `POST /auth/login` allows 10 attempts per IP per 15 minutes (`express-rate-limit`), independent of the auth model itself.
 - **CORS**: configurable via `CORS_ORIGIN` (see Environment Variables above). Unset allows all origins — set it explicitly in production.
 - **Security headers / CSP**: `helmet` is applied to the API server with a strict default (`default-src 'none'`), safe because this API only ever returns JSON. The frontend document itself is served separately (static host/CDN) and should set its own CSP/security headers at that layer.
-- **Organization authorization**: every route that reads or writes organization-scoped data must call `canAccessOrganization`/`isSuperAdmin` from `artifacts/api-server/src/lib/authorization.ts` rather than re-implementing the role/ownership check inline.
-- **Demo credentials**: no seed script exists in this repo. If one is added, it must check `NODE_ENV` and refuse to run in production.
+- **Organization authorization (legacy routes)**: every route that reads or writes organization-scoped data via the `users.organizationId`/`role` model must call `canAccessOrganization`/`isSuperAdmin` from `artifacts/api-server/src/lib/authorization.ts` rather than re-implementing the role/ownership check inline.
+- **Organization authorization (membership routes)**: routes built on the new `organization_memberships` model use `requireMembership` (resolves a live, active membership — the client-supplied org ID is only ever a lookup key) followed by `requirePermission` (checks the resolved membership's effective permissions via its roles). Never trust an org ID from the request without resolving a real membership row first.
+- **Audit log**: sensitive state changes (organization onboarding, Primary HR appoint/transfer, employee status changes, account linking, org switching) are recorded to the append-only `audit_events` table via `recordAuditEvent()`. Nothing in application code should update or delete rows there.
+- **File uploads**: employee profile pictures are validated by size, declared MIME type, *and* file-signature sniffing (never trust `Content-Type` alone), then re-encoded through `sharp` (which also strips EXIF metadata) before being written to a private, organization-scoped, randomly-named path — never served by static middleware.
+- **Demo credentials**: no script creates demo user accounts in this repo. If one is added, it must check `NODE_ENV` and refuse to run in production.
 
 ---
 
@@ -252,9 +289,25 @@ CMD ["node", "--enable-source-maps", "artifacts/api-server/dist/index.mjs"]
 - ✅ Not-found (404) page
 - ✅ Loading states and empty states
 
+### HR foundation (backend, API only — no frontend UI yet)
+
+- ✅ Multi-org membership model (`organization_memberships`, roles,
+  permissions, role-based access control) as an additive foundation
+  alongside the legacy `users.organizationId`/`role` model
+- ✅ Self-service organization creation (`POST /organizations`) with
+  automatic creator membership, `org_admin` role, and Primary HR assignment
+- ✅ Organization switching (`POST /auth/switch-organization`, `GET
+  /me/organizations`)
+- ✅ Employee directory: CRUD, search/filter/pagination, profile pictures
+  (validated + re-encoded uploads), cross-organization reference guarding
+- ✅ Branches, departments, positions (org-scoped reference data)
+- ✅ Primary HR appoint/transfer, enforced by a database partial unique
+  index, not application logic
+- ✅ Append-only audit log for sensitive state changes
+- 🚧 No frontend UI consumes these endpoints yet — API and data layer only
+
 ### Intentionally not implemented
 
-- Employee directory and records
 - Leave and attendance management
 - Performance reviews
 - Recruitment and applicant tracking
@@ -262,15 +315,16 @@ CMD ["node", "--enable-source-maps", "artifacts/api-server/dist/index.mjs"]
 - Document management
 - Payroll (out of scope)
 - Email delivery (forgot-password sends no real email in this shell)
-- Fine-grained role-based permissions per action (organization-ownership authorization exists; per-role feature permissions do not)
+- Migrating the legacy `users.organizationId`/`role` routes onto the new
+  membership model (both models coexist for now — see `OPERATIONS.md`)
 - Multi-factor authentication
 
 ---
 
 ## Recommended Next Steps
 
-1. Add an employee directory module (CRUD for employee records)
+1. Build frontend UI for the employee directory, branches/departments/positions, and organization switching (the API and data layer exist; nothing in `artifacts/hrms` consumes them yet)
 2. Wire up a real email provider (e.g. Resend, Postmark) for password resets
-3. Add fine-grained role-based permissions on top of the existing organization-authorization helper
+3. Migrate the legacy `users.organizationId`/`role` routes onto the `organization_memberships`/roles/permissions model, then retire the legacy model
 4. Set up Playwright for end-to-end tests on auth flows
 5. Add indexes on `sessions.userId`, `notifications.userId`, and `users.organizationId` before production-scale data

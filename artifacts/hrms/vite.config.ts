@@ -3,8 +3,6 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig, type ConfigEnv } from 'vite';
 
-import runtimeErrorOverlay from '@replit/vite-plugin-runtime-error-modal';
-
 export default defineConfig(async ({ command }: ConfigEnv) => {
   const rawPort = process.env.PORT;
 
@@ -26,25 +24,7 @@ export default defineConfig(async ({ command }: ConfigEnv) => {
 
   return {
     base: basePath,
-    plugins: [
-      react(),
-      tailwindcss(),
-      runtimeErrorOverlay(),
-      ...(command === 'serve' &&
-      process.env.NODE_ENV !== 'production' &&
-      process.env.REPL_ID !== undefined
-        ? [
-            await import('@replit/vite-plugin-cartographer').then((m) =>
-              m.cartographer({
-                root: path.resolve(import.meta.dirname, '..'),
-              }),
-            ),
-            await import('@replit/vite-plugin-dev-banner').then((m) =>
-              m.devBanner(),
-            ),
-          ]
-        : []),
-    ],
+    plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
         '@': path.resolve(import.meta.dirname, 'src'),
@@ -69,6 +49,18 @@ export default defineConfig(async ({ command }: ConfigEnv) => {
       allowedHosts: true,
       fs: {
         strict: true,
+      },
+      // Dev-only: the frontend calls relative `/api/...` paths (see
+      // lib/api-client-react/src/custom-fetch.ts — no baseUrl is set for
+      // web), so something has to route those to the API server when the
+      // two dev servers run on different ports. In production this isn't
+      // needed — both are served from the same origin behind a reverse
+      // proxy (see artifacts/hrms/README.md's deployment guide).
+      proxy: {
+        '/api': {
+          target: `http://localhost:${process.env.API_PORT ?? 3001}`,
+          changeOrigin: true,
+        },
       },
     },
     preview: {

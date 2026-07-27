@@ -3,7 +3,7 @@
  * Stores the Bearer token in localStorage and registers the getter
  * with the generated API client so every fetch includes it automatically.
  *
- * Portable: uses only Web Storage API — no Replit-specific dependencies.
+ * Portable: uses only the Web Storage API — no platform-specific dependencies.
  */
 
 import { setAuthTokenGetter } from "@workspace/api-client-react";

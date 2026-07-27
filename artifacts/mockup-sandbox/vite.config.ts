@@ -2,7 +2,6 @@ import { defineConfig, type ConfigEnv, type UserConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
-import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 import { mockupPreviewPlugin } from "./mockupPreviewPlugin";
 
 export default defineConfig(async ({ command }: ConfigEnv): Promise<UserConfig> => {
@@ -32,23 +31,7 @@ export default defineConfig(async ({ command }: ConfigEnv): Promise<UserConfig> 
 
   return {
     base: basePath ?? "/",
-    plugins: [
-      mockupPreviewPlugin(),
-      react(),
-      tailwindcss(),
-      runtimeErrorOverlay(),
-      ...(command === "serve" &&
-      process.env.NODE_ENV !== "production" &&
-      process.env.REPL_ID !== undefined
-        ? [
-            await import("@replit/vite-plugin-cartographer").then((m) =>
-              m.cartographer({
-                root: path.resolve(import.meta.dirname, ".."),
-              }),
-            ),
-          ]
-        : []),
-    ],
+    plugins: [mockupPreviewPlugin(), react(), tailwindcss()],
     resolve: {
       alias: {
         "@": path.resolve(import.meta.dirname, "src"),
