@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Building2, Plus } from 'lucide-react';
+import { Building2, Plus, Pencil } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -19,6 +19,9 @@ import {
   useListBranches,
   getListBranchesQueryKey,
   useCreateBranch,
+  useUpdateBranch,
+  useArchiveBranch,
+  useReactivateBranch,
   useGetMe,
   getGetMeQueryKey,
 } from '@workspace/api-client-react';
@@ -46,6 +49,57 @@ export default function Branches() {
   const [code, setCode] = useState('');
 
   const createMutation = useCreateBranch();
+  const updateMutation = useUpdateBranch();
+  const archiveMutation = useArchiveBranch();
+  const reactivateMutation = useReactivateBranch();
+
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editCode, setEditCode] = useState('');
+
+  const openEdit = (branch: { id: number; name: string; code: string }) => {
+    setEditId(branch.id);
+    setEditName(branch.name);
+    setEditCode(branch.code);
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editId == null) return;
+    updateMutation.mutate(
+      { organizationId, id: editId, data: { name: editName.trim(), code: editCode.trim() } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListBranchesQueryKey(organizationId) });
+          setEditId(null);
+          toast({ title: 'Branch updated' });
+        },
+        onError: (err) => {
+          const message =
+            err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
+          toast({ title: 'Could not update branch', description: message, variant: 'destructive' });
+        },
+      },
+    );
+  };
+
+  const handleToggleStatus = (branch: { id: number; status: string }) => {
+    const mutation = branch.status === 'inactive' ? reactivateMutation : archiveMutation;
+    mutation.mutate(
+      { organizationId, id: branch.id },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListBranchesQueryKey(organizationId) });
+          toast({ title: branch.status === 'inactive' ? 'Branch reactivated' : 'Branch archived' });
+        },
+        onError: (err) => {
+          const message =
+            err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
+          toast({ title: 'Could not update branch status', description: message, variant: 'destructive' });
+        },
+      },
+    );
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -151,6 +205,7 @@ export default function Branches() {
                 <TableHead>Name</TableHead>
                 <TableHead>Code</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -163,12 +218,70 @@ export default function Branches() {
                       {branch.status}
                     </Badge>
                   </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openEdit(branch)}
+                        data-testid={`button-edit-branch-${branch.id}`}
+                      >
+                        <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={branch.status === 'inactive' ? 'default' : 'destructive'}
+                        onClick={() => handleToggleStatus(branch)}
+                        disabled={archiveMutation.isPending || reactivateMutation.isPending}
+                        data-testid={`button-toggle-branch-status-${branch.id}`}
+                      >
+                        {branch.status === 'inactive' ? 'Reactivate' : 'Archive'}
+                      </Button>
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </Card>
       )}
+
+      <Dialog open={editId !== null} onOpenChange={(open) => !open && setEditId(null)}>
+        <DialogContent>
+          <form onSubmit={handleEditSubmit}>
+            <DialogHeader>
+              <DialogTitle>Edit Branch</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-branch-name">Name</Label>
+                <Input
+                  id="edit-branch-name"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  required
+                  data-testid="input-edit-branch-name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-branch-code">Code</Label>
+                <Input
+                  id="edit-branch-code"
+                  value={editCode}
+                  onChange={(e) => setEditCode(e.target.value)}
+                  required
+                  data-testid="input-edit-branch-code"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={updateMutation.isPending} data-testid="button-submit-edit-branch">
+                {updateMutation.isPending ? 'Saving…' : 'Save Changes'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -233,6 +233,21 @@ export interface CreateBranchInput {
   code: string;
 }
 
+export interface UpdateBranchInput {
+  /** @minLength 1 */
+  name?: string;
+  /** @minLength 1 */
+  code?: string;
+}
+
+export type DepartmentStatus = typeof DepartmentStatus[keyof typeof DepartmentStatus];
+
+
+export const DepartmentStatus = {
+  active: 'active',
+  inactive: 'inactive',
+} as const;
+
 export interface Department {
   id: number;
   organizationId: number;
@@ -242,6 +257,7 @@ export interface Department {
   parentDepartmentId?: number | null;
   name: string;
   code: string;
+  status: DepartmentStatus;
   createdAt: string;
 }
 
@@ -256,6 +272,13 @@ export interface CreateDepartmentInput {
   parentDepartmentId?: number | null;
 }
 
+export interface UpdateDepartmentInput {
+  /** @minLength 1 */
+  name?: string;
+  /** @minLength 1 */
+  code?: string;
+}
+
 export interface RestructureDepartmentInput {
   /** @nullable */
   branchId?: number | null;
@@ -263,12 +286,21 @@ export interface RestructureDepartmentInput {
   parentDepartmentId?: number | null;
 }
 
+export type PositionStatus = typeof PositionStatus[keyof typeof PositionStatus];
+
+
+export const PositionStatus = {
+  active: 'active',
+  inactive: 'inactive',
+} as const;
+
 export interface Position {
   id: number;
   organizationId: number;
   title: string;
   /** @nullable */
   departmentId?: number | null;
+  status: PositionStatus;
   createdAt: string;
 }
 
@@ -277,6 +309,11 @@ export interface CreatePositionInput {
   title: string;
   /** @nullable */
   departmentId?: number | null;
+}
+
+export interface UpdatePositionInput {
+  /** @minLength 1 */
+  title?: string;
 }
 
 export interface RestructurePositionInput {

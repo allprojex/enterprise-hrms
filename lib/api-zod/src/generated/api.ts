@@ -830,6 +830,71 @@ export const CreateBranchResponse = zod.object({
 
 
 /**
+ * Does not change status — use archive/reactivate for that.
+ * @summary Update a branch's name/code
+ */
+export const UpdateBranchParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+
+
+
+
+export const UpdateBranchBody = zod.object({
+  "name": zod.string().min(1).optional(),
+  "code": zod.string().min(1).optional()
+})
+
+export const UpdateBranchResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "code": zod.string(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * Rejected if any department still references this branch (Organization Structure Service, ADR-012).
+ * @summary Archive a branch
+ */
+export const ArchiveBranchParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ArchiveBranchResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "code": zod.string(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Reactivate an archived branch
+ */
+export const ReactivateBranchParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ReactivateBranchResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "code": zod.string(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
  * @summary List departments
  */
 export const ListDepartmentsParams = zod.object({
@@ -843,6 +908,7 @@ export const ListDepartmentsResponseItem = zod.object({
   "parentDepartmentId": zod.number().nullish(),
   "name": zod.string(),
   "code": zod.string(),
+  "status": zod.enum(['active', 'inactive']),
   "createdAt": zod.coerce.date()
 })
 export const ListDepartmentsResponse = zod.array(ListDepartmentsResponseItem)
@@ -873,6 +939,7 @@ export const CreateDepartmentResponse = zod.object({
   "parentDepartmentId": zod.number().nullish(),
   "name": zod.string(),
   "code": zod.string(),
+  "status": zod.enum(['active', 'inactive']),
   "createdAt": zod.coerce.date()
 })
 
@@ -898,6 +965,78 @@ export const RestructureDepartmentResponse = zod.object({
   "parentDepartmentId": zod.number().nullish(),
   "name": zod.string(),
   "code": zod.string(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * Does not change branch/parent or status — use restructure/archive/reactivate for that.
+ * @summary Update a department's name/code
+ */
+export const UpdateDepartmentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+
+
+
+
+export const UpdateDepartmentBody = zod.object({
+  "name": zod.string().min(1).optional(),
+  "code": zod.string().min(1).optional()
+})
+
+export const UpdateDepartmentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "branchId": zod.number().nullish(),
+  "parentDepartmentId": zod.number().nullish(),
+  "name": zod.string(),
+  "code": zod.string(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * Rejected if child departments or positions still reference it (Organization Structure Service, ADR-012).
+ * @summary Archive a department
+ */
+export const ArchiveDepartmentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ArchiveDepartmentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "branchId": zod.number().nullish(),
+  "parentDepartmentId": zod.number().nullish(),
+  "name": zod.string(),
+  "code": zod.string(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Reactivate an archived department
+ */
+export const ReactivateDepartmentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ReactivateDepartmentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "branchId": zod.number().nullish(),
+  "parentDepartmentId": zod.number().nullish(),
+  "name": zod.string(),
+  "code": zod.string(),
+  "status": zod.enum(['active', 'inactive']),
   "createdAt": zod.coerce.date()
 })
 
@@ -914,6 +1053,7 @@ export const ListPositionsResponseItem = zod.object({
   "organizationId": zod.number(),
   "title": zod.string(),
   "departmentId": zod.number().nullish(),
+  "status": zod.enum(['active', 'inactive']),
   "createdAt": zod.coerce.date()
 })
 export const ListPositionsResponse = zod.array(ListPositionsResponseItem)
@@ -939,6 +1079,7 @@ export const CreatePositionResponse = zod.object({
   "organizationId": zod.number(),
   "title": zod.string(),
   "departmentId": zod.number().nullish(),
+  "status": zod.enum(['active', 'inactive']),
   "createdAt": zod.coerce.date()
 })
 
@@ -961,6 +1102,69 @@ export const RestructurePositionResponse = zod.object({
   "organizationId": zod.number(),
   "title": zod.string(),
   "departmentId": zod.number().nullish(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * Does not change department or status — use restructure/archive/reactivate for that.
+ * @summary Update a position's title
+ */
+export const UpdatePositionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const UpdatePositionBody = zod.object({
+  "title": zod.string().min(1).optional()
+})
+
+export const UpdatePositionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "title": zod.string(),
+  "departmentId": zod.number().nullish(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Archive a position
+ */
+export const ArchivePositionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ArchivePositionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "title": zod.string(),
+  "departmentId": zod.number().nullish(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Reactivate an archived position
+ */
+export const ReactivatePositionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ReactivatePositionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "title": zod.string(),
+  "departmentId": zod.number().nullish(),
+  "status": zod.enum(['active', 'inactive']),
   "createdAt": zod.coerce.date()
 })
 

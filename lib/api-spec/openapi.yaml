@@ -721,6 +721,116 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/branches/{id}:
+    patch:
+      operationId: updateBranch
+      tags: [branches]
+      summary: Update a branch's name/code
+      description: Does not change status — use archive/reactivate for that.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBranchInput"
+      responses:
+        "200":
+          description: Branch updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Branch"
+        "404":
+          description: Branch not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: A branch with this code already exists in the organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/branches/{id}/archive:
+    post:
+      operationId: archiveBranch
+      tags: [branches]
+      summary: Archive a branch
+      description: Rejected if any department still references this branch (Organization Structure Service, ADR-012).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Branch archived
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Branch"
+        "400":
+          description: Branch still has dependent departments
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Branch not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/branches/{id}/reactivate:
+    post:
+      operationId: reactivateBranch
+      tags: [branches]
+      summary: Reactivate an archived branch
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Branch reactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Branch"
+        "404":
+          description: Branch not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /organizations/{organizationId}/departments:
     get:
       operationId: listDepartments
@@ -817,6 +927,116 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/departments/{id}:
+    patch:
+      operationId: updateDepartment
+      tags: [departments]
+      summary: Update a department's name/code
+      description: Does not change branch/parent or status — use restructure/archive/reactivate for that.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDepartmentInput"
+      responses:
+        "200":
+          description: Department updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Department"
+        "404":
+          description: Department not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: A department with this code already exists in the organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/departments/{id}/archive:
+    post:
+      operationId: archiveDepartment
+      tags: [departments]
+      summary: Archive a department
+      description: Rejected if child departments or positions still reference it (Organization Structure Service, ADR-012).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Department archived
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Department"
+        "400":
+          description: Department still has dependents
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Department not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/departments/{id}/reactivate:
+    post:
+      operationId: reactivateDepartment
+      tags: [departments]
+      summary: Reactivate an archived department
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Department reactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Department"
+        "404":
+          description: Department not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /organizations/{organizationId}/positions:
     get:
       operationId: listPositions
@@ -905,6 +1125,109 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Position not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/positions/{id}:
+    patch:
+      operationId: updatePosition
+      tags: [positions]
+      summary: Update a position's title
+      description: Does not change department or status — use restructure/archive/reactivate for that.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePositionInput"
+      responses:
+        "200":
+          description: Position updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Position"
+        "404":
+          description: Position not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: A position with this title already exists in the organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/positions/{id}/archive:
+    post:
+      operationId: archivePosition
+      tags: [positions]
+      summary: Archive a position
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Position archived
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Position"
+        "404":
+          description: Position not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/positions/{id}/reactivate:
+    post:
+      operationId: reactivatePosition
+      tags: [positions]
+      summary: Reactivate an archived position
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Position reactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Position"
         "404":
           description: Position not found in this organization
           content:
@@ -2023,9 +2346,19 @@ components:
           type: string
           minLength: 1
 
+    UpdateBranchInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        code:
+          type: string
+          minLength: 1
+
     Department:
       type: object
-      required: [id, organizationId, name, code, createdAt]
+      required: [id, organizationId, name, code, status, createdAt]
       properties:
         id:
           type: integer
@@ -2039,6 +2372,9 @@ components:
           type: string
         code:
           type: string
+        status:
+          type: string
+          enum: [active, inactive]
         createdAt:
           type: string
           format: date-time
@@ -2058,6 +2394,16 @@ components:
         parentDepartmentId:
           type: ["integer", "null"]
 
+    UpdateDepartmentInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        code:
+          type: string
+          minLength: 1
+
     RestructureDepartmentInput:
       type: object
       properties:
@@ -2068,7 +2414,7 @@ components:
 
     Position:
       type: object
-      required: [id, organizationId, title, createdAt]
+      required: [id, organizationId, title, status, createdAt]
       properties:
         id:
           type: integer
@@ -2078,6 +2424,9 @@ components:
           type: string
         departmentId:
           type: ["integer", "null"]
+        status:
+          type: string
+          enum: [active, inactive]
         createdAt:
           type: string
           format: date-time
@@ -2091,6 +2440,13 @@ components:
           minLength: 1
         departmentId:
           type: ["integer", "null"]
+
+    UpdatePositionInput:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
 
     RestructurePositionInput:
       type: object

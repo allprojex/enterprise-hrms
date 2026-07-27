@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Briefcase, Plus } from 'lucide-react';
+import { Briefcase, Plus, Pencil } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +20,9 @@ import {
   useListPositions,
   getListPositionsQueryKey,
   useCreatePosition,
+  useUpdatePosition,
+  useArchivePosition,
+  useReactivatePosition,
   useRestructurePosition,
   useListDepartments,
   getListDepartmentsQueryKey,
@@ -56,8 +60,57 @@ export default function Positions() {
 
   const createMutation = useCreatePosition();
   const restructureMutation = useRestructurePosition();
+  const updateMutation = useUpdatePosition();
+  const archiveMutation = useArchivePosition();
+  const reactivateMutation = useReactivatePosition();
+
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editTitle, setEditTitle] = useState('');
 
   const departmentNameById = new Map((departments ?? []).map((d) => [d.id, d.name]));
+
+  const openEdit = (position: { id: number; title: string }) => {
+    setEditId(position.id);
+    setEditTitle(position.title);
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editId == null) return;
+    updateMutation.mutate(
+      { organizationId, id: editId, data: { title: editTitle.trim() } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListPositionsQueryKey(organizationId) });
+          setEditId(null);
+          toast({ title: 'Position updated' });
+        },
+        onError: (err) => {
+          const message =
+            err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
+          toast({ title: 'Could not update position', description: message, variant: 'destructive' });
+        },
+      },
+    );
+  };
+
+  const handleToggleStatus = (position: { id: number; status: string }) => {
+    const mutation = position.status === 'inactive' ? reactivateMutation : archiveMutation;
+    mutation.mutate(
+      { organizationId, id: position.id },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListPositionsQueryKey(organizationId) });
+          toast({ title: position.status === 'inactive' ? 'Position reactivated' : 'Position archived' });
+        },
+        onError: (err) => {
+          const message =
+            err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
+          toast({ title: 'Could not update position status', description: message, variant: 'destructive' });
+        },
+      },
+    );
+  };
 
   const handleMoveDepartment = (positionId: number, value: string) => {
     restructureMutation.mutate(
@@ -191,6 +244,8 @@ export default function Positions() {
               <TableRow>
                 <TableHead>Title</TableHead>
                 <TableHead>Department</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -215,12 +270,65 @@ export default function Positions() {
                       </SelectContent>
                     </Select>
                   </TableCell>
+                  <TableCell>
+                    <Badge variant={position.status === 'active' ? 'secondary' : 'outline'} className="capitalize">
+                      {position.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openEdit(position)}
+                        data-testid={`button-edit-position-${position.id}`}
+                      >
+                        <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={position.status === 'inactive' ? 'default' : 'destructive'}
+                        onClick={() => handleToggleStatus(position)}
+                        disabled={archiveMutation.isPending || reactivateMutation.isPending}
+                        data-testid={`button-toggle-position-status-${position.id}`}
+                      >
+                        {position.status === 'inactive' ? 'Reactivate' : 'Archive'}
+                      </Button>
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </Card>
       )}
+
+      <Dialog open={editId !== null} onOpenChange={(open) => !open && setEditId(null)}>
+        <DialogContent>
+          <form onSubmit={handleEditSubmit}>
+            <DialogHeader>
+              <DialogTitle>Edit Position</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-position-title">Title</Label>
+                <Input
+                  id="edit-position-title"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  required
+                  data-testid="input-edit-position-title"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={updateMutation.isPending} data-testid="button-submit-edit-position">
+                {updateMutation.isPending ? 'Saving…' : 'Save Changes'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

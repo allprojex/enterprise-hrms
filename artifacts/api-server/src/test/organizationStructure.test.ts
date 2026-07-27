@@ -135,7 +135,11 @@ vi.mock("@workspace/db", () => ({
           returning: () => {
             fixtures.inserted.push({ table: table.__name, values: v });
             const base =
-              table === departmentsTable ? fixtures.departmentRows[0] : fixtures.positionRows[0];
+              table === departmentsTable
+                ? fixtures.departmentRows[0]
+                : table === positionsTable
+                  ? fixtures.positionRows[0]
+                  : fixtures.branchRows[0];
             return Promise.resolve(base ? [{ ...base, ...v }] : []);
           },
         }),
@@ -309,5 +313,200 @@ describe("PATCH /api/organizations/:organizationId/positions/:id/restructure", (
 
     expect(res.status).toBe(200);
     expect(res.body.departmentId).toBe(3);
+  });
+});
+
+describe("PATCH /api/organizations/:organizationId/branches/:id", () => {
+  it("returns 404 when the branch is not in this organization", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["branch.manage"]);
+    fixtures.branchRows = [];
+
+    const res = await request(app)
+      .patch("/api/organizations/10/branches/1")
+      .set("Authorization", "Bearer valid-token")
+      .send({ name: "HQ Renamed" });
+
+    expect(res.status).toBe(404);
+  });
+
+  it("updates the branch's name/code", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["branch.manage"]);
+    fixtures.branchRows = [{ id: 1, organizationId: 10, name: "HQ", code: "HQ", status: "active" }];
+
+    const res = await request(app)
+      .patch("/api/organizations/10/branches/1")
+      .set("Authorization", "Bearer valid-token")
+      .send({ name: "Headquarters" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.name).toBe("Headquarters");
+  });
+});
+
+describe("POST /api/organizations/:organizationId/branches/:id/archive and /reactivate", () => {
+  it("rejects archiving a branch that still has departments", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["branch.manage"]);
+    fixtures.branchRows = [{ id: 1, organizationId: 10, name: "HQ", code: "HQ", status: "active" }];
+    fixtures.departmentRows = [
+      { id: 5, organizationId: 10, branchId: 1, parentDepartmentId: null, name: "Sales", code: "SALES" },
+    ];
+
+    const res = await request(app)
+      .post("/api/organizations/10/branches/1/archive")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(400);
+  });
+
+  it("archives a branch with no dependents and records an audit event", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["branch.manage"]);
+    fixtures.branchRows = [{ id: 1, organizationId: 10, name: "HQ", code: "HQ", status: "active" }];
+    fixtures.departmentRows = [];
+
+    const res = await request(app)
+      .post("/api/organizations/10/branches/1/archive")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("inactive");
+    expect(fixtures.inserted.some((i) => i.table === "audit_events")).toBe(true);
+  });
+
+  it("reactivates an archived branch", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["branch.manage"]);
+    fixtures.branchRows = [{ id: 1, organizationId: 10, name: "HQ", code: "HQ", status: "inactive" }];
+
+    const res = await request(app)
+      .post("/api/organizations/10/branches/1/reactivate")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("active");
+  });
+});
+
+describe("PATCH /api/organizations/:organizationId/departments/:id", () => {
+  it("updates the department's name/code", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["department.manage"]);
+    fixtures.departmentRows = [
+      { id: 1, organizationId: 10, branchId: null, parentDepartmentId: null, name: "Sales", code: "SALES", status: "active" },
+    ];
+
+    const res = await request(app)
+      .patch("/api/organizations/10/departments/1")
+      .set("Authorization", "Bearer valid-token")
+      .send({ name: "Sales & Marketing" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.name).toBe("Sales & Marketing");
+  });
+});
+
+describe("POST /api/organizations/:organizationId/departments/:id/archive and /reactivate", () => {
+  it("rejects archiving a department that still has positions", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["department.manage"]);
+    fixtures.departmentRows = [
+      { id: 1, organizationId: 10, branchId: null, parentDepartmentId: null, name: "Sales", code: "SALES", status: "active" },
+    ];
+    fixtures.positionRows = [{ id: 9, organizationId: 10, title: "Rep", departmentId: 1, status: "active" }];
+
+    const res = await request(app)
+      .post("/api/organizations/10/departments/1/archive")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(400);
+  });
+
+  it("archives a department with no dependents", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["department.manage"]);
+    fixtures.departmentRows = [
+      { id: 1, organizationId: 10, branchId: null, parentDepartmentId: null, name: "Sales", code: "SALES", status: "active" },
+    ];
+
+    const res = await request(app)
+      .post("/api/organizations/10/departments/1/archive")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("inactive");
+  });
+
+  it("reactivates an archived department", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["department.manage"]);
+    fixtures.departmentRows = [
+      { id: 1, organizationId: 10, branchId: null, parentDepartmentId: null, name: "Sales", code: "SALES", status: "inactive" },
+    ];
+
+    const res = await request(app)
+      .post("/api/organizations/10/departments/1/reactivate")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("active");
+  });
+});
+
+describe("PATCH /api/organizations/:organizationId/positions/:id", () => {
+  it("updates the position's title", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["position.manage"]);
+    fixtures.positionRows = [{ id: 1, organizationId: 10, title: "Engineer", departmentId: null, status: "active" }];
+
+    const res = await request(app)
+      .patch("/api/organizations/10/positions/1")
+      .set("Authorization", "Bearer valid-token")
+      .send({ title: "Senior Engineer" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.title).toBe("Senior Engineer");
+  });
+});
+
+describe("POST /api/organizations/:organizationId/positions/:id/archive and /reactivate", () => {
+  it("archives a position", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["position.manage"]);
+    fixtures.positionRows = [{ id: 1, organizationId: 10, title: "Engineer", departmentId: null, status: "active" }];
+
+    const res = await request(app)
+      .post("/api/organizations/10/positions/1/archive")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("inactive");
+  });
+
+  it("reactivates an archived position", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["position.manage"]);
+    fixtures.positionRows = [{ id: 1, organizationId: 10, title: "Engineer", departmentId: null, status: "inactive" }];
+
+    const res = await request(app)
+      .post("/api/organizations/10/positions/1/reactivate")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("active");
   });
 });

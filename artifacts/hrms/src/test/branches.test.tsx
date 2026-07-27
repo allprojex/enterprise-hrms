@@ -16,6 +16,9 @@ vi.mock('@workspace/api-client-react', () => ({
   useListBranches: vi.fn(),
   getListBranchesQueryKey: (id: number) => ['branches', id],
   useCreateBranch: () => ({ mutate: mutateMock, isPending: false }),
+  useUpdateBranch: () => ({ mutate: vi.fn(), isPending: false }),
+  useArchiveBranch: () => ({ mutate: vi.fn(), isPending: false }),
+  useReactivateBranch: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 import { useListBranches } from '@workspace/api-client-react';

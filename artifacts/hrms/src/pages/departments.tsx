@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Network, Plus } from 'lucide-react';
+import { Network, Plus, Pencil } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +20,9 @@ import {
   useListDepartments,
   getListDepartmentsQueryKey,
   useCreateDepartment,
+  useUpdateDepartment,
+  useArchiveDepartment,
+  useReactivateDepartment,
   useRestructureDepartment,
   useListBranches,
   getListBranchesQueryKey,
@@ -57,8 +61,59 @@ export default function Departments() {
 
   const createMutation = useCreateDepartment();
   const restructureMutation = useRestructureDepartment();
+  const updateMutation = useUpdateDepartment();
+  const archiveMutation = useArchiveDepartment();
+  const reactivateMutation = useReactivateDepartment();
+
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editCode, setEditCode] = useState('');
 
   const branchNameById = new Map((branches ?? []).map((b) => [b.id, b.name]));
+
+  const openEdit = (department: { id: number; name: string; code: string }) => {
+    setEditId(department.id);
+    setEditName(department.name);
+    setEditCode(department.code);
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editId == null) return;
+    updateMutation.mutate(
+      { organizationId, id: editId, data: { name: editName.trim(), code: editCode.trim() } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListDepartmentsQueryKey(organizationId) });
+          setEditId(null);
+          toast({ title: 'Department updated' });
+        },
+        onError: (err) => {
+          const message =
+            err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
+          toast({ title: 'Could not update department', description: message, variant: 'destructive' });
+        },
+      },
+    );
+  };
+
+  const handleToggleStatus = (department: { id: number; status: string }) => {
+    const mutation = department.status === 'inactive' ? reactivateMutation : archiveMutation;
+    mutation.mutate(
+      { organizationId, id: department.id },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListDepartmentsQueryKey(organizationId) });
+          toast({ title: department.status === 'inactive' ? 'Department reactivated' : 'Department archived' });
+        },
+        onError: (err) => {
+          const message =
+            err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
+          toast({ title: 'Could not update department status', description: message, variant: 'destructive' });
+        },
+      },
+    );
+  };
 
   const handleMoveBranch = (departmentId: number, value: string) => {
     restructureMutation.mutate(
@@ -209,6 +264,8 @@ export default function Departments() {
                 <TableHead>Name</TableHead>
                 <TableHead>Code</TableHead>
                 <TableHead>Branch</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -234,12 +291,75 @@ export default function Departments() {
                       </SelectContent>
                     </Select>
                   </TableCell>
+                  <TableCell>
+                    <Badge variant={department.status === 'active' ? 'secondary' : 'outline'} className="capitalize">
+                      {department.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openEdit(department)}
+                        data-testid={`button-edit-department-${department.id}`}
+                      >
+                        <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={department.status === 'inactive' ? 'default' : 'destructive'}
+                        onClick={() => handleToggleStatus(department)}
+                        disabled={archiveMutation.isPending || reactivateMutation.isPending}
+                        data-testid={`button-toggle-department-status-${department.id}`}
+                      >
+                        {department.status === 'inactive' ? 'Reactivate' : 'Archive'}
+                      </Button>
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </Card>
       )}
+
+      <Dialog open={editId !== null} onOpenChange={(open) => !open && setEditId(null)}>
+        <DialogContent>
+          <form onSubmit={handleEditSubmit}>
+            <DialogHeader>
+              <DialogTitle>Edit Department</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-department-name">Name</Label>
+                <Input
+                  id="edit-department-name"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  required
+                  data-testid="input-edit-department-name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-department-code">Code</Label>
+                <Input
+                  id="edit-department-code"
+                  value={editCode}
+                  onChange={(e) => setEditCode(e.target.value)}
+                  required
+                  data-testid="input-edit-department-code"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={updateMutation.isPending} data-testid="button-submit-edit-department">
+                {updateMutation.isPending ? 'Saving…' : 'Save Changes'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

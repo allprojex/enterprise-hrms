@@ -4,6 +4,7 @@ import {
   serial,
   timestamp,
   integer,
+  pgEnum,
   uniqueIndex,
   index,
   type AnyPgColumn,
@@ -12,6 +13,8 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { organizationsTable } from "./organizations";
 import { branchesTable } from "./branches";
+
+export const departmentStatusEnum = pgEnum("department_status", ["active", "inactive"]);
 
 export const departmentsTable = pgTable(
   "departments",
@@ -27,6 +30,7 @@ export const departmentsTable = pgTable(
     ),
     name: text("name").notNull(),
     code: text("code").notNull(),
+    status: departmentStatusEnum("status").notNull().default("active"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()

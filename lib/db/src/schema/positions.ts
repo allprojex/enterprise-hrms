@@ -1,8 +1,10 @@
-import { pgTable, text, serial, timestamp, integer, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, pgEnum, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { organizationsTable } from "./organizations";
 import { departmentsTable } from "./departments";
+
+export const positionStatusEnum = pgEnum("position_status", ["active", "inactive"]);
 
 // Structured job titles, distinct from the free-text jobTitle this replaced
 // on employees — lets an org reuse "Registered Nurse" across many employees
@@ -17,6 +19,7 @@ export const positionsTable = pgTable(
       .references(() => organizationsTable.id, { onDelete: "restrict" }),
     title: text("title").notNull(),
     departmentId: integer("department_id").references(() => departmentsTable.id, { onDelete: "set null" }),
+    status: positionStatusEnum("status").notNull().default("active"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()

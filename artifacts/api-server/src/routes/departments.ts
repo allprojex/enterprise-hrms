@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { eq } from "drizzle-orm";
 import { db, departmentsTable } from "@workspace/db";
-import { CreateDepartmentBody, RestructureDepartmentBody } from "@workspace/api-zod";
+import { CreateDepartmentBody, RestructureDepartmentBody, UpdateDepartmentBody } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireMembership, type MembershipRequest } from "../middlewares/requireMembership";
 import { requirePermission } from "../middlewares/requirePermission";
@@ -9,9 +9,13 @@ import { isUniqueViolation } from "../lib/dbErrors";
 import {
   assertValidDepartmentPlacement,
   restructureDepartment,
+  updateDepartment,
+  archiveDepartment,
+  reactivateDepartment,
   CrossOrganizationReferenceError,
   HierarchyCycleError,
   StructureNotFoundError,
+  StructureDependencyError,
 } from "../lib/organizationStructureService";
 
 const router = Router();
@@ -24,6 +28,7 @@ function formatDepartment(department: typeof departmentsTable.$inferSelect) {
     parentDepartmentId: department.parentDepartmentId,
     name: department.name,
     code: department.code,
+    status: department.status,
     createdAt: department.createdAt,
   };
 }
@@ -121,6 +126,118 @@ router.patch(
       }
       if (err instanceof HierarchyCycleError || err instanceof CrossOrganizationReferenceError) {
         res.status(400).json({ error: err.message });
+        return;
+      }
+      throw err;
+    }
+  },
+);
+
+// PATCH /organizations/:organizationId/departments/:id
+router.patch(
+  "/organizations/:organizationId/departments/:id",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requirePermission("department.manage"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const departmentId = parseInt(raw, 10);
+    if (isNaN(departmentId)) {
+      res.status(400).json({ error: "Invalid department ID" });
+      return;
+    }
+
+    const parsed = UpdateDepartmentBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+
+    try {
+      const updated = await updateDepartment({
+        organizationId: req.membership!.organizationId,
+        departmentId,
+        name: parsed.data.name,
+        code: parsed.data.code,
+        actorApplicationUserId: req.userId!,
+        actorMembershipId: req.membership!.id,
+      });
+      res.json(formatDepartment(updated));
+    } catch (err) {
+      if (err instanceof StructureNotFoundError) {
+        res.status(404).json({ error: err.message });
+        return;
+      }
+      if (isUniqueViolation(err)) {
+        res.status(409).json({ error: "A department with this code already exists in the organization" });
+        return;
+      }
+      throw err;
+    }
+  },
+);
+
+// POST /organizations/:organizationId/departments/:id/archive
+router.post(
+  "/organizations/:organizationId/departments/:id/archive",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requirePermission("department.manage"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const departmentId = parseInt(raw, 10);
+    if (isNaN(departmentId)) {
+      res.status(400).json({ error: "Invalid department ID" });
+      return;
+    }
+
+    try {
+      const updated = await archiveDepartment({
+        organizationId: req.membership!.organizationId,
+        departmentId,
+        actorApplicationUserId: req.userId!,
+        actorMembershipId: req.membership!.id,
+      });
+      res.json(formatDepartment(updated));
+    } catch (err) {
+      if (err instanceof StructureNotFoundError) {
+        res.status(404).json({ error: err.message });
+        return;
+      }
+      if (err instanceof StructureDependencyError) {
+        res.status(400).json({ error: err.message });
+        return;
+      }
+      throw err;
+    }
+  },
+);
+
+// POST /organizations/:organizationId/departments/:id/reactivate
+router.post(
+  "/organizations/:organizationId/departments/:id/reactivate",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requirePermission("department.manage"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const departmentId = parseInt(raw, 10);
+    if (isNaN(departmentId)) {
+      res.status(400).json({ error: "Invalid department ID" });
+      return;
+    }
+
+    try {
+      const updated = await reactivateDepartment({
+        organizationId: req.membership!.organizationId,
+        departmentId,
+        actorApplicationUserId: req.userId!,
+        actorMembershipId: req.membership!.id,
+      });
+      res.json(formatDepartment(updated));
+    } catch (err) {
+      if (err instanceof StructureNotFoundError) {
+        res.status(404).json({ error: err.message });
         return;
       }
       throw err;

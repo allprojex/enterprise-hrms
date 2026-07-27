@@ -68,10 +68,13 @@ import type {
   Role,
   SetPrimaryHrInput,
   SwitchOrganizationInput,
+  UpdateBranchInput,
+  UpdateDepartmentInput,
   UpdateEmployeeInput,
   UpdateOrganizationConfigInput,
   UpdateOrganizationInput,
   UpdateOrganizationModuleInput,
+  UpdatePositionInput,
   UploadEmployeeProfilePictureBody,
   UserProfile,
   UserProfileUpdate
@@ -1835,6 +1838,228 @@ export const useCreateBranch = <TError = ErrorType<ApiError>,
       return useMutation(getCreateBranchMutationOptions(options));
     }
 
+export const getUpdateBranchUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/branches/${id}`
+}
+
+/**
+ * Does not change status — use archive/reactivate for that.
+ * @summary Update a branch's name/code
+ */
+export const updateBranch = async (organizationId: number,
+    id: number,
+    updateBranchInput: UpdateBranchInput, options?: RequestInit): Promise<Branch> => {
+
+  return customFetch<Branch>(getUpdateBranchUrl(organizationId,id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateBranchInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateBranchMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateBranch>>, TError,{organizationId: number;id: number;data: BodyType<UpdateBranchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateBranch>>, TError,{organizationId: number;id: number;data: BodyType<UpdateBranchInput>}, TContext> => {
+
+const mutationKey = ['updateBranch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateBranch>>, {organizationId: number;id: number;data: BodyType<UpdateBranchInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  updateBranch(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateBranchMutationResult = NonNullable<Awaited<ReturnType<typeof updateBranch>>>
+    export type UpdateBranchMutationBody = BodyType<UpdateBranchInput>
+    export type UpdateBranchMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update a branch's name/code
+ */
+export const useUpdateBranch = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateBranch>>, TError,{organizationId: number;id: number;data: BodyType<UpdateBranchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateBranch>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<UpdateBranchInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateBranchMutationOptions(options));
+    }
+
+export const getArchiveBranchUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/branches/${id}/archive`
+}
+
+/**
+ * Rejected if any department still references this branch (Organization Structure Service, ADR-012).
+ * @summary Archive a branch
+ */
+export const archiveBranch = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<Branch> => {
+
+  return customFetch<Branch>(getArchiveBranchUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getArchiveBranchMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveBranch>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof archiveBranch>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['archiveBranch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof archiveBranch>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  archiveBranch(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ArchiveBranchMutationResult = NonNullable<Awaited<ReturnType<typeof archiveBranch>>>
+
+    export type ArchiveBranchMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Archive a branch
+ */
+export const useArchiveBranch = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveBranch>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof archiveBranch>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getArchiveBranchMutationOptions(options));
+    }
+
+export const getReactivateBranchUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/branches/${id}/reactivate`
+}
+
+/**
+ * @summary Reactivate an archived branch
+ */
+export const reactivateBranch = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<Branch> => {
+
+  return customFetch<Branch>(getReactivateBranchUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getReactivateBranchMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateBranch>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reactivateBranch>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['reactivateBranch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reactivateBranch>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  reactivateBranch(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReactivateBranchMutationResult = NonNullable<Awaited<ReturnType<typeof reactivateBranch>>>
+
+    export type ReactivateBranchMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Reactivate an archived branch
+ */
+export const useReactivateBranch = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateBranch>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reactivateBranch>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getReactivateBranchMutationOptions(options));
+    }
+
 export const getListDepartmentsUrl = (organizationId: number,) => {
 
 
@@ -2059,6 +2284,228 @@ export const useRestructureDepartment = <TError = ErrorType<ApiError>,
       return useMutation(getRestructureDepartmentMutationOptions(options));
     }
 
+export const getUpdateDepartmentUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/departments/${id}`
+}
+
+/**
+ * Does not change branch/parent or status — use restructure/archive/reactivate for that.
+ * @summary Update a department's name/code
+ */
+export const updateDepartment = async (organizationId: number,
+    id: number,
+    updateDepartmentInput: UpdateDepartmentInput, options?: RequestInit): Promise<Department> => {
+
+  return customFetch<Department>(getUpdateDepartmentUrl(organizationId,id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateDepartmentInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateDepartmentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateDepartment>>, TError,{organizationId: number;id: number;data: BodyType<UpdateDepartmentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateDepartment>>, TError,{organizationId: number;id: number;data: BodyType<UpdateDepartmentInput>}, TContext> => {
+
+const mutationKey = ['updateDepartment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateDepartment>>, {organizationId: number;id: number;data: BodyType<UpdateDepartmentInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  updateDepartment(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateDepartmentMutationResult = NonNullable<Awaited<ReturnType<typeof updateDepartment>>>
+    export type UpdateDepartmentMutationBody = BodyType<UpdateDepartmentInput>
+    export type UpdateDepartmentMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update a department's name/code
+ */
+export const useUpdateDepartment = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateDepartment>>, TError,{organizationId: number;id: number;data: BodyType<UpdateDepartmentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateDepartment>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<UpdateDepartmentInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateDepartmentMutationOptions(options));
+    }
+
+export const getArchiveDepartmentUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/departments/${id}/archive`
+}
+
+/**
+ * Rejected if child departments or positions still reference it (Organization Structure Service, ADR-012).
+ * @summary Archive a department
+ */
+export const archiveDepartment = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<Department> => {
+
+  return customFetch<Department>(getArchiveDepartmentUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getArchiveDepartmentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveDepartment>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof archiveDepartment>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['archiveDepartment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof archiveDepartment>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  archiveDepartment(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ArchiveDepartmentMutationResult = NonNullable<Awaited<ReturnType<typeof archiveDepartment>>>
+
+    export type ArchiveDepartmentMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Archive a department
+ */
+export const useArchiveDepartment = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveDepartment>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof archiveDepartment>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getArchiveDepartmentMutationOptions(options));
+    }
+
+export const getReactivateDepartmentUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/departments/${id}/reactivate`
+}
+
+/**
+ * @summary Reactivate an archived department
+ */
+export const reactivateDepartment = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<Department> => {
+
+  return customFetch<Department>(getReactivateDepartmentUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getReactivateDepartmentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateDepartment>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reactivateDepartment>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['reactivateDepartment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reactivateDepartment>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  reactivateDepartment(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReactivateDepartmentMutationResult = NonNullable<Awaited<ReturnType<typeof reactivateDepartment>>>
+
+    export type ReactivateDepartmentMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Reactivate an archived department
+ */
+export const useReactivateDepartment = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateDepartment>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reactivateDepartment>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getReactivateDepartmentMutationOptions(options));
+    }
+
 export const getListPositionsUrl = (organizationId: number,) => {
 
 
@@ -2281,6 +2728,227 @@ export const useRestructurePosition = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getRestructurePositionMutationOptions(options));
+    }
+
+export const getUpdatePositionUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/positions/${id}`
+}
+
+/**
+ * Does not change department or status — use restructure/archive/reactivate for that.
+ * @summary Update a position's title
+ */
+export const updatePosition = async (organizationId: number,
+    id: number,
+    updatePositionInput: UpdatePositionInput, options?: RequestInit): Promise<Position> => {
+
+  return customFetch<Position>(getUpdatePositionUrl(organizationId,id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updatePositionInput)
+  }
+);}
+
+
+
+
+
+export const getUpdatePositionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePosition>>, TError,{organizationId: number;id: number;data: BodyType<UpdatePositionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updatePosition>>, TError,{organizationId: number;id: number;data: BodyType<UpdatePositionInput>}, TContext> => {
+
+const mutationKey = ['updatePosition'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePosition>>, {organizationId: number;id: number;data: BodyType<UpdatePositionInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  updatePosition(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdatePositionMutationResult = NonNullable<Awaited<ReturnType<typeof updatePosition>>>
+    export type UpdatePositionMutationBody = BodyType<UpdatePositionInput>
+    export type UpdatePositionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update a position's title
+ */
+export const useUpdatePosition = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePosition>>, TError,{organizationId: number;id: number;data: BodyType<UpdatePositionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updatePosition>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<UpdatePositionInput>},
+        TContext
+      > => {
+      return useMutation(getUpdatePositionMutationOptions(options));
+    }
+
+export const getArchivePositionUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/positions/${id}/archive`
+}
+
+/**
+ * @summary Archive a position
+ */
+export const archivePosition = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<Position> => {
+
+  return customFetch<Position>(getArchivePositionUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getArchivePositionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archivePosition>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof archivePosition>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['archivePosition'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof archivePosition>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  archivePosition(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ArchivePositionMutationResult = NonNullable<Awaited<ReturnType<typeof archivePosition>>>
+
+    export type ArchivePositionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Archive a position
+ */
+export const useArchivePosition = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archivePosition>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof archivePosition>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getArchivePositionMutationOptions(options));
+    }
+
+export const getReactivatePositionUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/positions/${id}/reactivate`
+}
+
+/**
+ * @summary Reactivate an archived position
+ */
+export const reactivatePosition = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<Position> => {
+
+  return customFetch<Position>(getReactivatePositionUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getReactivatePositionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivatePosition>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reactivatePosition>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['reactivatePosition'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reactivatePosition>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  reactivatePosition(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReactivatePositionMutationResult = NonNullable<Awaited<ReturnType<typeof reactivatePosition>>>
+
+    export type ReactivatePositionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Reactivate an archived position
+ */
+export const useReactivatePosition = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivatePosition>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reactivatePosition>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getReactivatePositionMutationOptions(options));
     }
 
 export const getListNotificationsUrl = () => {
