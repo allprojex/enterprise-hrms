@@ -69,6 +69,47 @@ function effectiveEnabled(
   return override ? override.enabled : module.defaultEnabled;
 }
 
+export interface ModuleAccess {
+  /** False if moduleKey isn't in the registry at all — a route-wiring bug, not a tenant state. */
+  found: boolean;
+  /** Effectively enabled for this organization AND every requiredModuleKeys entry, transitively. */
+  enabled: boolean;
+}
+
+/**
+ * Backend gate check (W5) for a single module: is it usable, right now, for
+ * this organization? Distinct from W4's setModuleEnabled — this never
+ * writes, and independently re-walks the required-dependency chain rather
+ * than trusting the target module's own `enabled` override in isolation, so
+ * a route stays correctly gated even if an upstream dependency is disabled
+ * later (W4 also prevents that from happening at write time, but the
+ * request-time check does not rely on that being the only safeguard).
+ */
+export async function getModuleAccess(organizationId: number, moduleKey: string): Promise<ModuleAccess> {
+  const [modules, overrides] = await Promise.all([
+    db.select().from(modulesTable),
+    db.select().from(organizationModulesTable).where(eq(organizationModulesTable.organizationId, organizationId)),
+  ]);
+
+  const overrideByModuleId = new Map(overrides.map((o) => [o.moduleId, o]));
+  const byKey = new Map(modules.map((m) => [m.key, m]));
+
+  if (!byKey.has(moduleKey)) {
+    return { found: false, enabled: false };
+  }
+
+  const visited = new Set<string>();
+  function chainEnabled(key: string): boolean {
+    if (visited.has(key)) return true; // registry is validated acyclic at seed time; guard is defensive only
+    visited.add(key);
+    const module = byKey.get(key);
+    if (!module || !effectiveEnabled(module, overrideByModuleId)) return false;
+    return (module.requiredModuleKeys as string[]).every(chainEnabled);
+  }
+
+  return { found: true, enabled: chainEnabled(moduleKey) };
+}
+
 /** Merges the platform module registry with this organization's enablement overrides. */
 export async function listOrganizationModules(organizationId: number): Promise<OrganizationModuleView[]> {
   const [modules, overrides] = await Promise.all([

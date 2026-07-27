@@ -307,7 +307,7 @@ Per-Organization Module Enablement — **Complete.**
 
 ## W5
 
-Backend Module Gating
+Backend Module Gating — **Complete.**
 
 ---
 
