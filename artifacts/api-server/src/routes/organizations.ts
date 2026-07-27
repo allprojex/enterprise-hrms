@@ -3,7 +3,8 @@ import { eq } from "drizzle-orm";
 import { db, organizationsTable } from "@workspace/db";
 import { CreateOrganizationBody, UpdateOrganizationBody } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
-import { canAccessOrganization, canManageOrganization, isSuperAdmin } from "../lib/authorization";
+import { isSuperAdmin } from "../lib/authorization";
+import { authorizeOrganizationAction } from "../lib/organizationAuthorization";
 import { onboardOrganization } from "../lib/onboarding";
 import { isUniqueViolation } from "../lib/dbErrors";
 import { recordAuditEvent } from "../lib/auditLog";
@@ -69,7 +70,7 @@ router.get("/organizations/:id", requireAuth as any, async (req: AuthenticatedRe
   }
 
   const user = req.user!;
-  if (!canAccessOrganization(user, id)) {
+  if (!(await authorizeOrganizationAction(user, id, "organization.read"))) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -98,7 +99,7 @@ router.patch("/organizations/:id", requireAuth as any, async (req: Authenticated
   }
 
   const user = req.user!;
-  if (!canManageOrganization(user, id)) {
+  if (!(await authorizeOrganizationAction(user, id, "organization.update"))) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -166,7 +167,7 @@ async function setOrganizationStatus(
   }
 
   const user = req.user!;
-  if (!canManageOrganization(user, id)) {
+  if (!(await authorizeOrganizationAction(user, id, "organization.update"))) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }

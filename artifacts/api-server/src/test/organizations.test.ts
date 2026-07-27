@@ -1,29 +1,82 @@
 /**
- * Integration test for GET /api/organizations/:id, exercising the real
- * requireAuth middleware and route handler through supertest. @workspace/db
- * is mocked so the suite never opens a real database connection; the mock
- * resolves rows based on which table `.from()` was called with, mirroring
- * the shape drizzle-orm's query builder returns.
+ * Integration test for the single-organization-scoped routes
+ * (GET/PATCH/:id, suspend, reactivate), exercising the real requireAuth
+ * middleware and route handlers through supertest. @workspace/db is mocked
+ * so the suite never opens a real database connection.
+ *
+ * Authorization on these routes is Organization Permission Gates (W9):
+ * super_admin bypasses; everyone else needs an active membership in the
+ * target organization AND the relevant permission (organization.read /
+ * organization.update) via that membership's roles -- same
+ * membership+permission infrastructure every other org-scoped route uses,
+ * replacing the prior role-string checks (canAccessOrganization /
+ * canManageOrganization).
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import request from "supertest";
 
-const { fixtures, organizationsTable, sessionsTable, usersTable, notificationsTable, auditEventsTable } =
-  vi.hoisted(() => {
-    return {
-      fixtures: {
-        sessionRows: [] as unknown[],
-        orgRows: [] as Record<string, unknown>[],
-        auditEvents: [] as Record<string, unknown>[],
-        slugConflict: false,
-      },
-      organizationsTable: { __name: "organizations" },
-      sessionsTable: { __name: "sessions" },
-      usersTable: { __name: "users" },
-      notificationsTable: { __name: "notifications" },
-      auditEventsTable: { __name: "audit_events" },
-    };
-  });
+function mockTable(name: string, columns: string[]) {
+  const table: Record<string, string> & { __name: string } = { __name: name } as never;
+  for (const col of columns) table[col] = `${name}.${col}`;
+  return table;
+}
+
+const {
+  fixtures,
+  organizationsTable,
+  sessionsTable,
+  usersTable,
+  notificationsTable,
+  auditEventsTable,
+  organizationMembershipsTable,
+  membershipRolesTable,
+  rolePermissionsTable,
+  permissionsTable,
+} = vi.hoisted(() => {
+  function mockTable(name: string, columns: string[]) {
+    const table: Record<string, string> & { __name: string } = { __name: name } as never;
+    for (const col of columns) table[col] = `${name}.${col}`;
+    return table;
+  }
+  return {
+    fixtures: {
+      sessionRows: [] as unknown[],
+      orgRows: [] as Record<string, unknown>[],
+      membershipRows: [] as Record<string, unknown>[],
+      membershipRoleRows: [] as { membershipId: number; roleId: number }[],
+      permissionRows: [] as { roleId: number; key: string }[],
+      auditEvents: [] as Record<string, unknown>[],
+      slugConflict: false,
+    },
+    organizationsTable: mockTable("organizations", ["id"]),
+    sessionsTable: mockTable("sessions", ["token", "userId", "expiresAt"]),
+    usersTable: mockTable("users", ["id", "email"]),
+    notificationsTable: mockTable("notifications", ["id"]),
+    auditEventsTable: mockTable("audit_events", ["organizationId"]),
+    organizationMembershipsTable: mockTable("organization_memberships", [
+      "id",
+      "applicationUserId",
+      "organizationId",
+      "status",
+    ]),
+    membershipRolesTable: mockTable("membership_roles", ["membershipId", "roleId"]),
+    rolePermissionsTable: mockTable("role_permissions", ["roleId", "permissionId"]),
+    permissionsTable: mockTable("permissions", ["id", "key"]),
+  };
+});
+
+type Cond =
+  | { __op: "eq"; field: string; val: unknown }
+  | { __op: "in"; field: string; vals: unknown[] }
+  | { __op: "and"; conds: Cond[] }
+  | undefined;
+function matches(row: Record<string, unknown>, cond: Cond): boolean {
+  if (!cond) return true;
+  if (cond.__op === "eq") return row[cond.field] === cond.val;
+  if (cond.__op === "in") return cond.vals.includes(row[cond.field]);
+  if (cond.__op === "and") return cond.conds.every((c) => matches(row, c));
+  return true;
+}
 
 vi.mock("@workspace/db", () => ({
   organizationsTable,
@@ -31,17 +84,43 @@ vi.mock("@workspace/db", () => ({
   usersTable,
   notificationsTable,
   auditEventsTable,
+  organizationMembershipsTable,
+  membershipRolesTable,
+  rolePermissionsTable,
+  permissionsTable,
   db: {
     select: () => ({
-      from(table: unknown) {
-        const rows = table === organizationsTable ? fixtures.orgRows : fixtures.sessionRows;
+      from(table: { __name: string }) {
+        if (table === sessionsTable) {
+          const rows = fixtures.sessionRows;
+          const builder = {
+            innerJoin: () => builder,
+            where: () => builder,
+            limit: () => Promise.resolve(rows),
+          };
+          return builder;
+        }
+
+        let rows: Record<string, unknown>[] = [];
+        if (table === organizationsTable) rows = fixtures.orgRows;
+        else if (table === organizationMembershipsTable) rows = fixtures.membershipRows;
+        else if (table === membershipRolesTable) rows = fixtures.membershipRoleRows as never;
+        else if (table === rolePermissionsTable) rows = fixtures.permissionRows as never;
+
+        let filtered = rows;
         const builder = {
           innerJoin: () => builder,
-          where: () => builder,
-          limit: () => Promise.resolve(rows),
-          orderBy: () => Promise.resolve(rows),
+          where(cond: Cond) {
+            filtered = rows.filter((r) => matches(r, cond));
+            return builder;
+          },
+          limit(n: number) {
+            filtered = filtered.slice(0, n);
+            return builder;
+          },
+          orderBy: () => Promise.resolve(filtered),
           then: (resolve: (v: unknown) => void, reject?: (e: unknown) => void) =>
-            Promise.resolve(rows).then(resolve, reject),
+            Promise.resolve(filtered).then(resolve, reject),
         };
         return builder;
       },
@@ -71,9 +150,12 @@ vi.mock("@workspace/db", () => ({
 }));
 
 vi.mock("drizzle-orm", () => ({
-  eq: () => "eq",
-  and: () => "and",
-  gt: () => "gt",
+  eq: (col: string, val: unknown) => ({ __op: "eq", field: col.split(".").pop(), val }),
+  and: (...conds: Cond[]) => ({ __op: "and", conds: conds.filter(Boolean) }),
+  or: () => undefined,
+  isNull: () => undefined,
+  gt: () => undefined,
+  inArray: (col: string, vals: unknown[]) => ({ __op: "in", field: col.split(".").pop(), vals }),
 }));
 
 const { default: app } = await import("../app");
@@ -115,10 +197,26 @@ function mockOrganization(id: number) {
   ];
 }
 
+/** Gives applicationUserId an active membership in organizationId, carrying permissionKeys. */
+function mockMembership(
+  applicationUserId: number,
+  organizationId: number,
+  permissionKeys: string[],
+  membershipId = 5,
+  roleId = 1,
+) {
+  fixtures.membershipRows = [{ id: membershipId, applicationUserId, organizationId, status: "active" }];
+  fixtures.membershipRoleRows = [{ membershipId, roleId }];
+  fixtures.permissionRows = permissionKeys.map((key) => ({ roleId, key }));
+}
+
 describe("GET /api/organizations/:id", () => {
   beforeEach(() => {
     fixtures.sessionRows = [];
     fixtures.orgRows = [];
+    fixtures.membershipRows = [];
+    fixtures.membershipRoleRows = [];
+    fixtures.permissionRows = [];
     fixtures.auditEvents = [];
     fixtures.slugConflict = false;
   });
@@ -135,9 +233,10 @@ describe("GET /api/organizations/:id", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 200 when a user requests their own organization", async () => {
+  it("returns 200 when a member with organization.read requests their own organization", async () => {
     mockSession({ id: 1, role: "employee", organizationId: 10 });
     mockOrganization(10);
+    mockMembership(1, 10, ["organization.read"]);
 
     const res = await request(app)
       .get("/api/organizations/10")
@@ -147,9 +246,10 @@ describe("GET /api/organizations/:id", () => {
     expect(res.body.id).toBe(10);
   });
 
-  it("returns 403 when a user requests a different organization", async () => {
+  it("returns 403 when the caller has no membership in the target organization", async () => {
     mockSession({ id: 1, role: "employee", organizationId: 10 });
     mockOrganization(99);
+    // no membership fixture -> getActiveMembership resolves null
 
     const res = await request(app)
       .get("/api/organizations/99")
@@ -158,7 +258,19 @@ describe("GET /api/organizations/:id", () => {
     expect(res.status).toBe(403);
   });
 
-  it("returns 200 when a super_admin requests a different organization", async () => {
+  it("returns 403 when the caller's membership lacks organization.read", async () => {
+    mockSession({ id: 1, role: "employee", organizationId: 10 });
+    mockOrganization(10);
+    mockMembership(1, 10, []);
+
+    const res = await request(app)
+      .get("/api/organizations/10")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 200 when a super_admin requests an organization they have no membership in", async () => {
     mockSession({ id: 1, role: "super_admin", organizationId: 10 });
     mockOrganization(99);
 
@@ -175,13 +287,17 @@ describe("PATCH /api/organizations/:id", () => {
   beforeEach(() => {
     fixtures.sessionRows = [];
     fixtures.orgRows = [];
+    fixtures.membershipRows = [];
+    fixtures.membershipRoleRows = [];
+    fixtures.permissionRows = [];
     fixtures.auditEvents = [];
     fixtures.slugConflict = false;
   });
 
-  it("returns 403 when a non-admin member of the organization attempts to update it", async () => {
+  it("returns 403 when the member's role lacks organization.update", async () => {
     mockSession({ id: 1, role: "employee", organizationId: 10 });
     mockOrganization(10);
+    mockMembership(1, 10, ["organization.read"]);
 
     const res = await request(app)
       .patch("/api/organizations/10")
@@ -191,9 +307,10 @@ describe("PATCH /api/organizations/:id", () => {
     expect(res.status).toBe(403);
   });
 
-  it("returns 403 when an org_admin targets a different organization", async () => {
+  it("returns 403 when an org_admin-equivalent membership targets a different organization", async () => {
     mockSession({ id: 1, role: "org_admin", organizationId: 10 });
     mockOrganization(99);
+    mockMembership(1, 10, ["organization.update"]); // membership is in org 10, not 99
 
     const res = await request(app)
       .patch("/api/organizations/99")
@@ -203,9 +320,10 @@ describe("PATCH /api/organizations/:id", () => {
     expect(res.status).toBe(403);
   });
 
-  it("updates the organization and records an audit event when the org_admin owns it", async () => {
+  it("updates the organization and records an audit event for a member with organization.update", async () => {
     mockSession({ id: 1, role: "org_admin", organizationId: 10 });
     mockOrganization(10);
+    mockMembership(1, 10, ["organization.update"]);
 
     const res = await request(app)
       .patch("/api/organizations/10")
@@ -236,13 +354,17 @@ describe("POST /api/organizations/:id/suspend and /reactivate", () => {
   beforeEach(() => {
     fixtures.sessionRows = [];
     fixtures.orgRows = [];
+    fixtures.membershipRows = [];
+    fixtures.membershipRoleRows = [];
+    fixtures.permissionRows = [];
     fixtures.auditEvents = [];
     fixtures.slugConflict = false;
   });
 
-  it("returns 403 when a non-admin member attempts to suspend the organization", async () => {
+  it("returns 403 when the member's role lacks organization.update", async () => {
     mockSession({ id: 1, role: "employee", organizationId: 10 });
     mockOrganization(10);
+    mockMembership(1, 10, ["organization.read"]);
 
     const res = await request(app)
       .post("/api/organizations/10/suspend")
@@ -251,9 +373,10 @@ describe("POST /api/organizations/:id/suspend and /reactivate", () => {
     expect(res.status).toBe(403);
   });
 
-  it("suspends the organization and records an audit event when the org_admin owns it", async () => {
+  it("suspends the organization and records an audit event for a member with organization.update", async () => {
     mockSession({ id: 1, role: "org_admin", organizationId: 10 });
     mockOrganization(10);
+    mockMembership(1, 10, ["organization.update"]);
 
     const res = await request(app)
       .post("/api/organizations/10/suspend")
@@ -264,7 +387,7 @@ describe("POST /api/organizations/:id/suspend and /reactivate", () => {
     expect(fixtures.auditEvents[0].eventType).toBe("organization.suspended");
   });
 
-  it("reactivates a suspended organization for a super_admin", async () => {
+  it("reactivates a suspended organization for a super_admin with no membership in it", async () => {
     mockSession({ id: 1, role: "super_admin", organizationId: 10 });
     mockOrganization(99);
 

@@ -331,7 +331,7 @@ Organization CRUD Completion
 
 ## W9
 
-Organization Permission Gates
+Organization Permission Gates — **Complete.**
 
 ---
 
