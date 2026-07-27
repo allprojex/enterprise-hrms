@@ -199,6 +199,82 @@ export const GetOrganizationResponse = zod.object({
 
 
 /**
+ * Partial update of name/slug/type/logoUrl/industry/employeeCount. Does not change lifecycle status — use suspend/reactivate for that. Requires org_admin (within the organization) or super_admin.
+ * @summary Update organization details
+ */
+export const UpdateOrganizationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+
+export const UpdateOrganizationBody = zod.object({
+  "name": zod.string().min(1).optional(),
+  "slug": zod.string().min(1).optional(),
+  "type": zod.enum(['business', 'church', 'ngo', 'school', 'hospital', 'hotel', 'government', 'other']).optional(),
+  "logoUrl": zod.string().nullish(),
+  "industry": zod.string().nullish(),
+  "employeeCount": zod.number().nullish()
+})
+
+export const UpdateOrganizationResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "type": zod.enum(['business', 'church', 'ngo', 'school', 'hospital', 'hotel', 'government', 'other']),
+  "status": zod.enum(['active', 'suspended', 'trial']),
+  "logoUrl": zod.string().nullish(),
+  "industry": zod.string().nullish(),
+  "employeeCount": zod.number().nullish(),
+  "createdAt": zod.coerce.date().optional()
+})
+
+
+/**
+ * Sets status to suspended. Requires org_admin (within the organization) or super_admin.
+ * @summary Suspend an organization
+ */
+export const SuspendOrganizationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const SuspendOrganizationResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "type": zod.enum(['business', 'church', 'ngo', 'school', 'hospital', 'hotel', 'government', 'other']),
+  "status": zod.enum(['active', 'suspended', 'trial']),
+  "logoUrl": zod.string().nullish(),
+  "industry": zod.string().nullish(),
+  "employeeCount": zod.number().nullish(),
+  "createdAt": zod.coerce.date().optional()
+})
+
+
+/**
+ * Sets status to active. Requires org_admin (within the organization) or super_admin.
+ * @summary Reactivate a suspended organization
+ */
+export const ReactivateOrganizationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ReactivateOrganizationResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "type": zod.enum(['business', 'church', 'ngo', 'school', 'hospital', 'hotel', 'government', 'other']),
+  "status": zod.enum(['active', 'suspended', 'trial']),
+  "logoUrl": zod.string().nullish(),
+  "industry": zod.string().nullish(),
+  "employeeCount": zod.number().nullish(),
+  "createdAt": zod.coerce.date().optional()
+})
+
+
+/**
  * Returns every organization the caller has an active membership in, with their role(s) and Primary HR status in each.
  * @summary List my organization memberships
  */

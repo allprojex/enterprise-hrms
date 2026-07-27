@@ -136,6 +136,34 @@ export interface CreateOrganizationInput {
   type: CreateOrganizationInputType;
 }
 
+export type UpdateOrganizationInputType = typeof UpdateOrganizationInputType[keyof typeof UpdateOrganizationInputType];
+
+
+export const UpdateOrganizationInputType = {
+  business: 'business',
+  church: 'church',
+  ngo: 'ngo',
+  school: 'school',
+  hospital: 'hospital',
+  hotel: 'hotel',
+  government: 'government',
+  other: 'other',
+} as const;
+
+export interface UpdateOrganizationInput {
+  /** @minLength 1 */
+  name?: string;
+  /** @minLength 1 */
+  slug?: string;
+  type?: UpdateOrganizationInputType;
+  /** @nullable */
+  logoUrl?: string | null;
+  /** @nullable */
+  industry?: string | null;
+  /** @nullable */
+  employeeCount?: number | null;
+}
+
 export type MembershipSummaryStatus = typeof MembershipSummaryStatus[keyof typeof MembershipSummaryStatus];
 
 

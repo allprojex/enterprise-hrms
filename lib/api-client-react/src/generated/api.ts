@@ -61,6 +61,7 @@ import type {
   SwitchOrganizationInput,
   UpdateEmployeeInput,
   UpdateOrganizationConfigInput,
+  UpdateOrganizationInput,
   UpdateOrganizationModuleInput,
   UploadEmployeeProfilePictureBody,
   UserProfile,
@@ -837,6 +838,223 @@ export function useGetOrganization<TData = Awaited<ReturnType<typeof getOrganiza
 
 
 
+
+export const getUpdateOrganizationUrl = (id: number,) => {
+
+
+
+
+  return `/api/organizations/${id}`
+}
+
+/**
+ * Partial update of name/slug/type/logoUrl/industry/employeeCount. Does not change lifecycle status — use suspend/reactivate for that. Requires org_admin (within the organization) or super_admin.
+ * @summary Update organization details
+ */
+export const updateOrganization = async (id: number,
+    updateOrganizationInput: UpdateOrganizationInput, options?: RequestInit): Promise<Organization> => {
+
+  return customFetch<Organization>(getUpdateOrganizationUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateOrganizationInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateOrganizationMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateOrganization>>, TError,{id: number;data: BodyType<UpdateOrganizationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateOrganization>>, TError,{id: number;data: BodyType<UpdateOrganizationInput>}, TContext> => {
+
+const mutationKey = ['updateOrganization'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateOrganization>>, {id: number;data: BodyType<UpdateOrganizationInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateOrganization(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateOrganizationMutationResult = NonNullable<Awaited<ReturnType<typeof updateOrganization>>>
+    export type UpdateOrganizationMutationBody = BodyType<UpdateOrganizationInput>
+    export type UpdateOrganizationMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update organization details
+ */
+export const useUpdateOrganization = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateOrganization>>, TError,{id: number;data: BodyType<UpdateOrganizationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateOrganization>>,
+        TError,
+        {id: number;data: BodyType<UpdateOrganizationInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateOrganizationMutationOptions(options));
+    }
+
+export const getSuspendOrganizationUrl = (id: number,) => {
+
+
+
+
+  return `/api/organizations/${id}/suspend`
+}
+
+/**
+ * Sets status to suspended. Requires org_admin (within the organization) or super_admin.
+ * @summary Suspend an organization
+ */
+export const suspendOrganization = async (id: number, options?: RequestInit): Promise<Organization> => {
+
+  return customFetch<Organization>(getSuspendOrganizationUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getSuspendOrganizationMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof suspendOrganization>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof suspendOrganization>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['suspendOrganization'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof suspendOrganization>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  suspendOrganization(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SuspendOrganizationMutationResult = NonNullable<Awaited<ReturnType<typeof suspendOrganization>>>
+
+    export type SuspendOrganizationMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Suspend an organization
+ */
+export const useSuspendOrganization = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof suspendOrganization>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof suspendOrganization>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getSuspendOrganizationMutationOptions(options));
+    }
+
+export const getReactivateOrganizationUrl = (id: number,) => {
+
+
+
+
+  return `/api/organizations/${id}/reactivate`
+}
+
+/**
+ * Sets status to active. Requires org_admin (within the organization) or super_admin.
+ * @summary Reactivate a suspended organization
+ */
+export const reactivateOrganization = async (id: number, options?: RequestInit): Promise<Organization> => {
+
+  return customFetch<Organization>(getReactivateOrganizationUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getReactivateOrganizationMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateOrganization>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reactivateOrganization>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['reactivateOrganization'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reactivateOrganization>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  reactivateOrganization(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReactivateOrganizationMutationResult = NonNullable<Awaited<ReturnType<typeof reactivateOrganization>>>
+
+    export type ReactivateOrganizationMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Reactivate a suspended organization
+ */
+export const useReactivateOrganization = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateOrganization>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reactivateOrganization>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getReactivateOrganizationMutationOptions(options));
+    }
 
 export const getListMyOrganizationsUrl = () => {
 

@@ -266,6 +266,115 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+    patch:
+      operationId: updateOrganization
+      tags: [organizations]
+      summary: Update organization details
+      description: >-
+        Partial update of name/slug/type/logoUrl/industry/employeeCount.
+        Does not change lifecycle status — use suspend/reactivate for that.
+        Requires org_admin (within the organization) or super_admin.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOrganizationInput"
+      responses:
+        "200":
+          description: Organization updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Slug already in use
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{id}/suspend:
+    post:
+      operationId: suspendOrganization
+      tags: [organizations]
+      summary: Suspend an organization
+      description: Sets status to suspended. Requires org_admin (within the organization) or super_admin.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Organization suspended
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{id}/reactivate:
+    post:
+      operationId: reactivateOrganization
+      tags: [organizations]
+      summary: Reactivate a suspended organization
+      description: Sets status to active. Requires org_admin (within the organization) or super_admin.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Organization reactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /me/organizations:
     get:
@@ -1469,6 +1578,25 @@ components:
         type:
           type: string
           enum: [business, church, ngo, school, hospital, hotel, government, other]
+
+    UpdateOrganizationInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        slug:
+          type: string
+          minLength: 1
+        type:
+          type: string
+          enum: [business, church, ngo, school, hospital, hotel, government, other]
+        logoUrl:
+          type: ["string", "null"]
+        industry:
+          type: ["string", "null"]
+        employeeCount:
+          type: ["integer", "null"]
 
     MembershipSummary:
       type: object

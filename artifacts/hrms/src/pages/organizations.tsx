@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Building, Users, Calendar, CheckCircle, Clock, Ban, Plus } from 'lucide-react';
+import { Building, Users, Calendar, CheckCircle, Clock, Ban, Plus, Pencil } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -21,6 +21,11 @@ import {
   useGetOrganization,
   getGetOrganizationQueryKey,
   useCreateOrganization,
+  useUpdateOrganization,
+  useSuspendOrganization,
+  useReactivateOrganization,
+  useGetMe,
+  getGetMeQueryKey,
 } from '@workspace/api-client-react';
 import type { CreateOrganizationInputType } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -60,6 +65,15 @@ export default function Organizations() {
   const [type, setType] = useState<CreateOrganizationInputType>('business');
 
   const createMutation = useCreateOrganization();
+  const updateMutation = useUpdateOrganization();
+  const suspendMutation = useSuspendOrganization();
+  const reactivateMutation = useReactivateOrganization();
+
+  const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
+
+  const [editOpen, setEditOpen] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editIndustry, setEditIndustry] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,6 +124,56 @@ export default function Organizations() {
       },
     },
   );
+
+  const canManageSelectedOrg =
+    !!me &&
+    !!selectedOrg &&
+    (me.role === 'super_admin' || (me.organizationId === selectedOrg.id && me.role === 'org_admin'));
+
+  const openEditDialog = () => {
+    if (!selectedOrg) return;
+    setEditName(selectedOrg.name);
+    setEditIndustry(selectedOrg.industry ?? '');
+    setEditOpen(true);
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedOrg) return;
+    updateMutation.mutate(
+      { id: selectedOrg.id, data: { name: editName.trim(), industry: editIndustry.trim() || null } },
+      {
+        onSuccess: (updated) => {
+          queryClient.setQueryData(getGetOrganizationQueryKey(selectedOrg.id), updated);
+          queryClient.invalidateQueries({ queryKey: getListOrganizationsQueryKey() });
+          setEditOpen(false);
+          toast({ title: 'Organisation updated' });
+        },
+        onError: (err) => {
+          const message =
+            err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
+          toast({ title: 'Could not update organisation', description: message, variant: 'destructive' });
+        },
+      },
+    );
+  };
+
+  const handleToggleStatus = () => {
+    if (!selectedOrg) return;
+    const mutation = selectedOrg.status === 'suspended' ? reactivateMutation : suspendMutation;
+    mutation.mutate(
+      { id: selectedOrg.id },
+      {
+        onSuccess: (updated) => {
+          queryClient.setQueryData(getGetOrganizationQueryKey(selectedOrg.id), updated);
+          queryClient.invalidateQueries({ queryKey: getListOrganizationsQueryKey() });
+          toast({ title: selectedOrg.status === 'suspended' ? 'Organisation reactivated' : 'Organisation suspended' });
+        },
+        onError: () =>
+          toast({ title: 'Could not update organisation status', variant: 'destructive' }),
+      },
+    );
+  };
 
   const getStatusIcon = (status: Organization['status']) => {
     switch (status) {
@@ -312,12 +376,22 @@ export default function Organizations() {
         <div className="lg:col-span-1">
           <Card className="sticky top-6">
             <CardHeader>
-              <CardTitle>Organisation Details</CardTitle>
-              <CardDescription>
-                {selectedOrgId
-                  ? 'Detailed information for the selected organisation'
-                  : 'Select an organisation to view details'}
-              </CardDescription>
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <CardTitle>Organisation Details</CardTitle>
+                  <CardDescription>
+                    {selectedOrgId
+                      ? 'Detailed information for the selected organisation'
+                      : 'Select an organisation to view details'}
+                  </CardDescription>
+                </div>
+                {canManageSelectedOrg && (
+                  <Button size="sm" variant="outline" onClick={openEditDialog} data-testid="button-edit-organization">
+                    <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                    Edit
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               {!selectedOrgId ? (
@@ -383,12 +457,59 @@ export default function Organizations() {
                       {formatDate(selectedOrg.createdAt)}
                     </dd>
                   </div>
+                  {canManageSelectedOrg && (
+                    <Button
+                      variant={selectedOrg.status === 'suspended' ? 'default' : 'destructive'}
+                      className="w-full"
+                      disabled={suspendMutation.isPending || reactivateMutation.isPending}
+                      onClick={handleToggleStatus}
+                      data-testid="button-toggle-organization-status"
+                    >
+                      {selectedOrg.status === 'suspended' ? 'Reactivate' : 'Suspend'}
+                    </Button>
+                  )}
                 </dl>
               ) : null}
             </CardContent>
           </Card>
         </div>
       </div>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <form onSubmit={handleEditSubmit}>
+            <DialogHeader>
+              <DialogTitle>Edit Organisation</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-org-name">Name</Label>
+                <Input
+                  id="edit-org-name"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  required
+                  data-testid="input-edit-org-name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-org-industry">Industry</Label>
+                <Input
+                  id="edit-org-industry"
+                  value={editIndustry}
+                  onChange={(e) => setEditIndustry(e.target.value)}
+                  data-testid="input-edit-org-industry"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={updateMutation.isPending} data-testid="button-submit-edit-org">
+                {updateMutation.isPending ? 'Saving…' : 'Save Changes'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
