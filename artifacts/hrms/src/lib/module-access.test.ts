@@ -57,4 +57,13 @@ describe('isModuleAccessible', () => {
     ];
     expect(isModuleAccessible(modules, 'a')).toBe(true);
   });
+
+  it('fails closed on a dependency cycle instead of treating it as satisfied', () => {
+    const modules = [
+      mod({ key: 'a', enabled: true, requiredModuleKeys: ['b'] }),
+      mod({ key: 'b', enabled: true, requiredModuleKeys: ['a'] }),
+    ];
+    expect(isModuleAccessible(modules, 'a')).toBe(false);
+    expect(isModuleAccessible(modules, 'b')).toBe(false);
+  });
 });

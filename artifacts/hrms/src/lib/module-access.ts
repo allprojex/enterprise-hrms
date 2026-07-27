@@ -9,14 +9,20 @@ import type { OrganizationModule } from '@workspace/api-client-react';
  */
 export function isModuleAccessible(modules: OrganizationModule[], moduleKey: string): boolean {
   const byKey = new Map(modules.map((m) => [m.key, m]));
-  const visited = new Set<string>();
+  const visiting = new Set<string>();
+  const resolved = new Map<string, boolean>();
 
   function chainEnabled(key: string): boolean {
-    if (visited.has(key)) return true; // registry is validated acyclic at seed time; guard is defensive only
-    visited.add(key);
+    if (resolved.has(key)) return resolved.get(key)!;
+    if (visiting.has(key)) return false; // dependency cycle -> fail closed, not open
+
+    visiting.add(key);
     const module = byKey.get(key);
-    if (!module || !module.enabled) return false;
-    return module.requiredModuleKeys.every(chainEnabled);
+    const result = !!module && module.enabled && module.requiredModuleKeys.every(chainEnabled);
+    visiting.delete(key);
+    resolved.set(key, result);
+
+    return result;
   }
 
   return byKey.has(moduleKey) && chainEnabled(moduleKey);

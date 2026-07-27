@@ -80,6 +80,19 @@ describe('ModuleGate', () => {
     });
   });
 
+  it('redirects to /unauthorized when the module key is unknown to the registry', async () => {
+    getMeResult.data = { id: 1, activeOrganizationId: 10 };
+    getMeResult.isLoading = false;
+    orgModulesResult.data = [mod({ key: 'attendance', enabled: true })];
+    orgModulesResult.isLoading = false;
+
+    const history = renderGate('recruitment');
+
+    await waitFor(() => {
+      expect(history[history.length - 1]).toBe('/unauthorized');
+    });
+  });
+
   it('redirects to /unauthorized when a required module is disabled (transitive)', async () => {
     getMeResult.data = { id: 1, activeOrganizationId: 10 };
     getMeResult.isLoading = false;
