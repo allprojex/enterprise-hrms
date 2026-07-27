@@ -911,6 +911,25 @@ export const ListRolesResponse = zod.array(ListRolesResponseItem)
 
 
 /**
+ * System-wide catalog of togglable feature modules (not org-scoped). Core Platform / HR Foundation capabilities are not modules and don't appear here — every organization always has them. A module appearing here does not mean any organization has it enabled; that's a separate, not-yet-built concern.
+ * @summary List the platform module registry
+ */
+export const ListModulesResponseItem = zod.object({
+  "id": zod.number(),
+  "key": zod.string(),
+  "name": zod.string(),
+  "description": zod.string(),
+  "category": zod.string(),
+  "version": zod.string(),
+  "status": zod.enum(['active', 'beta', 'hidden', 'deprecated']),
+  "defaultEnabled": zod.boolean(),
+  "requiredModuleKeys": zod.array(zod.string()),
+  "optionalModuleKeys": zod.array(zod.string())
+})
+export const ListModulesResponse = zod.array(ListModulesResponseItem)
+
+
+/**
  * System-wide permission catalog (not org-scoped)
  * @summary List permissions
  */

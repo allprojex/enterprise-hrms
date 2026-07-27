@@ -15,6 +15,13 @@
       "when": 1785096091694,
       "tag": "0001_loving_william_stryker",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785098003561,
+      "tag": "0002_fuzzy_vindicator",
+      "breakpoints": true
     }
   ]
 }

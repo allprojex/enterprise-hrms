@@ -43,6 +43,7 @@ import type {
   LoginInput,
   MembershipSummary,
   MessageResponse,
+  Module,
   Notification,
   Organization,
   OrganizationConfig,
@@ -2266,6 +2267,84 @@ export function useListRoles<TData = Awaited<ReturnType<typeof listRoles>>, TErr
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListRolesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListModulesUrl = () => {
+
+
+
+
+  return `/api/modules`
+}
+
+/**
+ * System-wide catalog of togglable feature modules (not org-scoped). Core Platform / HR Foundation capabilities are not modules and don't appear here — every organization always has them. A module appearing here does not mean any organization has it enabled; that's a separate, not-yet-built concern.
+ * @summary List the platform module registry
+ */
+export const listModules = async ( options?: RequestInit): Promise<Module[]> => {
+
+  return customFetch<Module[]>(getListModulesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListModulesQueryKey = () => {
+    return [
+    `/api/modules`
+    ] as const;
+    }
+
+
+export const getListModulesQueryOptions = <TData = Awaited<ReturnType<typeof listModules>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listModules>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListModulesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listModules>>> = ({ signal }) => listModules({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listModules>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListModulesQueryResult = NonNullable<Awaited<ReturnType<typeof listModules>>>
+export type ListModulesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List the platform module registry
+ */
+
+export function useListModules<TData = Awaited<ReturnType<typeof listModules>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listModules>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListModulesQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

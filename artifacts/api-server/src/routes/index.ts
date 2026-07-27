@@ -4,6 +4,18 @@ import authRouter from "./auth";
 import organizationsRouter from "./organizations";
 import notificationsRouter from "./notifications";
 import usersRouter from "./users";
+import meRouter from "./me";
+import employeesRouter from "./employees";
+import branchesRouter from "./branches";
+import departmentsRouter from "./departments";
+import positionsRouter from "./positions";
+import rolesRouter from "./roles";
+import permissionsRouter from "./permissions";
+import membersRouter from "./members";
+import primaryHrRouter from "./primaryHr";
+import organizationSettingsRouter from "./organizationSettings";
+import auditEventsRouter from "./auditEvents";
+import modulesRouter from "./modules";
 
 const router: IRouter = Router();
 
@@ -12,5 +24,17 @@ router.use(authRouter);
 router.use(organizationsRouter);
 router.use(notificationsRouter);
 router.use(usersRouter);
+router.use(meRouter);
+router.use(employeesRouter);
+router.use(branchesRouter);
+router.use(departmentsRouter);
+router.use(positionsRouter);
+router.use(rolesRouter);
+router.use(permissionsRouter);
+router.use(membersRouter);
+router.use(primaryHrRouter);
+router.use(organizationSettingsRouter);
+router.use(auditEventsRouter);
+router.use(modulesRouter);
 
 export default router;

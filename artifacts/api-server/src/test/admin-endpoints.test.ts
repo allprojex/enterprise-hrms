@@ -27,6 +27,7 @@ const {
   primaryHrAssignmentsTable,
   organizationSettingsTable,
   auditEventsTable,
+  modulesTable,
 } = vi.hoisted(() => {
   function mockTable(name: string, columns: string[]) {
     const table: Record<string, string> & { __name: string } = { __name: name } as never;
@@ -44,6 +45,7 @@ const {
       primaryHrRows: [] as Record<string, unknown>[],
       settingsRows: [] as Record<string, unknown>[],
       auditRows: [] as Record<string, unknown>[],
+      moduleRows: [] as Record<string, unknown>[],
       inserted: [] as { table: string; values: unknown }[],
       idCounters: new Map<string, number>(),
     },
@@ -62,6 +64,7 @@ const {
     primaryHrAssignmentsTable: mockTable("primary_hr_assignments", ["organizationId", "membershipId", "revokedAt"]),
     organizationSettingsTable: mockTable("organization_settings", ["id", "organizationId", "namespace", "schemaVersion", "settings"]),
     auditEventsTable: mockTable("audit_events", ["organizationId"]),
+    modulesTable: mockTable("modules", ["id", "key", "name", "status"]),
   };
 });
 
@@ -109,6 +112,7 @@ const dbMock = {
         else if (table === primaryHrAssignmentsTable) rows = fixtures.primaryHrRows;
         else if (table === organizationSettingsTable) rows = fixtures.settingsRows;
         else if (table === auditEventsTable) rows = fixtures.auditRows;
+        else if (table === modulesTable) rows = fixtures.moduleRows;
 
         let filtered = rows;
         const builder = {
@@ -171,6 +175,7 @@ vi.mock("@workspace/db", () => ({
   primaryHrAssignmentsTable,
   organizationSettingsTable,
   auditEventsTable,
+  modulesTable,
   db: dbMock,
 }));
 
@@ -229,6 +234,7 @@ beforeEach(() => {
   fixtures.primaryHrRows = [];
   fixtures.settingsRows = [];
   fixtures.auditRows = [];
+  fixtures.moduleRows = [];
   fixtures.inserted = [];
   fixtures.idCounters = new Map();
 });
@@ -260,6 +266,38 @@ describe("GET /api/permissions", () => {
 
     expect(res.status).toBe(200);
     expect(res.body[0].key).toBe("employee.read");
+  });
+});
+
+describe("GET /api/modules", () => {
+  it("returns 401 when unauthenticated", async () => {
+    const res = await request(app).get("/api/modules");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns the module registry for any authenticated user, not org-scoped", async () => {
+    mockSession();
+    fixtures.moduleRows = [
+      {
+        id: 1,
+        key: "recruitment",
+        name: "Recruitment",
+        description: "Job requisitions and hiring workflows.",
+        category: "hr-operations",
+        version: "1.0.0",
+        status: "hidden",
+        defaultEnabled: false,
+        requiredModuleKeys: [],
+        optionalModuleKeys: [],
+      },
+    ];
+
+    const res = await request(app).get("/api/modules").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].key).toBe("recruitment");
+    expect(res.body[0].status).toBe("hidden");
   });
 });
 

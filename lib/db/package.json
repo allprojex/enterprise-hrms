@@ -8,6 +8,12 @@
     "./schema": "./src/schema/index.ts"
   },
   "scripts": {
+    "generate": "drizzle-kit generate --config ./drizzle.config.ts",
+    "migrate": "drizzle-kit migrate --config ./drizzle.config.ts",
+    "seed:roles": "tsx ./src/seed/seed-roles-permissions.ts",
+    "seed:organization-types": "tsx ./src/seed/seed-organization-types.ts",
+    "seed:modules": "tsx ./src/seed/seed-modules.ts",
+    "backfill:memberships": "tsx ./src/backfill/backfill-memberships.ts",
     "push": "drizzle-kit push --config ./drizzle.config.ts",
     "push-force": "drizzle-kit push --force --config ./drizzle.config.ts"
   },
@@ -20,6 +26,7 @@
   "devDependencies": {
     "@types/node": "catalog:",
     "@types/pg": "^8.20.0",
-    "drizzle-kit": "^0.31.10"
+    "drizzle-kit": "^0.31.10",
+    "tsx": "catalog:"
   }
 }

@@ -295,7 +295,7 @@ Organization Configuration Engine — **Complete.**
 
 ## W3
 
-Module Registry
+Module Registry — **Complete.**
 
 ---
 

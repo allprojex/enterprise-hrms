@@ -796,6 +796,27 @@ paths:
                 items:
                   $ref: "#/components/schemas/Role"
 
+  /modules:
+    get:
+      operationId: listModules
+      tags: [modules]
+      summary: List the platform module registry
+      description: >-
+        System-wide catalog of togglable feature modules (not org-scoped).
+        Core Platform / HR Foundation capabilities are not modules and don't
+        appear here — every organization always has them. A module appearing
+        here does not mean any organization has it enabled; that's a
+        separate, not-yet-built concern.
+      responses:
+        "200":
+          description: List of modules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Module"
+
   /permissions:
     get:
       operationId: listPermissions
@@ -1735,6 +1756,36 @@ components:
           type: string
         description:
           type: ["string", "null"]
+
+    Module:
+      type: object
+      required: [id, key, name, description, category, version, status, defaultEnabled, requiredModuleKeys, optionalModuleKeys]
+      properties:
+        id:
+          type: integer
+        key:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        version:
+          type: string
+        status:
+          type: string
+          enum: [active, beta, hidden, deprecated]
+        defaultEnabled:
+          type: boolean
+        requiredModuleKeys:
+          type: array
+          items:
+            type: string
+        optionalModuleKeys:
+          type: array
+          items:
+            type: string
 
     OrganizationMember:
       type: object

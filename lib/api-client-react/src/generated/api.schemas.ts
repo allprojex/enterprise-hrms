@@ -635,6 +635,29 @@ export interface Permission {
   description?: string | null;
 }
 
+export type ModuleStatus = typeof ModuleStatus[keyof typeof ModuleStatus];
+
+
+export const ModuleStatus = {
+  active: 'active',
+  beta: 'beta',
+  hidden: 'hidden',
+  deprecated: 'deprecated',
+} as const;
+
+export interface Module {
+  id: number;
+  key: string;
+  name: string;
+  description: string;
+  category: string;
+  version: string;
+  status: ModuleStatus;
+  defaultEnabled: boolean;
+  requiredModuleKeys: string[];
+  optionalModuleKeys: string[];
+}
+
 export type OrganizationMemberStatus = typeof OrganizationMemberStatus[keyof typeof OrganizationMemberStatus];
 
 
