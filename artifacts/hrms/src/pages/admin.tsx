@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import {
@@ -43,6 +44,9 @@ import {
   getListAuditEventsQueryKey,
   useListMyOrganizations,
   getListMyOrganizationsQueryKey,
+  useListOrganizationModules,
+  getListOrganizationModulesQueryKey,
+  useUpdateOrganizationModule,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -466,6 +470,96 @@ function PrimaryHrAndSettingsTab({ organizationId }: { organizationId: number })
   );
 }
 
+function ModulesTab({ organizationId }: { organizationId: number }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const { data: modules, isLoading, error, refetch } = useListOrganizationModules(organizationId, {
+    query: { queryKey: getListOrganizationModulesQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+  const updateMutation = useUpdateOrganizationModule();
+
+  const handleToggle = (moduleKey: string, enabled: boolean) => {
+    updateMutation.mutate(
+      { organizationId, moduleKey, data: { enabled } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListOrganizationModulesQueryKey(organizationId) });
+          toast({ title: enabled ? 'Module enabled' : 'Module disabled' });
+        },
+        onError: (err) =>
+          toast({
+            title: `Could not ${enabled ? 'enable' : 'disable'} module`,
+            description: errorMessage(err),
+            variant: 'destructive',
+          }),
+      },
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Modules</CardTitle>
+          <CardDescription>
+            Enable only the HR-operations modules this organisation needs. Modules still marked "hidden" have no
+            shipped functionality yet and cannot be enabled.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="space-y-3" aria-busy="true" aria-label="Loading modules">
+              {[...Array(4)].map((_, i) => (
+                <Skeleton key={i} className="h-14 w-full" />
+              ))}
+            </div>
+          ) : error ? (
+            <QueryError title="Failed to load modules" message="Could not fetch modules." onRetry={() => refetch()} />
+          ) : (
+            <Table aria-label="Modules">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Module</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Enabled</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(modules ?? []).map((module) => {
+                  const enableable = module.status === 'active' || module.status === 'beta';
+                  return (
+                    <TableRow key={module.key} data-testid={`row-module-${module.key}`}>
+                      <TableCell>
+                        <div className="font-medium text-foreground">{module.name}</div>
+                        <div className="text-sm text-muted-foreground">{module.description}</div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="capitalize">
+                          {module.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Switch
+                          checked={module.enabled}
+                          disabled={!enableable || updateMutation.isPending}
+                          onCheckedChange={(checked) => handleToggle(module.key, checked)}
+                          aria-label={`Toggle ${module.name}`}
+                          data-testid={`switch-module-${module.key}`}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function AuditLogTab({ organizationId }: { organizationId: number }) {
   const [page, setPage] = useState(1);
   const { data: result, isLoading, error, refetch } = useListAuditEvents(
@@ -597,6 +691,7 @@ export default function Admin() {
         <TabsList>
           <TabsTrigger value="members" data-testid="tab-members">Members</TabsTrigger>
           <TabsTrigger value="hr-settings" data-testid="tab-hr-settings">Primary HR &amp; Settings</TabsTrigger>
+          <TabsTrigger value="modules" data-testid="tab-modules">Modules</TabsTrigger>
           <TabsTrigger value="audit" data-testid="tab-audit">Audit Log</TabsTrigger>
         </TabsList>
         <TabsContent value="members">
@@ -604,6 +699,9 @@ export default function Admin() {
         </TabsContent>
         <TabsContent value="hr-settings">
           <PrimaryHrAndSettingsTab organizationId={organizationId} />
+        </TabsContent>
+        <TabsContent value="modules">
+          <ModulesTab organizationId={organizationId} />
         </TabsContent>
         <TabsContent value="audit">
           <AuditLogTab organizationId={organizationId} />

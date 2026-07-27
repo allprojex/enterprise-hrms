@@ -658,6 +658,35 @@ export interface Module {
   optionalModuleKeys: string[];
 }
 
+export type OrganizationModuleStatus = typeof OrganizationModuleStatus[keyof typeof OrganizationModuleStatus];
+
+
+export const OrganizationModuleStatus = {
+  active: 'active',
+  beta: 'beta',
+  hidden: 'hidden',
+  deprecated: 'deprecated',
+} as const;
+
+export interface OrganizationModule {
+  id: number;
+  key: string;
+  name: string;
+  description: string;
+  category: string;
+  version: string;
+  status: OrganizationModuleStatus;
+  defaultEnabled: boolean;
+  requiredModuleKeys: string[];
+  optionalModuleKeys: string[];
+  /** Effective enablement for this organization (override row if present, otherwise defaultEnabled). */
+  enabled: boolean;
+}
+
+export interface UpdateOrganizationModuleInput {
+  enabled: boolean;
+}
+
 export type OrganizationMemberStatus = typeof OrganizationMemberStatus[keyof typeof OrganizationMemberStatus];
 
 

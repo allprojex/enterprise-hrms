@@ -28,6 +28,7 @@ const {
   organizationSettingsTable,
   auditEventsTable,
   modulesTable,
+  organizationModulesTable,
 } = vi.hoisted(() => {
   function mockTable(name: string, columns: string[]) {
     const table: Record<string, string> & { __name: string } = { __name: name } as never;
@@ -46,6 +47,7 @@ const {
       settingsRows: [] as Record<string, unknown>[],
       auditRows: [] as Record<string, unknown>[],
       moduleRows: [] as Record<string, unknown>[],
+      organizationModuleRows: [] as Record<string, unknown>[],
       inserted: [] as { table: string; values: unknown }[],
       idCounters: new Map<string, number>(),
     },
@@ -65,6 +67,7 @@ const {
     organizationSettingsTable: mockTable("organization_settings", ["id", "organizationId", "namespace", "schemaVersion", "settings"]),
     auditEventsTable: mockTable("audit_events", ["organizationId"]),
     modulesTable: mockTable("modules", ["id", "key", "name", "status"]),
+    organizationModulesTable: mockTable("organization_modules", ["id", "organizationId", "moduleId", "enabled"]),
   };
 });
 
@@ -113,6 +116,7 @@ const dbMock = {
         else if (table === organizationSettingsTable) rows = fixtures.settingsRows;
         else if (table === auditEventsTable) rows = fixtures.auditRows;
         else if (table === modulesTable) rows = fixtures.moduleRows;
+        else if (table === organizationModulesTable) rows = fixtures.organizationModuleRows;
 
         let filtered = rows;
         const builder = {
@@ -155,7 +159,9 @@ const dbMock = {
             const base =
               table === primaryHrAssignmentsTable
                 ? fixtures.primaryHrRows[0]
-                : fixtures.settingsRows[0];
+                : table === organizationModulesTable
+                  ? fixtures.organizationModuleRows[0]
+                  : fixtures.settingsRows[0];
             return Promise.resolve(base ? [{ ...base, ...v }] : []);
           },
         }),
@@ -176,6 +182,7 @@ vi.mock("@workspace/db", () => ({
   organizationSettingsTable,
   auditEventsTable,
   modulesTable,
+  organizationModulesTable,
   db: dbMock,
 }));
 
@@ -235,6 +242,7 @@ beforeEach(() => {
   fixtures.settingsRows = [];
   fixtures.auditRows = [];
   fixtures.moduleRows = [];
+  fixtures.organizationModuleRows = [];
   fixtures.inserted = [];
   fixtures.idCounters = new Map();
 });
@@ -298,6 +306,206 @@ describe("GET /api/modules", () => {
     expect(res.body).toHaveLength(1);
     expect(res.body[0].key).toBe("recruitment");
     expect(res.body[0].status).toBe("hidden");
+  });
+});
+
+describe("GET /api/organizations/:organizationId/modules", () => {
+  it("returns 403 without organization.read", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions([]);
+
+    const res = await request(app).get("/api/organizations/10/modules").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(403);
+  });
+
+  it("merges the registry with organization overrides, falling back to defaultEnabled when there's no override", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["organization.read"]);
+    fixtures.moduleRows = [
+      {
+        id: 1,
+        key: "recruitment",
+        name: "Recruitment",
+        description: "d",
+        category: "hr-operations",
+        version: "1.0.0",
+        status: "active",
+        defaultEnabled: false,
+        requiredModuleKeys: [],
+        optionalModuleKeys: [],
+      },
+      {
+        id: 2,
+        key: "attendance",
+        name: "Attendance",
+        description: "d",
+        category: "hr-operations",
+        version: "1.0.0",
+        status: "hidden",
+        defaultEnabled: true,
+        requiredModuleKeys: [],
+        optionalModuleKeys: [],
+      },
+    ];
+    fixtures.organizationModuleRows = [{ id: 1, organizationId: 10, moduleId: 1, enabled: true }];
+
+    const res = await request(app).get("/api/organizations/10/modules").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.find((m: { key: string }) => m.key === "recruitment").enabled).toBe(true);
+    expect(res.body.find((m: { key: string }) => m.key === "attendance").enabled).toBe(true);
+  });
+});
+
+describe("PATCH /api/organizations/:organizationId/modules/:moduleKey", () => {
+  const recruitment = {
+    id: 1,
+    key: "recruitment",
+    name: "Recruitment",
+    description: "d",
+    category: "hr-operations",
+    version: "1.0.0",
+    status: "active",
+    defaultEnabled: false,
+    requiredModuleKeys: [],
+    optionalModuleKeys: [],
+  };
+  const attendanceHidden = {
+    id: 2,
+    key: "attendance",
+    name: "Attendance",
+    description: "d",
+    category: "hr-operations",
+    version: "1.0.0",
+    status: "hidden",
+    defaultEnabled: false,
+    requiredModuleKeys: [],
+    optionalModuleKeys: [],
+  };
+  const leaveRequiresRecruitment = {
+    id: 3,
+    key: "leave",
+    name: "Leave",
+    description: "d",
+    category: "hr-operations",
+    version: "1.0.0",
+    status: "active",
+    defaultEnabled: false,
+    requiredModuleKeys: ["recruitment"],
+    optionalModuleKeys: [],
+  };
+
+  it("returns 403 without module.manage", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["organization.read"]);
+    fixtures.moduleRows = [recruitment];
+
+    const res = await request(app)
+      .patch("/api/organizations/10/modules/recruitment")
+      .set("Authorization", "Bearer valid-token")
+      .send({ enabled: true });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 404 for an unknown module key", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["module.manage"]);
+    fixtures.moduleRows = [recruitment];
+
+    const res = await request(app)
+      .patch("/api/organizations/10/modules/bogus")
+      .set("Authorization", "Bearer valid-token")
+      .send({ enabled: true });
+
+    expect(res.status).toBe(404);
+  });
+
+  it("rejects enabling a module whose registry status is hidden", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["module.manage"]);
+    fixtures.moduleRows = [attendanceHidden];
+
+    const res = await request(app)
+      .patch("/api/organizations/10/modules/attendance")
+      .set("Authorization", "Bearer valid-token")
+      .send({ enabled: true });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/hidden/);
+  });
+
+  it("rejects enabling a module whose required module is not enabled", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["module.manage"]);
+    fixtures.moduleRows = [recruitment, leaveRequiresRecruitment];
+    fixtures.organizationModuleRows = [];
+
+    const res = await request(app)
+      .patch("/api/organizations/10/modules/leave")
+      .set("Authorization", "Bearer valid-token")
+      .send({ enabled: true });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/recruitment/);
+  });
+
+  it("enables a module once its required module is already enabled", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["module.manage"]);
+    fixtures.moduleRows = [recruitment, leaveRequiresRecruitment];
+    fixtures.organizationModuleRows = [{ id: 1, organizationId: 10, moduleId: 1, enabled: true }];
+
+    const res = await request(app)
+      .patch("/api/organizations/10/modules/leave")
+      .set("Authorization", "Bearer valid-token")
+      .send({ enabled: true });
+
+    expect(res.status).toBe(200);
+    expect(res.body.enabled).toBe(true);
+  });
+
+  it("rejects disabling a module still required by another enabled module", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["module.manage"]);
+    fixtures.moduleRows = [recruitment, leaveRequiresRecruitment];
+    fixtures.organizationModuleRows = [
+      { id: 1, organizationId: 10, moduleId: 1, enabled: true },
+      { id: 2, organizationId: 10, moduleId: 3, enabled: true },
+    ];
+
+    const res = await request(app)
+      .patch("/api/organizations/10/modules/recruitment")
+      .set("Authorization", "Bearer valid-token")
+      .send({ enabled: false });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/leave/);
+  });
+
+  it("disables a module with no dependents", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["module.manage"]);
+    fixtures.moduleRows = [recruitment];
+    fixtures.organizationModuleRows = [{ id: 1, organizationId: 10, moduleId: 1, enabled: true }];
+
+    const res = await request(app)
+      .patch("/api/organizations/10/modules/recruitment")
+      .set("Authorization", "Bearer valid-token")
+      .send({ enabled: false });
+
+    expect(res.status).toBe(200);
+    expect(res.body.enabled).toBe(false);
   });
 });
 

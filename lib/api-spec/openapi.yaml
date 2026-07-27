@@ -1119,6 +1119,82 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/modules:
+    get:
+      operationId: listOrganizationModules
+      tags: [modules]
+      summary: List modules with this organization's enablement state
+      description: >-
+        Merges the platform module registry (see GET /modules) with this
+        organization's per-module enablement overrides. A module with no
+        override row falls back to its registry defaultEnabled value. Does
+        not gate access to anything yet — enforcing enabled/disabled on
+        routes/navigation is a later workstream.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Modules with this organization's enablement state
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrganizationModule"
+
+  /organizations/{organizationId}/modules/{moduleKey}:
+    patch:
+      operationId: updateOrganizationModule
+      tags: [modules]
+      summary: Enable or disable a module for this organization
+      description: >-
+        Enabling requires the module's registry status to be active or beta
+        (hidden and deprecated modules have no owning workstream yet and
+        cannot be turned on) and requires every module in its
+        requiredModuleKeys to already be enabled for this organization.
+        Disabling is rejected if another currently-enabled module in this
+        organization requires it.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: moduleKey
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOrganizationModuleInput"
+      responses:
+        "200":
+          description: Updated module enablement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationModule"
+        "400":
+          description: Module cannot be enabled or disabled (not enableable, missing dependencies, or required by another enabled module)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Unknown module key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /organizations/{organizationId}/audit-events:
     get:
       operationId: listAuditEvents
@@ -1786,6 +1862,47 @@ components:
           type: array
           items:
             type: string
+
+    OrganizationModule:
+      type: object
+      required:
+        [id, key, name, description, category, version, status, defaultEnabled, requiredModuleKeys, optionalModuleKeys, enabled]
+      properties:
+        id:
+          type: integer
+        key:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        version:
+          type: string
+        status:
+          type: string
+          enum: [active, beta, hidden, deprecated]
+        defaultEnabled:
+          type: boolean
+        requiredModuleKeys:
+          type: array
+          items:
+            type: string
+        optionalModuleKeys:
+          type: array
+          items:
+            type: string
+        enabled:
+          type: boolean
+          description: Effective enablement for this organization (override row if present, otherwise defaultEnabled).
+
+    UpdateOrganizationModuleInput:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
 
     OrganizationMember:
       type: object

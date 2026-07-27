@@ -39,6 +39,7 @@ const PERMISSIONS = [
   { key: "position.manage", resource: "position", action: "manage" },
   { key: "audit.read", resource: "audit", action: "read" },
   { key: "role.manage", resource: "role", action: "manage" },
+  { key: "module.manage", resource: "module", action: "manage" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -60,6 +61,7 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "position.manage",
     "audit.read",
     "role.manage",
+    "module.manage",
   ],
   hr_manager: [
     "organization.read",

@@ -16,6 +16,7 @@ import primaryHrRouter from "./primaryHr";
 import organizationSettingsRouter from "./organizationSettings";
 import auditEventsRouter from "./auditEvents";
 import modulesRouter from "./modules";
+import organizationModulesRouter from "./organizationModules";
 
 const router: IRouter = Router();
 
@@ -36,5 +37,6 @@ router.use(primaryHrRouter);
 router.use(organizationSettingsRouter);
 router.use(auditEventsRouter);
 router.use(modulesRouter);
+router.use(organizationModulesRouter);
 
 export default router;

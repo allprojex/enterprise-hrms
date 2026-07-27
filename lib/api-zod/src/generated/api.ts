@@ -1141,6 +1141,58 @@ export const UpdateOrganizationConfigResponse = zod.object({
 
 
 /**
+ * Merges the platform module registry (see GET /modules) with this organization's per-module enablement overrides. A module with no override row falls back to its registry defaultEnabled value. Does not gate access to anything yet — enforcing enabled/disabled on routes/navigation is a later workstream.
+ * @summary List modules with this organization's enablement state
+ */
+export const ListOrganizationModulesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListOrganizationModulesResponseItem = zod.object({
+  "id": zod.number(),
+  "key": zod.string(),
+  "name": zod.string(),
+  "description": zod.string(),
+  "category": zod.string(),
+  "version": zod.string(),
+  "status": zod.enum(['active', 'beta', 'hidden', 'deprecated']),
+  "defaultEnabled": zod.boolean(),
+  "requiredModuleKeys": zod.array(zod.string()),
+  "optionalModuleKeys": zod.array(zod.string()),
+  "enabled": zod.boolean().describe('Effective enablement for this organization (override row if present, otherwise defaultEnabled).')
+})
+export const ListOrganizationModulesResponse = zod.array(ListOrganizationModulesResponseItem)
+
+
+/**
+ * Enabling requires the module's registry status to be active or beta (hidden and deprecated modules have no owning workstream yet and cannot be turned on) and requires every module in its requiredModuleKeys to already be enabled for this organization. Disabling is rejected if another currently-enabled module in this organization requires it.
+ * @summary Enable or disable a module for this organization
+ */
+export const UpdateOrganizationModuleParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "moduleKey": zod.coerce.string()
+})
+
+export const UpdateOrganizationModuleBody = zod.object({
+  "enabled": zod.boolean()
+})
+
+export const UpdateOrganizationModuleResponse = zod.object({
+  "id": zod.number(),
+  "key": zod.string(),
+  "name": zod.string(),
+  "description": zod.string(),
+  "category": zod.string(),
+  "version": zod.string(),
+  "status": zod.enum(['active', 'beta', 'hidden', 'deprecated']),
+  "defaultEnabled": zod.boolean(),
+  "requiredModuleKeys": zod.array(zod.string()),
+  "optionalModuleKeys": zod.array(zod.string()),
+  "enabled": zod.boolean().describe('Effective enablement for this organization (override row if present, otherwise defaultEnabled).')
+})
+
+
+/**
  * Paginated, most recent first.
  * @summary List audit events
  */

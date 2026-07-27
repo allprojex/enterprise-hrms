@@ -19,3 +19,4 @@ export * from "./employee-user-links";
 export * from "./organization-relationships";
 export * from "./audit-events";
 export * from "./modules";
+export * from "./organization-modules";

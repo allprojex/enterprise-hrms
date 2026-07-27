@@ -4,9 +4,14 @@
  * Replaces the old single uncontrolled JSON settings blob with named,
  * validated, versioned configuration namespaces. Each namespace has its own
  * Zod schema and safe defaults; unknown namespaces are rejected rather than
- * silently accepted. New namespaces (module enablement, numbering formats,
- * branding, ...) are added by registering them here as their owning
- * workstream lands — the storage and API layers don't need to change.
+ * silently accepted. New namespaces (numbering formats, branding, ...) are
+ * added by registering them here as their owning workstream lands — the
+ * storage and API layers don't need to change. Per-organization module
+ * enablement (W4) is not one of these namespaces — it has clear relational
+ * structure (an org either has a module on or off) and needs referential
+ * integrity against the module registry, so it lives in its own
+ * `organization_modules` table instead; see
+ * artifacts/api-server/src/lib/organizationModules.ts.
  *
  * Namespace schemas use `.passthrough()` so organizations that already wrote
  * arbitrary keys under the legacy blob (now the "general" namespace, via the

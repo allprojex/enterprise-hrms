@@ -48,6 +48,7 @@ import type {
   Organization,
   OrganizationConfig,
   OrganizationMember,
+  OrganizationModule,
   Permission,
   Position,
   PrimaryHrAssignment,
@@ -57,6 +58,7 @@ import type {
   SwitchOrganizationInput,
   UpdateEmployeeInput,
   UpdateOrganizationConfigInput,
+  UpdateOrganizationModuleInput,
   UploadEmployeeProfilePictureBody,
   UserProfile,
   UserProfileUpdate
@@ -3112,6 +3114,159 @@ export const useUpdateOrganizationConfig = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getUpdateOrganizationConfigMutationOptions(options));
+    }
+
+export const getListOrganizationModulesUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/modules`
+}
+
+/**
+ * Merges the platform module registry (see GET /modules) with this organization's per-module enablement overrides. A module with no override row falls back to its registry defaultEnabled value. Does not gate access to anything yet — enforcing enabled/disabled on routes/navigation is a later workstream.
+ * @summary List modules with this organization's enablement state
+ */
+export const listOrganizationModules = async (organizationId: number, options?: RequestInit): Promise<OrganizationModule[]> => {
+
+  return customFetch<OrganizationModule[]>(getListOrganizationModulesUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOrganizationModulesQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/modules`
+    ] as const;
+    }
+
+
+export const getListOrganizationModulesQueryOptions = <TData = Awaited<ReturnType<typeof listOrganizationModules>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOrganizationModules>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOrganizationModulesQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOrganizationModules>>> = ({ signal }) => listOrganizationModules(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOrganizationModules>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOrganizationModulesQueryResult = NonNullable<Awaited<ReturnType<typeof listOrganizationModules>>>
+export type ListOrganizationModulesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List modules with this organization's enablement state
+ */
+
+export function useListOrganizationModules<TData = Awaited<ReturnType<typeof listOrganizationModules>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOrganizationModules>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOrganizationModulesQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateOrganizationModuleUrl = (organizationId: number,
+    moduleKey: string,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/modules/${moduleKey}`
+}
+
+/**
+ * Enabling requires the module's registry status to be active or beta (hidden and deprecated modules have no owning workstream yet and cannot be turned on) and requires every module in its requiredModuleKeys to already be enabled for this organization. Disabling is rejected if another currently-enabled module in this organization requires it.
+ * @summary Enable or disable a module for this organization
+ */
+export const updateOrganizationModule = async (organizationId: number,
+    moduleKey: string,
+    updateOrganizationModuleInput: UpdateOrganizationModuleInput, options?: RequestInit): Promise<OrganizationModule> => {
+
+  return customFetch<OrganizationModule>(getUpdateOrganizationModuleUrl(organizationId,moduleKey),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateOrganizationModuleInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateOrganizationModuleMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateOrganizationModule>>, TError,{organizationId: number;moduleKey: string;data: BodyType<UpdateOrganizationModuleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateOrganizationModule>>, TError,{organizationId: number;moduleKey: string;data: BodyType<UpdateOrganizationModuleInput>}, TContext> => {
+
+const mutationKey = ['updateOrganizationModule'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateOrganizationModule>>, {organizationId: number;moduleKey: string;data: BodyType<UpdateOrganizationModuleInput>}> = (props) => {
+          const {organizationId,moduleKey,data} = props ?? {};
+
+          return  updateOrganizationModule(organizationId,moduleKey,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateOrganizationModuleMutationResult = NonNullable<Awaited<ReturnType<typeof updateOrganizationModule>>>
+    export type UpdateOrganizationModuleMutationBody = BodyType<UpdateOrganizationModuleInput>
+    export type UpdateOrganizationModuleMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Enable or disable a module for this organization
+ */
+export const useUpdateOrganizationModule = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateOrganizationModule>>, TError,{organizationId: number;moduleKey: string;data: BodyType<UpdateOrganizationModuleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateOrganizationModule>>,
+        TError,
+        {organizationId: number;moduleKey: string;data: BodyType<UpdateOrganizationModuleInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateOrganizationModuleMutationOptions(options));
     }
 
 export const getListAuditEventsUrl = (organizationId: number,
