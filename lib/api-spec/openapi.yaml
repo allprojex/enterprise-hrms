@@ -699,6 +699,91 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/employees/{employeeId}/separate:
+    post:
+      operationId: separateEmployee
+      tags: [employees]
+      summary: Separate (terminate) an employee
+      description: >-
+        The employee record is never deleted, only marked terminated with a
+        date/reason (ADR-013). Rejected if already separated.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SeparateEmployeeInput"
+      responses:
+        "200":
+          description: Employee separated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "400":
+          description: Employee is already separated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}/rehire:
+    post:
+      operationId: rehireEmployee
+      tags: [employees]
+      summary: Rehire a separated employee
+      description: >-
+        Starts a new employment period on the same record (ADR-013) — clears
+        the separation date/reason; their prior values remain in the audit
+        trail. Rejected if not currently separated.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Employee rehired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "400":
+          description: Employee is not currently separated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /organizations/{organizationId}/branches:
     get:
       operationId: listBranches
@@ -2563,6 +2648,12 @@ components:
           enum: [active, probation, on_leave, suspended, terminated]
         workLocation:
           type: ["string", "null"]
+        separationDate:
+          type: ["string", "null"]
+          format: date-time
+        separationReason:
+          type: ["string", "null"]
+          description: Code from the "separation_reason" Master Data domain.
         notes:
           type: ["string", "null"]
         linkedApplicationUserId:
@@ -2743,6 +2834,17 @@ components:
       properties:
         applicationUserId:
           type: integer
+
+    SeparateEmployeeInput:
+      type: object
+      required: [separationDate]
+      properties:
+        separationDate:
+          type: string
+          format: date-time
+        separationReason:
+          type: string
+          description: Code from the "separation_reason" Master Data domain.
 
     Notification:
       type: object

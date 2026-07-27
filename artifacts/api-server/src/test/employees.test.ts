@@ -111,6 +111,19 @@ vi.mock("@workspace/db", () => ({
         return Promise.resolve(undefined);
       },
     }),
+    update: (table: { __name: string }) => ({
+      set: (v: Record<string, unknown>) => ({
+        where: () => {
+          if (table === employeesTable) {
+            const current = (fixtures.employeeRows[0] as Record<string, unknown>) ?? {};
+            const updated = { ...current, ...v };
+            fixtures.employeeRows = [updated];
+            return { returning: () => Promise.resolve([updated]) };
+          }
+          return { returning: () => Promise.resolve([]) };
+        },
+      }),
+    }),
   },
 }));
 
@@ -341,5 +354,119 @@ describe("DELETE /api/organizations/:organizationId/employees/:employeeId/link-u
     expect(res.status).toBe(200);
     expect(fixtures.deleted.some((d) => d.table === "employee_user_links")).toBe(true);
     expect(fixtures.inserted.some((i) => i.table === "audit_events")).toBe(true);
+  });
+});
+
+describe("POST /api/organizations/:organizationId/employees/:employeeId/separate", () => {
+  beforeEach(() => {
+    fixtures.sessionRows = [];
+    fixtures.membershipRows = [];
+    fixtures.membershipRoleRows = [];
+    fixtures.permissionRows = [];
+    fixtures.employeeRows = [];
+    fixtures.inserted = [];
+  });
+
+  it("returns 403 when the membership's role lacks employee.write", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.read"]);
+    fixtures.employeeRows = [{ id: 42, firstName: "Ada", lastName: "Lovelace", employmentStatus: "active" }];
+
+    const res = await request(app)
+      .post("/api/organizations/10/employees/42/separate")
+      .set("Authorization", "Bearer valid-token")
+      .send({ separationDate: "2026-01-01" });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("separates an active employee and records an audit event", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.write", "employee.notes.read"]);
+    fixtures.employeeRows = [{ id: 42, firstName: "Ada", lastName: "Lovelace", employmentStatus: "active" }];
+
+    const res = await request(app)
+      .post("/api/organizations/10/employees/42/separate")
+      .set("Authorization", "Bearer valid-token")
+      .send({ separationDate: "2026-01-01", separationReason: "resigned" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.employmentStatus).toBe("terminated");
+    expect(res.body.separationReason).toBe("resigned");
+    expect(fixtures.inserted.some((i) => i.table === "audit_events")).toBe(true);
+  });
+
+  it("returns 400 when the employee is already separated", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.write"]);
+    fixtures.employeeRows = [{ id: 42, firstName: "Ada", lastName: "Lovelace", employmentStatus: "terminated" }];
+
+    const res = await request(app)
+      .post("/api/organizations/10/employees/42/separate")
+      .set("Authorization", "Bearer valid-token")
+      .send({ separationDate: "2026-01-01" });
+
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("POST /api/organizations/:organizationId/employees/:employeeId/rehire", () => {
+  beforeEach(() => {
+    fixtures.sessionRows = [];
+    fixtures.membershipRows = [];
+    fixtures.membershipRoleRows = [];
+    fixtures.permissionRows = [];
+    fixtures.employeeRows = [];
+    fixtures.inserted = [];
+  });
+
+  it("returns 403 when the membership's role lacks employee.write", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.read"]);
+    fixtures.employeeRows = [{ id: 42, firstName: "Ada", lastName: "Lovelace", employmentStatus: "terminated" }];
+
+    const res = await request(app)
+      .post("/api/organizations/10/employees/42/rehire")
+      .set("Authorization", "Bearer valid-token")
+      .send({});
+
+    expect(res.status).toBe(403);
+  });
+
+  it("rehires a separated employee and records an audit event", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.write", "employee.notes.read"]);
+    fixtures.employeeRows = [
+      { id: 42, firstName: "Ada", lastName: "Lovelace", employmentStatus: "terminated", separationDate: new Date(), separationReason: "resigned" },
+    ];
+
+    const res = await request(app)
+      .post("/api/organizations/10/employees/42/rehire")
+      .set("Authorization", "Bearer valid-token")
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body.employmentStatus).toBe("active");
+    expect(res.body.separationDate).toBeNull();
+    expect(fixtures.inserted.some((i) => i.table === "audit_events")).toBe(true);
+  });
+
+  it("returns 400 when the employee is not currently separated", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.write"]);
+    fixtures.employeeRows = [{ id: 42, firstName: "Ada", lastName: "Lovelace", employmentStatus: "active" }];
+
+    const res = await request(app)
+      .post("/api/organizations/10/employees/42/rehire")
+      .set("Authorization", "Bearer valid-token")
+      .send({});
+
+    expect(res.status).toBe(400);
   });
 });

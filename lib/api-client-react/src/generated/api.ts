@@ -66,6 +66,7 @@ import type {
   RestructureDepartmentInput,
   RestructurePositionInput,
   Role,
+  SeparateEmployeeInput,
   SetPrimaryHrInput,
   SwitchOrganizationInput,
   UpdateBranchInput,
@@ -1760,6 +1761,155 @@ export const useUnlinkEmployeeFromUser = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getUnlinkEmployeeFromUserMutationOptions(options));
+    }
+
+export const getSeparateEmployeeUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/separate`
+}
+
+/**
+ * The employee record is never deleted, only marked terminated with a date/reason (ADR-013). Rejected if already separated.
+ * @summary Separate (terminate) an employee
+ */
+export const separateEmployee = async (organizationId: number,
+    employeeId: number,
+    separateEmployeeInput: SeparateEmployeeInput, options?: RequestInit): Promise<Employee> => {
+
+  return customFetch<Employee>(getSeparateEmployeeUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(separateEmployeeInput)
+  }
+);}
+
+
+
+
+
+export const getSeparateEmployeeMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof separateEmployee>>, TError,{organizationId: number;employeeId: number;data: BodyType<SeparateEmployeeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof separateEmployee>>, TError,{organizationId: number;employeeId: number;data: BodyType<SeparateEmployeeInput>}, TContext> => {
+
+const mutationKey = ['separateEmployee'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof separateEmployee>>, {organizationId: number;employeeId: number;data: BodyType<SeparateEmployeeInput>}> = (props) => {
+          const {organizationId,employeeId,data} = props ?? {};
+
+          return  separateEmployee(organizationId,employeeId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SeparateEmployeeMutationResult = NonNullable<Awaited<ReturnType<typeof separateEmployee>>>
+    export type SeparateEmployeeMutationBody = BodyType<SeparateEmployeeInput>
+    export type SeparateEmployeeMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Separate (terminate) an employee
+ */
+export const useSeparateEmployee = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof separateEmployee>>, TError,{organizationId: number;employeeId: number;data: BodyType<SeparateEmployeeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof separateEmployee>>,
+        TError,
+        {organizationId: number;employeeId: number;data: BodyType<SeparateEmployeeInput>},
+        TContext
+      > => {
+      return useMutation(getSeparateEmployeeMutationOptions(options));
+    }
+
+export const getRehireEmployeeUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/rehire`
+}
+
+/**
+ * Starts a new employment period on the same record (ADR-013) — clears the separation date/reason; their prior values remain in the audit trail. Rejected if not currently separated.
+ * @summary Rehire a separated employee
+ */
+export const rehireEmployee = async (organizationId: number,
+    employeeId: number, options?: RequestInit): Promise<Employee> => {
+
+  return customFetch<Employee>(getRehireEmployeeUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRehireEmployeeMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rehireEmployee>>, TError,{organizationId: number;employeeId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rehireEmployee>>, TError,{organizationId: number;employeeId: number}, TContext> => {
+
+const mutationKey = ['rehireEmployee'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rehireEmployee>>, {organizationId: number;employeeId: number}> = (props) => {
+          const {organizationId,employeeId} = props ?? {};
+
+          return  rehireEmployee(organizationId,employeeId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RehireEmployeeMutationResult = NonNullable<Awaited<ReturnType<typeof rehireEmployee>>>
+
+    export type RehireEmployeeMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Rehire a separated employee
+ */
+export const useRehireEmployee = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rehireEmployee>>, TError,{organizationId: number;employeeId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rehireEmployee>>,
+        TError,
+        {organizationId: number;employeeId: number},
+        TContext
+      > => {
+      return useMutation(getRehireEmployeeMutationOptions(options));
     }
 
 export const getListBranchesUrl = (organizationId: number,) => {

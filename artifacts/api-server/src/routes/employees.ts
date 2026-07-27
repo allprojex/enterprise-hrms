@@ -10,7 +10,13 @@ import {
   organizationMembershipsTable,
   employeeUserLinksTable,
 } from "@workspace/db";
-import { CreateEmployeeBody, UpdateEmployeeBody, LinkEmployeeToUserBody, ListEmployeesQueryParams } from "@workspace/api-zod";
+import {
+  CreateEmployeeBody,
+  UpdateEmployeeBody,
+  LinkEmployeeToUserBody,
+  ListEmployeesQueryParams,
+  SeparateEmployeeBody,
+} from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireMembership, type MembershipRequest } from "../middlewares/requireMembership";
 import { requirePermission } from "../middlewares/requirePermission";
@@ -22,6 +28,11 @@ import {
   getEmployeeById,
   generateEmployeeNumber,
   assertEmployeeReferencesValid,
+  separateEmployee,
+  rehireEmployee,
+  EmployeeNotFoundError,
+  EmployeeAlreadySeparatedError,
+  EmployeeNotSeparatedError,
 } from "../lib/employees";
 import { recordAuditEvent } from "../lib/auditLog";
 import { validateImageUpload, processAvatarImage, InvalidImageError } from "../lib/imageProcessing";
@@ -119,6 +130,8 @@ function formatEmployee(employee: Employee, labels: EmployeeLabels, canReadNotes
     probationEndDate: employee.probationEndDate,
     employmentStatus: employee.employmentStatus,
     workLocation: employee.workLocation,
+    separationDate: employee.separationDate,
+    separationReason: employee.separationReason,
     notes: canReadNotes ? employee.notes : null,
     linkedApplicationUserId: labels.linkedApplicationUserIdByEmployeeId.get(employee.id) ?? null,
     createdBy: employee.createdBy,
@@ -540,6 +553,90 @@ router.delete(
     });
 
     res.json({ message: "Employee unlinked from login account" });
+  },
+);
+
+// POST /organizations/:organizationId/employees/:employeeId/separate
+router.post(
+  "/organizations/:organizationId/employees/:employeeId/separate",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requirePermission("employee.write"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const employeeIdRaw = Array.isArray(req.params.employeeId) ? req.params.employeeId[0] : req.params.employeeId;
+    const employeeId = parseInt(employeeIdRaw, 10);
+    if (isNaN(employeeId)) {
+      res.status(400).json({ error: "Invalid employee ID" });
+      return;
+    }
+
+    const parsed = SeparateEmployeeBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+
+    try {
+      const updated = await separateEmployee({
+        organizationId: req.membership!.organizationId,
+        employeeId,
+        separationDate: parsed.data.separationDate,
+        separationReason: parsed.data.separationReason,
+        actorApplicationUserId: req.userId!,
+        actorMembershipId: req.membership!.id,
+      });
+      const labels = await resolveEmployeeLabels([updated]);
+      const canReadNotes = await hasPermission(req.membership!.id, "employee.notes.read");
+      res.json(formatEmployee(updated, labels, canReadNotes));
+    } catch (err) {
+      if (err instanceof EmployeeNotFoundError) {
+        res.status(404).json({ error: err.message });
+        return;
+      }
+      if (err instanceof EmployeeAlreadySeparatedError) {
+        res.status(400).json({ error: err.message });
+        return;
+      }
+      throw err;
+    }
+  },
+);
+
+// POST /organizations/:organizationId/employees/:employeeId/rehire
+router.post(
+  "/organizations/:organizationId/employees/:employeeId/rehire",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requirePermission("employee.write"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const employeeIdRaw = Array.isArray(req.params.employeeId) ? req.params.employeeId[0] : req.params.employeeId;
+    const employeeId = parseInt(employeeIdRaw, 10);
+    if (isNaN(employeeId)) {
+      res.status(400).json({ error: "Invalid employee ID" });
+      return;
+    }
+
+    try {
+      const updated = await rehireEmployee({
+        organizationId: req.membership!.organizationId,
+        employeeId,
+        actorApplicationUserId: req.userId!,
+        actorMembershipId: req.membership!.id,
+      });
+      const labels = await resolveEmployeeLabels([updated]);
+      const canReadNotes = await hasPermission(req.membership!.id, "employee.notes.read");
+      res.json(formatEmployee(updated, labels, canReadNotes));
+    } catch (err) {
+      if (err instanceof EmployeeNotFoundError) {
+        res.status(404).json({ error: err.message });
+        return;
+      }
+      if (err instanceof EmployeeNotSeparatedError) {
+        res.status(400).json({ error: err.message });
+        return;
+      }
+      throw err;
+    }
   },
 );
 

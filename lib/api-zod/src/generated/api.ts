@@ -356,6 +356,8 @@ export const ListEmployeesResponse = zod.object({
   "probationEndDate": zod.coerce.date().nullish(),
   "employmentStatus": zod.enum(['active', 'probation', 'on_leave', 'suspended', 'terminated']),
   "workLocation": zod.string().nullish(),
+  "separationDate": zod.coerce.date().nullish(),
+  "separationReason": zod.string().nullish().describe('Code from the \"separation_reason\" Master Data domain.'),
   "notes": zod.string().nullish(),
   "linkedApplicationUserId": zod.number().nullish().describe('Set when this employee record is linked to a login account (see POST\/DELETE ...\/link-user).'),
   "createdBy": zod.number().nullish(),
@@ -466,6 +468,8 @@ export const CreateEmployeeResponse = zod.object({
   "probationEndDate": zod.coerce.date().nullish(),
   "employmentStatus": zod.enum(['active', 'probation', 'on_leave', 'suspended', 'terminated']),
   "workLocation": zod.string().nullish(),
+  "separationDate": zod.coerce.date().nullish(),
+  "separationReason": zod.string().nullish().describe('Code from the \"separation_reason\" Master Data domain.'),
   "notes": zod.string().nullish(),
   "linkedApplicationUserId": zod.number().nullish().describe('Set when this employee record is linked to a login account (see POST\/DELETE ...\/link-user).'),
   "createdBy": zod.number().nullish(),
@@ -528,6 +532,8 @@ export const GetEmployeeResponse = zod.object({
   "probationEndDate": zod.coerce.date().nullish(),
   "employmentStatus": zod.enum(['active', 'probation', 'on_leave', 'suspended', 'terminated']),
   "workLocation": zod.string().nullish(),
+  "separationDate": zod.coerce.date().nullish(),
+  "separationReason": zod.string().nullish().describe('Code from the \"separation_reason\" Master Data domain.'),
   "notes": zod.string().nullish(),
   "linkedApplicationUserId": zod.number().nullish().describe('Set when this employee record is linked to a login account (see POST\/DELETE ...\/link-user).'),
   "createdBy": zod.number().nullish(),
@@ -635,6 +641,8 @@ export const UpdateEmployeeResponse = zod.object({
   "probationEndDate": zod.coerce.date().nullish(),
   "employmentStatus": zod.enum(['active', 'probation', 'on_leave', 'suspended', 'terminated']),
   "workLocation": zod.string().nullish(),
+  "separationDate": zod.coerce.date().nullish(),
+  "separationReason": zod.string().nullish().describe('Code from the \"separation_reason\" Master Data domain.'),
   "notes": zod.string().nullish(),
   "linkedApplicationUserId": zod.number().nullish().describe('Set when this employee record is linked to a login account (see POST\/DELETE ...\/link-user).'),
   "createdBy": zod.number().nullish(),
@@ -702,6 +710,8 @@ export const UploadEmployeeProfilePictureResponse = zod.object({
   "probationEndDate": zod.coerce.date().nullish(),
   "employmentStatus": zod.enum(['active', 'probation', 'on_leave', 'suspended', 'terminated']),
   "workLocation": zod.string().nullish(),
+  "separationDate": zod.coerce.date().nullish(),
+  "separationReason": zod.string().nullish().describe('Code from the \"separation_reason\" Master Data domain.'),
   "notes": zod.string().nullish(),
   "linkedApplicationUserId": zod.number().nullish().describe('Set when this employee record is linked to a login account (see POST\/DELETE ...\/link-user).'),
   "createdBy": zod.number().nullish(),
@@ -764,6 +774,8 @@ export const RemoveEmployeeProfilePictureResponse = zod.object({
   "probationEndDate": zod.coerce.date().nullish(),
   "employmentStatus": zod.enum(['active', 'probation', 'on_leave', 'suspended', 'terminated']),
   "workLocation": zod.string().nullish(),
+  "separationDate": zod.coerce.date().nullish(),
+  "separationReason": zod.string().nullish().describe('Code from the \"separation_reason\" Master Data domain.'),
   "notes": zod.string().nullish(),
   "linkedApplicationUserId": zod.number().nullish().describe('Set when this employee record is linked to a login account (see POST\/DELETE ...\/link-user).'),
   "createdBy": zod.number().nullish(),
@@ -801,6 +813,141 @@ export const UnlinkEmployeeFromUserParams = zod.object({
 
 export const UnlinkEmployeeFromUserResponse = zod.object({
   "message": zod.string()
+})
+
+
+/**
+ * The employee record is never deleted, only marked terminated with a date/reason (ADR-013). Rejected if already separated.
+ * @summary Separate (terminate) an employee
+ */
+export const SeparateEmployeeParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const SeparateEmployeeBody = zod.object({
+  "separationDate": zod.coerce.date(),
+  "separationReason": zod.string().optional().describe('Code from the \"separation_reason\" Master Data domain.')
+})
+
+export const SeparateEmployeeResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeNumber": zod.string().nullish(),
+  "hasProfilePicture": zod.boolean().optional(),
+  "firstName": zod.string(),
+  "middleName": zod.string().nullish(),
+  "lastName": zod.string(),
+  "preferredName": zod.string().nullish(),
+  "gender": zod.union([zod.literal('male'),zod.literal('female'),zod.literal('other'),zod.literal('prefer_not_to_say'),zod.literal(null)]).nullish(),
+  "dateOfBirth": zod.coerce.date().nullish(),
+  "maritalStatus": zod.union([zod.literal('single'),zod.literal('married'),zod.literal('divorced'),zod.literal('widowed'),zod.literal('other'),zod.literal(null)]).nullish(),
+  "nationality": zod.string().nullish(),
+  "nationalId": zod.string().nullish(),
+  "passportNumber": zod.string().nullish(),
+  "personalEmail": zod.string().nullish(),
+  "workEmail": zod.string().nullish(),
+  "phoneNumber": zod.string().nullish(),
+  "alternatePhoneNumber": zod.string().nullish(),
+  "residentialAddress": zod.union([zod.object({
+  "line1": zod.string().nullish(),
+  "line2": zod.string().nullish(),
+  "city": zod.string().nullish(),
+  "state": zod.string().nullish(),
+  "postalCode": zod.string().nullish(),
+  "country": zod.string().nullish()
+}),zod.null()]).optional(),
+  "emergencyContacts": zod.array(zod.object({
+  "name": zod.string(),
+  "relationship": zod.string(),
+  "phone": zod.string()
+})).nullish(),
+  "departmentId": zod.number().nullish(),
+  "departmentName": zod.string().nullish(),
+  "branchId": zod.number().nullish(),
+  "branchName": zod.string().nullish(),
+  "positionId": zod.number().nullish(),
+  "positionName": zod.string().nullish(),
+  "reportingManagerId": zod.number().nullish(),
+  "reportingManagerName": zod.string().nullish(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullish(),
+  "hireDate": zod.coerce.date().nullish(),
+  "probationEndDate": zod.coerce.date().nullish(),
+  "employmentStatus": zod.enum(['active', 'probation', 'on_leave', 'suspended', 'terminated']),
+  "workLocation": zod.string().nullish(),
+  "separationDate": zod.coerce.date().nullish(),
+  "separationReason": zod.string().nullish().describe('Code from the \"separation_reason\" Master Data domain.'),
+  "notes": zod.string().nullish(),
+  "linkedApplicationUserId": zod.number().nullish().describe('Set when this employee record is linked to a login account (see POST\/DELETE ...\/link-user).'),
+  "createdBy": zod.number().nullish(),
+  "updatedBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Starts a new employment period on the same record (ADR-013) — clears the separation date/reason; their prior values remain in the audit trail. Rejected if not currently separated.
+ * @summary Rehire a separated employee
+ */
+export const RehireEmployeeParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const RehireEmployeeResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeNumber": zod.string().nullish(),
+  "hasProfilePicture": zod.boolean().optional(),
+  "firstName": zod.string(),
+  "middleName": zod.string().nullish(),
+  "lastName": zod.string(),
+  "preferredName": zod.string().nullish(),
+  "gender": zod.union([zod.literal('male'),zod.literal('female'),zod.literal('other'),zod.literal('prefer_not_to_say'),zod.literal(null)]).nullish(),
+  "dateOfBirth": zod.coerce.date().nullish(),
+  "maritalStatus": zod.union([zod.literal('single'),zod.literal('married'),zod.literal('divorced'),zod.literal('widowed'),zod.literal('other'),zod.literal(null)]).nullish(),
+  "nationality": zod.string().nullish(),
+  "nationalId": zod.string().nullish(),
+  "passportNumber": zod.string().nullish(),
+  "personalEmail": zod.string().nullish(),
+  "workEmail": zod.string().nullish(),
+  "phoneNumber": zod.string().nullish(),
+  "alternatePhoneNumber": zod.string().nullish(),
+  "residentialAddress": zod.union([zod.object({
+  "line1": zod.string().nullish(),
+  "line2": zod.string().nullish(),
+  "city": zod.string().nullish(),
+  "state": zod.string().nullish(),
+  "postalCode": zod.string().nullish(),
+  "country": zod.string().nullish()
+}),zod.null()]).optional(),
+  "emergencyContacts": zod.array(zod.object({
+  "name": zod.string(),
+  "relationship": zod.string(),
+  "phone": zod.string()
+})).nullish(),
+  "departmentId": zod.number().nullish(),
+  "departmentName": zod.string().nullish(),
+  "branchId": zod.number().nullish(),
+  "branchName": zod.string().nullish(),
+  "positionId": zod.number().nullish(),
+  "positionName": zod.string().nullish(),
+  "reportingManagerId": zod.number().nullish(),
+  "reportingManagerName": zod.string().nullish(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullish(),
+  "hireDate": zod.coerce.date().nullish(),
+  "probationEndDate": zod.coerce.date().nullish(),
+  "employmentStatus": zod.enum(['active', 'probation', 'on_leave', 'suspended', 'terminated']),
+  "workLocation": zod.string().nullish(),
+  "separationDate": zod.coerce.date().nullish(),
+  "separationReason": zod.string().nullish().describe('Code from the \"separation_reason\" Master Data domain.'),
+  "notes": zod.string().nullish(),
+  "linkedApplicationUserId": zod.number().nullish().describe('Set when this employee record is linked to a login account (see POST\/DELETE ...\/link-user).'),
+  "createdBy": zod.number().nullish(),
+  "updatedBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
 })
 
 

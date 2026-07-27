@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'wouter';
-import { ArrowLeft, Loader2, Mail, Phone, Building, Network, Briefcase, Camera, UserPlus, UserCheck } from 'lucide-react';
+import { ArrowLeft, Loader2, Mail, Phone, Building, Network, Briefcase, Camera, UserPlus, UserCheck, UserX, RotateCcw } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import {
   useGetEmployee,
   getGetEmployeeQueryKey,
@@ -16,8 +17,12 @@ import {
   useUploadEmployeeProfilePicture,
   useLinkEmployeeToUser,
   useUnlinkEmployeeFromUser,
+  useSeparateEmployee,
+  useRehireEmployee,
   useListMembers,
   getListMembersQueryKey,
+  useListMasterDataItems,
+  getListMasterDataItemsQueryKey,
   getRemoveEmployeeProfilePictureUrl,
   useGetMe,
   getGetMeQueryKey,
@@ -96,10 +101,16 @@ export default function EmployeeDetail() {
     query: { queryKey: getListMembersQueryKey(organizationId), enabled: organizationId > 0 },
   });
 
+  const { data: separationReasons } = useListMasterDataItems(organizationId, 'separation_reason', {
+    query: { queryKey: getListMasterDataItemsQueryKey(organizationId, 'separation_reason'), enabled: organizationId > 0 },
+  });
+
   const updateMutation = useUpdateEmployee();
   const uploadMutation = useUploadEmployeeProfilePicture();
   const linkMutation = useLinkEmployeeToUser();
   const unlinkMutation = useUnlinkEmployeeFromUser();
+  const separateMutation = useSeparateEmployee();
+  const rehireMutation = useRehireEmployee();
 
   const [isEditing, setIsEditing] = useState(false);
   const [firstName, setFirstName] = useState('');
@@ -108,6 +119,9 @@ export default function EmployeeDetail() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [status, setStatus] = useState<UpdateEmployeeInputEmploymentStatus>('active');
   const [linkUserId, setLinkUserId] = useState('');
+  const [isSeparateOpen, setIsSeparateOpen] = useState(false);
+  const [separationDate, setSeparationDate] = useState('');
+  const [separationReason, setSeparationReason] = useState('');
 
   const [prevEmployee, setPrevEmployee] = useState(employee);
   if (employee && employee !== prevEmployee) {
@@ -210,6 +224,45 @@ export default function EmployeeDetail() {
     );
   };
 
+  const handleSeparate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!separationDate) return;
+    separateMutation.mutate(
+      { organizationId, employeeId, data: { separationDate, separationReason: separationReason || undefined } },
+      {
+        onSuccess: (updated) => {
+          queryClient.setQueryData(getGetEmployeeQueryKey(organizationId, employeeId), updated);
+          setIsSeparateOpen(false);
+          setSeparationDate('');
+          setSeparationReason('');
+          toast({ title: 'Employee separated' });
+        },
+        onError: (err) => {
+          const message =
+            err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
+          toast({ title: 'Could not separate employee', description: message ?? 'Please try again.', variant: 'destructive' });
+        },
+      },
+    );
+  };
+
+  const handleRehire = () => {
+    rehireMutation.mutate(
+      { organizationId, employeeId },
+      {
+        onSuccess: (updated) => {
+          queryClient.setQueryData(getGetEmployeeQueryKey(organizationId, employeeId), updated);
+          toast({ title: 'Employee rehired' });
+        },
+        onError: (err) => {
+          const message =
+            err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
+          toast({ title: 'Could not rehire employee', description: message ?? 'Please try again.', variant: 'destructive' });
+        },
+      },
+    );
+  };
+
   if (isLoading) {
     return (
       <div className="p-6 lg:p-8 space-y-8">
@@ -288,6 +341,88 @@ export default function EmployeeDetail() {
               <Badge variant="secondary" className="capitalize">
                 {employee.employmentStatus.replace('_', ' ')}
               </Badge>
+              {employee.employmentStatus === 'terminated' ? (
+                <div className="space-y-1 text-center">
+                  {employee.separationDate && (
+                    <p className="text-xs text-muted-foreground">
+                      Separated {new Date(employee.separationDate).toLocaleDateString()}
+                      {employee.separationReason ? ` · ${employee.separationReason}` : ''}
+                    </p>
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRehire}
+                    disabled={rehireMutation.isPending}
+                    data-testid="button-rehire-employee"
+                  >
+                    <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Rehire
+                  </Button>
+                </div>
+              ) : (
+                <Dialog open={isSeparateOpen} onOpenChange={setIsSeparateOpen}>
+                  <DialogTrigger asChild>
+                    <Button type="button" variant="outline" size="sm" data-testid="button-separate-employee">
+                      <UserX className="mr-2 h-4 w-4" aria-hidden="true" />
+                      Separate
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <form onSubmit={handleSeparate}>
+                      <DialogHeader>
+                        <DialogTitle>Separate Employee</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="separation-date">Separation Date *</Label>
+                          <Input
+                            id="separation-date"
+                            type="date"
+                            value={separationDate}
+                            onChange={(e) => setSeparationDate(e.target.value)}
+                            required
+                            data-testid="input-separation-date"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="separation-reason">Reason</Label>
+                          <Select value={separationReason} onValueChange={setSeparationReason}>
+                            <SelectTrigger id="separation-reason" data-testid="select-separation-reason">
+                              <SelectValue placeholder="Choose a reason" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(separationReasons ?? []).map((item) => (
+                                <SelectItem key={item.code} value={item.code}>
+                                  {item.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button
+                          type="submit"
+                          variant="destructive"
+                          disabled={separateMutation.isPending || !separationDate}
+                          data-testid="button-confirm-separate"
+                        >
+                          {separateMutation.isPending ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                              Separating…
+                            </>
+                          ) : (
+                            'Confirm Separation'
+                          )}
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              )}
             </div>
 
             <div className="pt-4 border-t border-border space-y-3">

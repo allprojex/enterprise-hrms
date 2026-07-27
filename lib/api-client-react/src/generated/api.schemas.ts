@@ -434,6 +434,13 @@ export interface Employee {
   /** @nullable */
   workLocation?: string | null;
   /** @nullable */
+  separationDate?: string | null;
+  /**
+     * Code from the "separation_reason" Master Data domain.
+     * @nullable
+     */
+  separationReason?: string | null;
+  /** @nullable */
   notes?: string | null;
   /**
      * Set when this employee record is linked to a login account (see POST/DELETE .../link-user).
@@ -671,6 +678,12 @@ export interface EmployeeListResponse {
 
 export interface LinkEmployeeUserInput {
   applicationUserId: number;
+}
+
+export interface SeparateEmployeeInput {
+  separationDate: string;
+  /** Code from the "separation_reason" Master Data domain. */
+  separationReason?: string;
 }
 
 export type NotificationType = typeof NotificationType[keyof typeof NotificationType];

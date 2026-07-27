@@ -75,6 +75,15 @@ export const employeesTable = pgTable(
     probationEndDate: timestamp("probation_end_date", { withTimezone: true }),
     employmentStatus: employmentStatusEnum("employment_status").notNull().default("active"),
     workLocation: text("work_location"),
+    // Set together by separate/rehire (lib/employees.ts) — never edited via
+    // the general update path. Cleared on rehire; the prior stint's values
+    // live on in audit_events, not on this row (ADR-013: never hard-delete,
+    // rehiring starts a new employment period, history is preserved via the
+    // audit trail rather than a separate employment-periods table).
+    separationDate: timestamp("separation_date", { withTimezone: true }),
+    // Free-text code from the "separation_reason" Master Data domain (W7) —
+    // not a hardcoded enum, since that domain is organization-overridable.
+    separationReason: text("separation_reason"),
 
     // Permission-gated free text — see employee.notes.read
     notes: text("notes"),

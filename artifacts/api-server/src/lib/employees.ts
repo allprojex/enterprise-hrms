@@ -1,6 +1,28 @@
 import { and, eq, ilike, or, count, desc, type SQL } from "drizzle-orm";
 import { db, employeesTable, departmentsTable, branchesTable, positionsTable } from "@workspace/db";
 import { assertBelongsToOrganization } from "./orgScopedRefs";
+import { recordAuditEvent } from "./auditLog";
+
+export class EmployeeNotFoundError extends Error {
+  constructor() {
+    super("Employee not found");
+    this.name = "EmployeeNotFoundError";
+  }
+}
+
+export class EmployeeAlreadySeparatedError extends Error {
+  constructor() {
+    super("Employee is already separated");
+    this.name = "EmployeeAlreadySeparatedError";
+  }
+}
+
+export class EmployeeNotSeparatedError extends Error {
+  constructor() {
+    super("Employee is not currently separated");
+    this.name = "EmployeeNotSeparatedError";
+  }
+}
 
 /**
  * Every FK an employee record can point at (department, branch, position,
@@ -94,4 +116,83 @@ export async function getEmployeeById(organizationId: number, employeeId: number
     .where(and(eq(employeesTable.id, employeeId), eq(employeesTable.organizationId, organizationId)))
     .limit(1);
   return row ?? null;
+}
+
+/**
+ * Separation (W15, ADR-013): the employee record is never deleted, only
+ * marked terminated with a date/reason. Rehiring later starts a new
+ * employment period on the same record — the prior separation's details
+ * are preserved in the audit event's beforeState, not overwritten in place.
+ */
+export async function separateEmployee(params: {
+  organizationId: number;
+  employeeId: number;
+  separationDate: Date;
+  separationReason?: string | null;
+  actorApplicationUserId: number;
+  actorMembershipId: number;
+}) {
+  const before = await getEmployeeById(params.organizationId, params.employeeId);
+  if (!before) throw new EmployeeNotFoundError();
+  if (before.employmentStatus === "terminated") throw new EmployeeAlreadySeparatedError();
+
+  const [updated] = await db
+    .update(employeesTable)
+    .set({
+      employmentStatus: "terminated",
+      separationDate: params.separationDate,
+      separationReason: params.separationReason ?? null,
+      updatedBy: params.actorApplicationUserId,
+    })
+    .where(eq(employeesTable.id, params.employeeId))
+    .returning();
+
+  await recordAuditEvent({
+    actorApplicationUserId: params.actorApplicationUserId,
+    actorMembershipId: params.actorMembershipId,
+    organizationId: params.organizationId,
+    eventType: "employee.separated",
+    targetType: "employee",
+    targetId: String(params.employeeId),
+    beforeState: { employmentStatus: before.employmentStatus, separationDate: before.separationDate, separationReason: before.separationReason },
+    afterState: { employmentStatus: updated.employmentStatus, separationDate: updated.separationDate, separationReason: updated.separationReason },
+  });
+
+  return updated;
+}
+
+/** Rehire: starts a new employment period on the same record. Clears the prior separation fields — their values remain in the audit trail. */
+export async function rehireEmployee(params: {
+  organizationId: number;
+  employeeId: number;
+  actorApplicationUserId: number;
+  actorMembershipId: number;
+}) {
+  const before = await getEmployeeById(params.organizationId, params.employeeId);
+  if (!before) throw new EmployeeNotFoundError();
+  if (before.employmentStatus !== "terminated") throw new EmployeeNotSeparatedError();
+
+  const [updated] = await db
+    .update(employeesTable)
+    .set({
+      employmentStatus: "active",
+      separationDate: null,
+      separationReason: null,
+      updatedBy: params.actorApplicationUserId,
+    })
+    .where(eq(employeesTable.id, params.employeeId))
+    .returning();
+
+  await recordAuditEvent({
+    actorApplicationUserId: params.actorApplicationUserId,
+    actorMembershipId: params.actorMembershipId,
+    organizationId: params.organizationId,
+    eventType: "employee.rehired",
+    targetType: "employee",
+    targetId: String(params.employeeId),
+    beforeState: { employmentStatus: before.employmentStatus, separationDate: before.separationDate, separationReason: before.separationReason },
+    afterState: { employmentStatus: updated.employmentStatus },
+  });
+
+  return updated;
 }
