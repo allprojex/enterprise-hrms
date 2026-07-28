@@ -18,6 +18,7 @@ import {
   SeparateEmployeeBody,
   TransferEmployeeBody,
   PromoteEmployeeBody,
+  ConfirmEmployeeBody,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireMembership, type MembershipRequest } from "../middlewares/requireMembership";
@@ -34,11 +35,13 @@ import {
   rehireEmployee,
   transferEmployee,
   promoteEmployee,
+  confirmEmployee,
   EmployeeNotFoundError,
   EmployeeAlreadySeparatedError,
   EmployeeNotSeparatedError,
   EmployeeTransferNoChangeError,
   EmployeePromotionNoChangeError,
+  EmployeeNotOnProbationError,
 } from "../lib/employees";
 import { recordAuditEvent } from "../lib/auditLog";
 import { validateImageUpload, processAvatarImage, InvalidImageError } from "../lib/imageProcessing";
@@ -748,6 +751,51 @@ router.post(
         return;
       }
       if (err instanceof CrossOrganizationReferenceError) {
+        res.status(400).json({ error: err.message });
+        return;
+      }
+      throw err;
+    }
+  },
+);
+
+// POST /organizations/:organizationId/employees/:employeeId/confirm
+router.post(
+  "/organizations/:organizationId/employees/:employeeId/confirm",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requirePermission("employee.write"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const employeeIdRaw = Array.isArray(req.params.employeeId) ? req.params.employeeId[0] : req.params.employeeId;
+    const employeeId = parseInt(employeeIdRaw, 10);
+    if (isNaN(employeeId)) {
+      res.status(400).json({ error: "Invalid employee ID" });
+      return;
+    }
+
+    const parsed = ConfirmEmployeeBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+
+    try {
+      const updated = await confirmEmployee({
+        organizationId: req.membership!.organizationId,
+        employeeId,
+        effectiveDate: parsed.data.effectiveDate,
+        actorApplicationUserId: req.userId!,
+        actorMembershipId: req.membership!.id,
+      });
+      const labels = await resolveEmployeeLabels([updated]);
+      const canReadNotes = await hasPermission(req.membership!.id, "employee.notes.read");
+      res.json(formatEmployee(updated, labels, canReadNotes));
+    } catch (err) {
+      if (err instanceof EmployeeNotFoundError) {
+        res.status(404).json({ error: err.message });
+        return;
+      }
+      if (err instanceof EmployeeNotOnProbationError) {
         res.status(400).json({ error: err.message });
         return;
       }

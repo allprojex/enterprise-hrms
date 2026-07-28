@@ -942,6 +942,52 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/employees/{employeeId}/confirm:
+    post:
+      operationId: confirmEmployee
+      tags: [employees]
+      summary: Confirm an employee off probation
+      description: >-
+        Formalizes the existing employmentStatus "probation" -> "active"
+        transition into an audited, dated employment_periods event (W22).
+        Rejected if the employee is not currently on probation.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfirmEmployeeInput"
+      responses:
+        "200":
+          description: Employee confirmed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "400":
+          description: Employee is not currently on probation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /organizations/{organizationId}/employees/{employeeId}/documents:
     get:
       operationId: listEmployeeDocuments
@@ -3637,6 +3683,14 @@ components:
       properties:
         positionId:
           type: integer
+        effectiveDate:
+          type: string
+          format: date-time
+
+    ConfirmEmployeeInput:
+      type: object
+      required: [effectiveDate]
+      properties:
         effectiveDate:
           type: string
           format: date-time

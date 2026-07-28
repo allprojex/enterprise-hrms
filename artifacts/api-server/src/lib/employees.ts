@@ -39,6 +39,13 @@ export class EmployeePromotionNoChangeError extends Error {
   }
 }
 
+export class EmployeeNotOnProbationError extends Error {
+  constructor() {
+    super("Employee is not currently on probation");
+    this.name = "EmployeeNotOnProbationError";
+  }
+}
+
 /**
  * Every FK an employee record can point at (department, branch, position,
  * reporting manager) must be independently verified to belong to the same
@@ -310,6 +317,44 @@ export async function promoteEmployee(params: {
     effectiveDate: params.effectiveDate,
     previousState: { positionId: before.positionId },
     newState: { positionId: updated.positionId },
+    actorApplicationUserId: params.actorApplicationUserId,
+    actorMembershipId: params.actorMembershipId,
+  });
+
+  return updated;
+}
+
+/**
+ * Confirmation (Phase 2A, W27): formalizes the existing
+ * employmentStatus "probation" -> "active" transition (the field and enum
+ * value already exist on `employees`, W1) into an audited, permission-gated,
+ * dated action — mirroring separateEmployee/rehireEmployee's shape. History
+ * preserved via W22's `employment_periods`, never overwritten.
+ */
+export async function confirmEmployee(params: {
+  organizationId: number;
+  employeeId: number;
+  effectiveDate: Date;
+  actorApplicationUserId: number;
+  actorMembershipId: number;
+}) {
+  const before = await getEmployeeById(params.organizationId, params.employeeId);
+  if (!before) throw new EmployeeNotFoundError();
+  if (before.employmentStatus !== "probation") throw new EmployeeNotOnProbationError();
+
+  const [updated] = await db
+    .update(employeesTable)
+    .set({ employmentStatus: "active", updatedBy: params.actorApplicationUserId })
+    .where(eq(employeesTable.id, params.employeeId))
+    .returning();
+
+  await recordEmploymentPeriodEvent({
+    organizationId: params.organizationId,
+    employeeId: params.employeeId,
+    eventType: "confirmation",
+    effectiveDate: params.effectiveDate,
+    previousState: { employmentStatus: before.employmentStatus },
+    newState: { employmentStatus: updated.employmentStatus },
     actorApplicationUserId: params.actorApplicationUserId,
     actorMembershipId: params.actorMembershipId,
   });

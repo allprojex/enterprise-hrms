@@ -655,3 +655,76 @@ describe("POST /api/organizations/:organizationId/employees/:employeeId/promote"
     expect((auditInsert!.values as Record<string, unknown>).eventType).toBe("employment_period.promotion");
   });
 });
+
+describe("POST /api/organizations/:organizationId/employees/:employeeId/confirm", () => {
+  beforeEach(() => {
+    fixtures.sessionRows = [];
+    fixtures.membershipRows = [];
+    fixtures.membershipRoleRows = [];
+    fixtures.permissionRows = [];
+    fixtures.employeeRows = [];
+    fixtures.inserted = [];
+  });
+
+  it("returns 403 when the membership's role lacks employee.write", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.read"]);
+    fixtures.employeeRows = [{ id: 42, firstName: "Ada", lastName: "Lovelace", employmentStatus: "probation" }];
+
+    const res = await request(app)
+      .post("/api/organizations/10/employees/42/confirm")
+      .set("Authorization", "Bearer valid-token")
+      .send({ effectiveDate: "2026-01-01" });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 404 when the employee does not exist", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.write"]);
+    fixtures.employeeRows = [];
+
+    const res = await request(app)
+      .post("/api/organizations/10/employees/42/confirm")
+      .set("Authorization", "Bearer valid-token")
+      .send({ effectiveDate: "2026-01-01" });
+
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 400 when the employee is not currently on probation", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.write"]);
+    fixtures.employeeRows = [{ id: 42, firstName: "Ada", lastName: "Lovelace", employmentStatus: "active" }];
+
+    const res = await request(app)
+      .post("/api/organizations/10/employees/42/confirm")
+      .set("Authorization", "Bearer valid-token")
+      .send({ effectiveDate: "2026-01-01" });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("confirms the employee, records an employment_periods event, and audit-logs it", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.write", "employee.notes.read"]);
+    fixtures.employeeRows = [
+      { id: 42, organizationId: 10, firstName: "Ada", lastName: "Lovelace", employmentStatus: "probation" },
+    ];
+
+    const res = await request(app)
+      .post("/api/organizations/10/employees/42/confirm")
+      .set("Authorization", "Bearer valid-token")
+      .send({ effectiveDate: "2026-01-01" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.employmentStatus).toBe("active");
+    expect(fixtures.inserted.find((i) => i.table === "employment_periods")).toBeDefined();
+    const auditInsert = fixtures.inserted.find((i) => i.table === "audit_events");
+    expect((auditInsert!.values as Record<string, unknown>).eventType).toBe("employment_period.confirmation");
+  });
+});

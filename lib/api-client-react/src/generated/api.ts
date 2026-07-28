@@ -30,6 +30,7 @@ import type {
   AuditEventListResponse,
   AuthSession,
   Branch,
+  ConfirmEmployeeInput,
   CopyRoleTemplateInput,
   CreateBranchInput,
   CreateDepartmentInput,
@@ -2229,6 +2230,81 @@ export const usePromoteEmployee = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getPromoteEmployeeMutationOptions(options));
+    }
+
+export const getConfirmEmployeeUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/confirm`
+}
+
+/**
+ * Formalizes the existing employmentStatus "probation" -> "active" transition into an audited, dated employment_periods event (W22). Rejected if the employee is not currently on probation.
+ * @summary Confirm an employee off probation
+ */
+export const confirmEmployee = async (organizationId: number,
+    employeeId: number,
+    confirmEmployeeInput: ConfirmEmployeeInput, options?: RequestInit): Promise<Employee> => {
+
+  return customFetch<Employee>(getConfirmEmployeeUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(confirmEmployeeInput)
+  }
+);}
+
+
+
+
+
+export const getConfirmEmployeeMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmEmployee>>, TError,{organizationId: number;employeeId: number;data: BodyType<ConfirmEmployeeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof confirmEmployee>>, TError,{organizationId: number;employeeId: number;data: BodyType<ConfirmEmployeeInput>}, TContext> => {
+
+const mutationKey = ['confirmEmployee'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof confirmEmployee>>, {organizationId: number;employeeId: number;data: BodyType<ConfirmEmployeeInput>}> = (props) => {
+          const {organizationId,employeeId,data} = props ?? {};
+
+          return  confirmEmployee(organizationId,employeeId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConfirmEmployeeMutationResult = NonNullable<Awaited<ReturnType<typeof confirmEmployee>>>
+    export type ConfirmEmployeeMutationBody = BodyType<ConfirmEmployeeInput>
+    export type ConfirmEmployeeMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Confirm an employee off probation
+ */
+export const useConfirmEmployee = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmEmployee>>, TError,{organizationId: number;employeeId: number;data: BodyType<ConfirmEmployeeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof confirmEmployee>>,
+        TError,
+        {organizationId: number;employeeId: number;data: BodyType<ConfirmEmployeeInput>},
+        TContext
+      > => {
+      return useMutation(getConfirmEmployeeMutationOptions(options));
     }
 
 export const getListEmployeeDocumentsUrl = (organizationId: number,

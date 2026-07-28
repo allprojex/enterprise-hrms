@@ -701,6 +701,10 @@ export interface PromoteEmployeeInput {
   effectiveDate: string;
 }
 
+export interface ConfirmEmployeeInput {
+  effectiveDate: string;
+}
+
 export interface EmployeeDocument {
   id: number;
   organizationId: number;

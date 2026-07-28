@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'wouter';
-import { ArrowLeft, Loader2, Mail, Phone, Building, Network, Briefcase, Camera, UserPlus, UserCheck, UserX, RotateCcw, FileText, Upload, Trash2, Award, GraduationCap, Sparkles, Plus, ArrowLeftRight, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Loader2, Mail, Phone, Building, Network, Briefcase, Camera, UserPlus, UserCheck, UserX, RotateCcw, FileText, Upload, Trash2, Award, GraduationCap, Sparkles, Plus, ArrowLeftRight, TrendingUp, BadgeCheck } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,6 +44,7 @@ import {
   useRemoveEmployeeCertification,
   useTransferEmployee,
   usePromoteEmployee,
+  useConfirmEmployee,
   useListDepartments,
   getListDepartmentsQueryKey,
   useListBranches,
@@ -186,6 +187,7 @@ export default function EmployeeDetail() {
   const removeCertificationMutation = useRemoveEmployeeCertification();
   const transferMutation = useTransferEmployee();
   const promoteMutation = usePromoteEmployee();
+  const confirmMutation = useConfirmEmployee();
 
   const [isEditing, setIsEditing] = useState(false);
   const [firstName, setFirstName] = useState('');
@@ -213,6 +215,8 @@ export default function EmployeeDetail() {
   const [isPromoteOpen, setIsPromoteOpen] = useState(false);
   const [promoteEffectiveDate, setPromoteEffectiveDate] = useState('');
   const [promotePositionId, setPromotePositionId] = useState('');
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [confirmEffectiveDate, setConfirmEffectiveDate] = useState('');
 
   const [prevEmployee, setPrevEmployee] = useState(employee);
   if (employee && employee !== prevEmployee) {
@@ -408,6 +412,27 @@ export default function EmployeeDetail() {
           const message =
             err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
           toast({ title: 'Could not promote employee', description: message ?? 'Please try again.', variant: 'destructive' });
+        },
+      },
+    );
+  };
+
+  const handleConfirm = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!confirmEffectiveDate) return;
+    confirmMutation.mutate(
+      { organizationId, employeeId, data: { effectiveDate: confirmEffectiveDate } },
+      {
+        onSuccess: (updated) => {
+          queryClient.setQueryData(getGetEmployeeQueryKey(organizationId, employeeId), updated);
+          setIsConfirmOpen(false);
+          setConfirmEffectiveDate('');
+          toast({ title: 'Employee confirmed' });
+        },
+        onError: (err) => {
+          const message =
+            err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
+          toast({ title: 'Could not confirm employee', description: message ?? 'Please try again.', variant: 'destructive' });
         },
       },
     );
@@ -805,6 +830,53 @@ export default function EmployeeDetail() {
                       </form>
                     </DialogContent>
                   </Dialog>
+
+                  {employee.employmentStatus === 'probation' && (
+                    <Dialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+                      <DialogTrigger asChild>
+                        <Button type="button" variant="outline" size="sm" data-testid="button-confirm-employee-probation">
+                          <BadgeCheck className="mr-2 h-4 w-4" aria-hidden="true" />
+                          Confirm
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <form onSubmit={handleConfirm}>
+                          <DialogHeader>
+                            <DialogTitle>Confirm Employee</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4 py-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="confirm-effective-date">Effective Date *</Label>
+                              <Input
+                                id="confirm-effective-date"
+                                type="date"
+                                value={confirmEffectiveDate}
+                                onChange={(e) => setConfirmEffectiveDate(e.target.value)}
+                                required
+                                data-testid="input-confirm-effective-date"
+                              />
+                            </div>
+                          </div>
+                          <DialogFooter>
+                            <Button
+                              type="submit"
+                              disabled={confirmMutation.isPending || !confirmEffectiveDate}
+                              data-testid="button-confirm-confirmation"
+                            >
+                              {confirmMutation.isPending ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                                  Confirming…
+                                </>
+                              ) : (
+                                'Confirm Employee'
+                              )}
+                            </Button>
+                          </DialogFooter>
+                        </form>
+                      </DialogContent>
+                    </Dialog>
+                  )}
 
                   <Dialog open={isSeparateOpen} onOpenChange={setIsSeparateOpen}>
                     <DialogTrigger asChild>
