@@ -701,6 +701,110 @@ export interface EmployeeDocument {
   createdAt: string;
 }
 
+export interface EmployeeSkill {
+  id: number;
+  organizationId: number;
+  employeeId: number;
+  /** Code from the "skill" Master Data domain. */
+  skillCode: string;
+  /** @nullable */
+  proficiencyLevel?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AddEmployeeSkillInput {
+  skillCode: string;
+  proficiencyLevel?: string;
+}
+
+export interface UpdateEmployeeSkillInput {
+  skillCode?: string;
+  /** @nullable */
+  proficiencyLevel?: string | null;
+}
+
+export interface EmployeeQualification {
+  id: number;
+  organizationId: number;
+  employeeId: number;
+  /** Code from the "qualification_type" Master Data domain. */
+  qualificationTypeCode: string;
+  /** @nullable */
+  institution?: string | null;
+  /** @nullable */
+  fieldOfStudy?: string | null;
+  /** @nullable */
+  startDate?: string | null;
+  /** @nullable */
+  endDate?: string | null;
+  /** @nullable */
+  grade?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AddEmployeeQualificationInput {
+  qualificationTypeCode: string;
+  institution?: string;
+  fieldOfStudy?: string;
+  startDate?: string;
+  endDate?: string;
+  grade?: string;
+}
+
+export interface UpdateEmployeeQualificationInput {
+  qualificationTypeCode?: string;
+  /** @nullable */
+  institution?: string | null;
+  /** @nullable */
+  fieldOfStudy?: string | null;
+  /** @nullable */
+  startDate?: string | null;
+  /** @nullable */
+  endDate?: string | null;
+  /** @nullable */
+  grade?: string | null;
+}
+
+export interface EmployeeCertification {
+  id: number;
+  organizationId: number;
+  employeeId: number;
+  /** Code from the "certification_type" Master Data domain. */
+  certificationTypeCode: string;
+  /** @nullable */
+  issuingOrganization?: string | null;
+  /** @nullable */
+  issueDate?: string | null;
+  /** @nullable */
+  expiryDate?: string | null;
+  /** @nullable */
+  credentialId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AddEmployeeCertificationInput {
+  certificationTypeCode: string;
+  issuingOrganization?: string;
+  issueDate?: string;
+  expiryDate?: string;
+  credentialId?: string;
+}
+
+export interface UpdateEmployeeCertificationInput {
+  certificationTypeCode?: string;
+  /** @nullable */
+  issuingOrganization?: string | null;
+  /** @nullable */
+  issueDate?: string | null;
+  /** @nullable */
+  expiryDate?: string | null;
+  /** @nullable */
+  credentialId?: string | null;
+}
+
 export type NotificationType = typeof NotificationType[keyof typeof NotificationType];
 
 

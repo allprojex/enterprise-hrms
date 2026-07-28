@@ -1050,6 +1050,290 @@ export const RemoveEmployeeDocumentResponse = zod.object({
 
 
 /**
+ * @summary List an employee's skills
+ */
+export const ListEmployeeSkillsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const ListEmployeeSkillsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "skillCode": zod.string().describe('Code from the \"skill\" Master Data domain.'),
+  "proficiencyLevel": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListEmployeeSkillsResponse = zod.array(ListEmployeeSkillsResponseItem)
+
+
+/**
+ * @summary Add a skill to an employee
+ */
+export const AddEmployeeSkillParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const AddEmployeeSkillBody = zod.object({
+  "skillCode": zod.string(),
+  "proficiencyLevel": zod.string().optional()
+})
+
+export const AddEmployeeSkillResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "skillCode": zod.string().describe('Code from the \"skill\" Master Data domain.'),
+  "proficiencyLevel": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update an employee's skill
+ */
+export const UpdateEmployeeSkillParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number(),
+  "skillId": zod.coerce.number()
+})
+
+export const UpdateEmployeeSkillBody = zod.object({
+  "skillCode": zod.string().optional(),
+  "proficiencyLevel": zod.string().nullish()
+})
+
+export const UpdateEmployeeSkillResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "skillCode": zod.string().describe('Code from the \"skill\" Master Data domain.'),
+  "proficiencyLevel": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Remove an employee's skill
+ */
+export const RemoveEmployeeSkillParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number(),
+  "skillId": zod.coerce.number()
+})
+
+export const RemoveEmployeeSkillResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary List an employee's qualifications
+ */
+export const ListEmployeeQualificationsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const ListEmployeeQualificationsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "qualificationTypeCode": zod.string().describe('Code from the \"qualification_type\" Master Data domain.'),
+  "institution": zod.string().nullish(),
+  "fieldOfStudy": zod.string().nullish(),
+  "startDate": zod.coerce.date().nullish(),
+  "endDate": zod.coerce.date().nullish(),
+  "grade": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListEmployeeQualificationsResponse = zod.array(ListEmployeeQualificationsResponseItem)
+
+
+/**
+ * @summary Add a qualification to an employee
+ */
+export const AddEmployeeQualificationParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const AddEmployeeQualificationBody = zod.object({
+  "qualificationTypeCode": zod.string(),
+  "institution": zod.string().optional(),
+  "fieldOfStudy": zod.string().optional(),
+  "startDate": zod.coerce.date().optional(),
+  "endDate": zod.coerce.date().optional(),
+  "grade": zod.string().optional()
+})
+
+export const AddEmployeeQualificationResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "qualificationTypeCode": zod.string().describe('Code from the \"qualification_type\" Master Data domain.'),
+  "institution": zod.string().nullish(),
+  "fieldOfStudy": zod.string().nullish(),
+  "startDate": zod.coerce.date().nullish(),
+  "endDate": zod.coerce.date().nullish(),
+  "grade": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update an employee's qualification
+ */
+export const UpdateEmployeeQualificationParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number(),
+  "qualificationId": zod.coerce.number()
+})
+
+export const UpdateEmployeeQualificationBody = zod.object({
+  "qualificationTypeCode": zod.string().optional(),
+  "institution": zod.string().nullish(),
+  "fieldOfStudy": zod.string().nullish(),
+  "startDate": zod.coerce.date().nullish(),
+  "endDate": zod.coerce.date().nullish(),
+  "grade": zod.string().nullish()
+})
+
+export const UpdateEmployeeQualificationResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "qualificationTypeCode": zod.string().describe('Code from the \"qualification_type\" Master Data domain.'),
+  "institution": zod.string().nullish(),
+  "fieldOfStudy": zod.string().nullish(),
+  "startDate": zod.coerce.date().nullish(),
+  "endDate": zod.coerce.date().nullish(),
+  "grade": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Remove an employee's qualification
+ */
+export const RemoveEmployeeQualificationParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number(),
+  "qualificationId": zod.coerce.number()
+})
+
+export const RemoveEmployeeQualificationResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary List an employee's certifications
+ */
+export const ListEmployeeCertificationsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const ListEmployeeCertificationsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "certificationTypeCode": zod.string().describe('Code from the \"certification_type\" Master Data domain.'),
+  "issuingOrganization": zod.string().nullish(),
+  "issueDate": zod.coerce.date().nullish(),
+  "expiryDate": zod.coerce.date().nullish(),
+  "credentialId": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListEmployeeCertificationsResponse = zod.array(ListEmployeeCertificationsResponseItem)
+
+
+/**
+ * @summary Add a certification to an employee
+ */
+export const AddEmployeeCertificationParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const AddEmployeeCertificationBody = zod.object({
+  "certificationTypeCode": zod.string(),
+  "issuingOrganization": zod.string().optional(),
+  "issueDate": zod.coerce.date().optional(),
+  "expiryDate": zod.coerce.date().optional(),
+  "credentialId": zod.string().optional()
+})
+
+export const AddEmployeeCertificationResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "certificationTypeCode": zod.string().describe('Code from the \"certification_type\" Master Data domain.'),
+  "issuingOrganization": zod.string().nullish(),
+  "issueDate": zod.coerce.date().nullish(),
+  "expiryDate": zod.coerce.date().nullish(),
+  "credentialId": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update an employee's certification
+ */
+export const UpdateEmployeeCertificationParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number(),
+  "certificationId": zod.coerce.number()
+})
+
+export const UpdateEmployeeCertificationBody = zod.object({
+  "certificationTypeCode": zod.string().optional(),
+  "issuingOrganization": zod.string().nullish(),
+  "issueDate": zod.coerce.date().nullish(),
+  "expiryDate": zod.coerce.date().nullish(),
+  "credentialId": zod.string().nullish()
+})
+
+export const UpdateEmployeeCertificationResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "certificationTypeCode": zod.string().describe('Code from the \"certification_type\" Master Data domain.'),
+  "issuingOrganization": zod.string().nullish(),
+  "issueDate": zod.coerce.date().nullish(),
+  "expiryDate": zod.coerce.date().nullish(),
+  "credentialId": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Remove an employee's certification
+ */
+export const RemoveEmployeeCertificationParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number(),
+  "certificationId": zod.coerce.number()
+})
+
+export const RemoveEmployeeCertificationResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
  * @summary List branches
  */
 export const ListBranchesParams = zod.object({

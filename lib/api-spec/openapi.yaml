@@ -969,6 +969,426 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/employees/{employeeId}/skills:
+    get:
+      operationId: listEmployeeSkills
+      tags: [employees]
+      summary: List an employee's skills
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Skills for the employee
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmployeeSkill"
+        "404":
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: addEmployeeSkill
+      tags: [employees]
+      summary: Add a skill to an employee
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddEmployeeSkillInput"
+      responses:
+        "201":
+          description: Skill added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeSkill"
+        "404":
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}/skills/{skillId}:
+    patch:
+      operationId: updateEmployeeSkill
+      tags: [employees]
+      summary: Update an employee's skill
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: skillId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEmployeeSkillInput"
+      responses:
+        "200":
+          description: Skill updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeSkill"
+        "404":
+          description: Employee or skill not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    delete:
+      operationId: removeEmployeeSkill
+      tags: [employees]
+      summary: Remove an employee's skill
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: skillId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Skill removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "404":
+          description: Employee or skill not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}/qualifications:
+    get:
+      operationId: listEmployeeQualifications
+      tags: [employees]
+      summary: List an employee's qualifications
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Qualifications for the employee
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmployeeQualification"
+        "404":
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: addEmployeeQualification
+      tags: [employees]
+      summary: Add a qualification to an employee
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddEmployeeQualificationInput"
+      responses:
+        "201":
+          description: Qualification added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeQualification"
+        "404":
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}/qualifications/{qualificationId}:
+    patch:
+      operationId: updateEmployeeQualification
+      tags: [employees]
+      summary: Update an employee's qualification
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: qualificationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEmployeeQualificationInput"
+      responses:
+        "200":
+          description: Qualification updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeQualification"
+        "404":
+          description: Employee or qualification not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    delete:
+      operationId: removeEmployeeQualification
+      tags: [employees]
+      summary: Remove an employee's qualification
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: qualificationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Qualification removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "404":
+          description: Employee or qualification not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}/certifications:
+    get:
+      operationId: listEmployeeCertifications
+      tags: [employees]
+      summary: List an employee's certifications
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Certifications for the employee
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmployeeCertification"
+        "404":
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: addEmployeeCertification
+      tags: [employees]
+      summary: Add a certification to an employee
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddEmployeeCertificationInput"
+      responses:
+        "201":
+          description: Certification added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeCertification"
+        "404":
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}/certifications/{certificationId}:
+    patch:
+      operationId: updateEmployeeCertification
+      tags: [employees]
+      summary: Update an employee's certification
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: certificationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEmployeeCertificationInput"
+      responses:
+        "200":
+          description: Certification updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeCertification"
+        "404":
+          description: Employee or certification not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    delete:
+      operationId: removeEmployeeCertification
+      tags: [employees]
+      summary: Remove an employee's certification
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: certificationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Certification removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "404":
+          description: Employee or certification not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /organizations/{organizationId}/branches:
     get:
       operationId: listBranches
@@ -3128,6 +3548,177 @@ components:
         createdAt:
           type: string
           format: date-time
+
+    EmployeeSkill:
+      type: object
+      required: [id, organizationId, employeeId, skillCode, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        employeeId:
+          type: integer
+        skillCode:
+          type: string
+          description: Code from the "skill" Master Data domain.
+        proficiencyLevel:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AddEmployeeSkillInput:
+      type: object
+      required: [skillCode]
+      properties:
+        skillCode:
+          type: string
+        proficiencyLevel:
+          type: string
+
+    UpdateEmployeeSkillInput:
+      type: object
+      properties:
+        skillCode:
+          type: string
+        proficiencyLevel:
+          type: ["string", "null"]
+
+    EmployeeQualification:
+      type: object
+      required: [id, organizationId, employeeId, qualificationTypeCode, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        employeeId:
+          type: integer
+        qualificationTypeCode:
+          type: string
+          description: Code from the "qualification_type" Master Data domain.
+        institution:
+          type: ["string", "null"]
+        fieldOfStudy:
+          type: ["string", "null"]
+        startDate:
+          type: ["string", "null"]
+          format: date-time
+        endDate:
+          type: ["string", "null"]
+          format: date-time
+        grade:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AddEmployeeQualificationInput:
+      type: object
+      required: [qualificationTypeCode]
+      properties:
+        qualificationTypeCode:
+          type: string
+        institution:
+          type: string
+        fieldOfStudy:
+          type: string
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
+        grade:
+          type: string
+
+    UpdateEmployeeQualificationInput:
+      type: object
+      properties:
+        qualificationTypeCode:
+          type: string
+        institution:
+          type: ["string", "null"]
+        fieldOfStudy:
+          type: ["string", "null"]
+        startDate:
+          type: ["string", "null"]
+          format: date-time
+        endDate:
+          type: ["string", "null"]
+          format: date-time
+        grade:
+          type: ["string", "null"]
+
+    EmployeeCertification:
+      type: object
+      required: [id, organizationId, employeeId, certificationTypeCode, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        employeeId:
+          type: integer
+        certificationTypeCode:
+          type: string
+          description: Code from the "certification_type" Master Data domain.
+        issuingOrganization:
+          type: ["string", "null"]
+        issueDate:
+          type: ["string", "null"]
+          format: date-time
+        expiryDate:
+          type: ["string", "null"]
+          format: date-time
+        credentialId:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AddEmployeeCertificationInput:
+      type: object
+      required: [certificationTypeCode]
+      properties:
+        certificationTypeCode:
+          type: string
+        issuingOrganization:
+          type: string
+        issueDate:
+          type: string
+          format: date-time
+        expiryDate:
+          type: string
+          format: date-time
+        credentialId:
+          type: string
+
+    UpdateEmployeeCertificationInput:
+      type: object
+      properties:
+        certificationTypeCode:
+          type: string
+        issuingOrganization:
+          type: ["string", "null"]
+        issueDate:
+          type: ["string", "null"]
+          format: date-time
+        expiryDate:
+          type: ["string", "null"]
+          format: date-time
+        credentialId:
+          type: ["string", "null"]
 
     Notification:
       type: object

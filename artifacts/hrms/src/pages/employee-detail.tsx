@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'wouter';
-import { ArrowLeft, Loader2, Mail, Phone, Building, Network, Briefcase, Camera, UserPlus, UserCheck, UserX, RotateCcw, FileText, Upload, Trash2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Mail, Phone, Building, Network, Briefcase, Camera, UserPlus, UserCheck, UserX, RotateCcw, FileText, Upload, Trash2, Award, GraduationCap, Sparkles, Plus } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,6 +30,18 @@ import {
   getListEmployeeDocumentsQueryKey,
   useUploadEmployeeDocument,
   useRemoveEmployeeDocument,
+  useListEmployeeSkills,
+  getListEmployeeSkillsQueryKey,
+  useAddEmployeeSkill,
+  useRemoveEmployeeSkill,
+  useListEmployeeQualifications,
+  getListEmployeeQualificationsQueryKey,
+  useAddEmployeeQualification,
+  useRemoveEmployeeQualification,
+  useListEmployeeCertifications,
+  getListEmployeeCertificationsQueryKey,
+  useAddEmployeeCertification,
+  useRemoveEmployeeCertification,
 } from '@workspace/api-client-react';
 import type { UpdateEmployeeInputEmploymentStatus } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -120,6 +132,26 @@ export default function EmployeeDetail() {
     },
   });
 
+  const { data: skillOptions } = useListMasterDataItems(organizationId, 'skill', {
+    query: { queryKey: getListMasterDataItemsQueryKey(organizationId, 'skill'), enabled: organizationId > 0 },
+  });
+  const { data: qualificationTypeOptions } = useListMasterDataItems(organizationId, 'qualification_type', {
+    query: { queryKey: getListMasterDataItemsQueryKey(organizationId, 'qualification_type'), enabled: organizationId > 0 },
+  });
+  const { data: certificationTypeOptions } = useListMasterDataItems(organizationId, 'certification_type', {
+    query: { queryKey: getListMasterDataItemsQueryKey(organizationId, 'certification_type'), enabled: organizationId > 0 },
+  });
+
+  const { data: skills } = useListEmployeeSkills(organizationId, employeeId, {
+    query: { queryKey: getListEmployeeSkillsQueryKey(organizationId, employeeId), enabled: organizationId > 0 && !isNaN(employeeId) },
+  });
+  const { data: qualifications } = useListEmployeeQualifications(organizationId, employeeId, {
+    query: { queryKey: getListEmployeeQualificationsQueryKey(organizationId, employeeId), enabled: organizationId > 0 && !isNaN(employeeId) },
+  });
+  const { data: certifications } = useListEmployeeCertifications(organizationId, employeeId, {
+    query: { queryKey: getListEmployeeCertificationsQueryKey(organizationId, employeeId), enabled: organizationId > 0 && !isNaN(employeeId) },
+  });
+
   const updateMutation = useUpdateEmployee();
   const uploadMutation = useUploadEmployeeProfilePicture();
   const linkMutation = useLinkEmployeeToUser();
@@ -128,6 +160,12 @@ export default function EmployeeDetail() {
   const rehireMutation = useRehireEmployee();
   const uploadDocumentMutation = useUploadEmployeeDocument();
   const removeDocumentMutation = useRemoveEmployeeDocument();
+  const addSkillMutation = useAddEmployeeSkill();
+  const removeSkillMutation = useRemoveEmployeeSkill();
+  const addQualificationMutation = useAddEmployeeQualification();
+  const removeQualificationMutation = useRemoveEmployeeQualification();
+  const addCertificationMutation = useAddEmployeeCertification();
+  const removeCertificationMutation = useRemoveEmployeeCertification();
 
   const [isEditing, setIsEditing] = useState(false);
   const [firstName, setFirstName] = useState('');
@@ -141,6 +179,12 @@ export default function EmployeeDetail() {
   const [separationReason, setSeparationReason] = useState('');
   const [documentCategoryCode, setDocumentCategoryCode] = useState('');
   const documentFileInputRef = useRef<HTMLInputElement>(null);
+  const [newSkillCode, setNewSkillCode] = useState('');
+  const [newSkillProficiency, setNewSkillProficiency] = useState('');
+  const [newQualificationCode, setNewQualificationCode] = useState('');
+  const [newQualificationInstitution, setNewQualificationInstitution] = useState('');
+  const [newCertificationCode, setNewCertificationCode] = useState('');
+  const [newCertificationIssuer, setNewCertificationIssuer] = useState('');
 
   const [prevEmployee, setPrevEmployee] = useState(employee);
   if (employee && employee !== prevEmployee) {
@@ -331,6 +375,98 @@ export default function EmployeeDetail() {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const genericErrorHandler = (title: string) => (err: unknown) => {
+    const message = err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
+    toast({ title, description: message ?? 'Please try again.', variant: 'destructive' });
+  };
+
+  const handleAddSkill = () => {
+    if (!newSkillCode) return;
+    addSkillMutation.mutate(
+      { organizationId, employeeId, data: { skillCode: newSkillCode, proficiencyLevel: newSkillProficiency || undefined } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListEmployeeSkillsQueryKey(organizationId, employeeId) });
+          setNewSkillCode('');
+          setNewSkillProficiency('');
+          toast({ title: 'Skill added' });
+        },
+        onError: genericErrorHandler('Could not add skill'),
+      },
+    );
+  };
+
+  const handleRemoveSkill = (skillId: number) => {
+    removeSkillMutation.mutate(
+      { organizationId, employeeId, skillId },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListEmployeeSkillsQueryKey(organizationId, employeeId) });
+          toast({ title: 'Skill removed' });
+        },
+        onError: genericErrorHandler('Could not remove skill'),
+      },
+    );
+  };
+
+  const handleAddQualification = () => {
+    if (!newQualificationCode) return;
+    addQualificationMutation.mutate(
+      { organizationId, employeeId, data: { qualificationTypeCode: newQualificationCode, institution: newQualificationInstitution || undefined } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListEmployeeQualificationsQueryKey(organizationId, employeeId) });
+          setNewQualificationCode('');
+          setNewQualificationInstitution('');
+          toast({ title: 'Qualification added' });
+        },
+        onError: genericErrorHandler('Could not add qualification'),
+      },
+    );
+  };
+
+  const handleRemoveQualification = (qualificationId: number) => {
+    removeQualificationMutation.mutate(
+      { organizationId, employeeId, qualificationId },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListEmployeeQualificationsQueryKey(organizationId, employeeId) });
+          toast({ title: 'Qualification removed' });
+        },
+        onError: genericErrorHandler('Could not remove qualification'),
+      },
+    );
+  };
+
+  const handleAddCertification = () => {
+    if (!newCertificationCode) return;
+    addCertificationMutation.mutate(
+      { organizationId, employeeId, data: { certificationTypeCode: newCertificationCode, issuingOrganization: newCertificationIssuer || undefined } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListEmployeeCertificationsQueryKey(organizationId, employeeId) });
+          setNewCertificationCode('');
+          setNewCertificationIssuer('');
+          toast({ title: 'Certification added' });
+        },
+        onError: genericErrorHandler('Could not add certification'),
+      },
+    );
+  };
+
+  const handleRemoveCertification = (certificationId: number) => {
+    removeCertificationMutation.mutate(
+      { organizationId, employeeId, certificationId },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListEmployeeCertificationsQueryKey(organizationId, employeeId) });
+          toast({ title: 'Certification removed' });
+        },
+        onError: genericErrorHandler('Could not remove certification'),
+      },
+    );
   };
 
   if (isLoading) {
@@ -780,6 +916,254 @@ export default function EmployeeDetail() {
                         disabled={removeDocumentMutation.isPending}
                         aria-label={`Remove ${doc.fileName}`}
                         data-testid={`button-remove-document-${doc.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-3">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5" aria-hidden="true" />
+              Skills
+            </CardTitle>
+            <CardDescription>Skills this employee has, from the "skill" Master Data domain</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="space-y-2 sm:w-56">
+                <Label htmlFor="new-skill-code">Skill</Label>
+                <Select value={newSkillCode} onValueChange={setNewSkillCode}>
+                  <SelectTrigger id="new-skill-code" data-testid="select-new-skill">
+                    <SelectValue placeholder="Choose a skill" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(skillOptions ?? []).map((item) => (
+                      <SelectItem key={item.code} value={item.code}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2 sm:w-48">
+                <Label htmlFor="new-skill-proficiency">Proficiency</Label>
+                <Input
+                  id="new-skill-proficiency"
+                  value={newSkillProficiency}
+                  onChange={(e) => setNewSkillProficiency(e.target.value)}
+                  placeholder="e.g. Advanced"
+                  data-testid="input-new-skill-proficiency"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleAddSkill}
+                disabled={!newSkillCode || addSkillMutation.isPending}
+                data-testid="button-add-skill"
+              >
+                <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                Add
+              </Button>
+            </div>
+
+            {(skills ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground">No skills recorded yet.</p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {(skills ?? []).map((skill) => {
+                  const label = (skillOptions ?? []).find((s) => s.code === skill.skillCode)?.label ?? skill.skillCode;
+                  return (
+                    <li key={skill.id} className="flex items-center justify-between gap-4 py-3" data-testid={`row-skill-${skill.id}`}>
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{label}</p>
+                        {skill.proficiencyLevel && <p className="text-xs text-muted-foreground">{skill.proficiencyLevel}</p>}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveSkill(skill.id)}
+                        disabled={removeSkillMutation.isPending}
+                        aria-label={`Remove ${label}`}
+                        data-testid={`button-remove-skill-${skill.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-3">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <GraduationCap className="h-5 w-5" aria-hidden="true" />
+              Qualifications
+            </CardTitle>
+            <CardDescription>Education and qualifications, from the "qualification_type" Master Data domain</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="space-y-2 sm:w-56">
+                <Label htmlFor="new-qualification-code">Qualification</Label>
+                <Select value={newQualificationCode} onValueChange={setNewQualificationCode}>
+                  <SelectTrigger id="new-qualification-code" data-testid="select-new-qualification">
+                    <SelectValue placeholder="Choose a qualification" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(qualificationTypeOptions ?? []).map((item) => (
+                      <SelectItem key={item.code} value={item.code}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2 sm:w-48">
+                <Label htmlFor="new-qualification-institution">Institution</Label>
+                <Input
+                  id="new-qualification-institution"
+                  value={newQualificationInstitution}
+                  onChange={(e) => setNewQualificationInstitution(e.target.value)}
+                  placeholder="e.g. University of Ghana"
+                  data-testid="input-new-qualification-institution"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleAddQualification}
+                disabled={!newQualificationCode || addQualificationMutation.isPending}
+                data-testid="button-add-qualification"
+              >
+                <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                Add
+              </Button>
+            </div>
+
+            {(qualifications ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground">No qualifications recorded yet.</p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {(qualifications ?? []).map((qualification) => {
+                  const label =
+                    (qualificationTypeOptions ?? []).find((q) => q.code === qualification.qualificationTypeCode)?.label ??
+                    qualification.qualificationTypeCode;
+                  return (
+                    <li
+                      key={qualification.id}
+                      className="flex items-center justify-between gap-4 py-3"
+                      data-testid={`row-qualification-${qualification.id}`}
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{label}</p>
+                        {qualification.institution && <p className="text-xs text-muted-foreground">{qualification.institution}</p>}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveQualification(qualification.id)}
+                        disabled={removeQualificationMutation.isPending}
+                        aria-label={`Remove ${label}`}
+                        data-testid={`button-remove-qualification-${qualification.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-3">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Award className="h-5 w-5" aria-hidden="true" />
+              Certifications
+            </CardTitle>
+            <CardDescription>Certifications held, from the "certification_type" Master Data domain</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="space-y-2 sm:w-56">
+                <Label htmlFor="new-certification-code">Certification</Label>
+                <Select value={newCertificationCode} onValueChange={setNewCertificationCode}>
+                  <SelectTrigger id="new-certification-code" data-testid="select-new-certification">
+                    <SelectValue placeholder="Choose a certification" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(certificationTypeOptions ?? []).map((item) => (
+                      <SelectItem key={item.code} value={item.code}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2 sm:w-48">
+                <Label htmlFor="new-certification-issuer">Issuing organization</Label>
+                <Input
+                  id="new-certification-issuer"
+                  value={newCertificationIssuer}
+                  onChange={(e) => setNewCertificationIssuer(e.target.value)}
+                  placeholder="e.g. PMI"
+                  data-testid="input-new-certification-issuer"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleAddCertification}
+                disabled={!newCertificationCode || addCertificationMutation.isPending}
+                data-testid="button-add-certification"
+              >
+                <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                Add
+              </Button>
+            </div>
+
+            {(certifications ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground">No certifications recorded yet.</p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {(certifications ?? []).map((certification) => {
+                  const label =
+                    (certificationTypeOptions ?? []).find((c) => c.code === certification.certificationTypeCode)?.label ??
+                    certification.certificationTypeCode;
+                  return (
+                    <li
+                      key={certification.id}
+                      className="flex items-center justify-between gap-4 py-3"
+                      data-testid={`row-certification-${certification.id}`}
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{label}</p>
+                        {certification.issuingOrganization && (
+                          <p className="text-xs text-muted-foreground">{certification.issuingOrganization}</p>
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveCertification(certification.id)}
+                        disabled={removeCertificationMutation.isPending}
+                        aria-label={`Remove ${label}`}
+                        data-testid={`button-remove-certification-${certification.id}`}
                       >
                         <Trash2 className="h-4 w-4" aria-hidden="true" />
                       </Button>
