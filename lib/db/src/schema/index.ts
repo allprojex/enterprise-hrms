@@ -33,3 +33,4 @@ export * from "./reports";
 export * from "./leave-types";
 export * from "./leave-policies";
 export * from "./leave-requests";
+export * from "./leave-balance-entries";

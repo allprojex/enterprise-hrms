@@ -1772,6 +1772,92 @@ export const CancelLeaveRequestResponse = zod.object({
 
 
 /**
+ * Own resource, manager-scoped, or leave_request.manage (organization- wide) — same authorization tiers as leave requests. The balance for each leave type is always a live SUM of the immutable ledger, never a stored, directly editable value. Gated by the "leave" module.
+ * @summary Get an employee's leave balances, computed from the ledger
+ */
+export const ListLeaveBalancesParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const ListLeaveBalancesResponseItem = zod.object({
+  "leaveTypeId": zod.number(),
+  "leaveTypeName": zod.string(),
+  "available": zod.string().describe('Decimal string, computed live as SUM(amount) over the immutable ledger — never a stored, directly editable value.')
+})
+export const ListLeaveBalancesResponse = zod.array(ListLeaveBalancesResponseItem)
+
+
+/**
+ * Same authorization tiers as listLeaveBalances. Every entry is immutable and append-only — this is the auditable history a computed balance is reconstructed from. Gated by the "leave" module.
+ * @summary Get an employee's raw leave balance ledger entries
+ */
+export const ListLeaveBalanceLedgerParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const ListLeaveBalanceLedgerQueryParams = zod.object({
+  "leaveTypeId": zod.coerce.number().optional()
+})
+
+export const ListLeaveBalanceLedgerResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "leaveTypeId": zod.number(),
+  "leavePolicyId": zod.number().describe('Resolved server-side at posting time and never reinterpreted by a later policy change.'),
+  "entryType": zod.enum(['opening_balance', 'accrual', 'carry_forward', 'usage', 'reversal', 'expiry', 'manual_adjustment']),
+  "amount": zod.string().describe('Signed decimal string — positive credits the balance, negative debits it.'),
+  "effectiveDate": zod.coerce.date(),
+  "reason": zod.string().nullish(),
+  "relatedLeaveRequestId": zod.number().nullish(),
+  "sourceReference": zod.string().nullish().describe('Idempotency key for postings not tied to a specific leave request.'),
+  "createdBy": zod.number().nullish(),
+  "approvedBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListLeaveBalanceLedgerResponse = zod.array(ListLeaveBalanceLedgerResponseItem)
+
+
+/**
+ * HR organization-wide only (leave_request.manage) — never own or manager-scoped. A reason is required and every adjustment is audit-logged. Posted as a new, signed ledger entry; never a direct edit of a computed balance. Gated by the "leave" module.
+ * @summary Post a manual leave balance adjustment
+ */
+export const AdjustLeaveBalanceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+
+
+
+export const AdjustLeaveBalanceBody = zod.object({
+  "leaveTypeId": zod.number(),
+  "amount": zod.number().describe('Signed — positive credits the balance, negative debits it. Cannot be zero.'),
+  "effectiveDate": zod.coerce.date(),
+  "reason": zod.string().min(1)
+})
+
+export const AdjustLeaveBalanceResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "leaveTypeId": zod.number(),
+  "leavePolicyId": zod.number().describe('Resolved server-side at posting time and never reinterpreted by a later policy change.'),
+  "entryType": zod.enum(['opening_balance', 'accrual', 'carry_forward', 'usage', 'reversal', 'expiry', 'manual_adjustment']),
+  "amount": zod.string().describe('Signed decimal string — positive credits the balance, negative debits it.'),
+  "effectiveDate": zod.coerce.date(),
+  "reason": zod.string().nullish(),
+  "relatedLeaveRequestId": zod.number().nullish(),
+  "sourceReference": zod.string().nullish().describe('Idempotency key for postings not tied to a specific leave request.'),
+  "createdBy": zod.number().nullish(),
+  "approvedBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
  * Gated by the "leave" module.
  * @summary List leave types
  */

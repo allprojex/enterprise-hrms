@@ -19,6 +19,7 @@ import {
   Check,
   CalendarDays,
   CalendarClock,
+  Wallet,
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -235,6 +236,11 @@ export function AppShell({ children }: AppShellProps) {
   // (requireMembership + requirePermission). This just avoids showing a
   // link to a page whose actions would all 403 for this user's roles.
   const isOrgAdmin = currentOrg?.roles.some((r) => r === 'org_admin' || r === 'super_admin') ?? false;
+  // Same UX-convenience gate as isOrgAdmin — the leave_request.manage
+  // permission (server-enforced) is what actually protects the balance
+  // adjustment endpoint; this just avoids showing HR admins-only tooling to
+  // a role that would 403 on every action.
+  const isHrCapable = isOrgAdmin || (currentOrg?.roles.some((r) => r === 'hr_manager') ?? false);
 
   const handleSwitchOrganization = (organization: MembershipSummary) => {
     if (organization.organizationId === activeOrganizationId) return;
@@ -268,6 +274,7 @@ export function AppShell({ children }: AppShellProps) {
     { href: '/positions',      label: 'Positions',      icon: Briefcase },
     { href: '/my-leave',       label: 'My Leave',       icon: CalendarClock },
     { href: '/leave-types',    label: 'Leave Types',    icon: CalendarDays },
+    ...(isHrCapable ? [{ href: '/leave-balances', label: 'Leave Balances', icon: Wallet } satisfies NavItem] : []),
     { href: '/organizations',  label: 'Organisations',  icon: Building },
     { href: '/notifications',  label: 'Notifications',  icon: Bell, badge: unreadCount },
     ...(isOrgAdmin ? [{ href: '/admin', label: 'Admin', icon: ShieldCheck } satisfies NavItem] : []),

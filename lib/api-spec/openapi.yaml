@@ -1853,6 +1853,143 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/employees/{employeeId}/leave-balances:
+    get:
+      operationId: listLeaveBalances
+      tags: [leave-balances]
+      summary: Get an employee's leave balances, computed from the ledger
+      description: >-
+        Own resource, manager-scoped, or leave_request.manage (organization-
+        wide) — same authorization tiers as leave requests. The balance for
+        each leave type is always a live SUM of the immutable ledger, never
+        a stored, directly editable value. Gated by the "leave" module.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: One summary row per leave type with any ledger history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaveBalanceSummary"
+        "403":
+          description: Not authorized to view this employee's leave balances
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}/leave-balances/ledger:
+    get:
+      operationId: listLeaveBalanceLedger
+      tags: [leave-balances]
+      summary: Get an employee's raw leave balance ledger entries
+      description: >-
+        Same authorization tiers as listLeaveBalances. Every entry is
+        immutable and append-only — this is the auditable history a
+        computed balance is reconstructed from. Gated by the "leave" module.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: leaveTypeId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Ledger entries, most recent effective date first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaveBalanceEntry"
+        "403":
+          description: Not authorized to view this employee's leave balance ledger
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}/leave-balances/adjust:
+    post:
+      operationId: adjustLeaveBalance
+      tags: [leave-balances]
+      summary: Post a manual leave balance adjustment
+      description: >-
+        HR organization-wide only (leave_request.manage) — never own or
+        manager-scoped. A reason is required and every adjustment is
+        audit-logged. Posted as a new, signed ledger entry; never a direct
+        edit of a computed balance. Gated by the "leave" module.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdjustLeaveBalanceInput"
+      responses:
+        "201":
+          description: Manual adjustment posted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaveBalanceEntry"
+        "400":
+          description: Invalid adjustment (missing reason, wrong sign, ineligible employee, or invalid leave type)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Requires leave_request.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Employee not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: An equivalent ledger entry has already been posted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /organizations/{organizationId}/leave-types:
     get:
       operationId: listLeaveTypes
@@ -3976,6 +4113,84 @@ components:
           type: string
         attachmentDocumentId:
           type: integer
+
+    LeaveBalanceSummary:
+      type: object
+      required: [leaveTypeId, leaveTypeName, available]
+      properties:
+        leaveTypeId:
+          type: integer
+        leaveTypeName:
+          type: string
+        available:
+          type: string
+          description: Decimal string, computed live as SUM(amount) over the immutable ledger — never a stored, directly editable value.
+
+    LeaveBalanceEntry:
+      type: object
+      required:
+        [
+          id,
+          organizationId,
+          employeeId,
+          leaveTypeId,
+          leavePolicyId,
+          entryType,
+          amount,
+          effectiveDate,
+          createdAt,
+        ]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        employeeId:
+          type: integer
+        leaveTypeId:
+          type: integer
+        leavePolicyId:
+          type: integer
+          description: Resolved server-side at posting time and never reinterpreted by a later policy change.
+        entryType:
+          type: string
+          enum: [opening_balance, accrual, carry_forward, usage, reversal, expiry, manual_adjustment]
+        amount:
+          type: string
+          description: Signed decimal string — positive credits the balance, negative debits it.
+        effectiveDate:
+          type: string
+          format: date
+        reason:
+          type: ["string", "null"]
+        relatedLeaveRequestId:
+          type: ["integer", "null"]
+        sourceReference:
+          type: ["string", "null"]
+          description: Idempotency key for postings not tied to a specific leave request.
+        createdBy:
+          type: ["integer", "null"]
+        approvedBy:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    AdjustLeaveBalanceInput:
+      type: object
+      required: [leaveTypeId, amount, effectiveDate, reason]
+      properties:
+        leaveTypeId:
+          type: integer
+        amount:
+          type: number
+          description: Signed — positive credits the balance, negative debits it. Cannot be zero.
+        effectiveDate:
+          type: string
+          format: date
+        reason:
+          type: string
+          minLength: 1
 
     LeaveType:
       type: object

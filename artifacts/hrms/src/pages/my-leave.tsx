@@ -26,6 +26,8 @@ import {
   getListLeaveRequestsQueryKey,
   useCreateLeaveRequest,
   useCancelLeaveRequest,
+  useListLeaveBalances,
+  getListLeaveBalancesQueryKey,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -57,6 +59,10 @@ export default function MyLeave() {
 
   const { data: leaveTypes } = useListLeaveTypes(organizationId, {
     query: { queryKey: getListLeaveTypesQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+
+  const { data: balances } = useListLeaveBalances(organizationId, employeeId, {
+    query: { queryKey: getListLeaveBalancesQueryKey(organizationId, employeeId), enabled: organizationId > 0 && employeeId > 0 },
   });
 
   const {
@@ -199,6 +205,20 @@ export default function MyLeave() {
           </DialogContent>
         </Dialog>
       </div>
+
+      {balances && balances.length > 0 && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {balances.map((balance) => (
+            <Card key={balance.leaveTypeId} data-testid={`card-leave-balance-${balance.leaveTypeId}`}>
+              <CardContent className="pt-6">
+                <p className="text-sm text-muted-foreground">{balance.leaveTypeName}</p>
+                <p className="text-2xl font-bold text-foreground">{balance.available}</p>
+                <p className="text-xs text-muted-foreground">days available</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {requestsLoading ? (
         <div className="space-y-3" aria-busy="true" aria-label="Loading leave requests">

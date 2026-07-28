@@ -253,6 +253,62 @@ export interface CreateLeaveRequestInput {
   attachmentDocumentId?: number;
 }
 
+export interface LeaveBalanceSummary {
+  leaveTypeId: number;
+  leaveTypeName: string;
+  /** Decimal string, computed live as SUM(amount) over the immutable ledger — never a stored, directly editable value. */
+  available: string;
+}
+
+export type LeaveBalanceEntryEntryType = typeof LeaveBalanceEntryEntryType[keyof typeof LeaveBalanceEntryEntryType];
+
+
+export const LeaveBalanceEntryEntryType = {
+  opening_balance: 'opening_balance',
+  accrual: 'accrual',
+  carry_forward: 'carry_forward',
+  usage: 'usage',
+  reversal: 'reversal',
+  expiry: 'expiry',
+  manual_adjustment: 'manual_adjustment',
+} as const;
+
+export interface LeaveBalanceEntry {
+  id: number;
+  organizationId: number;
+  employeeId: number;
+  leaveTypeId: number;
+  /** Resolved server-side at posting time and never reinterpreted by a later policy change. */
+  leavePolicyId: number;
+  entryType: LeaveBalanceEntryEntryType;
+  /** Signed decimal string — positive credits the balance, negative debits it. */
+  amount: string;
+  effectiveDate: string;
+  /** @nullable */
+  reason?: string | null;
+  /** @nullable */
+  relatedLeaveRequestId?: number | null;
+  /**
+     * Idempotency key for postings not tied to a specific leave request.
+     * @nullable
+     */
+  sourceReference?: string | null;
+  /** @nullable */
+  createdBy?: number | null;
+  /** @nullable */
+  approvedBy?: number | null;
+  createdAt: string;
+}
+
+export interface AdjustLeaveBalanceInput {
+  leaveTypeId: number;
+  /** Signed — positive credits the balance, negative debits it. Cannot be zero. */
+  amount: number;
+  effectiveDate: string;
+  /** @minLength 1 */
+  reason: string;
+}
+
 export type LeaveTypeStatus = typeof LeaveTypeStatus[keyof typeof LeaveTypeStatus];
 
 
@@ -1618,6 +1674,10 @@ export type UploadEmployeeDocumentBody = {
   file: Blob;
   /** Code from the "document_category" Master Data domain. */
   categoryCode: string;
+};
+
+export type ListLeaveBalanceLedgerParams = {
+leaveTypeId?: number;
 };
 
 export type ListAuditEventsParams = {

@@ -26,6 +26,7 @@ import type {
   AddEmployeeQualificationInput,
   AddEmployeeSkillInput,
   AddMemberInput,
+  AdjustLeaveBalanceInput,
   ApiError,
   AssignRoleInput,
   AuditEventListResponse,
@@ -58,12 +59,15 @@ import type {
   HealthStatus,
   InvitationCreated,
   InvitationPreview,
+  LeaveBalanceEntry,
+  LeaveBalanceSummary,
   LeavePolicy,
   LeaveRequest,
   LeaveType,
   LinkEmployeeUserInput,
   ListAuditEventsParams,
   ListEmployeesParams,
+  ListLeaveBalanceLedgerParams,
   LoginInput,
   MasterDataDomain,
   MasterDataItem,
@@ -4100,6 +4104,259 @@ export const useCancelLeaveRequest = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getCancelLeaveRequestMutationOptions(options));
+    }
+
+export const getListLeaveBalancesUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/leave-balances`
+}
+
+/**
+ * Own resource, manager-scoped, or leave_request.manage (organization- wide) — same authorization tiers as leave requests. The balance for each leave type is always a live SUM of the immutable ledger, never a stored, directly editable value. Gated by the "leave" module.
+ * @summary Get an employee's leave balances, computed from the ledger
+ */
+export const listLeaveBalances = async (organizationId: number,
+    employeeId: number, options?: RequestInit): Promise<LeaveBalanceSummary[]> => {
+
+  return customFetch<LeaveBalanceSummary[]>(getListLeaveBalancesUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLeaveBalancesQueryKey = (organizationId: number,
+    employeeId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/employees/${employeeId}/leave-balances`
+    ] as const;
+    }
+
+
+export const getListLeaveBalancesQueryOptions = <TData = Awaited<ReturnType<typeof listLeaveBalances>>, TError = ErrorType<ApiError>>(organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeaveBalances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLeaveBalancesQueryKey(organizationId,employeeId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLeaveBalances>>> = ({ signal }) => listLeaveBalances(organizationId,employeeId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && employeeId !== null && employeeId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLeaveBalances>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLeaveBalancesQueryResult = NonNullable<Awaited<ReturnType<typeof listLeaveBalances>>>
+export type ListLeaveBalancesQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get an employee's leave balances, computed from the ledger
+ */
+
+export function useListLeaveBalances<TData = Awaited<ReturnType<typeof listLeaveBalances>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeaveBalances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLeaveBalancesQueryOptions(organizationId,employeeId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListLeaveBalanceLedgerUrl = (organizationId: number,
+    employeeId: number,
+    params?: ListLeaveBalanceLedgerParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/employees/${employeeId}/leave-balances/ledger?${stringifiedParams}` : `/api/organizations/${organizationId}/employees/${employeeId}/leave-balances/ledger`
+}
+
+/**
+ * Same authorization tiers as listLeaveBalances. Every entry is immutable and append-only — this is the auditable history a computed balance is reconstructed from. Gated by the "leave" module.
+ * @summary Get an employee's raw leave balance ledger entries
+ */
+export const listLeaveBalanceLedger = async (organizationId: number,
+    employeeId: number,
+    params?: ListLeaveBalanceLedgerParams, options?: RequestInit): Promise<LeaveBalanceEntry[]> => {
+
+  return customFetch<LeaveBalanceEntry[]>(getListLeaveBalanceLedgerUrl(organizationId,employeeId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLeaveBalanceLedgerQueryKey = (organizationId: number,
+    employeeId: number,
+    params?: ListLeaveBalanceLedgerParams,) => {
+    return [
+    `/api/organizations/${organizationId}/employees/${employeeId}/leave-balances/ledger`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListLeaveBalanceLedgerQueryOptions = <TData = Awaited<ReturnType<typeof listLeaveBalanceLedger>>, TError = ErrorType<ApiError>>(organizationId: number,
+    employeeId: number,
+    params?: ListLeaveBalanceLedgerParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeaveBalanceLedger>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLeaveBalanceLedgerQueryKey(organizationId,employeeId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLeaveBalanceLedger>>> = ({ signal }) => listLeaveBalanceLedger(organizationId,employeeId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && employeeId !== null && employeeId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLeaveBalanceLedger>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLeaveBalanceLedgerQueryResult = NonNullable<Awaited<ReturnType<typeof listLeaveBalanceLedger>>>
+export type ListLeaveBalanceLedgerQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get an employee's raw leave balance ledger entries
+ */
+
+export function useListLeaveBalanceLedger<TData = Awaited<ReturnType<typeof listLeaveBalanceLedger>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    employeeId: number,
+    params?: ListLeaveBalanceLedgerParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeaveBalanceLedger>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLeaveBalanceLedgerQueryOptions(organizationId,employeeId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAdjustLeaveBalanceUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/leave-balances/adjust`
+}
+
+/**
+ * HR organization-wide only (leave_request.manage) — never own or manager-scoped. A reason is required and every adjustment is audit-logged. Posted as a new, signed ledger entry; never a direct edit of a computed balance. Gated by the "leave" module.
+ * @summary Post a manual leave balance adjustment
+ */
+export const adjustLeaveBalance = async (organizationId: number,
+    employeeId: number,
+    adjustLeaveBalanceInput: AdjustLeaveBalanceInput, options?: RequestInit): Promise<LeaveBalanceEntry> => {
+
+  return customFetch<LeaveBalanceEntry>(getAdjustLeaveBalanceUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adjustLeaveBalanceInput)
+  }
+);}
+
+
+
+
+
+export const getAdjustLeaveBalanceMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adjustLeaveBalance>>, TError,{organizationId: number;employeeId: number;data: BodyType<AdjustLeaveBalanceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adjustLeaveBalance>>, TError,{organizationId: number;employeeId: number;data: BodyType<AdjustLeaveBalanceInput>}, TContext> => {
+
+const mutationKey = ['adjustLeaveBalance'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adjustLeaveBalance>>, {organizationId: number;employeeId: number;data: BodyType<AdjustLeaveBalanceInput>}> = (props) => {
+          const {organizationId,employeeId,data} = props ?? {};
+
+          return  adjustLeaveBalance(organizationId,employeeId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdjustLeaveBalanceMutationResult = NonNullable<Awaited<ReturnType<typeof adjustLeaveBalance>>>
+    export type AdjustLeaveBalanceMutationBody = BodyType<AdjustLeaveBalanceInput>
+    export type AdjustLeaveBalanceMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Post a manual leave balance adjustment
+ */
+export const useAdjustLeaveBalance = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adjustLeaveBalance>>, TError,{organizationId: number;employeeId: number;data: BodyType<AdjustLeaveBalanceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adjustLeaveBalance>>,
+        TError,
+        {organizationId: number;employeeId: number;data: BodyType<AdjustLeaveBalanceInput>},
+        TContext
+      > => {
+      return useMutation(getAdjustLeaveBalanceMutationOptions(options));
     }
 
 export const getListLeaveTypesUrl = (organizationId: number,) => {
