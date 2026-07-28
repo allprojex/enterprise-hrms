@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   Check,
   CalendarDays,
+  CalendarClock,
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -265,6 +266,7 @@ export function AppShell({ children }: AppShellProps) {
     { href: '/branches',       label: 'Branches',       icon: MapPin },
     { href: '/departments',    label: 'Departments',    icon: Network },
     { href: '/positions',      label: 'Positions',      icon: Briefcase },
+    { href: '/my-leave',       label: 'My Leave',       icon: CalendarClock },
     { href: '/leave-types',    label: 'Leave Types',    icon: CalendarDays },
     { href: '/organizations',  label: 'Organisations',  icon: Building },
     { href: '/notifications',  label: 'Notifications',  icon: Bell, badge: unreadCount },

@@ -22,6 +22,7 @@ import Employees from '@/pages/employees';
 import EmployeeDetail from '@/pages/employee-detail';
 import Admin from '@/pages/admin';
 import LeaveTypes from '@/pages/leave-types';
+import MyLeave from '@/pages/my-leave';
 import { ModuleGate } from '@/components/module-gate';
 
 const queryClient = new QueryClient({
@@ -89,6 +90,9 @@ function Router() {
       </Route>
       <Route path="/leave-types">
         {() => <SecureRoute component={LeaveTypes} moduleKey="leave" />}
+      </Route>
+      <Route path="/my-leave">
+        {() => <SecureRoute component={MyLeave} moduleKey="leave" />}
       </Route>
 
       {/* 404 fallback */}

@@ -38,6 +38,7 @@ import type {
   CreateEmployeeInput,
   CreateInvitationInput,
   CreateLeavePolicyInput,
+  CreateLeaveRequestInput,
   CreateLeaveTypeInput,
   CreateMasterDataItemInput,
   CreateOrganizationInput,
@@ -58,6 +59,7 @@ import type {
   InvitationCreated,
   InvitationPreview,
   LeavePolicy,
+  LeaveRequest,
   LeaveType,
   LinkEmployeeUserInput,
   ListAuditEventsParams,
@@ -3864,6 +3866,240 @@ export const useRemoveEmployeeCertification = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getRemoveEmployeeCertificationMutationOptions(options));
+    }
+
+export const getListLeaveRequestsUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/leave-requests`
+}
+
+/**
+ * Own resource, manager-scoped, or leave_request.manage (organization- wide) — gated by leave_request.read.own at the route level, refined by an authorization check against the specific employee. Gated by the "leave" module.
+ * @summary List an employee's leave requests
+ */
+export const listLeaveRequests = async (organizationId: number,
+    employeeId: number, options?: RequestInit): Promise<LeaveRequest[]> => {
+
+  return customFetch<LeaveRequest[]>(getListLeaveRequestsUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLeaveRequestsQueryKey = (organizationId: number,
+    employeeId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/employees/${employeeId}/leave-requests`
+    ] as const;
+    }
+
+
+export const getListLeaveRequestsQueryOptions = <TData = Awaited<ReturnType<typeof listLeaveRequests>>, TError = ErrorType<ApiError>>(organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeaveRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLeaveRequestsQueryKey(organizationId,employeeId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLeaveRequests>>> = ({ signal }) => listLeaveRequests(organizationId,employeeId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && employeeId !== null && employeeId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLeaveRequests>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLeaveRequestsQueryResult = NonNullable<Awaited<ReturnType<typeof listLeaveRequests>>>
+export type ListLeaveRequestsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List an employee's leave requests
+ */
+
+export function useListLeaveRequests<TData = Awaited<ReturnType<typeof listLeaveRequests>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeaveRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLeaveRequestsQueryOptions(organizationId,employeeId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateLeaveRequestUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/leave-requests`
+}
+
+/**
+ * Own resource only. The applicable leave policy is resolved server-side from the employee's eligibility — never client-supplied. Day count is calculated server-side from the policy's rules; the client's arithmetic is never trusted.
+ * @summary Submit a leave request
+ */
+export const createLeaveRequest = async (organizationId: number,
+    employeeId: number,
+    createLeaveRequestInput: CreateLeaveRequestInput, options?: RequestInit): Promise<LeaveRequest> => {
+
+  return customFetch<LeaveRequest>(getCreateLeaveRequestUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createLeaveRequestInput)
+  }
+);}
+
+
+
+
+
+export const getCreateLeaveRequestMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLeaveRequest>>, TError,{organizationId: number;employeeId: number;data: BodyType<CreateLeaveRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createLeaveRequest>>, TError,{organizationId: number;employeeId: number;data: BodyType<CreateLeaveRequestInput>}, TContext> => {
+
+const mutationKey = ['createLeaveRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createLeaveRequest>>, {organizationId: number;employeeId: number;data: BodyType<CreateLeaveRequestInput>}> = (props) => {
+          const {organizationId,employeeId,data} = props ?? {};
+
+          return  createLeaveRequest(organizationId,employeeId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateLeaveRequestMutationResult = NonNullable<Awaited<ReturnType<typeof createLeaveRequest>>>
+    export type CreateLeaveRequestMutationBody = BodyType<CreateLeaveRequestInput>
+    export type CreateLeaveRequestMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Submit a leave request
+ */
+export const useCreateLeaveRequest = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLeaveRequest>>, TError,{organizationId: number;employeeId: number;data: BodyType<CreateLeaveRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createLeaveRequest>>,
+        TError,
+        {organizationId: number;employeeId: number;data: BodyType<CreateLeaveRequestInput>},
+        TContext
+      > => {
+      return useMutation(getCreateLeaveRequestMutationOptions(options));
+    }
+
+export const getCancelLeaveRequestUrl = (organizationId: number,
+    employeeId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/leave-requests/${id}/cancel`
+}
+
+/**
+ * Own resource only. Rejected if the request is not currently pending.
+ * @summary Withdraw a pending leave request
+ */
+export const cancelLeaveRequest = async (organizationId: number,
+    employeeId: number,
+    id: number, options?: RequestInit): Promise<LeaveRequest> => {
+
+  return customFetch<LeaveRequest>(getCancelLeaveRequestUrl(organizationId,employeeId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCancelLeaveRequestMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelLeaveRequest>>, TError,{organizationId: number;employeeId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelLeaveRequest>>, TError,{organizationId: number;employeeId: number;id: number}, TContext> => {
+
+const mutationKey = ['cancelLeaveRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelLeaveRequest>>, {organizationId: number;employeeId: number;id: number}> = (props) => {
+          const {organizationId,employeeId,id} = props ?? {};
+
+          return  cancelLeaveRequest(organizationId,employeeId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelLeaveRequestMutationResult = NonNullable<Awaited<ReturnType<typeof cancelLeaveRequest>>>
+
+    export type CancelLeaveRequestMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Withdraw a pending leave request
+ */
+export const useCancelLeaveRequest = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelLeaveRequest>>, TError,{organizationId: number;employeeId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelLeaveRequest>>,
+        TError,
+        {organizationId: number;employeeId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getCancelLeaveRequestMutationOptions(options));
     }
 
 export const getListLeaveTypesUrl = (organizationId: number,) => {

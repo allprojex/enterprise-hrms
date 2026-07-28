@@ -44,6 +44,9 @@ const PERMISSIONS = [
   { key: "master_data.manage", resource: "master_data", action: "manage" },
   { key: "leave_type.read", resource: "leave_type", action: "read" },
   { key: "leave_type.manage", resource: "leave_type", action: "manage" },
+  { key: "leave_request.read.own", resource: "leave_request", action: "read.own" },
+  { key: "leave_request.write.own", resource: "leave_request", action: "write.own" },
+  { key: "leave_request.manage", resource: "leave_request", action: "manage" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -70,6 +73,9 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "master_data.manage",
     "leave_type.read",
     "leave_type.manage",
+    "leave_request.read.own",
+    "leave_request.write.own",
+    "leave_request.manage",
   ],
   hr_manager: [
     "organization.read",
@@ -86,6 +92,9 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "position.manage",
     "leave_type.read",
     "leave_type.manage",
+    "leave_request.read.own",
+    "leave_request.write.own",
+    "leave_request.manage",
   ],
   employee: [
     "organization.read",
@@ -94,6 +103,8 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "department.read",
     "position.read",
     "leave_type.read",
+    "leave_request.read.own",
+    "leave_request.write.own",
   ],
 };
 

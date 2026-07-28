@@ -209,6 +209,50 @@ export interface EmergencyContact {
   phone: string;
 }
 
+export type LeaveRequestStatus = typeof LeaveRequestStatus[keyof typeof LeaveRequestStatus];
+
+
+export const LeaveRequestStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+  cancelled: 'cancelled',
+} as const;
+
+export interface LeaveRequest {
+  id: number;
+  organizationId: number;
+  employeeId: number;
+  leaveTypeId: number;
+  /** Resolved server-side from the employee's eligibility — never client-supplied. */
+  leavePolicyId: number;
+  startDate: string;
+  endDate: string;
+  /** Decimal string, computed server-side. */
+  daysRequested: string;
+  status: LeaveRequestStatus;
+  /** @nullable */
+  reason?: string | null;
+  /** @nullable */
+  attachmentDocumentId?: number | null;
+  /** @nullable */
+  cancelledAt?: string | null;
+  /** @nullable */
+  cancelledBy?: number | null;
+  /** @nullable */
+  createdBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateLeaveRequestInput {
+  leaveTypeId: number;
+  startDate: string;
+  endDate: string;
+  reason?: string;
+  attachmentDocumentId?: number;
+}
+
 export type LeaveTypeStatus = typeof LeaveTypeStatus[keyof typeof LeaveTypeStatus];
 
 

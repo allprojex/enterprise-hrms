@@ -32,3 +32,4 @@ export * from "./master-data-items";
 export * from "./reports";
 export * from "./leave-types";
 export * from "./leave-policies";
+export * from "./leave-requests";

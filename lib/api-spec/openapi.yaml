@@ -1717,6 +1717,142 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/employees/{employeeId}/leave-requests:
+    get:
+      operationId: listLeaveRequests
+      tags: [leave-requests]
+      summary: List an employee's leave requests
+      description: >-
+        Own resource, manager-scoped, or leave_request.manage (organization-
+        wide) — gated by leave_request.read.own at the route level, refined
+        by an authorization check against the specific employee. Gated by
+        the "leave" module.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Leave requests for the employee, most recent first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaveRequest"
+        "403":
+          description: Not authorized to view this employee's leave requests
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Employee not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createLeaveRequest
+      tags: [leave-requests]
+      summary: Submit a leave request
+      description: >-
+        Own resource only. The applicable leave policy is resolved
+        server-side from the employee's eligibility — never client-supplied.
+        Day count is calculated server-side from the policy's rules; the
+        client's arithmetic is never trusted.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLeaveRequestInput"
+      responses:
+        "201":
+          description: Leave request submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaveRequest"
+        "400":
+          description: Invalid request, ineligible employee, or a conflicting/overlapping request already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Can only submit a leave request for yourself
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}/leave-requests/{id}/cancel:
+    post:
+      operationId: cancelLeaveRequest
+      tags: [leave-requests]
+      summary: Withdraw a pending leave request
+      description: Own resource only. Rejected if the request is not currently pending.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Leave request withdrawn
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaveRequest"
+        "400":
+          description: Request is not currently pending
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Can only withdraw your own leave request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Leave request not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /organizations/{organizationId}/leave-types:
     get:
       operationId: listLeaveTypes
@@ -3765,6 +3901,81 @@ components:
           type: string
         phone:
           type: string
+
+    LeaveRequest:
+      type: object
+      required:
+        [
+          id,
+          organizationId,
+          employeeId,
+          leaveTypeId,
+          leavePolicyId,
+          startDate,
+          endDate,
+          daysRequested,
+          status,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        employeeId:
+          type: integer
+        leaveTypeId:
+          type: integer
+        leavePolicyId:
+          type: integer
+          description: Resolved server-side from the employee's eligibility — never client-supplied.
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        daysRequested:
+          type: string
+          description: Decimal string, computed server-side.
+        status:
+          type: string
+          enum: [pending, approved, rejected, cancelled]
+        reason:
+          type: ["string", "null"]
+        attachmentDocumentId:
+          type: ["integer", "null"]
+        cancelledAt:
+          type: ["string", "null"]
+          format: date-time
+        cancelledBy:
+          type: ["integer", "null"]
+        createdBy:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateLeaveRequestInput:
+      type: object
+      required: [leaveTypeId, startDate, endDate]
+      properties:
+        leaveTypeId:
+          type: integer
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        reason:
+          type: string
+        attachmentDocumentId:
+          type: integer
 
     LeaveType:
       type: object

@@ -1675,6 +1675,103 @@ export const RemoveEmployeeCertificationResponse = zod.object({
 
 
 /**
+ * Own resource, manager-scoped, or leave_request.manage (organization- wide) — gated by leave_request.read.own at the route level, refined by an authorization check against the specific employee. Gated by the "leave" module.
+ * @summary List an employee's leave requests
+ */
+export const ListLeaveRequestsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const ListLeaveRequestsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "leaveTypeId": zod.number(),
+  "leavePolicyId": zod.number().describe('Resolved server-side from the employee\'s eligibility — never client-supplied.'),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date(),
+  "daysRequested": zod.string().describe('Decimal string, computed server-side.'),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled']),
+  "reason": zod.string().nullish(),
+  "attachmentDocumentId": zod.number().nullish(),
+  "cancelledAt": zod.coerce.date().nullish(),
+  "cancelledBy": zod.number().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListLeaveRequestsResponse = zod.array(ListLeaveRequestsResponseItem)
+
+
+/**
+ * Own resource only. The applicable leave policy is resolved server-side from the employee's eligibility — never client-supplied. Day count is calculated server-side from the policy's rules; the client's arithmetic is never trusted.
+ * @summary Submit a leave request
+ */
+export const CreateLeaveRequestParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const CreateLeaveRequestBody = zod.object({
+  "leaveTypeId": zod.number(),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date(),
+  "reason": zod.string().optional(),
+  "attachmentDocumentId": zod.number().optional()
+})
+
+export const CreateLeaveRequestResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "leaveTypeId": zod.number(),
+  "leavePolicyId": zod.number().describe('Resolved server-side from the employee\'s eligibility — never client-supplied.'),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date(),
+  "daysRequested": zod.string().describe('Decimal string, computed server-side.'),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled']),
+  "reason": zod.string().nullish(),
+  "attachmentDocumentId": zod.number().nullish(),
+  "cancelledAt": zod.coerce.date().nullish(),
+  "cancelledBy": zod.number().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Own resource only. Rejected if the request is not currently pending.
+ * @summary Withdraw a pending leave request
+ */
+export const CancelLeaveRequestParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const CancelLeaveRequestResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "leaveTypeId": zod.number(),
+  "leavePolicyId": zod.number().describe('Resolved server-side from the employee\'s eligibility — never client-supplied.'),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date(),
+  "daysRequested": zod.string().describe('Decimal string, computed server-side.'),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled']),
+  "reason": zod.string().nullish(),
+  "attachmentDocumentId": zod.number().nullish(),
+  "cancelledAt": zod.coerce.date().nullish(),
+  "cancelledBy": zod.number().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
  * Gated by the "leave" module.
  * @summary List leave types
  */
