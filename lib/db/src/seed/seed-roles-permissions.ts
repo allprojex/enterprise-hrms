@@ -42,6 +42,8 @@ const PERMISSIONS = [
   { key: "role.manage", resource: "role", action: "manage" },
   { key: "module.manage", resource: "module", action: "manage" },
   { key: "master_data.manage", resource: "master_data", action: "manage" },
+  { key: "leave_type.read", resource: "leave_type", action: "read" },
+  { key: "leave_type.manage", resource: "leave_type", action: "manage" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -66,6 +68,8 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "role.manage",
     "module.manage",
     "master_data.manage",
+    "leave_type.read",
+    "leave_type.manage",
   ],
   hr_manager: [
     "organization.read",
@@ -80,8 +84,17 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "department.manage",
     "position.read",
     "position.manage",
+    "leave_type.read",
+    "leave_type.manage",
   ],
-  employee: ["organization.read", "employee.read", "branch.read", "department.read", "position.read"],
+  employee: [
+    "organization.read",
+    "employee.read",
+    "branch.read",
+    "department.read",
+    "position.read",
+    "leave_type.read",
+  ],
 };
 
 async function main() {

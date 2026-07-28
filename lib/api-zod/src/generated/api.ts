@@ -1675,6 +1675,402 @@ export const RemoveEmployeeCertificationResponse = zod.object({
 
 
 /**
+ * Gated by the "leave" module.
+ * @summary List leave types
+ */
+export const ListLeaveTypesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListLeaveTypesResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "code": zod.string(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListLeaveTypesResponse = zod.array(ListLeaveTypesResponseItem)
+
+
+/**
+ * @summary Create a leave type
+ */
+export const CreateLeaveTypeParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+
+
+
+export const CreateLeaveTypeBody = zod.object({
+  "name": zod.string().min(1),
+  "code": zod.string().min(1)
+})
+
+export const CreateLeaveTypeResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "code": zod.string(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Does not change status — use archive/reactivate for that.
+ * @summary Update a leave type's name/code
+ */
+export const UpdateLeaveTypeParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+
+
+
+
+export const UpdateLeaveTypeBody = zod.object({
+  "name": zod.string().min(1).optional(),
+  "code": zod.string().min(1).optional()
+})
+
+export const UpdateLeaveTypeResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "code": zod.string(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Archive a leave type
+ */
+export const ArchiveLeaveTypeParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ArchiveLeaveTypeResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "code": zod.string(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Reactivate an archived leave type
+ */
+export const ReactivateLeaveTypeParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ReactivateLeaveTypeResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "code": zod.string(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List a leave type's policies
+ */
+export const ListLeavePoliciesParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "leaveTypeId": zod.coerce.number()
+})
+
+export const ListLeavePoliciesResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "leaveTypeId": zod.number(),
+  "name": zod.string(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullish(),
+  "branchId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "positionId": zod.number().nullish(),
+  "gender": zod.union([zod.literal('male'),zod.literal('female'),zod.literal('other'),zod.literal('prefer_not_to_say'),zod.literal(null)]).nullish(),
+  "minimumServiceMonths": zod.number().nullish(),
+  "probationRestricted": zod.boolean(),
+  "annualEntitlementDays": zod.string().describe('Decimal string (e.g. \"21.00\").'),
+  "isPaid": zod.boolean(),
+  "accrualMethod": zod.enum(['annual', 'monthly', 'per_pay_period', 'none']),
+  "accrualRate": zod.string().nullish(),
+  "entitlementPeriod": zod.enum(['calendar_year', 'anniversary_year']),
+  "carryForwardAllowed": zod.boolean(),
+  "maxCarryForwardDays": zod.string().nullish(),
+  "carryForwardExpiryMonths": zod.number().nullish(),
+  "minRequestDurationDays": zod.string().nullish(),
+  "maxRequestDurationDays": zod.string().nullish(),
+  "noticePeriodDays": zod.number().nullish(),
+  "attachmentRequired": zod.boolean(),
+  "countWeekends": zod.boolean(),
+  "countPublicHolidays": zod.boolean(),
+  "allowNegativeBalance": zod.boolean(),
+  "effectiveFrom": zod.coerce.date(),
+  "effectiveTo": zod.coerce.date().nullish(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListLeavePoliciesResponse = zod.array(ListLeavePoliciesResponseItem)
+
+
+/**
+ * @summary Add a policy to a leave type
+ */
+export const CreateLeavePolicyParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "leaveTypeId": zod.coerce.number()
+})
+
+
+
+
+export const CreateLeavePolicyBody = zod.object({
+  "name": zod.string().min(1),
+  "employmentType": zod.enum(['full_time', 'part_time', 'contract', 'intern', 'temporary']).optional(),
+  "branchId": zod.number().optional(),
+  "departmentId": zod.number().optional(),
+  "positionId": zod.number().optional(),
+  "gender": zod.enum(['male', 'female', 'other', 'prefer_not_to_say']).optional(),
+  "minimumServiceMonths": zod.number().optional(),
+  "probationRestricted": zod.boolean().optional(),
+  "annualEntitlementDays": zod.number(),
+  "isPaid": zod.boolean().optional(),
+  "accrualMethod": zod.enum(['annual', 'monthly', 'per_pay_period', 'none']).optional(),
+  "accrualRate": zod.number().optional(),
+  "entitlementPeriod": zod.enum(['calendar_year', 'anniversary_year']).optional(),
+  "carryForwardAllowed": zod.boolean().optional(),
+  "maxCarryForwardDays": zod.number().optional(),
+  "carryForwardExpiryMonths": zod.number().optional(),
+  "minRequestDurationDays": zod.number().optional(),
+  "maxRequestDurationDays": zod.number().optional(),
+  "noticePeriodDays": zod.number().optional(),
+  "attachmentRequired": zod.boolean().optional(),
+  "countWeekends": zod.boolean().optional(),
+  "countPublicHolidays": zod.boolean().optional(),
+  "allowNegativeBalance": zod.boolean().optional(),
+  "effectiveFrom": zod.coerce.date(),
+  "effectiveTo": zod.coerce.date().optional()
+})
+
+export const CreateLeavePolicyResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "leaveTypeId": zod.number(),
+  "name": zod.string(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullish(),
+  "branchId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "positionId": zod.number().nullish(),
+  "gender": zod.union([zod.literal('male'),zod.literal('female'),zod.literal('other'),zod.literal('prefer_not_to_say'),zod.literal(null)]).nullish(),
+  "minimumServiceMonths": zod.number().nullish(),
+  "probationRestricted": zod.boolean(),
+  "annualEntitlementDays": zod.string().describe('Decimal string (e.g. \"21.00\").'),
+  "isPaid": zod.boolean(),
+  "accrualMethod": zod.enum(['annual', 'monthly', 'per_pay_period', 'none']),
+  "accrualRate": zod.string().nullish(),
+  "entitlementPeriod": zod.enum(['calendar_year', 'anniversary_year']),
+  "carryForwardAllowed": zod.boolean(),
+  "maxCarryForwardDays": zod.string().nullish(),
+  "carryForwardExpiryMonths": zod.number().nullish(),
+  "minRequestDurationDays": zod.string().nullish(),
+  "maxRequestDurationDays": zod.string().nullish(),
+  "noticePeriodDays": zod.number().nullish(),
+  "attachmentRequired": zod.boolean(),
+  "countWeekends": zod.boolean(),
+  "countPublicHolidays": zod.boolean(),
+  "allowNegativeBalance": zod.boolean(),
+  "effectiveFrom": zod.coerce.date(),
+  "effectiveTo": zod.coerce.date().nullish(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update a leave policy
+ */
+export const UpdateLeavePolicyParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "leaveTypeId": zod.coerce.number(),
+  "policyId": zod.coerce.number()
+})
+
+
+
+
+export const UpdateLeavePolicyBody = zod.object({
+  "name": zod.string().min(1).optional(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullish(),
+  "branchId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "positionId": zod.number().nullish(),
+  "gender": zod.union([zod.literal('male'),zod.literal('female'),zod.literal('other'),zod.literal('prefer_not_to_say'),zod.literal(null)]).nullish(),
+  "minimumServiceMonths": zod.number().nullish(),
+  "probationRestricted": zod.boolean().optional(),
+  "annualEntitlementDays": zod.number().optional(),
+  "isPaid": zod.boolean().optional(),
+  "accrualMethod": zod.enum(['annual', 'monthly', 'per_pay_period', 'none']).optional(),
+  "accrualRate": zod.number().nullish(),
+  "entitlementPeriod": zod.enum(['calendar_year', 'anniversary_year']).optional(),
+  "carryForwardAllowed": zod.boolean().optional(),
+  "maxCarryForwardDays": zod.number().nullish(),
+  "carryForwardExpiryMonths": zod.number().nullish(),
+  "minRequestDurationDays": zod.number().nullish(),
+  "maxRequestDurationDays": zod.number().nullish(),
+  "noticePeriodDays": zod.number().nullish(),
+  "attachmentRequired": zod.boolean().optional(),
+  "countWeekends": zod.boolean().optional(),
+  "countPublicHolidays": zod.boolean().optional(),
+  "allowNegativeBalance": zod.boolean().optional(),
+  "effectiveFrom": zod.coerce.date().optional(),
+  "effectiveTo": zod.coerce.date().nullish()
+})
+
+export const UpdateLeavePolicyResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "leaveTypeId": zod.number(),
+  "name": zod.string(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullish(),
+  "branchId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "positionId": zod.number().nullish(),
+  "gender": zod.union([zod.literal('male'),zod.literal('female'),zod.literal('other'),zod.literal('prefer_not_to_say'),zod.literal(null)]).nullish(),
+  "minimumServiceMonths": zod.number().nullish(),
+  "probationRestricted": zod.boolean(),
+  "annualEntitlementDays": zod.string().describe('Decimal string (e.g. \"21.00\").'),
+  "isPaid": zod.boolean(),
+  "accrualMethod": zod.enum(['annual', 'monthly', 'per_pay_period', 'none']),
+  "accrualRate": zod.string().nullish(),
+  "entitlementPeriod": zod.enum(['calendar_year', 'anniversary_year']),
+  "carryForwardAllowed": zod.boolean(),
+  "maxCarryForwardDays": zod.string().nullish(),
+  "carryForwardExpiryMonths": zod.number().nullish(),
+  "minRequestDurationDays": zod.string().nullish(),
+  "maxRequestDurationDays": zod.string().nullish(),
+  "noticePeriodDays": zod.number().nullish(),
+  "attachmentRequired": zod.boolean(),
+  "countWeekends": zod.boolean(),
+  "countPublicHolidays": zod.boolean(),
+  "allowNegativeBalance": zod.boolean(),
+  "effectiveFrom": zod.coerce.date(),
+  "effectiveTo": zod.coerce.date().nullish(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Independent of the parent leave type's own archive lifecycle.
+ * @summary Archive a leave policy
+ */
+export const ArchiveLeavePolicyParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "leaveTypeId": zod.coerce.number(),
+  "policyId": zod.coerce.number()
+})
+
+export const ArchiveLeavePolicyResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "leaveTypeId": zod.number(),
+  "name": zod.string(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullish(),
+  "branchId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "positionId": zod.number().nullish(),
+  "gender": zod.union([zod.literal('male'),zod.literal('female'),zod.literal('other'),zod.literal('prefer_not_to_say'),zod.literal(null)]).nullish(),
+  "minimumServiceMonths": zod.number().nullish(),
+  "probationRestricted": zod.boolean(),
+  "annualEntitlementDays": zod.string().describe('Decimal string (e.g. \"21.00\").'),
+  "isPaid": zod.boolean(),
+  "accrualMethod": zod.enum(['annual', 'monthly', 'per_pay_period', 'none']),
+  "accrualRate": zod.string().nullish(),
+  "entitlementPeriod": zod.enum(['calendar_year', 'anniversary_year']),
+  "carryForwardAllowed": zod.boolean(),
+  "maxCarryForwardDays": zod.string().nullish(),
+  "carryForwardExpiryMonths": zod.number().nullish(),
+  "minRequestDurationDays": zod.string().nullish(),
+  "maxRequestDurationDays": zod.string().nullish(),
+  "noticePeriodDays": zod.number().nullish(),
+  "attachmentRequired": zod.boolean(),
+  "countWeekends": zod.boolean(),
+  "countPublicHolidays": zod.boolean(),
+  "allowNegativeBalance": zod.boolean(),
+  "effectiveFrom": zod.coerce.date(),
+  "effectiveTo": zod.coerce.date().nullish(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Reactivate an archived leave policy
+ */
+export const ReactivateLeavePolicyParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "leaveTypeId": zod.coerce.number(),
+  "policyId": zod.coerce.number()
+})
+
+export const ReactivateLeavePolicyResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "leaveTypeId": zod.number(),
+  "name": zod.string(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullish(),
+  "branchId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "positionId": zod.number().nullish(),
+  "gender": zod.union([zod.literal('male'),zod.literal('female'),zod.literal('other'),zod.literal('prefer_not_to_say'),zod.literal(null)]).nullish(),
+  "minimumServiceMonths": zod.number().nullish(),
+  "probationRestricted": zod.boolean(),
+  "annualEntitlementDays": zod.string().describe('Decimal string (e.g. \"21.00\").'),
+  "isPaid": zod.boolean(),
+  "accrualMethod": zod.enum(['annual', 'monthly', 'per_pay_period', 'none']),
+  "accrualRate": zod.string().nullish(),
+  "entitlementPeriod": zod.enum(['calendar_year', 'anniversary_year']),
+  "carryForwardAllowed": zod.boolean(),
+  "maxCarryForwardDays": zod.string().nullish(),
+  "carryForwardExpiryMonths": zod.number().nullish(),
+  "minRequestDurationDays": zod.string().nullish(),
+  "maxRequestDurationDays": zod.string().nullish(),
+  "noticePeriodDays": zod.number().nullish(),
+  "attachmentRequired": zod.boolean(),
+  "countWeekends": zod.boolean(),
+  "countPublicHolidays": zod.boolean(),
+  "allowNegativeBalance": zod.boolean(),
+  "effectiveFrom": zod.coerce.date(),
+  "effectiveTo": zod.coerce.date().nullish(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
  * @summary List branches
  */
 export const ListBranchesParams = zod.object({

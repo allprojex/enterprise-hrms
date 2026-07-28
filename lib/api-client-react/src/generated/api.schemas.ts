@@ -209,6 +209,294 @@ export interface EmergencyContact {
   phone: string;
 }
 
+export type LeaveTypeStatus = typeof LeaveTypeStatus[keyof typeof LeaveTypeStatus];
+
+
+export const LeaveTypeStatus = {
+  active: 'active',
+  inactive: 'inactive',
+} as const;
+
+export interface LeaveType {
+  id: number;
+  organizationId: number;
+  name: string;
+  code: string;
+  status: LeaveTypeStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateLeaveTypeInput {
+  /** @minLength 1 */
+  name: string;
+  /** @minLength 1 */
+  code: string;
+}
+
+export interface UpdateLeaveTypeInput {
+  /** @minLength 1 */
+  name?: string;
+  /** @minLength 1 */
+  code?: string;
+}
+
+/**
+ * @nullable
+ */
+export type LeavePolicyEmploymentType = typeof LeavePolicyEmploymentType[keyof typeof LeavePolicyEmploymentType] | null;
+
+
+export const LeavePolicyEmploymentType = {
+  full_time: 'full_time',
+  part_time: 'part_time',
+  contract: 'contract',
+  intern: 'intern',
+  temporary: 'temporary',
+} as const;
+
+/**
+ * @nullable
+ */
+export type LeavePolicyGender = typeof LeavePolicyGender[keyof typeof LeavePolicyGender] | null;
+
+
+export const LeavePolicyGender = {
+  male: 'male',
+  female: 'female',
+  other: 'other',
+  prefer_not_to_say: 'prefer_not_to_say',
+} as const;
+
+export type LeavePolicyAccrualMethod = typeof LeavePolicyAccrualMethod[keyof typeof LeavePolicyAccrualMethod];
+
+
+export const LeavePolicyAccrualMethod = {
+  annual: 'annual',
+  monthly: 'monthly',
+  per_pay_period: 'per_pay_period',
+  none: 'none',
+} as const;
+
+export type LeavePolicyEntitlementPeriod = typeof LeavePolicyEntitlementPeriod[keyof typeof LeavePolicyEntitlementPeriod];
+
+
+export const LeavePolicyEntitlementPeriod = {
+  calendar_year: 'calendar_year',
+  anniversary_year: 'anniversary_year',
+} as const;
+
+export type LeavePolicyStatus = typeof LeavePolicyStatus[keyof typeof LeavePolicyStatus];
+
+
+export const LeavePolicyStatus = {
+  active: 'active',
+  inactive: 'inactive',
+} as const;
+
+export interface LeavePolicy {
+  id: number;
+  organizationId: number;
+  leaveTypeId: number;
+  name: string;
+  /** @nullable */
+  employmentType?: LeavePolicyEmploymentType;
+  /** @nullable */
+  branchId?: number | null;
+  /** @nullable */
+  departmentId?: number | null;
+  /** @nullable */
+  positionId?: number | null;
+  /** @nullable */
+  gender?: LeavePolicyGender;
+  /** @nullable */
+  minimumServiceMonths?: number | null;
+  probationRestricted: boolean;
+  /** Decimal string (e.g. "21.00"). */
+  annualEntitlementDays: string;
+  isPaid: boolean;
+  accrualMethod: LeavePolicyAccrualMethod;
+  /** @nullable */
+  accrualRate?: string | null;
+  entitlementPeriod: LeavePolicyEntitlementPeriod;
+  carryForwardAllowed: boolean;
+  /** @nullable */
+  maxCarryForwardDays?: string | null;
+  /** @nullable */
+  carryForwardExpiryMonths?: number | null;
+  /** @nullable */
+  minRequestDurationDays?: string | null;
+  /** @nullable */
+  maxRequestDurationDays?: string | null;
+  /** @nullable */
+  noticePeriodDays?: number | null;
+  attachmentRequired: boolean;
+  countWeekends: boolean;
+  countPublicHolidays: boolean;
+  allowNegativeBalance: boolean;
+  effectiveFrom: string;
+  /** @nullable */
+  effectiveTo?: string | null;
+  status: LeavePolicyStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CreateLeavePolicyInputEmploymentType = typeof CreateLeavePolicyInputEmploymentType[keyof typeof CreateLeavePolicyInputEmploymentType];
+
+
+export const CreateLeavePolicyInputEmploymentType = {
+  full_time: 'full_time',
+  part_time: 'part_time',
+  contract: 'contract',
+  intern: 'intern',
+  temporary: 'temporary',
+} as const;
+
+export type CreateLeavePolicyInputGender = typeof CreateLeavePolicyInputGender[keyof typeof CreateLeavePolicyInputGender];
+
+
+export const CreateLeavePolicyInputGender = {
+  male: 'male',
+  female: 'female',
+  other: 'other',
+  prefer_not_to_say: 'prefer_not_to_say',
+} as const;
+
+export type CreateLeavePolicyInputAccrualMethod = typeof CreateLeavePolicyInputAccrualMethod[keyof typeof CreateLeavePolicyInputAccrualMethod];
+
+
+export const CreateLeavePolicyInputAccrualMethod = {
+  annual: 'annual',
+  monthly: 'monthly',
+  per_pay_period: 'per_pay_period',
+  none: 'none',
+} as const;
+
+export type CreateLeavePolicyInputEntitlementPeriod = typeof CreateLeavePolicyInputEntitlementPeriod[keyof typeof CreateLeavePolicyInputEntitlementPeriod];
+
+
+export const CreateLeavePolicyInputEntitlementPeriod = {
+  calendar_year: 'calendar_year',
+  anniversary_year: 'anniversary_year',
+} as const;
+
+export interface CreateLeavePolicyInput {
+  /** @minLength 1 */
+  name: string;
+  employmentType?: CreateLeavePolicyInputEmploymentType;
+  branchId?: number;
+  departmentId?: number;
+  positionId?: number;
+  gender?: CreateLeavePolicyInputGender;
+  minimumServiceMonths?: number;
+  probationRestricted?: boolean;
+  annualEntitlementDays: number;
+  isPaid?: boolean;
+  accrualMethod?: CreateLeavePolicyInputAccrualMethod;
+  accrualRate?: number;
+  entitlementPeriod?: CreateLeavePolicyInputEntitlementPeriod;
+  carryForwardAllowed?: boolean;
+  maxCarryForwardDays?: number;
+  carryForwardExpiryMonths?: number;
+  minRequestDurationDays?: number;
+  maxRequestDurationDays?: number;
+  noticePeriodDays?: number;
+  attachmentRequired?: boolean;
+  countWeekends?: boolean;
+  countPublicHolidays?: boolean;
+  allowNegativeBalance?: boolean;
+  effectiveFrom: string;
+  effectiveTo?: string;
+}
+
+/**
+ * @nullable
+ */
+export type UpdateLeavePolicyInputEmploymentType = typeof UpdateLeavePolicyInputEmploymentType[keyof typeof UpdateLeavePolicyInputEmploymentType] | null;
+
+
+export const UpdateLeavePolicyInputEmploymentType = {
+  full_time: 'full_time',
+  part_time: 'part_time',
+  contract: 'contract',
+  intern: 'intern',
+  temporary: 'temporary',
+} as const;
+
+/**
+ * @nullable
+ */
+export type UpdateLeavePolicyInputGender = typeof UpdateLeavePolicyInputGender[keyof typeof UpdateLeavePolicyInputGender] | null;
+
+
+export const UpdateLeavePolicyInputGender = {
+  male: 'male',
+  female: 'female',
+  other: 'other',
+  prefer_not_to_say: 'prefer_not_to_say',
+} as const;
+
+export type UpdateLeavePolicyInputAccrualMethod = typeof UpdateLeavePolicyInputAccrualMethod[keyof typeof UpdateLeavePolicyInputAccrualMethod];
+
+
+export const UpdateLeavePolicyInputAccrualMethod = {
+  annual: 'annual',
+  monthly: 'monthly',
+  per_pay_period: 'per_pay_period',
+  none: 'none',
+} as const;
+
+export type UpdateLeavePolicyInputEntitlementPeriod = typeof UpdateLeavePolicyInputEntitlementPeriod[keyof typeof UpdateLeavePolicyInputEntitlementPeriod];
+
+
+export const UpdateLeavePolicyInputEntitlementPeriod = {
+  calendar_year: 'calendar_year',
+  anniversary_year: 'anniversary_year',
+} as const;
+
+export interface UpdateLeavePolicyInput {
+  /** @minLength 1 */
+  name?: string;
+  /** @nullable */
+  employmentType?: UpdateLeavePolicyInputEmploymentType;
+  /** @nullable */
+  branchId?: number | null;
+  /** @nullable */
+  departmentId?: number | null;
+  /** @nullable */
+  positionId?: number | null;
+  /** @nullable */
+  gender?: UpdateLeavePolicyInputGender;
+  /** @nullable */
+  minimumServiceMonths?: number | null;
+  probationRestricted?: boolean;
+  annualEntitlementDays?: number;
+  isPaid?: boolean;
+  accrualMethod?: UpdateLeavePolicyInputAccrualMethod;
+  /** @nullable */
+  accrualRate?: number | null;
+  entitlementPeriod?: UpdateLeavePolicyInputEntitlementPeriod;
+  carryForwardAllowed?: boolean;
+  /** @nullable */
+  maxCarryForwardDays?: number | null;
+  /** @nullable */
+  carryForwardExpiryMonths?: number | null;
+  /** @nullable */
+  minRequestDurationDays?: number | null;
+  /** @nullable */
+  maxRequestDurationDays?: number | null;
+  /** @nullable */
+  noticePeriodDays?: number | null;
+  attachmentRequired?: boolean;
+  countWeekends?: boolean;
+  countPublicHolidays?: boolean;
+  allowNegativeBalance?: boolean;
+  effectiveFrom?: string;
+  /** @nullable */
+  effectiveTo?: string | null;
+}
+
 export type BranchStatus = typeof BranchStatus[keyof typeof BranchStatus];
 
 

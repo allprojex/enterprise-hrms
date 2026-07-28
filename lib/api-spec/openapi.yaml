@@ -1717,6 +1717,338 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/leave-types:
+    get:
+      operationId: listLeaveTypes
+      tags: [leave-types]
+      summary: List leave types
+      description: Gated by the "leave" module.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of leave types
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaveType"
+    post:
+      operationId: createLeaveType
+      tags: [leave-types]
+      summary: Create a leave type
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLeaveTypeInput"
+      responses:
+        "201":
+          description: Leave type created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaveType"
+        "409":
+          description: A leave type with this code already exists in the organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/leave-types/{id}:
+    patch:
+      operationId: updateLeaveType
+      tags: [leave-types]
+      summary: Update a leave type's name/code
+      description: Does not change status — use archive/reactivate for that.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateLeaveTypeInput"
+      responses:
+        "200":
+          description: Leave type updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaveType"
+        "404":
+          description: Leave type not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: A leave type with this code already exists in the organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/leave-types/{id}/archive:
+    post:
+      operationId: archiveLeaveType
+      tags: [leave-types]
+      summary: Archive a leave type
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Leave type archived
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaveType"
+        "404":
+          description: Leave type not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/leave-types/{id}/reactivate:
+    post:
+      operationId: reactivateLeaveType
+      tags: [leave-types]
+      summary: Reactivate an archived leave type
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Leave type reactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaveType"
+        "404":
+          description: Leave type not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/leave-types/{leaveTypeId}/policies:
+    get:
+      operationId: listLeavePolicies
+      tags: [leave-types]
+      summary: List a leave type's policies
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: leaveTypeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of leave policies for the type
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeavePolicy"
+    post:
+      operationId: createLeavePolicy
+      tags: [leave-types]
+      summary: Add a policy to a leave type
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: leaveTypeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLeavePolicyInput"
+      responses:
+        "201":
+          description: Leave policy created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeavePolicy"
+        "400":
+          description: Invalid policy fields or cross-organization reference
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/leave-types/{leaveTypeId}/policies/{policyId}:
+    patch:
+      operationId: updateLeavePolicy
+      tags: [leave-types]
+      summary: Update a leave policy
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: leaveTypeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: policyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateLeavePolicyInput"
+      responses:
+        "200":
+          description: Leave policy updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeavePolicy"
+        "400":
+          description: Invalid policy fields or cross-organization reference
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Leave policy not found in this organization/leave type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/leave-types/{leaveTypeId}/policies/{policyId}/archive:
+    post:
+      operationId: archiveLeavePolicy
+      tags: [leave-types]
+      summary: Archive a leave policy
+      description: Independent of the parent leave type's own archive lifecycle.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: leaveTypeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: policyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Leave policy archived
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeavePolicy"
+        "404":
+          description: Leave policy not found in this organization/leave type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/leave-types/{leaveTypeId}/policies/{policyId}/reactivate:
+    post:
+      operationId: reactivateLeavePolicy
+      tags: [leave-types]
+      summary: Reactivate an archived leave policy
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: leaveTypeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: policyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Leave policy reactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeavePolicy"
+        "404":
+          description: Leave policy not found in this organization/leave type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /organizations/{organizationId}/branches:
     get:
       operationId: listBranches
@@ -3433,6 +3765,269 @@ components:
           type: string
         phone:
           type: string
+
+    LeaveType:
+      type: object
+      required: [id, organizationId, name, code, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        name:
+          type: string
+        code:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateLeaveTypeInput:
+      type: object
+      required: [name, code]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        code:
+          type: string
+          minLength: 1
+
+    UpdateLeaveTypeInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        code:
+          type: string
+          minLength: 1
+
+    LeavePolicy:
+      type: object
+      required:
+        [
+          id,
+          organizationId,
+          leaveTypeId,
+          name,
+          probationRestricted,
+          annualEntitlementDays,
+          isPaid,
+          accrualMethod,
+          entitlementPeriod,
+          carryForwardAllowed,
+          attachmentRequired,
+          countWeekends,
+          countPublicHolidays,
+          allowNegativeBalance,
+          effectiveFrom,
+          status,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        leaveTypeId:
+          type: integer
+        name:
+          type: string
+        employmentType:
+          type: ["string", "null"]
+          enum: [full_time, part_time, contract, intern, temporary, null]
+        branchId:
+          type: ["integer", "null"]
+        departmentId:
+          type: ["integer", "null"]
+        positionId:
+          type: ["integer", "null"]
+        gender:
+          type: ["string", "null"]
+          enum: [male, female, other, prefer_not_to_say, null]
+        minimumServiceMonths:
+          type: ["integer", "null"]
+        probationRestricted:
+          type: boolean
+        annualEntitlementDays:
+          type: string
+          description: Decimal string (e.g. "21.00").
+        isPaid:
+          type: boolean
+        accrualMethod:
+          type: string
+          enum: [annual, monthly, per_pay_period, none]
+        accrualRate:
+          type: ["string", "null"]
+        entitlementPeriod:
+          type: string
+          enum: [calendar_year, anniversary_year]
+        carryForwardAllowed:
+          type: boolean
+        maxCarryForwardDays:
+          type: ["string", "null"]
+        carryForwardExpiryMonths:
+          type: ["integer", "null"]
+        minRequestDurationDays:
+          type: ["string", "null"]
+        maxRequestDurationDays:
+          type: ["string", "null"]
+        noticePeriodDays:
+          type: ["integer", "null"]
+        attachmentRequired:
+          type: boolean
+        countWeekends:
+          type: boolean
+        countPublicHolidays:
+          type: boolean
+        allowNegativeBalance:
+          type: boolean
+        effectiveFrom:
+          type: string
+          format: date-time
+        effectiveTo:
+          type: ["string", "null"]
+          format: date-time
+        status:
+          type: string
+          enum: [active, inactive]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateLeavePolicyInput:
+      type: object
+      required: [name, annualEntitlementDays, effectiveFrom]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        employmentType:
+          type: string
+          enum: [full_time, part_time, contract, intern, temporary]
+        branchId:
+          type: integer
+        departmentId:
+          type: integer
+        positionId:
+          type: integer
+        gender:
+          type: string
+          enum: [male, female, other, prefer_not_to_say]
+        minimumServiceMonths:
+          type: integer
+        probationRestricted:
+          type: boolean
+        annualEntitlementDays:
+          type: number
+        isPaid:
+          type: boolean
+        accrualMethod:
+          type: string
+          enum: [annual, monthly, per_pay_period, none]
+        accrualRate:
+          type: number
+        entitlementPeriod:
+          type: string
+          enum: [calendar_year, anniversary_year]
+        carryForwardAllowed:
+          type: boolean
+        maxCarryForwardDays:
+          type: number
+        carryForwardExpiryMonths:
+          type: integer
+        minRequestDurationDays:
+          type: number
+        maxRequestDurationDays:
+          type: number
+        noticePeriodDays:
+          type: integer
+        attachmentRequired:
+          type: boolean
+        countWeekends:
+          type: boolean
+        countPublicHolidays:
+          type: boolean
+        allowNegativeBalance:
+          type: boolean
+        effectiveFrom:
+          type: string
+          format: date-time
+        effectiveTo:
+          type: string
+          format: date-time
+
+    UpdateLeavePolicyInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        employmentType:
+          type: ["string", "null"]
+          enum: [full_time, part_time, contract, intern, temporary, null]
+        branchId:
+          type: ["integer", "null"]
+        departmentId:
+          type: ["integer", "null"]
+        positionId:
+          type: ["integer", "null"]
+        gender:
+          type: ["string", "null"]
+          enum: [male, female, other, prefer_not_to_say, null]
+        minimumServiceMonths:
+          type: ["integer", "null"]
+        probationRestricted:
+          type: boolean
+        annualEntitlementDays:
+          type: number
+        isPaid:
+          type: boolean
+        accrualMethod:
+          type: string
+          enum: [annual, monthly, per_pay_period, none]
+        accrualRate:
+          type: ["number", "null"]
+        entitlementPeriod:
+          type: string
+          enum: [calendar_year, anniversary_year]
+        carryForwardAllowed:
+          type: boolean
+        maxCarryForwardDays:
+          type: ["number", "null"]
+        carryForwardExpiryMonths:
+          type: ["integer", "null"]
+        minRequestDurationDays:
+          type: ["number", "null"]
+        maxRequestDurationDays:
+          type: ["number", "null"]
+        noticePeriodDays:
+          type: ["integer", "null"]
+        attachmentRequired:
+          type: boolean
+        countWeekends:
+          type: boolean
+        countPublicHolidays:
+          type: boolean
+        allowNegativeBalance:
+          type: boolean
+        effectiveFrom:
+          type: string
+          format: date-time
+        effectiveTo:
+          type: ["string", "null"]
+          format: date-time
 
     Branch:
       type: object

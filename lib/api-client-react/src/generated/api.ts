@@ -37,6 +37,8 @@ import type {
   CreateDepartmentInput,
   CreateEmployeeInput,
   CreateInvitationInput,
+  CreateLeavePolicyInput,
+  CreateLeaveTypeInput,
   CreateMasterDataItemInput,
   CreateOrganizationInput,
   CreatePositionInput,
@@ -55,6 +57,8 @@ import type {
   HealthStatus,
   InvitationCreated,
   InvitationPreview,
+  LeavePolicy,
+  LeaveType,
   LinkEmployeeUserInput,
   ListAuditEventsParams,
   ListEmployeesParams,
@@ -94,6 +98,8 @@ import type {
   UpdateEmployeeInput,
   UpdateEmployeeQualificationInput,
   UpdateEmployeeSkillInput,
+  UpdateLeavePolicyInput,
+  UpdateLeaveTypeInput,
   UpdateOrganizationConfigInput,
   UpdateOrganizationInput,
   UpdateOrganizationModuleInput,
@@ -3858,6 +3864,760 @@ export const useRemoveEmployeeCertification = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getRemoveEmployeeCertificationMutationOptions(options));
+    }
+
+export const getListLeaveTypesUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/leave-types`
+}
+
+/**
+ * Gated by the "leave" module.
+ * @summary List leave types
+ */
+export const listLeaveTypes = async (organizationId: number, options?: RequestInit): Promise<LeaveType[]> => {
+
+  return customFetch<LeaveType[]>(getListLeaveTypesUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLeaveTypesQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/leave-types`
+    ] as const;
+    }
+
+
+export const getListLeaveTypesQueryOptions = <TData = Awaited<ReturnType<typeof listLeaveTypes>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeaveTypes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLeaveTypesQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLeaveTypes>>> = ({ signal }) => listLeaveTypes(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLeaveTypes>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLeaveTypesQueryResult = NonNullable<Awaited<ReturnType<typeof listLeaveTypes>>>
+export type ListLeaveTypesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List leave types
+ */
+
+export function useListLeaveTypes<TData = Awaited<ReturnType<typeof listLeaveTypes>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeaveTypes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLeaveTypesQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateLeaveTypeUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/leave-types`
+}
+
+/**
+ * @summary Create a leave type
+ */
+export const createLeaveType = async (organizationId: number,
+    createLeaveTypeInput: CreateLeaveTypeInput, options?: RequestInit): Promise<LeaveType> => {
+
+  return customFetch<LeaveType>(getCreateLeaveTypeUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createLeaveTypeInput)
+  }
+);}
+
+
+
+
+
+export const getCreateLeaveTypeMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLeaveType>>, TError,{organizationId: number;data: BodyType<CreateLeaveTypeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createLeaveType>>, TError,{organizationId: number;data: BodyType<CreateLeaveTypeInput>}, TContext> => {
+
+const mutationKey = ['createLeaveType'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createLeaveType>>, {organizationId: number;data: BodyType<CreateLeaveTypeInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createLeaveType(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateLeaveTypeMutationResult = NonNullable<Awaited<ReturnType<typeof createLeaveType>>>
+    export type CreateLeaveTypeMutationBody = BodyType<CreateLeaveTypeInput>
+    export type CreateLeaveTypeMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Create a leave type
+ */
+export const useCreateLeaveType = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLeaveType>>, TError,{organizationId: number;data: BodyType<CreateLeaveTypeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createLeaveType>>,
+        TError,
+        {organizationId: number;data: BodyType<CreateLeaveTypeInput>},
+        TContext
+      > => {
+      return useMutation(getCreateLeaveTypeMutationOptions(options));
+    }
+
+export const getUpdateLeaveTypeUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/leave-types/${id}`
+}
+
+/**
+ * Does not change status — use archive/reactivate for that.
+ * @summary Update a leave type's name/code
+ */
+export const updateLeaveType = async (organizationId: number,
+    id: number,
+    updateLeaveTypeInput: UpdateLeaveTypeInput, options?: RequestInit): Promise<LeaveType> => {
+
+  return customFetch<LeaveType>(getUpdateLeaveTypeUrl(organizationId,id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateLeaveTypeInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateLeaveTypeMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLeaveType>>, TError,{organizationId: number;id: number;data: BodyType<UpdateLeaveTypeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateLeaveType>>, TError,{organizationId: number;id: number;data: BodyType<UpdateLeaveTypeInput>}, TContext> => {
+
+const mutationKey = ['updateLeaveType'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateLeaveType>>, {organizationId: number;id: number;data: BodyType<UpdateLeaveTypeInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  updateLeaveType(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateLeaveTypeMutationResult = NonNullable<Awaited<ReturnType<typeof updateLeaveType>>>
+    export type UpdateLeaveTypeMutationBody = BodyType<UpdateLeaveTypeInput>
+    export type UpdateLeaveTypeMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update a leave type's name/code
+ */
+export const useUpdateLeaveType = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLeaveType>>, TError,{organizationId: number;id: number;data: BodyType<UpdateLeaveTypeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateLeaveType>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<UpdateLeaveTypeInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateLeaveTypeMutationOptions(options));
+    }
+
+export const getArchiveLeaveTypeUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/leave-types/${id}/archive`
+}
+
+/**
+ * @summary Archive a leave type
+ */
+export const archiveLeaveType = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<LeaveType> => {
+
+  return customFetch<LeaveType>(getArchiveLeaveTypeUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getArchiveLeaveTypeMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveLeaveType>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof archiveLeaveType>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['archiveLeaveType'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof archiveLeaveType>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  archiveLeaveType(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ArchiveLeaveTypeMutationResult = NonNullable<Awaited<ReturnType<typeof archiveLeaveType>>>
+
+    export type ArchiveLeaveTypeMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Archive a leave type
+ */
+export const useArchiveLeaveType = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveLeaveType>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof archiveLeaveType>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getArchiveLeaveTypeMutationOptions(options));
+    }
+
+export const getReactivateLeaveTypeUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/leave-types/${id}/reactivate`
+}
+
+/**
+ * @summary Reactivate an archived leave type
+ */
+export const reactivateLeaveType = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<LeaveType> => {
+
+  return customFetch<LeaveType>(getReactivateLeaveTypeUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getReactivateLeaveTypeMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateLeaveType>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reactivateLeaveType>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['reactivateLeaveType'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reactivateLeaveType>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  reactivateLeaveType(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReactivateLeaveTypeMutationResult = NonNullable<Awaited<ReturnType<typeof reactivateLeaveType>>>
+
+    export type ReactivateLeaveTypeMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Reactivate an archived leave type
+ */
+export const useReactivateLeaveType = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateLeaveType>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reactivateLeaveType>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getReactivateLeaveTypeMutationOptions(options));
+    }
+
+export const getListLeavePoliciesUrl = (organizationId: number,
+    leaveTypeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/leave-types/${leaveTypeId}/policies`
+}
+
+/**
+ * @summary List a leave type's policies
+ */
+export const listLeavePolicies = async (organizationId: number,
+    leaveTypeId: number, options?: RequestInit): Promise<LeavePolicy[]> => {
+
+  return customFetch<LeavePolicy[]>(getListLeavePoliciesUrl(organizationId,leaveTypeId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLeavePoliciesQueryKey = (organizationId: number,
+    leaveTypeId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/leave-types/${leaveTypeId}/policies`
+    ] as const;
+    }
+
+
+export const getListLeavePoliciesQueryOptions = <TData = Awaited<ReturnType<typeof listLeavePolicies>>, TError = ErrorType<unknown>>(organizationId: number,
+    leaveTypeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeavePolicies>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLeavePoliciesQueryKey(organizationId,leaveTypeId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLeavePolicies>>> = ({ signal }) => listLeavePolicies(organizationId,leaveTypeId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && leaveTypeId !== null && leaveTypeId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLeavePolicies>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLeavePoliciesQueryResult = NonNullable<Awaited<ReturnType<typeof listLeavePolicies>>>
+export type ListLeavePoliciesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List a leave type's policies
+ */
+
+export function useListLeavePolicies<TData = Awaited<ReturnType<typeof listLeavePolicies>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    leaveTypeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeavePolicies>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLeavePoliciesQueryOptions(organizationId,leaveTypeId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateLeavePolicyUrl = (organizationId: number,
+    leaveTypeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/leave-types/${leaveTypeId}/policies`
+}
+
+/**
+ * @summary Add a policy to a leave type
+ */
+export const createLeavePolicy = async (organizationId: number,
+    leaveTypeId: number,
+    createLeavePolicyInput: CreateLeavePolicyInput, options?: RequestInit): Promise<LeavePolicy> => {
+
+  return customFetch<LeavePolicy>(getCreateLeavePolicyUrl(organizationId,leaveTypeId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createLeavePolicyInput)
+  }
+);}
+
+
+
+
+
+export const getCreateLeavePolicyMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLeavePolicy>>, TError,{organizationId: number;leaveTypeId: number;data: BodyType<CreateLeavePolicyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createLeavePolicy>>, TError,{organizationId: number;leaveTypeId: number;data: BodyType<CreateLeavePolicyInput>}, TContext> => {
+
+const mutationKey = ['createLeavePolicy'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createLeavePolicy>>, {organizationId: number;leaveTypeId: number;data: BodyType<CreateLeavePolicyInput>}> = (props) => {
+          const {organizationId,leaveTypeId,data} = props ?? {};
+
+          return  createLeavePolicy(organizationId,leaveTypeId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateLeavePolicyMutationResult = NonNullable<Awaited<ReturnType<typeof createLeavePolicy>>>
+    export type CreateLeavePolicyMutationBody = BodyType<CreateLeavePolicyInput>
+    export type CreateLeavePolicyMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Add a policy to a leave type
+ */
+export const useCreateLeavePolicy = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLeavePolicy>>, TError,{organizationId: number;leaveTypeId: number;data: BodyType<CreateLeavePolicyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createLeavePolicy>>,
+        TError,
+        {organizationId: number;leaveTypeId: number;data: BodyType<CreateLeavePolicyInput>},
+        TContext
+      > => {
+      return useMutation(getCreateLeavePolicyMutationOptions(options));
+    }
+
+export const getUpdateLeavePolicyUrl = (organizationId: number,
+    leaveTypeId: number,
+    policyId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/leave-types/${leaveTypeId}/policies/${policyId}`
+}
+
+/**
+ * @summary Update a leave policy
+ */
+export const updateLeavePolicy = async (organizationId: number,
+    leaveTypeId: number,
+    policyId: number,
+    updateLeavePolicyInput: UpdateLeavePolicyInput, options?: RequestInit): Promise<LeavePolicy> => {
+
+  return customFetch<LeavePolicy>(getUpdateLeavePolicyUrl(organizationId,leaveTypeId,policyId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateLeavePolicyInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateLeavePolicyMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLeavePolicy>>, TError,{organizationId: number;leaveTypeId: number;policyId: number;data: BodyType<UpdateLeavePolicyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateLeavePolicy>>, TError,{organizationId: number;leaveTypeId: number;policyId: number;data: BodyType<UpdateLeavePolicyInput>}, TContext> => {
+
+const mutationKey = ['updateLeavePolicy'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateLeavePolicy>>, {organizationId: number;leaveTypeId: number;policyId: number;data: BodyType<UpdateLeavePolicyInput>}> = (props) => {
+          const {organizationId,leaveTypeId,policyId,data} = props ?? {};
+
+          return  updateLeavePolicy(organizationId,leaveTypeId,policyId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateLeavePolicyMutationResult = NonNullable<Awaited<ReturnType<typeof updateLeavePolicy>>>
+    export type UpdateLeavePolicyMutationBody = BodyType<UpdateLeavePolicyInput>
+    export type UpdateLeavePolicyMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update a leave policy
+ */
+export const useUpdateLeavePolicy = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLeavePolicy>>, TError,{organizationId: number;leaveTypeId: number;policyId: number;data: BodyType<UpdateLeavePolicyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateLeavePolicy>>,
+        TError,
+        {organizationId: number;leaveTypeId: number;policyId: number;data: BodyType<UpdateLeavePolicyInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateLeavePolicyMutationOptions(options));
+    }
+
+export const getArchiveLeavePolicyUrl = (organizationId: number,
+    leaveTypeId: number,
+    policyId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/leave-types/${leaveTypeId}/policies/${policyId}/archive`
+}
+
+/**
+ * Independent of the parent leave type's own archive lifecycle.
+ * @summary Archive a leave policy
+ */
+export const archiveLeavePolicy = async (organizationId: number,
+    leaveTypeId: number,
+    policyId: number, options?: RequestInit): Promise<LeavePolicy> => {
+
+  return customFetch<LeavePolicy>(getArchiveLeavePolicyUrl(organizationId,leaveTypeId,policyId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getArchiveLeavePolicyMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveLeavePolicy>>, TError,{organizationId: number;leaveTypeId: number;policyId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof archiveLeavePolicy>>, TError,{organizationId: number;leaveTypeId: number;policyId: number}, TContext> => {
+
+const mutationKey = ['archiveLeavePolicy'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof archiveLeavePolicy>>, {organizationId: number;leaveTypeId: number;policyId: number}> = (props) => {
+          const {organizationId,leaveTypeId,policyId} = props ?? {};
+
+          return  archiveLeavePolicy(organizationId,leaveTypeId,policyId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ArchiveLeavePolicyMutationResult = NonNullable<Awaited<ReturnType<typeof archiveLeavePolicy>>>
+
+    export type ArchiveLeavePolicyMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Archive a leave policy
+ */
+export const useArchiveLeavePolicy = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveLeavePolicy>>, TError,{organizationId: number;leaveTypeId: number;policyId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof archiveLeavePolicy>>,
+        TError,
+        {organizationId: number;leaveTypeId: number;policyId: number},
+        TContext
+      > => {
+      return useMutation(getArchiveLeavePolicyMutationOptions(options));
+    }
+
+export const getReactivateLeavePolicyUrl = (organizationId: number,
+    leaveTypeId: number,
+    policyId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/leave-types/${leaveTypeId}/policies/${policyId}/reactivate`
+}
+
+/**
+ * @summary Reactivate an archived leave policy
+ */
+export const reactivateLeavePolicy = async (organizationId: number,
+    leaveTypeId: number,
+    policyId: number, options?: RequestInit): Promise<LeavePolicy> => {
+
+  return customFetch<LeavePolicy>(getReactivateLeavePolicyUrl(organizationId,leaveTypeId,policyId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getReactivateLeavePolicyMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateLeavePolicy>>, TError,{organizationId: number;leaveTypeId: number;policyId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reactivateLeavePolicy>>, TError,{organizationId: number;leaveTypeId: number;policyId: number}, TContext> => {
+
+const mutationKey = ['reactivateLeavePolicy'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reactivateLeavePolicy>>, {organizationId: number;leaveTypeId: number;policyId: number}> = (props) => {
+          const {organizationId,leaveTypeId,policyId} = props ?? {};
+
+          return  reactivateLeavePolicy(organizationId,leaveTypeId,policyId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReactivateLeavePolicyMutationResult = NonNullable<Awaited<ReturnType<typeof reactivateLeavePolicy>>>
+
+    export type ReactivateLeavePolicyMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Reactivate an archived leave policy
+ */
+export const useReactivateLeavePolicy = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateLeavePolicy>>, TError,{organizationId: number;leaveTypeId: number;policyId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reactivateLeavePolicy>>,
+        TError,
+        {organizationId: number;leaveTypeId: number;policyId: number},
+        TContext
+      > => {
+      return useMutation(getReactivateLeavePolicyMutationOptions(options));
     }
 
 export const getListBranchesUrl = (organizationId: number,) => {

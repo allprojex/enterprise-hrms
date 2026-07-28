@@ -21,6 +21,8 @@ import Positions from '@/pages/positions';
 import Employees from '@/pages/employees';
 import EmployeeDetail from '@/pages/employee-detail';
 import Admin from '@/pages/admin';
+import LeaveTypes from '@/pages/leave-types';
+import { ModuleGate } from '@/components/module-gate';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -31,14 +33,13 @@ const queryClient = new QueryClient({
   },
 });
 
-function SecureRoute({ component: Component }: { component: React.ComponentType }) {
-  return (
-    <AppShell>
-      <ErrorBoundary>
-        <Component />
-      </ErrorBoundary>
-    </AppShell>
+function SecureRoute({ component: Component, moduleKey }: { component: React.ComponentType; moduleKey?: string }) {
+  const content = (
+    <ErrorBoundary>
+      <Component />
+    </ErrorBoundary>
   );
+  return <AppShell>{moduleKey ? <ModuleGate moduleKey={moduleKey}>{content}</ModuleGate> : content}</AppShell>;
 }
 
 function Router() {
@@ -85,6 +86,9 @@ function Router() {
       </Route>
       <Route path="/admin">
         {() => <SecureRoute component={Admin} />}
+      </Route>
+      <Route path="/leave-types">
+        {() => <SecureRoute component={LeaveTypes} moduleKey="leave" />}
       </Route>
 
       {/* 404 fallback */}

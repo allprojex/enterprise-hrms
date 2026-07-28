@@ -113,6 +113,13 @@
       "when": 1785273560093,
       "tag": "0015_mute_marten_broadcloak",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1785277179684,
+      "tag": "0016_little_jackal",
+      "breakpoints": true
     }
   ]
 }
