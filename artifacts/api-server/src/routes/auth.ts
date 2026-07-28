@@ -2,11 +2,18 @@ import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { eq } from "drizzle-orm";
 import { db, usersTable, sessionsTable } from "@workspace/db";
-import { LoginBody, ForgotPasswordBody, SwitchOrganizationBody } from "@workspace/api-zod";
+import { LoginBody, ForgotPasswordBody, SwitchOrganizationBody, ResetPasswordBody } from "@workspace/api-zod";
 import { hashPassword, verifyPassword, generateToken } from "../lib/auth";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { getActiveMembership, resolveActiveOrganizationId } from "../lib/membership";
 import { recordAuditEvent } from "../lib/auditLog";
+import {
+  requestPasswordReset,
+  getPasswordResetTokenStatus,
+  resetPassword,
+  PasswordResetTokenNotFoundError,
+  PasswordResetTokenExpiredError,
+} from "../lib/passwordReset";
 
 const router = Router();
 
@@ -91,8 +98,47 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  // In a real app: send reset email. For the shell, we just confirm.
+
+  await requestPasswordReset(parsed.data.email);
+
+  // Always the same response regardless of whether the email is registered
+  // or delivery succeeded -- see requestPasswordReset's doc comment.
   res.json({ message: "If that email is registered, a reset link has been sent." });
+});
+
+// GET /auth/reset-password/:token
+// Public -- no authentication required. Used by the reset-password page.
+router.get("/auth/reset-password/:token", async (req, res): Promise<void> => {
+  const token = Array.isArray(req.params.token) ? req.params.token[0] : req.params.token;
+  const status = await getPasswordResetTokenStatus(token);
+  res.json({ status });
+});
+
+// POST /auth/reset-password/:token
+// Public -- no authentication required. Sets a new password and consumes the token.
+router.post("/auth/reset-password/:token", async (req, res): Promise<void> => {
+  const token = Array.isArray(req.params.token) ? req.params.token[0] : req.params.token;
+
+  const parsed = ResetPasswordBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  try {
+    await resetPassword(token, parsed.data.password);
+    res.json({ message: "Password reset. You can now log in." });
+  } catch (err) {
+    if (err instanceof PasswordResetTokenNotFoundError) {
+      res.status(404).json({ error: err.message });
+      return;
+    }
+    if (err instanceof PasswordResetTokenExpiredError) {
+      res.status(410).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
 });
 
 // POST /auth/switch-organization

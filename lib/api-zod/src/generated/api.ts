@@ -59,7 +59,7 @@ export const LogoutResponse = zod.object({
 
 
 /**
- * Send a password reset email
+ * Sends a password reset email via Resend if the address is registered. Always returns the same confirmation regardless of whether the email is registered or delivery succeeds, to avoid revealing account existence.
  * @summary Request password reset
  */
 export const ForgotPasswordBody = zod.object({
@@ -67,6 +67,40 @@ export const ForgotPasswordBody = zod.object({
 })
 
 export const ForgotPasswordResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * Public -- no authentication required. Used by the reset-password page.
+ * @summary Preview a password reset token
+ */
+export const GetPasswordResetStatusParams = zod.object({
+  "token": zod.coerce.string()
+})
+
+export const GetPasswordResetStatusResponse = zod.object({
+  "status": zod.enum(['valid', 'expired', 'invalid'])
+})
+
+
+/**
+ * Public -- no authentication required. Sets a new password and consumes the token so the link can't be replayed.
+ * @summary Reset password
+ */
+export const ResetPasswordParams = zod.object({
+  "token": zod.coerce.string()
+})
+
+export const resetPasswordBodyPasswordMin = 8;
+
+
+
+export const ResetPasswordBody = zod.object({
+  "password": zod.string().min(resetPasswordBodyPasswordMin)
+})
+
+export const ResetPasswordResponse = zod.object({
   "message": zod.string()
 })
 

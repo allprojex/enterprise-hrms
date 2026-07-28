@@ -24,6 +24,11 @@ export const usersTable = pgTable("users", {
   jobTitle: text("job_title"),
   department: text("department"),
   phoneNumber: text("phone_number"),
+  // Forgot Password (W19): raw token + expiry, mirrors organization_memberships'
+  // inviteToken/inviteTokenExpiresAt pair (ADR-014). Cleared on successful
+  // reset so a used or expired link can't be replayed.
+  passwordResetToken: text("password_reset_token").unique(),
+  passwordResetTokenExpiresAt: timestamp("password_reset_token_expires_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

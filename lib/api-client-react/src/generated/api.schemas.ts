@@ -935,6 +935,24 @@ export interface AcceptInvitationInput {
   password: string;
 }
 
+export type PasswordResetStatusStatus = typeof PasswordResetStatusStatus[keyof typeof PasswordResetStatusStatus];
+
+
+export const PasswordResetStatusStatus = {
+  valid: 'valid',
+  expired: 'expired',
+  invalid: 'invalid',
+} as const;
+
+export interface PasswordResetStatus {
+  status: PasswordResetStatusStatus;
+}
+
+export interface ResetPasswordInput {
+  /** @minLength 8 */
+  password: string;
+}
+
 export interface PrimaryHrAssignment {
   id: number;
   organizationId: number;

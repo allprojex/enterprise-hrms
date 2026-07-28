@@ -59,12 +59,14 @@ import type {
   OrganizationMember,
   OrganizationModule,
   OrganizationRole,
+  PasswordResetStatus,
   Permission,
   Position,
   PrimaryHrAssignment,
   PrimaryHrAssignmentOrNull,
   Report,
   ReportRunResult,
+  ResetPasswordInput,
   RestructureDepartmentInput,
   RestructurePositionInput,
   Role,
@@ -342,7 +344,7 @@ export const getForgotPasswordUrl = () => {
 }
 
 /**
- * Send a password reset email
+ * Sends a password reset email via Resend if the address is registered. Always returns the same confirmation regardless of whether the email is registered or delivery succeeds, to avoid revealing account existence.
  * @summary Request password reset
  */
 export const forgotPassword = async (forgotPasswordInput: ForgotPasswordInput, options?: RequestInit): Promise<MessageResponse> => {
@@ -403,6 +405,157 @@ export const useForgotPassword = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getForgotPasswordMutationOptions(options));
+    }
+
+export const getGetPasswordResetStatusUrl = (token: string,) => {
+
+
+
+
+  return `/api/auth/reset-password/${token}`
+}
+
+/**
+ * Public -- no authentication required. Used by the reset-password page.
+ * @summary Preview a password reset token
+ */
+export const getPasswordResetStatus = async (token: string, options?: RequestInit): Promise<PasswordResetStatus> => {
+
+  return customFetch<PasswordResetStatus>(getGetPasswordResetStatusUrl(token),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPasswordResetStatusQueryKey = (token: string,) => {
+    return [
+    `/api/auth/reset-password/${token}`
+    ] as const;
+    }
+
+
+export const getGetPasswordResetStatusQueryOptions = <TData = Awaited<ReturnType<typeof getPasswordResetStatus>>, TError = ErrorType<unknown>>(token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPasswordResetStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPasswordResetStatusQueryKey(token);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPasswordResetStatus>>> = ({ signal }) => getPasswordResetStatus(token, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: token !== null && token !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPasswordResetStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPasswordResetStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getPasswordResetStatus>>>
+export type GetPasswordResetStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Preview a password reset token
+ */
+
+export function useGetPasswordResetStatus<TData = Awaited<ReturnType<typeof getPasswordResetStatus>>, TError = ErrorType<unknown>>(
+ token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPasswordResetStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPasswordResetStatusQueryOptions(token,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getResetPasswordUrl = (token: string,) => {
+
+
+
+
+  return `/api/auth/reset-password/${token}`
+}
+
+/**
+ * Public -- no authentication required. Sets a new password and consumes the token so the link can't be replayed.
+ * @summary Reset password
+ */
+export const resetPassword = async (token: string,
+    resetPasswordInput: ResetPasswordInput, options?: RequestInit): Promise<MessageResponse> => {
+
+  return customFetch<MessageResponse>(getResetPasswordUrl(token),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(resetPasswordInput)
+  }
+);}
+
+
+
+
+
+export const getResetPasswordMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetPassword>>, TError,{token: string;data: BodyType<ResetPasswordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resetPassword>>, TError,{token: string;data: BodyType<ResetPasswordInput>}, TContext> => {
+
+const mutationKey = ['resetPassword'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resetPassword>>, {token: string;data: BodyType<ResetPasswordInput>}> = (props) => {
+          const {token,data} = props ?? {};
+
+          return  resetPassword(token,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResetPasswordMutationResult = NonNullable<Awaited<ReturnType<typeof resetPassword>>>
+    export type ResetPasswordMutationBody = BodyType<ResetPasswordInput>
+    export type ResetPasswordMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Reset password
+ */
+export const useResetPassword = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetPassword>>, TError,{token: string;data: BodyType<ResetPasswordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resetPassword>>,
+        TError,
+        {token: string;data: BodyType<ResetPasswordInput>},
+        TContext
+      > => {
+      return useMutation(getResetPasswordMutationOptions(options));
     }
 
 export const getSwitchOrganizationUrl = () => {

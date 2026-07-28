@@ -101,7 +101,11 @@ paths:
       operationId: forgotPassword
       tags: [auth]
       summary: Request password reset
-      description: Send a password reset email
+      description: >-
+        Sends a password reset email via Resend if the address is registered.
+        Always returns the same confirmation regardless of whether the email
+        is registered or delivery succeeds, to avoid revealing account
+        existence.
       requestBody:
         required: true
         content:
@@ -110,11 +114,69 @@ paths:
               $ref: "#/components/schemas/ForgotPasswordInput"
       responses:
         "200":
-          description: Password reset email sent
+          description: Request accepted
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
+
+  /auth/reset-password/{token}:
+    get:
+      operationId: getPasswordResetStatus
+      tags: [auth]
+      summary: Preview a password reset token
+      description: Public -- no authentication required. Used by the reset-password page.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Reset token status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasswordResetStatus"
+    post:
+      operationId: resetPassword
+      tags: [auth]
+      summary: Reset password
+      description: >-
+        Public -- no authentication required. Sets a new password and
+        consumes the token so the link can't be replayed.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordInput"
+      responses:
+        "200":
+          description: Password reset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "404":
+          description: Invalid or already-used reset link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "410":
+          description: Reset link expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /auth/switch-organization:
     post:
@@ -3230,6 +3292,22 @@ components:
         lastName:
           type: string
           minLength: 1
+        password:
+          type: string
+          minLength: 8
+
+    PasswordResetStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [valid, expired, invalid]
+
+    ResetPasswordInput:
+      type: object
+      required: [password]
+      properties:
         password:
           type: string
           minLength: 8
