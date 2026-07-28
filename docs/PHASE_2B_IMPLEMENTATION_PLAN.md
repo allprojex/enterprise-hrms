@@ -1,38 +1,48 @@
 # Phase 2B — HR Operations
 
-**Status: DRAFT — NOT FROZEN.** This is a first draft for your review, not an approved plan. Nothing here is authoritative — scope, order, and architecture decisions all require your explicit approval before any workstream begins, in the same style `docs/PHASE_2A_IMPLEMENTATION_PLAN.md` used before it was frozen.
+**Status: REVISED DRAFT — NOT FROZEN.** This is a revised draft for your review, not an approved plan. Nothing here is authoritative — scope, order, and architecture decisions all require your explicit approval before any workstream begins, in the same style `docs/PHASE_2A_IMPLEMENTATION_PLAN.md` used before it was frozen.
 
 ---
 
 ## 1. Objectives
 
-Build the first slice of Workforce Operations — Leave, an Attendance configuration layer, and Employee Self-Service — on top of the completed Foundation (W1–W21) and Phase 2A Core Employee Domain (W22–W31). Phase 2B is also the first phase to actually *consume* the Module Management system (W3–W6): the `leave`, `attendance`, and `employee_self_service` modules were seeded in W3 as dormant (`status: "hidden"`), and every route/page this plan adds should be gated through the existing `requireModuleEnabled`/`<ModuleGate>` machinery rather than shipping unconditionally, the way every Foundation and Phase 2A route did.
+Build the first slice of Workforce Operations — Leave, an Attendance configuration layer, and Employee Self-Service — on top of the completed Foundation (W1–W21) and Phase 2A Core Employee Domain (W22–W31). Phase 2B is also the first phase to actually *consume* the Module Management system (W3–W6): the `leave`, `attendance`, and `employee_self_service` modules were seeded in W3 as dormant (`status: "hidden"`), and every route/page this plan adds should be gated through the existing `requireModuleEnabled`/`<ModuleGate>` machinery rather than shipping unconditionally.
 
 ---
 
 ## 2. Scope
 
-Per `ROADMAP.md`'s Phase 3 ("Workforce Operations") list, this plan covers only the Leave/Attendance-configuration/Employee Self-Service slice of that list — Recruitment, Performance, Learning, Asset Management, and Manager Portal are explicitly deferred (see Out-of-Scope). In list form: Leave Types & Policies, Leave Requests, Leave Balances, Leave Approval, a Leave Calendar, Public Holiday Management, Attendance configuration (not attendance capture), an Employee Self-Service surface, and an HR Operations Dashboard.
+Per `ROADMAP.md`'s Phase 3 ("Workforce Operations") list, this plan covers only the Leave/Attendance-configuration/Employee Self-Service slice of that list — Recruitment, Performance, Learning, Asset Management, and Manager Portal are explicitly deferred (see Out-of-Scope). In list form: Leave Types & Policies, Leave Requests, a ledger-based Leave Balance Engine, Leave Approval, a Leave Calendar, Public Holiday Management, Attendance configuration (not attendance capture), an Employee Self-Service surface, and an HR Operations Dashboard.
 
 ---
 
 ## 3. Architecture Principles
 
-1. **Module Gating goes live.** Every new route composes `requireModuleEnabled("leave" | "attendance" | "employee_self_service")` (W5) after `requireMembership`; every new page is wrapped in `<ModuleGate moduleKey>` (W6). This is the first phase where these mechanisms have anything real to gate.
+1. **Module Gating goes live.** Every new route composes `requireModuleEnabled("leave" | "attendance" | "employee_self_service")` (W5) after `requireMembership`; every new page is wrapped in `<ModuleGate moduleKey>` (W6). **Module gating is not authorization** — it answers "does this org have the feature," never "can this caller act on this record." Every route still requires its own permission check on top of the module gate. Disabling a module must never delete or corrupt existing Leave/Attendance data — rows persist, only access is withdrawn. Any background/service-level operation (e.g. a scheduled accrual posting) must independently check module status before acting, the same as a request-driven route would. A 403 for "module disabled" must never leak whether some *other* organization has the module enabled — every check stays scoped to `req.membership!.organizationId`, the same discipline every prior workstream already follows.
 2. **Reuse the Organization Configuration Engine (W2, ADR-009) for Attendance.** Attendance is configuration-only in this phase (work hours/days), not clock-in capture — it registers a new `attendance` namespace into the existing `organization_settings` engine, not a new table.
-3. **Reuse the Services Layer pattern (ADR-011).** New transactional/policy-heavy logic (balance computation, approval transitions) lives in focused service classes, mirroring `lib/employees.ts` and `lib/employmentLifecycleService.ts`.
-4. **Reuse the dedicated-route-file-per-resource pattern** established by W23/W24/W28/W29 for genuinely new sub-resource entities (Leave Types, Leave Requests, Public Holidays); reuse the single-action-on-record pattern established by W25–W27 for state transitions (approve/reject).
-5. **Establish, for the first time, an "own resource" self-service permission shape.** Every prior permission in this codebase is role-scoped (`employee.read`, `employee.write`, ...); Leave Requests and Employee Self-Service need a caller to act on *their own* linked employee record regardless of role. This reuses W14's `employee_user_links` to resolve "which employee is me," not a new authorization primitive.
-6. **Reuse `recordAuditEvent` directly for Leave state changes**, following W29's precedent — a leave request's own status column is its state, and audit_events is its history; do not invent a parallel "leave request periods" table mirroring W22's `employment_periods`, since that pattern belongs to the employee's own placement/status, not to a separate request entity.
+3. **Reuse the Services Layer pattern (ADR-011).** New transactional/policy-heavy logic (ledger posting, approval transitions) lives in focused service classes, mirroring `lib/employees.ts` and `lib/employmentLifecycleService.ts`.
+4. **Reuse the dedicated-route-file-per-resource pattern** established by W23/W24/W28/W29 for genuinely new sub-resource entities (Leave Types, Leave Requests, Public Holidays); reuse the single-action-on-record pattern established by W25–W27 for state transitions (approve/reject); reuse `assertEmployeeReferencesValid`/`assertBelongsToOrganization` (ADR-012) for every cross-org reference (leave type, employee, manager) rather than trusting client-supplied IDs.
+5. **Permission model has five distinct tiers, not two.** Every prior permission in this codebase is role-scoped org-wide (`employee.read`, `employee.write`, ...); Leave introduces finer-grained tiers that must not be conflated:
+   - **Own** — a caller acting on their own linked employee record (resolved via W14's `employee_user_links`, never by trusting a client-supplied employee ID).
+   - **Manager-scoped** — a caller acting on an employee whose `reportingManagerId` (existing `employees` column) points at the caller's own linked employee record. A manager is never assumed to have access to every employee in the organization — access is derived from the actual reporting-line data, not a broad role.
+   - **HR organization-wide** — a caller holding an org-wide management permission, scoped by organization the same way every other permission already is.
+   - **Approval authority** — the union of manager-scoped and HR organization-wide, checked at the moment of approval, not cached.
+   - **Policy administration** — a separate permission from approval; defining leave types/policies is not the same authority as approving a request.
+   Every service function independently re-verifies organization ownership of every referenced record (employee, leave type, leave request) — a route-level permission check is never treated as sufficient proof that a body-supplied ID belongs to the caller's organization.
+6. **Reuse `recordAuditEvent` directly for exceptional/sensitive Leave events** (manual ledger adjustments, approvals, rejections), following W29's precedent. Routine, machine-generated ledger postings (accrual, approved-usage, carry-forward) are self-documenting through the ledger's own actor/reason/timestamp columns and are not separately duplicated into `audit_events`. Do not invent a parallel "leave request periods" table mirroring W22's `employment_periods` — that pattern belongs to the employee's own placement/status history, not to a separate request entity.
+7. **Timezone-safe, organization-scoped dates.** Leave request dates, holiday dates, and ledger effective dates are stored as plain calendar dates (no time-of-day component), diverging deliberately from this schema's usual `timestamp with timezone` convention — a leave day is a date, not an instant, and must not shift across a day boundary depending on the reader's timezone. Day-count calculations run entirely server-side against the applicable policy and the organization's public holidays; the client's arithmetic is never trusted.
+8. **Notify through existing infrastructure, don't build new delivery.** Foundation's Notifications capability (`notificationsTable`, pre-existing) is the only notification mechanism this plan may use. W33 and W35 must call into it for: leave request submitted, leave request cancelled, leave approved, leave rejected. No "more information requested" state exists in this plan's request lifecycle, so no such event is defined. If, once a workstream actually starts, the existing notification infrastructure turns out not to support server-triggered creation for these events, that workstream documents the event/extension point in its own notes rather than building a new notification platform — Phase 2B never owns notification delivery, only the four event triggers above.
 
 ---
 
 ## 4. Dependencies
 
 - Phase 2A (W22–W31) must be complete — it is, per `PROJECT_STATUS.md`'s Phase 2A Completion Report.
-- W37 (Public Holidays) should land before or alongside W33/W34's day-count logic is finalized, since leave day-counting needs to exclude holidays.
-- W39 (Employee Self-Service) depends on W33 (Leave Requests) existing and reuses W23 (Employee Documents) and W14 (Employee–User Linking) — it is a consumer, not a new data owner.
-- W35 (Approval) depends on W33 (Requests) and W34 (Balances) both existing, since approval both transitions a request and decrements a balance.
+- W32 (Leave Types & Policies) must precede W33 (Requests) — a request cannot be validated against eligibility rules that don't exist yet — and must precede W34 (Ledger), since ledger entries reference a leave type/policy.
+- W37 (Public Holidays) should land before or alongside W33/W34's day-count logic is finalized, since day-counting needs to exclude holidays.
+- W34 (Ledger) must precede W35 (Approval), since approval posts a ledger entry.
+- W39 (Employee Self-Service) depends on W33/W34 (Leave Requests/Balances) existing and reuses W23 (Documents), W24 (Skills/Qualifications/Certifications), W25–W27 (employment history via `employment_periods`), and W14 (Employee–User Linking) — it is a consumer, not a new data owner.
+- W40 (Dashboard) depends on W33/W34/W35/W37 for the metrics it aggregates.
 
 ---
 
@@ -40,75 +50,87 @@ Per `ROADMAP.md`'s Phase 3 ("Workforce Operations") list, this plan covers only 
 
 ### W32 — Leave Types & Policies
 
-- **Objective:** Let each organization define its own leave types (annual, sick, maternity, ...) with policy fields.
-- **Scope:** CRUD for org-defined leave types with accrual rate, max carryover, paid/unpaid flag, and approval-required flag.
-- **Architecture reuse:** Not modeled as a `master_data_items` domain (ADR-010) — those fields don't fit the generic label/code/sortOrder shape — but keeps the same organization-overridable *concept*: a dedicated `leave_types` table, org-scoped, mirroring the archive/reactivate lifecycle W13 gave branches/departments/positions.
-- **Permissions:** new `leave_type.read` / `leave_type.manage`.
-- **API expectations:** `GET/POST .../organizations/:organizationId/leave-types`, `PATCH/POST .../:id/archive|reactivate`.
-- **UI expectations:** Admin console "Leave Types" tab.
-- **Database impact:** new `leave_types` table (additive migration).
-- **Exclusions:** no payroll/compensation linkage.
-- **Acceptance criteria:** an org can define, edit, and archive its own leave types; tenant-isolated; gated by the `leave` module.
+- **Objective:** Let each organization define named leave types and, separately, one or more eligibility/entitlement policies per type.
+- **Scope:** Two related concepts, not one flat table:
+  - **Leave Type** — the named category (Annual, Sick, Maternity, Paternity, Casual, Study, Compassionate, Unpaid, or a custom org-defined type). Lifecycle: create, edit, archive/reactivate (mirrors W13's pattern).
+  - **Leave Policy** — one or more rule sets attached to a leave type, each scoped to an employee group by any combination of: employment type, branch, department, position, gender (where legally/operationally relevant), length of service, and probation status. Grade/employee-category eligibility is intentionally omitted — no such concept exists anywhere in this schema yet, and introducing one is out of this workstream's scope. Policy fields: annual entitlement, paid/unpaid, accrual method and rate, entitlement period, carry-forward allowance, maximum carry-forward, carry-forward expiry, minimum/maximum request duration, notice period, minimum service requirement, probation restriction, attachment requirement, weekend-counting rule, public-holiday-counting rule, negative-balance allowance, effective-from/effective-to dates, and its own archive/reactivate lifecycle independent of the parent type's.
+  - A leave type may have zero, one, or several policies; when an employee has more than one applicable policy, the most specific match wins (position > department > branch > employment type > organization-wide default) — precedence is a service-layer concern, not a schema concern.
+- **Architecture reuse:** Not modeled as `master_data_items` (ADR-010) — policy fields don't fit the generic label/code/sortOrder shape. Two dedicated tables (`leave_types`, `leave_policies`), org-scoped, mirroring the archive/reactivate lifecycle W13 gave branches/departments/positions.
+- **Permissions:** new `leave_type.read` / `leave_type.manage` (policy administration — deliberately separate from approval authority, per Architecture Principle 5).
+- **API expectations:** `GET/POST .../organizations/:organizationId/leave-types`, `.../:id/archive|reactivate`; `GET/POST/PATCH .../leave-types/:id/policies`.
+- **UI expectations:** Admin console "Leave Types" tab with per-type policy management.
+- **Database impact:** new `leave_types` and `leave_policies` tables (additive).
+- **Exclusions:** no payroll/compensation logic; no grade/employee-category eligibility (concept doesn't exist yet).
+- **Acceptance criteria:** an org can define leave types and attach group-scoped policies; policy precedence resolves deterministically; tenant-isolated; gated by the `leave` module.
 
 ### W33 — Leave Requests
 
-- **Objective:** Employees can submit, view, and cancel their own leave requests.
-- **Scope:** `leave_requests` (employeeId, leaveTypeId, startDate, endDate, daysRequested, status: pending/approved/rejected/cancelled, reason). This workstream only covers create/list/cancel-while-pending — approval/rejection is W35's job, not duplicated here.
-- **Architecture reuse:** mirrors the employee-sub-resource shape of `employee_documents`/`employee_skills` (org-scoped, `employeeId` cascades, dedicated route file); introduces the "own resource" permission shape described in Architecture Principle 5.
-- **Permissions:** new `leave_request.read.own` (or the caller's own linked employee) / `leave_request.write.own`; `leave_request.manage` for HR/manager org-wide visibility (reused by W35/W36/W40).
-- **API expectations:** `POST/GET .../employees/:employeeId/leave-requests`, `POST .../:id/cancel` (self, pending-only).
+- **Objective:** Employees can submit, view, and cancel their own leave requests, validated entirely server-side.
+- **Scope:** `leave_requests` (employeeId, leaveTypeId, policy applied, startDate, endDate, daysRequested, status: pending/approved/rejected/cancelled, reason, supporting-document reference). Covers create/list/cancel-while-pending only — approval/rejection is W35's job, not duplicated here. Validation (server-side, never trusting client-supplied day counts):
+  - start date not after end date; minimum/maximum request duration per policy; required notice period met; probation restriction respected if the employee is on probation.
+  - policy eligibility resolved for the requesting employee (per W32's precedence rule).
+  - no overlapping date range with another pending/approved request for the same employee; no duplicate submission (idempotent create).
+  - sufficient ledger balance (W34) where the policy disallows negative balances.
+  - required supporting document present where the policy demands one (reuses W23's existing employee-document upload/list, not a new attachment mechanism).
+  - day count excludes weekends/public holidays per the policy's own counting rules (reuses W37).
+  - every referenced ID (employeeId, leaveTypeId) independently re-verified to belong to the caller's organization (Architecture Principle 4) — never trusted from the request body alone.
+  - cancellation: a pending request may be cancelled by its own employee; cancelling an already-approved request is a separate, more restrictive rule (may require approval authority) rather than a blind self-service cancel.
+  - notification events "submitted" and "cancelled" fire through existing Notifications infrastructure (Architecture Principle 8), not a new mechanism.
+- **Architecture reuse:** mirrors the employee-sub-resource shape of `employee_documents`/`employee_skills`; introduces the "own" permission tier from Architecture Principle 5.
+- **Permissions:** new `leave_request.read.own` / `leave_request.write.own` (self, resolved via the caller's own linked employee, never a client-supplied ID); `leave_request.manage` for HR organization-wide visibility (reused by W35/W36/W40); manager-scoped read reuses `reportingManagerId`, no new permission.
+- **API expectations:** `POST/GET .../employees/:employeeId/leave-requests`, `POST .../:id/cancel`.
 - **UI expectations:** new "My Leave" self-service page (request form + own history).
 - **Database impact:** new `leave_requests` table.
-- **Exclusions:** no approval/rejection logic, no balance deduction (that's W34/W35).
-- **Acceptance criteria:** an employee can submit and cancel their own pending requests; cannot see or act on another employee's requests without `leave_request.manage`; gated by the `leave` module.
+- **Exclusions:** no approval/rejection logic, no ledger posting (that's W34/W35).
+- **Acceptance criteria:** every validation rule above is enforced server-side and independently tested; an employee cannot see or act on another employee's requests without manager-scoped or `leave_request.manage` authority; gated by the `leave` module.
 
-### W34 — Leave Balance Engine
+### W34 — Leave Balance Engine (Ledger)
 
-- **Objective:** Compute and track each employee's available leave balance per leave type.
-- **Scope:** `leave_balances` (employeeId, leaveTypeId, period, accruedDays, usedDays, carriedOverDays) + a `LeaveBalanceService` that computes available days and decrements on approval (consumed by W35).
-- **Architecture reuse:** ADR-011 Services Layer; balance-changing events audit-logged directly via `recordAuditEvent` (Architecture Principle 6), not through `employment_periods`.
-- **Permissions:** `leave_request.read.own` for an employee's own balance; `leave_request.manage` for HR to view/adjust any balance.
-- **API expectations:** `GET .../employees/:employeeId/leave-balances`, `POST .../:employeeId/leave-balances/adjust` (HR-only manual correction).
-- **UI expectations:** balance display on the "My Leave" page; admin adjustment form.
-- **Database impact:** new `leave_balances` table.
-- **Exclusions:** no payroll integration, no proration engine beyond simple annual accrual.
-- **Acceptance criteria:** balance reflects accrual minus approved usage plus carryover; a manual adjustment is audit-logged; tenant-isolated.
+- **Objective:** An auditable, reconstructable ledger of leave balance movements — not a single mutable balance row.
+- **Scope:** `leave_balance_entries` — the source of truth — with `entryType` (opening_balance, accrual, carry_forward, usage, reversal, expiry, manual_adjustment), a signed `amount`, `employeeId`, `leaveTypeId`/`leavePolicyId`, `effectiveDate`, `reason`, an optional `relatedLeaveRequestId`, `createdBy`/`approvedBy`, and standard audit metadata. Entries are append-only and immutable — a correction is a new `reversal` entry, never an `UPDATE`/`DELETE` of a posted row. A displayed balance is `SUM(amount)` for the employee/leave type as of a date, either computed live or safely cached from the ledger; the cache is never the system of record and must be reconstructable from the ledger alone. A unique constraint on `(relatedLeaveRequestId, entryType)` prevents a double-post for the same request's approval or reversal, guarding against duplicate accrual, duplicate deduction, and double reversal under retry or concurrent calls.
+- **Architecture reuse:** ADR-011 Services Layer (`LeaveBalanceService`). Manual adjustments require a `reason` and are additionally audit-logged via `recordAuditEvent` (Architecture Principle 6) — routine automated postings are not.
+- **Permissions:** `leave_request.read.own` for an employee's own balance; `leave_request.manage` for HR to view any balance or post a manual adjustment.
+- **API expectations:** `GET .../employees/:employeeId/leave-balances` (computed summary), `GET .../leave-balances/ledger` (raw entries), `POST .../leave-balances/adjust` (HR-only, requires `reason`).
+- **UI expectations:** balance display on the "My Leave" page; admin adjustment form (reason required) and ledger view.
+- **Database impact:** new `leave_balance_entries` table (and, if a cached summary is implemented, a `leave_balances` cache table clearly documented as derived, not authoritative).
+- **Exclusions:** no payroll integration; no proration engine beyond simple annual accrual.
+- **Acceptance criteria:** the balance for any employee/leave type is always reconstructable by summing ledger entries; a manual adjustment is reason-required and audit-logged; no duplicate accrual, deduction, or reversal is possible even under concurrent/retried calls; tenant-isolated.
 
 ### W35 — Leave Approval Workflow
 
-- **Objective:** A manager/HR user approves or rejects a pending leave request.
-- **Scope:** `leave_requests` gains `approvedBy`/`approvedAt`/`rejectionReason`; approving decrements W34's balance and locks the request against further transitions.
-- **Architecture reuse:** mirrors W25–W27's single-action-on-record shape (a service function per transition, with a `LeaveRequestNotPendingError` guard mirroring `EmployeeTransferNoChangeError`'s precedent) rather than a generic status-PATCH.
-- **Permissions:** new `leave_request.approve` (distinct from `leave_request.write.own` — approving someone else's request is never a self-service action).
+- **Objective:** A single-level approval/rejection of a pending leave request, atomic and idempotent, without foreclosing future multi-level workflows.
+- **Scope:** `leave_requests` gains `approvedBy`/`approvedAt`/`rejectionReason`. Approving/rejecting, in one transaction: (1) verifies the request is still `pending` via a conditional update (`WHERE status = 'pending'`) so a second concurrent call sees zero rows affected and fails as already-processed rather than double-posting; (2) writes the decision (actor, timestamp, comment/reason); (3) on approval, posts exactly one `usage` ledger entry (W34) guarded by that table's `(relatedLeaveRequestId, entryType)` uniqueness. Self-approval is rejected — the approver's linked employee must not equal the request's employee, unless a future policy explicitly permits it (not implemented now). Notification events "approved" and "rejected" fire through existing Notifications infrastructure (Architecture Principle 8). Phase 2B implements single-level approval only; the service boundary (a discrete `approveLeaveRequest`/`rejectLeaveRequest` service function, not inline route logic) is deliberately kept narrow enough that sequential multi-level approval, manager-then-HR chains, delegation, escalation, substitution, and branch/department-specific chains can be layered on in a later phase without a rewrite — none of that is implemented here.
+- **Architecture reuse:** mirrors W25–W27's single-action-on-record shape (a service function per transition, with a `LeaveRequestNotPendingError` guard mirroring `EmployeeTransferNoChangeError`'s precedent).
+- **Permissions:** new `leave_request.approve`, checked together with Architecture Principle 5's authorization rule: the caller must hold `leave_request.approve` **and** be either the target employee's manager (`reportingManagerId`) or hold `leave_request.manage` — the permission alone is not sufficient authorization for a specific employee.
 - **API expectations:** `POST .../leave-requests/:id/approve`, `POST .../leave-requests/:id/reject`.
-- **UI expectations:** HR/manager "Pending Approvals" list with approve/reject actions.
+- **UI expectations:** HR/manager "Pending Approvals" list, scoped to requests the caller is actually authorized to act on.
 - **Database impact:** additive columns on `leave_requests` (no new table).
-- **Exclusions:** no multi-level/sequential approval chains, no delegation.
-- **Acceptance criteria:** a pending request transitions exactly once; balance updates atomically with approval; both transitions audit-logged.
+- **Exclusions:** multi-level/sequential chains, delegation, escalation, substitution — explicitly deferred, not blocked.
+- **Acceptance criteria:** a pending request transitions exactly once even under concurrent approve calls; self-approval is rejected; ledger updates atomically with approval; both transitions audit-logged; an approver without manager-scoped or org-wide authority over the specific employee is rejected even if they hold `leave_request.approve`.
 
 ### W36 — Leave Calendar
 
 - **Objective:** Visual, org-wide view of approved leave for planning.
 - **Scope:** a read-only aggregation endpoint over `leave_requests` filtered to `approved` within a date range, optionally by department/branch.
 - **Architecture reuse:** mirrors W17's Reporting Foundation approach — computed in application code from existing tables, no new schema or reporting engine.
-- **Permissions:** reuses `leave_request.manage` (org-wide) / `leave_request.read.own` (own-team view, if scoped).
+- **Permissions:** reuses `leave_request.manage` (org-wide) / manager-scoped and own-record visibility for a narrower view.
 - **API expectations:** `GET .../organizations/:organizationId/leave-calendar?from=&to=`.
 - **UI expectations:** Admin console "Leave Calendar" tab (month/week view).
 - **Database impact:** none.
 - **Exclusions:** no external calendar sync (Google/Outlook), no ICS export.
-- **Acceptance criteria:** shows only approved requests, correctly tenant-scoped.
+- **Acceptance criteria:** shows only approved requests, correctly tenant-scoped and access-scoped.
 
 ### W37 — Public Holiday Management
 
-- **Objective:** Org-configurable public holidays, excluded from leave day-counting.
-- **Scope:** CRUD for dated holiday entries (date, name, recurring flag).
+- **Objective:** Org-configurable public holidays, excluded from leave day-counting, with a schema that doesn't foreclose future scope expansion.
+- **Scope:** CRUD for dated holiday entries: `date`, `name`, `scope` (enum: `organization` | `branch` | `region` | `national` — Phase 2B only ever writes `organization`-scoped rows, but the column exists now so branch/region/national support can be added later without a destructive migration or backfill), `recurring` (boolean, annual repeat) vs one-off, an optional `observedDate` (for holidays shifted to a weekday), `effectiveYear` where a one-off entry needs one, and active/archived state.
 - **Architecture reuse:** dedicated `public_holidays` table (dated entries don't fit `master_data_items`' generic shape, same reasoning as W32); CRUD mirrors W13's branch/department/position completion pattern.
 - **Permissions:** new `public_holiday.read` / `public_holiday.manage`.
 - **API expectations:** `GET/POST/PATCH/DELETE .../organizations/:organizationId/public-holidays`.
 - **UI expectations:** Admin console "Public Holidays" tab.
 - **Database impact:** new `public_holidays` table.
-- **Exclusions:** no per-branch/regional holiday variation — organization-wide only.
-- **Acceptance criteria:** day-count logic in W33/W34 correctly excludes configured holidays; tenant-isolated.
+- **Exclusions:** Phase 2B only implements organization-wide holidays — branch/region/national scoping is schema-ready but not built.
+- **Acceptance criteria:** day-count logic in W33/W34 correctly excludes configured organization-wide holidays; tenant-isolated; the `scope` column accepts only `organization` in this phase without any code assuming it always will.
 
 ### W38 — Attendance Configuration
 
@@ -124,27 +146,32 @@ Per `ROADMAP.md`'s Phase 3 ("Workforce Operations") list, this plan covers only 
 
 ### W39 — Employee Self-Service
 
-- **Objective:** A consolidated self-service surface: own profile, own leave, own documents.
-- **Scope:** primarily frontend — a new ESS route aggregating existing self-scoped reads (own employee record via W14's link, W33's own leave requests/balance, W23's own documents). Introduces no new data ownership.
-- **Architecture reuse:** first production consumer of `<ModuleGate moduleKey="employee_self_service">` (W6) and `requireModuleEnabled("employee_self_service")` (W5); resolves "which employee is me" via the existing `employee_user_links` table (W14).
-- **Permissions:** none new — scoped to the caller's own linked employee record, not role-based.
-- **API expectations:** possibly a convenience `GET /me/employee` resolving the caller's linked employee record; otherwise reuses W23/W33's existing endpoints scoped to that ID.
-- **UI expectations:** new ESS page/route (My Profile, My Leave, My Documents).
+- **Objective:** A consolidated, read-mostly self-service surface reusing Phase 2A data.
+- **Scope:** a new ESS route aggregating existing self-scoped reads: personal profile and employment details, employment history (W25–W27's `employment_periods` via `listEmploymentPeriods`), documents (W23), skills/qualifications/certifications (W24), and leave requests/balances (W33/W34) — plus submitting/cancelling one's own leave request. No editing of protected core employee fields (name, position, employment status, etc.) is permitted anywhere in ESS. Defined edge-case behavior:
+  - **no employee-user link exists:** a clear "no linked employee record" state, not a 500 or empty-looking page.
+  - **link is inactive:** treated the same as no link.
+  - **employee is separated:** historical data remains viewable read-only (nothing here overwrites or hides Foundation's separation history); new leave requests are rejected.
+  - **module disabled:** standard `<ModuleGate>`/`requireModuleEnabled` 403/redirect, same as any other gated route.
+  - **user belongs to multiple organizations:** ESS is scoped to the currently active organization only, reusing W1's existing active-organization resolution — never an aggregate across organizations.
+- **Architecture reuse:** first production consumer of `<ModuleGate moduleKey="employee_self_service">` (W6) and `requireModuleEnabled("employee_self_service")` (W5); resolves "which employee is me" via `employee_user_links` (W14).
+- **Permissions:** none new — every read is scoped to the caller's own linked employee record, not role-based.
+- **API expectations:** a convenience `GET /me/employee` resolving the caller's linked employee record; otherwise reuses W23/W24/W33/W34's existing endpoints scoped to that ID.
+- **UI expectations:** new ESS page/route (My Profile, My History, My Documents, My Skills, My Leave).
 - **Database impact:** none.
-- **Exclusions:** no self-service editing of core employee fields (name, position, etc.) — read-only plus own leave requests.
-- **Acceptance criteria:** a user with a linked employee record sees only their own data; the route is inaccessible when the org hasn't enabled `employee_self_service`.
+- **Exclusions:** no self-service editing of core employee fields.
+- **Acceptance criteria:** every edge case above behaves as specified; a user never sees another employee's data through ESS; inaccessible when the org hasn't enabled `employee_self_service`.
 
 ### W40 — HR Operations Dashboard
 
 - **Objective:** Real, tenant-scoped Leave/Attendance-configuration metrics on the dashboard.
-- **Scope:** extends `GET /dashboard/summary` (W18) with pending-approvals count, upcoming holidays, and leave-utilization figures sourced from W33/W34/W37's real tables.
+- **Scope:** extends `GET /dashboard/summary` (W18) with: employees currently on leave, upcoming approved leave, pending-approval count, upcoming public holidays, leave utilization, expiring carry-forward balances (only where a policy actually supports carry-forward expiry), and a requests-by-status breakdown — all sourced from W33/W34/W35/W37's real tables.
 - **Architecture reuse:** follows W18's explicit precedent — no hardcoded values, only real aggregates.
-- **Permissions:** reuses the existing dashboard-summary gating.
+- **Permissions:** reuses the existing dashboard-summary gating; metrics are scoped consistently with the viewer's own access tier (an HR admin sees org-wide figures, a manager sees their team's).
 - **API expectations:** extends `DashboardSummary`'s response shape.
 - **UI expectations:** new dashboard tiles for Leave metrics.
 - **Database impact:** none — reads existing tables.
 - **Exclusions:** no attendance-capture metrics (W38 is configuration-only; there is no clock-in data yet to aggregate).
-- **Acceptance criteria:** dashboard reflects real, tenant-scoped Leave data; no hardcoded constants.
+- **Acceptance criteria:** dashboard reflects real, tenant-scoped and access-scoped Leave data; no hardcoded constants.
 
 ### W41 — Phase 2B Verification
 
@@ -154,7 +181,7 @@ Per `ROADMAP.md`'s Phase 3 ("Workforce Operations") list, this plan covers only 
 - **Permissions / API / UI:** none — verification only.
 - **Database impact:** none — drift check only, no migrations applied.
 - **Exclusions:** no new features.
-- **Acceptance criteria:** all checks green; if a regression is found, it is fixed and re-verified before this workstream is marked complete.
+- **Acceptance criteria:** all checks green, including the concurrency/idempotency and access-tier tests added across W33–W35; if a regression is found, it is fixed and re-verified before this workstream is marked complete.
 
 ### W42 — Phase 2B Completion Report
 
@@ -176,15 +203,16 @@ Phase 2B is complete only when:
 - Repository builds successfully; all tests pass.
 - No destructive migration risk remains; every migration generated, none applied without your explicit approval (same rule as Foundation and Phase 2A).
 - OpenAPI and generated clients are synchronized.
-- Multi-tenant isolation, permission enforcement (including the new "own resource" shape), audit logging, and module gating are verified for every new entity and route.
-- The `leave`, `attendance`, and `employee_self_service` modules are live-verified: enabled orgs see the feature, disabled orgs get a 403/redirect, not a partial or broken page.
+- Multi-tenant isolation, the full five-tier permission model (own / manager-scoped / HR org-wide / approval authority / policy administration), audit logging, and module gating are verified for every new entity and route.
+- The leave ledger is proven reconstructable from history alone, with no duplicate accrual, deduction, or reversal possible under concurrency.
+- The `leave`, `attendance`, and `employee_self_service` modules are live-verified: enabled orgs see the feature, disabled orgs get a 403/redirect, not a partial or broken page, and disabling a module never deletes or corrupts existing data.
 - Phase 2B Completion Report declares zero remaining blockers.
 
 ---
 
 ## 7. Verification Requirements
 
-Same checklist as W20/W30/W41, plus module-gating-specific checks unique to this phase:
+Same checklist as W20/W30/W41, plus checks unique to this phase:
 
 - Backend and frontend test suites pass in full.
 - `pnpm run typecheck` clean across every workspace.
@@ -192,9 +220,10 @@ Same checklist as W20/W30/W41, plus module-gating-specific checks unique to this
 - `drizzle-kit generate` produces zero unexpected drift; every generated migration has a hand-authored `.down.sql`; none applied without approval.
 - `orval codegen` against `openapi.yaml` produces zero diff in the generated clients.
 - `pnpm run build` succeeds for every package.
-- Enabling/disabling each of the three modules (`leave`, `attendance`, `employee_self_service`) per organization is exercised and confirmed to gate access correctly, both backend (`requireModuleEnabled`) and frontend (`<ModuleGate>`).
-- Cross-org isolation confirmed for every new table (`leave_types`, `leave_requests`, `leave_balances`, `public_holidays`).
-- "Own resource" permission checks confirmed: a caller cannot read or act on another employee's leave request/balance without `leave_request.manage`/`.approve`.
+- Enabling/disabling each of the three modules (`leave`, `attendance`, `employee_self_service`) per organization is exercised and confirmed to gate access correctly, both backend and frontend, without deleting or corrupting data.
+- Cross-org isolation confirmed for every new table (`leave_types`, `leave_policies`, `leave_requests`, `leave_balance_entries`, `public_holidays`).
+- Access-tier checks confirmed: an employee cannot read/act on another employee's leave data via "own" access; a manager cannot act outside their direct reports via manager-scoped access; only `leave_request.manage` grants org-wide reach.
+- Concurrency checks confirmed: two simultaneous approve calls on the same request result in exactly one successful transition; two simultaneous overlapping submissions for the same employee do not both succeed; no ledger entry is ever duplicated for the same request/entry-type pair.
 
 ---
 
@@ -202,13 +231,17 @@ Same checklist as W20/W30/W41, plus module-gating-specific checks unique to this
 
 Deferred to later phases, consistent with `ROADMAP.md`'s Phase 3 list and Future Expansion tier:
 
-- Recruitment, Performance, Learning & Development, Asset Management, Manager Portal — none of these modules are touched in this plan.
+- Recruitment, Performance Management, Learning & Training Management, Asset Management, Manager Portal — none of these modules are touched in this plan.
 - Payroll, compensation, salary, grade/pay bands, benefits — no such concept exists in this schema and none is introduced here.
-- Actual attendance capture — clock-in/out, biometric or device integration, timesheets. W38 is configuration only.
-- Multi-level/sequential leave approval chains, delegation, or escalation.
-- External calendar sync (Google/Outlook) or ICS export for the Leave Calendar.
-- Per-branch or regional public holiday variation.
-- Self-service editing of core employee fields (name, position, compensation, etc.) beyond submitting/cancelling one's own leave requests.
+- Actual attendance capture — clock-in/out, biometric devices, timesheets. W38 is configuration only.
+- A generic workflow designer, and advanced multi-level/sequential leave approval chains, delegation, escalation, or substitution — the W35 service boundary allows for these later, but none is built now.
+- External calendar synchronization (Google/Outlook) or ICS export for the Leave Calendar.
+- Per-branch or regional public holiday variation (schema-ready in W37, not implemented).
+- Self-service editing of core employee fields beyond submitting/cancelling one's own leave requests.
+- Mobile application.
+- AI features.
+- The Enterprise Document and Physical File Registry — remains reserved for a later dedicated phase, as already recorded in the Phase 2A Completion Report; W23's per-employee document attachment is not that system and this plan does not extend it into one.
+- Any other Phase 3 implementation outside this approved slice.
 
 ---
 
