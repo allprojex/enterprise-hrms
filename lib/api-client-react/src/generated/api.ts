@@ -71,6 +71,7 @@ import type {
   Position,
   PrimaryHrAssignment,
   PrimaryHrAssignmentOrNull,
+  PromoteEmployeeInput,
   Report,
   ReportRunResult,
   ResetPasswordInput,
@@ -2153,6 +2154,81 @@ export const useTransferEmployee = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getTransferEmployeeMutationOptions(options));
+    }
+
+export const getPromoteEmployeeUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/promote`
+}
+
+/**
+ * Position/title change with an effective date, recorded as a dated employment_periods event (W22). Does not include compensation or salary — no such concept exists in this schema. Rejected if the target position is the employee's current one.
+ * @summary Promote an employee to a new position
+ */
+export const promoteEmployee = async (organizationId: number,
+    employeeId: number,
+    promoteEmployeeInput: PromoteEmployeeInput, options?: RequestInit): Promise<Employee> => {
+
+  return customFetch<Employee>(getPromoteEmployeeUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(promoteEmployeeInput)
+  }
+);}
+
+
+
+
+
+export const getPromoteEmployeeMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof promoteEmployee>>, TError,{organizationId: number;employeeId: number;data: BodyType<PromoteEmployeeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof promoteEmployee>>, TError,{organizationId: number;employeeId: number;data: BodyType<PromoteEmployeeInput>}, TContext> => {
+
+const mutationKey = ['promoteEmployee'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof promoteEmployee>>, {organizationId: number;employeeId: number;data: BodyType<PromoteEmployeeInput>}> = (props) => {
+          const {organizationId,employeeId,data} = props ?? {};
+
+          return  promoteEmployee(organizationId,employeeId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PromoteEmployeeMutationResult = NonNullable<Awaited<ReturnType<typeof promoteEmployee>>>
+    export type PromoteEmployeeMutationBody = BodyType<PromoteEmployeeInput>
+    export type PromoteEmployeeMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Promote an employee to a new position
+ */
+export const usePromoteEmployee = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof promoteEmployee>>, TError,{organizationId: number;employeeId: number;data: BodyType<PromoteEmployeeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof promoteEmployee>>,
+        TError,
+        {organizationId: number;employeeId: number;data: BodyType<PromoteEmployeeInput>},
+        TContext
+      > => {
+      return useMutation(getPromoteEmployeeMutationOptions(options));
     }
 
 export const getListEmployeeDocumentsUrl = (organizationId: number,

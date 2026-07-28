@@ -895,6 +895,53 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/employees/{employeeId}/promote:
+    post:
+      operationId: promoteEmployee
+      tags: [employees]
+      summary: Promote an employee to a new position
+      description: >-
+        Position/title change with an effective date, recorded as a dated
+        employment_periods event (W22). Does not include compensation or
+        salary — no such concept exists in this schema. Rejected if the
+        target position is the employee's current one.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PromoteEmployeeInput"
+      responses:
+        "200":
+          description: Employee promoted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "400":
+          description: Invalid reference, or no actual change
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /organizations/{organizationId}/employees/{employeeId}/documents:
     get:
       operationId: listEmployeeDocuments
@@ -3583,6 +3630,16 @@ components:
           type: ["integer", "null"]
         positionId:
           type: ["integer", "null"]
+
+    PromoteEmployeeInput:
+      type: object
+      required: [positionId, effectiveDate]
+      properties:
+        positionId:
+          type: integer
+        effectiveDate:
+          type: string
+          format: date-time
 
     EmployeeDocument:
       type: object

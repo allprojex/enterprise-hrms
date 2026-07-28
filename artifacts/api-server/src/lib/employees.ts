@@ -32,6 +32,13 @@ export class EmployeeTransferNoChangeError extends Error {
   }
 }
 
+export class EmployeePromotionNoChangeError extends Error {
+  constructor() {
+    super("Promotion must change the employee's position");
+    this.name = "EmployeePromotionNoChangeError";
+  }
+}
+
 /**
  * Every FK an employee record can point at (department, branch, position,
  * reporting manager) must be independently verified to belong to the same
@@ -260,6 +267,49 @@ export async function transferEmployee(params: {
     effectiveDate: params.effectiveDate,
     previousState: { departmentId: before.departmentId, branchId: before.branchId, positionId: before.positionId },
     newState: { departmentId: updated.departmentId, branchId: updated.branchId, positionId: updated.positionId },
+    actorApplicationUserId: params.actorApplicationUserId,
+    actorMembershipId: params.actorMembershipId,
+  });
+
+  return updated;
+}
+
+/**
+ * Promotion (Phase 2A, W26): position/title change with an effective date.
+ * No compensation/salary concept exists anywhere in this schema — out of
+ * scope, per the frozen plan. Only touches `positionId`, unlike Transfer
+ * (W25), which can also move department/branch — a promotion is specifically
+ * a position change. Cross-org reference validation reuses
+ * assertEmployeeReferencesValid, same as Transfer, not duplicated. History
+ * preserved via W22's `employment_periods`, never overwritten.
+ */
+export async function promoteEmployee(params: {
+  organizationId: number;
+  employeeId: number;
+  positionId: number;
+  effectiveDate: Date;
+  actorApplicationUserId: number;
+  actorMembershipId: number;
+}) {
+  const before = await getEmployeeById(params.organizationId, params.employeeId);
+  if (!before) throw new EmployeeNotFoundError();
+  if (before.positionId === params.positionId) throw new EmployeePromotionNoChangeError();
+
+  await assertEmployeeReferencesValid(params.organizationId, { positionId: params.positionId });
+
+  const [updated] = await db
+    .update(employeesTable)
+    .set({ positionId: params.positionId, updatedBy: params.actorApplicationUserId })
+    .where(eq(employeesTable.id, params.employeeId))
+    .returning();
+
+  await recordEmploymentPeriodEvent({
+    organizationId: params.organizationId,
+    employeeId: params.employeeId,
+    eventType: "promotion",
+    effectiveDate: params.effectiveDate,
+    previousState: { positionId: before.positionId },
+    newState: { positionId: updated.positionId },
     actorApplicationUserId: params.actorApplicationUserId,
     actorMembershipId: params.actorMembershipId,
   });

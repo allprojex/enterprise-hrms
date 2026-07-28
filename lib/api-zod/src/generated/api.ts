@@ -1058,6 +1058,76 @@ export const TransferEmployeeResponse = zod.object({
 
 
 /**
+ * Position/title change with an effective date, recorded as a dated employment_periods event (W22). Does not include compensation or salary — no such concept exists in this schema. Rejected if the target position is the employee's current one.
+ * @summary Promote an employee to a new position
+ */
+export const PromoteEmployeeParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const PromoteEmployeeBody = zod.object({
+  "positionId": zod.number(),
+  "effectiveDate": zod.coerce.date()
+})
+
+export const PromoteEmployeeResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeNumber": zod.string().nullish(),
+  "hasProfilePicture": zod.boolean().optional(),
+  "firstName": zod.string(),
+  "middleName": zod.string().nullish(),
+  "lastName": zod.string(),
+  "preferredName": zod.string().nullish(),
+  "gender": zod.union([zod.literal('male'),zod.literal('female'),zod.literal('other'),zod.literal('prefer_not_to_say'),zod.literal(null)]).nullish(),
+  "dateOfBirth": zod.coerce.date().nullish(),
+  "maritalStatus": zod.union([zod.literal('single'),zod.literal('married'),zod.literal('divorced'),zod.literal('widowed'),zod.literal('other'),zod.literal(null)]).nullish(),
+  "nationality": zod.string().nullish(),
+  "nationalId": zod.string().nullish(),
+  "passportNumber": zod.string().nullish(),
+  "personalEmail": zod.string().nullish(),
+  "workEmail": zod.string().nullish(),
+  "phoneNumber": zod.string().nullish(),
+  "alternatePhoneNumber": zod.string().nullish(),
+  "residentialAddress": zod.union([zod.object({
+  "line1": zod.string().nullish(),
+  "line2": zod.string().nullish(),
+  "city": zod.string().nullish(),
+  "state": zod.string().nullish(),
+  "postalCode": zod.string().nullish(),
+  "country": zod.string().nullish()
+}),zod.null()]).optional(),
+  "emergencyContacts": zod.array(zod.object({
+  "name": zod.string(),
+  "relationship": zod.string(),
+  "phone": zod.string()
+})).nullish(),
+  "departmentId": zod.number().nullish(),
+  "departmentName": zod.string().nullish(),
+  "branchId": zod.number().nullish(),
+  "branchName": zod.string().nullish(),
+  "positionId": zod.number().nullish(),
+  "positionName": zod.string().nullish(),
+  "reportingManagerId": zod.number().nullish(),
+  "reportingManagerName": zod.string().nullish(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullish(),
+  "hireDate": zod.coerce.date().nullish(),
+  "probationEndDate": zod.coerce.date().nullish(),
+  "employmentStatus": zod.enum(['active', 'probation', 'on_leave', 'suspended', 'terminated']),
+  "workLocation": zod.string().nullish(),
+  "separationDate": zod.coerce.date().nullish(),
+  "separationReason": zod.string().nullish().describe('Code from the \"separation_reason\" Master Data domain.'),
+  "notes": zod.string().nullish(),
+  "linkedApplicationUserId": zod.number().nullish().describe('Set when this employee record is linked to a login account (see POST\/DELETE ...\/link-user).'),
+  "createdBy": zod.number().nullish(),
+  "updatedBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
  * @summary List an employee's documents
  */
 export const ListEmployeeDocumentsParams = zod.object({

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'wouter';
-import { ArrowLeft, Loader2, Mail, Phone, Building, Network, Briefcase, Camera, UserPlus, UserCheck, UserX, RotateCcw, FileText, Upload, Trash2, Award, GraduationCap, Sparkles, Plus, ArrowLeftRight } from 'lucide-react';
+import { ArrowLeft, Loader2, Mail, Phone, Building, Network, Briefcase, Camera, UserPlus, UserCheck, UserX, RotateCcw, FileText, Upload, Trash2, Award, GraduationCap, Sparkles, Plus, ArrowLeftRight, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,6 +43,7 @@ import {
   useAddEmployeeCertification,
   useRemoveEmployeeCertification,
   useTransferEmployee,
+  usePromoteEmployee,
   useListDepartments,
   getListDepartmentsQueryKey,
   useListBranches,
@@ -184,6 +185,7 @@ export default function EmployeeDetail() {
   const addCertificationMutation = useAddEmployeeCertification();
   const removeCertificationMutation = useRemoveEmployeeCertification();
   const transferMutation = useTransferEmployee();
+  const promoteMutation = usePromoteEmployee();
 
   const [isEditing, setIsEditing] = useState(false);
   const [firstName, setFirstName] = useState('');
@@ -208,6 +210,9 @@ export default function EmployeeDetail() {
   const [transferDepartmentId, setTransferDepartmentId] = useState('');
   const [transferBranchId, setTransferBranchId] = useState('');
   const [transferPositionId, setTransferPositionId] = useState('');
+  const [isPromoteOpen, setIsPromoteOpen] = useState(false);
+  const [promoteEffectiveDate, setPromoteEffectiveDate] = useState('');
+  const [promotePositionId, setPromotePositionId] = useState('');
 
   const [prevEmployee, setPrevEmployee] = useState(employee);
   if (employee && employee !== prevEmployee) {
@@ -377,6 +382,32 @@ export default function EmployeeDetail() {
           const message =
             err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
           toast({ title: 'Could not transfer employee', description: message ?? 'Please try again.', variant: 'destructive' });
+        },
+      },
+    );
+  };
+
+  const handlePromote = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!promoteEffectiveDate || !promotePositionId) return;
+    promoteMutation.mutate(
+      {
+        organizationId,
+        employeeId,
+        data: { effectiveDate: promoteEffectiveDate, positionId: Number(promotePositionId) },
+      },
+      {
+        onSuccess: (updated) => {
+          queryClient.setQueryData(getGetEmployeeQueryKey(organizationId, employeeId), updated);
+          setIsPromoteOpen(false);
+          setPromoteEffectiveDate('');
+          setPromotePositionId('');
+          toast({ title: 'Employee promoted' });
+        },
+        onError: (err) => {
+          const message =
+            err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
+          toast({ title: 'Could not promote employee', description: message ?? 'Please try again.', variant: 'destructive' });
         },
       },
     );
@@ -708,6 +739,66 @@ export default function EmployeeDetail() {
                               </>
                             ) : (
                               'Confirm Transfer'
+                            )}
+                          </Button>
+                        </DialogFooter>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+
+                  <Dialog open={isPromoteOpen} onOpenChange={setIsPromoteOpen}>
+                    <DialogTrigger asChild>
+                      <Button type="button" variant="outline" size="sm" data-testid="button-promote-employee">
+                        <TrendingUp className="mr-2 h-4 w-4" aria-hidden="true" />
+                        Promote
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <form onSubmit={handlePromote}>
+                        <DialogHeader>
+                          <DialogTitle>Promote Employee</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="promote-effective-date">Effective Date *</Label>
+                            <Input
+                              id="promote-effective-date"
+                              type="date"
+                              value={promoteEffectiveDate}
+                              onChange={(e) => setPromoteEffectiveDate(e.target.value)}
+                              required
+                              data-testid="input-promote-effective-date"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="promote-position">New Position *</Label>
+                            <Select value={promotePositionId} onValueChange={setPromotePositionId}>
+                              <SelectTrigger id="promote-position" data-testid="select-promote-position">
+                                <SelectValue placeholder="Choose a position" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(positions ?? []).map((p) => (
+                                  <SelectItem key={p.id} value={String(p.id)}>
+                                    {p.title}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button
+                            type="submit"
+                            disabled={promoteMutation.isPending || !promoteEffectiveDate || !promotePositionId}
+                            data-testid="button-confirm-promote"
+                          >
+                            {promoteMutation.isPending ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                                Promoting…
+                              </>
+                            ) : (
+                              'Confirm Promotion'
                             )}
                           </Button>
                         </DialogFooter>

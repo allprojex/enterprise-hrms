@@ -33,6 +33,7 @@ const {
       membershipRoleRows: [] as { roleId: number }[],
       permissionRows: [] as { key: string }[],
       departmentRows: [] as { organizationId: number }[],
+      positionRows: [] as { organizationId: number }[],
       employeeRows: [{ value: 0 }] as unknown[],
       linkRows: [] as { employeeId: number; applicationUserId: number }[],
       inserted: [] as { table: string; values: unknown }[],
@@ -84,6 +85,7 @@ vi.mock("@workspace/db", () => ({
         else if (table === membershipRolesTable) rows = fixtures.membershipRoleRows;
         else if (table === rolePermissionsTable) rows = fixtures.permissionRows;
         else if (table === departmentsTable) rows = fixtures.departmentRows;
+        else if (table === positionsTable) rows = fixtures.positionRows;
         else if (table === employeesTable) rows = fixtures.employeeRows;
         else if (table === employeeUserLinksTable) rows = fixtures.linkRows;
         else rows = fixtures.sessionRows;
@@ -561,5 +563,95 @@ describe("POST /api/organizations/:organizationId/employees/:employeeId/transfer
     expect(fixtures.inserted.find((i) => i.table === "employment_periods")).toBeDefined();
     const auditInsert = fixtures.inserted.find((i) => i.table === "audit_events");
     expect((auditInsert!.values as Record<string, unknown>).eventType).toBe("employment_period.transfer");
+  });
+});
+
+describe("POST /api/organizations/:organizationId/employees/:employeeId/promote", () => {
+  beforeEach(() => {
+    fixtures.sessionRows = [];
+    fixtures.membershipRows = [];
+    fixtures.membershipRoleRows = [];
+    fixtures.permissionRows = [];
+    fixtures.employeeRows = [];
+    fixtures.positionRows = [];
+    fixtures.inserted = [];
+  });
+
+  it("returns 403 when the membership's role lacks employee.write", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.read"]);
+    fixtures.employeeRows = [{ id: 42, firstName: "Ada", lastName: "Lovelace", employmentStatus: "active", positionId: 1 }];
+
+    const res = await request(app)
+      .post("/api/organizations/10/employees/42/promote")
+      .set("Authorization", "Bearer valid-token")
+      .send({ effectiveDate: "2026-01-01", positionId: 9 });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 404 when the employee does not exist", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.write"]);
+    fixtures.employeeRows = [];
+
+    const res = await request(app)
+      .post("/api/organizations/10/employees/42/promote")
+      .set("Authorization", "Bearer valid-token")
+      .send({ effectiveDate: "2026-01-01", positionId: 9 });
+
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 400 when the target position is the employee's current one", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.write"]);
+    fixtures.employeeRows = [{ id: 42, firstName: "Ada", lastName: "Lovelace", employmentStatus: "active", positionId: 9 }];
+
+    const res = await request(app)
+      .post("/api/organizations/10/employees/42/promote")
+      .set("Authorization", "Bearer valid-token")
+      .send({ effectiveDate: "2026-01-01", positionId: 9 });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects a position reference that belongs to a different organization", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.write"]);
+    fixtures.employeeRows = [{ id: 42, firstName: "Ada", lastName: "Lovelace", employmentStatus: "active", positionId: 1 }];
+    fixtures.positionRows = [{ organizationId: 999 }];
+
+    const res = await request(app)
+      .post("/api/organizations/10/employees/42/promote")
+      .set("Authorization", "Bearer valid-token")
+      .send({ effectiveDate: "2026-01-01", positionId: 9 });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("promotes the employee, records an employment_periods event, and audit-logs it", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.write", "employee.notes.read"]);
+    fixtures.employeeRows = [
+      { id: 42, organizationId: 10, firstName: "Ada", lastName: "Lovelace", employmentStatus: "active", positionId: 1 },
+    ];
+    fixtures.positionRows = [{ organizationId: 10 }];
+
+    const res = await request(app)
+      .post("/api/organizations/10/employees/42/promote")
+      .set("Authorization", "Bearer valid-token")
+      .send({ effectiveDate: "2026-01-01", positionId: 9 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.positionId).toBe(9);
+    expect(fixtures.inserted.find((i) => i.table === "employment_periods")).toBeDefined();
+    const auditInsert = fixtures.inserted.find((i) => i.table === "audit_events");
+    expect((auditInsert!.values as Record<string, unknown>).eventType).toBe("employment_period.promotion");
   });
 });

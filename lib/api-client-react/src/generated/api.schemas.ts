@@ -696,6 +696,11 @@ export interface TransferEmployeeInput {
   positionId?: number | null;
 }
 
+export interface PromoteEmployeeInput {
+  positionId: number;
+  effectiveDate: string;
+}
+
 export interface EmployeeDocument {
   id: number;
   organizationId: number;
