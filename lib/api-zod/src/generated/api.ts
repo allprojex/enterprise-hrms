@@ -1246,6 +1246,87 @@ export const AddEmployeeDisciplinaryRecordResponse = zod.object({
 
 
 /**
+ * One row per separation cycle — an employee separated, rehired, and separated again gets a new exit process each time, most recent first.
+ * @summary List an employee's exit (off-boarding) processes
+ */
+export const ListEmployeeExitProcessesParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const ListEmployeeExitProcessesResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "separationDate": zod.coerce.date().describe('Snapshot of employees.separationDate at creation — identifies which separation cycle this row belongs to.'),
+  "checklistCompleted": zod.boolean(),
+  "clearanceCompleted": zod.boolean(),
+  "exitInterviewCompleted": zod.boolean(),
+  "exitInterviewNotes": zod.string().nullish(),
+  "initiatedBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListEmployeeExitProcessesResponse = zod.array(ListEmployeeExitProcessesResponseItem)
+
+
+/**
+ * Attaches to the existing separation event (W15) — does not modify or duplicate separateEmployee. Rejected if the employee is not currently separated, or if an exit process already exists for this separation.
+ * @summary Start the off-boarding process for an employee's current separation
+ */
+export const CreateEmployeeExitProcessParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const CreateEmployeeExitProcessResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "separationDate": zod.coerce.date().describe('Snapshot of employees.separationDate at creation — identifies which separation cycle this row belongs to.'),
+  "checklistCompleted": zod.boolean(),
+  "clearanceCompleted": zod.boolean(),
+  "exitInterviewCompleted": zod.boolean(),
+  "exitInterviewNotes": zod.string().nullish(),
+  "initiatedBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Never creates a competing record — updates the same row in place.
+ * @summary Update checklist/clearance/exit-interview progress on an exit process
+ */
+export const UpdateEmployeeExitProcessParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number(),
+  "exitProcessId": zod.coerce.number()
+})
+
+export const UpdateEmployeeExitProcessBody = zod.object({
+  "checklistCompleted": zod.boolean().optional(),
+  "clearanceCompleted": zod.boolean().optional(),
+  "exitInterviewCompleted": zod.boolean().optional(),
+  "exitInterviewNotes": zod.string().nullish()
+})
+
+export const UpdateEmployeeExitProcessResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "separationDate": zod.coerce.date().describe('Snapshot of employees.separationDate at creation — identifies which separation cycle this row belongs to.'),
+  "checklistCompleted": zod.boolean(),
+  "clearanceCompleted": zod.boolean(),
+  "exitInterviewCompleted": zod.boolean(),
+  "exitInterviewNotes": zod.string().nullish(),
+  "initiatedBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
  * @summary List an employee's documents
  */
 export const ListEmployeeDocumentsParams = zod.object({

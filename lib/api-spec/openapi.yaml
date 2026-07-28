@@ -1061,6 +1061,121 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/employees/{employeeId}/exit-process:
+    get:
+      operationId: listEmployeeExitProcesses
+      tags: [employees]
+      summary: List an employee's exit (off-boarding) processes
+      description: >-
+        One row per separation cycle — an employee separated, rehired, and
+        separated again gets a new exit process each time, most recent first.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Exit processes for the employee
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmployeeExitProcess"
+        "404":
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createEmployeeExitProcess
+      tags: [employees]
+      summary: Start the off-boarding process for an employee's current separation
+      description: >-
+        Attaches to the existing separation event (W15) — does not modify or
+        duplicate separateEmployee. Rejected if the employee is not currently
+        separated, or if an exit process already exists for this separation.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "201":
+          description: Exit process created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeExitProcess"
+        "400":
+          description: Employee is not currently separated, or an exit process already exists for this separation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}/exit-process/{exitProcessId}:
+    patch:
+      operationId: updateEmployeeExitProcess
+      tags: [employees]
+      summary: Update checklist/clearance/exit-interview progress on an exit process
+      description: Never creates a competing record — updates the same row in place.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: exitProcessId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEmployeeExitProcessInput"
+      responses:
+        "200":
+          description: Exit process updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeExitProcess"
+        "404":
+          description: Employee or exit process not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /organizations/{organizationId}/employees/{employeeId}/documents:
     get:
       operationId: listEmployeeDocuments
@@ -3802,6 +3917,60 @@ components:
         actionDate:
           type: string
           format: date-time
+
+    EmployeeExitProcess:
+      type: object
+      required:
+        [
+          id,
+          organizationId,
+          employeeId,
+          separationDate,
+          checklistCompleted,
+          clearanceCompleted,
+          exitInterviewCompleted,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        employeeId:
+          type: integer
+        separationDate:
+          type: string
+          format: date-time
+          description: Snapshot of employees.separationDate at creation — identifies which separation cycle this row belongs to.
+        checklistCompleted:
+          type: boolean
+        clearanceCompleted:
+          type: boolean
+        exitInterviewCompleted:
+          type: boolean
+        exitInterviewNotes:
+          type: ["string", "null"]
+        initiatedBy:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    UpdateEmployeeExitProcessInput:
+      type: object
+      properties:
+        checklistCompleted:
+          type: boolean
+        clearanceCompleted:
+          type: boolean
+        exitInterviewCompleted:
+          type: boolean
+        exitInterviewNotes:
+          type: ["string", "null"]
 
     EmployeeDocument:
       type: object

@@ -21,6 +21,7 @@ export * from "./employee-skills";
 export * from "./employee-qualifications";
 export * from "./employee-certifications";
 export * from "./employee-disciplinary-records";
+export * from "./employee-exit-processes";
 export * from "./employee-user-links";
 export * from "./organization-relationships";
 export * from "./audit-events";

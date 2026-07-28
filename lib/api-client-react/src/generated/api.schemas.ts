@@ -723,6 +723,31 @@ export interface AddEmployeeDisciplinaryRecordInput {
   actionDate: string;
 }
 
+export interface EmployeeExitProcess {
+  id: number;
+  organizationId: number;
+  employeeId: number;
+  /** Snapshot of employees.separationDate at creation — identifies which separation cycle this row belongs to. */
+  separationDate: string;
+  checklistCompleted: boolean;
+  clearanceCompleted: boolean;
+  exitInterviewCompleted: boolean;
+  /** @nullable */
+  exitInterviewNotes?: string | null;
+  /** @nullable */
+  initiatedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpdateEmployeeExitProcessInput {
+  checklistCompleted?: boolean;
+  clearanceCompleted?: boolean;
+  exitInterviewCompleted?: boolean;
+  /** @nullable */
+  exitInterviewNotes?: string | null;
+}
+
 export interface EmployeeDocument {
   id: number;
   organizationId: number;

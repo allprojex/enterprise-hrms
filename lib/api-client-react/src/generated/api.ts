@@ -46,6 +46,7 @@ import type {
   EmployeeCertification,
   EmployeeDisciplinaryRecord,
   EmployeeDocument,
+  EmployeeExitProcess,
   EmployeeListResponse,
   EmployeeQualification,
   EmployeeSkill,
@@ -89,6 +90,7 @@ import type {
   UpdateBranchInput,
   UpdateDepartmentInput,
   UpdateEmployeeCertificationInput,
+  UpdateEmployeeExitProcessInput,
   UpdateEmployeeInput,
   UpdateEmployeeQualificationInput,
   UpdateEmployeeSkillInput,
@@ -2465,6 +2467,240 @@ export const useAddEmployeeDisciplinaryRecord = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getAddEmployeeDisciplinaryRecordMutationOptions(options));
+    }
+
+export const getListEmployeeExitProcessesUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/exit-process`
+}
+
+/**
+ * One row per separation cycle — an employee separated, rehired, and separated again gets a new exit process each time, most recent first.
+ * @summary List an employee's exit (off-boarding) processes
+ */
+export const listEmployeeExitProcesses = async (organizationId: number,
+    employeeId: number, options?: RequestInit): Promise<EmployeeExitProcess[]> => {
+
+  return customFetch<EmployeeExitProcess[]>(getListEmployeeExitProcessesUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListEmployeeExitProcessesQueryKey = (organizationId: number,
+    employeeId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/employees/${employeeId}/exit-process`
+    ] as const;
+    }
+
+
+export const getListEmployeeExitProcessesQueryOptions = <TData = Awaited<ReturnType<typeof listEmployeeExitProcesses>>, TError = ErrorType<ApiError>>(organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmployeeExitProcesses>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListEmployeeExitProcessesQueryKey(organizationId,employeeId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEmployeeExitProcesses>>> = ({ signal }) => listEmployeeExitProcesses(organizationId,employeeId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && employeeId !== null && employeeId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEmployeeExitProcesses>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListEmployeeExitProcessesQueryResult = NonNullable<Awaited<ReturnType<typeof listEmployeeExitProcesses>>>
+export type ListEmployeeExitProcessesQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List an employee's exit (off-boarding) processes
+ */
+
+export function useListEmployeeExitProcesses<TData = Awaited<ReturnType<typeof listEmployeeExitProcesses>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmployeeExitProcesses>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListEmployeeExitProcessesQueryOptions(organizationId,employeeId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateEmployeeExitProcessUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/exit-process`
+}
+
+/**
+ * Attaches to the existing separation event (W15) — does not modify or duplicate separateEmployee. Rejected if the employee is not currently separated, or if an exit process already exists for this separation.
+ * @summary Start the off-boarding process for an employee's current separation
+ */
+export const createEmployeeExitProcess = async (organizationId: number,
+    employeeId: number, options?: RequestInit): Promise<EmployeeExitProcess> => {
+
+  return customFetch<EmployeeExitProcess>(getCreateEmployeeExitProcessUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreateEmployeeExitProcessMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createEmployeeExitProcess>>, TError,{organizationId: number;employeeId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createEmployeeExitProcess>>, TError,{organizationId: number;employeeId: number}, TContext> => {
+
+const mutationKey = ['createEmployeeExitProcess'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createEmployeeExitProcess>>, {organizationId: number;employeeId: number}> = (props) => {
+          const {organizationId,employeeId} = props ?? {};
+
+          return  createEmployeeExitProcess(organizationId,employeeId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateEmployeeExitProcessMutationResult = NonNullable<Awaited<ReturnType<typeof createEmployeeExitProcess>>>
+
+    export type CreateEmployeeExitProcessMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Start the off-boarding process for an employee's current separation
+ */
+export const useCreateEmployeeExitProcess = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createEmployeeExitProcess>>, TError,{organizationId: number;employeeId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createEmployeeExitProcess>>,
+        TError,
+        {organizationId: number;employeeId: number},
+        TContext
+      > => {
+      return useMutation(getCreateEmployeeExitProcessMutationOptions(options));
+    }
+
+export const getUpdateEmployeeExitProcessUrl = (organizationId: number,
+    employeeId: number,
+    exitProcessId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/exit-process/${exitProcessId}`
+}
+
+/**
+ * Never creates a competing record — updates the same row in place.
+ * @summary Update checklist/clearance/exit-interview progress on an exit process
+ */
+export const updateEmployeeExitProcess = async (organizationId: number,
+    employeeId: number,
+    exitProcessId: number,
+    updateEmployeeExitProcessInput: UpdateEmployeeExitProcessInput, options?: RequestInit): Promise<EmployeeExitProcess> => {
+
+  return customFetch<EmployeeExitProcess>(getUpdateEmployeeExitProcessUrl(organizationId,employeeId,exitProcessId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateEmployeeExitProcessInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateEmployeeExitProcessMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEmployeeExitProcess>>, TError,{organizationId: number;employeeId: number;exitProcessId: number;data: BodyType<UpdateEmployeeExitProcessInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateEmployeeExitProcess>>, TError,{organizationId: number;employeeId: number;exitProcessId: number;data: BodyType<UpdateEmployeeExitProcessInput>}, TContext> => {
+
+const mutationKey = ['updateEmployeeExitProcess'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateEmployeeExitProcess>>, {organizationId: number;employeeId: number;exitProcessId: number;data: BodyType<UpdateEmployeeExitProcessInput>}> = (props) => {
+          const {organizationId,employeeId,exitProcessId,data} = props ?? {};
+
+          return  updateEmployeeExitProcess(organizationId,employeeId,exitProcessId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateEmployeeExitProcessMutationResult = NonNullable<Awaited<ReturnType<typeof updateEmployeeExitProcess>>>
+    export type UpdateEmployeeExitProcessMutationBody = BodyType<UpdateEmployeeExitProcessInput>
+    export type UpdateEmployeeExitProcessMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update checklist/clearance/exit-interview progress on an exit process
+ */
+export const useUpdateEmployeeExitProcess = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEmployeeExitProcess>>, TError,{organizationId: number;employeeId: number;exitProcessId: number;data: BodyType<UpdateEmployeeExitProcessInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateEmployeeExitProcess>>,
+        TError,
+        {organizationId: number;employeeId: number;exitProcessId: number;data: BodyType<UpdateEmployeeExitProcessInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateEmployeeExitProcessMutationOptions(options));
     }
 
 export const getListEmployeeDocumentsUrl = (organizationId: number,

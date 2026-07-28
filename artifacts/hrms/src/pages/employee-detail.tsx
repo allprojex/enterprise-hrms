@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'wouter';
-import { ArrowLeft, Loader2, Mail, Phone, Building, Network, Briefcase, Camera, UserPlus, UserCheck, UserX, RotateCcw, FileText, Upload, Trash2, Award, GraduationCap, Sparkles, Plus, ArrowLeftRight, TrendingUp, BadgeCheck, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Loader2, Mail, Phone, Building, Network, Briefcase, Camera, UserPlus, UserCheck, UserX, RotateCcw, FileText, Upload, Trash2, Award, GraduationCap, Sparkles, Plus, ArrowLeftRight, TrendingUp, BadgeCheck, ShieldAlert, LogOut } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   useGetEmployee,
   getGetEmployeeQueryKey,
@@ -54,6 +55,10 @@ import {
   useListEmployeeDisciplinaryRecords,
   getListEmployeeDisciplinaryRecordsQueryKey,
   useAddEmployeeDisciplinaryRecord,
+  useListEmployeeExitProcesses,
+  getListEmployeeExitProcessesQueryKey,
+  useCreateEmployeeExitProcess,
+  useUpdateEmployeeExitProcess,
 } from '@workspace/api-client-react';
 import type { UpdateEmployeeInputEmploymentStatus } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -181,6 +186,13 @@ export default function EmployeeDetail() {
     },
   });
 
+  const { data: exitProcesses } = useListEmployeeExitProcesses(organizationId, employeeId, {
+    query: {
+      queryKey: getListEmployeeExitProcessesQueryKey(organizationId, employeeId),
+      enabled: organizationId > 0 && !isNaN(employeeId),
+    },
+  });
+
   const updateMutation = useUpdateEmployee();
   const uploadMutation = useUploadEmployeeProfilePicture();
   const linkMutation = useLinkEmployeeToUser();
@@ -199,6 +211,8 @@ export default function EmployeeDetail() {
   const promoteMutation = usePromoteEmployee();
   const confirmMutation = useConfirmEmployee();
   const addDisciplinaryRecordMutation = useAddEmployeeDisciplinaryRecord();
+  const createExitProcessMutation = useCreateEmployeeExitProcess();
+  const updateExitProcessMutation = useUpdateEmployeeExitProcess();
 
   const [isEditing, setIsEditing] = useState(false);
   const [firstName, setFirstName] = useState('');
@@ -477,6 +491,44 @@ export default function EmployeeDetail() {
           const message =
             err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
           toast({ title: 'Could not add disciplinary record', description: message ?? 'Please try again.', variant: 'destructive' });
+        },
+      },
+    );
+  };
+
+  const invalidateExitProcesses = () => {
+    queryClient.invalidateQueries({ queryKey: getListEmployeeExitProcessesQueryKey(organizationId, employeeId) });
+  };
+
+  const handleStartExitProcess = () => {
+    createExitProcessMutation.mutate(
+      { organizationId, employeeId },
+      {
+        onSuccess: () => {
+          invalidateExitProcesses();
+          toast({ title: 'Exit process started' });
+        },
+        onError: (err) => {
+          const message =
+            err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
+          toast({ title: 'Could not start exit process', description: message ?? 'Please try again.', variant: 'destructive' });
+        },
+      },
+    );
+  };
+
+  const handleUpdateExitProcess = (
+    exitProcessId: number,
+    data: { checklistCompleted?: boolean; clearanceCompleted?: boolean; exitInterviewCompleted?: boolean; exitInterviewNotes?: string },
+  ) => {
+    updateExitProcessMutation.mutate(
+      { organizationId, employeeId, exitProcessId, data },
+      {
+        onSuccess: () => invalidateExitProcesses(),
+        onError: (err) => {
+          const message =
+            err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
+          toast({ title: 'Could not update exit process', description: message ?? 'Please try again.', variant: 'destructive' });
         },
       },
     );
@@ -1608,6 +1660,88 @@ export default function EmployeeDetail() {
             </CardContent>
           </Card>
         )}
+
+        <Card className="lg:col-span-3">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <LogOut className="h-5 w-5" aria-hidden="true" />
+                  Exit Management
+                </CardTitle>
+                <CardDescription>Off-boarding checklist, clearance, and exit interview — attached to the separation event</CardDescription>
+              </div>
+              {employee.employmentStatus === 'terminated' && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleStartExitProcess}
+                  disabled={createExitProcessMutation.isPending}
+                  data-testid="button-start-exit-process"
+                >
+                  {createExitProcessMutation.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                  )}
+                  Start Exit Process
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {(exitProcesses ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground">No exit process started.</p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {(exitProcesses ?? []).map((process) => (
+                  <li key={process.id} className="space-y-3 py-4" data-testid={`row-exit-process-${process.id}`}>
+                    <p className="text-sm font-medium text-foreground">
+                      Separation on {new Date(process.separationDate).toLocaleDateString()}
+                    </p>
+                    <div className="flex flex-wrap gap-4">
+                      <label className="flex items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={process.checklistCompleted}
+                          onCheckedChange={(checked) => handleUpdateExitProcess(process.id, { checklistCompleted: checked === true })}
+                          data-testid={`checkbox-exit-checklist-${process.id}`}
+                        />
+                        Checklist complete
+                      </label>
+                      <label className="flex items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={process.clearanceCompleted}
+                          onCheckedChange={(checked) => handleUpdateExitProcess(process.id, { clearanceCompleted: checked === true })}
+                          data-testid={`checkbox-exit-clearance-${process.id}`}
+                        />
+                        Clearance complete
+                      </label>
+                      <label className="flex items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={process.exitInterviewCompleted}
+                          onCheckedChange={(checked) => handleUpdateExitProcess(process.id, { exitInterviewCompleted: checked === true })}
+                          data-testid={`checkbox-exit-interview-${process.id}`}
+                        />
+                        Exit interview complete
+                      </label>
+                    </div>
+                    <div className="space-y-2 sm:max-w-md">
+                      <Label htmlFor={`exit-interview-notes-${process.id}`}>Exit interview notes</Label>
+                      <Input
+                        id={`exit-interview-notes-${process.id}`}
+                        defaultValue={process.exitInterviewNotes ?? ''}
+                        onBlur={(e) => handleUpdateExitProcess(process.id, { exitInterviewNotes: e.target.value })}
+                        placeholder="Notes from the exit interview"
+                        data-testid={`input-exit-interview-notes-${process.id}`}
+                      />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
