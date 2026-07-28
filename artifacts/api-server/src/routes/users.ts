@@ -4,12 +4,9 @@ import { db, usersTable, notificationsTable, employeesTable } from "@workspace/d
 import { UpdateMyProfileBody } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { resolveActiveOrganizationId } from "../lib/membership";
+import { listOrganizationModules } from "../lib/organizationModules";
 
 const router = Router();
-
-// Modules with a working screen in the frontend today — bump this when a
-// new one ships. See artifacts/hrms/src/pages/dashboard.tsx for the tiles.
-const ACTIVE_MODULE_COUNT = 4; // Employees, Branches, Departments, Positions
 
 // PATCH /users/me
 router.patch("/users/me", requireAuth as any, async (req: AuthenticatedRequest, res): Promise<void> => {
@@ -61,12 +58,12 @@ router.get("/dashboard/summary", requireAuth as any, async (req: AuthenticatedRe
     user.organizationId,
   );
 
-  const employees = activeOrganizationId
-    ? await db
-        .select()
-        .from(employeesTable)
-        .where(eq(employeesTable.organizationId, activeOrganizationId))
-    : [];
+  const [employees, activeModules] = await Promise.all([
+    activeOrganizationId
+      ? db.select().from(employeesTable).where(eq(employeesTable.organizationId, activeOrganizationId))
+      : Promise.resolve([]),
+    activeOrganizationId ? listOrganizationModules(activeOrganizationId) : Promise.resolve([]),
+  ]);
 
   const unreadNotifications = await db
     .select()
@@ -77,8 +74,7 @@ router.get("/dashboard/summary", requireAuth as any, async (req: AuthenticatedRe
 
   res.json({
     totalEmployees: employees.length,
-    activeModules: ACTIVE_MODULE_COUNT,
-    pendingRequests: 0,
+    activeModules: activeModules.filter((m) => m.enabled).length,
     unreadNotifications: unreadCount,
   });
 });

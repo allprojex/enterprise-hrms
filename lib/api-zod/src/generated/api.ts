@@ -1384,7 +1384,6 @@ export const MarkAllNotificationsReadResponse = zod.object({
 export const GetDashboardSummaryResponse = zod.object({
   "totalEmployees": zod.number(),
   "activeModules": zod.number(),
-  "pendingRequests": zod.number(),
   "unreadNotifications": zod.number()
 })
 

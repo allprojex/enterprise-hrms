@@ -2941,13 +2941,11 @@ components:
 
     DashboardSummary:
       type: object
-      required: [totalEmployees, activeModules, pendingRequests, unreadNotifications]
+      required: [totalEmployees, activeModules, unreadNotifications]
       properties:
         totalEmployees:
           type: integer
         activeModules:
-          type: integer
-        pendingRequests:
           type: integer
         unreadNotifications:
           type: integer

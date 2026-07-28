@@ -24,14 +24,24 @@ interface MembershipRow {
   expiresAt: Date | null;
 }
 
-const { fixtures, usersTable, sessionsTable, organizationMembershipsTable, employeesTable, notificationsTable } =
-  vi.hoisted(() => {
+const {
+  fixtures,
+  usersTable,
+  sessionsTable,
+  organizationMembershipsTable,
+  employeesTable,
+  notificationsTable,
+  modulesTable,
+  organizationModulesTable,
+} = vi.hoisted(() => {
     return {
       fixtures: {
         sessionRows: [] as unknown[],
         membershipRows: [] as MembershipRow[],
         employeeRows: [] as { organizationId: number }[],
         notificationRows: [] as { userId: number; read: boolean }[],
+        moduleRows: [] as Record<string, unknown>[],
+        organizationModuleRows: [] as Record<string, unknown>[],
       },
       usersTable: { __name: "users" },
       sessionsTable: { __name: "sessions" },
@@ -44,6 +54,8 @@ const { fixtures, usersTable, sessionsTable, organizationMembershipsTable, emplo
       },
       employeesTable: { __name: "employees", organizationId: "organizationId" },
       notificationsTable: { __name: "notifications", userId: "userId", read: "read" },
+      modulesTable: { __name: "modules" },
+      organizationModulesTable: { __name: "organization_modules", organizationId: "organizationId" },
     };
   });
 
@@ -89,6 +101,8 @@ vi.mock("@workspace/db", () => ({
   organizationMembershipsTable,
   employeesTable,
   notificationsTable,
+  modulesTable,
+  organizationModulesTable,
   db: {
     select: () => ({
       from(table: unknown) {
@@ -113,7 +127,11 @@ vi.mock("@workspace/db", () => ({
               ? (fixtures.employeeRows as unknown as Record<string, unknown>[])
               : table === notificationsTable
                 ? (fixtures.notificationRows as unknown as Record<string, unknown>[])
-                : [];
+                : table === modulesTable
+                  ? fixtures.moduleRows
+                  : table === organizationModulesTable
+                    ? fixtures.organizationModuleRows
+                    : [];
 
         let condition: Condition = null;
         const builder = {
@@ -217,6 +235,8 @@ describe("GET /api/dashboard/summary", () => {
     fixtures.membershipRows = [];
     fixtures.employeeRows = [];
     fixtures.notificationRows = [];
+    fixtures.moduleRows = [];
+    fixtures.organizationModuleRows = [];
   });
 
   it("counts employees for the resolved active organization, not the legacy organizationId", async () => {
@@ -231,5 +251,36 @@ describe("GET /api/dashboard/summary", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.totalEmployees).toBe(1);
+  });
+
+  it("derives activeModules from the real per-organization module registry, not a hardcoded constant (W18)", async () => {
+    mockSession({ activeOrganizationId: 20, legacyOrganizationId: 10 });
+    fixtures.membershipRows = [activeMembership(20)];
+    fixtures.moduleRows = [
+      { id: 1, key: "recruitment", defaultEnabled: false, requiredModuleKeys: [] },
+      { id: 2, key: "attendance", defaultEnabled: false, requiredModuleKeys: [] },
+      { id: 3, key: "leave", defaultEnabled: false, requiredModuleKeys: [] },
+    ];
+    // Module 1 explicitly enabled for org 20; module 2 explicitly disabled;
+    // module 3 has no override row, so it falls back to defaultEnabled (false).
+    fixtures.organizationModuleRows = [
+      { organizationId: 20, moduleId: 1, enabled: true },
+      { organizationId: 20, moduleId: 2, enabled: false },
+    ];
+
+    const res = await request(app).get("/api/dashboard/summary").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.activeModules).toBe(1);
+  });
+
+  it("does not expose a pendingRequests field (removed hardcoded stat, W18)", async () => {
+    mockSession({ activeOrganizationId: 20, legacyOrganizationId: 10 });
+    fixtures.membershipRows = [activeMembership(20)];
+
+    const res = await request(app).get("/api/dashboard/summary").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.pendingRequests).toBeUndefined();
   });
 });

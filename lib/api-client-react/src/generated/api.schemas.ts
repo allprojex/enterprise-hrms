@@ -708,7 +708,6 @@ export interface Notification {
 export interface DashboardSummary {
   totalEmployees: number;
   activeModules: number;
-  pendingRequests: number;
   unreadNotifications: number;
 }
 
