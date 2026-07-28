@@ -1197,6 +1197,55 @@ export const ConfirmEmployeeResponse = zod.object({
 
 
 /**
+ * Gated by employee.disciplinary.read, a narrower permission than employee.read (Architecture Decision 5) — the same precedent as employee.notes.read.
+ * @summary List an employee's disciplinary records
+ */
+export const ListEmployeeDisciplinaryRecordsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const ListEmployeeDisciplinaryRecordsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "actionType": zod.string(),
+  "description": zod.string(),
+  "actionDate": zod.coerce.date(),
+  "recordedBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListEmployeeDisciplinaryRecordsResponse = zod.array(ListEmployeeDisciplinaryRecordsResponseItem)
+
+
+/**
+ * Append-only — there is no update or remove endpoint, so a new action never replaces a prior record.
+ * @summary Record a disciplinary action for an employee
+ */
+export const AddEmployeeDisciplinaryRecordParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const AddEmployeeDisciplinaryRecordBody = zod.object({
+  "actionType": zod.string(),
+  "description": zod.string(),
+  "actionDate": zod.coerce.date()
+})
+
+export const AddEmployeeDisciplinaryRecordResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "actionType": zod.string(),
+  "description": zod.string(),
+  "actionDate": zod.coerce.date(),
+  "recordedBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
  * @summary List an employee's documents
  */
 export const ListEmployeeDocumentsParams = zod.object({

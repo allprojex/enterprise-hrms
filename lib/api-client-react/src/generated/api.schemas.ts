@@ -705,6 +705,24 @@ export interface ConfirmEmployeeInput {
   effectiveDate: string;
 }
 
+export interface EmployeeDisciplinaryRecord {
+  id: number;
+  organizationId: number;
+  employeeId: number;
+  actionType: string;
+  description: string;
+  actionDate: string;
+  /** @nullable */
+  recordedBy?: number | null;
+  createdAt: string;
+}
+
+export interface AddEmployeeDisciplinaryRecordInput {
+  actionType: string;
+  description: string;
+  actionDate: string;
+}
+
 export interface EmployeeDocument {
   id: number;
   organizationId: number;

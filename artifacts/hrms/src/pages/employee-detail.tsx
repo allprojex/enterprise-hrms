@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'wouter';
-import { ArrowLeft, Loader2, Mail, Phone, Building, Network, Briefcase, Camera, UserPlus, UserCheck, UserX, RotateCcw, FileText, Upload, Trash2, Award, GraduationCap, Sparkles, Plus, ArrowLeftRight, TrendingUp, BadgeCheck } from 'lucide-react';
+import { ArrowLeft, Loader2, Mail, Phone, Building, Network, Briefcase, Camera, UserPlus, UserCheck, UserX, RotateCcw, FileText, Upload, Trash2, Award, GraduationCap, Sparkles, Plus, ArrowLeftRight, TrendingUp, BadgeCheck, ShieldAlert } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -51,6 +51,9 @@ import {
   getListBranchesQueryKey,
   useListPositions,
   getListPositionsQueryKey,
+  useListEmployeeDisciplinaryRecords,
+  getListEmployeeDisciplinaryRecordsQueryKey,
+  useAddEmployeeDisciplinaryRecord,
 } from '@workspace/api-client-react';
 import type { UpdateEmployeeInputEmploymentStatus } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -171,6 +174,13 @@ export default function EmployeeDetail() {
     query: { queryKey: getListPositionsQueryKey(organizationId), enabled: organizationId > 0 },
   });
 
+  const { data: disciplinaryRecords, error: disciplinaryRecordsError } = useListEmployeeDisciplinaryRecords(organizationId, employeeId, {
+    query: {
+      queryKey: getListEmployeeDisciplinaryRecordsQueryKey(organizationId, employeeId),
+      enabled: organizationId > 0 && !isNaN(employeeId),
+    },
+  });
+
   const updateMutation = useUpdateEmployee();
   const uploadMutation = useUploadEmployeeProfilePicture();
   const linkMutation = useLinkEmployeeToUser();
@@ -188,6 +198,7 @@ export default function EmployeeDetail() {
   const transferMutation = useTransferEmployee();
   const promoteMutation = usePromoteEmployee();
   const confirmMutation = useConfirmEmployee();
+  const addDisciplinaryRecordMutation = useAddEmployeeDisciplinaryRecord();
 
   const [isEditing, setIsEditing] = useState(false);
   const [firstName, setFirstName] = useState('');
@@ -217,6 +228,9 @@ export default function EmployeeDetail() {
   const [promotePositionId, setPromotePositionId] = useState('');
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [confirmEffectiveDate, setConfirmEffectiveDate] = useState('');
+  const [newDisciplinaryActionType, setNewDisciplinaryActionType] = useState('');
+  const [newDisciplinaryDescription, setNewDisciplinaryDescription] = useState('');
+  const [newDisciplinaryActionDate, setNewDisciplinaryActionDate] = useState('');
 
   const [prevEmployee, setPrevEmployee] = useState(employee);
   if (employee && employee !== prevEmployee) {
@@ -433,6 +447,36 @@ export default function EmployeeDetail() {
           const message =
             err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
           toast({ title: 'Could not confirm employee', description: message ?? 'Please try again.', variant: 'destructive' });
+        },
+      },
+    );
+  };
+
+  const handleAddDisciplinaryRecord = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDisciplinaryActionType || !newDisciplinaryDescription || !newDisciplinaryActionDate) return;
+    addDisciplinaryRecordMutation.mutate(
+      {
+        organizationId,
+        employeeId,
+        data: {
+          actionType: newDisciplinaryActionType,
+          description: newDisciplinaryDescription,
+          actionDate: newDisciplinaryActionDate,
+        },
+      },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListEmployeeDisciplinaryRecordsQueryKey(organizationId, employeeId) });
+          setNewDisciplinaryActionType('');
+          setNewDisciplinaryDescription('');
+          setNewDisciplinaryActionDate('');
+          toast({ title: 'Disciplinary record added' });
+        },
+        onError: (err) => {
+          const message =
+            err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
+          toast({ title: 'Could not add disciplinary record', description: message ?? 'Please try again.', variant: 'destructive' });
         },
       },
     );
@@ -1485,6 +1529,85 @@ export default function EmployeeDetail() {
             )}
           </CardContent>
         </Card>
+
+        {!disciplinaryRecordsError && (
+          <Card className="lg:col-span-3">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ShieldAlert className="h-5 w-5" aria-hidden="true" />
+                Disciplinary Records
+              </CardTitle>
+              <CardDescription>Warnings and disciplinary actions — append-only, prior records are never replaced</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <form onSubmit={handleAddDisciplinaryRecord} className="grid gap-3 sm:grid-cols-4 sm:items-end">
+                <div className="space-y-2">
+                  <Label htmlFor="new-disciplinary-action-type">Action Type *</Label>
+                  <Input
+                    id="new-disciplinary-action-type"
+                    value={newDisciplinaryActionType}
+                    onChange={(e) => setNewDisciplinaryActionType(e.target.value)}
+                    placeholder="e.g. Written Warning"
+                    required
+                    data-testid="input-new-disciplinary-action-type"
+                  />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="new-disciplinary-description">Description *</Label>
+                  <Input
+                    id="new-disciplinary-description"
+                    value={newDisciplinaryDescription}
+                    onChange={(e) => setNewDisciplinaryDescription(e.target.value)}
+                    placeholder="Details of the incident/action"
+                    required
+                    data-testid="input-new-disciplinary-description"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-disciplinary-date">Action Date *</Label>
+                  <Input
+                    id="new-disciplinary-date"
+                    type="date"
+                    value={newDisciplinaryActionDate}
+                    onChange={(e) => setNewDisciplinaryActionDate(e.target.value)}
+                    required
+                    data-testid="input-new-disciplinary-date"
+                  />
+                </div>
+                <div className="sm:col-span-4">
+                  <Button
+                    type="submit"
+                    variant="outline"
+                    disabled={
+                      addDisciplinaryRecordMutation.isPending ||
+                      !newDisciplinaryActionType ||
+                      !newDisciplinaryDescription ||
+                      !newDisciplinaryActionDate
+                    }
+                    data-testid="button-add-disciplinary-record"
+                  >
+                    <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Record Action
+                  </Button>
+                </div>
+              </form>
+
+              {(disciplinaryRecords ?? []).length === 0 ? (
+                <p className="text-sm text-muted-foreground">No disciplinary records.</p>
+              ) : (
+                <ul className="divide-y divide-border">
+                  {(disciplinaryRecords ?? []).map((record) => (
+                    <li key={record.id} className="py-3" data-testid={`row-disciplinary-record-${record.id}`}>
+                      <p className="text-sm font-medium text-foreground">{record.actionType}</p>
+                      <p className="text-sm text-muted-foreground">{record.description}</p>
+                      <p className="text-xs text-muted-foreground">{new Date(record.actionDate).toLocaleDateString()}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

@@ -988,6 +988,79 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/employees/{employeeId}/disciplinary-records:
+    get:
+      operationId: listEmployeeDisciplinaryRecords
+      tags: [employees]
+      summary: List an employee's disciplinary records
+      description: >-
+        Gated by employee.disciplinary.read, a narrower permission than
+        employee.read (Architecture Decision 5) — the same precedent as
+        employee.notes.read.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Disciplinary records for the employee, most recent action first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmployeeDisciplinaryRecord"
+        "404":
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: addEmployeeDisciplinaryRecord
+      tags: [employees]
+      summary: Record a disciplinary action for an employee
+      description: >-
+        Append-only — there is no update or remove endpoint, so a new action
+        never replaces a prior record.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddEmployeeDisciplinaryRecordInput"
+      responses:
+        "201":
+          description: Disciplinary record added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeDisciplinaryRecord"
+        "404":
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /organizations/{organizationId}/employees/{employeeId}/documents:
     get:
       operationId: listEmployeeDocuments
@@ -3692,6 +3765,41 @@ components:
       required: [effectiveDate]
       properties:
         effectiveDate:
+          type: string
+          format: date-time
+
+    EmployeeDisciplinaryRecord:
+      type: object
+      required: [id, organizationId, employeeId, actionType, description, actionDate, createdAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        employeeId:
+          type: integer
+        actionType:
+          type: string
+        description:
+          type: string
+        actionDate:
+          type: string
+          format: date-time
+        recordedBy:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    AddEmployeeDisciplinaryRecordInput:
+      type: object
+      required: [actionType, description, actionDate]
+      properties:
+        actionType:
+          type: string
+        description:
+          type: string
+        actionDate:
           type: string
           format: date-time
 

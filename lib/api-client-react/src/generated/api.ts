@@ -22,6 +22,7 @@ import type {
 import type {
   AcceptInvitationInput,
   AddEmployeeCertificationInput,
+  AddEmployeeDisciplinaryRecordInput,
   AddEmployeeQualificationInput,
   AddEmployeeSkillInput,
   AddMemberInput,
@@ -43,6 +44,7 @@ import type {
   Department,
   Employee,
   EmployeeCertification,
+  EmployeeDisciplinaryRecord,
   EmployeeDocument,
   EmployeeListResponse,
   EmployeeQualification,
@@ -2305,6 +2307,164 @@ export const useConfirmEmployee = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getConfirmEmployeeMutationOptions(options));
+    }
+
+export const getListEmployeeDisciplinaryRecordsUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/disciplinary-records`
+}
+
+/**
+ * Gated by employee.disciplinary.read, a narrower permission than employee.read (Architecture Decision 5) — the same precedent as employee.notes.read.
+ * @summary List an employee's disciplinary records
+ */
+export const listEmployeeDisciplinaryRecords = async (organizationId: number,
+    employeeId: number, options?: RequestInit): Promise<EmployeeDisciplinaryRecord[]> => {
+
+  return customFetch<EmployeeDisciplinaryRecord[]>(getListEmployeeDisciplinaryRecordsUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListEmployeeDisciplinaryRecordsQueryKey = (organizationId: number,
+    employeeId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/employees/${employeeId}/disciplinary-records`
+    ] as const;
+    }
+
+
+export const getListEmployeeDisciplinaryRecordsQueryOptions = <TData = Awaited<ReturnType<typeof listEmployeeDisciplinaryRecords>>, TError = ErrorType<ApiError>>(organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmployeeDisciplinaryRecords>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListEmployeeDisciplinaryRecordsQueryKey(organizationId,employeeId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEmployeeDisciplinaryRecords>>> = ({ signal }) => listEmployeeDisciplinaryRecords(organizationId,employeeId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && employeeId !== null && employeeId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEmployeeDisciplinaryRecords>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListEmployeeDisciplinaryRecordsQueryResult = NonNullable<Awaited<ReturnType<typeof listEmployeeDisciplinaryRecords>>>
+export type ListEmployeeDisciplinaryRecordsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List an employee's disciplinary records
+ */
+
+export function useListEmployeeDisciplinaryRecords<TData = Awaited<ReturnType<typeof listEmployeeDisciplinaryRecords>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmployeeDisciplinaryRecords>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListEmployeeDisciplinaryRecordsQueryOptions(organizationId,employeeId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAddEmployeeDisciplinaryRecordUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/disciplinary-records`
+}
+
+/**
+ * Append-only — there is no update or remove endpoint, so a new action never replaces a prior record.
+ * @summary Record a disciplinary action for an employee
+ */
+export const addEmployeeDisciplinaryRecord = async (organizationId: number,
+    employeeId: number,
+    addEmployeeDisciplinaryRecordInput: AddEmployeeDisciplinaryRecordInput, options?: RequestInit): Promise<EmployeeDisciplinaryRecord> => {
+
+  return customFetch<EmployeeDisciplinaryRecord>(getAddEmployeeDisciplinaryRecordUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(addEmployeeDisciplinaryRecordInput)
+  }
+);}
+
+
+
+
+
+export const getAddEmployeeDisciplinaryRecordMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addEmployeeDisciplinaryRecord>>, TError,{organizationId: number;employeeId: number;data: BodyType<AddEmployeeDisciplinaryRecordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addEmployeeDisciplinaryRecord>>, TError,{organizationId: number;employeeId: number;data: BodyType<AddEmployeeDisciplinaryRecordInput>}, TContext> => {
+
+const mutationKey = ['addEmployeeDisciplinaryRecord'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addEmployeeDisciplinaryRecord>>, {organizationId: number;employeeId: number;data: BodyType<AddEmployeeDisciplinaryRecordInput>}> = (props) => {
+          const {organizationId,employeeId,data} = props ?? {};
+
+          return  addEmployeeDisciplinaryRecord(organizationId,employeeId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddEmployeeDisciplinaryRecordMutationResult = NonNullable<Awaited<ReturnType<typeof addEmployeeDisciplinaryRecord>>>
+    export type AddEmployeeDisciplinaryRecordMutationBody = BodyType<AddEmployeeDisciplinaryRecordInput>
+    export type AddEmployeeDisciplinaryRecordMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Record a disciplinary action for an employee
+ */
+export const useAddEmployeeDisciplinaryRecord = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addEmployeeDisciplinaryRecord>>, TError,{organizationId: number;employeeId: number;data: BodyType<AddEmployeeDisciplinaryRecordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addEmployeeDisciplinaryRecord>>,
+        TError,
+        {organizationId: number;employeeId: number;data: BodyType<AddEmployeeDisciplinaryRecordInput>},
+        TContext
+      > => {
+      return useMutation(getAddEmployeeDisciplinaryRecordMutationOptions(options));
     }
 
 export const getListEmployeeDocumentsUrl = (organizationId: number,
