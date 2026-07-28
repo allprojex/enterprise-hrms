@@ -1,6 +1,6 @@
 # Enterprise HRMS Project Status
 
-_Last updated: 2026-07-28, after W20 (Foundation Verification). Formalized in `docs/FOUNDATION_IMPLEMENTATION_PLAN.md` (workstreams W1–W21, approved). Update this file per CLAUDE.md's Session End Checklist._
+_Last updated: 2026-07-28, after W21 (Foundation Completion Report) — Foundation is code-complete, all 21 workstreams done; see the Foundation Completion Report below for the one remaining operational gap before Phase 2A. Formalized in `docs/FOUNDATION_IMPLEMENTATION_PLAN.md` (workstreams W1–W21, approved). Update this file per CLAUDE.md's Session End Checklist._
 
 ## Current Phase
 
@@ -18,15 +18,15 @@ Build a configurable, enterprise-grade Human Resource ERP foundation that suppor
 
 - Authentication — **Complete**. Login, sessions, scrypt hashing, rate limiting. Tested (backend + live browser). No self-service password change. Forgot-password now sends a real email via Resend (W19).
 - Organization Management — **Complete** (W8). Create/list/get/update + suspend/reactivate (no hard delete — organizations are never destroyed) all work end-to-end. Org switcher is a working dropdown (W1).
-- Organization Settings — In Progress. Schema + API + UI exist (get/update), but it's an untyped JSON blob, not a structured per-org configuration surface.
-- Module Management — In Progress. Module Registry (W3) + per-organization enablement (W4, `GET/PATCH /organizations/:organizationId/modules[/:moduleKey]`, dependency-graph enforced) exist. No gating anywhere yet (W5/W6) — everything shipped so far is still unconditionally on for every org regardless of this flag.
-- User Management — In Progress. Self-service profile + invitation-first onboarding (W10: invite by email, accept sets name/password, then log in separately). Still no admin "all users" directory (a cross-org listing, out of W10's scope).
-- Roles & Permissions — In Progress. Assign/revoke on a membership works end-to-end, tested live. Roles/permissions themselves are fixed seed data, not admin-creatable.
+- Organization Settings — **Complete** (W2). Organization Configuration Engine: one validated, versioned row per (organization, namespace), not an untyped blob. `general` and `terminology` namespaces implemented; further namespaces register into the same engine as needed post-Foundation.
+- Module Management — **Complete** (W3–W6). Registry, per-org enablement, backend gate, and frontend gate all exist and are tested. Dormant by design, not incomplete: no HR-operations module (Recruitment, Attendance, ...) has shipped yet to gate — those are Phase 2/3, outside this Foundation's frozen scope — so nothing exercises the gate in production routes today.
+- User Management — **Complete** (W10). Self-service profile + invitation-first onboarding (invite by email, accept sets name/password, then log in separately). A cross-org "all users" directory was explicitly out of W10's scope and isn't owned by any other frozen workstream — not a Foundation gap, a documented boundary.
+- Roles & Permissions — **Complete** (W11). Assign/revoke on a membership works end-to-end, tested live. System role templates stay fixed and protected; orgs customize their own copy (ADR-015) rather than authoring roles from scratch, which was never in scope.
 - Membership Management — **Complete**. List, add-by-email, revoke, role assign/revoke — full CRUD via the Admin console, tested live.
 - Branches — **Complete**. Full CRUD, tested (unit + live browser).
 - Organizational Units — **Complete**. Departments, incl. branch linkage, tested (unit + live browser).
 - Positions — **Complete**. Incl. department linkage, tested (unit + live browser).
-- Employee Management — In Progress. Full CRUD, search/filter/pagination tested live. Profile picture upload built and unit-tested but not yet exercised in the live browser pass. Separation/rehire (W15) added: never hard-deleted, history preserved via audit events (ADR-013).
+- Employee Management — **Complete**. Full CRUD, search/filter/pagination tested live. Separation/rehire (W15) added: never hard-deleted, history preserved via audit events (ADR-013). One open verification caveat, not a missing feature: profile picture upload is built and unit-tested but not yet exercised in a live browser pass (Known Issue #7).
 - Employee–User Linking — **Complete** (W14). Verified live via a member-picker UI (redesigned from an earlier draft that assumed email input, which didn't match the API contract). Now full lifecycle: the employee record surfaces its link status and offers Unlink instead of a blind, doomed re-link attempt.
 - Onboarding — **Complete**. Organization creation → membership → role → Primary HR, one transaction, tested (unit + live browser).
 - Dashboard — **Complete** (W18). Real employee counts, real per-org `activeModules` count (derived from the module registry + per-org enablement, not a hardcoded constant), and a real module-availability grid sourced from `GET /modules` instead of a hardcoded frontend array. Foundation capability tiles (Employees/Branches/Departments/Positions) remain explicit, since they aren't part of the Module Registry by design.
@@ -38,15 +38,7 @@ Build a configurable, enterprise-grade Human Resource ERP foundation that suppor
 
 ## Current Sprint
 
-Foundation build-out and live verification (this session, now wrapping up):
-
-- Filled backend gaps that had DB tables but zero API exposure: roles, permissions, memberships, Primary HR, organization settings, audit events.
-- Built the missing frontend for branches, departments, positions, the employee directory + detail view, organization creation, and a full admin console.
-- Ran the app locally against the approved dev database and manually verified every foundation flow end-to-end, fixing two real bugs found in the process.
-- Applied the one-time migration baseline to the dev database and created the working admin account.
-- Established the project governance doc set: `CLAUDE.md`, `ARCHITECTURE.md`, `ROADMAP.md`, `DECISIONS.md`, `CONTRIBUTING.md`, this file.
-
-All of the above is staged locally, not committed, not pushed.
+**Closed as of W21.** The Foundation build-out ran as 21 dependency-ordered workstreams (W1–W21, see Foundation Completion Plan below), each committed and pushed individually. Early in the sprint (pre-W1, before workstream-numbered migrations existed): filled backend gaps that had DB tables but zero API exposure, built the missing frontend for branches/departments/positions/employees/admin console, ran the app locally against the dev database and fixed two real bugs found live, applied a one-time migration baseline, created the working admin account, and established this governance doc set. See the **Foundation Completion Report** below for the final readiness assessment.
 
 ---
 
@@ -74,7 +66,29 @@ Authoritative, approved plan: see `docs/FOUNDATION_IMPLEMENTATION_PLAN.md` (21 d
 - **W18 — Dashboard Completion — Complete.** Removed the two hardcoded values Known Issue #9 flagged: the backend's `ACTIVE_MODULE_COUNT = 4` constant is replaced with a real per-organization count from `listOrganizationModules` (W4's existing merge of the module registry + `organization_modules` overrides, already used by `GET .../organizations/:id/modules`) filtered to `enabled`. `pendingRequests` is removed from `DashboardSummary` entirely (`GET /dashboard/summary`) rather than kept as a permanent fake `0` — there is no requests entity anywhere in the Foundation to back it. Frontend: the hardcoded 9-entry module array (4 fake "available" duplicates of Foundation pages + 5 hand-typed "coming soon" descriptions that could drift from the real registry) is replaced by two sources: an explicit `FOUNDATION_CAPABILITIES` list (Employees/Branches/Departments/Positions — legitimately not part of the Module Registry per ARCHITECTURE.md, so not registry-derivable) and `GET /modules` (already existed from W3) rendered with each module's real name/description/status. No schema change; no migration.
 - **W19 — Forgot Password Email Delivery — Complete.** Was blocked pending provider approval (ADR-017); you selected Resend. Provider abstraction (`lib/email/EmailProvider.ts` interface + `ResendEmailProvider`, `lib/email/index.ts`'s `getEmailProvider()` lazily reads `RESEND_API_KEY`/`EMAIL_FROM_ADDRESS`) means the rest of the codebase depends only on the interface. `users` gains `password_reset_token`/`password_reset_token_expires_at` (nullable, mirrors `organization_memberships.inviteToken`/ADR-014's shape, but a 1-hour TTL — shorter than the 7-day invitation TTL, since this grants control over an existing account). `POST /auth/forgot-password` now actually generates a token and sends a real reset email; it always returns the same confirmation regardless of whether the email is registered or delivery succeeds (checked by test), so neither can be used to enumerate accounts — delivery failures are logged server-side, never surfaced. New public `GET/POST /auth/reset-password/:token` (mirrors `GET/POST /invitations/:token[/accept]`'s preview-then-consume shape; 404/410 on an invalid/expired token here is fine since a token isn't enumerable like an email is). Frontend: new `/reset-password/:token` page mirrors `invite-accept.tsx`'s structure. Requires `APP_BASE_URL`, `RESEND_API_KEY`, `EMAIL_FROM_ADDRESS` (documented in `.env.example`); unset in this session's local `.env`, so forgot-password logs a "not configured" warning and still returns its generic confirmation rather than sending anything, until you supply real Resend credentials. Migration `0010_giant_randall_flagg` (two new nullable columns on `users`, purely additive) generated, not applied.
 - **W20 — Foundation Verification — Complete.** Repo-wide check across the checklist the frozen plan specifies (typecheck, lint, tests, migrations, OpenAPI generation, generated clients, production build) — a verification pass, not a feature workstream, so it changed no source, only this file. All seven green: root `pnpm run typecheck` clean across every workspace (api-server, hrms, mockup-sandbox, scripts, libs); `pnpm --filter @workspace/hrms run lint` clean (the only package with a configured linter — lib/db, lib/api-spec, lib/api-zod, lib/api-client-react have none, unchanged from earlier workstreams, not introduced here per the Foundation Scope Freeze); 179 backend + 42 frontend tests pass; `drizzle-kit generate` against the current schema produces zero new migration ("No schema changes, nothing to migrate") — the 11 migration files (`0000`–`0010`) are in sync with `lib/db/src/schema`, the journal is sequential with no gaps, and every migration has a matching hand-authored `.down.sql`; `orval codegen` against `openapi.yaml` produces zero diff in `lib/api-client-react`/`lib/api-zod` — the generated clients already match the spec; root `pnpm run build` succeeds (api-server, hrms, mockup-sandbox). Out of scope for this workstream: the dev Supabase database itself has none of migrations `0001`–`0010` applied (by design — CLAUDE.md's Database Rules require your explicit approval before applying any migration, and every workstream since W2 has left its migration generated-only); that's a live-environment state, not a code-verification finding, and applying it remains your call.
-- W21 — Not started.
+- **W21 — Foundation Completion Report — Complete.** Documentation-only, no source changes. Updated this file (corrected four stale "In Progress" bullets left over from before their owning workstreams shipped — Organization Settings, Module Management, User Management, Roles & Permissions were all already Complete per their own workstream log entries; the top-of-file summary just hadn't been synced), `ROADMAP.md` (marked Phase 1 complete), `MODULES.md` (added Onboarding and Master Data Management, both shipped Foundation capabilities missing from the Foundation Modules list), `ARCHITECTURE.md` (added Master Data to Core Platform, same gap), and `DECISIONS.md` (ADR-017 updated from "remains blocked" to record that Resend was selected and implemented, W19). See **Foundation Completion Report** below for the full Definition-of-Foundation-Complete checklist and final Phase 2A readiness verdict. No migration required.
+
+---
+
+## Foundation Completion Report (W21)
+
+All 21 frozen workstreams (W1–W21) are complete. Checking against `docs/FOUNDATION_IMPLEMENTATION_PLAN.md`'s Definition of Foundation Complete, item by item:
+
+- **Every workstream satisfies its acceptance criteria.** Yes — each W1–W20 entry above states what was built and how it was verified at the time.
+- **No foundation module remains Planned, Partial or Not Started.** Yes, as of this report — the four stale "In Progress" bullets in Foundation Progress above were corrected during W21; each was actually complete since its owning workstream, just not synced here. Employee Management carries one open verification caveat (Known Issue #7), not a missing feature.
+- **Documentation matches implementation.** Yes, as of this report — that was W21's job.
+- **Repository builds successfully.** Yes — verified in W20 and unchanged since (W21 is docs-only).
+- **All tests pass.** Yes — 179 backend + 42 frontend, per W20.
+- **No destructive migration risks remain.** Yes — all 11 migrations (`0000`–`0010`) are purely additive (new tables or nullable columns), each with a hand-authored `.down.sql`; none have ever dropped or altered existing data.
+- **OpenAPI and generated clients are synchronized.** Yes — verified in W20 (zero-diff codegen).
+- **Multi-tenant isolation is verified.** Yes at the code/test level — every org-scoped route composes `requireMembership` and scopes its query by the resolved organization ID; W16 specifically hardened this for audit-log filters. Not yet re-verified against a live database this session (see gap below).
+- **Permission enforcement is verified.** Yes at the code/test level — `requirePermission`/per-resource permission checks are unit-tested across every workstream that added a route.
+- **Module gating is verified.** Yes at the code/test level (W5/W6) — dormant in practice since no HR-operations module has shipped to gate, which is expected at this stage, not a defect.
+- **Organization switching is verified.** Yes — W1, tested live earlier in this session (before the database drifted, see below).
+- **Audit logging is verified.** Yes — write path exercised by nearly every mutating workstream; read path completed in W16.
+- **Foundation Completion Report declares zero remaining blockers.** See below — one operational gap, not a code blocker.
+
+**Verdict: code-complete, not yet re-verified live.** Every workstream's code, tests, and generated artifacts are done and internally consistent. The one open item is operational, not a missing capability: the dev Supabase database has never had migrations `0001`–`0010` applied (each was deliberately generated-only, per CLAUDE.md's Database Rules requiring your explicit approval) — so most of what W2 onward built has not been exercised against a live database since W1's original manual pass. A login attempted mid-session confirmed this: password auth succeeded, but the very next query 500'd on a column `organization_memberships` doesn't have live yet. **Before Phase 2A work begins, apply the pending migrations to a dev/staging database (your call on timing) and re-run a live smoke pass** — everything else in this checklist is already satisfied.
 
 ---
 
@@ -89,7 +103,7 @@ Authoritative, approved plan: see `docs/FOUNDATION_IMPLEMENTATION_PLAN.md` (21 d
 7. Profile picture upload not yet verified live in the browser.
 8. ~~No "already linked" indicator on an employee record — re-linking just fails with a 409.~~ **Resolved by W14.**
 9. ~~Dashboard's `ACTIVE_MODULE_COUNT` is a hardcoded constant, not derived from a real module registry.~~ **Resolved by W18.** Now a real per-organization count from the module registry + enablement overrides.
-10. **Cross-document inconsistency**: this file excludes Payroll from scope entirely, but `ROADMAP.md` Phase 3 ("Operations") still lists Payroll, and `ROADMAP.md` Phase 5 ("Extended ERP") still lists Loans, which is also dropped from Future Modules below. I haven't edited `ROADMAP.md` to match — that's your call, since you authored it directly.
+10. ~~Cross-document inconsistency: `ROADMAP.md` Phase 3 still listed Payroll, and Phase 5 still listed Loans...~~ **Resolved.** `ROADMAP.md` no longer has a Phase 5 or a Loans mention; its Phase 3 ("Workforce Operations") and this file's Future Modules list now agree, and Payroll sits in `ROADMAP.md`'s separate "Future Expansion" tier, consistent with this file's "Payroll is intentionally excluded from the current project scope." Re-verified during W21; no edit to `ROADMAP.md` was needed for this specific issue (it must have been fixed directly since this issue was first logged).
 
 ---
 

@@ -99,3 +99,5 @@ Reporting is a reusable Reporting Foundation (registry + metadata + permissions 
 ## ADR-017
 
 Forgot-password delivery uses a provider abstraction and remains blocked until an email provider is selected. Fake/no-op email delivery is never implemented as a stand-in.
+
+**Resolved (W19):** Resend was selected. `EmailProvider` interface + `ResendEmailProvider` implementation; the rest of the codebase depends only on the interface, so the provider can still be swapped without touching call sites.
