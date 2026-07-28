@@ -1,6 +1,6 @@
 # Enterprise HRMS Project Status
 
-_Last updated: 2026-07-28 — Foundation v1.0.0 release checkpoint. All 21 workstreams complete, migrations `0000`–`0010` applied to the dev database, post-migration live validation passed; Phase 2A is ready to begin pending your go-ahead. See the Foundation Completion Report below. Formalized in `docs/FOUNDATION_IMPLEMENTATION_PLAN.md` (workstreams W1–W21, approved). Update this file per CLAUDE.md's Session End Checklist._
+_Last updated: 2026-07-28 — Foundation v1.0.0 release checkpoint. All 21 workstreams complete, migrations `0000`–`0010` applied to the dev database, post-migration live validation passed; Phase 2A is ready to begin pending your go-ahead. See the Foundation Completion Report below. Formalized in `docs/FOUNDATION_IMPLEMENTATION_PLAN.md` (workstreams W1–W21, approved). Phase 2A's own implementation plan is now frozen: see `docs/PHASE_2A_IMPLEMENTATION_PLAN.md` (workstreams W22–W31, approved). Update this file per CLAUDE.md's Session End Checklist._
 
 ## Current Phase
 
