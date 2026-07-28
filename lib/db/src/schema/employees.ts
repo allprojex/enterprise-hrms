@@ -77,9 +77,9 @@ export const employeesTable = pgTable(
     workLocation: text("work_location"),
     // Set together by separate/rehire (lib/employees.ts) — never edited via
     // the general update path. Cleared on rehire; the prior stint's values
-    // live on in audit_events, not on this row (ADR-013: never hard-delete,
-    // rehiring starts a new employment period, history is preserved via the
-    // audit trail rather than a separate employment-periods table).
+    // live on in audit_events, not on this row (ADR-013: never hard-delete).
+    // Dated employment events (transfer/promotion/confirmation) are recorded
+    // in employment_periods (Phase 2A, W22) instead, not on this row.
     separationDate: timestamp("separation_date", { withTimezone: true }),
     // Free-text code from the "separation_reason" Master Data domain (W7) —
     // not a hardcoded enum, since that domain is organization-overridable.

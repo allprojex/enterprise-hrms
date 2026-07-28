@@ -1,10 +1,10 @@
 # Enterprise HRMS Project Status
 
-_Last updated: 2026-07-28 — Foundation v1.0.0 release checkpoint. All 21 workstreams complete, migrations `0000`–`0010` applied to the dev database, post-migration live validation passed; Phase 2A is ready to begin pending your go-ahead. See the Foundation Completion Report below. Formalized in `docs/FOUNDATION_IMPLEMENTATION_PLAN.md` (workstreams W1–W21, approved). Phase 2A's own implementation plan is now frozen: see `docs/PHASE_2A_IMPLEMENTATION_PLAN.md` (workstreams W22–W31, approved). Update this file per CLAUDE.md's Session End Checklist._
+_Last updated: 2026-07-28 — Phase 2A underway: W22 (Employment Period History Service) complete, migration `0011` generated but not applied. Foundation v1.0.0 remains code-complete and live-verified (all 21 workstreams, migrations `0000`–`0010` applied). See the Phase 2A Progress and Foundation Completion Report sections below. Formalized in `docs/FOUNDATION_IMPLEMENTATION_PLAN.md` (W1–W21, approved) and `docs/PHASE_2A_IMPLEMENTATION_PLAN.md` (W22–W31, frozen). Update this file per CLAUDE.md's Session End Checklist._
 
 ## Current Phase
 
-Enterprise Foundation
+Phase 2A — Core HR (in progress)
 
 ---
 
@@ -93,6 +93,14 @@ All 21 frozen workstreams (W1–W21) are complete. Checking against `docs/FOUNDA
 **Post-migration validation passed.** Live end-to-end checks all passed: admin login/logout and session invalidation, forgot-password (registered and unregistered email indistinguishable), reset-password token issuance/preview/expiry/consumption plus login with the new password, organization listing, employee listing and cross-org scoping, roles and permissions catalogs, audit log reading, reports catalog and report execution, dashboard summary, and tenant isolation (403 on an organization with no membership). One transient issue was found and fixed during validation — a long-running dev server process was serving a pre-W19 build; restarting it against the current build resolved it, with no source changes required. All temporary/test records created during validation were cleaned up; real data is untouched.
 
 **Verdict: Foundation is code-complete and live-verified. Phase 2A is ready to begin**, pending your go-ahead — nothing in the Definition of Foundation Complete checklist remains outstanding.
+
+---
+
+## Phase 2A Progress
+
+Authoritative, frozen plan: see `docs/PHASE_2A_IMPLEMENTATION_PLAN.md` (10 dependency-ordered workstreams, W22–W31).
+
+- **W22 — Employment Period History Service — Complete.** `employment_periods` table (org-scoped, references `employees`, append-only, mirrors `audit_events`' before/after-state shape; `eventType` is free text so each consuming workstream defines its own event types without a schema change here) + `recordEmploymentPeriodEvent`/`listEmploymentPeriods` in a new `EmploymentLifecycleService` (`artifacts/api-server/src/lib/employmentLifecycleService.ts`, ADR-011's Services Layer pattern). Tenant isolation enforced by reusing `assertBelongsToOrganization` (ADR-012 precedent); every recorded event is also mirrored into `audit_events` via the existing `recordAuditEvent`. No user-facing feature by itself — foundational dependency for W25 (Transfers), W26 (Promotions), W27 (Confirmations), mirroring the W5/W12 precedent of shipping a capability ahead of its first consumer. Migration `0011_cooing_silverclaw.sql` (one new table, purely additive) generated with a hand-authored `.down.sql`, not applied, same as every Foundation migration before your approval.
 
 ---
 
