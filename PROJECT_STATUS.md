@@ -1,10 +1,10 @@
 # Enterprise HRMS Project Status
 
-_Last updated: 2026-07-28 — Phase 2A complete: all 10 frozen workstreams (W22–W31) done. Migrations `0011`–`0015` generated but not applied (W25/W26/W27 needed none — reused existing tables), awaiting your approval. Final verification (W30): 233 backend + 42 frontend tests pass, typecheck/lint clean, codegen synchronized, zero migration drift, production build successful. See the **Phase 2A Completion Report** below for the full readiness assessment. Foundation v1.0.0 remains code-complete and live-verified (all 21 workstreams, migrations `0000`–`0010` applied). Formalized in `docs/FOUNDATION_IMPLEMENTATION_PLAN.md` (W1–W21, approved) and `docs/PHASE_2A_IMPLEMENTATION_PLAN.md` (W22–W31, frozen). Update this file per CLAUDE.md's Session End Checklist._
+_Last updated: 2026-07-28 — Phase 2A complete: all 10 frozen workstreams (W22–W31) done. Migrations `0011`–`0015` generated but not applied (W25/W26/W27 needed none — reused existing tables), awaiting your approval. Final verification (W30): 233 backend + 42 frontend tests pass, typecheck/lint clean, codegen synchronized, zero migration drift, production build successful. See the **Phase 2A Completion Report** below for the full readiness assessment. `docs/PHASE_2B_IMPLEMENTATION_PLAN.md` (W32–W42, HR Operations: Leave, Attendance configuration, Employee Self-Service) is now frozen and approved for execution — W32 (Leave Types & Policies) is the next incomplete workstream, not yet started. Foundation v1.0.0 remains code-complete and live-verified (all 21 workstreams, migrations `0000`–`0010` applied). Formalized in `docs/FOUNDATION_IMPLEMENTATION_PLAN.md` (W1–W21, approved), `docs/PHASE_2A_IMPLEMENTATION_PLAN.md` (W22–W31, frozen), and `docs/PHASE_2B_IMPLEMENTATION_PLAN.md` (W32–W42, frozen). Update this file per CLAUDE.md's Session End Checklist._
 
 ## Current Phase
 
-Phase 2A — Core HR — **Complete**, pending your go-ahead on migrations `0011`–`0015` and on planning Phase 2B/3
+Phase 2B — HR Operations — plan frozen, execution not yet started; next workstream is W32 (Leave Types & Policies)
 
 ---
 
