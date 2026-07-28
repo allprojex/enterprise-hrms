@@ -24,6 +24,7 @@ const {
   positionsTable,
   employeeUserLinksTable,
   auditEventsTable,
+  employmentPeriodsTable,
 } = vi.hoisted(() => {
   return {
     fixtures: {
@@ -50,6 +51,7 @@ const {
     positionsTable: { __name: "positions" },
     employeeUserLinksTable: { __name: "employee_user_links" },
     auditEventsTable: { __name: "audit_events" },
+    employmentPeriodsTable: { __name: "employment_periods" },
   };
 });
 
@@ -73,6 +75,7 @@ vi.mock("@workspace/db", () => ({
   positionsTable,
   employeeUserLinksTable,
   auditEventsTable,
+  employmentPeriodsTable,
   db: {
     select: () => ({
       from(table: { __name: string }) {
@@ -468,5 +471,95 @@ describe("POST /api/organizations/:organizationId/employees/:employeeId/rehire",
       .send({});
 
     expect(res.status).toBe(400);
+  });
+});
+
+describe("POST /api/organizations/:organizationId/employees/:employeeId/transfer", () => {
+  beforeEach(() => {
+    fixtures.sessionRows = [];
+    fixtures.membershipRows = [];
+    fixtures.membershipRoleRows = [];
+    fixtures.permissionRows = [];
+    fixtures.employeeRows = [];
+    fixtures.departmentRows = [];
+    fixtures.inserted = [];
+  });
+
+  it("returns 403 when the membership's role lacks employee.write", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.read"]);
+    fixtures.employeeRows = [{ id: 42, firstName: "Ada", lastName: "Lovelace", employmentStatus: "active", departmentId: 1 }];
+
+    const res = await request(app)
+      .post("/api/organizations/10/employees/42/transfer")
+      .set("Authorization", "Bearer valid-token")
+      .send({ effectiveDate: "2026-01-01", departmentId: 5 });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 404 when the employee does not exist", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.write"]);
+    fixtures.employeeRows = [];
+
+    const res = await request(app)
+      .post("/api/organizations/10/employees/42/transfer")
+      .set("Authorization", "Bearer valid-token")
+      .send({ effectiveDate: "2026-01-01", departmentId: 5 });
+
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 400 when the transfer would not change department, branch, or position", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.write"]);
+    fixtures.employeeRows = [{ id: 42, firstName: "Ada", lastName: "Lovelace", employmentStatus: "active", departmentId: 5 }];
+
+    const res = await request(app)
+      .post("/api/organizations/10/employees/42/transfer")
+      .set("Authorization", "Bearer valid-token")
+      .send({ effectiveDate: "2026-01-01", departmentId: 5 });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects a department reference that belongs to a different organization", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.write"]);
+    fixtures.employeeRows = [{ id: 42, firstName: "Ada", lastName: "Lovelace", employmentStatus: "active", departmentId: 1 }];
+    fixtures.departmentRows = [{ organizationId: 999 }];
+
+    const res = await request(app)
+      .post("/api/organizations/10/employees/42/transfer")
+      .set("Authorization", "Bearer valid-token")
+      .send({ effectiveDate: "2026-01-01", departmentId: 5 });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("transfers the employee, records an employment_periods event, and audit-logs it", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.write", "employee.notes.read"]);
+    fixtures.employeeRows = [
+      { id: 42, organizationId: 10, firstName: "Ada", lastName: "Lovelace", employmentStatus: "active", departmentId: 1 },
+    ];
+    fixtures.departmentRows = [{ organizationId: 10 }];
+
+    const res = await request(app)
+      .post("/api/organizations/10/employees/42/transfer")
+      .set("Authorization", "Bearer valid-token")
+      .send({ effectiveDate: "2026-01-01", departmentId: 5 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.departmentId).toBe(5);
+    expect(fixtures.inserted.find((i) => i.table === "employment_periods")).toBeDefined();
+    const auditInsert = fixtures.inserted.find((i) => i.table === "audit_events");
+    expect((auditInsert!.values as Record<string, unknown>).eventType).toBe("employment_period.transfer");
   });
 });

@@ -848,6 +848,53 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/employees/{employeeId}/transfer:
+    post:
+      operationId: transferEmployee
+      tags: [employees]
+      summary: Transfer an employee to a new department, branch, and/or position
+      description: >-
+        Records a dated employment_periods event (W22) alongside updating the
+        employee's current placement; cross-org reference validation reuses
+        the same check create/update already runs. Rejected if none of
+        departmentId/branchId/positionId would actually change.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferEmployeeInput"
+      responses:
+        "200":
+          description: Employee transferred
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "400":
+          description: Invalid reference, or no actual change
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /organizations/{organizationId}/employees/{employeeId}/documents:
     get:
       operationId: listEmployeeDocuments
@@ -3522,6 +3569,20 @@ components:
         separationReason:
           type: string
           description: Code from the "separation_reason" Master Data domain.
+
+    TransferEmployeeInput:
+      type: object
+      required: [effectiveDate]
+      properties:
+        effectiveDate:
+          type: string
+          format: date-time
+        departmentId:
+          type: ["integer", "null"]
+        branchId:
+          type: ["integer", "null"]
+        positionId:
+          type: ["integer", "null"]
 
     EmployeeDocument:
       type: object

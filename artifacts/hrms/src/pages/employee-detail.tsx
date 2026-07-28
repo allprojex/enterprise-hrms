@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'wouter';
-import { ArrowLeft, Loader2, Mail, Phone, Building, Network, Briefcase, Camera, UserPlus, UserCheck, UserX, RotateCcw, FileText, Upload, Trash2, Award, GraduationCap, Sparkles, Plus } from 'lucide-react';
+import { ArrowLeft, Loader2, Mail, Phone, Building, Network, Briefcase, Camera, UserPlus, UserCheck, UserX, RotateCcw, FileText, Upload, Trash2, Award, GraduationCap, Sparkles, Plus, ArrowLeftRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,6 +42,13 @@ import {
   getListEmployeeCertificationsQueryKey,
   useAddEmployeeCertification,
   useRemoveEmployeeCertification,
+  useTransferEmployee,
+  useListDepartments,
+  getListDepartmentsQueryKey,
+  useListBranches,
+  getListBranchesQueryKey,
+  useListPositions,
+  getListPositionsQueryKey,
 } from '@workspace/api-client-react';
 import type { UpdateEmployeeInputEmploymentStatus } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -152,6 +159,16 @@ export default function EmployeeDetail() {
     query: { queryKey: getListEmployeeCertificationsQueryKey(organizationId, employeeId), enabled: organizationId > 0 && !isNaN(employeeId) },
   });
 
+  const { data: departments } = useListDepartments(organizationId, {
+    query: { queryKey: getListDepartmentsQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+  const { data: branches } = useListBranches(organizationId, {
+    query: { queryKey: getListBranchesQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+  const { data: positions } = useListPositions(organizationId, {
+    query: { queryKey: getListPositionsQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+
   const updateMutation = useUpdateEmployee();
   const uploadMutation = useUploadEmployeeProfilePicture();
   const linkMutation = useLinkEmployeeToUser();
@@ -166,6 +183,7 @@ export default function EmployeeDetail() {
   const removeQualificationMutation = useRemoveEmployeeQualification();
   const addCertificationMutation = useAddEmployeeCertification();
   const removeCertificationMutation = useRemoveEmployeeCertification();
+  const transferMutation = useTransferEmployee();
 
   const [isEditing, setIsEditing] = useState(false);
   const [firstName, setFirstName] = useState('');
@@ -185,6 +203,11 @@ export default function EmployeeDetail() {
   const [newQualificationInstitution, setNewQualificationInstitution] = useState('');
   const [newCertificationCode, setNewCertificationCode] = useState('');
   const [newCertificationIssuer, setNewCertificationIssuer] = useState('');
+  const [isTransferOpen, setIsTransferOpen] = useState(false);
+  const [transferEffectiveDate, setTransferEffectiveDate] = useState('');
+  const [transferDepartmentId, setTransferDepartmentId] = useState('');
+  const [transferBranchId, setTransferBranchId] = useState('');
+  const [transferPositionId, setTransferPositionId] = useState('');
 
   const [prevEmployee, setPrevEmployee] = useState(employee);
   if (employee && employee !== prevEmployee) {
@@ -321,6 +344,39 @@ export default function EmployeeDetail() {
           const message =
             err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
           toast({ title: 'Could not rehire employee', description: message ?? 'Please try again.', variant: 'destructive' });
+        },
+      },
+    );
+  };
+
+  const handleTransfer = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!transferEffectiveDate) return;
+    transferMutation.mutate(
+      {
+        organizationId,
+        employeeId,
+        data: {
+          effectiveDate: transferEffectiveDate,
+          departmentId: transferDepartmentId ? Number(transferDepartmentId) : undefined,
+          branchId: transferBranchId ? Number(transferBranchId) : undefined,
+          positionId: transferPositionId ? Number(transferPositionId) : undefined,
+        },
+      },
+      {
+        onSuccess: (updated) => {
+          queryClient.setQueryData(getGetEmployeeQueryKey(organizationId, employeeId), updated);
+          setIsTransferOpen(false);
+          setTransferEffectiveDate('');
+          setTransferDepartmentId('');
+          setTransferBranchId('');
+          setTransferPositionId('');
+          toast({ title: 'Employee transferred' });
+        },
+        onError: (err) => {
+          const message =
+            err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
+          toast({ title: 'Could not transfer employee', description: message ?? 'Please try again.', variant: 'destructive' });
         },
       },
     );
@@ -568,66 +624,158 @@ export default function EmployeeDetail() {
                   </Button>
                 </div>
               ) : (
-                <Dialog open={isSeparateOpen} onOpenChange={setIsSeparateOpen}>
-                  <DialogTrigger asChild>
-                    <Button type="button" variant="outline" size="sm" data-testid="button-separate-employee">
-                      <UserX className="mr-2 h-4 w-4" aria-hidden="true" />
-                      Separate
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <form onSubmit={handleSeparate}>
-                      <DialogHeader>
-                        <DialogTitle>Separate Employee</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4 py-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="separation-date">Separation Date *</Label>
-                          <Input
-                            id="separation-date"
-                            type="date"
-                            value={separationDate}
-                            onChange={(e) => setSeparationDate(e.target.value)}
-                            required
-                            data-testid="input-separation-date"
-                          />
+                <div className="flex flex-wrap justify-center gap-2">
+                  <Dialog open={isTransferOpen} onOpenChange={setIsTransferOpen}>
+                    <DialogTrigger asChild>
+                      <Button type="button" variant="outline" size="sm" data-testid="button-transfer-employee">
+                        <ArrowLeftRight className="mr-2 h-4 w-4" aria-hidden="true" />
+                        Transfer
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <form onSubmit={handleTransfer}>
+                        <DialogHeader>
+                          <DialogTitle>Transfer Employee</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="transfer-effective-date">Effective Date *</Label>
+                            <Input
+                              id="transfer-effective-date"
+                              type="date"
+                              value={transferEffectiveDate}
+                              onChange={(e) => setTransferEffectiveDate(e.target.value)}
+                              required
+                              data-testid="input-transfer-effective-date"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="transfer-department">Department</Label>
+                            <Select value={transferDepartmentId} onValueChange={setTransferDepartmentId}>
+                              <SelectTrigger id="transfer-department" data-testid="select-transfer-department">
+                                <SelectValue placeholder="Keep current" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(departments ?? []).map((d) => (
+                                  <SelectItem key={d.id} value={String(d.id)}>
+                                    {d.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="transfer-branch">Branch</Label>
+                            <Select value={transferBranchId} onValueChange={setTransferBranchId}>
+                              <SelectTrigger id="transfer-branch" data-testid="select-transfer-branch">
+                                <SelectValue placeholder="Keep current" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(branches ?? []).map((b) => (
+                                  <SelectItem key={b.id} value={String(b.id)}>
+                                    {b.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="transfer-position">Position</Label>
+                            <Select value={transferPositionId} onValueChange={setTransferPositionId}>
+                              <SelectTrigger id="transfer-position" data-testid="select-transfer-position">
+                                <SelectValue placeholder="Keep current" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(positions ?? []).map((p) => (
+                                  <SelectItem key={p.id} value={String(p.id)}>
+                                    {p.title}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="separation-reason">Reason</Label>
-                          <Select value={separationReason} onValueChange={setSeparationReason}>
-                            <SelectTrigger id="separation-reason" data-testid="select-separation-reason">
-                              <SelectValue placeholder="Choose a reason" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {(separationReasons ?? []).map((item) => (
-                                <SelectItem key={item.code} value={item.code}>
-                                  {item.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                        <DialogFooter>
+                          <Button
+                            type="submit"
+                            disabled={transferMutation.isPending || !transferEffectiveDate}
+                            data-testid="button-confirm-transfer"
+                          >
+                            {transferMutation.isPending ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                                Transferring…
+                              </>
+                            ) : (
+                              'Confirm Transfer'
+                            )}
+                          </Button>
+                        </DialogFooter>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+
+                  <Dialog open={isSeparateOpen} onOpenChange={setIsSeparateOpen}>
+                    <DialogTrigger asChild>
+                      <Button type="button" variant="outline" size="sm" data-testid="button-separate-employee">
+                        <UserX className="mr-2 h-4 w-4" aria-hidden="true" />
+                        Separate
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <form onSubmit={handleSeparate}>
+                        <DialogHeader>
+                          <DialogTitle>Separate Employee</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="separation-date">Separation Date *</Label>
+                            <Input
+                              id="separation-date"
+                              type="date"
+                              value={separationDate}
+                              onChange={(e) => setSeparationDate(e.target.value)}
+                              required
+                              data-testid="input-separation-date"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="separation-reason">Reason</Label>
+                            <Select value={separationReason} onValueChange={setSeparationReason}>
+                              <SelectTrigger id="separation-reason" data-testid="select-separation-reason">
+                                <SelectValue placeholder="Choose a reason" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(separationReasons ?? []).map((item) => (
+                                  <SelectItem key={item.code} value={item.code}>
+                                    {item.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
-                      </div>
-                      <DialogFooter>
-                        <Button
-                          type="submit"
-                          variant="destructive"
-                          disabled={separateMutation.isPending || !separationDate}
-                          data-testid="button-confirm-separate"
-                        >
-                          {separateMutation.isPending ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                              Separating…
-                            </>
-                          ) : (
-                            'Confirm Separation'
-                          )}
-                        </Button>
-                      </DialogFooter>
-                    </form>
-                  </DialogContent>
-                </Dialog>
+                        <DialogFooter>
+                          <Button
+                            type="submit"
+                            variant="destructive"
+                            disabled={separateMutation.isPending || !separationDate}
+                            data-testid="button-confirm-separate"
+                          >
+                            {separateMutation.isPending ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                                Separating…
+                              </>
+                            ) : (
+                              'Confirm Separation'
+                            )}
+                          </Button>
+                        </DialogFooter>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+                </div>
               )}
             </div>
 

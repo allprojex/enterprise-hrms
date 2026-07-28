@@ -2,6 +2,7 @@ import { and, eq, ilike, or, count, desc, type SQL } from "drizzle-orm";
 import { db, employeesTable, departmentsTable, branchesTable, positionsTable } from "@workspace/db";
 import { assertBelongsToOrganization } from "./orgScopedRefs";
 import { recordAuditEvent } from "./auditLog";
+import { recordEmploymentPeriodEvent } from "./employmentLifecycleService";
 
 export class EmployeeNotFoundError extends Error {
   constructor() {
@@ -21,6 +22,13 @@ export class EmployeeNotSeparatedError extends Error {
   constructor() {
     super("Employee is not currently separated");
     this.name = "EmployeeNotSeparatedError";
+  }
+}
+
+export class EmployeeTransferNoChangeError extends Error {
+  constructor() {
+    super("Transfer must change at least one of department, branch, or position");
+    this.name = "EmployeeTransferNoChangeError";
   }
 }
 
@@ -192,6 +200,68 @@ export async function rehireEmployee(params: {
     targetId: String(params.employeeId),
     beforeState: { employmentStatus: before.employmentStatus, separationDate: before.separationDate, separationReason: before.separationReason },
     afterState: { employmentStatus: updated.employmentStatus },
+  });
+
+  return updated;
+}
+
+/**
+ * Transfer (Phase 2A, W25): department/branch/position reassignment.
+ * Cross-org reference validation reuses assertEmployeeReferencesValid — the
+ * same validation create/update already runs, not a duplicate check
+ * (Architecture Decision 3, ADR-012). Unlike separate/rehire, this doesn't
+ * change employmentStatus; `employees` always holds the *current* placement,
+ * while the dated before/after history is preserved in `employment_periods`
+ * (W22's EmploymentLifecycleService) — never overwritten, mirroring how
+ * separation preserves prior values in the audit trail instead of on the row.
+ */
+export async function transferEmployee(params: {
+  organizationId: number;
+  employeeId: number;
+  departmentId?: number | null;
+  branchId?: number | null;
+  positionId?: number | null;
+  effectiveDate: Date;
+  actorApplicationUserId: number;
+  actorMembershipId: number;
+}) {
+  const before = await getEmployeeById(params.organizationId, params.employeeId);
+  if (!before) throw new EmployeeNotFoundError();
+
+  const nextDepartmentId = params.departmentId !== undefined ? params.departmentId : before.departmentId;
+  const nextBranchId = params.branchId !== undefined ? params.branchId : before.branchId;
+  const nextPositionId = params.positionId !== undefined ? params.positionId : before.positionId;
+
+  if (nextDepartmentId === before.departmentId && nextBranchId === before.branchId && nextPositionId === before.positionId) {
+    throw new EmployeeTransferNoChangeError();
+  }
+
+  await assertEmployeeReferencesValid(params.organizationId, {
+    departmentId: nextDepartmentId,
+    branchId: nextBranchId,
+    positionId: nextPositionId,
+  });
+
+  const [updated] = await db
+    .update(employeesTable)
+    .set({
+      departmentId: nextDepartmentId,
+      branchId: nextBranchId,
+      positionId: nextPositionId,
+      updatedBy: params.actorApplicationUserId,
+    })
+    .where(eq(employeesTable.id, params.employeeId))
+    .returning();
+
+  await recordEmploymentPeriodEvent({
+    organizationId: params.organizationId,
+    employeeId: params.employeeId,
+    eventType: "transfer",
+    effectiveDate: params.effectiveDate,
+    previousState: { departmentId: before.departmentId, branchId: before.branchId, positionId: before.positionId },
+    newState: { departmentId: updated.departmentId, branchId: updated.branchId, positionId: updated.positionId },
+    actorApplicationUserId: params.actorApplicationUserId,
+    actorMembershipId: params.actorMembershipId,
   });
 
   return updated;

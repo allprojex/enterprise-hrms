@@ -686,6 +686,16 @@ export interface SeparateEmployeeInput {
   separationReason?: string;
 }
 
+export interface TransferEmployeeInput {
+  effectiveDate: string;
+  /** @nullable */
+  departmentId?: number | null;
+  /** @nullable */
+  branchId?: number | null;
+  /** @nullable */
+  positionId?: number | null;
+}
+
 export interface EmployeeDocument {
   id: number;
   organizationId: number;

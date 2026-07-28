@@ -81,6 +81,7 @@ import type {
   SeparateEmployeeInput,
   SetPrimaryHrInput,
   SwitchOrganizationInput,
+  TransferEmployeeInput,
   UpdateBranchInput,
   UpdateDepartmentInput,
   UpdateEmployeeCertificationInput,
@@ -2077,6 +2078,81 @@ export const useRehireEmployee = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getRehireEmployeeMutationOptions(options));
+    }
+
+export const getTransferEmployeeUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/transfer`
+}
+
+/**
+ * Records a dated employment_periods event (W22) alongside updating the employee's current placement; cross-org reference validation reuses the same check create/update already runs. Rejected if none of departmentId/branchId/positionId would actually change.
+ * @summary Transfer an employee to a new department, branch, and/or position
+ */
+export const transferEmployee = async (organizationId: number,
+    employeeId: number,
+    transferEmployeeInput: TransferEmployeeInput, options?: RequestInit): Promise<Employee> => {
+
+  return customFetch<Employee>(getTransferEmployeeUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(transferEmployeeInput)
+  }
+);}
+
+
+
+
+
+export const getTransferEmployeeMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof transferEmployee>>, TError,{organizationId: number;employeeId: number;data: BodyType<TransferEmployeeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof transferEmployee>>, TError,{organizationId: number;employeeId: number;data: BodyType<TransferEmployeeInput>}, TContext> => {
+
+const mutationKey = ['transferEmployee'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof transferEmployee>>, {organizationId: number;employeeId: number;data: BodyType<TransferEmployeeInput>}> = (props) => {
+          const {organizationId,employeeId,data} = props ?? {};
+
+          return  transferEmployee(organizationId,employeeId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TransferEmployeeMutationResult = NonNullable<Awaited<ReturnType<typeof transferEmployee>>>
+    export type TransferEmployeeMutationBody = BodyType<TransferEmployeeInput>
+    export type TransferEmployeeMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Transfer an employee to a new department, branch, and/or position
+ */
+export const useTransferEmployee = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof transferEmployee>>, TError,{organizationId: number;employeeId: number;data: BodyType<TransferEmployeeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof transferEmployee>>,
+        TError,
+        {organizationId: number;employeeId: number;data: BodyType<TransferEmployeeInput>},
+        TContext
+      > => {
+      return useMutation(getTransferEmployeeMutationOptions(options));
     }
 
 export const getListEmployeeDocumentsUrl = (organizationId: number,
