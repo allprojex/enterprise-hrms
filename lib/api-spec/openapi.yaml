@@ -848,6 +848,127 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/employees/{employeeId}/documents:
+    get:
+      operationId: listEmployeeDocuments
+      tags: [employees]
+      summary: List an employee's documents
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Documents for the employee
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmployeeDocument"
+        "404":
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: uploadEmployeeDocument
+      tags: [employees]
+      summary: Upload a document for an employee
+      description: >-
+        multipart/form-data upload. PDF, JPEG, PNG, DOCX, and XLSX only,
+        validated by file signature (not just Content-Type), 10MB max. Each
+        upload creates a new document row — re-uploading does not replace or
+        version a prior one; remove it separately if it should be superseded.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, categoryCode]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                categoryCode:
+                  type: string
+                  description: Code from the "document_category" Master Data domain.
+      responses:
+        "201":
+          description: Document uploaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeDocument"
+        "400":
+          description: Invalid file or missing category
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}/documents/{documentId}:
+    delete:
+      operationId: removeEmployeeDocument
+      tags: [employees]
+      summary: Remove an employee document
+      description: Deletes both the stored file and its record.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Document removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "404":
+          description: Employee or document not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /organizations/{organizationId}/branches:
     get:
       operationId: listBranches
@@ -2981,6 +3102,32 @@ components:
         separationReason:
           type: string
           description: Code from the "separation_reason" Master Data domain.
+
+    EmployeeDocument:
+      type: object
+      required: [id, organizationId, employeeId, categoryCode, fileName, mimeType, fileSize, createdAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        employeeId:
+          type: integer
+        categoryCode:
+          type: string
+          description: Code from the "document_category" Master Data domain.
+        fileName:
+          type: string
+          description: Original client-supplied filename, for display only.
+        mimeType:
+          type: string
+        fileSize:
+          type: integer
+        uploadedBy:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
 
     Notification:
       type: object

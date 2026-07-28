@@ -85,6 +85,13 @@
       "when": 1785264660996,
       "tag": "0011_cooing_silverclaw",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1785266219116,
+      "tag": "0012_mighty_onslaught",
+      "breakpoints": true
     }
   ]
 }

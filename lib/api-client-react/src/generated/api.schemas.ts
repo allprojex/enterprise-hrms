@@ -686,6 +686,21 @@ export interface SeparateEmployeeInput {
   separationReason?: string;
 }
 
+export interface EmployeeDocument {
+  id: number;
+  organizationId: number;
+  employeeId: number;
+  /** Code from the "document_category" Master Data domain. */
+  categoryCode: string;
+  /** Original client-supplied filename, for display only. */
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  /** @nullable */
+  uploadedBy?: number | null;
+  createdAt: string;
+}
+
 export type NotificationType = typeof NotificationType[keyof typeof NotificationType];
 
 
@@ -1099,6 +1114,12 @@ export const ListEmployeesEmploymentStatus = {
 
 export type UploadEmployeeProfilePictureBody = {
   file: Blob;
+};
+
+export type UploadEmployeeDocumentBody = {
+  file: Blob;
+  /** Code from the "document_category" Master Data domain. */
+  categoryCode: string;
 };
 
 export type ListAuditEventsParams = {

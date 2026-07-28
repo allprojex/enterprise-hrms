@@ -38,6 +38,7 @@ import type {
   DashboardSummary,
   Department,
   Employee,
+  EmployeeDocument,
   EmployeeListResponse,
   ForgotPasswordInput,
   GrantRolePermissionInput,
@@ -81,6 +82,7 @@ import type {
   UpdateOrganizationInput,
   UpdateOrganizationModuleInput,
   UpdatePositionInput,
+  UploadEmployeeDocumentBody,
   UploadEmployeeProfilePictureBody,
   UserProfile,
   UserProfileUpdate
@@ -2066,6 +2068,242 @@ export const useRehireEmployee = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getRehireEmployeeMutationOptions(options));
+    }
+
+export const getListEmployeeDocumentsUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/documents`
+}
+
+/**
+ * @summary List an employee's documents
+ */
+export const listEmployeeDocuments = async (organizationId: number,
+    employeeId: number, options?: RequestInit): Promise<EmployeeDocument[]> => {
+
+  return customFetch<EmployeeDocument[]>(getListEmployeeDocumentsUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListEmployeeDocumentsQueryKey = (organizationId: number,
+    employeeId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/employees/${employeeId}/documents`
+    ] as const;
+    }
+
+
+export const getListEmployeeDocumentsQueryOptions = <TData = Awaited<ReturnType<typeof listEmployeeDocuments>>, TError = ErrorType<ApiError>>(organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmployeeDocuments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListEmployeeDocumentsQueryKey(organizationId,employeeId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEmployeeDocuments>>> = ({ signal }) => listEmployeeDocuments(organizationId,employeeId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && employeeId !== null && employeeId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEmployeeDocuments>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListEmployeeDocumentsQueryResult = NonNullable<Awaited<ReturnType<typeof listEmployeeDocuments>>>
+export type ListEmployeeDocumentsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List an employee's documents
+ */
+
+export function useListEmployeeDocuments<TData = Awaited<ReturnType<typeof listEmployeeDocuments>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmployeeDocuments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListEmployeeDocumentsQueryOptions(organizationId,employeeId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUploadEmployeeDocumentUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/documents`
+}
+
+/**
+ * multipart/form-data upload. PDF, JPEG, PNG, DOCX, and XLSX only, validated by file signature (not just Content-Type), 10MB max. Each upload creates a new document row — re-uploading does not replace or version a prior one; remove it separately if it should be superseded.
+ * @summary Upload a document for an employee
+ */
+export const uploadEmployeeDocument = async (organizationId: number,
+    employeeId: number,
+    uploadEmployeeDocumentBody: UploadEmployeeDocumentBody, options?: RequestInit): Promise<EmployeeDocument> => {
+    const formData = new FormData();
+formData.append(`file`, uploadEmployeeDocumentBody.file);
+formData.append(`categoryCode`, uploadEmployeeDocumentBody.categoryCode);
+
+  return customFetch<EmployeeDocument>(getUploadEmployeeDocumentUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'POST'
+    ,
+    body: formData
+  }
+);}
+
+
+
+
+
+export const getUploadEmployeeDocumentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadEmployeeDocument>>, TError,{organizationId: number;employeeId: number;data: BodyType<UploadEmployeeDocumentBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadEmployeeDocument>>, TError,{organizationId: number;employeeId: number;data: BodyType<UploadEmployeeDocumentBody>}, TContext> => {
+
+const mutationKey = ['uploadEmployeeDocument'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadEmployeeDocument>>, {organizationId: number;employeeId: number;data: BodyType<UploadEmployeeDocumentBody>}> = (props) => {
+          const {organizationId,employeeId,data} = props ?? {};
+
+          return  uploadEmployeeDocument(organizationId,employeeId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadEmployeeDocumentMutationResult = NonNullable<Awaited<ReturnType<typeof uploadEmployeeDocument>>>
+    export type UploadEmployeeDocumentMutationBody = BodyType<UploadEmployeeDocumentBody>
+    export type UploadEmployeeDocumentMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Upload a document for an employee
+ */
+export const useUploadEmployeeDocument = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadEmployeeDocument>>, TError,{organizationId: number;employeeId: number;data: BodyType<UploadEmployeeDocumentBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof uploadEmployeeDocument>>,
+        TError,
+        {organizationId: number;employeeId: number;data: BodyType<UploadEmployeeDocumentBody>},
+        TContext
+      > => {
+      return useMutation(getUploadEmployeeDocumentMutationOptions(options));
+    }
+
+export const getRemoveEmployeeDocumentUrl = (organizationId: number,
+    employeeId: number,
+    documentId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/documents/${documentId}`
+}
+
+/**
+ * Deletes both the stored file and its record.
+ * @summary Remove an employee document
+ */
+export const removeEmployeeDocument = async (organizationId: number,
+    employeeId: number,
+    documentId: number, options?: RequestInit): Promise<MessageResponse> => {
+
+  return customFetch<MessageResponse>(getRemoveEmployeeDocumentUrl(organizationId,employeeId,documentId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRemoveEmployeeDocumentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeEmployeeDocument>>, TError,{organizationId: number;employeeId: number;documentId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof removeEmployeeDocument>>, TError,{organizationId: number;employeeId: number;documentId: number}, TContext> => {
+
+const mutationKey = ['removeEmployeeDocument'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeEmployeeDocument>>, {organizationId: number;employeeId: number;documentId: number}> = (props) => {
+          const {organizationId,employeeId,documentId} = props ?? {};
+
+          return  removeEmployeeDocument(organizationId,employeeId,documentId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemoveEmployeeDocumentMutationResult = NonNullable<Awaited<ReturnType<typeof removeEmployeeDocument>>>
+
+    export type RemoveEmployeeDocumentMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Remove an employee document
+ */
+export const useRemoveEmployeeDocument = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeEmployeeDocument>>, TError,{organizationId: number;employeeId: number;documentId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof removeEmployeeDocument>>,
+        TError,
+        {organizationId: number;employeeId: number;documentId: number},
+        TContext
+      > => {
+      return useMutation(getRemoveEmployeeDocumentMutationOptions(options));
     }
 
 export const getListBranchesUrl = (organizationId: number,) => {

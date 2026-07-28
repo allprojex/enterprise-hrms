@@ -16,6 +16,7 @@ export * from "./membership-scopes";
 export * from "./primary-hr-assignments";
 export * from "./employees";
 export * from "./employment-periods";
+export * from "./employee-documents";
 export * from "./employee-user-links";
 export * from "./organization-relationships";
 export * from "./audit-events";

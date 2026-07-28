@@ -37,9 +37,17 @@ import {
 import { recordAuditEvent } from "../lib/auditLog";
 import { validateImageUpload, processAvatarImage, InvalidImageError } from "../lib/imageProcessing";
 import { writeOrgFile, readOrgFile, deleteOrgFile } from "../lib/fileStorage";
+import { InvalidDocumentError } from "../lib/documentValidation";
+import {
+  listEmployeeDocuments,
+  uploadEmployeeDocument,
+  removeEmployeeDocument,
+  EmployeeDocumentNotFoundError,
+} from "../lib/employeeDocuments";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+const uploadDocument = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 type Employee = typeof employeesTable.$inferSelect;
 
@@ -633,6 +641,136 @@ router.post(
       }
       if (err instanceof EmployeeNotSeparatedError) {
         res.status(400).json({ error: err.message });
+        return;
+      }
+      throw err;
+    }
+  },
+);
+
+function formatEmployeeDocument(doc: { id: number; organizationId: number; employeeId: number; categoryCode: string; fileName: string; mimeType: string; fileSize: number; uploadedBy: number | null; createdAt: Date }) {
+  return {
+    id: doc.id,
+    organizationId: doc.organizationId,
+    employeeId: doc.employeeId,
+    categoryCode: doc.categoryCode,
+    fileName: doc.fileName,
+    mimeType: doc.mimeType,
+    fileSize: doc.fileSize,
+    uploadedBy: doc.uploadedBy,
+    createdAt: doc.createdAt,
+  };
+}
+
+// GET /organizations/:organizationId/employees/:employeeId/documents
+router.get(
+  "/organizations/:organizationId/employees/:employeeId/documents",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requirePermission("employee.read"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const employeeIdRaw = Array.isArray(req.params.employeeId) ? req.params.employeeId[0] : req.params.employeeId;
+    const employeeId = parseInt(employeeIdRaw, 10);
+    if (isNaN(employeeId)) {
+      res.status(400).json({ error: "Invalid employee ID" });
+      return;
+    }
+
+    const organizationId = req.membership!.organizationId;
+    const employee = await getEmployeeById(organizationId, employeeId);
+    if (!employee) {
+      res.status(404).json({ error: "Employee not found" });
+      return;
+    }
+
+    const documents = await listEmployeeDocuments(organizationId, employeeId);
+    res.json(documents.map(formatEmployeeDocument));
+  },
+);
+
+// POST /organizations/:organizationId/employees/:employeeId/documents
+router.post(
+  "/organizations/:organizationId/employees/:employeeId/documents",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requirePermission("employee.write"),
+  uploadDocument.single("file"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const employeeIdRaw = Array.isArray(req.params.employeeId) ? req.params.employeeId[0] : req.params.employeeId;
+    const employeeId = parseInt(employeeIdRaw, 10);
+    const categoryCode = typeof req.body?.categoryCode === "string" ? req.body.categoryCode.trim() : "";
+    if (isNaN(employeeId) || !req.file || !categoryCode) {
+      res.status(400).json({ error: "Invalid request" });
+      return;
+    }
+
+    const organizationId = req.membership!.organizationId;
+    const employee = await getEmployeeById(organizationId, employeeId);
+    if (!employee) {
+      res.status(404).json({ error: "Employee not found" });
+      return;
+    }
+
+    try {
+      const document = await uploadEmployeeDocument({
+        organizationId,
+        employeeId,
+        categoryCode,
+        file: {
+          mimetype: req.file.mimetype,
+          size: req.file.size,
+          buffer: req.file.buffer,
+          originalname: req.file.originalname,
+        },
+        actorApplicationUserId: req.userId!,
+        actorMembershipId: req.membership!.id,
+      });
+      res.status(201).json(formatEmployeeDocument(document));
+    } catch (err) {
+      if (err instanceof InvalidDocumentError) {
+        res.status(400).json({ error: err.message });
+        return;
+      }
+      throw err;
+    }
+  },
+);
+
+// DELETE /organizations/:organizationId/employees/:employeeId/documents/:documentId
+router.delete(
+  "/organizations/:organizationId/employees/:employeeId/documents/:documentId",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requirePermission("employee.write"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const employeeIdRaw = Array.isArray(req.params.employeeId) ? req.params.employeeId[0] : req.params.employeeId;
+    const employeeId = parseInt(employeeIdRaw, 10);
+    const documentIdRaw = Array.isArray(req.params.documentId) ? req.params.documentId[0] : req.params.documentId;
+    const documentId = parseInt(documentIdRaw, 10);
+    if (isNaN(employeeId) || isNaN(documentId)) {
+      res.status(400).json({ error: "Invalid request" });
+      return;
+    }
+
+    const organizationId = req.membership!.organizationId;
+    const employee = await getEmployeeById(organizationId, employeeId);
+    if (!employee) {
+      res.status(404).json({ error: "Employee not found" });
+      return;
+    }
+
+    try {
+      await removeEmployeeDocument({
+        organizationId,
+        employeeId,
+        documentId,
+        actorApplicationUserId: req.userId!,
+        actorMembershipId: req.membership!.id,
+      });
+      res.json({ message: "Document removed" });
+    } catch (err) {
+      if (err instanceof EmployeeDocumentNotFoundError) {
+        res.status(404).json({ error: err.message });
         return;
       }
       throw err;

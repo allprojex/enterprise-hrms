@@ -986,6 +986,70 @@ export const RehireEmployeeResponse = zod.object({
 
 
 /**
+ * @summary List an employee's documents
+ */
+export const ListEmployeeDocumentsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const ListEmployeeDocumentsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "categoryCode": zod.string().describe('Code from the \"document_category\" Master Data domain.'),
+  "fileName": zod.string().describe('Original client-supplied filename, for display only.'),
+  "mimeType": zod.string(),
+  "fileSize": zod.number(),
+  "uploadedBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListEmployeeDocumentsResponse = zod.array(ListEmployeeDocumentsResponseItem)
+
+
+/**
+ * multipart/form-data upload. PDF, JPEG, PNG, DOCX, and XLSX only, validated by file signature (not just Content-Type), 10MB max. Each upload creates a new document row — re-uploading does not replace or version a prior one; remove it separately if it should be superseded.
+ * @summary Upload a document for an employee
+ */
+export const UploadEmployeeDocumentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const UploadEmployeeDocumentBody = zod.object({
+  "file": zod.instanceof(File),
+  "categoryCode": zod.string().describe('Code from the \"document_category\" Master Data domain.')
+})
+
+export const UploadEmployeeDocumentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "categoryCode": zod.string().describe('Code from the \"document_category\" Master Data domain.'),
+  "fileName": zod.string().describe('Original client-supplied filename, for display only.'),
+  "mimeType": zod.string(),
+  "fileSize": zod.number(),
+  "uploadedBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * Deletes both the stored file and its record.
+ * @summary Remove an employee document
+ */
+export const RemoveEmployeeDocumentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number(),
+  "documentId": zod.coerce.number()
+})
+
+export const RemoveEmployeeDocumentResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
  * @summary List branches
  */
 export const ListBranchesParams = zod.object({

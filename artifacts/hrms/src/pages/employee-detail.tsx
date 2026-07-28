@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'wouter';
-import { ArrowLeft, Loader2, Mail, Phone, Building, Network, Briefcase, Camera, UserPlus, UserCheck, UserX, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Loader2, Mail, Phone, Building, Network, Briefcase, Camera, UserPlus, UserCheck, UserX, RotateCcw, FileText, Upload, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,6 +26,10 @@ import {
   getRemoveEmployeeProfilePictureUrl,
   useGetMe,
   getGetMeQueryKey,
+  useListEmployeeDocuments,
+  getListEmployeeDocumentsQueryKey,
+  useUploadEmployeeDocument,
+  useRemoveEmployeeDocument,
 } from '@workspace/api-client-react';
 import type { UpdateEmployeeInputEmploymentStatus } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -105,12 +109,25 @@ export default function EmployeeDetail() {
     query: { queryKey: getListMasterDataItemsQueryKey(organizationId, 'separation_reason'), enabled: organizationId > 0 },
   });
 
+  const { data: documentCategories } = useListMasterDataItems(organizationId, 'document_category', {
+    query: { queryKey: getListMasterDataItemsQueryKey(organizationId, 'document_category'), enabled: organizationId > 0 },
+  });
+
+  const { data: documents } = useListEmployeeDocuments(organizationId, employeeId, {
+    query: {
+      queryKey: getListEmployeeDocumentsQueryKey(organizationId, employeeId),
+      enabled: organizationId > 0 && !isNaN(employeeId),
+    },
+  });
+
   const updateMutation = useUpdateEmployee();
   const uploadMutation = useUploadEmployeeProfilePicture();
   const linkMutation = useLinkEmployeeToUser();
   const unlinkMutation = useUnlinkEmployeeFromUser();
   const separateMutation = useSeparateEmployee();
   const rehireMutation = useRehireEmployee();
+  const uploadDocumentMutation = useUploadEmployeeDocument();
+  const removeDocumentMutation = useRemoveEmployeeDocument();
 
   const [isEditing, setIsEditing] = useState(false);
   const [firstName, setFirstName] = useState('');
@@ -122,6 +139,8 @@ export default function EmployeeDetail() {
   const [isSeparateOpen, setIsSeparateOpen] = useState(false);
   const [separationDate, setSeparationDate] = useState('');
   const [separationReason, setSeparationReason] = useState('');
+  const [documentCategoryCode, setDocumentCategoryCode] = useState('');
+  const documentFileInputRef = useRef<HTMLInputElement>(null);
 
   const [prevEmployee, setPrevEmployee] = useState(employee);
   if (employee && employee !== prevEmployee) {
@@ -261,6 +280,57 @@ export default function EmployeeDetail() {
         },
       },
     );
+  };
+
+  const invalidateDocuments = () => {
+    queryClient.invalidateQueries({ queryKey: getListEmployeeDocumentsQueryKey(organizationId, employeeId) });
+  };
+
+  const handleDocumentFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !documentCategoryCode) return;
+    uploadDocumentMutation.mutate(
+      { organizationId, employeeId, data: { file, categoryCode: documentCategoryCode } },
+      {
+        onSuccess: () => {
+          invalidateDocuments();
+          toast({ title: 'Document uploaded' });
+        },
+        onError: (err) => {
+          const message =
+            err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
+          toast({
+            title: 'Could not upload document',
+            description: message ?? 'PDF, JPEG, PNG, DOCX, or XLSX up to 10MB.',
+            variant: 'destructive',
+          });
+        },
+      },
+    );
+  };
+
+  const handleRemoveDocument = (documentId: number) => {
+    removeDocumentMutation.mutate(
+      { organizationId, employeeId, documentId },
+      {
+        onSuccess: () => {
+          invalidateDocuments();
+          toast({ title: 'Document removed' });
+        },
+        onError: (err) => {
+          const message =
+            err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
+          toast({ title: 'Could not remove document', description: message ?? 'Please try again.', variant: 'destructive' });
+        },
+      },
+    );
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   if (isLoading) {
@@ -636,6 +706,88 @@ export default function EmployeeDetail() {
                 </div>
               )}
             </form>
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-3">
+          <CardHeader>
+            <CardTitle>Documents</CardTitle>
+            <CardDescription>Files attached to this employee's record</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="space-y-2 sm:w-64">
+                <Label htmlFor="document-category">Category</Label>
+                <Select value={documentCategoryCode} onValueChange={setDocumentCategoryCode}>
+                  <SelectTrigger id="document-category" data-testid="select-document-category">
+                    <SelectValue placeholder="Choose a category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(documentCategories ?? []).map((item) => (
+                      <SelectItem key={item.code} value={item.code}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => documentFileInputRef.current?.click()}
+                disabled={!documentCategoryCode || uploadDocumentMutation.isPending}
+                data-testid="button-upload-document"
+              >
+                {uploadDocumentMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
+                )}
+                Upload document
+              </Button>
+              <input
+                ref={documentFileInputRef}
+                type="file"
+                accept="application/pdf,image/jpeg,image/png,.docx,.xlsx"
+                className="hidden"
+                onChange={handleDocumentFileChange}
+                data-testid="input-document-file"
+              />
+            </div>
+
+            {(documents ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground">No documents uploaded yet.</p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {(documents ?? []).map((doc) => {
+                  const categoryLabel = (documentCategories ?? []).find((c) => c.code === doc.categoryCode)?.label ?? doc.categoryCode;
+                  return (
+                    <li key={doc.id} className="flex items-center justify-between gap-4 py-3" data-testid={`row-document-${doc.id}`}>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <FileText className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-foreground">{doc.fileName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {categoryLabel} · {formatFileSize(doc.fileSize)} · {new Date(doc.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveDocument(doc.id)}
+                        disabled={removeDocumentMutation.isPending}
+                        aria-label={`Remove ${doc.fileName}`}
+                        data-testid={`button-remove-document-${doc.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </CardContent>
         </Card>
       </div>
