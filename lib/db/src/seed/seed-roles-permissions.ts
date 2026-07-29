@@ -50,6 +50,13 @@ const PERMISSIONS = [
   { key: "leave_request.approve", resource: "leave_request", action: "approve" },
   { key: "public_holiday.read", resource: "public_holiday", action: "read" },
   { key: "public_holiday.manage", resource: "public_holiday", action: "manage" },
+  // Phase 3A, W43 — Recruitment Foundation. Only the settings permission pair
+  // is seeded here (nothing yet enforces it — no recruitment_settings table
+  // or route exists until the next workstream); requisition/vacancy/
+  // candidate/etc. permission keys belong to their own owning workstreams,
+  // per the frozen plan's five-tier model (docs/PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md §7).
+  { key: "recruitment_settings.read", resource: "recruitment_settings", action: "read" },
+  { key: "recruitment_settings.manage", resource: "recruitment_settings", action: "manage" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -82,6 +89,8 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "leave_request.approve",
     "public_holiday.read",
     "public_holiday.manage",
+    "recruitment_settings.read",
+    "recruitment_settings.manage",
   ],
   hr_manager: [
     "organization.read",
@@ -104,6 +113,8 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "leave_request.approve",
     "public_holiday.read",
     "public_holiday.manage",
+    "recruitment_settings.read",
+    "recruitment_settings.manage",
   ],
   employee: [
     "organization.read",
