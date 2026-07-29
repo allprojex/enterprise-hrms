@@ -1010,6 +1010,143 @@ describe("GET/PATCH /api/organizations/:organizationId/config/:namespace", () =>
     expect(res.body.data).toEqual({ employeeLabel: "Worker", branchLabel: "Site" });
     expect(res.body.schemaVersion).toBe(1);
   });
+
+  // W38 — Attendance Configuration. Reuses this same config engine/route;
+  // "attendance" is the only namespace gated behind a module (general and
+  // terminology predate Module Management and stay ungated, per the tests
+  // above).
+  function mockAttendanceModuleEnabled(enabled: boolean) {
+    fixtures.moduleRows = [
+      { id: 1, key: "attendance", status: "hidden", defaultEnabled: false, requiredModuleKeys: [], optionalModuleKeys: [] },
+    ];
+    fixtures.organizationModuleRows = enabled ? [{ id: 1, organizationId: 10, moduleId: 1, enabled: true }] : [];
+  }
+
+  it("returns 403 for the attendance namespace when the attendance module is disabled, even with organization.read", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["organization.read"]);
+    mockAttendanceModuleEnabled(false);
+
+    const res = await request(app)
+      .get("/api/organizations/10/config/attendance")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(403);
+  });
+
+  it("does not require any module for the general namespace even when no module rows exist", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["organization.read"]);
+    fixtures.moduleRows = [];
+    fixtures.organizationModuleRows = [];
+
+    const res = await request(app)
+      .get("/api/organizations/10/config/general")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+  });
+
+  it("returns attendance defaults when the module is enabled and nothing has been saved yet", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["organization.read"]);
+    mockAttendanceModuleEnabled(true);
+    fixtures.settingsRows = [];
+
+    const res = await request(app)
+      .get("/api/organizations/10/config/attendance")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({
+      workStartTime: "09:00",
+      workEndTime: "17:00",
+      gracePeriodMinutes: 0,
+      workDays: ["monday", "tuesday", "wednesday", "thursday", "friday"],
+    });
+  });
+
+  it("rejects an attendance update when the module is disabled, even with organization.update", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["organization.update"]);
+    mockAttendanceModuleEnabled(false);
+
+    const res = await request(app)
+      .patch("/api/organizations/10/config/attendance")
+      .set("Authorization", "Bearer valid-token")
+      .send({ data: { gracePeriodMinutes: 10 } });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("rejects an attendance update where workStartTime is not earlier than workEndTime", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["organization.update"]);
+    mockAttendanceModuleEnabled(true);
+    fixtures.settingsRows = [];
+
+    const res = await request(app)
+      .patch("/api/organizations/10/config/attendance")
+      .set("Authorization", "Bearer valid-token")
+      .send({ data: { workStartTime: "17:00", workEndTime: "09:00" } });
+
+    expect(res.status).toBe(400);
+    expect(fixtures.inserted).toHaveLength(0);
+  });
+
+  it("rejects an attendance update with a malformed time", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["organization.update"]);
+    mockAttendanceModuleEnabled(true);
+    fixtures.settingsRows = [];
+
+    const res = await request(app)
+      .patch("/api/organizations/10/config/attendance")
+      .set("Authorization", "Bearer valid-token")
+      .send({ data: { workStartTime: "9:00" } });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("persists a valid attendance update, merged with existing saved data", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["organization.update"]);
+    mockAttendanceModuleEnabled(true);
+    fixtures.settingsRows = [
+      {
+        id: 1,
+        organizationId: 10,
+        namespace: "attendance",
+        schemaVersion: 1,
+        settings: {
+          workStartTime: "09:00",
+          workEndTime: "17:00",
+          gracePeriodMinutes: 0,
+          workDays: ["monday", "tuesday", "wednesday", "thursday", "friday"],
+        },
+      },
+    ];
+
+    const res = await request(app)
+      .patch("/api/organizations/10/config/attendance")
+      .set("Authorization", "Bearer valid-token")
+      .send({ data: { gracePeriodMinutes: 15, workDays: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] } });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({
+      workStartTime: "09:00",
+      workEndTime: "17:00",
+      gracePeriodMinutes: 15,
+      workDays: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"],
+    });
+  });
 });
 
 describe("GET /api/organizations/:organizationId/audit-events", () => {

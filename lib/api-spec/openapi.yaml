@@ -3788,11 +3788,15 @@ paths:
             type: string
           description: >-
             One of the namespaces registered with the Configuration Engine
-            (currently general, terminology — see
+            (currently general, terminology, attendance — see
             artifacts/api-server/src/services/organizationConfig.ts for the
             authoritative list). Left as an open string, not an enum, so new
             namespaces can be registered in code without an API contract
-            change; an unrecognized namespace 404s at request time.
+            change; an unrecognized namespace 404s at request time. A
+            namespace may additionally require its owning module to be
+            enabled for the organization (e.g. attendance requires the
+            "attendance" module) — see requireModuleEnabled (W5); such a
+            namespace 403s instead of 404ing when its module is disabled.
       responses:
         "200":
           description: Organization configuration namespace
@@ -3821,11 +3825,15 @@ paths:
             type: string
           description: >-
             One of the namespaces registered with the Configuration Engine
-            (currently general, terminology — see
+            (currently general, terminology, attendance — see
             artifacts/api-server/src/services/organizationConfig.ts for the
             authoritative list). Left as an open string, not an enum, so new
             namespaces can be registered in code without an API contract
-            change; an unrecognized namespace 404s at request time.
+            change; an unrecognized namespace 404s at request time. A
+            namespace may additionally require its owning module to be
+            enabled for the organization (e.g. attendance requires the
+            "attendance" module) — see requireModuleEnabled (W5); such a
+            namespace 403s instead of 404ing when its module is disabled.
       requestBody:
         required: true
         content:

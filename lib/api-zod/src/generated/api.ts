@@ -3293,7 +3293,7 @@ export const SetPrimaryHrResponse = zod.object({
  */
 export const GetOrganizationConfigParams = zod.object({
   "organizationId": zod.coerce.number(),
-  "namespace": zod.coerce.string().describe('One of the namespaces registered with the Configuration Engine (currently general, terminology — see artifacts\/api-server\/src\/services\/organizationConfig.ts for the authoritative list). Left as an open string, not an enum, so new namespaces can be registered in code without an API contract change; an unrecognized namespace 404s at request time.')
+  "namespace": zod.coerce.string().describe('One of the namespaces registered with the Configuration Engine (currently general, terminology, attendance — see artifacts\/api-server\/src\/services\/organizationConfig.ts for the authoritative list). Left as an open string, not an enum, so new namespaces can be registered in code without an API contract change; an unrecognized namespace 404s at request time. A namespace may additionally require its owning module to be enabled for the organization (e.g. attendance requires the \"attendance\" module) — see requireModuleEnabled (W5); such a namespace 403s instead of 404ing when its module is disabled.')
 })
 
 export const GetOrganizationConfigResponse = zod.object({
@@ -3311,7 +3311,7 @@ export const GetOrganizationConfigResponse = zod.object({
  */
 export const UpdateOrganizationConfigParams = zod.object({
   "organizationId": zod.coerce.number(),
-  "namespace": zod.coerce.string().describe('One of the namespaces registered with the Configuration Engine (currently general, terminology — see artifacts\/api-server\/src\/services\/organizationConfig.ts for the authoritative list). Left as an open string, not an enum, so new namespaces can be registered in code without an API contract change; an unrecognized namespace 404s at request time.')
+  "namespace": zod.coerce.string().describe('One of the namespaces registered with the Configuration Engine (currently general, terminology, attendance — see artifacts\/api-server\/src\/services\/organizationConfig.ts for the authoritative list). Left as an open string, not an enum, so new namespaces can be registered in code without an API contract change; an unrecognized namespace 404s at request time. A namespace may additionally require its owning module to be enabled for the organization (e.g. attendance requires the \"attendance\" module) — see requireModuleEnabled (W5); such a namespace 403s instead of 404ing when its module is disabled.')
 })
 
 export const UpdateOrganizationConfigBody = zod.object({

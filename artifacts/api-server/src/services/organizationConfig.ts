@@ -44,10 +44,32 @@ const terminologyConfigSchema = z
   })
   .passthrough();
 
+// HH:MM, 24-hour — plain civil time, never a timestamp; W38 is configuration
+// only, so there is no instant to attach a timezone to.
+const CIVIL_TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const WORK_DAY_VALUES = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
+
+const attendanceConfigSchema = z
+  .object({
+    workStartTime: z.string().regex(CIVIL_TIME_PATTERN, "workStartTime must be in 24-hour HH:MM format").optional(),
+    workEndTime: z.string().regex(CIVIL_TIME_PATTERN, "workEndTime must be in 24-hour HH:MM format").optional(),
+    gracePeriodMinutes: z.number().int().min(0).max(180).optional(),
+    workDays: z.array(z.enum(WORK_DAY_VALUES)).optional(),
+  })
+  .passthrough()
+  .refine((v) => !v.workStartTime || !v.workEndTime || v.workStartTime < v.workEndTime, {
+    message: "workStartTime must be earlier than workEndTime",
+    path: ["workEndTime"],
+  });
+
 interface NamespaceDefinition {
   schemaVersion: number;
   schema: z.ZodType;
   defaults: () => Record<string, unknown>;
+  // Which module (W5/W6) must be enabled for this namespace's routes to be
+  // reachable. Foundation namespaces (general, terminology) have none — they
+  // predate Module Management. Undefined means no gate.
+  moduleKey?: string;
 }
 
 export const CONFIG_NAMESPACES: Record<string, NamespaceDefinition> = {
@@ -69,6 +91,20 @@ export const CONFIG_NAMESPACES: Record<string, NamespaceDefinition> = {
       positionLabel: "Position",
       positionLabelPlural: "Positions",
     }),
+  },
+  // W38 — Attendance Configuration. Config only, no capture: work days/hours,
+  // grace period. No new table — reuses this engine (ADR-009), per the
+  // frozen Phase 2B plan's explicit architecture reuse for this workstream.
+  attendance: {
+    schemaVersion: 1,
+    schema: attendanceConfigSchema,
+    defaults: () => ({
+      workStartTime: "09:00",
+      workEndTime: "17:00",
+      gracePeriodMinutes: 0,
+      workDays: ["monday", "tuesday", "wednesday", "thursday", "friday"],
+    }),
+    moduleKey: "attendance",
   },
 };
 
