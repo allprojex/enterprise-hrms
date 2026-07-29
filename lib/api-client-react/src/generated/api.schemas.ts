@@ -188,6 +188,58 @@ export interface SwitchOrganizationInput {
   organizationId: number;
 }
 
+/**
+ * @nullable
+ */
+export type SelfServiceEmployeeProfileGender = typeof SelfServiceEmployeeProfileGender[keyof typeof SelfServiceEmployeeProfileGender] | null;
+
+
+export const SelfServiceEmployeeProfileGender = {
+  male: 'male',
+  female: 'female',
+  other: 'other',
+  prefer_not_to_say: 'prefer_not_to_say',
+} as const;
+
+/**
+ * @nullable
+ */
+export type SelfServiceEmployeeProfileMaritalStatus = typeof SelfServiceEmployeeProfileMaritalStatus[keyof typeof SelfServiceEmployeeProfileMaritalStatus] | null;
+
+
+export const SelfServiceEmployeeProfileMaritalStatus = {
+  single: 'single',
+  married: 'married',
+  divorced: 'divorced',
+  widowed: 'widowed',
+  other: 'other',
+} as const;
+
+/**
+ * @nullable
+ */
+export type SelfServiceEmployeeProfileEmploymentType = typeof SelfServiceEmployeeProfileEmploymentType[keyof typeof SelfServiceEmployeeProfileEmploymentType] | null;
+
+
+export const SelfServiceEmployeeProfileEmploymentType = {
+  full_time: 'full_time',
+  part_time: 'part_time',
+  contract: 'contract',
+  intern: 'intern',
+  temporary: 'temporary',
+} as const;
+
+export type SelfServiceEmployeeProfileEmploymentStatus = typeof SelfServiceEmployeeProfileEmploymentStatus[keyof typeof SelfServiceEmployeeProfileEmploymentStatus];
+
+
+export const SelfServiceEmployeeProfileEmploymentStatus = {
+  active: 'active',
+  probation: 'probation',
+  on_leave: 'on_leave',
+  suspended: 'suspended',
+  terminated: 'terminated',
+} as const;
+
 export interface Address {
   /** @nullable */
   line1?: string | null;
@@ -207,6 +259,79 @@ export interface EmergencyContact {
   name: string;
   relationship: string;
   phone: string;
+}
+
+/**
+ * A deliberately restricted view of Employee (W39) — omits notes (employee.notes.read is HR-only), nationalId/passportNumber (sensitive identifiers with no self-service read need), linkedApplicationUserId/createdBy/updatedBy/createdAt/updatedAt (internal bookkeeping), and organizationId (redundant). Read-only: no field here is editable through Employee Self-Service.
+ */
+export interface SelfServiceEmployeeProfile {
+  id: number;
+  /** @nullable */
+  employeeNumber?: string | null;
+  hasProfilePicture?: boolean;
+  firstName: string;
+  /** @nullable */
+  middleName?: string | null;
+  lastName: string;
+  /** @nullable */
+  preferredName?: string | null;
+  /** @nullable */
+  gender?: SelfServiceEmployeeProfileGender;
+  /** @nullable */
+  dateOfBirth?: string | null;
+  /** @nullable */
+  maritalStatus?: SelfServiceEmployeeProfileMaritalStatus;
+  /** @nullable */
+  nationality?: string | null;
+  /** @nullable */
+  personalEmail?: string | null;
+  /** @nullable */
+  workEmail?: string | null;
+  /** @nullable */
+  phoneNumber?: string | null;
+  /** @nullable */
+  alternatePhoneNumber?: string | null;
+  residentialAddress?: Address | null;
+  /** @nullable */
+  emergencyContacts?: EmergencyContact[] | null;
+  /** @nullable */
+  departmentId?: number | null;
+  /** @nullable */
+  departmentName?: string | null;
+  /** @nullable */
+  branchId?: number | null;
+  /** @nullable */
+  branchName?: string | null;
+  /** @nullable */
+  positionId?: number | null;
+  /** @nullable */
+  positionName?: string | null;
+  /** @nullable */
+  reportingManagerId?: number | null;
+  /** @nullable */
+  reportingManagerName?: string | null;
+  /** @nullable */
+  employmentType?: SelfServiceEmployeeProfileEmploymentType;
+  /** @nullable */
+  hireDate?: string | null;
+  /** @nullable */
+  probationEndDate?: string | null;
+  employmentStatus: SelfServiceEmployeeProfileEmploymentStatus;
+  /** @nullable */
+  workLocation?: string | null;
+  /** @nullable */
+  separationDate?: string | null;
+  /**
+     * Code from the "separation_reason" Master Data domain.
+     * @nullable
+     */
+  separationReason?: string | null;
+}
+
+export interface MyEmployeeResponse {
+  /** False when the caller's login isn't linked to an employee record (or that link no longer resolves) — an intentional, safe state, not an error. */
+  linked: boolean;
+  employee: SelfServiceEmployeeProfile | null;
 }
 
 export type LeaveRequestStatus = typeof LeaveRequestStatus[keyof typeof LeaveRequestStatus];

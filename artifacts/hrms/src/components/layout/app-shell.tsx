@@ -276,7 +276,7 @@ export function AppShell({ children }: AppShellProps) {
     { href: '/branches',       label: 'Branches',       icon: MapPin },
     { href: '/departments',    label: 'Departments',    icon: Network },
     { href: '/positions',      label: 'Positions',      icon: Briefcase },
-    { href: '/my-leave',       label: 'My Leave',       icon: CalendarClock },
+    { href: '/self-service',   label: 'Employee Self-Service', icon: CalendarClock },
     { href: '/leave-approvals', label: 'Leave Approvals', icon: ClipboardCheck },
     { href: '/leave-calendar', label: 'Leave Calendar', icon: CalendarRange },
     { href: '/public-holidays', label: 'Public Holidays', icon: CalendarHeart },

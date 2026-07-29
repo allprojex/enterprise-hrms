@@ -40,6 +40,8 @@ tags:
     description: Administrative user invitation operations
   - name: reports
     description: Reporting Foundation operations
+  - name: self-service
+    description: Employee Self-Service operations
 
 paths:
   /healthz:
@@ -461,6 +463,39 @@ paths:
                   $ref: "#/components/schemas/MembershipSummary"
         "401":
           description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /me/employee:
+    get:
+      operationId: getMyEmployee
+      tags: [self-service]
+      summary: Resolve the caller's own linked employee (Employee Self-Service, W39)
+      description: >-
+        Resolves "which employee is me" via the employee-user link (W14) for
+        the caller's currently active organization only — never a
+        client-supplied employee ID, never another organization's data.
+        `linked: false` (with `employee: null`) is the intentional response
+        when the caller's login isn't yet linked to an employee record, or
+        no longer has an active organization membership resolvable — not an
+        error. Gated by the `employee_self_service` module.
+      responses:
+        "200":
+          description: The caller's own employee, or an intentional not-linked response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyEmployeeResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: No active organization membership, or the employee_self_service module is disabled
           content:
             application/json:
               schema:
@@ -4462,6 +4497,107 @@ components:
       properties:
         organizationId:
           type: integer
+
+    SelfServiceEmployeeProfile:
+      type: object
+      description: >-
+        A deliberately restricted view of Employee (W39) — omits notes
+        (employee.notes.read is HR-only), nationalId/passportNumber
+        (sensitive identifiers with no self-service read need),
+        linkedApplicationUserId/createdBy/updatedBy/createdAt/updatedAt
+        (internal bookkeeping), and organizationId (redundant). Read-only:
+        no field here is editable through Employee Self-Service.
+      required: [id, firstName, lastName, employmentStatus]
+      properties:
+        id:
+          type: integer
+        employeeNumber:
+          type: ["string", "null"]
+        hasProfilePicture:
+          type: boolean
+        firstName:
+          type: string
+        middleName:
+          type: ["string", "null"]
+        lastName:
+          type: string
+        preferredName:
+          type: ["string", "null"]
+        gender:
+          type: ["string", "null"]
+          enum: [male, female, other, prefer_not_to_say, null]
+        dateOfBirth:
+          type: ["string", "null"]
+          format: date-time
+        maritalStatus:
+          type: ["string", "null"]
+          enum: [single, married, divorced, widowed, other, null]
+        nationality:
+          type: ["string", "null"]
+        personalEmail:
+          type: ["string", "null"]
+        workEmail:
+          type: ["string", "null"]
+        phoneNumber:
+          type: ["string", "null"]
+        alternatePhoneNumber:
+          type: ["string", "null"]
+        residentialAddress:
+          anyOf:
+            - $ref: "#/components/schemas/Address"
+            - type: "null"
+        emergencyContacts:
+          type: ["array", "null"]
+          items:
+            $ref: "#/components/schemas/EmergencyContact"
+        departmentId:
+          type: ["integer", "null"]
+        departmentName:
+          type: ["string", "null"]
+        branchId:
+          type: ["integer", "null"]
+        branchName:
+          type: ["string", "null"]
+        positionId:
+          type: ["integer", "null"]
+        positionName:
+          type: ["string", "null"]
+        reportingManagerId:
+          type: ["integer", "null"]
+        reportingManagerName:
+          type: ["string", "null"]
+        employmentType:
+          type: ["string", "null"]
+          enum: [full_time, part_time, contract, intern, temporary, null]
+        hireDate:
+          type: ["string", "null"]
+          format: date-time
+        probationEndDate:
+          type: ["string", "null"]
+          format: date-time
+        employmentStatus:
+          type: string
+          enum: [active, probation, on_leave, suspended, terminated]
+        workLocation:
+          type: ["string", "null"]
+        separationDate:
+          type: ["string", "null"]
+          format: date-time
+        separationReason:
+          type: ["string", "null"]
+          description: Code from the "separation_reason" Master Data domain.
+
+    MyEmployeeResponse:
+      type: object
+      required: [linked, employee]
+      properties:
+        linked:
+          type: boolean
+          description: False when the caller's login isn't linked to an employee record (or that link no longer resolves) — an intentional, safe state, not an error.
+        employee:
+          anyOf:
+            - $ref: "#/components/schemas/SelfServiceEmployeeProfile"
+            - type: "null"
 
     Address:
       type: object

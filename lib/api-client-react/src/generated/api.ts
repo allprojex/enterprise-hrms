@@ -78,6 +78,7 @@ import type {
   MembershipSummary,
   MessageResponse,
   Module,
+  MyEmployeeResponse,
   Notification,
   Organization,
   OrganizationConfig,
@@ -1328,6 +1329,84 @@ export function useListMyOrganizations<TData = Awaited<ReturnType<typeof listMyO
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListMyOrganizationsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetMyEmployeeUrl = () => {
+
+
+
+
+  return `/api/me/employee`
+}
+
+/**
+ * Resolves "which employee is me" via the employee-user link (W14) for the caller's currently active organization only — never a client-supplied employee ID, never another organization's data. `linked: false` (with `employee: null`) is the intentional response when the caller's login isn't yet linked to an employee record, or no longer has an active organization membership resolvable — not an error. Gated by the `employee_self_service` module.
+ * @summary Resolve the caller's own linked employee (Employee Self-Service, W39)
+ */
+export const getMyEmployee = async ( options?: RequestInit): Promise<MyEmployeeResponse> => {
+
+  return customFetch<MyEmployeeResponse>(getGetMyEmployeeUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyEmployeeQueryKey = () => {
+    return [
+    `/api/me/employee`
+    ] as const;
+    }
+
+
+export const getGetMyEmployeeQueryOptions = <TData = Awaited<ReturnType<typeof getMyEmployee>>, TError = ErrorType<ApiError>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyEmployee>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyEmployeeQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyEmployee>>> = ({ signal }) => getMyEmployee({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyEmployee>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMyEmployeeQueryResult = NonNullable<Awaited<ReturnType<typeof getMyEmployee>>>
+export type GetMyEmployeeQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Resolve the caller's own linked employee (Employee Self-Service, W39)
+ */
+
+export function useGetMyEmployee<TData = Awaited<ReturnType<typeof getMyEmployee>>, TError = ErrorType<ApiError>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyEmployee>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMyEmployeeQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

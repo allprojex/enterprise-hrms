@@ -28,6 +28,7 @@ import LeaveApprovals from '@/pages/leave-approvals';
 import LeaveCalendar from '@/pages/leave-calendar';
 import PublicHolidays from '@/pages/public-holidays';
 import AttendanceSettings from '@/pages/attendance-settings';
+import EmployeeSelfService from '@/pages/employee-self-service';
 import { ModuleGate } from '@/components/module-gate';
 
 const queryClient = new QueryClient({
@@ -113,6 +114,9 @@ function Router() {
       </Route>
       <Route path="/attendance-settings">
         {() => <SecureRoute component={AttendanceSettings} moduleKey="attendance" />}
+      </Route>
+      <Route path="/self-service">
+        {() => <SecureRoute component={EmployeeSelfService} moduleKey="employee_self_service" />}
       </Route>
 
       {/* 404 fallback */}

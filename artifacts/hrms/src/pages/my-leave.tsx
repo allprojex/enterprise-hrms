@@ -18,8 +18,8 @@ import {
 import {
   useGetMe,
   getGetMeQueryKey,
-  useListEmployees,
-  getListEmployeesQueryKey,
+  useGetMyEmployee,
+  getGetMyEmployeeQueryKey,
   useListLeaveTypes,
   getListLeaveTypesQueryKey,
   useListLeaveRequests,
@@ -45,16 +45,12 @@ export default function MyLeave() {
   const { data: user } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const organizationId = user?.activeOrganizationId ?? user?.organizationId ?? 0;
 
-  // No dedicated "resolve my employee" endpoint exists yet (that's W39's
-  // job) — reuses the existing GET /employees roster (already readable by
-  // the base "employee" role) and finds the row linked to this login, the
-  // same linkage W14 already exposes.
-  const { data: employeesPage, isLoading: employeesLoading } = useListEmployees(
-    organizationId,
-    { pageSize: 200 },
-    { query: { queryKey: getListEmployeesQueryKey(organizationId, { pageSize: 200 }), enabled: organizationId > 0 } },
-  );
-  const myEmployee = (employeesPage?.items ?? []).find((e) => e.linkedApplicationUserId === user?.id);
+  // Resolves "which employee is me" via GET /me/employee (W39), which itself
+  // resolves through W14's employee_user_links — never a client-supplied ID.
+  const { data: myEmployeeResponse, isLoading: employeeLoading } = useGetMyEmployee({
+    query: { queryKey: getGetMyEmployeeQueryKey(), enabled: !!user },
+  });
+  const myEmployee = myEmployeeResponse?.employee ?? null;
   const employeeId = myEmployee?.id ?? 0;
 
   const { data: leaveTypes } = useListLeaveTypes(organizationId, {
@@ -122,7 +118,7 @@ export default function MyLeave() {
     );
   };
 
-  if (employeesLoading) {
+  if (employeeLoading) {
     return (
       <div className="p-6 lg:p-8 space-y-8">
         <Skeleton className="h-10 w-64" />

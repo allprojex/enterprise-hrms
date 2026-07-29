@@ -324,6 +324,60 @@ export const ListMyOrganizationsResponse = zod.array(ListMyOrganizationsResponse
 
 
 /**
+ * Resolves "which employee is me" via the employee-user link (W14) for the caller's currently active organization only — never a client-supplied employee ID, never another organization's data. `linked: false` (with `employee: null`) is the intentional response when the caller's login isn't yet linked to an employee record, or no longer has an active organization membership resolvable — not an error. Gated by the `employee_self_service` module.
+ * @summary Resolve the caller's own linked employee (Employee Self-Service, W39)
+ */
+export const GetMyEmployeeResponse = zod.object({
+  "linked": zod.boolean().describe('False when the caller\'s login isn\'t linked to an employee record (or that link no longer resolves) — an intentional, safe state, not an error.'),
+  "employee": zod.union([zod.object({
+  "id": zod.number(),
+  "employeeNumber": zod.string().nullish(),
+  "hasProfilePicture": zod.boolean().optional(),
+  "firstName": zod.string(),
+  "middleName": zod.string().nullish(),
+  "lastName": zod.string(),
+  "preferredName": zod.string().nullish(),
+  "gender": zod.union([zod.literal('male'),zod.literal('female'),zod.literal('other'),zod.literal('prefer_not_to_say'),zod.literal(null)]).nullish(),
+  "dateOfBirth": zod.coerce.date().nullish(),
+  "maritalStatus": zod.union([zod.literal('single'),zod.literal('married'),zod.literal('divorced'),zod.literal('widowed'),zod.literal('other'),zod.literal(null)]).nullish(),
+  "nationality": zod.string().nullish(),
+  "personalEmail": zod.string().nullish(),
+  "workEmail": zod.string().nullish(),
+  "phoneNumber": zod.string().nullish(),
+  "alternatePhoneNumber": zod.string().nullish(),
+  "residentialAddress": zod.union([zod.object({
+  "line1": zod.string().nullish(),
+  "line2": zod.string().nullish(),
+  "city": zod.string().nullish(),
+  "state": zod.string().nullish(),
+  "postalCode": zod.string().nullish(),
+  "country": zod.string().nullish()
+}),zod.null()]).optional(),
+  "emergencyContacts": zod.array(zod.object({
+  "name": zod.string(),
+  "relationship": zod.string(),
+  "phone": zod.string()
+})).nullish(),
+  "departmentId": zod.number().nullish(),
+  "departmentName": zod.string().nullish(),
+  "branchId": zod.number().nullish(),
+  "branchName": zod.string().nullish(),
+  "positionId": zod.number().nullish(),
+  "positionName": zod.string().nullish(),
+  "reportingManagerId": zod.number().nullish(),
+  "reportingManagerName": zod.string().nullish(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullish(),
+  "hireDate": zod.coerce.date().nullish(),
+  "probationEndDate": zod.coerce.date().nullish(),
+  "employmentStatus": zod.enum(['active', 'probation', 'on_leave', 'suspended', 'terminated']),
+  "workLocation": zod.string().nullish(),
+  "separationDate": zod.coerce.date().nullish(),
+  "separationReason": zod.string().nullish().describe('Code from the \"separation_reason\" Master Data domain.')
+}).describe('A deliberately restricted view of Employee (W39) — omits notes (employee.notes.read is HR-only), nationalId\/passportNumber (sensitive identifiers with no self-service read need), linkedApplicationUserId\/createdBy\/updatedBy\/createdAt\/updatedAt (internal bookkeeping), and organizationId (redundant). Read-only: no field here is editable through Employee Self-Service.'),zod.null()])
+})
+
+
+/**
  * Search, filter, and paginate the organization's employee directory
  * @summary List employees
  */

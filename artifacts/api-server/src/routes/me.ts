@@ -1,10 +1,49 @@
-import { Router } from "express";
+import { Router, type Response, type NextFunction } from "express";
 import { eq, and, isNull, inArray } from "drizzle-orm";
 import { db, organizationsTable, membershipRolesTable, rolesTable, primaryHrAssignmentsTable } from "@workspace/db";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
-import { getActiveMembershipsForUser } from "../lib/membership";
+import { getActiveMembershipsForUser, getActiveMembership, resolveActiveOrganizationId } from "../lib/membership";
+import { requireModuleEnabled } from "../middlewares/requireModuleEnabled";
+import type { MembershipRequest } from "../middlewares/requireMembership";
+import { resolveOwnEmployeeProfile } from "../lib/employeeSelfService";
 
 const router = Router();
+
+/**
+ * Every other module-gated route resolves membership from a URL
+ * :organizationId (requireMembership). /me/employee has none — Employee
+ * Self-Service (W39) is scoped to "the organization the caller is currently
+ * working in," per the frozen plan, so this resolves the same way GET /me
+ * does (resolveActiveOrganizationId: session's active org if still live,
+ * else the legacy home org, else any other active membership) and then
+ * independently re-verifies that membership is still live before attaching
+ * req.membership, so requireModuleEnabled downstream has something real to
+ * check against.
+ */
+async function requireActiveOrganizationMembership(
+  req: MembershipRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const activeOrganizationId = await resolveActiveOrganizationId(
+    req.userId!,
+    req.session?.activeOrganizationId,
+    req.user!.organizationId,
+  );
+  if (activeOrganizationId == null) {
+    res.status(403).json({ error: "No active organization membership" });
+    return;
+  }
+
+  const membership = await getActiveMembership(req.userId!, activeOrganizationId);
+  if (!membership) {
+    res.status(403).json({ error: "No active organization membership" });
+    return;
+  }
+
+  req.membership = membership;
+  next();
+}
 
 // GET /me/organizations
 router.get("/me/organizations", requireAuth as any, async (req: AuthenticatedRequest, res): Promise<void> => {
@@ -64,5 +103,23 @@ router.get("/me/organizations", requireAuth as any, async (req: AuthenticatedReq
 
   res.json(summaries);
 });
+
+// GET /me/employee
+// Employee Self-Service (W39): resolves the caller's own linked employee for
+// their currently active organization only — never a client-supplied
+// employeeId, never another organization's data (see
+// lib/employeeSelfService.ts). An unlinked user is not an error: `linked:
+// false` is the intentional, safe response the frontend renders as a
+// "contact your HR administrator" state, not a 404/500.
+router.get(
+  "/me/employee",
+  requireAuth as any,
+  requireActiveOrganizationMembership,
+  requireModuleEnabled("employee_self_service"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const profile = await resolveOwnEmployeeProfile(req.membership!.organizationId, req.userId!);
+    res.json({ linked: profile != null, employee: profile });
+  },
+);
 
 export default router;
