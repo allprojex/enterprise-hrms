@@ -2648,6 +2648,286 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/job-requisitions:
+    get:
+      operationId: listJobRequisitions
+      tags: [recruitment]
+      summary: List job requisitions
+      description: >-
+        Visibility-filtered per caller: organization-wide for requisition.update
+        holders, otherwise scoped to requisitions the caller requested, is the
+        assigned recruiter or hiring manager on, or shares a department/branch
+        with (docs/PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md §7).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, pending_approval, approved, rejected, partially_filled, filled, cancelled, closed]
+        - name: requisitionType
+          in: query
+          schema:
+            type: string
+            enum: [new_role, replacement, temporary, internship, volunteer, contract, ministry]
+        - name: departmentId
+          in: query
+          schema:
+            type: integer
+        - name: branchId
+          in: query
+          schema:
+            type: integer
+        - name: hiringManagerEmployeeId
+          in: query
+          schema:
+            type: integer
+        - name: recruiterEmployeeId
+          in: query
+          schema:
+            type: integer
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Paginated, visibility-filtered job requisition list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobRequisitionListResponse"
+    post:
+      operationId: createJobRequisition
+      tags: [recruitment]
+      summary: Create a job requisition
+      description: Always created as draft. filledCount is never client-settable.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateJobRequisitionInput"
+      responses:
+        "201":
+          description: Job requisition created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobRequisition"
+        "400":
+          description: Invalid fields, or a referenced ID does not belong to this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/job-requisitions/{id}:
+    get:
+      operationId: getJobRequisition
+      tags: [recruitment]
+      summary: Get a job requisition
+      description: Returns 404 both when the requisition doesn't exist and when it exists but isn't visible to this caller — never distinguishing the two.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Job requisition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobRequisition"
+        "404":
+          description: Job requisition not found (or not visible to this caller)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    patch:
+      operationId: updateJobRequisition
+      tags: [recruitment]
+      summary: Update a draft job requisition
+      description: Only permitted while status is draft — protected fields (status, filledCount, audit metadata) are never accepted here.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateJobRequisitionInput"
+      responses:
+        "200":
+          description: Job requisition updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobRequisition"
+        "400":
+          description: Only a draft requisition can be edited, or a validation/cross-org error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Job requisition not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/job-requisitions/{id}/submit:
+    post:
+      operationId: submitJobRequisition
+      tags: [recruitment]
+      summary: Submit a draft job requisition
+      description: draft -> pending_approval only. Approval execution belongs to a later workstream — this only marks the requisition as awaiting a decision.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Job requisition submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobRequisition"
+        "400":
+          description: Only a draft requisition can be submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Job requisition not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/job-requisitions/{id}/cancel:
+    post:
+      operationId: cancelJobRequisition
+      tags: [recruitment]
+      summary: Cancel a draft or pending job requisition
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancelJobRequisitionInput"
+      responses:
+        "200":
+          description: Job requisition cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobRequisition"
+        "400":
+          description: Only a draft or pending requisition can be cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Job requisition not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/job-requisitions/{id}/archive:
+    post:
+      operationId: archiveJobRequisition
+      tags: [recruitment]
+      summary: Archive (close) a draft or cancelled job requisition
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Job requisition archived
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobRequisition"
+        "400":
+          description: Only a draft or cancelled requisition can be archived
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Job requisition not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /organizations/{organizationId}/employees/{employeeId}/leave-requests/{id}/approve:
     post:
       operationId: approveLeaveRequest
@@ -5579,6 +5859,207 @@ components:
           type: ["string", "null"]
         isRequired:
           type: boolean
+
+    JobRequisition:
+      type: object
+      description: >-
+        Foundation only (W45) — no approval execution, vacancy, candidate,
+        or application linkage exists yet. filledCount is always 0 in this
+        workstream; nothing increments it.
+      required:
+        - id
+        - organizationId
+        - title
+        - requisitionType
+        - positionId
+        - departmentId
+        - branchId
+        - hiringManagerEmployeeId
+        - recruiterEmployeeId
+        - requestedHeadcount
+        - filledCount
+        - employmentType
+        - workplaceType
+        - expectedStartDate
+        - salaryRangeMin
+        - salaryRangeMax
+        - salaryCurrency
+        - justification
+        - replacementEmployeeId
+        - status
+        - cancellationReason
+        - createdBy
+        - updatedBy
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        title:
+          type: string
+        requisitionType:
+          type: string
+          enum: [new_role, replacement, temporary, internship, volunteer, contract, ministry]
+        positionId:
+          type: ["integer", "null"]
+        departmentId:
+          type: ["integer", "null"]
+        branchId:
+          type: ["integer", "null"]
+        hiringManagerEmployeeId:
+          type: ["integer", "null"]
+        recruiterEmployeeId:
+          type: ["integer", "null"]
+        requestedHeadcount:
+          type: integer
+        filledCount:
+          type: integer
+          description: Never client-settable. Always 0 in this workstream.
+        employmentType:
+          type: ["string", "null"]
+          enum: [full_time, part_time, contract, intern, temporary, null]
+        workplaceType:
+          type: ["string", "null"]
+          enum: [onsite, remote, hybrid, null]
+        expectedStartDate:
+          type: ["string", "null"]
+          format: date
+        salaryRangeMin:
+          type: ["string", "null"]
+          description: Recruitment-scoped only — not a payroll/compensation field.
+        salaryRangeMax:
+          type: ["string", "null"]
+        salaryCurrency:
+          type: ["string", "null"]
+        justification:
+          type: ["string", "null"]
+        replacementEmployeeId:
+          type: ["integer", "null"]
+          description: Required when requisitionType is "replacement"; disallowed otherwise.
+        status:
+          type: string
+          enum: [draft, pending_approval, approved, rejected, partially_filled, filled, cancelled, closed]
+        cancellationReason:
+          type: ["string", "null"]
+        createdBy:
+          type: ["integer", "null"]
+        updatedBy:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    JobRequisitionListResponse:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/JobRequisition"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+
+    CreateJobRequisitionInput:
+      type: object
+      required: [title, requisitionType, requestedHeadcount]
+      properties:
+        title:
+          type: string
+          minLength: 1
+        requisitionType:
+          type: string
+          enum: [new_role, replacement, temporary, internship, volunteer, contract, ministry]
+        positionId:
+          type: ["integer", "null"]
+        departmentId:
+          type: ["integer", "null"]
+        branchId:
+          type: ["integer", "null"]
+        hiringManagerEmployeeId:
+          type: ["integer", "null"]
+        recruiterEmployeeId:
+          type: ["integer", "null"]
+        requestedHeadcount:
+          type: integer
+          minimum: 1
+        employmentType:
+          type: ["string", "null"]
+          enum: [full_time, part_time, contract, intern, temporary, null]
+        workplaceType:
+          type: ["string", "null"]
+          enum: [onsite, remote, hybrid, null]
+        expectedStartDate:
+          type: ["string", "null"]
+          format: date
+        salaryRangeMin:
+          type: ["string", "null"]
+        salaryRangeMax:
+          type: ["string", "null"]
+        salaryCurrency:
+          type: ["string", "null"]
+        justification:
+          type: ["string", "null"]
+        replacementEmployeeId:
+          type: ["integer", "null"]
+
+    UpdateJobRequisitionInput:
+      type: object
+      description: Only accepted while the requisition is in draft — status, filledCount, and audit fields are never accepted here.
+      properties:
+        title:
+          type: string
+          minLength: 1
+        requisitionType:
+          type: string
+          enum: [new_role, replacement, temporary, internship, volunteer, contract, ministry]
+        positionId:
+          type: ["integer", "null"]
+        departmentId:
+          type: ["integer", "null"]
+        branchId:
+          type: ["integer", "null"]
+        hiringManagerEmployeeId:
+          type: ["integer", "null"]
+        recruiterEmployeeId:
+          type: ["integer", "null"]
+        requestedHeadcount:
+          type: integer
+          minimum: 1
+        employmentType:
+          type: ["string", "null"]
+          enum: [full_time, part_time, contract, intern, temporary, null]
+        workplaceType:
+          type: ["string", "null"]
+          enum: [onsite, remote, hybrid, null]
+        expectedStartDate:
+          type: ["string", "null"]
+          format: date
+        salaryRangeMin:
+          type: ["string", "null"]
+        salaryRangeMax:
+          type: ["string", "null"]
+        salaryCurrency:
+          type: ["string", "null"]
+        justification:
+          type: ["string", "null"]
+        replacementEmployeeId:
+          type: ["integer", "null"]
+
+    CancelJobRequisitionInput:
+      type: object
+      properties:
+        reason:
+          type: ["string", "null"]
 
     LeaveType:
       type: object

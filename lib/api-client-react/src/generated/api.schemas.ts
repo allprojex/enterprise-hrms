@@ -721,6 +721,274 @@ export interface UpdateRecruitmentStageInput {
   isRequired?: boolean;
 }
 
+export type JobRequisitionRequisitionType = typeof JobRequisitionRequisitionType[keyof typeof JobRequisitionRequisitionType];
+
+
+export const JobRequisitionRequisitionType = {
+  new_role: 'new_role',
+  replacement: 'replacement',
+  temporary: 'temporary',
+  internship: 'internship',
+  volunteer: 'volunteer',
+  contract: 'contract',
+  ministry: 'ministry',
+} as const;
+
+/**
+ * @nullable
+ */
+export type JobRequisitionEmploymentType = typeof JobRequisitionEmploymentType[keyof typeof JobRequisitionEmploymentType] | null;
+
+
+export const JobRequisitionEmploymentType = {
+  full_time: 'full_time',
+  part_time: 'part_time',
+  contract: 'contract',
+  intern: 'intern',
+  temporary: 'temporary',
+} as const;
+
+/**
+ * @nullable
+ */
+export type JobRequisitionWorkplaceType = typeof JobRequisitionWorkplaceType[keyof typeof JobRequisitionWorkplaceType] | null;
+
+
+export const JobRequisitionWorkplaceType = {
+  onsite: 'onsite',
+  remote: 'remote',
+  hybrid: 'hybrid',
+} as const;
+
+export type JobRequisitionStatus = typeof JobRequisitionStatus[keyof typeof JobRequisitionStatus];
+
+
+export const JobRequisitionStatus = {
+  draft: 'draft',
+  pending_approval: 'pending_approval',
+  approved: 'approved',
+  rejected: 'rejected',
+  partially_filled: 'partially_filled',
+  filled: 'filled',
+  cancelled: 'cancelled',
+  closed: 'closed',
+} as const;
+
+/**
+ * Foundation only (W45) — no approval execution, vacancy, candidate, or application linkage exists yet. filledCount is always 0 in this workstream; nothing increments it.
+ */
+export interface JobRequisition {
+  id: number;
+  organizationId: number;
+  title: string;
+  requisitionType: JobRequisitionRequisitionType;
+  /** @nullable */
+  positionId: number | null;
+  /** @nullable */
+  departmentId: number | null;
+  /** @nullable */
+  branchId: number | null;
+  /** @nullable */
+  hiringManagerEmployeeId: number | null;
+  /** @nullable */
+  recruiterEmployeeId: number | null;
+  requestedHeadcount: number;
+  /** Never client-settable. Always 0 in this workstream. */
+  filledCount: number;
+  /** @nullable */
+  employmentType: JobRequisitionEmploymentType;
+  /** @nullable */
+  workplaceType: JobRequisitionWorkplaceType;
+  /** @nullable */
+  expectedStartDate: string | null;
+  /**
+     * Recruitment-scoped only — not a payroll/compensation field.
+     * @nullable
+     */
+  salaryRangeMin: string | null;
+  /** @nullable */
+  salaryRangeMax: string | null;
+  /** @nullable */
+  salaryCurrency: string | null;
+  /** @nullable */
+  justification: string | null;
+  /**
+     * Required when requisitionType is "replacement"; disallowed otherwise.
+     * @nullable
+     */
+  replacementEmployeeId: number | null;
+  status: JobRequisitionStatus;
+  /** @nullable */
+  cancellationReason: string | null;
+  /** @nullable */
+  createdBy: number | null;
+  /** @nullable */
+  updatedBy: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface JobRequisitionListResponse {
+  items: JobRequisition[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export type CreateJobRequisitionInputRequisitionType = typeof CreateJobRequisitionInputRequisitionType[keyof typeof CreateJobRequisitionInputRequisitionType];
+
+
+export const CreateJobRequisitionInputRequisitionType = {
+  new_role: 'new_role',
+  replacement: 'replacement',
+  temporary: 'temporary',
+  internship: 'internship',
+  volunteer: 'volunteer',
+  contract: 'contract',
+  ministry: 'ministry',
+} as const;
+
+/**
+ * @nullable
+ */
+export type CreateJobRequisitionInputEmploymentType = typeof CreateJobRequisitionInputEmploymentType[keyof typeof CreateJobRequisitionInputEmploymentType] | null;
+
+
+export const CreateJobRequisitionInputEmploymentType = {
+  full_time: 'full_time',
+  part_time: 'part_time',
+  contract: 'contract',
+  intern: 'intern',
+  temporary: 'temporary',
+} as const;
+
+/**
+ * @nullable
+ */
+export type CreateJobRequisitionInputWorkplaceType = typeof CreateJobRequisitionInputWorkplaceType[keyof typeof CreateJobRequisitionInputWorkplaceType] | null;
+
+
+export const CreateJobRequisitionInputWorkplaceType = {
+  onsite: 'onsite',
+  remote: 'remote',
+  hybrid: 'hybrid',
+} as const;
+
+export interface CreateJobRequisitionInput {
+  /** @minLength 1 */
+  title: string;
+  requisitionType: CreateJobRequisitionInputRequisitionType;
+  /** @nullable */
+  positionId?: number | null;
+  /** @nullable */
+  departmentId?: number | null;
+  /** @nullable */
+  branchId?: number | null;
+  /** @nullable */
+  hiringManagerEmployeeId?: number | null;
+  /** @nullable */
+  recruiterEmployeeId?: number | null;
+  /** @minimum 1 */
+  requestedHeadcount: number;
+  /** @nullable */
+  employmentType?: CreateJobRequisitionInputEmploymentType;
+  /** @nullable */
+  workplaceType?: CreateJobRequisitionInputWorkplaceType;
+  /** @nullable */
+  expectedStartDate?: string | null;
+  /** @nullable */
+  salaryRangeMin?: string | null;
+  /** @nullable */
+  salaryRangeMax?: string | null;
+  /** @nullable */
+  salaryCurrency?: string | null;
+  /** @nullable */
+  justification?: string | null;
+  /** @nullable */
+  replacementEmployeeId?: number | null;
+}
+
+export type UpdateJobRequisitionInputRequisitionType = typeof UpdateJobRequisitionInputRequisitionType[keyof typeof UpdateJobRequisitionInputRequisitionType];
+
+
+export const UpdateJobRequisitionInputRequisitionType = {
+  new_role: 'new_role',
+  replacement: 'replacement',
+  temporary: 'temporary',
+  internship: 'internship',
+  volunteer: 'volunteer',
+  contract: 'contract',
+  ministry: 'ministry',
+} as const;
+
+/**
+ * @nullable
+ */
+export type UpdateJobRequisitionInputEmploymentType = typeof UpdateJobRequisitionInputEmploymentType[keyof typeof UpdateJobRequisitionInputEmploymentType] | null;
+
+
+export const UpdateJobRequisitionInputEmploymentType = {
+  full_time: 'full_time',
+  part_time: 'part_time',
+  contract: 'contract',
+  intern: 'intern',
+  temporary: 'temporary',
+} as const;
+
+/**
+ * @nullable
+ */
+export type UpdateJobRequisitionInputWorkplaceType = typeof UpdateJobRequisitionInputWorkplaceType[keyof typeof UpdateJobRequisitionInputWorkplaceType] | null;
+
+
+export const UpdateJobRequisitionInputWorkplaceType = {
+  onsite: 'onsite',
+  remote: 'remote',
+  hybrid: 'hybrid',
+} as const;
+
+/**
+ * Only accepted while the requisition is in draft — status, filledCount, and audit fields are never accepted here.
+ */
+export interface UpdateJobRequisitionInput {
+  /** @minLength 1 */
+  title?: string;
+  requisitionType?: UpdateJobRequisitionInputRequisitionType;
+  /** @nullable */
+  positionId?: number | null;
+  /** @nullable */
+  departmentId?: number | null;
+  /** @nullable */
+  branchId?: number | null;
+  /** @nullable */
+  hiringManagerEmployeeId?: number | null;
+  /** @nullable */
+  recruiterEmployeeId?: number | null;
+  /** @minimum 1 */
+  requestedHeadcount?: number;
+  /** @nullable */
+  employmentType?: UpdateJobRequisitionInputEmploymentType;
+  /** @nullable */
+  workplaceType?: UpdateJobRequisitionInputWorkplaceType;
+  /** @nullable */
+  expectedStartDate?: string | null;
+  /** @nullable */
+  salaryRangeMin?: string | null;
+  /** @nullable */
+  salaryRangeMax?: string | null;
+  /** @nullable */
+  salaryCurrency?: string | null;
+  /** @nullable */
+  justification?: string | null;
+  /** @nullable */
+  replacementEmployeeId?: number | null;
+}
+
+export interface CancelJobRequisitionInput {
+  /** @nullable */
+  reason?: string | null;
+}
+
 export type LeaveTypeStatus = typeof LeaveTypeStatus[keyof typeof LeaveTypeStatus];
 
 
@@ -2132,6 +2400,45 @@ branchId?: number;
 export type ListPublicHolidaysParams = {
 year?: number;
 };
+
+export type ListJobRequisitionsParams = {
+status?: ListJobRequisitionsStatus;
+requisitionType?: ListJobRequisitionsRequisitionType;
+departmentId?: number;
+branchId?: number;
+hiringManagerEmployeeId?: number;
+recruiterEmployeeId?: number;
+search?: string;
+page?: number;
+pageSize?: number;
+};
+
+export type ListJobRequisitionsStatus = typeof ListJobRequisitionsStatus[keyof typeof ListJobRequisitionsStatus];
+
+
+export const ListJobRequisitionsStatus = {
+  draft: 'draft',
+  pending_approval: 'pending_approval',
+  approved: 'approved',
+  rejected: 'rejected',
+  partially_filled: 'partially_filled',
+  filled: 'filled',
+  cancelled: 'cancelled',
+  closed: 'closed',
+} as const;
+
+export type ListJobRequisitionsRequisitionType = typeof ListJobRequisitionsRequisitionType[keyof typeof ListJobRequisitionsRequisitionType];
+
+
+export const ListJobRequisitionsRequisitionType = {
+  new_role: 'new_role',
+  replacement: 'replacement',
+  temporary: 'temporary',
+  internship: 'internship',
+  volunteer: 'volunteer',
+  contract: 'contract',
+  ministry: 'ministry',
+} as const;
 
 export type ListLeaveBalanceLedgerParams = {
 leaveTypeId?: number;

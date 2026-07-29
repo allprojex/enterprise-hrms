@@ -57,6 +57,19 @@ const PERMISSIONS = [
   // per the frozen plan's five-tier model (docs/PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md §7).
   { key: "recruitment_settings.read", resource: "recruitment_settings", action: "read" },
   { key: "recruitment_settings.manage", resource: "recruitment_settings", action: "manage" },
+  // Phase 3A, W45 — Job Requisition Foundation. Coarse read gate seeded to
+  // every role (mirrors leave_request.approve's precedent: any employee
+  // could be a requisition's assigned hiring manager or recruiter via
+  // hiringManagerEmployeeId/recruiterEmployeeId) — which records a caller
+  // can actually see is narrowed per-record in the service layer
+  // (own/assigned/hiring-manager/department/branch/organization-wide, per
+  // the frozen plan's five-tier model). create/update/cancel are
+  // administrative actions, org_admin/hr_manager only, same rollout as
+  // leave_type.manage.
+  { key: "requisition.read", resource: "requisition", action: "read" },
+  { key: "requisition.create", resource: "requisition", action: "create" },
+  { key: "requisition.update", resource: "requisition", action: "update" },
+  { key: "requisition.cancel", resource: "requisition", action: "cancel" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -91,6 +104,10 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "public_holiday.manage",
     "recruitment_settings.read",
     "recruitment_settings.manage",
+    "requisition.read",
+    "requisition.create",
+    "requisition.update",
+    "requisition.cancel",
   ],
   hr_manager: [
     "organization.read",
@@ -115,6 +132,10 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "public_holiday.manage",
     "recruitment_settings.read",
     "recruitment_settings.manage",
+    "requisition.read",
+    "requisition.create",
+    "requisition.update",
+    "requisition.cancel",
   ],
   employee: [
     "organization.read",
@@ -127,6 +148,7 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "leave_request.read.own",
     "leave_request.write.own",
     "leave_request.approve",
+    "requisition.read",
   ],
 };
 

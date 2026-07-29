@@ -30,6 +30,8 @@ import PublicHolidays from '@/pages/public-holidays';
 import AttendanceSettings from '@/pages/attendance-settings';
 import EmployeeSelfService from '@/pages/employee-self-service';
 import RecruitmentSettings from '@/pages/recruitment-settings';
+import Requisitions from '@/pages/requisitions';
+import RequisitionDetail from '@/pages/requisition-detail';
 import { ModuleGate } from '@/components/module-gate';
 
 const queryClient = new QueryClient({
@@ -121,6 +123,12 @@ function Router() {
       </Route>
       <Route path="/recruitment-settings">
         {() => <SecureRoute component={RecruitmentSettings} moduleKey="recruitment" />}
+      </Route>
+      <Route path="/requisitions/:id">
+        {() => <SecureRoute component={RequisitionDetail} moduleKey="recruitment" />}
+      </Route>
+      <Route path="/requisitions">
+        {() => <SecureRoute component={Requisitions} moduleKey="recruitment" />}
       </Route>
 
       {/* 404 fallback */}

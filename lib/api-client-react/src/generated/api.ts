@@ -32,12 +32,14 @@ import type {
   AuditEventListResponse,
   AuthSession,
   Branch,
+  CancelJobRequisitionInput,
   ConfirmEmployeeInput,
   CopyRoleTemplateInput,
   CreateBranchInput,
   CreateDepartmentInput,
   CreateEmployeeInput,
   CreateInvitationInput,
+  CreateJobRequisitionInput,
   CreateLeavePolicyInput,
   CreateLeaveRequestInput,
   CreateLeaveTypeInput,
@@ -62,6 +64,8 @@ import type {
   HealthStatus,
   InvitationCreated,
   InvitationPreview,
+  JobRequisition,
+  JobRequisitionListResponse,
   LeaveBalanceEntry,
   LeaveBalanceSummary,
   LeaveCalendarResponse,
@@ -71,6 +75,7 @@ import type {
   LinkEmployeeUserInput,
   ListAuditEventsParams,
   ListEmployeesParams,
+  ListJobRequisitionsParams,
   ListLeaveBalanceLedgerParams,
   ListLeaveCalendarParams,
   ListPublicHolidaysParams,
@@ -116,6 +121,7 @@ import type {
   UpdateEmployeeInput,
   UpdateEmployeeQualificationInput,
   UpdateEmployeeSkillInput,
+  UpdateJobRequisitionInput,
   UpdateLeavePolicyInput,
   UpdateLeaveTypeInput,
   UpdateOrganizationConfigInput,
@@ -5883,6 +5889,548 @@ export const useReactivateRecruitmentStage = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getReactivateRecruitmentStageMutationOptions(options));
+    }
+
+export const getListJobRequisitionsUrl = (organizationId: number,
+    params?: ListJobRequisitionsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/job-requisitions?${stringifiedParams}` : `/api/organizations/${organizationId}/job-requisitions`
+}
+
+/**
+ * Visibility-filtered per caller: organization-wide for requisition.update holders, otherwise scoped to requisitions the caller requested, is the assigned recruiter or hiring manager on, or shares a department/branch with (docs/PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md §7).
+ * @summary List job requisitions
+ */
+export const listJobRequisitions = async (organizationId: number,
+    params?: ListJobRequisitionsParams, options?: RequestInit): Promise<JobRequisitionListResponse> => {
+
+  return customFetch<JobRequisitionListResponse>(getListJobRequisitionsUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListJobRequisitionsQueryKey = (organizationId: number,
+    params?: ListJobRequisitionsParams,) => {
+    return [
+    `/api/organizations/${organizationId}/job-requisitions`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListJobRequisitionsQueryOptions = <TData = Awaited<ReturnType<typeof listJobRequisitions>>, TError = ErrorType<unknown>>(organizationId: number,
+    params?: ListJobRequisitionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listJobRequisitions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListJobRequisitionsQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listJobRequisitions>>> = ({ signal }) => listJobRequisitions(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listJobRequisitions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListJobRequisitionsQueryResult = NonNullable<Awaited<ReturnType<typeof listJobRequisitions>>>
+export type ListJobRequisitionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List job requisitions
+ */
+
+export function useListJobRequisitions<TData = Awaited<ReturnType<typeof listJobRequisitions>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    params?: ListJobRequisitionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listJobRequisitions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListJobRequisitionsQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateJobRequisitionUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/job-requisitions`
+}
+
+/**
+ * Always created as draft. filledCount is never client-settable.
+ * @summary Create a job requisition
+ */
+export const createJobRequisition = async (organizationId: number,
+    createJobRequisitionInput: CreateJobRequisitionInput, options?: RequestInit): Promise<JobRequisition> => {
+
+  return customFetch<JobRequisition>(getCreateJobRequisitionUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createJobRequisitionInput)
+  }
+);}
+
+
+
+
+
+export const getCreateJobRequisitionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createJobRequisition>>, TError,{organizationId: number;data: BodyType<CreateJobRequisitionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createJobRequisition>>, TError,{organizationId: number;data: BodyType<CreateJobRequisitionInput>}, TContext> => {
+
+const mutationKey = ['createJobRequisition'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createJobRequisition>>, {organizationId: number;data: BodyType<CreateJobRequisitionInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createJobRequisition(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateJobRequisitionMutationResult = NonNullable<Awaited<ReturnType<typeof createJobRequisition>>>
+    export type CreateJobRequisitionMutationBody = BodyType<CreateJobRequisitionInput>
+    export type CreateJobRequisitionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Create a job requisition
+ */
+export const useCreateJobRequisition = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createJobRequisition>>, TError,{organizationId: number;data: BodyType<CreateJobRequisitionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createJobRequisition>>,
+        TError,
+        {organizationId: number;data: BodyType<CreateJobRequisitionInput>},
+        TContext
+      > => {
+      return useMutation(getCreateJobRequisitionMutationOptions(options));
+    }
+
+export const getGetJobRequisitionUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/job-requisitions/${id}`
+}
+
+/**
+ * Returns 404 both when the requisition doesn't exist and when it exists but isn't visible to this caller — never distinguishing the two.
+ * @summary Get a job requisition
+ */
+export const getJobRequisition = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<JobRequisition> => {
+
+  return customFetch<JobRequisition>(getGetJobRequisitionUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetJobRequisitionQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/job-requisitions/${id}`
+    ] as const;
+    }
+
+
+export const getGetJobRequisitionQueryOptions = <TData = Awaited<ReturnType<typeof getJobRequisition>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getJobRequisition>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetJobRequisitionQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getJobRequisition>>> = ({ signal }) => getJobRequisition(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getJobRequisition>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetJobRequisitionQueryResult = NonNullable<Awaited<ReturnType<typeof getJobRequisition>>>
+export type GetJobRequisitionQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get a job requisition
+ */
+
+export function useGetJobRequisition<TData = Awaited<ReturnType<typeof getJobRequisition>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getJobRequisition>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetJobRequisitionQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateJobRequisitionUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/job-requisitions/${id}`
+}
+
+/**
+ * Only permitted while status is draft — protected fields (status, filledCount, audit metadata) are never accepted here.
+ * @summary Update a draft job requisition
+ */
+export const updateJobRequisition = async (organizationId: number,
+    id: number,
+    updateJobRequisitionInput: UpdateJobRequisitionInput, options?: RequestInit): Promise<JobRequisition> => {
+
+  return customFetch<JobRequisition>(getUpdateJobRequisitionUrl(organizationId,id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateJobRequisitionInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateJobRequisitionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateJobRequisition>>, TError,{organizationId: number;id: number;data: BodyType<UpdateJobRequisitionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateJobRequisition>>, TError,{organizationId: number;id: number;data: BodyType<UpdateJobRequisitionInput>}, TContext> => {
+
+const mutationKey = ['updateJobRequisition'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateJobRequisition>>, {organizationId: number;id: number;data: BodyType<UpdateJobRequisitionInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  updateJobRequisition(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateJobRequisitionMutationResult = NonNullable<Awaited<ReturnType<typeof updateJobRequisition>>>
+    export type UpdateJobRequisitionMutationBody = BodyType<UpdateJobRequisitionInput>
+    export type UpdateJobRequisitionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update a draft job requisition
+ */
+export const useUpdateJobRequisition = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateJobRequisition>>, TError,{organizationId: number;id: number;data: BodyType<UpdateJobRequisitionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateJobRequisition>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<UpdateJobRequisitionInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateJobRequisitionMutationOptions(options));
+    }
+
+export const getSubmitJobRequisitionUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/job-requisitions/${id}/submit`
+}
+
+/**
+ * draft -> pending_approval only. Approval execution belongs to a later workstream — this only marks the requisition as awaiting a decision.
+ * @summary Submit a draft job requisition
+ */
+export const submitJobRequisition = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<JobRequisition> => {
+
+  return customFetch<JobRequisition>(getSubmitJobRequisitionUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getSubmitJobRequisitionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitJobRequisition>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitJobRequisition>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['submitJobRequisition'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitJobRequisition>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  submitJobRequisition(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitJobRequisitionMutationResult = NonNullable<Awaited<ReturnType<typeof submitJobRequisition>>>
+
+    export type SubmitJobRequisitionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Submit a draft job requisition
+ */
+export const useSubmitJobRequisition = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitJobRequisition>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitJobRequisition>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getSubmitJobRequisitionMutationOptions(options));
+    }
+
+export const getCancelJobRequisitionUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/job-requisitions/${id}/cancel`
+}
+
+/**
+ * @summary Cancel a draft or pending job requisition
+ */
+export const cancelJobRequisition = async (organizationId: number,
+    id: number,
+    cancelJobRequisitionInput?: CancelJobRequisitionInput, options?: RequestInit): Promise<JobRequisition> => {
+
+  return customFetch<JobRequisition>(getCancelJobRequisitionUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(cancelJobRequisitionInput)
+  }
+);}
+
+
+
+
+
+export const getCancelJobRequisitionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelJobRequisition>>, TError,{organizationId: number;id: number;data?: BodyType<CancelJobRequisitionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelJobRequisition>>, TError,{organizationId: number;id: number;data?: BodyType<CancelJobRequisitionInput>}, TContext> => {
+
+const mutationKey = ['cancelJobRequisition'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelJobRequisition>>, {organizationId: number;id: number;data?: BodyType<CancelJobRequisitionInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  cancelJobRequisition(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelJobRequisitionMutationResult = NonNullable<Awaited<ReturnType<typeof cancelJobRequisition>>>
+    export type CancelJobRequisitionMutationBody = BodyType<CancelJobRequisitionInput> | undefined
+    export type CancelJobRequisitionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Cancel a draft or pending job requisition
+ */
+export const useCancelJobRequisition = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelJobRequisition>>, TError,{organizationId: number;id: number;data?: BodyType<CancelJobRequisitionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelJobRequisition>>,
+        TError,
+        {organizationId: number;id: number;data?: BodyType<CancelJobRequisitionInput>},
+        TContext
+      > => {
+      return useMutation(getCancelJobRequisitionMutationOptions(options));
+    }
+
+export const getArchiveJobRequisitionUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/job-requisitions/${id}/archive`
+}
+
+/**
+ * @summary Archive (close) a draft or cancelled job requisition
+ */
+export const archiveJobRequisition = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<JobRequisition> => {
+
+  return customFetch<JobRequisition>(getArchiveJobRequisitionUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getArchiveJobRequisitionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveJobRequisition>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof archiveJobRequisition>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['archiveJobRequisition'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof archiveJobRequisition>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  archiveJobRequisition(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ArchiveJobRequisitionMutationResult = NonNullable<Awaited<ReturnType<typeof archiveJobRequisition>>>
+
+    export type ArchiveJobRequisitionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Archive (close) a draft or cancelled job requisition
+ */
+export const useArchiveJobRequisition = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveJobRequisition>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof archiveJobRequisition>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getArchiveJobRequisitionMutationOptions(options));
     }
 
 export const getApproveLeaveRequestUrl = (organizationId: number,

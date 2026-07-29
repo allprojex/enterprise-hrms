@@ -2451,6 +2451,338 @@ export const ReactivateRecruitmentStageResponse = zod.object({
 
 
 /**
+ * Visibility-filtered per caller: organization-wide for requisition.update holders, otherwise scoped to requisitions the caller requested, is the assigned recruiter or hiring manager on, or shares a department/branch with (docs/PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md §7).
+ * @summary List job requisitions
+ */
+export const ListJobRequisitionsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const listJobRequisitionsQueryPageDefault = 1;
+export const listJobRequisitionsQueryPageSizeDefault = 20;
+
+export const ListJobRequisitionsQueryParams = zod.object({
+  "status": zod.enum(['draft', 'pending_approval', 'approved', 'rejected', 'partially_filled', 'filled', 'cancelled', 'closed']).optional(),
+  "requisitionType": zod.enum(['new_role', 'replacement', 'temporary', 'internship', 'volunteer', 'contract', 'ministry']).optional(),
+  "departmentId": zod.coerce.number().optional(),
+  "branchId": zod.coerce.number().optional(),
+  "hiringManagerEmployeeId": zod.coerce.number().optional(),
+  "recruiterEmployeeId": zod.coerce.number().optional(),
+  "search": zod.coerce.string().optional(),
+  "page": zod.coerce.number().default(listJobRequisitionsQueryPageDefault),
+  "pageSize": zod.coerce.number().default(listJobRequisitionsQueryPageSizeDefault)
+})
+
+export const ListJobRequisitionsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "title": zod.string(),
+  "requisitionType": zod.enum(['new_role', 'replacement', 'temporary', 'internship', 'volunteer', 'contract', 'ministry']),
+  "positionId": zod.number().nullable(),
+  "departmentId": zod.number().nullable(),
+  "branchId": zod.number().nullable(),
+  "hiringManagerEmployeeId": zod.number().nullable(),
+  "recruiterEmployeeId": zod.number().nullable(),
+  "requestedHeadcount": zod.number(),
+  "filledCount": zod.number().describe('Never client-settable. Always 0 in this workstream.'),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullable(),
+  "workplaceType": zod.union([zod.literal('onsite'),zod.literal('remote'),zod.literal('hybrid'),zod.literal(null)]).nullable(),
+  "expectedStartDate": zod.coerce.date().nullable(),
+  "salaryRangeMin": zod.string().nullable().describe('Recruitment-scoped only — not a payroll\/compensation field.'),
+  "salaryRangeMax": zod.string().nullable(),
+  "salaryCurrency": zod.string().nullable(),
+  "justification": zod.string().nullable(),
+  "replacementEmployeeId": zod.number().nullable().describe('Required when requisitionType is \"replacement\"; disallowed otherwise.'),
+  "status": zod.enum(['draft', 'pending_approval', 'approved', 'rejected', 'partially_filled', 'filled', 'cancelled', 'closed']),
+  "cancellationReason": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "updatedBy": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Foundation only (W45) — no approval execution, vacancy, candidate, or application linkage exists yet. filledCount is always 0 in this workstream; nothing increments it.')),
+  "total": zod.number(),
+  "page": zod.number(),
+  "pageSize": zod.number()
+})
+
+
+/**
+ * Always created as draft. filledCount is never client-settable.
+ * @summary Create a job requisition
+ */
+export const CreateJobRequisitionParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+
+
+
+export const CreateJobRequisitionBody = zod.object({
+  "title": zod.string().min(1),
+  "requisitionType": zod.enum(['new_role', 'replacement', 'temporary', 'internship', 'volunteer', 'contract', 'ministry']),
+  "positionId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "branchId": zod.number().nullish(),
+  "hiringManagerEmployeeId": zod.number().nullish(),
+  "recruiterEmployeeId": zod.number().nullish(),
+  "requestedHeadcount": zod.number().min(1),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullish(),
+  "workplaceType": zod.union([zod.literal('onsite'),zod.literal('remote'),zod.literal('hybrid'),zod.literal(null)]).nullish(),
+  "expectedStartDate": zod.coerce.date().nullish(),
+  "salaryRangeMin": zod.string().nullish(),
+  "salaryRangeMax": zod.string().nullish(),
+  "salaryCurrency": zod.string().nullish(),
+  "justification": zod.string().nullish(),
+  "replacementEmployeeId": zod.number().nullish()
+})
+
+export const CreateJobRequisitionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "title": zod.string(),
+  "requisitionType": zod.enum(['new_role', 'replacement', 'temporary', 'internship', 'volunteer', 'contract', 'ministry']),
+  "positionId": zod.number().nullable(),
+  "departmentId": zod.number().nullable(),
+  "branchId": zod.number().nullable(),
+  "hiringManagerEmployeeId": zod.number().nullable(),
+  "recruiterEmployeeId": zod.number().nullable(),
+  "requestedHeadcount": zod.number(),
+  "filledCount": zod.number().describe('Never client-settable. Always 0 in this workstream.'),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullable(),
+  "workplaceType": zod.union([zod.literal('onsite'),zod.literal('remote'),zod.literal('hybrid'),zod.literal(null)]).nullable(),
+  "expectedStartDate": zod.coerce.date().nullable(),
+  "salaryRangeMin": zod.string().nullable().describe('Recruitment-scoped only — not a payroll\/compensation field.'),
+  "salaryRangeMax": zod.string().nullable(),
+  "salaryCurrency": zod.string().nullable(),
+  "justification": zod.string().nullable(),
+  "replacementEmployeeId": zod.number().nullable().describe('Required when requisitionType is \"replacement\"; disallowed otherwise.'),
+  "status": zod.enum(['draft', 'pending_approval', 'approved', 'rejected', 'partially_filled', 'filled', 'cancelled', 'closed']),
+  "cancellationReason": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "updatedBy": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Foundation only (W45) — no approval execution, vacancy, candidate, or application linkage exists yet. filledCount is always 0 in this workstream; nothing increments it.')
+
+
+/**
+ * Returns 404 both when the requisition doesn't exist and when it exists but isn't visible to this caller — never distinguishing the two.
+ * @summary Get a job requisition
+ */
+export const GetJobRequisitionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const GetJobRequisitionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "title": zod.string(),
+  "requisitionType": zod.enum(['new_role', 'replacement', 'temporary', 'internship', 'volunteer', 'contract', 'ministry']),
+  "positionId": zod.number().nullable(),
+  "departmentId": zod.number().nullable(),
+  "branchId": zod.number().nullable(),
+  "hiringManagerEmployeeId": zod.number().nullable(),
+  "recruiterEmployeeId": zod.number().nullable(),
+  "requestedHeadcount": zod.number(),
+  "filledCount": zod.number().describe('Never client-settable. Always 0 in this workstream.'),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullable(),
+  "workplaceType": zod.union([zod.literal('onsite'),zod.literal('remote'),zod.literal('hybrid'),zod.literal(null)]).nullable(),
+  "expectedStartDate": zod.coerce.date().nullable(),
+  "salaryRangeMin": zod.string().nullable().describe('Recruitment-scoped only — not a payroll\/compensation field.'),
+  "salaryRangeMax": zod.string().nullable(),
+  "salaryCurrency": zod.string().nullable(),
+  "justification": zod.string().nullable(),
+  "replacementEmployeeId": zod.number().nullable().describe('Required when requisitionType is \"replacement\"; disallowed otherwise.'),
+  "status": zod.enum(['draft', 'pending_approval', 'approved', 'rejected', 'partially_filled', 'filled', 'cancelled', 'closed']),
+  "cancellationReason": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "updatedBy": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Foundation only (W45) — no approval execution, vacancy, candidate, or application linkage exists yet. filledCount is always 0 in this workstream; nothing increments it.')
+
+
+/**
+ * Only permitted while status is draft — protected fields (status, filledCount, audit metadata) are never accepted here.
+ * @summary Update a draft job requisition
+ */
+export const UpdateJobRequisitionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+
+
+
+
+export const UpdateJobRequisitionBody = zod.object({
+  "title": zod.string().min(1).optional(),
+  "requisitionType": zod.enum(['new_role', 'replacement', 'temporary', 'internship', 'volunteer', 'contract', 'ministry']).optional(),
+  "positionId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "branchId": zod.number().nullish(),
+  "hiringManagerEmployeeId": zod.number().nullish(),
+  "recruiterEmployeeId": zod.number().nullish(),
+  "requestedHeadcount": zod.number().min(1).optional(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullish(),
+  "workplaceType": zod.union([zod.literal('onsite'),zod.literal('remote'),zod.literal('hybrid'),zod.literal(null)]).nullish(),
+  "expectedStartDate": zod.coerce.date().nullish(),
+  "salaryRangeMin": zod.string().nullish(),
+  "salaryRangeMax": zod.string().nullish(),
+  "salaryCurrency": zod.string().nullish(),
+  "justification": zod.string().nullish(),
+  "replacementEmployeeId": zod.number().nullish()
+}).describe('Only accepted while the requisition is in draft — status, filledCount, and audit fields are never accepted here.')
+
+export const UpdateJobRequisitionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "title": zod.string(),
+  "requisitionType": zod.enum(['new_role', 'replacement', 'temporary', 'internship', 'volunteer', 'contract', 'ministry']),
+  "positionId": zod.number().nullable(),
+  "departmentId": zod.number().nullable(),
+  "branchId": zod.number().nullable(),
+  "hiringManagerEmployeeId": zod.number().nullable(),
+  "recruiterEmployeeId": zod.number().nullable(),
+  "requestedHeadcount": zod.number(),
+  "filledCount": zod.number().describe('Never client-settable. Always 0 in this workstream.'),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullable(),
+  "workplaceType": zod.union([zod.literal('onsite'),zod.literal('remote'),zod.literal('hybrid'),zod.literal(null)]).nullable(),
+  "expectedStartDate": zod.coerce.date().nullable(),
+  "salaryRangeMin": zod.string().nullable().describe('Recruitment-scoped only — not a payroll\/compensation field.'),
+  "salaryRangeMax": zod.string().nullable(),
+  "salaryCurrency": zod.string().nullable(),
+  "justification": zod.string().nullable(),
+  "replacementEmployeeId": zod.number().nullable().describe('Required when requisitionType is \"replacement\"; disallowed otherwise.'),
+  "status": zod.enum(['draft', 'pending_approval', 'approved', 'rejected', 'partially_filled', 'filled', 'cancelled', 'closed']),
+  "cancellationReason": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "updatedBy": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Foundation only (W45) — no approval execution, vacancy, candidate, or application linkage exists yet. filledCount is always 0 in this workstream; nothing increments it.')
+
+
+/**
+ * draft -> pending_approval only. Approval execution belongs to a later workstream — this only marks the requisition as awaiting a decision.
+ * @summary Submit a draft job requisition
+ */
+export const SubmitJobRequisitionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const SubmitJobRequisitionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "title": zod.string(),
+  "requisitionType": zod.enum(['new_role', 'replacement', 'temporary', 'internship', 'volunteer', 'contract', 'ministry']),
+  "positionId": zod.number().nullable(),
+  "departmentId": zod.number().nullable(),
+  "branchId": zod.number().nullable(),
+  "hiringManagerEmployeeId": zod.number().nullable(),
+  "recruiterEmployeeId": zod.number().nullable(),
+  "requestedHeadcount": zod.number(),
+  "filledCount": zod.number().describe('Never client-settable. Always 0 in this workstream.'),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullable(),
+  "workplaceType": zod.union([zod.literal('onsite'),zod.literal('remote'),zod.literal('hybrid'),zod.literal(null)]).nullable(),
+  "expectedStartDate": zod.coerce.date().nullable(),
+  "salaryRangeMin": zod.string().nullable().describe('Recruitment-scoped only — not a payroll\/compensation field.'),
+  "salaryRangeMax": zod.string().nullable(),
+  "salaryCurrency": zod.string().nullable(),
+  "justification": zod.string().nullable(),
+  "replacementEmployeeId": zod.number().nullable().describe('Required when requisitionType is \"replacement\"; disallowed otherwise.'),
+  "status": zod.enum(['draft', 'pending_approval', 'approved', 'rejected', 'partially_filled', 'filled', 'cancelled', 'closed']),
+  "cancellationReason": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "updatedBy": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Foundation only (W45) — no approval execution, vacancy, candidate, or application linkage exists yet. filledCount is always 0 in this workstream; nothing increments it.')
+
+
+/**
+ * @summary Cancel a draft or pending job requisition
+ */
+export const CancelJobRequisitionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const CancelJobRequisitionBody = zod.object({
+  "reason": zod.string().nullish()
+})
+
+export const CancelJobRequisitionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "title": zod.string(),
+  "requisitionType": zod.enum(['new_role', 'replacement', 'temporary', 'internship', 'volunteer', 'contract', 'ministry']),
+  "positionId": zod.number().nullable(),
+  "departmentId": zod.number().nullable(),
+  "branchId": zod.number().nullable(),
+  "hiringManagerEmployeeId": zod.number().nullable(),
+  "recruiterEmployeeId": zod.number().nullable(),
+  "requestedHeadcount": zod.number(),
+  "filledCount": zod.number().describe('Never client-settable. Always 0 in this workstream.'),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullable(),
+  "workplaceType": zod.union([zod.literal('onsite'),zod.literal('remote'),zod.literal('hybrid'),zod.literal(null)]).nullable(),
+  "expectedStartDate": zod.coerce.date().nullable(),
+  "salaryRangeMin": zod.string().nullable().describe('Recruitment-scoped only — not a payroll\/compensation field.'),
+  "salaryRangeMax": zod.string().nullable(),
+  "salaryCurrency": zod.string().nullable(),
+  "justification": zod.string().nullable(),
+  "replacementEmployeeId": zod.number().nullable().describe('Required when requisitionType is \"replacement\"; disallowed otherwise.'),
+  "status": zod.enum(['draft', 'pending_approval', 'approved', 'rejected', 'partially_filled', 'filled', 'cancelled', 'closed']),
+  "cancellationReason": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "updatedBy": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Foundation only (W45) — no approval execution, vacancy, candidate, or application linkage exists yet. filledCount is always 0 in this workstream; nothing increments it.')
+
+
+/**
+ * @summary Archive (close) a draft or cancelled job requisition
+ */
+export const ArchiveJobRequisitionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ArchiveJobRequisitionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "title": zod.string(),
+  "requisitionType": zod.enum(['new_role', 'replacement', 'temporary', 'internship', 'volunteer', 'contract', 'ministry']),
+  "positionId": zod.number().nullable(),
+  "departmentId": zod.number().nullable(),
+  "branchId": zod.number().nullable(),
+  "hiringManagerEmployeeId": zod.number().nullable(),
+  "recruiterEmployeeId": zod.number().nullable(),
+  "requestedHeadcount": zod.number(),
+  "filledCount": zod.number().describe('Never client-settable. Always 0 in this workstream.'),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullable(),
+  "workplaceType": zod.union([zod.literal('onsite'),zod.literal('remote'),zod.literal('hybrid'),zod.literal(null)]).nullable(),
+  "expectedStartDate": zod.coerce.date().nullable(),
+  "salaryRangeMin": zod.string().nullable().describe('Recruitment-scoped only — not a payroll\/compensation field.'),
+  "salaryRangeMax": zod.string().nullable(),
+  "salaryCurrency": zod.string().nullable(),
+  "justification": zod.string().nullable(),
+  "replacementEmployeeId": zod.number().nullable().describe('Required when requisitionType is \"replacement\"; disallowed otherwise.'),
+  "status": zod.enum(['draft', 'pending_approval', 'approved', 'rejected', 'partially_filled', 'filled', 'cancelled', 'closed']),
+  "cancellationReason": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "updatedBy": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Foundation only (W45) — no approval execution, vacancy, candidate, or application linkage exists yet. filledCount is always 0 in this workstream; nothing increments it.')
+
+
+/**
  * Manager-scoped or organization-wide (leave_request.manage) approval authority required, on top of holding leave_request.approve — neither alone is sufficient. Self-approval is rejected. Atomically transitions the request and posts the immutable usage ledger entry (W34) in one transaction; rejected with a 409 if the request is no longer pending (already decided, concurrently or otherwise).
  * @summary Approve a pending leave request
  */
