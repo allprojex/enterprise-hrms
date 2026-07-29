@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, Link } from 'wouter';
-import { ArrowLeft, Pencil } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ArrowLeft, Pencil, CheckCircle2, XCircle } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -23,10 +23,18 @@ import {
   useSubmitJobRequisition,
   useCancelJobRequisition,
   useArchiveJobRequisition,
+  useListRequisitionApprovals,
+  getListRequisitionApprovalsQueryKey,
+  useApproveJobRequisition,
+  useRejectJobRequisition,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { QueryError } from '@/components/query-error';
+
+function isConflict(err: unknown): boolean {
+  return !!err && typeof err === 'object' && 'status' in err && (err as { status: unknown }).status === 409;
+}
 
 function errorMessage(err: unknown): string | undefined {
   return err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
@@ -73,14 +81,61 @@ export default function RequisitionDetail() {
   const submitMutation = useSubmitJobRequisition();
   const cancelMutation = useCancelJobRequisition();
   const archiveMutation = useArchiveJobRequisition();
+  const approveMutation = useApproveJobRequisition();
+  const rejectMutation = useRejectJobRequisition();
+
+  const { data: approvalHistory } = useListRequisitionApprovals(organizationId, requisitionId, {
+    query: { queryKey: getListRequisitionApprovalsQueryKey(organizationId, requisitionId), enabled: organizationId > 0 && requisitionId > 0 },
+  });
 
   const [editOpen, setEditOpen] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [editHeadcount, setEditHeadcount] = useState('1');
   const [cancelReason, setCancelReason] = useState('');
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectComment, setRejectComment] = useState('');
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: getGetJobRequisitionQueryKey(organizationId, requisitionId) });
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: getGetJobRequisitionQueryKey(organizationId, requisitionId) });
+    queryClient.invalidateQueries({ queryKey: getListRequisitionApprovalsQueryKey(organizationId, requisitionId) });
+  };
+
+  const handleApprove = () => {
+    approveMutation.mutate(
+      { organizationId, id: requisitionId, data: {} },
+      {
+        onSuccess: () => { invalidate(); toast({ title: 'Requisition approved' }); },
+        onError: (err) => {
+          invalidate();
+          toast({
+            title: isConflict(err) ? 'Already decided' : 'Could not approve requisition',
+            description: isConflict(err) ? 'This requisition was already decided or is no longer pending.' : errorMessage(err),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
+  };
+
+  const handleReject = (e: React.FormEvent) => {
+    e.preventDefault();
+    rejectMutation.mutate(
+      { organizationId, id: requisitionId, data: { comment: rejectComment.trim() || undefined } },
+      {
+        onSuccess: () => { invalidate(); setRejectOpen(false); setRejectComment(''); toast({ title: 'Requisition rejected' }); },
+        onError: (err) => {
+          invalidate();
+          setRejectOpen(false);
+          toast({
+            title: isConflict(err) ? 'Already decided' : 'Could not reject requisition',
+            description: isConflict(err) ? 'This requisition was already decided or is no longer pending.' : errorMessage(err),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
+  };
 
   const openEdit = () => {
     if (!requisition) return;
@@ -148,6 +203,7 @@ export default function RequisitionDetail() {
   }
 
   const isDraft = requisition.status === 'draft';
+  const isPendingApproval = requisition.status === 'pending_approval';
   const canCancel = requisition.status === 'draft' || requisition.status === 'pending_approval';
   const canArchive = requisition.status === 'draft' || requisition.status === 'cancelled';
 
@@ -173,6 +229,36 @@ export default function RequisitionDetail() {
             <Button onClick={handleSubmitRequisition} disabled={submitMutation.isPending} data-testid="button-submit-for-approval">
               {submitMutation.isPending ? 'Submitting…' : 'Submit for Approval'}
             </Button>
+          )}
+          {isPendingApproval && (
+            <Button variant="outline" onClick={handleApprove} disabled={approveMutation.isPending} data-testid="button-approve-requisition">
+              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+              {approveMutation.isPending ? 'Approving…' : 'Approve'}
+            </Button>
+          )}
+          {isPendingApproval && (
+            <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
+              <Button variant="ghost" onClick={() => setRejectOpen(true)} disabled={rejectMutation.isPending} data-testid="button-reject-requisition">
+                <XCircle className="h-4 w-4" aria-hidden="true" />
+                Reject
+              </Button>
+              <DialogContent>
+                <form onSubmit={handleReject}>
+                  <DialogHeader>
+                    <DialogTitle>Reject Requisition</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-2 py-4">
+                    <Label htmlFor="reject-comment">Comment (optional)</Label>
+                    <Input id="reject-comment" value={rejectComment} onChange={(e) => setRejectComment(e.target.value)} data-testid="input-reject-comment" />
+                  </div>
+                  <DialogFooter>
+                    <Button type="submit" variant="destructive" disabled={rejectMutation.isPending} data-testid="button-confirm-reject">
+                      {rejectMutation.isPending ? 'Rejecting…' : 'Confirm Rejection'}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
           )}
           {canCancel && (
             <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
@@ -219,6 +305,30 @@ export default function RequisitionDetail() {
           {requisition.cancellationReason && <Field label="Cancellation Reason" value={requisition.cancellationReason} />}
         </CardContent>
       </Card>
+
+      {approvalHistory && approvalHistory.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Approval History</CardTitle>
+            <CardDescription>Immutable — a decision is never edited once made</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="divide-y divide-border">
+              {approvalHistory.map((step) => (
+                <li key={step.id} className="py-3 space-y-1" data-testid={`row-approval-step-${step.id}`}>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={step.decision === 'approved' ? 'secondary' : step.decision === 'rejected' ? 'destructive' : 'outline'} className="capitalize">
+                      {step.decision}
+                    </Badge>
+                    {step.decidedAt && <span className="text-xs text-muted-foreground">{new Date(step.decidedAt).toLocaleString()}</span>}
+                  </div>
+                  {step.comment && <p className="text-sm text-muted-foreground">{step.comment}</p>}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent>

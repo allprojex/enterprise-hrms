@@ -39,3 +39,4 @@ export * from "./recruitment-workflows";
 export * from "./recruitment-stages";
 export * from "./recruitment-settings";
 export * from "./job-requisitions";
+export * from "./requisition-approvals";

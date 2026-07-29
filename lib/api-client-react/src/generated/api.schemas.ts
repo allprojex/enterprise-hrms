@@ -989,6 +989,46 @@ export interface CancelJobRequisitionInput {
   reason?: string | null;
 }
 
+export type RequisitionApprovalDecision = typeof RequisitionApprovalDecision[keyof typeof RequisitionApprovalDecision];
+
+
+export const RequisitionApprovalDecision = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+/**
+ * A single approval step's decision record. This workstream writes only sequence 1 (a single required approval step) — the column exists so a later workstream can extend to a genuine multi-step chain without a schema change. Immutable once decided: approve/reject are the only operations that ever change a row, and only while decision is "pending".
+ */
+export interface RequisitionApproval {
+  id: number;
+  organizationId: number;
+  requisitionId: number;
+  sequence: number;
+  /**
+     * Resolved at decision time (who actually decided) — null while pending.
+     * @nullable
+     */
+  approverMembershipId: number | null;
+  decision: RequisitionApprovalDecision;
+  /** @nullable */
+  decidedAt: string | null;
+  /** @nullable */
+  comment: string | null;
+  createdAt: string;
+}
+
+export interface ApproveJobRequisitionInput {
+  /** @nullable */
+  comment?: string | null;
+}
+
+export interface RejectJobRequisitionInput {
+  /** @nullable */
+  comment?: string | null;
+}
+
 export type LeaveTypeStatus = typeof LeaveTypeStatus[keyof typeof LeaveTypeStatus];
 
 

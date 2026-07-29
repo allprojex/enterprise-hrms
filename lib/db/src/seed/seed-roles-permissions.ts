@@ -70,6 +70,13 @@ const PERMISSIONS = [
   { key: "requisition.create", resource: "requisition", action: "create" },
   { key: "requisition.update", resource: "requisition", action: "update" },
   { key: "requisition.cancel", resource: "requisition", action: "cancel" },
+  // Phase 3A, W47 in the frozen plan's own numbering (this session's W46) —
+  // Requisition Approval Workflow. Org-wide only, same rollout as
+  // requisition.update: this workstream's narrowed approval model has no
+  // delegated-approver (assigned recruiter/hiring manager) tier, since no
+  // delegation configuration exists yet anywhere in Recruitment — see
+  // requisitionApprovals.ts for the documented simplification.
+  { key: "requisition.approve", resource: "requisition", action: "approve" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -108,6 +115,7 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "requisition.create",
     "requisition.update",
     "requisition.cancel",
+    "requisition.approve",
   ],
   hr_manager: [
     "organization.read",
@@ -136,6 +144,7 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "requisition.create",
     "requisition.update",
     "requisition.cancel",
+    "requisition.approve",
   ],
   employee: [
     "organization.read",

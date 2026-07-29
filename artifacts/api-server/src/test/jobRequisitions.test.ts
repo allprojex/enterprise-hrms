@@ -28,6 +28,7 @@ const {
   employeesTable,
   employeeUserLinksTable,
   jobRequisitionsTable,
+  requisitionApprovalsTable,
   positionsTable,
   departmentsTable,
   branchesTable,
@@ -49,6 +50,7 @@ const {
       employeeRows: [] as Record<string, unknown>[],
       employeeUserLinkRows: [] as Record<string, unknown>[],
       jobRequisitionRows: [] as Record<string, unknown>[],
+      requisitionApprovalRows: [] as Record<string, unknown>[],
       idCounters: new Map<string, number>(),
     },
     usersTable: mockTable("users", ["id", "email"]),
@@ -79,6 +81,16 @@ const {
       "salaryCurrency",
       "replacementEmployeeId",
       "createdBy",
+    ]),
+    requisitionApprovalsTable: mockTable("requisition_approvals", [
+      "id",
+      "organizationId",
+      "requisitionId",
+      "sequence",
+      "approverMembershipId",
+      "decision",
+      "decidedAt",
+      "comment",
     ]),
     positionsTable: mockTable("positions", ["id", "organizationId"]),
     departmentsTable: mockTable("departments", ["id", "organizationId"]),
@@ -113,6 +125,7 @@ function getRowsFor(table: { __name: string }): Record<string, unknown>[] {
   if (table === employeesTable) return fixtures.employeeRows;
   if (table === employeeUserLinksTable) return fixtures.employeeUserLinkRows;
   if (table === jobRequisitionsTable) return fixtures.jobRequisitionRows;
+  if (table === requisitionApprovalsTable) return fixtures.requisitionApprovalRows;
   // positions/departments/branches are never populated in these tests — no
   // test here provides a positionId/departmentId/branchId that needs
   // cross-org validation against a real row, so an always-empty result is
@@ -122,6 +135,7 @@ function getRowsFor(table: { __name: string }): Record<string, unknown>[] {
 
 function setRowsFor(table: { __name: string }, rows: Record<string, unknown>[]) {
   if (table === jobRequisitionsTable) fixtures.jobRequisitionRows = rows;
+  else if (table === requisitionApprovalsTable) fixtures.requisitionApprovalRows = rows;
 }
 
 function selectBuilder(table: { __name: string }) {
@@ -174,9 +188,15 @@ function selectBuilder(table: { __name: string }) {
 }
 
 function insertRow(table: { __name: string }, v: Record<string, unknown>) {
-  const defaults: Record<string, unknown> = table === jobRequisitionsTable ? { filledCount: 0, status: "draft" } : {};
+  const defaults: Record<string, unknown> =
+    table === jobRequisitionsTable
+      ? { filledCount: 0, status: "draft" }
+      : table === requisitionApprovalsTable
+        ? { sequence: 1, decision: "pending" }
+        : {};
   const row = { id: nextId(table), createdAt: new Date(), updatedAt: new Date(), ...defaults, ...v };
   if (table === jobRequisitionsTable) fixtures.jobRequisitionRows = [...fixtures.jobRequisitionRows, row];
+  if (table === requisitionApprovalsTable) fixtures.requisitionApprovalRows = [...fixtures.requisitionApprovalRows, row];
   return { returning: () => Promise.resolve([row]) };
 }
 
@@ -223,11 +243,15 @@ vi.mock("@workspace/db", () => ({
   employeesTable,
   employeeUserLinksTable,
   jobRequisitionsTable,
+  requisitionApprovalsTable,
   positionsTable,
   departmentsTable,
   branchesTable,
   auditEventsTable,
-  db: makeQueryClient(),
+  db: {
+    ...makeQueryClient(),
+    transaction: async (cb: (tx: ReturnType<typeof makeQueryClient>) => Promise<unknown>) => cb(makeQueryClient()),
+  },
 }));
 
 vi.mock("drizzle-orm", () => ({
@@ -287,6 +311,7 @@ beforeEach(() => {
   fixtures.employeeRows = [];
   fixtures.employeeUserLinkRows = [];
   fixtures.jobRequisitionRows = [];
+  fixtures.requisitionApprovalRows = [];
   fixtures.idCounters = new Map();
 });
 
@@ -544,6 +569,9 @@ describe("Job requisition lifecycle actions", () => {
     const res = await request(app).post("/api/organizations/10/job-requisitions/1/submit").set("Authorization", "Bearer valid-token");
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("pending_approval");
+    // W46 — a single pending approval step (sequence 1) is created atomically with the transition.
+    expect(fixtures.requisitionApprovalRows).toHaveLength(1);
+    expect(fixtures.requisitionApprovalRows[0]).toMatchObject({ requisitionId: 1, sequence: 1, decision: "pending" });
   });
 
   it("submit fails idempotently against an already-submitted requisition (concurrent double submit)", async () => {

@@ -32,6 +32,7 @@ import EmployeeSelfService from '@/pages/employee-self-service';
 import RecruitmentSettings from '@/pages/recruitment-settings';
 import Requisitions from '@/pages/requisitions';
 import RequisitionDetail from '@/pages/requisition-detail';
+import RequisitionApprovals from '@/pages/requisition-approvals';
 import { ModuleGate } from '@/components/module-gate';
 
 const queryClient = new QueryClient({
@@ -129,6 +130,9 @@ function Router() {
       </Route>
       <Route path="/requisitions">
         {() => <SecureRoute component={Requisitions} moduleKey="recruitment" />}
+      </Route>
+      <Route path="/requisition-approvals">
+        {() => <SecureRoute component={RequisitionApprovals} moduleKey="recruitment" />}
       </Route>
 
       {/* 404 fallback */}

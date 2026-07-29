@@ -2783,6 +2783,151 @@ export const ArchiveJobRequisitionResponse = zod.object({
 
 
 /**
+ * Organization-wide only (requisition.approve holders) — this workstream implements no delegated-approver tier yet. Gated by the "recruitment" module.
+ * @summary List job requisitions awaiting the caller's approval decision
+ */
+export const ListPendingRequisitionApprovalsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListPendingRequisitionApprovalsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "title": zod.string(),
+  "requisitionType": zod.enum(['new_role', 'replacement', 'temporary', 'internship', 'volunteer', 'contract', 'ministry']),
+  "positionId": zod.number().nullable(),
+  "departmentId": zod.number().nullable(),
+  "branchId": zod.number().nullable(),
+  "hiringManagerEmployeeId": zod.number().nullable(),
+  "recruiterEmployeeId": zod.number().nullable(),
+  "requestedHeadcount": zod.number(),
+  "filledCount": zod.number().describe('Never client-settable. Always 0 in this workstream.'),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullable(),
+  "workplaceType": zod.union([zod.literal('onsite'),zod.literal('remote'),zod.literal('hybrid'),zod.literal(null)]).nullable(),
+  "expectedStartDate": zod.coerce.date().nullable(),
+  "salaryRangeMin": zod.string().nullable().describe('Recruitment-scoped only — not a payroll\/compensation field.'),
+  "salaryRangeMax": zod.string().nullable(),
+  "salaryCurrency": zod.string().nullable(),
+  "justification": zod.string().nullable(),
+  "replacementEmployeeId": zod.number().nullable().describe('Required when requisitionType is \"replacement\"; disallowed otherwise.'),
+  "status": zod.enum(['draft', 'pending_approval', 'approved', 'rejected', 'partially_filled', 'filled', 'cancelled', 'closed']),
+  "cancellationReason": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "updatedBy": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Foundation only (W45) — no approval execution, vacancy, candidate, or application linkage exists yet. filledCount is always 0 in this workstream; nothing increments it.')
+export const ListPendingRequisitionApprovalsResponse = zod.array(ListPendingRequisitionApprovalsResponseItem)
+
+
+/**
+ * Same visibility as GET .../job-requisitions/{id} — returns 404 both when the requisition doesn't exist and when it exists but isn't visible to this caller.
+ * @summary Immutable approval decision history for a job requisition
+ */
+export const ListRequisitionApprovalsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ListRequisitionApprovalsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "requisitionId": zod.number(),
+  "sequence": zod.number(),
+  "approverMembershipId": zod.number().nullable().describe('Resolved at decision time (who actually decided) — null while pending.'),
+  "decision": zod.enum(['pending', 'approved', 'rejected']),
+  "decidedAt": zod.coerce.date().nullable(),
+  "comment": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('A single approval step\'s decision record. This workstream writes only sequence 1 (a single required approval step) — the column exists so a later workstream can extend to a genuine multi-step chain without a schema change. Immutable once decided: approve\/reject are the only operations that ever change a row, and only while decision is \"pending\".')
+export const ListRequisitionApprovalsResponse = zod.array(ListRequisitionApprovalsResponseItem)
+
+
+/**
+ * Requires requisition.approve. Atomically finalizes the single approval step and transitions the requisition pending_approval -> approved in one transaction; rejected with 409 if the requisition is no longer awaiting a decision (already decided, concurrently or otherwise).
+ * @summary Approve a pending job requisition
+ */
+export const ApproveJobRequisitionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ApproveJobRequisitionBody = zod.object({
+  "comment": zod.string().nullish()
+})
+
+export const ApproveJobRequisitionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "title": zod.string(),
+  "requisitionType": zod.enum(['new_role', 'replacement', 'temporary', 'internship', 'volunteer', 'contract', 'ministry']),
+  "positionId": zod.number().nullable(),
+  "departmentId": zod.number().nullable(),
+  "branchId": zod.number().nullable(),
+  "hiringManagerEmployeeId": zod.number().nullable(),
+  "recruiterEmployeeId": zod.number().nullable(),
+  "requestedHeadcount": zod.number(),
+  "filledCount": zod.number().describe('Never client-settable. Always 0 in this workstream.'),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullable(),
+  "workplaceType": zod.union([zod.literal('onsite'),zod.literal('remote'),zod.literal('hybrid'),zod.literal(null)]).nullable(),
+  "expectedStartDate": zod.coerce.date().nullable(),
+  "salaryRangeMin": zod.string().nullable().describe('Recruitment-scoped only — not a payroll\/compensation field.'),
+  "salaryRangeMax": zod.string().nullable(),
+  "salaryCurrency": zod.string().nullable(),
+  "justification": zod.string().nullable(),
+  "replacementEmployeeId": zod.number().nullable().describe('Required when requisitionType is \"replacement\"; disallowed otherwise.'),
+  "status": zod.enum(['draft', 'pending_approval', 'approved', 'rejected', 'partially_filled', 'filled', 'cancelled', 'closed']),
+  "cancellationReason": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "updatedBy": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Foundation only (W45) — no approval execution, vacancy, candidate, or application linkage exists yet. filledCount is always 0 in this workstream; nothing increments it.')
+
+
+/**
+ * Same authorization as approve. Terminal — no reopening/resubmission exists in this workstream's frozen scope.
+ * @summary Reject a pending job requisition
+ */
+export const RejectJobRequisitionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const RejectJobRequisitionBody = zod.object({
+  "comment": zod.string().nullish()
+})
+
+export const RejectJobRequisitionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "title": zod.string(),
+  "requisitionType": zod.enum(['new_role', 'replacement', 'temporary', 'internship', 'volunteer', 'contract', 'ministry']),
+  "positionId": zod.number().nullable(),
+  "departmentId": zod.number().nullable(),
+  "branchId": zod.number().nullable(),
+  "hiringManagerEmployeeId": zod.number().nullable(),
+  "recruiterEmployeeId": zod.number().nullable(),
+  "requestedHeadcount": zod.number(),
+  "filledCount": zod.number().describe('Never client-settable. Always 0 in this workstream.'),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullable(),
+  "workplaceType": zod.union([zod.literal('onsite'),zod.literal('remote'),zod.literal('hybrid'),zod.literal(null)]).nullable(),
+  "expectedStartDate": zod.coerce.date().nullable(),
+  "salaryRangeMin": zod.string().nullable().describe('Recruitment-scoped only — not a payroll\/compensation field.'),
+  "salaryRangeMax": zod.string().nullable(),
+  "salaryCurrency": zod.string().nullable(),
+  "justification": zod.string().nullable(),
+  "replacementEmployeeId": zod.number().nullable().describe('Required when requisitionType is \"replacement\"; disallowed otherwise.'),
+  "status": zod.enum(['draft', 'pending_approval', 'approved', 'rejected', 'partially_filled', 'filled', 'cancelled', 'closed']),
+  "cancellationReason": zod.string().nullable(),
+  "createdBy": zod.number().nullable(),
+  "updatedBy": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Foundation only (W45) — no approval execution, vacancy, candidate, or application linkage exists yet. filledCount is always 0 in this workstream; nothing increments it.')
+
+
+/**
  * Manager-scoped or organization-wide (leave_request.manage) approval authority required, on top of holding leave_request.approve — neither alone is sufficient. Self-approval is rejected. Atomically transitions the request and posts the immutable usage ledger entry (W34) in one transaction; rejected with a 409 if the request is no longer pending (already decided, concurrently or otherwise).
  * @summary Approve a pending leave request
  */

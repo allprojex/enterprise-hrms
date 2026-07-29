@@ -1,5 +1,11 @@
 import { Router } from "express";
-import { CreateJobRequisitionBody, UpdateJobRequisitionBody, CancelJobRequisitionBody } from "@workspace/api-zod";
+import {
+  CreateJobRequisitionBody,
+  UpdateJobRequisitionBody,
+  CancelJobRequisitionBody,
+  ApproveJobRequisitionBody,
+  RejectJobRequisitionBody,
+} from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireMembership, type MembershipRequest } from "../middlewares/requireMembership";
 import { requirePermission } from "../middlewares/requirePermission";
@@ -23,6 +29,14 @@ import {
   type JobRequisitionType,
   type JobRequisitionWorkplaceType,
 } from "../lib/jobRequisitions";
+import {
+  listPendingRequisitionApprovals,
+  listRequisitionApprovalHistory,
+  approveJobRequisition,
+  rejectJobRequisition,
+  RequisitionApprovalNotPendingError,
+  RequisitionApprovalTargetNotFoundError,
+} from "../lib/requisitionApprovals";
 
 const router = Router();
 
@@ -107,6 +121,23 @@ router.post(
       }
       throw err;
     }
+  },
+);
+
+// GET /organizations/:organizationId/job-requisitions/pending-approvals
+// Registered before the /:id route below — Express matches routes in
+// registration order, and /:id would otherwise swallow "pending-approvals"
+// as its id parameter.
+router.get(
+  "/organizations/:organizationId/job-requisitions/pending-approvals",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requireModuleEnabled(RECRUITMENT_MODULE_KEY),
+  requirePermission("requisition.approve"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const organizationId = req.membership!.organizationId;
+    const requisitions = await listPendingRequisitionApprovals(organizationId);
+    res.json(requisitions);
   },
 );
 
@@ -292,6 +323,119 @@ router.post(
       }
       if (err instanceof InvalidJobRequisitionTransitionError) {
         res.status(400).json({ error: err.message });
+        return;
+      }
+      throw err;
+    }
+  },
+);
+
+// GET /organizations/:organizationId/job-requisitions/:id/approvals
+router.get(
+  "/organizations/:organizationId/job-requisitions/:id/approvals",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requireModuleEnabled(RECRUITMENT_MODULE_KEY),
+  requirePermission("requisition.read"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const requisitionId = parseId(req.params.id);
+    if (isNaN(requisitionId)) {
+      res.status(400).json({ error: "Invalid requisition ID" });
+      return;
+    }
+    const organizationId = req.membership!.organizationId;
+    const visibility = await resolveRequisitionVisibilityContext({
+      organizationId,
+      applicationUserId: req.userId!,
+      membershipId: req.membership!.id,
+    });
+    // Same 404-not-distinguished-from-invisible rule as GET .../job-requisitions/:id
+    // — approval history is never visible on a requisition the caller can't see.
+    const requisition = await getVisibleJobRequisitionById(organizationId, requisitionId, visibility);
+    if (!requisition) {
+      res.status(404).json({ error: "Job requisition not found" });
+      return;
+    }
+    const history = await listRequisitionApprovalHistory(organizationId, requisitionId);
+    res.json(history);
+  },
+);
+
+// POST /organizations/:organizationId/job-requisitions/:id/approve
+router.post(
+  "/organizations/:organizationId/job-requisitions/:id/approve",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requireModuleEnabled(RECRUITMENT_MODULE_KEY),
+  requirePermission("requisition.approve"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const requisitionId = parseId(req.params.id);
+    if (isNaN(requisitionId)) {
+      res.status(400).json({ error: "Invalid requisition ID" });
+      return;
+    }
+    const parsed = ApproveJobRequisitionBody.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    try {
+      const requisition = await approveJobRequisition({
+        organizationId: req.membership!.organizationId,
+        requisitionId,
+        comment: parsed.data.comment,
+        actorApplicationUserId: req.userId!,
+        actorMembershipId: req.membership!.id,
+      });
+      res.json(requisition);
+    } catch (err) {
+      if (err instanceof RequisitionApprovalTargetNotFoundError) {
+        res.status(404).json({ error: err.message });
+        return;
+      }
+      if (err instanceof RequisitionApprovalNotPendingError) {
+        res.status(409).json({ error: err.message });
+        return;
+      }
+      throw err;
+    }
+  },
+);
+
+// POST /organizations/:organizationId/job-requisitions/:id/reject
+router.post(
+  "/organizations/:organizationId/job-requisitions/:id/reject",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requireModuleEnabled(RECRUITMENT_MODULE_KEY),
+  requirePermission("requisition.approve"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const requisitionId = parseId(req.params.id);
+    if (isNaN(requisitionId)) {
+      res.status(400).json({ error: "Invalid requisition ID" });
+      return;
+    }
+    const parsed = RejectJobRequisitionBody.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    try {
+      const requisition = await rejectJobRequisition({
+        organizationId: req.membership!.organizationId,
+        requisitionId,
+        comment: parsed.data.comment,
+        actorApplicationUserId: req.userId!,
+        actorMembershipId: req.membership!.id,
+      });
+      res.json(requisition);
+    } catch (err) {
+      if (err instanceof RequisitionApprovalTargetNotFoundError) {
+        res.status(404).json({ error: err.message });
+        return;
+      }
+      if (err instanceof RequisitionApprovalNotPendingError) {
+        res.status(409).json({ error: err.message });
         return;
       }
       throw err;

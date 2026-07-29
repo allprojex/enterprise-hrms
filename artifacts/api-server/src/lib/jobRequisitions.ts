@@ -28,6 +28,7 @@ import {
   isSameDepartmentScope,
   isSameBranchScope,
 } from "./recruitmentAuthorization";
+import { createPendingApprovalStep } from "./requisitionApprovals";
 
 export class JobRequisitionNotFoundError extends Error {
   constructor() {
@@ -325,7 +326,13 @@ export async function updateJobRequisition(params: {
  * draft -> pending_approval only. A conditional UPDATE ... WHERE status =
  * 'draft' (mirrors W35's exact idempotency shape) — a concurrent double
  * submit sees zero rows affected and fails as already-transitioned, never
- * double-processing.
+ * double-processing. The single pending approval step (W47/this session's
+ * W46) is created inside the same transaction as the status transition, so
+ * a requisition can never sit in pending_approval without an active
+ * approval instance, and a concurrent/repeated submit can never create two
+ * (the status guard already ensures only one caller's transaction reaches
+ * the insert; the (requisitionId, sequence) unique index is a second,
+ * independent guard).
  */
 export async function submitJobRequisition(params: {
   organizationId: number;
@@ -336,12 +343,21 @@ export async function submitJobRequisition(params: {
   const before = await findOwnRequisition(params.organizationId, params.requisitionId);
   if (!before) throw new JobRequisitionNotFoundError();
 
-  const [updated] = await db
-    .update(jobRequisitionsTable)
-    .set({ status: "pending_approval", updatedBy: params.actorApplicationUserId })
-    .where(and(eq(jobRequisitionsTable.id, params.requisitionId), eq(jobRequisitionsTable.status, "draft")))
-    .returning();
-  if (!updated) throw new InvalidJobRequisitionTransitionError("Only a draft requisition can be submitted");
+  const updated = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(jobRequisitionsTable)
+      .set({ status: "pending_approval", updatedBy: params.actorApplicationUserId })
+      .where(and(eq(jobRequisitionsTable.id, params.requisitionId), eq(jobRequisitionsTable.status, "draft")))
+      .returning();
+    if (!row) throw new InvalidJobRequisitionTransitionError("Only a draft requisition can be submitted");
+
+    await createPendingApprovalStep(tx, {
+      organizationId: params.organizationId,
+      requisitionId: params.requisitionId,
+    });
+
+    return row;
+  });
 
   await recordAuditEvent({
     actorApplicationUserId: params.actorApplicationUserId,

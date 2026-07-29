@@ -26,6 +26,7 @@ import {
   Clock,
   UserPlus,
   ClipboardList,
+  Stamp,
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -286,6 +287,7 @@ export function AppShell({ children }: AppShellProps) {
     ...(isHrCapable ? [{ href: '/leave-balances', label: 'Leave Balances', icon: Wallet } satisfies NavItem] : []),
     ...(isOrgAdmin ? [{ href: '/attendance-settings', label: 'Attendance Settings', icon: Clock } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisitions', label: 'Job Requisitions', icon: ClipboardList } satisfies NavItem] : []),
+    ...(isHrCapable ? [{ href: '/requisition-approvals', label: 'Requisition Approvals', icon: Stamp } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/recruitment-settings', label: 'Recruitment Settings', icon: UserPlus } satisfies NavItem] : []),
     { href: '/organizations',  label: 'Organisations',  icon: Building },
     { href: '/notifications',  label: 'Notifications',  icon: Bell, badge: unreadCount },

@@ -2928,6 +2928,160 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/job-requisitions/pending-approvals:
+    get:
+      operationId: listPendingRequisitionApprovals
+      tags: [requisition-approvals]
+      summary: List job requisitions awaiting the caller's approval decision
+      description: >-
+        Organization-wide only (requisition.approve holders) — this
+        workstream implements no delegated-approver tier yet. Gated by the
+        "recruitment" module.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Pending-approval requisitions in the organization
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/JobRequisition"
+
+  /organizations/{organizationId}/job-requisitions/{id}/approvals:
+    get:
+      operationId: listRequisitionApprovals
+      tags: [requisition-approvals]
+      summary: Immutable approval decision history for a job requisition
+      description: >-
+        Same visibility as GET .../job-requisitions/{id} — returns 404 both
+        when the requisition doesn't exist and when it exists but isn't
+        visible to this caller.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Approval decision history, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RequisitionApproval"
+        "404":
+          description: Job requisition not found (or not visible to this caller)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/job-requisitions/{id}/approve:
+    post:
+      operationId: approveJobRequisition
+      tags: [requisition-approvals]
+      summary: Approve a pending job requisition
+      description: >-
+        Requires requisition.approve. Atomically finalizes the single
+        approval step and transitions the requisition pending_approval ->
+        approved in one transaction; rejected with 409 if the requisition is
+        no longer awaiting a decision (already decided, concurrently or
+        otherwise).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApproveJobRequisitionInput"
+      responses:
+        "200":
+          description: Job requisition approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobRequisition"
+        "404":
+          description: Job requisition not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Requisition is not currently awaiting a decision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/job-requisitions/{id}/reject:
+    post:
+      operationId: rejectJobRequisition
+      tags: [requisition-approvals]
+      summary: Reject a pending job requisition
+      description: >-
+        Same authorization as approve. Terminal — no reopening/resubmission
+        exists in this workstream's frozen scope.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RejectJobRequisitionInput"
+      responses:
+        "200":
+          description: Job requisition rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobRequisition"
+        "404":
+          description: Job requisition not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Requisition is not currently awaiting a decision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /organizations/{organizationId}/employees/{employeeId}/leave-requests/{id}/approve:
     post:
       operationId: approveLeaveRequest
@@ -6059,6 +6213,61 @@ components:
       type: object
       properties:
         reason:
+          type: ["string", "null"]
+
+    RequisitionApproval:
+      type: object
+      description: >-
+        A single approval step's decision record. This workstream writes
+        only sequence 1 (a single required approval step) — the column
+        exists so a later workstream can extend to a genuine multi-step
+        chain without a schema change. Immutable once decided: approve/reject
+        are the only operations that ever change a row, and only while
+        decision is "pending".
+      required:
+        - id
+        - organizationId
+        - requisitionId
+        - sequence
+        - approverMembershipId
+        - decision
+        - decidedAt
+        - comment
+        - createdAt
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        requisitionId:
+          type: integer
+        sequence:
+          type: integer
+        approverMembershipId:
+          type: ["integer", "null"]
+          description: Resolved at decision time (who actually decided) — null while pending.
+        decision:
+          type: string
+          enum: [pending, approved, rejected]
+        decidedAt:
+          type: ["string", "null"]
+          format: date-time
+        comment:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    ApproveJobRequisitionInput:
+      type: object
+      properties:
+        comment:
+          type: ["string", "null"]
+
+    RejectJobRequisitionInput:
+      type: object
+      properties:
+        comment:
           type: ["string", "null"]
 
     LeaveType:
