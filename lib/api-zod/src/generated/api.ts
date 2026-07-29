@@ -1813,6 +1813,34 @@ export const ListPendingApprovalsResponse = zod.array(ListPendingApprovalsRespon
 
 
 /**
+ * A read model over leave_requests — never a second source of truth. Only status "approved" is ever included. Org-wide for leave_request.manage holders; otherwise scoped to the caller's own approved leave plus their direct reports' (employees. reportingManagerId), same as leave-requests/pending-approvals. Confidential fields (reason, attachments, approval comments) are never returned. The date range is bounded server-side. Gated by the "leave" module.
+ * @summary Organization-scoped calendar of approved leave within a date range
+ */
+export const ListLeaveCalendarParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListLeaveCalendarQueryParams = zod.object({
+  "from": zod.date().describe('Inclusive range start, YYYY-MM-DD.'),
+  "to": zod.date().describe('Inclusive range end, YYYY-MM-DD. Range cannot exceed 100 days.'),
+  "departmentId": zod.coerce.number().optional(),
+  "branchId": zod.coerce.number().optional()
+})
+
+export const ListLeaveCalendarResponseItem = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "employeeName": zod.string(),
+  "leaveTypeId": zod.number(),
+  "leaveTypeName": zod.string(),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date(),
+  "daysRequested": zod.string()
+}).describe('The minimum identity fields the calendar UI needs — deliberately not the full LeaveRequest shape. Never includes reason, attachmentDocumentId, or any approval\/ledger detail.')
+export const ListLeaveCalendarResponse = zod.array(ListLeaveCalendarResponseItem)
+
+
+/**
  * Manager-scoped or organization-wide (leave_request.manage) approval authority required, on top of holding leave_request.approve — neither alone is sufficient. Self-approval is rejected. Atomically transitions the request and posts the immutable usage ledger entry (W34) in one transaction; rejected with a 409 if the request is no longer pending (already decided, concurrently or otherwise).
  * @summary Approve a pending leave request
  */

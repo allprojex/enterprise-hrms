@@ -61,6 +61,7 @@ import type {
   InvitationPreview,
   LeaveBalanceEntry,
   LeaveBalanceSummary,
+  LeaveCalendarEntry,
   LeavePolicy,
   LeaveRequest,
   LeaveType,
@@ -68,6 +69,7 @@ import type {
   ListAuditEventsParams,
   ListEmployeesParams,
   ListLeaveBalanceLedgerParams,
+  ListLeaveCalendarParams,
   LoginInput,
   MasterDataDomain,
   MasterDataItem,
@@ -4173,6 +4175,96 @@ export function useListPendingApprovals<TData = Awaited<ReturnType<typeof listPe
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListPendingApprovalsQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListLeaveCalendarUrl = (organizationId: number,
+    params: ListLeaveCalendarParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/leave-calendar?${stringifiedParams}` : `/api/organizations/${organizationId}/leave-calendar`
+}
+
+/**
+ * A read model over leave_requests — never a second source of truth. Only status "approved" is ever included. Org-wide for leave_request.manage holders; otherwise scoped to the caller's own approved leave plus their direct reports' (employees. reportingManagerId), same as leave-requests/pending-approvals. Confidential fields (reason, attachments, approval comments) are never returned. The date range is bounded server-side. Gated by the "leave" module.
+ * @summary Organization-scoped calendar of approved leave within a date range
+ */
+export const listLeaveCalendar = async (organizationId: number,
+    params: ListLeaveCalendarParams, options?: RequestInit): Promise<LeaveCalendarEntry[]> => {
+
+  return customFetch<LeaveCalendarEntry[]>(getListLeaveCalendarUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLeaveCalendarQueryKey = (organizationId: number,
+    params?: ListLeaveCalendarParams,) => {
+    return [
+    `/api/organizations/${organizationId}/leave-calendar`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListLeaveCalendarQueryOptions = <TData = Awaited<ReturnType<typeof listLeaveCalendar>>, TError = ErrorType<ApiError>>(organizationId: number,
+    params: ListLeaveCalendarParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeaveCalendar>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLeaveCalendarQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLeaveCalendar>>> = ({ signal }) => listLeaveCalendar(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLeaveCalendar>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLeaveCalendarQueryResult = NonNullable<Awaited<ReturnType<typeof listLeaveCalendar>>>
+export type ListLeaveCalendarQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Organization-scoped calendar of approved leave within a date range
+ */
+
+export function useListLeaveCalendar<TData = Awaited<ReturnType<typeof listLeaveCalendar>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    params: ListLeaveCalendarParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeaveCalendar>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLeaveCalendarQueryOptions(organizationId,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

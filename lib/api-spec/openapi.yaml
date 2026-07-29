@@ -1878,6 +1878,66 @@ paths:
                 items:
                   $ref: "#/components/schemas/LeaveRequest"
 
+  /organizations/{organizationId}/leave-calendar:
+    get:
+      operationId: listLeaveCalendar
+      tags: [leave-calendar]
+      summary: Organization-scoped calendar of approved leave within a date range
+      description: >-
+        A read model over leave_requests — never a second source of truth.
+        Only status "approved" is ever included. Org-wide for
+        leave_request.manage holders; otherwise scoped to the caller's own
+        approved leave plus their direct reports' (employees.
+        reportingManagerId), same as leave-requests/pending-approvals.
+        Confidential fields (reason, attachments, approval comments) are
+        never returned. The date range is bounded server-side. Gated by the
+        "leave" module.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: from
+          in: query
+          required: true
+          description: Inclusive range start, YYYY-MM-DD.
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: true
+          description: Inclusive range end, YYYY-MM-DD. Range cannot exceed 100 days.
+          schema:
+            type: string
+            format: date
+        - name: departmentId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: branchId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Approved leave overlapping the requested range, visible to the caller
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaveCalendarEntry"
+        "400":
+          description: Missing/invalid from or to, or the range exceeds 100 days
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /organizations/{organizationId}/employees/{employeeId}/leave-requests/{id}/approve:
     post:
       operationId: approveLeaveRequest
@@ -4245,6 +4305,33 @@ components:
         updatedAt:
           type: string
           format: date-time
+
+    LeaveCalendarEntry:
+      type: object
+      description: >-
+        The minimum identity fields the calendar UI needs — deliberately not
+        the full LeaveRequest shape. Never includes reason,
+        attachmentDocumentId, or any approval/ledger detail.
+      required: [id, employeeId, employeeName, leaveTypeId, leaveTypeName, startDate, endDate, daysRequested]
+      properties:
+        id:
+          type: integer
+        employeeId:
+          type: integer
+        employeeName:
+          type: string
+        leaveTypeId:
+          type: integer
+        leaveTypeName:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        daysRequested:
+          type: string
 
     RejectLeaveRequestInput:
       type: object

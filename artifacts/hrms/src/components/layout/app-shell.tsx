@@ -21,6 +21,7 @@ import {
   CalendarClock,
   Wallet,
   ClipboardCheck,
+  CalendarRange,
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -275,6 +276,7 @@ export function AppShell({ children }: AppShellProps) {
     { href: '/positions',      label: 'Positions',      icon: Briefcase },
     { href: '/my-leave',       label: 'My Leave',       icon: CalendarClock },
     { href: '/leave-approvals', label: 'Leave Approvals', icon: ClipboardCheck },
+    { href: '/leave-calendar', label: 'Leave Calendar', icon: CalendarRange },
     { href: '/leave-types',    label: 'Leave Types',    icon: CalendarDays },
     ...(isHrCapable ? [{ href: '/leave-balances', label: 'Leave Balances', icon: Wallet } satisfies NavItem] : []),
     { href: '/organizations',  label: 'Organisations',  icon: Building },

@@ -254,6 +254,20 @@ export interface LeaveRequest {
   updatedAt: string;
 }
 
+/**
+ * The minimum identity fields the calendar UI needs — deliberately not the full LeaveRequest shape. Never includes reason, attachmentDocumentId, or any approval/ledger detail.
+ */
+export interface LeaveCalendarEntry {
+  id: number;
+  employeeId: number;
+  employeeName: string;
+  leaveTypeId: number;
+  leaveTypeName: string;
+  startDate: string;
+  endDate: string;
+  daysRequested: string;
+}
+
 export interface RejectLeaveRequestInput {
   reason?: string;
 }
@@ -1687,6 +1701,19 @@ export type UploadEmployeeDocumentBody = {
   file: Blob;
   /** Code from the "document_category" Master Data domain. */
   categoryCode: string;
+};
+
+export type ListLeaveCalendarParams = {
+/**
+ * Inclusive range start, YYYY-MM-DD.
+ */
+from: string;
+/**
+ * Inclusive range end, YYYY-MM-DD. Range cannot exceed 100 days.
+ */
+to: string;
+departmentId?: number;
+branchId?: number;
 };
 
 export type ListLeaveBalanceLedgerParams = {
