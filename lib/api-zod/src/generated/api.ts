@@ -2928,6 +2928,539 @@ export const RejectJobRequisitionResponse = zod.object({
 
 
 /**
+ * Visibility-filtered per caller: organization-wide for vacancy.manage holders, otherwise scoped to vacancies whose linked requisition assigns the caller as recruiter or hiring manager (a vacancy carries no recruiter/hiring-manager column of its own — docs/PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md §7/§9).
+ * @summary List vacancies
+ */
+export const ListVacanciesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const listVacanciesQueryPageDefault = 1;
+export const listVacanciesQueryPageSizeDefault = 20;
+
+export const ListVacanciesQueryParams = zod.object({
+  "status": zod.enum(['draft', 'scheduled', 'published', 'paused', 'closed', 'archived']).optional(),
+  "requisitionId": zod.coerce.number().optional(),
+  "search": zod.coerce.string().optional(),
+  "page": zod.coerce.number().default(listVacanciesQueryPageDefault),
+  "pageSize": zod.coerce.number().default(listVacanciesQueryPageSizeDefault)
+})
+
+export const ListVacanciesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "requisitionId": zod.number(),
+  "workflowId": zod.number().nullable(),
+  "publicId": zod.string().describe('Reserved for a later public careers workstream — not consumed by anything in this workstream.'),
+  "title": zod.string(),
+  "visibility": zod.enum(['internal', 'external', 'both']),
+  "status": zod.enum(['draft', 'scheduled', 'published', 'paused', 'closed', 'archived']),
+  "openingsCount": zod.number(),
+  "filledCount": zod.number().describe('Never client-settable. Always 0 in this workstream.'),
+  "openDate": zod.coerce.date().nullable(),
+  "closeDate": zod.coerce.date().nullable(),
+  "jobDescription": zod.string().nullable(),
+  "responsibilities": zod.string().nullable(),
+  "requirements": zod.string().nullable(),
+  "preferredQualifications": zod.string().nullable(),
+  "seoTitle": zod.string().nullable(),
+  "seoDescription": zod.string().nullable(),
+  "featured": zod.boolean(),
+  "createdBy": zod.number().nullable(),
+  "updatedBy": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "locations": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "vacancyId": zod.number(),
+  "branchId": zod.number().nullable(),
+  "label": zod.string().nullable().describe('Free-text location (e.g. \"Remote\") used when branchId is unset.'),
+  "createdAt": zod.coerce.date()
+})),
+  "questions": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "vacancyId": zod.number(),
+  "questionText": zod.string(),
+  "questionType": zod.enum(['text', 'yes_no', 'multiple_choice', 'numeric']),
+  "isKnockout": zod.boolean(),
+  "expectedAnswer": zod.string().nullable().describe('Only meaningful for knockout auto-scoring.'),
+  "displayOrder": zod.number(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+}).describe('The postable unit produced from an approved job requisition (Phase 3A W48 in the frozen plan\'s own numbering). Internal lifecycle only — no public careers exposure exists yet. filledCount is always 0 in this workstream; nothing increments it.')),
+  "total": zod.number(),
+  "page": zod.number(),
+  "pageSize": zod.number()
+})
+
+
+/**
+ * Always created as draft. Only permitted from an approved requisition belonging to this organization — requisitions in any other status are rejected with 400. filledCount is never client-settable.
+ * @summary Create a vacancy
+ */
+export const CreateVacancyParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+
+
+
+
+export const CreateVacancyBody = zod.object({
+  "requisitionId": zod.number(),
+  "workflowId": zod.number().nullish(),
+  "title": zod.string().min(1),
+  "visibility": zod.enum(['internal', 'external', 'both']).optional(),
+  "openingsCount": zod.number().min(1).optional(),
+  "openDate": zod.coerce.date().nullish(),
+  "closeDate": zod.coerce.date().nullish(),
+  "jobDescription": zod.string().nullish(),
+  "responsibilities": zod.string().nullish(),
+  "requirements": zod.string().nullish(),
+  "preferredQualifications": zod.string().nullish(),
+  "seoTitle": zod.string().nullish(),
+  "seoDescription": zod.string().nullish(),
+  "featured": zod.boolean().optional(),
+  "locations": zod.array(zod.object({
+  "branchId": zod.number().nullish(),
+  "label": zod.string().nullish()
+})).optional(),
+  "questions": zod.array(zod.object({
+  "questionText": zod.string().min(1),
+  "questionType": zod.enum(['text', 'yes_no', 'multiple_choice', 'numeric']).optional(),
+  "isKnockout": zod.boolean().optional(),
+  "expectedAnswer": zod.string().nullish(),
+  "displayOrder": zod.number().optional()
+})).optional()
+})
+
+export const CreateVacancyResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "requisitionId": zod.number(),
+  "workflowId": zod.number().nullable(),
+  "publicId": zod.string().describe('Reserved for a later public careers workstream — not consumed by anything in this workstream.'),
+  "title": zod.string(),
+  "visibility": zod.enum(['internal', 'external', 'both']),
+  "status": zod.enum(['draft', 'scheduled', 'published', 'paused', 'closed', 'archived']),
+  "openingsCount": zod.number(),
+  "filledCount": zod.number().describe('Never client-settable. Always 0 in this workstream.'),
+  "openDate": zod.coerce.date().nullable(),
+  "closeDate": zod.coerce.date().nullable(),
+  "jobDescription": zod.string().nullable(),
+  "responsibilities": zod.string().nullable(),
+  "requirements": zod.string().nullable(),
+  "preferredQualifications": zod.string().nullable(),
+  "seoTitle": zod.string().nullable(),
+  "seoDescription": zod.string().nullable(),
+  "featured": zod.boolean(),
+  "createdBy": zod.number().nullable(),
+  "updatedBy": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "locations": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "vacancyId": zod.number(),
+  "branchId": zod.number().nullable(),
+  "label": zod.string().nullable().describe('Free-text location (e.g. \"Remote\") used when branchId is unset.'),
+  "createdAt": zod.coerce.date()
+})),
+  "questions": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "vacancyId": zod.number(),
+  "questionText": zod.string(),
+  "questionType": zod.enum(['text', 'yes_no', 'multiple_choice', 'numeric']),
+  "isKnockout": zod.boolean(),
+  "expectedAnswer": zod.string().nullable().describe('Only meaningful for knockout auto-scoring.'),
+  "displayOrder": zod.number(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+}).describe('The postable unit produced from an approved job requisition (Phase 3A W48 in the frozen plan\'s own numbering). Internal lifecycle only — no public careers exposure exists yet. filledCount is always 0 in this workstream; nothing increments it.')
+
+
+/**
+ * Returns 404 both when the vacancy doesn't exist and when it exists but isn't visible to this caller — never distinguishing the two.
+ * @summary Get a vacancy
+ */
+export const GetVacancyParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const GetVacancyResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "requisitionId": zod.number(),
+  "workflowId": zod.number().nullable(),
+  "publicId": zod.string().describe('Reserved for a later public careers workstream — not consumed by anything in this workstream.'),
+  "title": zod.string(),
+  "visibility": zod.enum(['internal', 'external', 'both']),
+  "status": zod.enum(['draft', 'scheduled', 'published', 'paused', 'closed', 'archived']),
+  "openingsCount": zod.number(),
+  "filledCount": zod.number().describe('Never client-settable. Always 0 in this workstream.'),
+  "openDate": zod.coerce.date().nullable(),
+  "closeDate": zod.coerce.date().nullable(),
+  "jobDescription": zod.string().nullable(),
+  "responsibilities": zod.string().nullable(),
+  "requirements": zod.string().nullable(),
+  "preferredQualifications": zod.string().nullable(),
+  "seoTitle": zod.string().nullable(),
+  "seoDescription": zod.string().nullable(),
+  "featured": zod.boolean(),
+  "createdBy": zod.number().nullable(),
+  "updatedBy": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "locations": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "vacancyId": zod.number(),
+  "branchId": zod.number().nullable(),
+  "label": zod.string().nullable().describe('Free-text location (e.g. \"Remote\") used when branchId is unset.'),
+  "createdAt": zod.coerce.date()
+})),
+  "questions": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "vacancyId": zod.number(),
+  "questionText": zod.string(),
+  "questionType": zod.enum(['text', 'yes_no', 'multiple_choice', 'numeric']),
+  "isKnockout": zod.boolean(),
+  "expectedAnswer": zod.string().nullable().describe('Only meaningful for knockout auto-scoring.'),
+  "displayOrder": zod.number(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+}).describe('The postable unit produced from an approved job requisition (Phase 3A W48 in the frozen plan\'s own numbering). Internal lifecycle only — no public careers exposure exists yet. filledCount is always 0 in this workstream; nothing increments it.')
+
+
+/**
+ * Only permitted while status is draft — protected fields (status, filledCount, publicId, audit metadata) are never accepted here.
+ * @summary Update a draft vacancy
+ */
+export const UpdateVacancyParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+
+
+
+
+
+export const UpdateVacancyBody = zod.object({
+  "workflowId": zod.number().nullish(),
+  "title": zod.string().min(1).optional(),
+  "visibility": zod.enum(['internal', 'external', 'both']).optional(),
+  "openingsCount": zod.number().min(1).optional(),
+  "openDate": zod.coerce.date().nullish(),
+  "closeDate": zod.coerce.date().nullish(),
+  "jobDescription": zod.string().nullish(),
+  "responsibilities": zod.string().nullish(),
+  "requirements": zod.string().nullish(),
+  "preferredQualifications": zod.string().nullish(),
+  "seoTitle": zod.string().nullish(),
+  "seoDescription": zod.string().nullish(),
+  "featured": zod.boolean().optional(),
+  "locations": zod.array(zod.object({
+  "branchId": zod.number().nullish(),
+  "label": zod.string().nullish()
+})).optional(),
+  "questions": zod.array(zod.object({
+  "questionText": zod.string().min(1),
+  "questionType": zod.enum(['text', 'yes_no', 'multiple_choice', 'numeric']).optional(),
+  "isKnockout": zod.boolean().optional(),
+  "expectedAnswer": zod.string().nullish(),
+  "displayOrder": zod.number().optional()
+})).optional()
+}).describe('Only accepted while the vacancy is in draft — status, filledCount, publicId, and audit fields are never accepted here.')
+
+export const UpdateVacancyResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "requisitionId": zod.number(),
+  "workflowId": zod.number().nullable(),
+  "publicId": zod.string().describe('Reserved for a later public careers workstream — not consumed by anything in this workstream.'),
+  "title": zod.string(),
+  "visibility": zod.enum(['internal', 'external', 'both']),
+  "status": zod.enum(['draft', 'scheduled', 'published', 'paused', 'closed', 'archived']),
+  "openingsCount": zod.number(),
+  "filledCount": zod.number().describe('Never client-settable. Always 0 in this workstream.'),
+  "openDate": zod.coerce.date().nullable(),
+  "closeDate": zod.coerce.date().nullable(),
+  "jobDescription": zod.string().nullable(),
+  "responsibilities": zod.string().nullable(),
+  "requirements": zod.string().nullable(),
+  "preferredQualifications": zod.string().nullable(),
+  "seoTitle": zod.string().nullable(),
+  "seoDescription": zod.string().nullable(),
+  "featured": zod.boolean(),
+  "createdBy": zod.number().nullable(),
+  "updatedBy": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "locations": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "vacancyId": zod.number(),
+  "branchId": zod.number().nullable(),
+  "label": zod.string().nullable().describe('Free-text location (e.g. \"Remote\") used when branchId is unset.'),
+  "createdAt": zod.coerce.date()
+})),
+  "questions": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "vacancyId": zod.number(),
+  "questionText": zod.string(),
+  "questionType": zod.enum(['text', 'yes_no', 'multiple_choice', 'numeric']),
+  "isKnockout": zod.boolean(),
+  "expectedAnswer": zod.string().nullable().describe('Only meaningful for knockout auto-scoring.'),
+  "displayOrder": zod.number(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+}).describe('The postable unit produced from an approved job requisition (Phase 3A W48 in the frozen plan\'s own numbering). Internal lifecycle only — no public careers exposure exists yet. filledCount is always 0 in this workstream; nothing increments it.')
+
+
+/**
+ * draft, scheduled, or paused -> scheduled or published. From draft, goes straight to published when openDate is unset or not in the future; otherwise becomes scheduled. Calling publish again on an already-scheduled vacancy always flips it live immediately (the manual operator flip — no background scheduler exists in this phase). Also used for the paused -> published "resume" direction, which likewise always goes straight to published.
+ * @summary Publish (or resume) a vacancy
+ */
+export const PublishVacancyParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const PublishVacancyResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "requisitionId": zod.number(),
+  "workflowId": zod.number().nullable(),
+  "publicId": zod.string().describe('Reserved for a later public careers workstream — not consumed by anything in this workstream.'),
+  "title": zod.string(),
+  "visibility": zod.enum(['internal', 'external', 'both']),
+  "status": zod.enum(['draft', 'scheduled', 'published', 'paused', 'closed', 'archived']),
+  "openingsCount": zod.number(),
+  "filledCount": zod.number().describe('Never client-settable. Always 0 in this workstream.'),
+  "openDate": zod.coerce.date().nullable(),
+  "closeDate": zod.coerce.date().nullable(),
+  "jobDescription": zod.string().nullable(),
+  "responsibilities": zod.string().nullable(),
+  "requirements": zod.string().nullable(),
+  "preferredQualifications": zod.string().nullable(),
+  "seoTitle": zod.string().nullable(),
+  "seoDescription": zod.string().nullable(),
+  "featured": zod.boolean(),
+  "createdBy": zod.number().nullable(),
+  "updatedBy": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "locations": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "vacancyId": zod.number(),
+  "branchId": zod.number().nullable(),
+  "label": zod.string().nullable().describe('Free-text location (e.g. \"Remote\") used when branchId is unset.'),
+  "createdAt": zod.coerce.date()
+})),
+  "questions": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "vacancyId": zod.number(),
+  "questionText": zod.string(),
+  "questionType": zod.enum(['text', 'yes_no', 'multiple_choice', 'numeric']),
+  "isKnockout": zod.boolean(),
+  "expectedAnswer": zod.string().nullable().describe('Only meaningful for knockout auto-scoring.'),
+  "displayOrder": zod.number(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+}).describe('The postable unit produced from an approved job requisition (Phase 3A W48 in the frozen plan\'s own numbering). Internal lifecycle only — no public careers exposure exists yet. filledCount is always 0 in this workstream; nothing increments it.')
+
+
+/**
+ * @summary Pause a published vacancy
+ */
+export const PauseVacancyParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const PauseVacancyResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "requisitionId": zod.number(),
+  "workflowId": zod.number().nullable(),
+  "publicId": zod.string().describe('Reserved for a later public careers workstream — not consumed by anything in this workstream.'),
+  "title": zod.string(),
+  "visibility": zod.enum(['internal', 'external', 'both']),
+  "status": zod.enum(['draft', 'scheduled', 'published', 'paused', 'closed', 'archived']),
+  "openingsCount": zod.number(),
+  "filledCount": zod.number().describe('Never client-settable. Always 0 in this workstream.'),
+  "openDate": zod.coerce.date().nullable(),
+  "closeDate": zod.coerce.date().nullable(),
+  "jobDescription": zod.string().nullable(),
+  "responsibilities": zod.string().nullable(),
+  "requirements": zod.string().nullable(),
+  "preferredQualifications": zod.string().nullable(),
+  "seoTitle": zod.string().nullable(),
+  "seoDescription": zod.string().nullable(),
+  "featured": zod.boolean(),
+  "createdBy": zod.number().nullable(),
+  "updatedBy": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "locations": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "vacancyId": zod.number(),
+  "branchId": zod.number().nullable(),
+  "label": zod.string().nullable().describe('Free-text location (e.g. \"Remote\") used when branchId is unset.'),
+  "createdAt": zod.coerce.date()
+})),
+  "questions": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "vacancyId": zod.number(),
+  "questionText": zod.string(),
+  "questionType": zod.enum(['text', 'yes_no', 'multiple_choice', 'numeric']),
+  "isKnockout": zod.boolean(),
+  "expectedAnswer": zod.string().nullable().describe('Only meaningful for knockout auto-scoring.'),
+  "displayOrder": zod.number(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+}).describe('The postable unit produced from an approved job requisition (Phase 3A W48 in the frozen plan\'s own numbering). Internal lifecycle only — no public careers exposure exists yet. filledCount is always 0 in this workstream; nothing increments it.')
+
+
+/**
+ * draft, scheduled, published, or paused -> closed. The single terminal-exit action this workstream implements (the frozen plan's separate `cancelled` state is folded into `closed` here — see lib/db/src/schema/vacancies.ts).
+ * @summary Close a vacancy
+ */
+export const CloseVacancyParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const CloseVacancyResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "requisitionId": zod.number(),
+  "workflowId": zod.number().nullable(),
+  "publicId": zod.string().describe('Reserved for a later public careers workstream — not consumed by anything in this workstream.'),
+  "title": zod.string(),
+  "visibility": zod.enum(['internal', 'external', 'both']),
+  "status": zod.enum(['draft', 'scheduled', 'published', 'paused', 'closed', 'archived']),
+  "openingsCount": zod.number(),
+  "filledCount": zod.number().describe('Never client-settable. Always 0 in this workstream.'),
+  "openDate": zod.coerce.date().nullable(),
+  "closeDate": zod.coerce.date().nullable(),
+  "jobDescription": zod.string().nullable(),
+  "responsibilities": zod.string().nullable(),
+  "requirements": zod.string().nullable(),
+  "preferredQualifications": zod.string().nullable(),
+  "seoTitle": zod.string().nullable(),
+  "seoDescription": zod.string().nullable(),
+  "featured": zod.boolean(),
+  "createdBy": zod.number().nullable(),
+  "updatedBy": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "locations": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "vacancyId": zod.number(),
+  "branchId": zod.number().nullable(),
+  "label": zod.string().nullable().describe('Free-text location (e.g. \"Remote\") used when branchId is unset.'),
+  "createdAt": zod.coerce.date()
+})),
+  "questions": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "vacancyId": zod.number(),
+  "questionText": zod.string(),
+  "questionType": zod.enum(['text', 'yes_no', 'multiple_choice', 'numeric']),
+  "isKnockout": zod.boolean(),
+  "expectedAnswer": zod.string().nullable().describe('Only meaningful for knockout auto-scoring.'),
+  "displayOrder": zod.number(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+}).describe('The postable unit produced from an approved job requisition (Phase 3A W48 in the frozen plan\'s own numbering). Internal lifecycle only — no public careers exposure exists yet. filledCount is always 0 in this workstream; nothing increments it.')
+
+
+/**
+ * @summary Archive a closed vacancy
+ */
+export const ArchiveVacancyParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ArchiveVacancyResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "requisitionId": zod.number(),
+  "workflowId": zod.number().nullable(),
+  "publicId": zod.string().describe('Reserved for a later public careers workstream — not consumed by anything in this workstream.'),
+  "title": zod.string(),
+  "visibility": zod.enum(['internal', 'external', 'both']),
+  "status": zod.enum(['draft', 'scheduled', 'published', 'paused', 'closed', 'archived']),
+  "openingsCount": zod.number(),
+  "filledCount": zod.number().describe('Never client-settable. Always 0 in this workstream.'),
+  "openDate": zod.coerce.date().nullable(),
+  "closeDate": zod.coerce.date().nullable(),
+  "jobDescription": zod.string().nullable(),
+  "responsibilities": zod.string().nullable(),
+  "requirements": zod.string().nullable(),
+  "preferredQualifications": zod.string().nullable(),
+  "seoTitle": zod.string().nullable(),
+  "seoDescription": zod.string().nullable(),
+  "featured": zod.boolean(),
+  "createdBy": zod.number().nullable(),
+  "updatedBy": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "locations": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "vacancyId": zod.number(),
+  "branchId": zod.number().nullable(),
+  "label": zod.string().nullable().describe('Free-text location (e.g. \"Remote\") used when branchId is unset.'),
+  "createdAt": zod.coerce.date()
+})),
+  "questions": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "vacancyId": zod.number(),
+  "questionText": zod.string(),
+  "questionType": zod.enum(['text', 'yes_no', 'multiple_choice', 'numeric']),
+  "isKnockout": zod.boolean(),
+  "expectedAnswer": zod.string().nullable().describe('Only meaningful for knockout auto-scoring.'),
+  "displayOrder": zod.number(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+}).describe('The postable unit produced from an approved job requisition (Phase 3A W48 in the frozen plan\'s own numbering). Internal lifecycle only — no public careers exposure exists yet. filledCount is always 0 in this workstream; nothing increments it.')
+
+
+/**
  * Manager-scoped or organization-wide (leave_request.manage) approval authority required, on top of holding leave_request.approve — neither alone is sufficient. Self-approval is rejected. Atomically transitions the request and posts the immutable usage ledger entry (W34) in one transaction; rejected with a 409 if the request is no longer pending (already decided, concurrently or otherwise).
  * @summary Approve a pending leave request
  */

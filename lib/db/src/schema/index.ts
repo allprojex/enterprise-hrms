@@ -40,3 +40,6 @@ export * from "./recruitment-stages";
 export * from "./recruitment-settings";
 export * from "./job-requisitions";
 export * from "./requisition-approvals";
+export * from "./vacancies";
+export * from "./vacancy-locations";
+export * from "./vacancy-questions";

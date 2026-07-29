@@ -50,6 +50,7 @@ import type {
   CreatePublicHolidayInput,
   CreateRecruitmentStageInput,
   CreateRecruitmentWorkflowInput,
+  CreateVacancyInput,
   DashboardSummary,
   Department,
   Employee,
@@ -80,6 +81,7 @@ import type {
   ListLeaveBalanceLedgerParams,
   ListLeaveCalendarParams,
   ListPublicHolidaysParams,
+  ListVacanciesParams,
   LoginInput,
   MasterDataDomain,
   MasterDataItem,
@@ -135,10 +137,13 @@ import type {
   UpdateRecruitmentSettingsInput,
   UpdateRecruitmentStageInput,
   UpdateRecruitmentWorkflowInput,
+  UpdateVacancyInput,
   UploadEmployeeDocumentBody,
   UploadEmployeeProfilePictureBody,
   UserProfile,
-  UserProfileUpdate
+  UserProfileUpdate,
+  Vacancy,
+  VacancyListResponse
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -6745,6 +6750,621 @@ export const useRejectJobRequisition = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getRejectJobRequisitionMutationOptions(options));
+    }
+
+export const getListVacanciesUrl = (organizationId: number,
+    params?: ListVacanciesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/vacancies?${stringifiedParams}` : `/api/organizations/${organizationId}/vacancies`
+}
+
+/**
+ * Visibility-filtered per caller: organization-wide for vacancy.manage holders, otherwise scoped to vacancies whose linked requisition assigns the caller as recruiter or hiring manager (a vacancy carries no recruiter/hiring-manager column of its own — docs/PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md §7/§9).
+ * @summary List vacancies
+ */
+export const listVacancies = async (organizationId: number,
+    params?: ListVacanciesParams, options?: RequestInit): Promise<VacancyListResponse> => {
+
+  return customFetch<VacancyListResponse>(getListVacanciesUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListVacanciesQueryKey = (organizationId: number,
+    params?: ListVacanciesParams,) => {
+    return [
+    `/api/organizations/${organizationId}/vacancies`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListVacanciesQueryOptions = <TData = Awaited<ReturnType<typeof listVacancies>>, TError = ErrorType<unknown>>(organizationId: number,
+    params?: ListVacanciesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listVacancies>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListVacanciesQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listVacancies>>> = ({ signal }) => listVacancies(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listVacancies>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListVacanciesQueryResult = NonNullable<Awaited<ReturnType<typeof listVacancies>>>
+export type ListVacanciesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List vacancies
+ */
+
+export function useListVacancies<TData = Awaited<ReturnType<typeof listVacancies>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    params?: ListVacanciesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listVacancies>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListVacanciesQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateVacancyUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/vacancies`
+}
+
+/**
+ * Always created as draft. Only permitted from an approved requisition belonging to this organization — requisitions in any other status are rejected with 400. filledCount is never client-settable.
+ * @summary Create a vacancy
+ */
+export const createVacancy = async (organizationId: number,
+    createVacancyInput: CreateVacancyInput, options?: RequestInit): Promise<Vacancy> => {
+
+  return customFetch<Vacancy>(getCreateVacancyUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createVacancyInput)
+  }
+);}
+
+
+
+
+
+export const getCreateVacancyMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createVacancy>>, TError,{organizationId: number;data: BodyType<CreateVacancyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createVacancy>>, TError,{organizationId: number;data: BodyType<CreateVacancyInput>}, TContext> => {
+
+const mutationKey = ['createVacancy'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createVacancy>>, {organizationId: number;data: BodyType<CreateVacancyInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createVacancy(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateVacancyMutationResult = NonNullable<Awaited<ReturnType<typeof createVacancy>>>
+    export type CreateVacancyMutationBody = BodyType<CreateVacancyInput>
+    export type CreateVacancyMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Create a vacancy
+ */
+export const useCreateVacancy = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createVacancy>>, TError,{organizationId: number;data: BodyType<CreateVacancyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createVacancy>>,
+        TError,
+        {organizationId: number;data: BodyType<CreateVacancyInput>},
+        TContext
+      > => {
+      return useMutation(getCreateVacancyMutationOptions(options));
+    }
+
+export const getGetVacancyUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/vacancies/${id}`
+}
+
+/**
+ * Returns 404 both when the vacancy doesn't exist and when it exists but isn't visible to this caller — never distinguishing the two.
+ * @summary Get a vacancy
+ */
+export const getVacancy = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<Vacancy> => {
+
+  return customFetch<Vacancy>(getGetVacancyUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetVacancyQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/vacancies/${id}`
+    ] as const;
+    }
+
+
+export const getGetVacancyQueryOptions = <TData = Awaited<ReturnType<typeof getVacancy>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVacancy>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVacancyQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVacancy>>> = ({ signal }) => getVacancy(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVacancy>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetVacancyQueryResult = NonNullable<Awaited<ReturnType<typeof getVacancy>>>
+export type GetVacancyQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get a vacancy
+ */
+
+export function useGetVacancy<TData = Awaited<ReturnType<typeof getVacancy>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVacancy>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetVacancyQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateVacancyUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/vacancies/${id}`
+}
+
+/**
+ * Only permitted while status is draft — protected fields (status, filledCount, publicId, audit metadata) are never accepted here.
+ * @summary Update a draft vacancy
+ */
+export const updateVacancy = async (organizationId: number,
+    id: number,
+    updateVacancyInput: UpdateVacancyInput, options?: RequestInit): Promise<Vacancy> => {
+
+  return customFetch<Vacancy>(getUpdateVacancyUrl(organizationId,id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateVacancyInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateVacancyMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateVacancy>>, TError,{organizationId: number;id: number;data: BodyType<UpdateVacancyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateVacancy>>, TError,{organizationId: number;id: number;data: BodyType<UpdateVacancyInput>}, TContext> => {
+
+const mutationKey = ['updateVacancy'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateVacancy>>, {organizationId: number;id: number;data: BodyType<UpdateVacancyInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  updateVacancy(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateVacancyMutationResult = NonNullable<Awaited<ReturnType<typeof updateVacancy>>>
+    export type UpdateVacancyMutationBody = BodyType<UpdateVacancyInput>
+    export type UpdateVacancyMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update a draft vacancy
+ */
+export const useUpdateVacancy = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateVacancy>>, TError,{organizationId: number;id: number;data: BodyType<UpdateVacancyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateVacancy>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<UpdateVacancyInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateVacancyMutationOptions(options));
+    }
+
+export const getPublishVacancyUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/vacancies/${id}/publish`
+}
+
+/**
+ * draft, scheduled, or paused -> scheduled or published. From draft, goes straight to published when openDate is unset or not in the future; otherwise becomes scheduled. Calling publish again on an already-scheduled vacancy always flips it live immediately (the manual operator flip — no background scheduler exists in this phase). Also used for the paused -> published "resume" direction, which likewise always goes straight to published.
+ * @summary Publish (or resume) a vacancy
+ */
+export const publishVacancy = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<Vacancy> => {
+
+  return customFetch<Vacancy>(getPublishVacancyUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getPublishVacancyMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishVacancy>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof publishVacancy>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['publishVacancy'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof publishVacancy>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  publishVacancy(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PublishVacancyMutationResult = NonNullable<Awaited<ReturnType<typeof publishVacancy>>>
+
+    export type PublishVacancyMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Publish (or resume) a vacancy
+ */
+export const usePublishVacancy = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishVacancy>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof publishVacancy>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getPublishVacancyMutationOptions(options));
+    }
+
+export const getPauseVacancyUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/vacancies/${id}/pause`
+}
+
+/**
+ * @summary Pause a published vacancy
+ */
+export const pauseVacancy = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<Vacancy> => {
+
+  return customFetch<Vacancy>(getPauseVacancyUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getPauseVacancyMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof pauseVacancy>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof pauseVacancy>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['pauseVacancy'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof pauseVacancy>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  pauseVacancy(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PauseVacancyMutationResult = NonNullable<Awaited<ReturnType<typeof pauseVacancy>>>
+
+    export type PauseVacancyMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Pause a published vacancy
+ */
+export const usePauseVacancy = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof pauseVacancy>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof pauseVacancy>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getPauseVacancyMutationOptions(options));
+    }
+
+export const getCloseVacancyUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/vacancies/${id}/close`
+}
+
+/**
+ * draft, scheduled, published, or paused -> closed. The single terminal-exit action this workstream implements (the frozen plan's separate `cancelled` state is folded into `closed` here — see lib/db/src/schema/vacancies.ts).
+ * @summary Close a vacancy
+ */
+export const closeVacancy = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<Vacancy> => {
+
+  return customFetch<Vacancy>(getCloseVacancyUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCloseVacancyMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closeVacancy>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof closeVacancy>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['closeVacancy'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof closeVacancy>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  closeVacancy(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CloseVacancyMutationResult = NonNullable<Awaited<ReturnType<typeof closeVacancy>>>
+
+    export type CloseVacancyMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Close a vacancy
+ */
+export const useCloseVacancy = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closeVacancy>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof closeVacancy>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getCloseVacancyMutationOptions(options));
+    }
+
+export const getArchiveVacancyUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/vacancies/${id}/archive`
+}
+
+/**
+ * @summary Archive a closed vacancy
+ */
+export const archiveVacancy = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<Vacancy> => {
+
+  return customFetch<Vacancy>(getArchiveVacancyUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getArchiveVacancyMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveVacancy>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof archiveVacancy>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['archiveVacancy'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof archiveVacancy>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  archiveVacancy(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ArchiveVacancyMutationResult = NonNullable<Awaited<ReturnType<typeof archiveVacancy>>>
+
+    export type ArchiveVacancyMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Archive a closed vacancy
+ */
+export const useArchiveVacancy = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveVacancy>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof archiveVacancy>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getArchiveVacancyMutationOptions(options));
     }
 
 export const getApproveLeaveRequestUrl = (organizationId: number,

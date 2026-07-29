@@ -1029,6 +1029,227 @@ export interface RejectJobRequisitionInput {
   comment?: string | null;
 }
 
+export interface VacancyLocation {
+  id: number;
+  organizationId: number;
+  vacancyId: number;
+  /** @nullable */
+  branchId: number | null;
+  /**
+     * Free-text location (e.g. "Remote") used when branchId is unset.
+     * @nullable
+     */
+  label: string | null;
+  createdAt: string;
+}
+
+export interface VacancyLocationInput {
+  /** @nullable */
+  branchId?: number | null;
+  /** @nullable */
+  label?: string | null;
+}
+
+export type VacancyQuestionQuestionType = typeof VacancyQuestionQuestionType[keyof typeof VacancyQuestionQuestionType];
+
+
+export const VacancyQuestionQuestionType = {
+  text: 'text',
+  yes_no: 'yes_no',
+  multiple_choice: 'multiple_choice',
+  numeric: 'numeric',
+} as const;
+
+export interface VacancyQuestion {
+  id: number;
+  organizationId: number;
+  vacancyId: number;
+  questionText: string;
+  questionType: VacancyQuestionQuestionType;
+  isKnockout: boolean;
+  /**
+     * Only meaningful for knockout auto-scoring.
+     * @nullable
+     */
+  expectedAnswer: string | null;
+  displayOrder: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type VacancyQuestionInputQuestionType = typeof VacancyQuestionInputQuestionType[keyof typeof VacancyQuestionInputQuestionType];
+
+
+export const VacancyQuestionInputQuestionType = {
+  text: 'text',
+  yes_no: 'yes_no',
+  multiple_choice: 'multiple_choice',
+  numeric: 'numeric',
+} as const;
+
+export interface VacancyQuestionInput {
+  /** @minLength 1 */
+  questionText: string;
+  questionType?: VacancyQuestionInputQuestionType;
+  isKnockout?: boolean;
+  /** @nullable */
+  expectedAnswer?: string | null;
+  displayOrder?: number;
+}
+
+export type VacancyVisibility = typeof VacancyVisibility[keyof typeof VacancyVisibility];
+
+
+export const VacancyVisibility = {
+  internal: 'internal',
+  external: 'external',
+  both: 'both',
+} as const;
+
+export type VacancyStatus = typeof VacancyStatus[keyof typeof VacancyStatus];
+
+
+export const VacancyStatus = {
+  draft: 'draft',
+  scheduled: 'scheduled',
+  published: 'published',
+  paused: 'paused',
+  closed: 'closed',
+  archived: 'archived',
+} as const;
+
+/**
+ * The postable unit produced from an approved job requisition (Phase 3A W48 in the frozen plan's own numbering). Internal lifecycle only — no public careers exposure exists yet. filledCount is always 0 in this workstream; nothing increments it.
+ */
+export interface Vacancy {
+  id: number;
+  organizationId: number;
+  requisitionId: number;
+  /** @nullable */
+  workflowId: number | null;
+  /** Reserved for a later public careers workstream — not consumed by anything in this workstream. */
+  publicId: string;
+  title: string;
+  visibility: VacancyVisibility;
+  status: VacancyStatus;
+  openingsCount: number;
+  /** Never client-settable. Always 0 in this workstream. */
+  filledCount: number;
+  /** @nullable */
+  openDate: string | null;
+  /** @nullable */
+  closeDate: string | null;
+  /** @nullable */
+  jobDescription: string | null;
+  /** @nullable */
+  responsibilities: string | null;
+  /** @nullable */
+  requirements: string | null;
+  /** @nullable */
+  preferredQualifications: string | null;
+  /** @nullable */
+  seoTitle: string | null;
+  /** @nullable */
+  seoDescription: string | null;
+  featured: boolean;
+  /** @nullable */
+  createdBy: number | null;
+  /** @nullable */
+  updatedBy: number | null;
+  createdAt: string;
+  updatedAt: string;
+  locations: VacancyLocation[];
+  questions: VacancyQuestion[];
+}
+
+export interface VacancyListResponse {
+  items: Vacancy[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export type CreateVacancyInputVisibility = typeof CreateVacancyInputVisibility[keyof typeof CreateVacancyInputVisibility];
+
+
+export const CreateVacancyInputVisibility = {
+  internal: 'internal',
+  external: 'external',
+  both: 'both',
+} as const;
+
+export interface CreateVacancyInput {
+  requisitionId: number;
+  /** @nullable */
+  workflowId?: number | null;
+  /** @minLength 1 */
+  title: string;
+  visibility?: CreateVacancyInputVisibility;
+  /** @minimum 1 */
+  openingsCount?: number;
+  /** @nullable */
+  openDate?: string | null;
+  /** @nullable */
+  closeDate?: string | null;
+  /** @nullable */
+  jobDescription?: string | null;
+  /** @nullable */
+  responsibilities?: string | null;
+  /** @nullable */
+  requirements?: string | null;
+  /** @nullable */
+  preferredQualifications?: string | null;
+  /** @nullable */
+  seoTitle?: string | null;
+  /** @nullable */
+  seoDescription?: string | null;
+  featured?: boolean;
+  locations?: VacancyLocationInput[];
+  questions?: VacancyQuestionInput[];
+}
+
+export type UpdateVacancyInputVisibility = typeof UpdateVacancyInputVisibility[keyof typeof UpdateVacancyInputVisibility];
+
+
+export const UpdateVacancyInputVisibility = {
+  internal: 'internal',
+  external: 'external',
+  both: 'both',
+} as const;
+
+/**
+ * Only accepted while the vacancy is in draft — status, filledCount, publicId, and audit fields are never accepted here.
+ */
+export interface UpdateVacancyInput {
+  /** @nullable */
+  workflowId?: number | null;
+  /** @minLength 1 */
+  title?: string;
+  visibility?: UpdateVacancyInputVisibility;
+  /** @minimum 1 */
+  openingsCount?: number;
+  /** @nullable */
+  openDate?: string | null;
+  /** @nullable */
+  closeDate?: string | null;
+  /** @nullable */
+  jobDescription?: string | null;
+  /** @nullable */
+  responsibilities?: string | null;
+  /** @nullable */
+  requirements?: string | null;
+  /** @nullable */
+  preferredQualifications?: string | null;
+  /** @nullable */
+  seoTitle?: string | null;
+  /** @nullable */
+  seoDescription?: string | null;
+  featured?: boolean;
+  locations?: VacancyLocationInput[];
+  questions?: VacancyQuestionInput[];
+}
+
 export type LeaveTypeStatus = typeof LeaveTypeStatus[keyof typeof LeaveTypeStatus];
 
 
@@ -2478,6 +2699,26 @@ export const ListJobRequisitionsRequisitionType = {
   volunteer: 'volunteer',
   contract: 'contract',
   ministry: 'ministry',
+} as const;
+
+export type ListVacanciesParams = {
+status?: ListVacanciesStatus;
+requisitionId?: number;
+search?: string;
+page?: number;
+pageSize?: number;
+};
+
+export type ListVacanciesStatus = typeof ListVacanciesStatus[keyof typeof ListVacanciesStatus];
+
+
+export const ListVacanciesStatus = {
+  draft: 'draft',
+  scheduled: 'scheduled',
+  published: 'published',
+  paused: 'paused',
+  closed: 'closed',
+  archived: 'archived',
 } as const;
 
 export type ListLeaveBalanceLedgerParams = {

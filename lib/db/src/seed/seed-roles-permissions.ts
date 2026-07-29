@@ -77,6 +77,19 @@ const PERMISSIONS = [
   // delegation configuration exists yet anywhere in Recruitment — see
   // requisitionApprovals.ts for the documented simplification.
   { key: "requisition.approve", resource: "requisition", action: "approve" },
+  // Phase 3A, W48 in the frozen plan's own numbering (this session's W47) —
+  // Vacancy Management Foundation. `vacancy.read` is seeded to every role,
+  // same reasoning as requisition.read (any employee could be the assigned
+  // recruiter/hiring manager on the linked requisition — the frozen plan's
+  // §7 permission matrix has no "own" tier for vacancies, only assigned/
+  // org-wide, resolved per-record in the service layer). `.manage`
+  // (create/update), `.publish` (publish/pause), and `.close` (close/
+  // archive) are administrative, org_admin/hr_manager only, same rollout as
+  // requisition.create/.update/.cancel.
+  { key: "vacancy.read", resource: "vacancy", action: "read" },
+  { key: "vacancy.manage", resource: "vacancy", action: "manage" },
+  { key: "vacancy.publish", resource: "vacancy", action: "publish" },
+  { key: "vacancy.close", resource: "vacancy", action: "close" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -116,6 +129,10 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "requisition.update",
     "requisition.cancel",
     "requisition.approve",
+    "vacancy.read",
+    "vacancy.manage",
+    "vacancy.publish",
+    "vacancy.close",
   ],
   hr_manager: [
     "organization.read",
@@ -145,6 +162,10 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "requisition.update",
     "requisition.cancel",
     "requisition.approve",
+    "vacancy.read",
+    "vacancy.manage",
+    "vacancy.publish",
+    "vacancy.close",
   ],
   employee: [
     "organization.read",
@@ -158,6 +179,7 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "leave_request.write.own",
     "leave_request.approve",
     "requisition.read",
+    "vacancy.read",
   ],
 };
 

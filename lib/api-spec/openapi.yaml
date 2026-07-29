@@ -44,6 +44,8 @@ tags:
     description: Employee Self-Service operations
   - name: recruitment
     description: Recruitment Configuration operations (settings, workflows, stages)
+  - name: vacancies
+    description: Vacancy management operations (the postable unit produced from an approved job requisition)
 
 paths:
   /healthz:
@@ -3077,6 +3079,315 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "409":
           description: Requisition is not currently awaiting a decision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/vacancies:
+    get:
+      operationId: listVacancies
+      tags: [vacancies]
+      summary: List vacancies
+      description: >-
+        Visibility-filtered per caller: organization-wide for vacancy.manage
+        holders, otherwise scoped to vacancies whose linked requisition
+        assigns the caller as recruiter or hiring manager (a vacancy carries
+        no recruiter/hiring-manager column of its own — docs/PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md §7/§9).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, scheduled, published, paused, closed, archived]
+        - name: requisitionId
+          in: query
+          schema:
+            type: integer
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Paginated, visibility-filtered vacancy list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VacancyListResponse"
+    post:
+      operationId: createVacancy
+      tags: [vacancies]
+      summary: Create a vacancy
+      description: >-
+        Always created as draft. Only permitted from an approved requisition
+        belonging to this organization — requisitions in any other status
+        are rejected with 400. filledCount is never client-settable.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateVacancyInput"
+      responses:
+        "201":
+          description: Vacancy created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vacancy"
+        "400":
+          description: Invalid fields, requisition not approved, or a referenced ID does not belong to this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/vacancies/{id}:
+    get:
+      operationId: getVacancy
+      tags: [vacancies]
+      summary: Get a vacancy
+      description: Returns 404 both when the vacancy doesn't exist and when it exists but isn't visible to this caller — never distinguishing the two.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Vacancy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vacancy"
+        "404":
+          description: Vacancy not found (or not visible to this caller)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    patch:
+      operationId: updateVacancy
+      tags: [vacancies]
+      summary: Update a draft vacancy
+      description: Only permitted while status is draft — protected fields (status, filledCount, publicId, audit metadata) are never accepted here.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateVacancyInput"
+      responses:
+        "200":
+          description: Vacancy updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vacancy"
+        "400":
+          description: Only a draft vacancy can be edited, or a validation/cross-org error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Vacancy not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/vacancies/{id}/publish:
+    post:
+      operationId: publishVacancy
+      tags: [vacancies]
+      summary: Publish (or resume) a vacancy
+      description: >-
+        draft, scheduled, or paused -> scheduled or published. From draft,
+        goes straight to published when openDate is unset or not in the
+        future; otherwise becomes scheduled. Calling publish again on an
+        already-scheduled vacancy always flips it live immediately (the
+        manual operator flip — no background scheduler exists in this
+        phase). Also used for the paused -> published "resume" direction,
+        which likewise always goes straight to published.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Vacancy published or scheduled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vacancy"
+        "400":
+          description: Only a draft, scheduled, or paused vacancy can be published
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Vacancy not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/vacancies/{id}/pause:
+    post:
+      operationId: pauseVacancy
+      tags: [vacancies]
+      summary: Pause a published vacancy
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Vacancy paused
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vacancy"
+        "400":
+          description: Only a published vacancy can be paused
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Vacancy not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/vacancies/{id}/close:
+    post:
+      operationId: closeVacancy
+      tags: [vacancies]
+      summary: Close a vacancy
+      description: >-
+        draft, scheduled, published, or paused -> closed. The single
+        terminal-exit action this workstream implements (the frozen plan's
+        separate `cancelled` state is folded into `closed` here — see
+        lib/db/src/schema/vacancies.ts).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Vacancy closed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vacancy"
+        "400":
+          description: A closed or archived vacancy cannot be closed again
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Vacancy not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/vacancies/{id}/archive:
+    post:
+      operationId: archiveVacancy
+      tags: [vacancies]
+      summary: Archive a closed vacancy
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Vacancy archived
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vacancy"
+        "400":
+          description: Only a closed vacancy can be archived
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Vacancy not found
           content:
             application/json:
               schema:
@@ -6269,6 +6580,283 @@ components:
       properties:
         comment:
           type: ["string", "null"]
+
+    VacancyLocation:
+      type: object
+      required: [id, organizationId, vacancyId, branchId, label, createdAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        vacancyId:
+          type: integer
+        branchId:
+          type: ["integer", "null"]
+        label:
+          type: ["string", "null"]
+          description: Free-text location (e.g. "Remote") used when branchId is unset.
+        createdAt:
+          type: string
+          format: date-time
+
+    VacancyLocationInput:
+      type: object
+      properties:
+        branchId:
+          type: ["integer", "null"]
+        label:
+          type: ["string", "null"]
+
+    VacancyQuestion:
+      type: object
+      required: [id, organizationId, vacancyId, questionText, questionType, isKnockout, expectedAnswer, displayOrder, isActive, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        vacancyId:
+          type: integer
+        questionText:
+          type: string
+        questionType:
+          type: string
+          enum: [text, yes_no, multiple_choice, numeric]
+        isKnockout:
+          type: boolean
+        expectedAnswer:
+          type: ["string", "null"]
+          description: Only meaningful for knockout auto-scoring.
+        displayOrder:
+          type: integer
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    VacancyQuestionInput:
+      type: object
+      required: [questionText]
+      properties:
+        questionText:
+          type: string
+          minLength: 1
+        questionType:
+          type: string
+          enum: [text, yes_no, multiple_choice, numeric]
+        isKnockout:
+          type: boolean
+        expectedAnswer:
+          type: ["string", "null"]
+        displayOrder:
+          type: integer
+
+    Vacancy:
+      type: object
+      description: >-
+        The postable unit produced from an approved job requisition
+        (Phase 3A W48 in the frozen plan's own numbering). Internal
+        lifecycle only — no public careers exposure exists yet. filledCount
+        is always 0 in this workstream; nothing increments it.
+      required:
+        - id
+        - organizationId
+        - requisitionId
+        - workflowId
+        - publicId
+        - title
+        - visibility
+        - status
+        - openingsCount
+        - filledCount
+        - openDate
+        - closeDate
+        - jobDescription
+        - responsibilities
+        - requirements
+        - preferredQualifications
+        - seoTitle
+        - seoDescription
+        - featured
+        - createdBy
+        - updatedBy
+        - createdAt
+        - updatedAt
+        - locations
+        - questions
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        requisitionId:
+          type: integer
+        workflowId:
+          type: ["integer", "null"]
+        publicId:
+          type: string
+          description: Reserved for a later public careers workstream — not consumed by anything in this workstream.
+        title:
+          type: string
+        visibility:
+          type: string
+          enum: [internal, external, both]
+        status:
+          type: string
+          enum: [draft, scheduled, published, paused, closed, archived]
+        openingsCount:
+          type: integer
+        filledCount:
+          type: integer
+          description: Never client-settable. Always 0 in this workstream.
+        openDate:
+          type: ["string", "null"]
+          format: date-time
+        closeDate:
+          type: ["string", "null"]
+          format: date-time
+        jobDescription:
+          type: ["string", "null"]
+        responsibilities:
+          type: ["string", "null"]
+        requirements:
+          type: ["string", "null"]
+        preferredQualifications:
+          type: ["string", "null"]
+        seoTitle:
+          type: ["string", "null"]
+        seoDescription:
+          type: ["string", "null"]
+        featured:
+          type: boolean
+        createdBy:
+          type: ["integer", "null"]
+        updatedBy:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        locations:
+          type: array
+          items:
+            $ref: "#/components/schemas/VacancyLocation"
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/VacancyQuestion"
+
+    VacancyListResponse:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Vacancy"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+
+    CreateVacancyInput:
+      type: object
+      required: [requisitionId, title]
+      properties:
+        requisitionId:
+          type: integer
+        workflowId:
+          type: ["integer", "null"]
+        title:
+          type: string
+          minLength: 1
+        visibility:
+          type: string
+          enum: [internal, external, both]
+        openingsCount:
+          type: integer
+          minimum: 1
+        openDate:
+          type: ["string", "null"]
+          format: date-time
+        closeDate:
+          type: ["string", "null"]
+          format: date-time
+        jobDescription:
+          type: ["string", "null"]
+        responsibilities:
+          type: ["string", "null"]
+        requirements:
+          type: ["string", "null"]
+        preferredQualifications:
+          type: ["string", "null"]
+        seoTitle:
+          type: ["string", "null"]
+        seoDescription:
+          type: ["string", "null"]
+        featured:
+          type: boolean
+        locations:
+          type: array
+          items:
+            $ref: "#/components/schemas/VacancyLocationInput"
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/VacancyQuestionInput"
+
+    UpdateVacancyInput:
+      type: object
+      description: Only accepted while the vacancy is in draft — status, filledCount, publicId, and audit fields are never accepted here.
+      properties:
+        workflowId:
+          type: ["integer", "null"]
+        title:
+          type: string
+          minLength: 1
+        visibility:
+          type: string
+          enum: [internal, external, both]
+        openingsCount:
+          type: integer
+          minimum: 1
+        openDate:
+          type: ["string", "null"]
+          format: date-time
+        closeDate:
+          type: ["string", "null"]
+          format: date-time
+        jobDescription:
+          type: ["string", "null"]
+        responsibilities:
+          type: ["string", "null"]
+        requirements:
+          type: ["string", "null"]
+        preferredQualifications:
+          type: ["string", "null"]
+        seoTitle:
+          type: ["string", "null"]
+        seoDescription:
+          type: ["string", "null"]
+        featured:
+          type: boolean
+        locations:
+          type: array
+          items:
+            $ref: "#/components/schemas/VacancyLocationInput"
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/VacancyQuestionInput"
 
     LeaveType:
       type: object

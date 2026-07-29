@@ -33,6 +33,8 @@ import RecruitmentSettings from '@/pages/recruitment-settings';
 import Requisitions from '@/pages/requisitions';
 import RequisitionDetail from '@/pages/requisition-detail';
 import RequisitionApprovals from '@/pages/requisition-approvals';
+import Vacancies from '@/pages/vacancies';
+import VacancyEditor from '@/pages/vacancy-editor';
 import { ModuleGate } from '@/components/module-gate';
 
 const queryClient = new QueryClient({
@@ -133,6 +135,12 @@ function Router() {
       </Route>
       <Route path="/requisition-approvals">
         {() => <SecureRoute component={RequisitionApprovals} moduleKey="recruitment" />}
+      </Route>
+      <Route path="/vacancies/:id/edit">
+        {() => <SecureRoute component={VacancyEditor} moduleKey="recruitment" />}
+      </Route>
+      <Route path="/vacancies">
+        {() => <SecureRoute component={Vacancies} moduleKey="recruitment" />}
       </Route>
 
       {/* 404 fallback */}
