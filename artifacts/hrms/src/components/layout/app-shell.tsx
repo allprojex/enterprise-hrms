@@ -24,6 +24,7 @@ import {
   CalendarRange,
   CalendarHeart,
   Clock,
+  UserPlus,
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -283,6 +284,7 @@ export function AppShell({ children }: AppShellProps) {
     { href: '/leave-types',    label: 'Leave Types',    icon: CalendarDays },
     ...(isHrCapable ? [{ href: '/leave-balances', label: 'Leave Balances', icon: Wallet } satisfies NavItem] : []),
     ...(isOrgAdmin ? [{ href: '/attendance-settings', label: 'Attendance Settings', icon: Clock } satisfies NavItem] : []),
+    ...(isHrCapable ? [{ href: '/recruitment-settings', label: 'Recruitment Settings', icon: UserPlus } satisfies NavItem] : []),
     { href: '/organizations',  label: 'Organisations',  icon: Building },
     { href: '/notifications',  label: 'Notifications',  icon: Bell, badge: unreadCount },
     ...(isOrgAdmin ? [{ href: '/admin', label: 'Admin', icon: ShieldCheck } satisfies NavItem] : []),

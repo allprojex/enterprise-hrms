@@ -42,6 +42,8 @@ tags:
     description: Reporting Foundation operations
   - name: self-service
     description: Employee Self-Service operations
+  - name: recruitment
+    description: Recruitment Configuration operations (settings, workflows, stages)
 
 paths:
   /healthz:
@@ -2210,6 +2212,437 @@ paths:
                 $ref: "#/components/schemas/PublicHoliday"
         "404":
           description: Public holiday not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/recruitment-settings:
+    get:
+      operationId: getRecruitmentSettings
+      tags: [recruitment]
+      summary: Get an organization's Recruitment settings
+      description: >-
+        Returns the organization's saved Recruitment settings, or safe
+        defaults if nothing has been saved yet — no row is created on read.
+        Gated by the recruitment module and recruitment_settings.read.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Recruitment settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecruitmentSettings"
+    patch:
+      operationId: updateRecruitmentSettings
+      tags: [recruitment]
+      summary: Update an organization's Recruitment settings
+      description: >-
+        Merges the given fields into the organization's existing settings
+        (or defaults) and validates the merged result before saving. Gated
+        by the recruitment module and recruitment_settings.manage.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRecruitmentSettingsInput"
+      responses:
+        "200":
+          description: Updated Recruitment settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecruitmentSettings"
+        "400":
+          description: Invalid settings, or defaultWorkflowId does not belong to this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/recruitment-workflows:
+    get:
+      operationId: listRecruitmentWorkflows
+      tags: [recruitment]
+      summary: List an organization's Recruitment workflows
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of recruitment workflows
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RecruitmentWorkflow"
+    post:
+      operationId: createRecruitmentWorkflow
+      tags: [recruitment]
+      summary: Create a Recruitment workflow
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRecruitmentWorkflowInput"
+      responses:
+        "201":
+          description: Recruitment workflow created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecruitmentWorkflow"
+        "409":
+          description: A workflow with this name already exists in the organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/recruitment-workflows/{workflowId}:
+    patch:
+      operationId: updateRecruitmentWorkflow
+      tags: [recruitment]
+      summary: Update a Recruitment workflow
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: workflowId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRecruitmentWorkflowInput"
+      responses:
+        "200":
+          description: Recruitment workflow updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecruitmentWorkflow"
+        "404":
+          description: Recruitment workflow not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: A workflow with this name already exists in the organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/recruitment-workflows/{workflowId}/archive:
+    post:
+      operationId: archiveRecruitmentWorkflow
+      tags: [recruitment]
+      summary: Archive a Recruitment workflow
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: workflowId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Recruitment workflow archived
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecruitmentWorkflow"
+        "404":
+          description: Recruitment workflow not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/recruitment-workflows/{workflowId}/reactivate:
+    post:
+      operationId: reactivateRecruitmentWorkflow
+      tags: [recruitment]
+      summary: Reactivate an archived Recruitment workflow
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: workflowId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Recruitment workflow reactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecruitmentWorkflow"
+        "404":
+          description: Recruitment workflow not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/recruitment-workflows/{workflowId}/set-default:
+    post:
+      operationId: setDefaultRecruitmentWorkflow
+      tags: [recruitment]
+      summary: Set a Recruitment workflow as the organization's default
+      description: >-
+        Atomically unsets the current default (if any) and sets the target
+        workflow, so the database's at-most-one-default-per-organization
+        invariant is never briefly violated.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: workflowId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Recruitment workflow set as default
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecruitmentWorkflow"
+        "404":
+          description: Recruitment workflow not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/recruitment-workflows/{workflowId}/stages:
+    get:
+      operationId: listRecruitmentStages
+      tags: [recruitment]
+      summary: List a Recruitment workflow's stages
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: workflowId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of recruitment stages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RecruitmentStage"
+        "404":
+          description: Recruitment workflow not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createRecruitmentStage
+      tags: [recruitment]
+      summary: Create a stage within a Recruitment workflow
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: workflowId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRecruitmentStageInput"
+      responses:
+        "201":
+          description: Recruitment stage created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecruitmentStage"
+        "404":
+          description: Recruitment workflow not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: A stage with this name or display order already exists in this workflow
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/recruitment-workflows/{workflowId}/stages/{stageId}:
+    patch:
+      operationId: updateRecruitmentStage
+      tags: [recruitment]
+      summary: Update a Recruitment stage
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: workflowId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: stageId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRecruitmentStageInput"
+      responses:
+        "200":
+          description: Recruitment stage updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecruitmentStage"
+        "404":
+          description: Recruitment stage not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: A stage with this name or display order already exists in this workflow
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/recruitment-workflows/{workflowId}/stages/{stageId}/archive:
+    post:
+      operationId: archiveRecruitmentStage
+      tags: [recruitment]
+      summary: Archive a Recruitment stage
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: workflowId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: stageId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Recruitment stage archived
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecruitmentStage"
+        "404":
+          description: Recruitment stage not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/recruitment-workflows/{workflowId}/stages/{stageId}/reactivate:
+    post:
+      operationId: reactivateRecruitmentStage
+      tags: [recruitment]
+      summary: Reactivate an archived Recruitment stage
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: workflowId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: stageId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Recruitment stage reactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecruitmentStage"
+        "404":
+          description: Recruitment stage not found
           content:
             application/json:
               schema:
@@ -4928,6 +5361,224 @@ components:
           type: ["integer", "null"]
         description:
           type: string
+
+    RecruitmentSettings:
+      type: object
+      description: >-
+        One row per organization. `updatedAt` is null when nothing has ever
+        been saved — the response is still safe defaults, not an error.
+      required:
+        - organizationId
+        - enabled
+        - internalRecruitmentEnabled
+        - externalRecruitmentEnabled
+        - requireCandidateAccount
+        - defaultWorkflowId
+        - candidateDataRetentionMonths
+        - reapplicationWaitingDays
+        - duplicateCandidatePolicy
+        - defaultOfferExpiryDays
+        - defaultDocumentRequirements
+        - applicationLimitPerCandidate
+        - updatedAt
+      properties:
+        organizationId:
+          type: integer
+        enabled:
+          type: boolean
+        internalRecruitmentEnabled:
+          type: boolean
+        externalRecruitmentEnabled:
+          type: boolean
+        requireCandidateAccount:
+          type: boolean
+        defaultWorkflowId:
+          type: ["integer", "null"]
+        candidateDataRetentionMonths:
+          type: ["integer", "null"]
+        reapplicationWaitingDays:
+          type: integer
+        duplicateCandidatePolicy:
+          type: string
+          enum: [allow, flag, block]
+        defaultOfferExpiryDays:
+          type: ["integer", "null"]
+        defaultDocumentRequirements:
+          type: array
+          items:
+            type: string
+          description: Master Data categoryCode strings, free text — not validated against a domain's item list.
+        applicationLimitPerCandidate:
+          type: ["integer", "null"]
+        updatedAt:
+          type: ["string", "null"]
+          format: date-time
+
+    UpdateRecruitmentSettingsInput:
+      type: object
+      description: All fields optional — merged into the organization's existing settings (or defaults) before validation.
+      properties:
+        enabled:
+          type: boolean
+        internalRecruitmentEnabled:
+          type: boolean
+        externalRecruitmentEnabled:
+          type: boolean
+        requireCandidateAccount:
+          type: boolean
+        defaultWorkflowId:
+          type: ["integer", "null"]
+        candidateDataRetentionMonths:
+          type: ["integer", "null"]
+        reapplicationWaitingDays:
+          type: integer
+          minimum: 0
+        duplicateCandidatePolicy:
+          type: string
+          enum: [allow, flag, block]
+        defaultOfferExpiryDays:
+          type: integer
+          minimum: 1
+        defaultDocumentRequirements:
+          type: array
+          items:
+            type: string
+        applicationLimitPerCandidate:
+          type: integer
+          minimum: 1
+
+    RecruitmentWorkflow:
+      type: object
+      required: [id, organizationId, name, description, isActive, isDefault, displayOrder, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        isDefault:
+          type: boolean
+        displayOrder:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateRecruitmentWorkflowInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: ["string", "null"]
+        displayOrder:
+          type: integer
+
+    UpdateRecruitmentWorkflowInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: ["string", "null"]
+        displayOrder:
+          type: integer
+
+    RecruitmentStage:
+      type: object
+      required:
+        - id
+        - organizationId
+        - workflowId
+        - name
+        - category
+        - displayOrder
+        - color
+        - icon
+        - isRequired
+        - isTerminal
+        - isActive
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        workflowId:
+          type: integer
+        name:
+          type: string
+        category:
+          type: string
+          enum: [applied, screening, interview, assessment, offer, hired, rejected, withdrawn]
+        displayOrder:
+          type: integer
+        color:
+          type: ["string", "null"]
+        icon:
+          type: ["string", "null"]
+        isRequired:
+          type: boolean
+        isTerminal:
+          type: boolean
+          description: Derived server-side from category (hired/rejected/withdrawn are terminal) — never independently settable to a contradictory value.
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateRecruitmentStageInput:
+      type: object
+      required: [name, category, displayOrder]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        category:
+          type: string
+          enum: [applied, screening, interview, assessment, offer, hired, rejected, withdrawn]
+        displayOrder:
+          type: integer
+        color:
+          type: ["string", "null"]
+        icon:
+          type: ["string", "null"]
+        isRequired:
+          type: boolean
+
+    UpdateRecruitmentStageInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        category:
+          type: string
+          enum: [applied, screening, interview, assessment, offer, hired, rejected, withdrawn]
+        displayOrder:
+          type: integer
+        color:
+          type: ["string", "null"]
+        icon:
+          type: ["string", "null"]
+        isRequired:
+          type: boolean
 
     LeaveType:
       type: object

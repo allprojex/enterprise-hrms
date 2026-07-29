@@ -148,6 +148,13 @@
       "when": 1785285534152,
       "tag": "0020_unknown_scarecrow",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1785349707084,
+      "tag": "0021_grey_ravenous",
+      "breakpoints": true
     }
   ]
 }

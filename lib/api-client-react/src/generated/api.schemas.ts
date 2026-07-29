@@ -542,6 +542,185 @@ export interface UpdatePublicHolidayInput {
   description?: string;
 }
 
+export type RecruitmentSettingsDuplicateCandidatePolicy = typeof RecruitmentSettingsDuplicateCandidatePolicy[keyof typeof RecruitmentSettingsDuplicateCandidatePolicy];
+
+
+export const RecruitmentSettingsDuplicateCandidatePolicy = {
+  allow: 'allow',
+  flag: 'flag',
+  block: 'block',
+} as const;
+
+/**
+ * One row per organization. `updatedAt` is null when nothing has ever been saved — the response is still safe defaults, not an error.
+ */
+export interface RecruitmentSettings {
+  organizationId: number;
+  enabled: boolean;
+  internalRecruitmentEnabled: boolean;
+  externalRecruitmentEnabled: boolean;
+  requireCandidateAccount: boolean;
+  /** @nullable */
+  defaultWorkflowId: number | null;
+  /** @nullable */
+  candidateDataRetentionMonths: number | null;
+  reapplicationWaitingDays: number;
+  duplicateCandidatePolicy: RecruitmentSettingsDuplicateCandidatePolicy;
+  /** @nullable */
+  defaultOfferExpiryDays: number | null;
+  /** Master Data categoryCode strings, free text — not validated against a domain's item list. */
+  defaultDocumentRequirements: string[];
+  /** @nullable */
+  applicationLimitPerCandidate: number | null;
+  /** @nullable */
+  updatedAt: string | null;
+}
+
+export type UpdateRecruitmentSettingsInputDuplicateCandidatePolicy = typeof UpdateRecruitmentSettingsInputDuplicateCandidatePolicy[keyof typeof UpdateRecruitmentSettingsInputDuplicateCandidatePolicy];
+
+
+export const UpdateRecruitmentSettingsInputDuplicateCandidatePolicy = {
+  allow: 'allow',
+  flag: 'flag',
+  block: 'block',
+} as const;
+
+/**
+ * All fields optional — merged into the organization's existing settings (or defaults) before validation.
+ */
+export interface UpdateRecruitmentSettingsInput {
+  enabled?: boolean;
+  internalRecruitmentEnabled?: boolean;
+  externalRecruitmentEnabled?: boolean;
+  requireCandidateAccount?: boolean;
+  /** @nullable */
+  defaultWorkflowId?: number | null;
+  /** @nullable */
+  candidateDataRetentionMonths?: number | null;
+  /** @minimum 0 */
+  reapplicationWaitingDays?: number;
+  duplicateCandidatePolicy?: UpdateRecruitmentSettingsInputDuplicateCandidatePolicy;
+  /** @minimum 1 */
+  defaultOfferExpiryDays?: number;
+  defaultDocumentRequirements?: string[];
+  /** @minimum 1 */
+  applicationLimitPerCandidate?: number;
+}
+
+export interface RecruitmentWorkflow {
+  id: number;
+  organizationId: number;
+  name: string;
+  /** @nullable */
+  description: string | null;
+  isActive: boolean;
+  isDefault: boolean;
+  displayOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateRecruitmentWorkflowInput {
+  /** @minLength 1 */
+  name: string;
+  /** @nullable */
+  description?: string | null;
+  displayOrder?: number;
+}
+
+export interface UpdateRecruitmentWorkflowInput {
+  /** @minLength 1 */
+  name?: string;
+  /** @nullable */
+  description?: string | null;
+  displayOrder?: number;
+}
+
+export type RecruitmentStageCategory = typeof RecruitmentStageCategory[keyof typeof RecruitmentStageCategory];
+
+
+export const RecruitmentStageCategory = {
+  applied: 'applied',
+  screening: 'screening',
+  interview: 'interview',
+  assessment: 'assessment',
+  offer: 'offer',
+  hired: 'hired',
+  rejected: 'rejected',
+  withdrawn: 'withdrawn',
+} as const;
+
+export interface RecruitmentStage {
+  id: number;
+  organizationId: number;
+  workflowId: number;
+  name: string;
+  category: RecruitmentStageCategory;
+  displayOrder: number;
+  /** @nullable */
+  color: string | null;
+  /** @nullable */
+  icon: string | null;
+  isRequired: boolean;
+  /** Derived server-side from category (hired/rejected/withdrawn are terminal) — never independently settable to a contradictory value. */
+  isTerminal: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CreateRecruitmentStageInputCategory = typeof CreateRecruitmentStageInputCategory[keyof typeof CreateRecruitmentStageInputCategory];
+
+
+export const CreateRecruitmentStageInputCategory = {
+  applied: 'applied',
+  screening: 'screening',
+  interview: 'interview',
+  assessment: 'assessment',
+  offer: 'offer',
+  hired: 'hired',
+  rejected: 'rejected',
+  withdrawn: 'withdrawn',
+} as const;
+
+export interface CreateRecruitmentStageInput {
+  /** @minLength 1 */
+  name: string;
+  category: CreateRecruitmentStageInputCategory;
+  displayOrder: number;
+  /** @nullable */
+  color?: string | null;
+  /** @nullable */
+  icon?: string | null;
+  isRequired?: boolean;
+}
+
+export type UpdateRecruitmentStageInputCategory = typeof UpdateRecruitmentStageInputCategory[keyof typeof UpdateRecruitmentStageInputCategory];
+
+
+export const UpdateRecruitmentStageInputCategory = {
+  applied: 'applied',
+  screening: 'screening',
+  interview: 'interview',
+  assessment: 'assessment',
+  offer: 'offer',
+  hired: 'hired',
+  rejected: 'rejected',
+  withdrawn: 'withdrawn',
+} as const;
+
+export interface UpdateRecruitmentStageInput {
+  /** @minLength 1 */
+  name?: string;
+  category?: UpdateRecruitmentStageInputCategory;
+  displayOrder?: number;
+  /** @nullable */
+  color?: string | null;
+  /** @nullable */
+  icon?: string | null;
+  isRequired?: boolean;
+}
+
 export type LeaveTypeStatus = typeof LeaveTypeStatus[keyof typeof LeaveTypeStatus];
 
 

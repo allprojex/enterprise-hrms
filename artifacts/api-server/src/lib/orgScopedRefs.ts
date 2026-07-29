@@ -1,5 +1,13 @@
 import { eq } from "drizzle-orm";
-import { db, departmentsTable, branchesTable, positionsTable, employeesTable, leaveTypesTable } from "@workspace/db";
+import {
+  db,
+  departmentsTable,
+  branchesTable,
+  positionsTable,
+  employeesTable,
+  leaveTypesTable,
+  recruitmentWorkflowsTable,
+} from "@workspace/db";
 
 export class CrossOrganizationReferenceError extends Error {
   constructor(label: string) {
@@ -13,7 +21,8 @@ type ScopedTable =
   | typeof branchesTable
   | typeof positionsTable
   | typeof employeesTable
-  | typeof leaveTypesTable;
+  | typeof leaveTypesTable
+  | typeof recruitmentWorkflowsTable;
 
 /**
  * Verifies a foreign key (department/branch/position/employee id) actually

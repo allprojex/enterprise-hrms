@@ -2084,6 +2084,373 @@ export const ReactivatePublicHolidayResponse = zod.object({
 
 
 /**
+ * Returns the organization's saved Recruitment settings, or safe defaults if nothing has been saved yet — no row is created on read. Gated by the recruitment module and recruitment_settings.read.
+ * @summary Get an organization's Recruitment settings
+ */
+export const GetRecruitmentSettingsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetRecruitmentSettingsResponse = zod.object({
+  "organizationId": zod.number(),
+  "enabled": zod.boolean(),
+  "internalRecruitmentEnabled": zod.boolean(),
+  "externalRecruitmentEnabled": zod.boolean(),
+  "requireCandidateAccount": zod.boolean(),
+  "defaultWorkflowId": zod.number().nullable(),
+  "candidateDataRetentionMonths": zod.number().nullable(),
+  "reapplicationWaitingDays": zod.number(),
+  "duplicateCandidatePolicy": zod.enum(['allow', 'flag', 'block']),
+  "defaultOfferExpiryDays": zod.number().nullable(),
+  "defaultDocumentRequirements": zod.array(zod.string()).describe('Master Data categoryCode strings, free text — not validated against a domain\'s item list.'),
+  "applicationLimitPerCandidate": zod.number().nullable(),
+  "updatedAt": zod.coerce.date().nullable()
+}).describe('One row per organization. `updatedAt` is null when nothing has ever been saved — the response is still safe defaults, not an error.')
+
+
+/**
+ * Merges the given fields into the organization's existing settings (or defaults) and validates the merged result before saving. Gated by the recruitment module and recruitment_settings.manage.
+ * @summary Update an organization's Recruitment settings
+ */
+export const UpdateRecruitmentSettingsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const updateRecruitmentSettingsBodyReapplicationWaitingDaysMin = 0;
+
+
+
+
+
+export const UpdateRecruitmentSettingsBody = zod.object({
+  "enabled": zod.boolean().optional(),
+  "internalRecruitmentEnabled": zod.boolean().optional(),
+  "externalRecruitmentEnabled": zod.boolean().optional(),
+  "requireCandidateAccount": zod.boolean().optional(),
+  "defaultWorkflowId": zod.number().nullish(),
+  "candidateDataRetentionMonths": zod.number().nullish(),
+  "reapplicationWaitingDays": zod.number().min(updateRecruitmentSettingsBodyReapplicationWaitingDaysMin).optional(),
+  "duplicateCandidatePolicy": zod.enum(['allow', 'flag', 'block']).optional(),
+  "defaultOfferExpiryDays": zod.number().min(1).optional(),
+  "defaultDocumentRequirements": zod.array(zod.string()).optional(),
+  "applicationLimitPerCandidate": zod.number().min(1).optional()
+}).describe('All fields optional — merged into the organization\'s existing settings (or defaults) before validation.')
+
+export const UpdateRecruitmentSettingsResponse = zod.object({
+  "organizationId": zod.number(),
+  "enabled": zod.boolean(),
+  "internalRecruitmentEnabled": zod.boolean(),
+  "externalRecruitmentEnabled": zod.boolean(),
+  "requireCandidateAccount": zod.boolean(),
+  "defaultWorkflowId": zod.number().nullable(),
+  "candidateDataRetentionMonths": zod.number().nullable(),
+  "reapplicationWaitingDays": zod.number(),
+  "duplicateCandidatePolicy": zod.enum(['allow', 'flag', 'block']),
+  "defaultOfferExpiryDays": zod.number().nullable(),
+  "defaultDocumentRequirements": zod.array(zod.string()).describe('Master Data categoryCode strings, free text — not validated against a domain\'s item list.'),
+  "applicationLimitPerCandidate": zod.number().nullable(),
+  "updatedAt": zod.coerce.date().nullable()
+}).describe('One row per organization. `updatedAt` is null when nothing has ever been saved — the response is still safe defaults, not an error.')
+
+
+/**
+ * @summary List an organization's Recruitment workflows
+ */
+export const ListRecruitmentWorkflowsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListRecruitmentWorkflowsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullable(),
+  "isActive": zod.boolean(),
+  "isDefault": zod.boolean(),
+  "displayOrder": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListRecruitmentWorkflowsResponse = zod.array(ListRecruitmentWorkflowsResponseItem)
+
+
+/**
+ * @summary Create a Recruitment workflow
+ */
+export const CreateRecruitmentWorkflowParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+
+
+export const CreateRecruitmentWorkflowBody = zod.object({
+  "name": zod.string().min(1),
+  "description": zod.string().nullish(),
+  "displayOrder": zod.number().optional()
+})
+
+export const CreateRecruitmentWorkflowResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullable(),
+  "isActive": zod.boolean(),
+  "isDefault": zod.boolean(),
+  "displayOrder": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update a Recruitment workflow
+ */
+export const UpdateRecruitmentWorkflowParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "workflowId": zod.coerce.number()
+})
+
+
+
+
+export const UpdateRecruitmentWorkflowBody = zod.object({
+  "name": zod.string().min(1).optional(),
+  "description": zod.string().nullish(),
+  "displayOrder": zod.number().optional()
+})
+
+export const UpdateRecruitmentWorkflowResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullable(),
+  "isActive": zod.boolean(),
+  "isDefault": zod.boolean(),
+  "displayOrder": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Archive a Recruitment workflow
+ */
+export const ArchiveRecruitmentWorkflowParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "workflowId": zod.coerce.number()
+})
+
+export const ArchiveRecruitmentWorkflowResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullable(),
+  "isActive": zod.boolean(),
+  "isDefault": zod.boolean(),
+  "displayOrder": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Reactivate an archived Recruitment workflow
+ */
+export const ReactivateRecruitmentWorkflowParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "workflowId": zod.coerce.number()
+})
+
+export const ReactivateRecruitmentWorkflowResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullable(),
+  "isActive": zod.boolean(),
+  "isDefault": zod.boolean(),
+  "displayOrder": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Atomically unsets the current default (if any) and sets the target workflow, so the database's at-most-one-default-per-organization invariant is never briefly violated.
+ * @summary Set a Recruitment workflow as the organization's default
+ */
+export const SetDefaultRecruitmentWorkflowParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "workflowId": zod.coerce.number()
+})
+
+export const SetDefaultRecruitmentWorkflowResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullable(),
+  "isActive": zod.boolean(),
+  "isDefault": zod.boolean(),
+  "displayOrder": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List a Recruitment workflow's stages
+ */
+export const ListRecruitmentStagesParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "workflowId": zod.coerce.number()
+})
+
+export const ListRecruitmentStagesResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "workflowId": zod.number(),
+  "name": zod.string(),
+  "category": zod.enum(['applied', 'screening', 'interview', 'assessment', 'offer', 'hired', 'rejected', 'withdrawn']),
+  "displayOrder": zod.number(),
+  "color": zod.string().nullable(),
+  "icon": zod.string().nullable(),
+  "isRequired": zod.boolean(),
+  "isTerminal": zod.boolean().describe('Derived server-side from category (hired\/rejected\/withdrawn are terminal) — never independently settable to a contradictory value.'),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListRecruitmentStagesResponse = zod.array(ListRecruitmentStagesResponseItem)
+
+
+/**
+ * @summary Create a stage within a Recruitment workflow
+ */
+export const CreateRecruitmentStageParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "workflowId": zod.coerce.number()
+})
+
+
+
+
+export const CreateRecruitmentStageBody = zod.object({
+  "name": zod.string().min(1),
+  "category": zod.enum(['applied', 'screening', 'interview', 'assessment', 'offer', 'hired', 'rejected', 'withdrawn']),
+  "displayOrder": zod.number(),
+  "color": zod.string().nullish(),
+  "icon": zod.string().nullish(),
+  "isRequired": zod.boolean().optional()
+})
+
+export const CreateRecruitmentStageResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "workflowId": zod.number(),
+  "name": zod.string(),
+  "category": zod.enum(['applied', 'screening', 'interview', 'assessment', 'offer', 'hired', 'rejected', 'withdrawn']),
+  "displayOrder": zod.number(),
+  "color": zod.string().nullable(),
+  "icon": zod.string().nullable(),
+  "isRequired": zod.boolean(),
+  "isTerminal": zod.boolean().describe('Derived server-side from category (hired\/rejected\/withdrawn are terminal) — never independently settable to a contradictory value.'),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update a Recruitment stage
+ */
+export const UpdateRecruitmentStageParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "workflowId": zod.coerce.number(),
+  "stageId": zod.coerce.number()
+})
+
+
+
+
+export const UpdateRecruitmentStageBody = zod.object({
+  "name": zod.string().min(1).optional(),
+  "category": zod.enum(['applied', 'screening', 'interview', 'assessment', 'offer', 'hired', 'rejected', 'withdrawn']).optional(),
+  "displayOrder": zod.number().optional(),
+  "color": zod.string().nullish(),
+  "icon": zod.string().nullish(),
+  "isRequired": zod.boolean().optional()
+})
+
+export const UpdateRecruitmentStageResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "workflowId": zod.number(),
+  "name": zod.string(),
+  "category": zod.enum(['applied', 'screening', 'interview', 'assessment', 'offer', 'hired', 'rejected', 'withdrawn']),
+  "displayOrder": zod.number(),
+  "color": zod.string().nullable(),
+  "icon": zod.string().nullable(),
+  "isRequired": zod.boolean(),
+  "isTerminal": zod.boolean().describe('Derived server-side from category (hired\/rejected\/withdrawn are terminal) — never independently settable to a contradictory value.'),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Archive a Recruitment stage
+ */
+export const ArchiveRecruitmentStageParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "workflowId": zod.coerce.number(),
+  "stageId": zod.coerce.number()
+})
+
+export const ArchiveRecruitmentStageResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "workflowId": zod.number(),
+  "name": zod.string(),
+  "category": zod.enum(['applied', 'screening', 'interview', 'assessment', 'offer', 'hired', 'rejected', 'withdrawn']),
+  "displayOrder": zod.number(),
+  "color": zod.string().nullable(),
+  "icon": zod.string().nullable(),
+  "isRequired": zod.boolean(),
+  "isTerminal": zod.boolean().describe('Derived server-side from category (hired\/rejected\/withdrawn are terminal) — never independently settable to a contradictory value.'),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Reactivate an archived Recruitment stage
+ */
+export const ReactivateRecruitmentStageParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "workflowId": zod.coerce.number(),
+  "stageId": zod.coerce.number()
+})
+
+export const ReactivateRecruitmentStageResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "workflowId": zod.number(),
+  "name": zod.string(),
+  "category": zod.enum(['applied', 'screening', 'interview', 'assessment', 'offer', 'hired', 'rejected', 'withdrawn']),
+  "displayOrder": zod.number(),
+  "color": zod.string().nullable(),
+  "icon": zod.string().nullable(),
+  "isRequired": zod.boolean(),
+  "isTerminal": zod.boolean().describe('Derived server-side from category (hired\/rejected\/withdrawn are terminal) — never independently settable to a contradictory value.'),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
  * Manager-scoped or organization-wide (leave_request.manage) approval authority required, on top of holding leave_request.approve — neither alone is sufficient. Self-approval is rejected. Atomically transitions the request and posts the immutable usage ledger entry (W34) in one transaction; rejected with a 409 if the request is no longer pending (already decided, concurrently or otherwise).
  * @summary Approve a pending leave request
  */

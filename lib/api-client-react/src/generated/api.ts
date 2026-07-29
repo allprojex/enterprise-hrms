@@ -45,6 +45,8 @@ import type {
   CreateOrganizationInput,
   CreatePositionInput,
   CreatePublicHolidayInput,
+  CreateRecruitmentStageInput,
+  CreateRecruitmentWorkflowInput,
   DashboardSummary,
   Department,
   Employee,
@@ -92,6 +94,9 @@ import type {
   PrimaryHrAssignmentOrNull,
   PromoteEmployeeInput,
   PublicHoliday,
+  RecruitmentSettings,
+  RecruitmentStage,
+  RecruitmentWorkflow,
   RejectLeaveRequestInput,
   Report,
   ReportRunResult,
@@ -118,6 +123,9 @@ import type {
   UpdateOrganizationModuleInput,
   UpdatePositionInput,
   UpdatePublicHolidayInput,
+  UpdateRecruitmentSettingsInput,
+  UpdateRecruitmentStageInput,
+  UpdateRecruitmentWorkflowInput,
   UploadEmployeeDocumentBody,
   UploadEmployeeProfilePictureBody,
   UserProfile,
@@ -4899,6 +4907,982 @@ export const useReactivatePublicHoliday = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getReactivatePublicHolidayMutationOptions(options));
+    }
+
+export const getGetRecruitmentSettingsUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/recruitment-settings`
+}
+
+/**
+ * Returns the organization's saved Recruitment settings, or safe defaults if nothing has been saved yet — no row is created on read. Gated by the recruitment module and recruitment_settings.read.
+ * @summary Get an organization's Recruitment settings
+ */
+export const getRecruitmentSettings = async (organizationId: number, options?: RequestInit): Promise<RecruitmentSettings> => {
+
+  return customFetch<RecruitmentSettings>(getGetRecruitmentSettingsUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetRecruitmentSettingsQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/recruitment-settings`
+    ] as const;
+    }
+
+
+export const getGetRecruitmentSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getRecruitmentSettings>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRecruitmentSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetRecruitmentSettingsQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRecruitmentSettings>>> = ({ signal }) => getRecruitmentSettings(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRecruitmentSettings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetRecruitmentSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getRecruitmentSettings>>>
+export type GetRecruitmentSettingsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get an organization's Recruitment settings
+ */
+
+export function useGetRecruitmentSettings<TData = Awaited<ReturnType<typeof getRecruitmentSettings>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRecruitmentSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetRecruitmentSettingsQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateRecruitmentSettingsUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/recruitment-settings`
+}
+
+/**
+ * Merges the given fields into the organization's existing settings (or defaults) and validates the merged result before saving. Gated by the recruitment module and recruitment_settings.manage.
+ * @summary Update an organization's Recruitment settings
+ */
+export const updateRecruitmentSettings = async (organizationId: number,
+    updateRecruitmentSettingsInput: UpdateRecruitmentSettingsInput, options?: RequestInit): Promise<RecruitmentSettings> => {
+
+  return customFetch<RecruitmentSettings>(getUpdateRecruitmentSettingsUrl(organizationId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateRecruitmentSettingsInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateRecruitmentSettingsMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateRecruitmentSettings>>, TError,{organizationId: number;data: BodyType<UpdateRecruitmentSettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateRecruitmentSettings>>, TError,{organizationId: number;data: BodyType<UpdateRecruitmentSettingsInput>}, TContext> => {
+
+const mutationKey = ['updateRecruitmentSettings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateRecruitmentSettings>>, {organizationId: number;data: BodyType<UpdateRecruitmentSettingsInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  updateRecruitmentSettings(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateRecruitmentSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof updateRecruitmentSettings>>>
+    export type UpdateRecruitmentSettingsMutationBody = BodyType<UpdateRecruitmentSettingsInput>
+    export type UpdateRecruitmentSettingsMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update an organization's Recruitment settings
+ */
+export const useUpdateRecruitmentSettings = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateRecruitmentSettings>>, TError,{organizationId: number;data: BodyType<UpdateRecruitmentSettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateRecruitmentSettings>>,
+        TError,
+        {organizationId: number;data: BodyType<UpdateRecruitmentSettingsInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateRecruitmentSettingsMutationOptions(options));
+    }
+
+export const getListRecruitmentWorkflowsUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/recruitment-workflows`
+}
+
+/**
+ * @summary List an organization's Recruitment workflows
+ */
+export const listRecruitmentWorkflows = async (organizationId: number, options?: RequestInit): Promise<RecruitmentWorkflow[]> => {
+
+  return customFetch<RecruitmentWorkflow[]>(getListRecruitmentWorkflowsUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListRecruitmentWorkflowsQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/recruitment-workflows`
+    ] as const;
+    }
+
+
+export const getListRecruitmentWorkflowsQueryOptions = <TData = Awaited<ReturnType<typeof listRecruitmentWorkflows>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listRecruitmentWorkflows>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListRecruitmentWorkflowsQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listRecruitmentWorkflows>>> = ({ signal }) => listRecruitmentWorkflows(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listRecruitmentWorkflows>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListRecruitmentWorkflowsQueryResult = NonNullable<Awaited<ReturnType<typeof listRecruitmentWorkflows>>>
+export type ListRecruitmentWorkflowsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List an organization's Recruitment workflows
+ */
+
+export function useListRecruitmentWorkflows<TData = Awaited<ReturnType<typeof listRecruitmentWorkflows>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listRecruitmentWorkflows>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListRecruitmentWorkflowsQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateRecruitmentWorkflowUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/recruitment-workflows`
+}
+
+/**
+ * @summary Create a Recruitment workflow
+ */
+export const createRecruitmentWorkflow = async (organizationId: number,
+    createRecruitmentWorkflowInput: CreateRecruitmentWorkflowInput, options?: RequestInit): Promise<RecruitmentWorkflow> => {
+
+  return customFetch<RecruitmentWorkflow>(getCreateRecruitmentWorkflowUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createRecruitmentWorkflowInput)
+  }
+);}
+
+
+
+
+
+export const getCreateRecruitmentWorkflowMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRecruitmentWorkflow>>, TError,{organizationId: number;data: BodyType<CreateRecruitmentWorkflowInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createRecruitmentWorkflow>>, TError,{organizationId: number;data: BodyType<CreateRecruitmentWorkflowInput>}, TContext> => {
+
+const mutationKey = ['createRecruitmentWorkflow'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createRecruitmentWorkflow>>, {organizationId: number;data: BodyType<CreateRecruitmentWorkflowInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createRecruitmentWorkflow(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateRecruitmentWorkflowMutationResult = NonNullable<Awaited<ReturnType<typeof createRecruitmentWorkflow>>>
+    export type CreateRecruitmentWorkflowMutationBody = BodyType<CreateRecruitmentWorkflowInput>
+    export type CreateRecruitmentWorkflowMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Create a Recruitment workflow
+ */
+export const useCreateRecruitmentWorkflow = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRecruitmentWorkflow>>, TError,{organizationId: number;data: BodyType<CreateRecruitmentWorkflowInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createRecruitmentWorkflow>>,
+        TError,
+        {organizationId: number;data: BodyType<CreateRecruitmentWorkflowInput>},
+        TContext
+      > => {
+      return useMutation(getCreateRecruitmentWorkflowMutationOptions(options));
+    }
+
+export const getUpdateRecruitmentWorkflowUrl = (organizationId: number,
+    workflowId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/recruitment-workflows/${workflowId}`
+}
+
+/**
+ * @summary Update a Recruitment workflow
+ */
+export const updateRecruitmentWorkflow = async (organizationId: number,
+    workflowId: number,
+    updateRecruitmentWorkflowInput: UpdateRecruitmentWorkflowInput, options?: RequestInit): Promise<RecruitmentWorkflow> => {
+
+  return customFetch<RecruitmentWorkflow>(getUpdateRecruitmentWorkflowUrl(organizationId,workflowId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateRecruitmentWorkflowInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateRecruitmentWorkflowMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateRecruitmentWorkflow>>, TError,{organizationId: number;workflowId: number;data: BodyType<UpdateRecruitmentWorkflowInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateRecruitmentWorkflow>>, TError,{organizationId: number;workflowId: number;data: BodyType<UpdateRecruitmentWorkflowInput>}, TContext> => {
+
+const mutationKey = ['updateRecruitmentWorkflow'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateRecruitmentWorkflow>>, {organizationId: number;workflowId: number;data: BodyType<UpdateRecruitmentWorkflowInput>}> = (props) => {
+          const {organizationId,workflowId,data} = props ?? {};
+
+          return  updateRecruitmentWorkflow(organizationId,workflowId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateRecruitmentWorkflowMutationResult = NonNullable<Awaited<ReturnType<typeof updateRecruitmentWorkflow>>>
+    export type UpdateRecruitmentWorkflowMutationBody = BodyType<UpdateRecruitmentWorkflowInput>
+    export type UpdateRecruitmentWorkflowMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update a Recruitment workflow
+ */
+export const useUpdateRecruitmentWorkflow = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateRecruitmentWorkflow>>, TError,{organizationId: number;workflowId: number;data: BodyType<UpdateRecruitmentWorkflowInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateRecruitmentWorkflow>>,
+        TError,
+        {organizationId: number;workflowId: number;data: BodyType<UpdateRecruitmentWorkflowInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateRecruitmentWorkflowMutationOptions(options));
+    }
+
+export const getArchiveRecruitmentWorkflowUrl = (organizationId: number,
+    workflowId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/recruitment-workflows/${workflowId}/archive`
+}
+
+/**
+ * @summary Archive a Recruitment workflow
+ */
+export const archiveRecruitmentWorkflow = async (organizationId: number,
+    workflowId: number, options?: RequestInit): Promise<RecruitmentWorkflow> => {
+
+  return customFetch<RecruitmentWorkflow>(getArchiveRecruitmentWorkflowUrl(organizationId,workflowId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getArchiveRecruitmentWorkflowMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveRecruitmentWorkflow>>, TError,{organizationId: number;workflowId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof archiveRecruitmentWorkflow>>, TError,{organizationId: number;workflowId: number}, TContext> => {
+
+const mutationKey = ['archiveRecruitmentWorkflow'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof archiveRecruitmentWorkflow>>, {organizationId: number;workflowId: number}> = (props) => {
+          const {organizationId,workflowId} = props ?? {};
+
+          return  archiveRecruitmentWorkflow(organizationId,workflowId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ArchiveRecruitmentWorkflowMutationResult = NonNullable<Awaited<ReturnType<typeof archiveRecruitmentWorkflow>>>
+
+    export type ArchiveRecruitmentWorkflowMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Archive a Recruitment workflow
+ */
+export const useArchiveRecruitmentWorkflow = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveRecruitmentWorkflow>>, TError,{organizationId: number;workflowId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof archiveRecruitmentWorkflow>>,
+        TError,
+        {organizationId: number;workflowId: number},
+        TContext
+      > => {
+      return useMutation(getArchiveRecruitmentWorkflowMutationOptions(options));
+    }
+
+export const getReactivateRecruitmentWorkflowUrl = (organizationId: number,
+    workflowId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/recruitment-workflows/${workflowId}/reactivate`
+}
+
+/**
+ * @summary Reactivate an archived Recruitment workflow
+ */
+export const reactivateRecruitmentWorkflow = async (organizationId: number,
+    workflowId: number, options?: RequestInit): Promise<RecruitmentWorkflow> => {
+
+  return customFetch<RecruitmentWorkflow>(getReactivateRecruitmentWorkflowUrl(organizationId,workflowId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getReactivateRecruitmentWorkflowMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateRecruitmentWorkflow>>, TError,{organizationId: number;workflowId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reactivateRecruitmentWorkflow>>, TError,{organizationId: number;workflowId: number}, TContext> => {
+
+const mutationKey = ['reactivateRecruitmentWorkflow'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reactivateRecruitmentWorkflow>>, {organizationId: number;workflowId: number}> = (props) => {
+          const {organizationId,workflowId} = props ?? {};
+
+          return  reactivateRecruitmentWorkflow(organizationId,workflowId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReactivateRecruitmentWorkflowMutationResult = NonNullable<Awaited<ReturnType<typeof reactivateRecruitmentWorkflow>>>
+
+    export type ReactivateRecruitmentWorkflowMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Reactivate an archived Recruitment workflow
+ */
+export const useReactivateRecruitmentWorkflow = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateRecruitmentWorkflow>>, TError,{organizationId: number;workflowId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reactivateRecruitmentWorkflow>>,
+        TError,
+        {organizationId: number;workflowId: number},
+        TContext
+      > => {
+      return useMutation(getReactivateRecruitmentWorkflowMutationOptions(options));
+    }
+
+export const getSetDefaultRecruitmentWorkflowUrl = (organizationId: number,
+    workflowId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/recruitment-workflows/${workflowId}/set-default`
+}
+
+/**
+ * Atomically unsets the current default (if any) and sets the target workflow, so the database's at-most-one-default-per-organization invariant is never briefly violated.
+ * @summary Set a Recruitment workflow as the organization's default
+ */
+export const setDefaultRecruitmentWorkflow = async (organizationId: number,
+    workflowId: number, options?: RequestInit): Promise<RecruitmentWorkflow> => {
+
+  return customFetch<RecruitmentWorkflow>(getSetDefaultRecruitmentWorkflowUrl(organizationId,workflowId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getSetDefaultRecruitmentWorkflowMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setDefaultRecruitmentWorkflow>>, TError,{organizationId: number;workflowId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setDefaultRecruitmentWorkflow>>, TError,{organizationId: number;workflowId: number}, TContext> => {
+
+const mutationKey = ['setDefaultRecruitmentWorkflow'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setDefaultRecruitmentWorkflow>>, {organizationId: number;workflowId: number}> = (props) => {
+          const {organizationId,workflowId} = props ?? {};
+
+          return  setDefaultRecruitmentWorkflow(organizationId,workflowId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetDefaultRecruitmentWorkflowMutationResult = NonNullable<Awaited<ReturnType<typeof setDefaultRecruitmentWorkflow>>>
+
+    export type SetDefaultRecruitmentWorkflowMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Set a Recruitment workflow as the organization's default
+ */
+export const useSetDefaultRecruitmentWorkflow = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setDefaultRecruitmentWorkflow>>, TError,{organizationId: number;workflowId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setDefaultRecruitmentWorkflow>>,
+        TError,
+        {organizationId: number;workflowId: number},
+        TContext
+      > => {
+      return useMutation(getSetDefaultRecruitmentWorkflowMutationOptions(options));
+    }
+
+export const getListRecruitmentStagesUrl = (organizationId: number,
+    workflowId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/recruitment-workflows/${workflowId}/stages`
+}
+
+/**
+ * @summary List a Recruitment workflow's stages
+ */
+export const listRecruitmentStages = async (organizationId: number,
+    workflowId: number, options?: RequestInit): Promise<RecruitmentStage[]> => {
+
+  return customFetch<RecruitmentStage[]>(getListRecruitmentStagesUrl(organizationId,workflowId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListRecruitmentStagesQueryKey = (organizationId: number,
+    workflowId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/recruitment-workflows/${workflowId}/stages`
+    ] as const;
+    }
+
+
+export const getListRecruitmentStagesQueryOptions = <TData = Awaited<ReturnType<typeof listRecruitmentStages>>, TError = ErrorType<ApiError>>(organizationId: number,
+    workflowId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listRecruitmentStages>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListRecruitmentStagesQueryKey(organizationId,workflowId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listRecruitmentStages>>> = ({ signal }) => listRecruitmentStages(organizationId,workflowId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && workflowId !== null && workflowId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listRecruitmentStages>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListRecruitmentStagesQueryResult = NonNullable<Awaited<ReturnType<typeof listRecruitmentStages>>>
+export type ListRecruitmentStagesQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List a Recruitment workflow's stages
+ */
+
+export function useListRecruitmentStages<TData = Awaited<ReturnType<typeof listRecruitmentStages>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    workflowId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listRecruitmentStages>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListRecruitmentStagesQueryOptions(organizationId,workflowId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateRecruitmentStageUrl = (organizationId: number,
+    workflowId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/recruitment-workflows/${workflowId}/stages`
+}
+
+/**
+ * @summary Create a stage within a Recruitment workflow
+ */
+export const createRecruitmentStage = async (organizationId: number,
+    workflowId: number,
+    createRecruitmentStageInput: CreateRecruitmentStageInput, options?: RequestInit): Promise<RecruitmentStage> => {
+
+  return customFetch<RecruitmentStage>(getCreateRecruitmentStageUrl(organizationId,workflowId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createRecruitmentStageInput)
+  }
+);}
+
+
+
+
+
+export const getCreateRecruitmentStageMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRecruitmentStage>>, TError,{organizationId: number;workflowId: number;data: BodyType<CreateRecruitmentStageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createRecruitmentStage>>, TError,{organizationId: number;workflowId: number;data: BodyType<CreateRecruitmentStageInput>}, TContext> => {
+
+const mutationKey = ['createRecruitmentStage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createRecruitmentStage>>, {organizationId: number;workflowId: number;data: BodyType<CreateRecruitmentStageInput>}> = (props) => {
+          const {organizationId,workflowId,data} = props ?? {};
+
+          return  createRecruitmentStage(organizationId,workflowId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateRecruitmentStageMutationResult = NonNullable<Awaited<ReturnType<typeof createRecruitmentStage>>>
+    export type CreateRecruitmentStageMutationBody = BodyType<CreateRecruitmentStageInput>
+    export type CreateRecruitmentStageMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Create a stage within a Recruitment workflow
+ */
+export const useCreateRecruitmentStage = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRecruitmentStage>>, TError,{organizationId: number;workflowId: number;data: BodyType<CreateRecruitmentStageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createRecruitmentStage>>,
+        TError,
+        {organizationId: number;workflowId: number;data: BodyType<CreateRecruitmentStageInput>},
+        TContext
+      > => {
+      return useMutation(getCreateRecruitmentStageMutationOptions(options));
+    }
+
+export const getUpdateRecruitmentStageUrl = (organizationId: number,
+    workflowId: number,
+    stageId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/recruitment-workflows/${workflowId}/stages/${stageId}`
+}
+
+/**
+ * @summary Update a Recruitment stage
+ */
+export const updateRecruitmentStage = async (organizationId: number,
+    workflowId: number,
+    stageId: number,
+    updateRecruitmentStageInput: UpdateRecruitmentStageInput, options?: RequestInit): Promise<RecruitmentStage> => {
+
+  return customFetch<RecruitmentStage>(getUpdateRecruitmentStageUrl(organizationId,workflowId,stageId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateRecruitmentStageInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateRecruitmentStageMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateRecruitmentStage>>, TError,{organizationId: number;workflowId: number;stageId: number;data: BodyType<UpdateRecruitmentStageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateRecruitmentStage>>, TError,{organizationId: number;workflowId: number;stageId: number;data: BodyType<UpdateRecruitmentStageInput>}, TContext> => {
+
+const mutationKey = ['updateRecruitmentStage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateRecruitmentStage>>, {organizationId: number;workflowId: number;stageId: number;data: BodyType<UpdateRecruitmentStageInput>}> = (props) => {
+          const {organizationId,workflowId,stageId,data} = props ?? {};
+
+          return  updateRecruitmentStage(organizationId,workflowId,stageId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateRecruitmentStageMutationResult = NonNullable<Awaited<ReturnType<typeof updateRecruitmentStage>>>
+    export type UpdateRecruitmentStageMutationBody = BodyType<UpdateRecruitmentStageInput>
+    export type UpdateRecruitmentStageMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update a Recruitment stage
+ */
+export const useUpdateRecruitmentStage = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateRecruitmentStage>>, TError,{organizationId: number;workflowId: number;stageId: number;data: BodyType<UpdateRecruitmentStageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateRecruitmentStage>>,
+        TError,
+        {organizationId: number;workflowId: number;stageId: number;data: BodyType<UpdateRecruitmentStageInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateRecruitmentStageMutationOptions(options));
+    }
+
+export const getArchiveRecruitmentStageUrl = (organizationId: number,
+    workflowId: number,
+    stageId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/recruitment-workflows/${workflowId}/stages/${stageId}/archive`
+}
+
+/**
+ * @summary Archive a Recruitment stage
+ */
+export const archiveRecruitmentStage = async (organizationId: number,
+    workflowId: number,
+    stageId: number, options?: RequestInit): Promise<RecruitmentStage> => {
+
+  return customFetch<RecruitmentStage>(getArchiveRecruitmentStageUrl(organizationId,workflowId,stageId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getArchiveRecruitmentStageMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveRecruitmentStage>>, TError,{organizationId: number;workflowId: number;stageId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof archiveRecruitmentStage>>, TError,{organizationId: number;workflowId: number;stageId: number}, TContext> => {
+
+const mutationKey = ['archiveRecruitmentStage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof archiveRecruitmentStage>>, {organizationId: number;workflowId: number;stageId: number}> = (props) => {
+          const {organizationId,workflowId,stageId} = props ?? {};
+
+          return  archiveRecruitmentStage(organizationId,workflowId,stageId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ArchiveRecruitmentStageMutationResult = NonNullable<Awaited<ReturnType<typeof archiveRecruitmentStage>>>
+
+    export type ArchiveRecruitmentStageMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Archive a Recruitment stage
+ */
+export const useArchiveRecruitmentStage = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveRecruitmentStage>>, TError,{organizationId: number;workflowId: number;stageId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof archiveRecruitmentStage>>,
+        TError,
+        {organizationId: number;workflowId: number;stageId: number},
+        TContext
+      > => {
+      return useMutation(getArchiveRecruitmentStageMutationOptions(options));
+    }
+
+export const getReactivateRecruitmentStageUrl = (organizationId: number,
+    workflowId: number,
+    stageId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/recruitment-workflows/${workflowId}/stages/${stageId}/reactivate`
+}
+
+/**
+ * @summary Reactivate an archived Recruitment stage
+ */
+export const reactivateRecruitmentStage = async (organizationId: number,
+    workflowId: number,
+    stageId: number, options?: RequestInit): Promise<RecruitmentStage> => {
+
+  return customFetch<RecruitmentStage>(getReactivateRecruitmentStageUrl(organizationId,workflowId,stageId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getReactivateRecruitmentStageMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateRecruitmentStage>>, TError,{organizationId: number;workflowId: number;stageId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reactivateRecruitmentStage>>, TError,{organizationId: number;workflowId: number;stageId: number}, TContext> => {
+
+const mutationKey = ['reactivateRecruitmentStage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reactivateRecruitmentStage>>, {organizationId: number;workflowId: number;stageId: number}> = (props) => {
+          const {organizationId,workflowId,stageId} = props ?? {};
+
+          return  reactivateRecruitmentStage(organizationId,workflowId,stageId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReactivateRecruitmentStageMutationResult = NonNullable<Awaited<ReturnType<typeof reactivateRecruitmentStage>>>
+
+    export type ReactivateRecruitmentStageMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Reactivate an archived Recruitment stage
+ */
+export const useReactivateRecruitmentStage = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateRecruitmentStage>>, TError,{organizationId: number;workflowId: number;stageId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reactivateRecruitmentStage>>,
+        TError,
+        {organizationId: number;workflowId: number;stageId: number},
+        TContext
+      > => {
+      return useMutation(getReactivateRecruitmentStageMutationOptions(options));
     }
 
 export const getApproveLeaveRequestUrl = (organizationId: number,
