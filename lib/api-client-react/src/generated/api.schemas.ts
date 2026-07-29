@@ -268,6 +268,20 @@ export interface LeaveCalendarEntry {
   daysRequested: string;
 }
 
+/**
+ * One concrete occurrence of a holiday within a requested range — a recurring holiday's template expanded for the relevant year(s), or a one-off holiday's date/observedDate. A read-only calendar overlay, never a leave request.
+ */
+export interface PublicHolidayOccurrence {
+  id: number;
+  name: string;
+  date: string;
+}
+
+export interface LeaveCalendarResponse {
+  leaveEntries: LeaveCalendarEntry[];
+  holidays: PublicHolidayOccurrence[];
+}
+
 export interface RejectLeaveRequestInput {
   reason?: string;
 }
@@ -334,6 +348,73 @@ export interface AdjustLeaveBalanceInput {
   effectiveDate: string;
   /** @minLength 1 */
   reason: string;
+}
+
+/**
+ * Always "organization" in this phase — branch/region/national are schema-ready but not implemented.
+ */
+export type PublicHolidayScope = typeof PublicHolidayScope[keyof typeof PublicHolidayScope];
+
+
+export const PublicHolidayScope = {
+  organization: 'organization',
+  branch: 'branch',
+  region: 'region',
+  national: 'national',
+} as const;
+
+export type PublicHolidayStatus = typeof PublicHolidayStatus[keyof typeof PublicHolidayStatus];
+
+
+export const PublicHolidayStatus = {
+  active: 'active',
+  inactive: 'inactive',
+} as const;
+
+export interface PublicHoliday {
+  id: number;
+  organizationId: number;
+  name: string;
+  /** For a recurring holiday, a month/day template — the year is only its first occurrence. */
+  date: string;
+  /** Always "organization" in this phase — branch/region/national are schema-ready but not implemented. */
+  scope: PublicHolidayScope;
+  recurring: boolean;
+  /**
+     * Only valid for a one-off holiday shifted to a weekday. Always null for a recurring holiday.
+     * @nullable
+     */
+  observedDate?: string | null;
+  /**
+     * Required for a one-off holiday (must match date's year); always null for a recurring holiday.
+     * @nullable
+     */
+  effectiveYear?: number | null;
+  /** @nullable */
+  description?: string | null;
+  status: PublicHolidayStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePublicHolidayInput {
+  name: string;
+  date: string;
+  recurring: boolean;
+  observedDate?: string;
+  effectiveYear?: number;
+  description?: string;
+}
+
+export interface UpdatePublicHolidayInput {
+  name?: string;
+  date?: string;
+  recurring?: boolean;
+  /** @nullable */
+  observedDate?: string | null;
+  /** @nullable */
+  effectiveYear?: number | null;
+  description?: string;
 }
 
 export type LeaveTypeStatus = typeof LeaveTypeStatus[keyof typeof LeaveTypeStatus];
@@ -1714,6 +1795,10 @@ from: string;
 to: string;
 departmentId?: number;
 branchId?: number;
+};
+
+export type ListPublicHolidaysParams = {
+year?: number;
 };
 
 export type ListLeaveBalanceLedgerParams = {

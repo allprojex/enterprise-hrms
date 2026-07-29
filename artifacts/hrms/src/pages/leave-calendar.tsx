@@ -14,6 +14,7 @@ import {
   useListLeaveCalendar,
   getListLeaveCalendarQueryKey,
   type LeaveCalendarEntry,
+  type PublicHolidayOccurrence,
 } from '@workspace/api-client-react';
 import { QueryError } from '@/components/query-error';
 
@@ -72,13 +73,15 @@ export default function LeaveCalendar() {
   };
 
   const {
-    data: entries,
+    data: calendar,
     isLoading,
     error,
     refetch,
   } = useListLeaveCalendar(organizationId, params, {
     query: { queryKey: getListLeaveCalendarQueryKey(organizationId, params), enabled: organizationId > 0 },
   });
+  const entries = calendar?.leaveEntries;
+  const holidays = calendar?.holidays;
 
   const entriesByDate = new Map<string, LeaveCalendarEntry[]>();
   for (const entry of entries ?? []) {
@@ -92,6 +95,15 @@ export default function LeaveCalendar() {
     }
   }
 
+  // Holidays (W37) are a separate, read-only overlay — never merged into
+  // entriesByDate and never rendered as if they were an employee's leave.
+  const holidaysByDate = new Map<string, PublicHolidayOccurrence[]>();
+  for (const holiday of holidays ?? []) {
+    const list = holidaysByDate.get(holiday.date) ?? [];
+    list.push(holiday);
+    holidaysByDate.set(holiday.date, list);
+  }
+
   const monthLabel = cursor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
   const currentMonth = cursor.getMonth();
 
@@ -100,7 +112,7 @@ export default function LeaveCalendar() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-2">
           <h1 className="text-3xl font-bold text-foreground">Leave Calendar</h1>
-          <p className="text-muted-foreground">Approved leave only — pending and rejected requests never appear here</p>
+          <p className="text-muted-foreground">Approved leave and public holidays — pending/rejected requests never appear, and holidays are shown separately from employee leave</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Select value={departmentId} onValueChange={setDepartmentId}>
@@ -178,6 +190,7 @@ export default function LeaveCalendar() {
               {gridDays.map((d) => {
                 const dateStr = formatLocalDate(d);
                 const dayEntries = entriesByDate.get(dateStr) ?? [];
+                const dayHolidays = holidaysByDate.get(dateStr) ?? [];
                 const inCurrentMonth = d.getMonth() === currentMonth;
                 return (
                   <div
@@ -186,6 +199,16 @@ export default function LeaveCalendar() {
                     data-testid={`cell-calendar-day-${dateStr}`}
                   >
                     <p className="text-xs text-muted-foreground">{d.getDate()}</p>
+                    {dayHolidays.map((holiday) => (
+                      <div
+                        key={`holiday-${holiday.id}-${dateStr}`}
+                        className="truncate rounded bg-accent/20 px-1.5 py-0.5 text-xs font-medium text-accent-foreground"
+                        title={`Holiday: ${holiday.name}`}
+                        data-testid={`chip-calendar-holiday-${holiday.id}`}
+                      >
+                        {holiday.name}
+                      </div>
+                    ))}
                     {dayEntries.map((entry) => (
                       <div
                         key={`${entry.id}-${dateStr}`}
@@ -201,10 +224,10 @@ export default function LeaveCalendar() {
               })}
             </div>
           )}
-          {!isLoading && !error && (entries ?? []).length === 0 && (
+          {!isLoading && !error && (entries ?? []).length === 0 && (holidays ?? []).length === 0 && (
             <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
               <CalendarRange className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
-              <p className="text-sm text-muted-foreground">No approved leave in this range.</p>
+              <p className="text-sm text-muted-foreground">No approved leave or holidays in this range.</p>
             </div>
           )}
         </CardContent>

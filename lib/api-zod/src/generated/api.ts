@@ -1813,7 +1813,7 @@ export const ListPendingApprovalsResponse = zod.array(ListPendingApprovalsRespon
 
 
 /**
- * A read model over leave_requests — never a second source of truth. Only status "approved" is ever included. Org-wide for leave_request.manage holders; otherwise scoped to the caller's own approved leave plus their direct reports' (employees. reportingManagerId), same as leave-requests/pending-approvals. Confidential fields (reason, attachments, approval comments) are never returned. The date range is bounded server-side. Gated by the "leave" module.
+ * A read model over leave_requests — never a second source of truth. Only status "approved" is ever included. Org-wide for leave_request.manage holders; otherwise scoped to the caller's own approved leave plus their direct reports' (employees. reportingManagerId), same as leave-requests/pending-approvals. Confidential fields (reason, attachments, approval comments) are never returned. Holidays (W37) are overlaid as a separate, read-only list — never merged into leaveEntries and never represented as a leave request. The date range is bounded server-side. Gated by the "leave" module.
  * @summary Organization-scoped calendar of approved leave within a date range
  */
 export const ListLeaveCalendarParams = zod.object({
@@ -1827,7 +1827,8 @@ export const ListLeaveCalendarQueryParams = zod.object({
   "branchId": zod.coerce.number().optional()
 })
 
-export const ListLeaveCalendarResponseItem = zod.object({
+export const ListLeaveCalendarResponse = zod.object({
+  "leaveEntries": zod.array(zod.object({
   "id": zod.number(),
   "employeeId": zod.number(),
   "employeeName": zod.string(),
@@ -1836,8 +1837,196 @@ export const ListLeaveCalendarResponseItem = zod.object({
   "startDate": zod.coerce.date(),
   "endDate": zod.coerce.date(),
   "daysRequested": zod.string()
-}).describe('The minimum identity fields the calendar UI needs — deliberately not the full LeaveRequest shape. Never includes reason, attachmentDocumentId, or any approval\/ledger detail.')
-export const ListLeaveCalendarResponse = zod.array(ListLeaveCalendarResponseItem)
+}).describe('The minimum identity fields the calendar UI needs — deliberately not the full LeaveRequest shape. Never includes reason, attachmentDocumentId, or any approval\/ledger detail.')),
+  "holidays": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "date": zod.coerce.date()
+}).describe('One concrete occurrence of a holiday within a requested range — a recurring holiday\'s template expanded for the relevant year(s), or a one-off holiday\'s date\/observedDate. A read-only calendar overlay, never a leave request.'))
+})
+
+
+/**
+ * Active holidays by default; a recurring holiday always matches every year filter, since it applies every year regardless of its stored template year. Gated by the "leave" module.
+ * @summary List an organization's public holidays
+ */
+export const ListPublicHolidaysParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListPublicHolidaysQueryParams = zod.object({
+  "year": zod.coerce.number().optional()
+})
+
+export const ListPublicHolidaysResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "date": zod.coerce.date().describe('For a recurring holiday, a month\/day template — the year is only its first occurrence.'),
+  "scope": zod.enum(['organization', 'branch', 'region', 'national']).describe('Always \"organization\" in this phase — branch\/region\/national are schema-ready but not implemented.'),
+  "recurring": zod.boolean(),
+  "observedDate": zod.coerce.date().nullish().describe('Only valid for a one-off holiday shifted to a weekday. Always null for a recurring holiday.'),
+  "effectiveYear": zod.number().nullish().describe('Required for a one-off holiday (must match date\'s year); always null for a recurring holiday.'),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListPublicHolidaysResponse = zod.array(ListPublicHolidaysResponseItem)
+
+
+/**
+ * public_holiday.manage required — distinct from leave_request.approve and leave_type.manage, neither of which grants holiday management. scope is always "organization" in this phase regardless of what's sent. effectiveYear is required for a one-off holiday and rejected for a recurring one; observedDate is rejected for a recurring one.
+ * @summary Create a public holiday
+ */
+export const CreatePublicHolidayParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const CreatePublicHolidayBody = zod.object({
+  "name": zod.string(),
+  "date": zod.coerce.date(),
+  "recurring": zod.boolean(),
+  "observedDate": zod.coerce.date().optional(),
+  "effectiveYear": zod.number().optional(),
+  "description": zod.string().optional()
+})
+
+export const CreatePublicHolidayResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "date": zod.coerce.date().describe('For a recurring holiday, a month\/day template — the year is only its first occurrence.'),
+  "scope": zod.enum(['organization', 'branch', 'region', 'national']).describe('Always \"organization\" in this phase — branch\/region\/national are schema-ready but not implemented.'),
+  "recurring": zod.boolean(),
+  "observedDate": zod.coerce.date().nullish().describe('Only valid for a one-off holiday shifted to a weekday. Always null for a recurring holiday.'),
+  "effectiveYear": zod.number().nullish().describe('Required for a one-off holiday (must match date\'s year); always null for a recurring holiday.'),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Retrieve one public holiday
+ */
+export const GetPublicHolidayParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const GetPublicHolidayResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "date": zod.coerce.date().describe('For a recurring holiday, a month\/day template — the year is only its first occurrence.'),
+  "scope": zod.enum(['organization', 'branch', 'region', 'national']).describe('Always \"organization\" in this phase — branch\/region\/national are schema-ready but not implemented.'),
+  "recurring": zod.boolean(),
+  "observedDate": zod.coerce.date().nullish().describe('Only valid for a one-off holiday shifted to a weekday. Always null for a recurring holiday.'),
+  "effectiveYear": zod.number().nullish().describe('Required for a one-off holiday (must match date\'s year); always null for a recurring holiday.'),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * public_holiday.manage required.
+ * @summary Update a public holiday
+ */
+export const UpdatePublicHolidayParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const UpdatePublicHolidayBody = zod.object({
+  "name": zod.string().optional(),
+  "date": zod.coerce.date().optional(),
+  "recurring": zod.boolean().optional(),
+  "observedDate": zod.coerce.date().nullish(),
+  "effectiveYear": zod.number().nullish(),
+  "description": zod.string().optional()
+})
+
+export const UpdatePublicHolidayResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "date": zod.coerce.date().describe('For a recurring holiday, a month\/day template — the year is only its first occurrence.'),
+  "scope": zod.enum(['organization', 'branch', 'region', 'national']).describe('Always \"organization\" in this phase — branch\/region\/national are schema-ready but not implemented.'),
+  "recurring": zod.boolean(),
+  "observedDate": zod.coerce.date().nullish().describe('Only valid for a one-off holiday shifted to a weekday. Always null for a recurring holiday.'),
+  "effectiveYear": zod.number().nullish().describe('Required for a one-off holiday (must match date\'s year); always null for a recurring holiday.'),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Safe hard delete — no FK anywhere references a public_holidays row, and a past leave request's calculated days were already stored at submission time (W33), never recomputed later. Prefer deactivatePublicHoliday to keep the record for reference.
+ * @summary Permanently delete a public holiday
+ */
+export const DeletePublicHolidayParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const DeletePublicHolidayResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * Excluded from new leave calculations and the calendar overlay from this point on; historical requests are unaffected.
+ * @summary Deactivate a public holiday (preferred over delete)
+ */
+export const DeactivatePublicHolidayParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const DeactivatePublicHolidayResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "date": zod.coerce.date().describe('For a recurring holiday, a month\/day template — the year is only its first occurrence.'),
+  "scope": zod.enum(['organization', 'branch', 'region', 'national']).describe('Always \"organization\" in this phase — branch\/region\/national are schema-ready but not implemented.'),
+  "recurring": zod.boolean(),
+  "observedDate": zod.coerce.date().nullish().describe('Only valid for a one-off holiday shifted to a weekday. Always null for a recurring holiday.'),
+  "effectiveYear": zod.number().nullish().describe('Required for a one-off holiday (must match date\'s year); always null for a recurring holiday.'),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Reactivate a deactivated public holiday
+ */
+export const ReactivatePublicHolidayParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ReactivatePublicHolidayResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "date": zod.coerce.date().describe('For a recurring holiday, a month\/day template — the year is only its first occurrence.'),
+  "scope": zod.enum(['organization', 'branch', 'region', 'national']).describe('Always \"organization\" in this phase — branch\/region\/national are schema-ready but not implemented.'),
+  "recurring": zod.boolean(),
+  "observedDate": zod.coerce.date().nullish().describe('Only valid for a one-off holiday shifted to a weekday. Always null for a recurring holiday.'),
+  "effectiveYear": zod.number().nullish().describe('Required for a one-off holiday (must match date\'s year); always null for a recurring holiday.'),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
 
 
 /**

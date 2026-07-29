@@ -1890,7 +1890,9 @@ paths:
         approved leave plus their direct reports' (employees.
         reportingManagerId), same as leave-requests/pending-approvals.
         Confidential fields (reason, attachments, approval comments) are
-        never returned. The date range is bounded server-side. Gated by the
+        never returned. Holidays (W37) are overlaid as a separate, read-only
+        list — never merged into leaveEntries and never represented as a
+        leave request. The date range is bounded server-side. Gated by the
         "leave" module.
       parameters:
         - name: organizationId
@@ -1924,15 +1926,255 @@ paths:
             type: integer
       responses:
         "200":
-          description: Approved leave overlapping the requested range, visible to the caller
+          description: Approved leave and overlapping holidays within the requested range, visible to the caller
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaveCalendarResponse"
+        "400":
+          description: Missing/invalid from or to, or the range exceeds 100 days
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/public-holidays:
+    get:
+      operationId: listPublicHolidays
+      tags: [public-holidays]
+      summary: List an organization's public holidays
+      description: >-
+        Active holidays by default; a recurring holiday always matches
+        every year filter, since it applies every year regardless of its
+        stored template year. Gated by the "leave" module.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: year
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Public holidays for the organization
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/LeaveCalendarEntry"
+                  $ref: "#/components/schemas/PublicHoliday"
+    post:
+      operationId: createPublicHoliday
+      tags: [public-holidays]
+      summary: Create a public holiday
+      description: >-
+        public_holiday.manage required — distinct from leave_request.approve
+        and leave_type.manage, neither of which grants holiday management.
+        scope is always "organization" in this phase regardless of what's
+        sent. effectiveYear is required for a one-off holiday and rejected
+        for a recurring one; observedDate is rejected for a recurring one.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePublicHolidayInput"
+      responses:
+        "201":
+          description: Public holiday created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicHoliday"
         "400":
-          description: Missing/invalid from or to, or the range exceeds 100 days
+          description: Invalid date, scope, or recurring configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: A holiday with this name already exists on this date
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/public-holidays/{id}:
+    get:
+      operationId: getPublicHoliday
+      tags: [public-holidays]
+      summary: Retrieve one public holiday
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The public holiday
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicHoliday"
+        "404":
+          description: Public holiday not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    patch:
+      operationId: updatePublicHoliday
+      tags: [public-holidays]
+      summary: Update a public holiday
+      description: public_holiday.manage required.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePublicHolidayInput"
+      responses:
+        "200":
+          description: Public holiday updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicHoliday"
+        "400":
+          description: Invalid date, scope, or recurring configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Public holiday not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: A holiday with this name already exists on this date
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    delete:
+      operationId: deletePublicHoliday
+      tags: [public-holidays]
+      summary: Permanently delete a public holiday
+      description: >-
+        Safe hard delete — no FK anywhere references a public_holidays row,
+        and a past leave request's calculated days were already stored at
+        submission time (W33), never recomputed later. Prefer
+        deactivatePublicHoliday to keep the record for reference.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Public holiday deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "404":
+          description: Public holiday not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/public-holidays/{id}/deactivate:
+    post:
+      operationId: deactivatePublicHoliday
+      tags: [public-holidays]
+      summary: Deactivate a public holiday (preferred over delete)
+      description: Excluded from new leave calculations and the calendar overlay from this point on; historical requests are unaffected.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Public holiday deactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicHoliday"
+        "404":
+          description: Public holiday not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/public-holidays/{id}/reactivate:
+    post:
+      operationId: reactivatePublicHoliday
+      tags: [public-holidays]
+      summary: Reactivate a deactivated public holiday
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Public holiday reactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicHoliday"
+        "404":
+          description: Public holiday not found
           content:
             application/json:
               schema:
@@ -4333,6 +4575,36 @@ components:
         daysRequested:
           type: string
 
+    PublicHolidayOccurrence:
+      type: object
+      description: >-
+        One concrete occurrence of a holiday within a requested range — a
+        recurring holiday's template expanded for the relevant year(s), or a
+        one-off holiday's date/observedDate. A read-only calendar overlay,
+        never a leave request.
+      required: [id, name, date]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        date:
+          type: string
+          format: date
+
+    LeaveCalendarResponse:
+      type: object
+      required: [leaveEntries, holidays]
+      properties:
+        leaveEntries:
+          type: array
+          items:
+            $ref: "#/components/schemas/LeaveCalendarEntry"
+        holidays:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicHolidayOccurrence"
+
     RejectLeaveRequestInput:
       type: object
       properties:
@@ -4433,6 +4705,82 @@ components:
         reason:
           type: string
           minLength: 1
+
+    PublicHoliday:
+      type: object
+      required: [id, organizationId, name, date, scope, recurring, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        name:
+          type: string
+        date:
+          type: string
+          format: date
+          description: For a recurring holiday, a month/day template — the year is only its first occurrence.
+        scope:
+          type: string
+          enum: [organization, branch, region, national]
+          description: Always "organization" in this phase — branch/region/national are schema-ready but not implemented.
+        recurring:
+          type: boolean
+        observedDate:
+          type: ["string", "null"]
+          format: date
+          description: Only valid for a one-off holiday shifted to a weekday. Always null for a recurring holiday.
+        effectiveYear:
+          type: ["integer", "null"]
+          description: Required for a one-off holiday (must match date's year); always null for a recurring holiday.
+        description:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, inactive]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreatePublicHolidayInput:
+      type: object
+      required: [name, date, recurring]
+      properties:
+        name:
+          type: string
+        date:
+          type: string
+          format: date
+        recurring:
+          type: boolean
+        observedDate:
+          type: string
+          format: date
+        effectiveYear:
+          type: integer
+        description:
+          type: string
+
+    UpdatePublicHolidayInput:
+      type: object
+      properties:
+        name:
+          type: string
+        date:
+          type: string
+          format: date
+        recurring:
+          type: boolean
+        observedDate:
+          type: ["string", "null"]
+          format: date
+        effectiveYear:
+          type: ["integer", "null"]
+        description:
+          type: string
 
     LeaveType:
       type: object

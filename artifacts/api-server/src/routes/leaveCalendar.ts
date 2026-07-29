@@ -8,6 +8,7 @@ import { requireModuleEnabled } from "../middlewares/requireModuleEnabled";
 import { hasPermission } from "../lib/permissions";
 import { resolveOwnEmployeeId } from "../lib/leaveRequests";
 import { listLeaveCalendar, InvalidCalendarRangeError } from "../lib/leaveCalendar";
+import { listHolidayOccurrencesInRange } from "../lib/publicHolidays";
 
 const router = Router();
 
@@ -59,15 +60,15 @@ router.get(
     }
 
     try {
-      const entries = await listLeaveCalendar({
-        organizationId,
-        from,
-        to,
-        departmentId,
-        branchId,
-        visibleEmployeeIds,
-      });
-      res.json(entries);
+      // Holidays are a separate, read-only overlay (W37) — never merged into
+      // leaveEntries, never represented as a leave request, and computed
+      // from public_holidays directly rather than any redesign of W36's
+      // approved-leave source of truth.
+      const [leaveEntries, holidays] = await Promise.all([
+        listLeaveCalendar({ organizationId, from, to, departmentId, branchId, visibleEmployeeIds }),
+        listHolidayOccurrencesInRange(organizationId, from, to),
+      ]);
+      res.json({ leaveEntries, holidays });
     } catch (err) {
       if (err instanceof InvalidCalendarRangeError) {
         res.status(400).json({ error: err.message });

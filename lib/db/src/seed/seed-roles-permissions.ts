@@ -48,6 +48,8 @@ const PERMISSIONS = [
   { key: "leave_request.write.own", resource: "leave_request", action: "write.own" },
   { key: "leave_request.manage", resource: "leave_request", action: "manage" },
   { key: "leave_request.approve", resource: "leave_request", action: "approve" },
+  { key: "public_holiday.read", resource: "public_holiday", action: "read" },
+  { key: "public_holiday.manage", resource: "public_holiday", action: "manage" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -78,6 +80,8 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "leave_request.write.own",
     "leave_request.manage",
     "leave_request.approve",
+    "public_holiday.read",
+    "public_holiday.manage",
   ],
   hr_manager: [
     "organization.read",
@@ -98,6 +102,8 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "leave_request.write.own",
     "leave_request.manage",
     "leave_request.approve",
+    "public_holiday.read",
+    "public_holiday.manage",
   ],
   employee: [
     "organization.read",
@@ -106,6 +112,7 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "department.read",
     "position.read",
     "leave_type.read",
+    "public_holiday.read",
     "leave_request.read.own",
     "leave_request.write.own",
     "leave_request.approve",

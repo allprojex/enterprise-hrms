@@ -27,6 +27,7 @@ const {
   employeeUserLinksTable,
   leaveTypesTable,
   leaveRequestsTable,
+  publicHolidaysTable,
   auditEventsTable,
 } = vi.hoisted(() => {
   function mockTable(name: string, columns: string[]) {
@@ -46,6 +47,7 @@ const {
       employeeUserLinkRows: [] as Record<string, unknown>[],
       leaveTypeRows: [] as Record<string, unknown>[],
       leaveRequestRows: [] as Record<string, unknown>[],
+      publicHolidayRows: [] as Record<string, unknown>[],
     },
     usersTable: mockTable("users", ["id", "email"]),
     sessionsTable: mockTable("sessions", ["token", "userId", "expiresAt"]),
@@ -69,6 +71,7 @@ const {
       "status",
       "reason",
     ]),
+    publicHolidaysTable: mockTable("public_holidays", ["id", "organizationId", "status", "recurring", "date", "observedDate", "name"]),
     auditEventsTable: mockTable("audit_events", []),
   };
 });
@@ -100,6 +103,7 @@ vi.mock("@workspace/db", () => ({
   employeeUserLinksTable,
   leaveTypesTable,
   leaveRequestsTable,
+  publicHolidaysTable,
   auditEventsTable,
   db: {
     select: (proj?: Record<string, unknown>) => ({
@@ -143,6 +147,7 @@ vi.mock("@workspace/db", () => ({
         else if (table === employeeUserLinksTable) rows = fixtures.employeeUserLinkRows;
         else if (table === leaveTypesTable) rows = fixtures.leaveTypeRows;
         else if (table === leaveRequestsTable) rows = fixtures.leaveRequestRows;
+        else if (table === publicHolidaysTable) rows = fixtures.publicHolidayRows;
 
         const project = (r: Record<string, unknown>) => (proj ? Object.fromEntries(Object.keys(proj).map((k) => [k, r[k]])) : r);
         let filtered = rows;
@@ -243,6 +248,7 @@ beforeEach(() => {
   fixtures.employeeUserLinkRows = [];
   fixtures.leaveTypeRows = [];
   fixtures.leaveRequestRows = [];
+  fixtures.publicHolidayRows = [];
 
   mockSession();
   mockActiveMembership();
@@ -284,8 +290,8 @@ describe("GET /api/organizations/:organizationId/leave-calendar", () => {
       .set("Authorization", "Bearer valid-token");
 
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(1);
-    expect(res.body[0].id).toBe(1);
+    expect(res.body.leaveEntries).toHaveLength(1);
+    expect(res.body.leaveEntries[0].id).toBe(1);
   });
 
   it("never exposes the confidential request reason", async () => {
@@ -298,8 +304,8 @@ describe("GET /api/organizations/:organizationId/leave-calendar", () => {
       .set("Authorization", "Bearer valid-token");
 
     expect(res.status).toBe(200);
-    expect(res.body[0]).not.toHaveProperty("reason");
-    expect(res.body[0]).toMatchObject({ employeeName: "Ada Lovelace", leaveTypeName: "Annual" });
+    expect(res.body.leaveEntries[0]).not.toHaveProperty("reason");
+    expect(res.body.leaveEntries[0]).toMatchObject({ employeeName: "Ada Lovelace", leaveTypeName: "Annual" });
   });
 
   it("scopes a manager (without org-wide authority) to their own leave plus direct reports only", async () => {
@@ -313,8 +319,8 @@ describe("GET /api/organizations/:organizationId/leave-calendar", () => {
       .set("Authorization", "Bearer valid-token");
 
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(1);
-    expect(res.body[0].employeeId).toBe(EMPLOYEE_ID);
+    expect(res.body.leaveEntries).toHaveLength(1);
+    expect(res.body.leaveEntries[0].employeeId).toBe(EMPLOYEE_ID);
   });
 
   it("returns an empty list for a caller with no direct reports and no org-wide authority", async () => {
@@ -328,7 +334,7 @@ describe("GET /api/organizations/:organizationId/leave-calendar", () => {
       .set("Authorization", "Bearer valid-token");
 
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(0);
+    expect(res.body.leaveEntries).toHaveLength(0);
   });
 
   it("returns every approved request org-wide for leave_request.manage holders", async () => {
@@ -344,7 +350,7 @@ describe("GET /api/organizations/:organizationId/leave-calendar", () => {
       .set("Authorization", "Bearer valid-token");
 
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(2);
+    expect(res.body.leaveEntries).toHaveLength(2);
   });
 
   it("filters by departmentId", async () => {
@@ -360,8 +366,26 @@ describe("GET /api/organizations/:organizationId/leave-calendar", () => {
       .set("Authorization", "Bearer valid-token");
 
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(1);
-    expect(res.body[0].employeeId).toBe(EMPLOYEE_ID);
+    expect(res.body.leaveEntries).toHaveLength(1);
+    expect(res.body.leaveEntries[0].employeeId).toBe(EMPLOYEE_ID);
+  });
+
+  it("overlays holidays as a separate, distinct list from leave entries", async () => {
+    fixtures.leaveRequestRows = [
+      { id: 1, organizationId: ORG_ID, employeeId: EMPLOYEE_ID, leaveTypeId: LEAVE_TYPE_ID, startDate: "2030-06-10", endDate: "2030-06-12", daysRequested: "3", status: "approved", reason: null },
+    ];
+    fixtures.publicHolidayRows = [
+      { id: 9, organizationId: ORG_ID, status: "active", recurring: false, date: "2030-06-15", observedDate: null, name: "Founders Day" },
+      { id: 10, organizationId: ORG_ID, status: "inactive", recurring: false, date: "2030-06-20", observedDate: null, name: "Retired Holiday" },
+    ];
+
+    const res = await request(app)
+      .get(calendarUrl("?from=2030-06-01&to=2030-06-30"))
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.leaveEntries).toHaveLength(1);
+    expect(res.body.holidays).toEqual([{ id: 9, name: "Founders Day", date: "2030-06-15" }]);
   });
 
   it("returns 403 when the leave module is not enabled", async () => {

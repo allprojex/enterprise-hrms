@@ -26,6 +26,7 @@ import MyLeave from '@/pages/my-leave';
 import LeaveBalances from '@/pages/leave-balances';
 import LeaveApprovals from '@/pages/leave-approvals';
 import LeaveCalendar from '@/pages/leave-calendar';
+import PublicHolidays from '@/pages/public-holidays';
 import { ModuleGate } from '@/components/module-gate';
 
 const queryClient = new QueryClient({
@@ -105,6 +106,9 @@ function Router() {
       </Route>
       <Route path="/leave-calendar">
         {() => <SecureRoute component={LeaveCalendar} moduleKey="leave" />}
+      </Route>
+      <Route path="/public-holidays">
+        {() => <SecureRoute component={PublicHolidays} moduleKey="leave" />}
       </Route>
 
       {/* 404 fallback */}

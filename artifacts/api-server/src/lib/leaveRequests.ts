@@ -1,11 +1,12 @@
 /**
  * Leave Requests (Phase 2B, W33): create/view/withdraw an employee's own
  * leave requests. Approval/rejection lives in leaveApprovals.ts (W35, to
- * avoid a circular import with leaveBalances.ts); no public holiday
- * exclusion yet (W37 doesn't exist — see `calculateLeaveDays` below for how
- * it slots in later without a schema change). Reuses lib/employees.ts's
- * `getEmployeeById` and W32's `leave_types`/`leave_policies` rather than
- * re-deriving eligibility from scratch.
+ * avoid a circular import with leaveBalances.ts). Public holiday exclusion
+ * (W37) is resolved via publicHolidays.ts's `resolveHolidayDatesInRange`
+ * and fed into `calculateLeaveDays` below — exactly the extension point
+ * this function was built with, no schema or signature change needed.
+ * Reuses lib/employees.ts's `getEmployeeById` and W32's `leave_types`/
+ * `leave_policies` rather than re-deriving eligibility from scratch.
  */
 import { and, desc, eq, inArray } from "drizzle-orm";
 import {
@@ -21,6 +22,7 @@ import {
 } from "@workspace/db";
 import { recordAuditEvent } from "./auditLog";
 import { getEmployeeById } from "./employees";
+import { resolveHolidayDatesInRange } from "./publicHolidays";
 
 export class InvalidLeaveRequestError extends Error {}
 
@@ -60,11 +62,11 @@ function monthsBetween(from: Date, to: Date): number {
 
 /**
  * Server-side day count — never trusts a client-supplied value. Weekend
- * exclusion is driven by the policy's own `countWeekends` flag.
- * `publicHolidayDates` is always empty in W33 (no Public Holiday Management
- * yet, W37); the parameter exists now precisely so W37 only has to start
- * passing real dates in here — no change to this function's contract, the
- * caller, or the `leave_requests` schema.
+ * exclusion is driven by the policy's own `countWeekends` flag; holiday
+ * exclusion by `countPublicHolidays` (W37 always passes the organization's
+ * active holidays here now — see createLeaveRequest). A day matching either
+ * exclusion only ever `continue`s the loop once, so a day that's both a
+ * weekend and a holiday is never double-subtracted.
  */
 export function calculateLeaveDays(
   startDate: string,
@@ -169,7 +171,12 @@ export async function createLeaveRequest(params: {
     throw new InvalidLeaveRequestError("The applicable policy is not effective for the requested dates");
   }
 
-  const daysRequested = calculateLeaveDays(params.startDate, params.endDate, policy);
+  // W37: resolves active organization holidays overlapping the requested
+  // range; calculateLeaveDays itself decides whether to actually exclude
+  // them, per the policy's own countPublicHolidays flag — this call always
+  // fetches them so that decision is never skipped.
+  const holidayDates = await resolveHolidayDatesInRange(params.organizationId, params.startDate, params.endDate);
+  const daysRequested = calculateLeaveDays(params.startDate, params.endDate, policy, holidayDates);
 
   const minDuration = policy.minRequestDurationDays != null ? Number(policy.minRequestDurationDays) : null;
   const maxDuration = policy.maxRequestDurationDays != null ? Number(policy.maxRequestDurationDays) : null;

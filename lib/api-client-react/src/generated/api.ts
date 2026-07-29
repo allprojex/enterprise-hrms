@@ -44,6 +44,7 @@ import type {
   CreateMasterDataItemInput,
   CreateOrganizationInput,
   CreatePositionInput,
+  CreatePublicHolidayInput,
   DashboardSummary,
   Department,
   Employee,
@@ -61,7 +62,7 @@ import type {
   InvitationPreview,
   LeaveBalanceEntry,
   LeaveBalanceSummary,
-  LeaveCalendarEntry,
+  LeaveCalendarResponse,
   LeavePolicy,
   LeaveRequest,
   LeaveType,
@@ -70,6 +71,7 @@ import type {
   ListEmployeesParams,
   ListLeaveBalanceLedgerParams,
   ListLeaveCalendarParams,
+  ListPublicHolidaysParams,
   LoginInput,
   MasterDataDomain,
   MasterDataItem,
@@ -88,6 +90,7 @@ import type {
   PrimaryHrAssignment,
   PrimaryHrAssignmentOrNull,
   PromoteEmployeeInput,
+  PublicHoliday,
   RejectLeaveRequestInput,
   Report,
   ReportRunResult,
@@ -113,6 +116,7 @@ import type {
   UpdateOrganizationInput,
   UpdateOrganizationModuleInput,
   UpdatePositionInput,
+  UpdatePublicHolidayInput,
   UploadEmployeeDocumentBody,
   UploadEmployeeProfilePictureBody,
   UserProfile,
@@ -4204,13 +4208,13 @@ export const getListLeaveCalendarUrl = (organizationId: number,
 }
 
 /**
- * A read model over leave_requests — never a second source of truth. Only status "approved" is ever included. Org-wide for leave_request.manage holders; otherwise scoped to the caller's own approved leave plus their direct reports' (employees. reportingManagerId), same as leave-requests/pending-approvals. Confidential fields (reason, attachments, approval comments) are never returned. The date range is bounded server-side. Gated by the "leave" module.
+ * A read model over leave_requests — never a second source of truth. Only status "approved" is ever included. Org-wide for leave_request.manage holders; otherwise scoped to the caller's own approved leave plus their direct reports' (employees. reportingManagerId), same as leave-requests/pending-approvals. Confidential fields (reason, attachments, approval comments) are never returned. Holidays (W37) are overlaid as a separate, read-only list — never merged into leaveEntries and never represented as a leave request. The date range is bounded server-side. Gated by the "leave" module.
  * @summary Organization-scoped calendar of approved leave within a date range
  */
 export const listLeaveCalendar = async (organizationId: number,
-    params: ListLeaveCalendarParams, options?: RequestInit): Promise<LeaveCalendarEntry[]> => {
+    params: ListLeaveCalendarParams, options?: RequestInit): Promise<LeaveCalendarResponse> => {
 
-  return customFetch<LeaveCalendarEntry[]>(getListLeaveCalendarUrl(organizationId,params),
+  return customFetch<LeaveCalendarResponse>(getListLeaveCalendarUrl(organizationId,params),
   {
     ...options,
     method: 'GET'
@@ -4276,6 +4280,547 @@ export function useListLeaveCalendar<TData = Awaited<ReturnType<typeof listLeave
 
 
 
+
+export const getListPublicHolidaysUrl = (organizationId: number,
+    params?: ListPublicHolidaysParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/public-holidays?${stringifiedParams}` : `/api/organizations/${organizationId}/public-holidays`
+}
+
+/**
+ * Active holidays by default; a recurring holiday always matches every year filter, since it applies every year regardless of its stored template year. Gated by the "leave" module.
+ * @summary List an organization's public holidays
+ */
+export const listPublicHolidays = async (organizationId: number,
+    params?: ListPublicHolidaysParams, options?: RequestInit): Promise<PublicHoliday[]> => {
+
+  return customFetch<PublicHoliday[]>(getListPublicHolidaysUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPublicHolidaysQueryKey = (organizationId: number,
+    params?: ListPublicHolidaysParams,) => {
+    return [
+    `/api/organizations/${organizationId}/public-holidays`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListPublicHolidaysQueryOptions = <TData = Awaited<ReturnType<typeof listPublicHolidays>>, TError = ErrorType<unknown>>(organizationId: number,
+    params?: ListPublicHolidaysParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPublicHolidays>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPublicHolidaysQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPublicHolidays>>> = ({ signal }) => listPublicHolidays(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPublicHolidays>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPublicHolidaysQueryResult = NonNullable<Awaited<ReturnType<typeof listPublicHolidays>>>
+export type ListPublicHolidaysQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List an organization's public holidays
+ */
+
+export function useListPublicHolidays<TData = Awaited<ReturnType<typeof listPublicHolidays>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    params?: ListPublicHolidaysParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPublicHolidays>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPublicHolidaysQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreatePublicHolidayUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/public-holidays`
+}
+
+/**
+ * public_holiday.manage required — distinct from leave_request.approve and leave_type.manage, neither of which grants holiday management. scope is always "organization" in this phase regardless of what's sent. effectiveYear is required for a one-off holiday and rejected for a recurring one; observedDate is rejected for a recurring one.
+ * @summary Create a public holiday
+ */
+export const createPublicHoliday = async (organizationId: number,
+    createPublicHolidayInput: CreatePublicHolidayInput, options?: RequestInit): Promise<PublicHoliday> => {
+
+  return customFetch<PublicHoliday>(getCreatePublicHolidayUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createPublicHolidayInput)
+  }
+);}
+
+
+
+
+
+export const getCreatePublicHolidayMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPublicHoliday>>, TError,{organizationId: number;data: BodyType<CreatePublicHolidayInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPublicHoliday>>, TError,{organizationId: number;data: BodyType<CreatePublicHolidayInput>}, TContext> => {
+
+const mutationKey = ['createPublicHoliday'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPublicHoliday>>, {organizationId: number;data: BodyType<CreatePublicHolidayInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createPublicHoliday(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePublicHolidayMutationResult = NonNullable<Awaited<ReturnType<typeof createPublicHoliday>>>
+    export type CreatePublicHolidayMutationBody = BodyType<CreatePublicHolidayInput>
+    export type CreatePublicHolidayMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Create a public holiday
+ */
+export const useCreatePublicHoliday = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPublicHoliday>>, TError,{organizationId: number;data: BodyType<CreatePublicHolidayInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createPublicHoliday>>,
+        TError,
+        {organizationId: number;data: BodyType<CreatePublicHolidayInput>},
+        TContext
+      > => {
+      return useMutation(getCreatePublicHolidayMutationOptions(options));
+    }
+
+export const getGetPublicHolidayUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/public-holidays/${id}`
+}
+
+/**
+ * @summary Retrieve one public holiday
+ */
+export const getPublicHoliday = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<PublicHoliday> => {
+
+  return customFetch<PublicHoliday>(getGetPublicHolidayUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPublicHolidayQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/public-holidays/${id}`
+    ] as const;
+    }
+
+
+export const getGetPublicHolidayQueryOptions = <TData = Awaited<ReturnType<typeof getPublicHoliday>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicHoliday>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPublicHolidayQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublicHoliday>>> = ({ signal }) => getPublicHoliday(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPublicHoliday>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPublicHolidayQueryResult = NonNullable<Awaited<ReturnType<typeof getPublicHoliday>>>
+export type GetPublicHolidayQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Retrieve one public holiday
+ */
+
+export function useGetPublicHoliday<TData = Awaited<ReturnType<typeof getPublicHoliday>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicHoliday>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPublicHolidayQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdatePublicHolidayUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/public-holidays/${id}`
+}
+
+/**
+ * public_holiday.manage required.
+ * @summary Update a public holiday
+ */
+export const updatePublicHoliday = async (organizationId: number,
+    id: number,
+    updatePublicHolidayInput: UpdatePublicHolidayInput, options?: RequestInit): Promise<PublicHoliday> => {
+
+  return customFetch<PublicHoliday>(getUpdatePublicHolidayUrl(organizationId,id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updatePublicHolidayInput)
+  }
+);}
+
+
+
+
+
+export const getUpdatePublicHolidayMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePublicHoliday>>, TError,{organizationId: number;id: number;data: BodyType<UpdatePublicHolidayInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updatePublicHoliday>>, TError,{organizationId: number;id: number;data: BodyType<UpdatePublicHolidayInput>}, TContext> => {
+
+const mutationKey = ['updatePublicHoliday'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePublicHoliday>>, {organizationId: number;id: number;data: BodyType<UpdatePublicHolidayInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  updatePublicHoliday(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdatePublicHolidayMutationResult = NonNullable<Awaited<ReturnType<typeof updatePublicHoliday>>>
+    export type UpdatePublicHolidayMutationBody = BodyType<UpdatePublicHolidayInput>
+    export type UpdatePublicHolidayMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update a public holiday
+ */
+export const useUpdatePublicHoliday = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePublicHoliday>>, TError,{organizationId: number;id: number;data: BodyType<UpdatePublicHolidayInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updatePublicHoliday>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<UpdatePublicHolidayInput>},
+        TContext
+      > => {
+      return useMutation(getUpdatePublicHolidayMutationOptions(options));
+    }
+
+export const getDeletePublicHolidayUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/public-holidays/${id}`
+}
+
+/**
+ * Safe hard delete — no FK anywhere references a public_holidays row, and a past leave request's calculated days were already stored at submission time (W33), never recomputed later. Prefer deactivatePublicHoliday to keep the record for reference.
+ * @summary Permanently delete a public holiday
+ */
+export const deletePublicHoliday = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<MessageResponse> => {
+
+  return customFetch<MessageResponse>(getDeletePublicHolidayUrl(organizationId,id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeletePublicHolidayMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePublicHoliday>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deletePublicHoliday>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['deletePublicHoliday'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deletePublicHoliday>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  deletePublicHoliday(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeletePublicHolidayMutationResult = NonNullable<Awaited<ReturnType<typeof deletePublicHoliday>>>
+
+    export type DeletePublicHolidayMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Permanently delete a public holiday
+ */
+export const useDeletePublicHoliday = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePublicHoliday>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deletePublicHoliday>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getDeletePublicHolidayMutationOptions(options));
+    }
+
+export const getDeactivatePublicHolidayUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/public-holidays/${id}/deactivate`
+}
+
+/**
+ * Excluded from new leave calculations and the calendar overlay from this point on; historical requests are unaffected.
+ * @summary Deactivate a public holiday (preferred over delete)
+ */
+export const deactivatePublicHoliday = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<PublicHoliday> => {
+
+  return customFetch<PublicHoliday>(getDeactivatePublicHolidayUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeactivatePublicHolidayMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deactivatePublicHoliday>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deactivatePublicHoliday>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['deactivatePublicHoliday'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deactivatePublicHoliday>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  deactivatePublicHoliday(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeactivatePublicHolidayMutationResult = NonNullable<Awaited<ReturnType<typeof deactivatePublicHoliday>>>
+
+    export type DeactivatePublicHolidayMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Deactivate a public holiday (preferred over delete)
+ */
+export const useDeactivatePublicHoliday = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deactivatePublicHoliday>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deactivatePublicHoliday>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getDeactivatePublicHolidayMutationOptions(options));
+    }
+
+export const getReactivatePublicHolidayUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/public-holidays/${id}/reactivate`
+}
+
+/**
+ * @summary Reactivate a deactivated public holiday
+ */
+export const reactivatePublicHoliday = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<PublicHoliday> => {
+
+  return customFetch<PublicHoliday>(getReactivatePublicHolidayUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getReactivatePublicHolidayMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivatePublicHoliday>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reactivatePublicHoliday>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['reactivatePublicHoliday'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reactivatePublicHoliday>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  reactivatePublicHoliday(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReactivatePublicHolidayMutationResult = NonNullable<Awaited<ReturnType<typeof reactivatePublicHoliday>>>
+
+    export type ReactivatePublicHolidayMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Reactivate a deactivated public holiday
+ */
+export const useReactivatePublicHoliday = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivatePublicHoliday>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reactivatePublicHoliday>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getReactivatePublicHolidayMutationOptions(options));
+    }
 
 export const getApproveLeaveRequestUrl = (organizationId: number,
     employeeId: number,

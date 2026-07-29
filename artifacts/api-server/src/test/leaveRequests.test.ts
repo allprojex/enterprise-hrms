@@ -32,6 +32,7 @@ const {
   leavePoliciesTable,
   leaveRequestsTable,
   employeeDocumentsTable,
+  publicHolidaysTable,
   auditEventsTable,
 } = vi.hoisted(() => {
   function mockTable(name: string, columns: string[]) {
@@ -53,6 +54,7 @@ const {
       leavePolicyRows: [] as Record<string, unknown>[],
       leaveRequestRows: [] as Record<string, unknown>[],
       employeeDocumentRows: [] as Record<string, unknown>[],
+      publicHolidayRows: [] as Record<string, unknown>[],
       inserted: [] as { table: string; values: unknown }[],
       idCounters: new Map<string, number>(),
     },
@@ -81,6 +83,7 @@ const {
     leavePoliciesTable: mockTable("leave_policies", ["id", "organizationId", "leaveTypeId", "status"]),
     leaveRequestsTable: mockTable("leave_requests", ["id", "organizationId", "employeeId", "startDate", "endDate", "status"]),
     employeeDocumentsTable: mockTable("employee_documents", ["id", "organizationId", "employeeId"]),
+    publicHolidaysTable: mockTable("public_holidays", ["id", "organizationId", "status", "recurring", "date", "observedDate"]),
     auditEventsTable: mockTable("audit_events", []),
   };
 });
@@ -121,6 +124,7 @@ vi.mock("@workspace/db", () => ({
   leavePoliciesTable,
   leaveRequestsTable,
   employeeDocumentsTable,
+  publicHolidaysTable,
   auditEventsTable,
   db: {
     select: () => ({
@@ -174,6 +178,7 @@ vi.mock("@workspace/db", () => ({
         else if (table === leavePoliciesTable) rows = fixtures.leavePolicyRows;
         else if (table === leaveRequestsTable) rows = fixtures.leaveRequestRows;
         else if (table === employeeDocumentsTable) rows = fixtures.employeeDocumentRows;
+        else if (table === publicHolidaysTable) rows = fixtures.publicHolidayRows;
 
         let filtered = rows;
         const builder = {
@@ -328,6 +333,7 @@ beforeEach(() => {
   fixtures.leavePolicyRows = [];
   fixtures.leaveRequestRows = [];
   fixtures.employeeDocumentRows = [];
+  fixtures.publicHolidayRows = [];
   fixtures.inserted = [];
   fixtures.idCounters = new Map();
 });
@@ -398,6 +404,52 @@ describe("POST /api/organizations/:organizationId/employees/:employeeId/leave-re
     mockOrgWidePolicy();
 
     // Fri 2030-06-14 through Mon 2030-06-17 = Fri, Mon = 2 weekdays (Sat/Sun excluded).
+    const res = await request(app)
+      .post(`/api/organizations/${ORG_ID}/employees/${EMPLOYEE_ID}/leave-requests`)
+      .set("Authorization", "Bearer valid-token")
+      .send({ leaveTypeId: LEAVE_TYPE_ID, startDate: "2030-06-14", endDate: "2030-06-17" });
+
+    expect(res.status).toBe(201);
+    expect(res.body.daysRequested).toBe("2");
+  });
+
+  it("excludes an active public holiday from the day count when the policy doesn't count them (W37)", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["leave_request.write.own"]);
+    mockLeaveModuleEnabled();
+    mockOwnEmployeeLinked();
+    mockEligibleEmployee();
+    mockOrgWidePolicy();
+    // Wed 2030-06-12 is a public holiday within Mon 2030-06-10 – Wed 2030-06-12.
+    fixtures.publicHolidayRows = [
+      { id: 1, organizationId: ORG_ID, status: "active", recurring: false, date: "2030-06-12", observedDate: null },
+    ];
+
+    const res = await request(app)
+      .post(`/api/organizations/${ORG_ID}/employees/${EMPLOYEE_ID}/leave-requests`)
+      .set("Authorization", "Bearer valid-token")
+      .send({ leaveTypeId: LEAVE_TYPE_ID, startDate: "2030-06-10", endDate: "2030-06-12" });
+
+    expect(res.status).toBe(201);
+    expect(res.body.daysRequested).toBe("2");
+  });
+
+  it("does not double-subtract a day that is both a weekend and a public holiday", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["leave_request.write.own"]);
+    mockLeaveModuleEnabled();
+    mockOwnEmployeeLinked();
+    mockEligibleEmployee();
+    mockOrgWidePolicy();
+    // Fri 2030-06-14 through Mon 2030-06-17: Sat 06-15 is both a weekend and
+    // a holiday. If it were double-subtracted the count would go to 1 or
+    // negative instead of the correct 2 (Fri, Mon).
+    fixtures.publicHolidayRows = [
+      { id: 1, organizationId: ORG_ID, status: "active", recurring: false, date: "2030-06-15", observedDate: null },
+    ];
+
     const res = await request(app)
       .post(`/api/organizations/${ORG_ID}/employees/${EMPLOYEE_ID}/leave-requests`)
       .set("Authorization", "Bearer valid-token")
