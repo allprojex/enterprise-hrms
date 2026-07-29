@@ -7554,7 +7554,7 @@ export const getGetDashboardSummaryUrl = () => {
 }
 
 /**
- * Returns summary counts and status for the authenticated user's organization
+ * Returns summary counts and status for the authenticated user's organization. `leaveMetrics` (W40) is null when the "leave" module is disabled for the organization — never a zero-filled placeholder.
  * @summary Dashboard summary
  */
 export const getDashboardSummary = async ( options?: RequestInit): Promise<DashboardSummary> => {

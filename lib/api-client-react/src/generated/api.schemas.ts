@@ -1507,10 +1507,38 @@ export interface Notification {
   createdAt: string;
 }
 
+export interface LeaveRequestsByStatusCounts {
+  pending: number;
+  approved: number;
+  rejected: number;
+  cancelled: number;
+}
+
+/**
+ * W40 — HR Operations Dashboard. Every figure is computed live from leave_requests/leave_balance_entries/public_holidays (W33/W34/W37) — no cache, no new table. "Upcoming"/"expiring" figures use a shared 30-day window from today.
+ */
+export interface LeaveDashboardMetrics {
+  /** Distinct employees (in the viewer's scope) with an approved leave request spanning today. */
+  employeesOnLeave: number;
+  /** Approved leave requests (in scope) starting within the next 30 days, not yet started. */
+  upcomingApprovedLeave: number;
+  /** Pending leave requests the viewer is authorized to approve — same scope GET .../leave-requests/pending-approvals (W35) uses. */
+  pendingApprovalCount: number;
+  /** Organization-wide public holiday occurrences within the next 30 days. */
+  upcomingPublicHolidays: number;
+  /** 100 * (ledger usage) / (ledger opening_balance + accrual + carry_forward credits) across the viewer's scope; 0 when nothing has been credited yet. */
+  leaveUtilizationPercent: number;
+  /** Carry-forward ledger entries (in scope) expiring within the next 30 days, counted only under a policy whose carryForwardExpiryMonths is actually set. */
+  expiringCarryForwardBalances: number;
+  requestsByStatus: LeaveRequestsByStatusCounts;
+}
+
 export interface DashboardSummary {
   totalEmployees: number;
   activeModules: number;
   unreadNotifications: number;
+  /** Null when the "leave" module is disabled for the caller's active organization — never a zero-filled placeholder. When present, scoped to the viewer's own access tier: org-wide for an HR admin (leave_request.manage), own + direct reports otherwise. */
+  leaveMetrics: LeaveDashboardMetrics | null;
 }
 
 export interface Role {

@@ -3062,13 +3062,27 @@ export const MarkAllNotificationsReadResponse = zod.object({
 
 
 /**
- * Returns summary counts and status for the authenticated user's organization
+ * Returns summary counts and status for the authenticated user's organization. `leaveMetrics` (W40) is null when the "leave" module is disabled for the organization — never a zero-filled placeholder.
  * @summary Dashboard summary
  */
 export const GetDashboardSummaryResponse = zod.object({
   "totalEmployees": zod.number(),
   "activeModules": zod.number(),
-  "unreadNotifications": zod.number()
+  "unreadNotifications": zod.number(),
+  "leaveMetrics": zod.union([zod.object({
+  "employeesOnLeave": zod.number().describe('Distinct employees (in the viewer\'s scope) with an approved leave request spanning today.'),
+  "upcomingApprovedLeave": zod.number().describe('Approved leave requests (in scope) starting within the next 30 days, not yet started.'),
+  "pendingApprovalCount": zod.number().describe('Pending leave requests the viewer is authorized to approve — same scope GET ...\/leave-requests\/pending-approvals (W35) uses.'),
+  "upcomingPublicHolidays": zod.number().describe('Organization-wide public holiday occurrences within the next 30 days.'),
+  "leaveUtilizationPercent": zod.number().describe('100 \* (ledger usage) \/ (ledger opening_balance + accrual + carry_forward credits) across the viewer\'s scope; 0 when nothing has been credited yet.'),
+  "expiringCarryForwardBalances": zod.number().describe('Carry-forward ledger entries (in scope) expiring within the next 30 days, counted only under a policy whose carryForwardExpiryMonths is actually set.'),
+  "requestsByStatus": zod.object({
+  "pending": zod.number(),
+  "approved": zod.number(),
+  "rejected": zod.number(),
+  "cancelled": zod.number()
+})
+}).describe('W40 — HR Operations Dashboard. Every figure is computed live from leave_requests\/leave_balance_entries\/public_holidays (W33\/W34\/W37) — no cache, no new table. \"Upcoming\"\/\"expiring\" figures use a shared 30-day window from today.'),zod.null()]).describe('Null when the \"leave\" module is disabled for the caller\'s active organization — never a zero-filled placeholder. When present, scoped to the viewer\'s own access tier: org-wide for an HR admin (leave_request.manage), own + direct reports otherwise.')
 })
 
 

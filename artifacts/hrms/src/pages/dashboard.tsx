@@ -1,5 +1,5 @@
 import { Link } from 'wouter';
-import { Users, Package, Bell } from 'lucide-react';
+import { Users, Package, Bell, CalendarClock, CalendarDays, ClipboardCheck, CalendarHeart, Percent, Hourglass } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -66,6 +66,22 @@ export default function Dashboard() {
     }
   ];
 
+  // W40 — HR Operations Dashboard: leaveMetrics is null (not zero-filled)
+  // when the "leave" module is disabled for this organisation, per the
+  // frozen plan — omit the whole section rather than rendering fabricated
+  // zeros in that case.
+  const leaveMetrics = summary?.leaveMetrics ?? null;
+  const leaveStats = leaveMetrics
+    ? [
+        { title: 'Employees on Leave', value: leaveMetrics.employeesOnLeave, icon: CalendarClock, color: 'text-primary' },
+        { title: 'Upcoming Approved Leave', value: leaveMetrics.upcomingApprovedLeave, icon: CalendarDays, color: 'text-accent' },
+        { title: 'Pending Approvals', value: leaveMetrics.pendingApprovalCount, icon: ClipboardCheck, color: 'text-chart-5' },
+        { title: 'Upcoming Public Holidays', value: leaveMetrics.upcomingPublicHolidays, icon: CalendarHeart, color: 'text-primary' },
+        { title: 'Leave Utilization', value: `${leaveMetrics.leaveUtilizationPercent}%`, icon: Percent, color: 'text-accent' },
+        { title: 'Expiring Carry-Forward', value: leaveMetrics.expiringCarryForwardBalances, icon: Hourglass, color: 'text-chart-5' },
+      ]
+    : [];
+
   return (
     <div className="p-6 lg:p-8 space-y-8">
       {/* Header */}
@@ -105,6 +121,49 @@ export default function Dashboard() {
           </motion.div>
         ))}
       </div>
+
+      {/* Leave Section (W40) — omitted entirely, not zero-filled, when the "leave" module is disabled */}
+      {!isLoading && leaveMetrics && (
+        <div className="space-y-4" data-testid="section-leave-metrics">
+          <div>
+            <h2 className="text-2xl font-bold text-foreground">Leave</h2>
+            <p className="text-muted-foreground">Real-time Leave metrics for your organisation</p>
+          </div>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {leaveStats.map((stat, i) => (
+              <motion.div
+                key={stat.title}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+              >
+                <Card data-testid={`card-leave-stat-${stat.title.toLowerCase().replace(/\s+/g, '-')}`}>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      {stat.title}
+                    </CardTitle>
+                    <stat.icon className={`h-5 w-5 ${stat.color}`} />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold text-foreground">{stat.value}</div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+          <Card data-testid="card-leave-requests-by-status">
+            <CardHeader>
+              <CardTitle className="text-base">Leave Requests by Status</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-2">
+              <Badge variant="outline">Pending: {leaveMetrics.requestsByStatus.pending}</Badge>
+              <Badge variant="secondary">Approved: {leaveMetrics.requestsByStatus.approved}</Badge>
+              <Badge variant="destructive">Rejected: {leaveMetrics.requestsByStatus.rejected}</Badge>
+              <Badge variant="outline">Cancelled: {leaveMetrics.requestsByStatus.cancelled}</Badge>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Modules Section */}
       <div className="space-y-4">
