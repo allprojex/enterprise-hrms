@@ -239,10 +239,23 @@ export interface LeaveRequest {
   cancelledAt?: string | null;
   /** @nullable */
   cancelledBy?: number | null;
+  /**
+     * Set only on an actual approval. A rejection's actor/timestamp lives in the audit trail instead (Architecture Principle 6).
+     * @nullable
+     */
+  approvedBy?: number | null;
+  /** @nullable */
+  approvedAt?: string | null;
+  /** @nullable */
+  rejectionReason?: string | null;
   /** @nullable */
   createdBy?: number | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface RejectLeaveRequestInput {
+  reason?: string;
 }
 
 export interface CreateLeaveRequestInput {

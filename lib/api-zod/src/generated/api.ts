@@ -1697,6 +1697,9 @@ export const ListLeaveRequestsResponseItem = zod.object({
   "attachmentDocumentId": zod.number().nullish(),
   "cancelledAt": zod.coerce.date().nullish(),
   "cancelledBy": zod.number().nullish(),
+  "approvedBy": zod.number().nullish().describe('Set only on an actual approval. A rejection\'s actor\/timestamp lives in the audit trail instead (Architecture Principle 6).'),
+  "approvedAt": zod.coerce.date().nullish(),
+  "rejectionReason": zod.string().nullish(),
   "createdBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -1735,6 +1738,9 @@ export const CreateLeaveRequestResponse = zod.object({
   "attachmentDocumentId": zod.number().nullish(),
   "cancelledAt": zod.coerce.date().nullish(),
   "cancelledBy": zod.number().nullish(),
+  "approvedBy": zod.number().nullish().describe('Set only on an actual approval. A rejection\'s actor\/timestamp lives in the audit trail instead (Architecture Principle 6).'),
+  "approvedAt": zod.coerce.date().nullish(),
+  "rejectionReason": zod.string().nullish(),
   "createdBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -1765,6 +1771,111 @@ export const CancelLeaveRequestResponse = zod.object({
   "attachmentDocumentId": zod.number().nullish(),
   "cancelledAt": zod.coerce.date().nullish(),
   "cancelledBy": zod.number().nullish(),
+  "approvedBy": zod.number().nullish().describe('Set only on an actual approval. A rejection\'s actor\/timestamp lives in the audit trail instead (Architecture Principle 6).'),
+  "approvedAt": zod.coerce.date().nullish(),
+  "rejectionReason": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Org-wide for leave_request.manage holders; otherwise scoped to direct reports only (employees.reportingManagerId). Gated by the "leave" module.
+ * @summary List pending leave requests the caller is authorized to act on
+ */
+export const ListPendingApprovalsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListPendingApprovalsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "leaveTypeId": zod.number(),
+  "leavePolicyId": zod.number().describe('Resolved server-side from the employee\'s eligibility — never client-supplied.'),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date(),
+  "daysRequested": zod.string().describe('Decimal string, computed server-side.'),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled']),
+  "reason": zod.string().nullish(),
+  "attachmentDocumentId": zod.number().nullish(),
+  "cancelledAt": zod.coerce.date().nullish(),
+  "cancelledBy": zod.number().nullish(),
+  "approvedBy": zod.number().nullish().describe('Set only on an actual approval. A rejection\'s actor\/timestamp lives in the audit trail instead (Architecture Principle 6).'),
+  "approvedAt": zod.coerce.date().nullish(),
+  "rejectionReason": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListPendingApprovalsResponse = zod.array(ListPendingApprovalsResponseItem)
+
+
+/**
+ * Manager-scoped or organization-wide (leave_request.manage) approval authority required, on top of holding leave_request.approve — neither alone is sufficient. Self-approval is rejected. Atomically transitions the request and posts the immutable usage ledger entry (W34) in one transaction; rejected with a 409 if the request is no longer pending (already decided, concurrently or otherwise).
+ * @summary Approve a pending leave request
+ */
+export const ApproveLeaveRequestParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ApproveLeaveRequestResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "leaveTypeId": zod.number(),
+  "leavePolicyId": zod.number().describe('Resolved server-side from the employee\'s eligibility — never client-supplied.'),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date(),
+  "daysRequested": zod.string().describe('Decimal string, computed server-side.'),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled']),
+  "reason": zod.string().nullish(),
+  "attachmentDocumentId": zod.number().nullish(),
+  "cancelledAt": zod.coerce.date().nullish(),
+  "cancelledBy": zod.number().nullish(),
+  "approvedBy": zod.number().nullish().describe('Set only on an actual approval. A rejection\'s actor\/timestamp lives in the audit trail instead (Architecture Principle 6).'),
+  "approvedAt": zod.coerce.date().nullish(),
+  "rejectionReason": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Same authorization rule as approve. Never posts a ledger entry — rejection deducts nothing.
+ * @summary Reject a pending leave request
+ */
+export const RejectLeaveRequestParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const RejectLeaveRequestBody = zod.object({
+  "reason": zod.string().optional()
+})
+
+export const RejectLeaveRequestResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "leaveTypeId": zod.number(),
+  "leavePolicyId": zod.number().describe('Resolved server-side from the employee\'s eligibility — never client-supplied.'),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date(),
+  "daysRequested": zod.string().describe('Decimal string, computed server-side.'),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled']),
+  "reason": zod.string().nullish(),
+  "attachmentDocumentId": zod.number().nullish(),
+  "cancelledAt": zod.coerce.date().nullish(),
+  "cancelledBy": zod.number().nullish(),
+  "approvedBy": zod.number().nullish().describe('Set only on an actual approval. A rejection\'s actor\/timestamp lives in the audit trail instead (Architecture Principle 6).'),
+  "approvedAt": zod.coerce.date().nullish(),
+  "rejectionReason": zod.string().nullish(),
   "createdBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()

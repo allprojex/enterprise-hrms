@@ -86,6 +86,7 @@ import type {
   PrimaryHrAssignment,
   PrimaryHrAssignmentOrNull,
   PromoteEmployeeInput,
+  RejectLeaveRequestInput,
   Report,
   ReportRunResult,
   ResetPasswordInput,
@@ -4104,6 +4105,237 @@ export const useCancelLeaveRequest = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getCancelLeaveRequestMutationOptions(options));
+    }
+
+export const getListPendingApprovalsUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/leave-requests/pending-approvals`
+}
+
+/**
+ * Org-wide for leave_request.manage holders; otherwise scoped to direct reports only (employees.reportingManagerId). Gated by the "leave" module.
+ * @summary List pending leave requests the caller is authorized to act on
+ */
+export const listPendingApprovals = async (organizationId: number, options?: RequestInit): Promise<LeaveRequest[]> => {
+
+  return customFetch<LeaveRequest[]>(getListPendingApprovalsUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPendingApprovalsQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/leave-requests/pending-approvals`
+    ] as const;
+    }
+
+
+export const getListPendingApprovalsQueryOptions = <TData = Awaited<ReturnType<typeof listPendingApprovals>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPendingApprovals>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPendingApprovalsQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPendingApprovals>>> = ({ signal }) => listPendingApprovals(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPendingApprovals>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPendingApprovalsQueryResult = NonNullable<Awaited<ReturnType<typeof listPendingApprovals>>>
+export type ListPendingApprovalsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List pending leave requests the caller is authorized to act on
+ */
+
+export function useListPendingApprovals<TData = Awaited<ReturnType<typeof listPendingApprovals>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPendingApprovals>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPendingApprovalsQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getApproveLeaveRequestUrl = (organizationId: number,
+    employeeId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/leave-requests/${id}/approve`
+}
+
+/**
+ * Manager-scoped or organization-wide (leave_request.manage) approval authority required, on top of holding leave_request.approve — neither alone is sufficient. Self-approval is rejected. Atomically transitions the request and posts the immutable usage ledger entry (W34) in one transaction; rejected with a 409 if the request is no longer pending (already decided, concurrently or otherwise).
+ * @summary Approve a pending leave request
+ */
+export const approveLeaveRequest = async (organizationId: number,
+    employeeId: number,
+    id: number, options?: RequestInit): Promise<LeaveRequest> => {
+
+  return customFetch<LeaveRequest>(getApproveLeaveRequestUrl(organizationId,employeeId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getApproveLeaveRequestMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveLeaveRequest>>, TError,{organizationId: number;employeeId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveLeaveRequest>>, TError,{organizationId: number;employeeId: number;id: number}, TContext> => {
+
+const mutationKey = ['approveLeaveRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveLeaveRequest>>, {organizationId: number;employeeId: number;id: number}> = (props) => {
+          const {organizationId,employeeId,id} = props ?? {};
+
+          return  approveLeaveRequest(organizationId,employeeId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveLeaveRequestMutationResult = NonNullable<Awaited<ReturnType<typeof approveLeaveRequest>>>
+
+    export type ApproveLeaveRequestMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Approve a pending leave request
+ */
+export const useApproveLeaveRequest = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveLeaveRequest>>, TError,{organizationId: number;employeeId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveLeaveRequest>>,
+        TError,
+        {organizationId: number;employeeId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getApproveLeaveRequestMutationOptions(options));
+    }
+
+export const getRejectLeaveRequestUrl = (organizationId: number,
+    employeeId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/leave-requests/${id}/reject`
+}
+
+/**
+ * Same authorization rule as approve. Never posts a ledger entry — rejection deducts nothing.
+ * @summary Reject a pending leave request
+ */
+export const rejectLeaveRequest = async (organizationId: number,
+    employeeId: number,
+    id: number,
+    rejectLeaveRequestInput?: RejectLeaveRequestInput, options?: RequestInit): Promise<LeaveRequest> => {
+
+  return customFetch<LeaveRequest>(getRejectLeaveRequestUrl(organizationId,employeeId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(rejectLeaveRequestInput)
+  }
+);}
+
+
+
+
+
+export const getRejectLeaveRequestMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectLeaveRequest>>, TError,{organizationId: number;employeeId: number;id: number;data?: BodyType<RejectLeaveRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectLeaveRequest>>, TError,{organizationId: number;employeeId: number;id: number;data?: BodyType<RejectLeaveRequestInput>}, TContext> => {
+
+const mutationKey = ['rejectLeaveRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectLeaveRequest>>, {organizationId: number;employeeId: number;id: number;data?: BodyType<RejectLeaveRequestInput>}> = (props) => {
+          const {organizationId,employeeId,id,data} = props ?? {};
+
+          return  rejectLeaveRequest(organizationId,employeeId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectLeaveRequestMutationResult = NonNullable<Awaited<ReturnType<typeof rejectLeaveRequest>>>
+    export type RejectLeaveRequestMutationBody = BodyType<RejectLeaveRequestInput> | undefined
+    export type RejectLeaveRequestMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Reject a pending leave request
+ */
+export const useRejectLeaveRequest = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectLeaveRequest>>, TError,{organizationId: number;employeeId: number;id: number;data?: BodyType<RejectLeaveRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rejectLeaveRequest>>,
+        TError,
+        {organizationId: number;employeeId: number;id: number;data?: BodyType<RejectLeaveRequestInput>},
+        TContext
+      > => {
+      return useMutation(getRejectLeaveRequestMutationOptions(options));
     }
 
 export const getListLeaveBalancesUrl = (organizationId: number,

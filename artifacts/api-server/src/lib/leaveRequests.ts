@@ -1,10 +1,11 @@
 /**
  * Leave Requests (Phase 2B, W33): create/view/withdraw an employee's own
- * leave requests. No approval (W35), no ledger/balance deduction (W34), no
- * public holiday exclusion (W37 doesn't exist yet — see `calculateLeaveDays`
- * below for how it slots in later without a schema change). Reuses
- * lib/employees.ts's `getEmployeeById` and W32's `leave_types`/
- * `leave_policies` rather than re-deriving eligibility from scratch.
+ * leave requests. Approval/rejection lives in leaveApprovals.ts (W35, to
+ * avoid a circular import with leaveBalances.ts); no public holiday
+ * exclusion yet (W37 doesn't exist — see `calculateLeaveDays` below for how
+ * it slots in later without a schema change). Reuses lib/employees.ts's
+ * `getEmployeeById` and W32's `leave_types`/`leave_policies` rather than
+ * re-deriving eligibility from scratch.
  */
 import { and, desc, eq, inArray } from "drizzle-orm";
 import {

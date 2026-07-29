@@ -1853,6 +1853,147 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/leave-requests/pending-approvals:
+    get:
+      operationId: listPendingApprovals
+      tags: [leave-approvals]
+      summary: List pending leave requests the caller is authorized to act on
+      description: >-
+        Org-wide for leave_request.manage holders; otherwise scoped to
+        direct reports only (employees.reportingManagerId). Gated by the
+        "leave" module.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Pending requests the caller may approve or reject
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaveRequest"
+
+  /organizations/{organizationId}/employees/{employeeId}/leave-requests/{id}/approve:
+    post:
+      operationId: approveLeaveRequest
+      tags: [leave-approvals]
+      summary: Approve a pending leave request
+      description: >-
+        Manager-scoped or organization-wide (leave_request.manage) approval
+        authority required, on top of holding leave_request.approve —
+        neither alone is sufficient. Self-approval is rejected. Atomically
+        transitions the request and posts the immutable usage ledger entry
+        (W34) in one transaction; rejected with a 409 if the request is no
+        longer pending (already decided, concurrently or otherwise).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Leave request approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaveRequest"
+        "400":
+          description: Approving would take the balance negative and the policy disallows it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Not authorized over this employee, or self-approval
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Leave request not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Request is not currently pending
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}/leave-requests/{id}/reject:
+    post:
+      operationId: rejectLeaveRequest
+      tags: [leave-approvals]
+      summary: Reject a pending leave request
+      description: >-
+        Same authorization rule as approve. Never posts a ledger entry —
+        rejection deducts nothing.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RejectLeaveRequestInput"
+      responses:
+        "200":
+          description: Leave request rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaveRequest"
+        "403":
+          description: Not authorized over this employee, or self-rejection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Leave request not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Request is not currently pending
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /organizations/{organizationId}/employees/{employeeId}/leave-balances:
     get:
       operationId: listLeaveBalances
@@ -4088,6 +4229,14 @@ components:
           format: date-time
         cancelledBy:
           type: ["integer", "null"]
+        approvedBy:
+          type: ["integer", "null"]
+          description: Set only on an actual approval. A rejection's actor/timestamp lives in the audit trail instead (Architecture Principle 6).
+        approvedAt:
+          type: ["string", "null"]
+          format: date-time
+        rejectionReason:
+          type: ["string", "null"]
         createdBy:
           type: ["integer", "null"]
         createdAt:
@@ -4096,6 +4245,12 @@ components:
         updatedAt:
           type: string
           format: date-time
+
+    RejectLeaveRequestInput:
+      type: object
+      properties:
+        reason:
+          type: string
 
     CreateLeaveRequestInput:
       type: object

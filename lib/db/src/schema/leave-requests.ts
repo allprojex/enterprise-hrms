@@ -51,6 +51,16 @@ export const leaveRequestsTable = pgTable(
     }),
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
     cancelledBy: integer("cancelled_by").references(() => usersTable.id, { onDelete: "set null" }),
+    // Approval (W35): a single-level decision, exactly the three columns the
+    // frozen plan specifies. approvedBy/approvedAt are set only on an actual
+    // approval; a rejection's actor/timestamp is deliberately not duplicated
+    // here — it already lives in the audit_events row the decision is
+    // recorded through (Architecture Principle 6), the same reasoning that
+    // keeps routine ledger postings out of the audit log in the other
+    // direction.
+    approvedBy: integer("approved_by").references(() => usersTable.id, { onDelete: "set null" }),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    rejectionReason: text("rejection_reason"),
     createdBy: integer("created_by").references(() => usersTable.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })

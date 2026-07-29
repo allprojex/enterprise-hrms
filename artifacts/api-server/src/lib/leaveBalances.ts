@@ -1,12 +1,14 @@
 /**
  * Leave Balance Engine (Phase 2B, W34): an append-only, immutable ledger of
  * balance movements — never a directly editable balance row. `postLedgerEntry`
- * is the single internal posting primitive every entry type goes through
- * (including future W35 usage postings); `postManualAdjustment` is the only
- * entry type this workstream's API actually exposes for writing. No approval
- * posting, no accrual scheduler — those are W35/a later workstream's job.
- * Reuses W32's `resolveApplicablePolicy`/`toIsoDate` (leaveRequests.ts) and
- * W22's `getEmployeeById` rather than re-deriving eligibility or lookups.
+ * is the general-purpose posting primitive (manual adjustments, and any
+ * future accrual/carry-forward/expiry poster); `postApprovedUsageEntry` and
+ * `getAvailableBalance` below exist specifically for W35's approval
+ * transaction, which already has the leave request's resolved policy/type
+ * and needs a client parameter to participate in that same transaction. No
+ * accrual scheduler — that's a later workstream's job. Reuses W32's
+ * `resolveApplicablePolicy`/`toIsoDate` (leaveRequests.ts) and W22's
+ * `getEmployeeById` rather than re-deriving eligibility or lookups.
  */
 import { and, eq, desc } from "drizzle-orm";
 import {
@@ -29,6 +31,11 @@ export class DuplicateLedgerEntryError extends Error {
     this.name = "DuplicateLedgerEntryError";
   }
 }
+
+// Structurally accepts either the global `db` or a `db.transaction(...)`
+// callback's `tx` — lets balance reads and the approval usage-posting below
+// run inside W35's approval transaction without a second query-client type.
+type QueryClient = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 type LeaveBalanceEntryType = LeaveBalanceEntry["entryType"];
 
@@ -170,6 +177,77 @@ export async function getEmployeeBalances(organizationId: number, employeeId: nu
       available: total.toFixed(2),
     }))
     .sort((a, b) => a.leaveTypeName.localeCompare(b.leaveTypeName));
+}
+
+/**
+ * Live-summed available balance for a single employee/leave type — the same
+ * reconstruction `getEmployeeBalances` does, narrowed to one type and
+ * accepting an optional client so W35's approval flow can re-check it
+ * inside the same transaction that posts the deduction, closing the race
+ * between "is there enough balance" and "post the usage entry."
+ */
+export async function getAvailableBalance(
+  organizationId: number,
+  employeeId: number,
+  leaveTypeId: number,
+  client: QueryClient = db,
+): Promise<number> {
+  const entries = await client
+    .select({ amount: leaveBalanceEntriesTable.amount })
+    .from(leaveBalanceEntriesTable)
+    .where(
+      and(
+        eq(leaveBalanceEntriesTable.organizationId, organizationId),
+        eq(leaveBalanceEntriesTable.employeeId, employeeId),
+        eq(leaveBalanceEntriesTable.leaveTypeId, leaveTypeId),
+      ),
+    );
+  return entries.reduce((sum, entry) => sum + Number(entry.amount), 0);
+}
+
+/**
+ * Posts the immutable `usage` entry for an approved leave request — called
+ * only from within W35's approval transaction, never standalone. Unlike
+ * `postLedgerEntry`, `leaveTypeId`/`leavePolicyId` are taken directly from
+ * the leave request row the caller already has, not re-resolved: the
+ * request snapshot its applicable policy at submission time (W33), and a
+ * later policy change must never reinterpret it (Historical Consistency).
+ * Guarded by the same `(relatedLeaveRequestId, entryType)` unique index as
+ * every other request-related posting.
+ */
+export async function postApprovedUsageEntry(
+  client: QueryClient,
+  params: {
+    organizationId: number;
+    employeeId: number;
+    leaveTypeId: number;
+    leavePolicyId: number;
+    daysRequested: number;
+    effectiveDate: string;
+    relatedLeaveRequestId: number;
+    approvedBy: number;
+  },
+): Promise<LeaveBalanceEntry> {
+  try {
+    const [entry] = await client
+      .insert(leaveBalanceEntriesTable)
+      .values({
+        organizationId: params.organizationId,
+        employeeId: params.employeeId,
+        leaveTypeId: params.leaveTypeId,
+        leavePolicyId: params.leavePolicyId,
+        entryType: "usage",
+        amount: (-params.daysRequested).toString(),
+        effectiveDate: params.effectiveDate,
+        relatedLeaveRequestId: params.relatedLeaveRequestId,
+        approvedBy: params.approvedBy,
+      })
+      .returning();
+    return entry;
+  } catch (err) {
+    if (isUniqueViolation(err)) throw new DuplicateLedgerEntryError();
+    throw err;
+  }
 }
 
 /** Raw ledger entries — the auditable history a computed balance is reconstructed from. */
