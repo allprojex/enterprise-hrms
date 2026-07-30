@@ -456,6 +456,46 @@ Each workstream has one primary responsibility, states its dependencies, and is 
 - **Verification:** rate-limit behavior, cross-tenant slug isolation, duplicate-submission idempotency, file-upload validation reuse.
 
 ### W50 — Candidate Accounts & Verification
+
+> **STATUS: DEFERRED — NOT IMPLEMENTED** (recorded 2026-07-30, see `PROJECT_STATUS.md`).
+>
+> W49 (Public Careers Portal — Read + Apply Shell, complete) already delivers the
+> minimum useful public recruitment product: public listing/detail, anonymous
+> application submission, candidate persistence (`candidates`), consent capture
+> (`candidate_consents`), CV/document upload (`candidate_documents`), and
+> signed-token application-status checking. Optional candidate authentication is
+> not required to continue internal candidate/application processing, so this
+> workstream is deferred rather than implemented now.
+>
+> - W50 remains part of the long-term Recruitment roadmap; it is not cancelled.
+> - Its original scope below is preserved unchanged for future implementation —
+>   nothing here has been deleted or redesigned.
+> - It is not required to continue internal candidate and application
+>   processing (W51 onward) — see the dependency reconciliation note below.
+> - W49's anonymous candidates and applications remain the active public
+>   recruitment model; no candidate authentication, account registration,
+>   password storage, candidate session, or account-to-application linking
+>   currently exists anywhere in this codebase.
+> - Anonymous application-status checking (W49's signed, time-limited
+>   `statusCheckToken` link, emailed at submission) remains the supported
+>   candidate self-service mechanism until this workstream is resumed.
+> - This workstream may be resumed later as an independent piece of work,
+>   triggered by demonstrated demand for reusable candidate profiles,
+>   authenticated candidate dashboards, managing multiple applications from one
+>   account, candidate self-service, saved-job functionality, or account-based
+>   communication preferences — not by default sequencing alone.
+> - **Deferred does not mean complete.** No part of this workstream's scope
+>   below has been built.
+>
+> **Dependency reconciliation:** W51 (the next workstream in this document's own
+> ordering, "Application Pipeline & Stage Movement") already lists its
+> dependency as **W49**, not W50 (see W51's own `Dependencies` line below,
+> unchanged) — it operates directly on W49's `candidates`/`applications` records
+> and needs no candidate-account/session concept. No dependency language in
+> this document required correction as a result of this deferral.
+>
+> **Original W50 scope (preserved, unimplemented):**
+
 - **Objective:** Optional candidate authentication and email verification.
 - **Dependencies:** W49.
 - **Scope:** `candidate_accounts`; candidate-session middleware; verification token flow (mirrors invitation/reset-password patterns).
