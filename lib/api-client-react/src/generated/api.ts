@@ -28,6 +28,9 @@ import type {
   AddMemberInput,
   AdjustLeaveBalanceInput,
   ApiError,
+  ApplicationStatusResponse,
+  ApplicationSubmittedResponse,
+  ApplyToPublicVacancyBody,
   ApproveJobRequisitionInput,
   AssignRoleInput,
   AuditEventListResponse,
@@ -81,6 +84,7 @@ import type {
   ListLeaveBalanceLedgerParams,
   ListLeaveCalendarParams,
   ListPublicHolidaysParams,
+  ListPublicVacanciesParams,
   ListVacanciesParams,
   LoginInput,
   MasterDataDomain,
@@ -102,6 +106,9 @@ import type {
   PrimaryHrAssignmentOrNull,
   PromoteEmployeeInput,
   PublicHoliday,
+  PublicOrganization,
+  PublicVacancyDetail,
+  PublicVacancyListResponse,
   RecruitmentSettings,
   RecruitmentStage,
   RecruitmentWorkflow,
@@ -7366,6 +7373,426 @@ export const useArchiveVacancy = <TError = ErrorType<ApiError>,
       > => {
       return useMutation(getArchiveVacancyMutationOptions(options));
     }
+
+export const getGetPublicCareersOrganizationUrl = (orgSlug: string,) => {
+
+
+
+
+  return `/api/careers/${orgSlug}`
+}
+
+/**
+ * No authentication. Resolves the organization by its own slug only — never a numeric ID. Returns the same 404 whether the slug doesn't exist, the organization is suspended, or its careers portal isn't enabled (recruitment_settings.enabled / externalRecruitmentEnabled) — these are never distinguished, so a probing request can never learn which condition applied.
+ * @summary Public organization profile for a careers page
+ */
+export const getPublicCareersOrganization = async (orgSlug: string, options?: RequestInit): Promise<PublicOrganization> => {
+
+  return customFetch<PublicOrganization>(getGetPublicCareersOrganizationUrl(orgSlug),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPublicCareersOrganizationQueryKey = (orgSlug: string,) => {
+    return [
+    `/api/careers/${orgSlug}`
+    ] as const;
+    }
+
+
+export const getGetPublicCareersOrganizationQueryOptions = <TData = Awaited<ReturnType<typeof getPublicCareersOrganization>>, TError = ErrorType<ApiError>>(orgSlug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicCareersOrganization>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPublicCareersOrganizationQueryKey(orgSlug);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublicCareersOrganization>>> = ({ signal }) => getPublicCareersOrganization(orgSlug, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: orgSlug !== null && orgSlug !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPublicCareersOrganization>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPublicCareersOrganizationQueryResult = NonNullable<Awaited<ReturnType<typeof getPublicCareersOrganization>>>
+export type GetPublicCareersOrganizationQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Public organization profile for a careers page
+ */
+
+export function useGetPublicCareersOrganization<TData = Awaited<ReturnType<typeof getPublicCareersOrganization>>, TError = ErrorType<ApiError>>(
+ orgSlug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicCareersOrganization>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPublicCareersOrganizationQueryOptions(orgSlug,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListPublicVacanciesUrl = (orgSlug: string,
+    params?: ListPublicVacanciesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/careers/${orgSlug}/vacancies?${stringifiedParams}` : `/api/careers/${orgSlug}/vacancies`
+}
+
+/**
+ * Only vacancies with status=published, visibility != internal, and (if set) a closeDate that has not yet passed. Never includes salary, internal IDs, requisition linkage, or any recruiter/hiring- manager identity — vacancies carry no salary field at all, and job_requisitions' own salary range is explicitly org-internal-only, never surfaced here (docs/PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md §9). Reads never mutate a vacancy's lifecycle, even when its closeDate has passed.
+ * @summary Public, paginated, filterable vacancy list
+ */
+export const listPublicVacancies = async (orgSlug: string,
+    params?: ListPublicVacanciesParams, options?: RequestInit): Promise<PublicVacancyListResponse> => {
+
+  return customFetch<PublicVacancyListResponse>(getListPublicVacanciesUrl(orgSlug,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPublicVacanciesQueryKey = (orgSlug: string,
+    params?: ListPublicVacanciesParams,) => {
+    return [
+    `/api/careers/${orgSlug}/vacancies`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListPublicVacanciesQueryOptions = <TData = Awaited<ReturnType<typeof listPublicVacancies>>, TError = ErrorType<ApiError>>(orgSlug: string,
+    params?: ListPublicVacanciesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPublicVacancies>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPublicVacanciesQueryKey(orgSlug,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPublicVacancies>>> = ({ signal }) => listPublicVacancies(orgSlug,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: orgSlug !== null && orgSlug !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPublicVacancies>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPublicVacanciesQueryResult = NonNullable<Awaited<ReturnType<typeof listPublicVacancies>>>
+export type ListPublicVacanciesQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Public, paginated, filterable vacancy list
+ */
+
+export function useListPublicVacancies<TData = Awaited<ReturnType<typeof listPublicVacancies>>, TError = ErrorType<ApiError>>(
+ orgSlug: string,
+    params?: ListPublicVacanciesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPublicVacancies>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPublicVacanciesQueryOptions(orgSlug,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPublicVacancyUrl = (orgSlug: string,
+    vacancyPublicId: string,) => {
+
+
+
+
+  return `/api/careers/${orgSlug}/jobs/${vacancyPublicId}`
+}
+
+/**
+ * Looked up by publicId only — the internal serial ID is never accepted or exposed. Returns 404 whether the vacancy doesn't exist, belongs to a different organization than orgSlug resolves to, or simply isn't publicly eligible right now (draft/scheduled/paused/ closed/archived/internal-only/past its own closeDate) — never distinguished.
+ * @summary Public vacancy detail
+ */
+export const getPublicVacancy = async (orgSlug: string,
+    vacancyPublicId: string, options?: RequestInit): Promise<PublicVacancyDetail> => {
+
+  return customFetch<PublicVacancyDetail>(getGetPublicVacancyUrl(orgSlug,vacancyPublicId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPublicVacancyQueryKey = (orgSlug: string,
+    vacancyPublicId: string,) => {
+    return [
+    `/api/careers/${orgSlug}/jobs/${vacancyPublicId}`
+    ] as const;
+    }
+
+
+export const getGetPublicVacancyQueryOptions = <TData = Awaited<ReturnType<typeof getPublicVacancy>>, TError = ErrorType<ApiError>>(orgSlug: string,
+    vacancyPublicId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicVacancy>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPublicVacancyQueryKey(orgSlug,vacancyPublicId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublicVacancy>>> = ({ signal }) => getPublicVacancy(orgSlug,vacancyPublicId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: orgSlug !== null && orgSlug !== undefined && vacancyPublicId !== null && vacancyPublicId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPublicVacancy>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPublicVacancyQueryResult = NonNullable<Awaited<ReturnType<typeof getPublicVacancy>>>
+export type GetPublicVacancyQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Public vacancy detail
+ */
+
+export function useGetPublicVacancy<TData = Awaited<ReturnType<typeof getPublicVacancy>>, TError = ErrorType<ApiError>>(
+ orgSlug: string,
+    vacancyPublicId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicVacancy>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPublicVacancyQueryOptions(orgSlug,vacancyPublicId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getApplyToPublicVacancyUrl = (orgSlug: string,
+    vacancyPublicId: string,) => {
+
+
+
+
+  return `/api/careers/${orgSlug}/jobs/${vacancyPublicId}/apply`
+}
+
+/**
+ * The highest-risk public route in this codebase. Rate-limited per IP (5/15min, stricter than /auth/login's 10/15min given the larger file-upload payload). A hidden honeypot field ("website") that a real applicant never sees — if filled, the exact same success response is returned with nothing persisted, never revealing detection to an automated submitter. The resume file passes through the same documentValidation.ts signature/size/type checks as every other upload in this codebase (PDF/JPEG/PNG/DOCX/XLSX, 10MB max). A second submission from the same email against the same vacancy is idempotent — returns the existing application (200, not 201), never creates a second row. On a genuinely new submission, an application-status link is emailed via the existing Resend provider (reused unchanged from the forgot-password flow, W19) — delivery failure is logged, never surfaced to the caller. Never reveals whether a given email has applied before.
+ * @summary Submit an anonymous application (submission only, no candidate account)
+ */
+export const applyToPublicVacancy = async (orgSlug: string,
+    vacancyPublicId: string,
+    applyToPublicVacancyBody: ApplyToPublicVacancyBody, options?: RequestInit): Promise<ApplicationSubmittedResponse> => {
+    const formData = new FormData();
+formData.append(`firstName`, applyToPublicVacancyBody.firstName);
+formData.append(`lastName`, applyToPublicVacancyBody.lastName);
+formData.append(`email`, applyToPublicVacancyBody.email);
+if(applyToPublicVacancyBody.phone !== undefined) {
+ formData.append(`phone`, applyToPublicVacancyBody.phone);
+ }
+formData.append(`resume`, applyToPublicVacancyBody.resume);
+if(applyToPublicVacancyBody.website !== undefined) {
+ formData.append(`website`, applyToPublicVacancyBody.website);
+ }
+
+  return customFetch<ApplicationSubmittedResponse>(getApplyToPublicVacancyUrl(orgSlug,vacancyPublicId),
+  {
+    ...options,
+    method: 'POST'
+    ,
+    body: formData
+  }
+);}
+
+
+
+
+
+export const getApplyToPublicVacancyMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applyToPublicVacancy>>, TError,{orgSlug: string;vacancyPublicId: string;data: BodyType<ApplyToPublicVacancyBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof applyToPublicVacancy>>, TError,{orgSlug: string;vacancyPublicId: string;data: BodyType<ApplyToPublicVacancyBody>}, TContext> => {
+
+const mutationKey = ['applyToPublicVacancy'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof applyToPublicVacancy>>, {orgSlug: string;vacancyPublicId: string;data: BodyType<ApplyToPublicVacancyBody>}> = (props) => {
+          const {orgSlug,vacancyPublicId,data} = props ?? {};
+
+          return  applyToPublicVacancy(orgSlug,vacancyPublicId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApplyToPublicVacancyMutationResult = NonNullable<Awaited<ReturnType<typeof applyToPublicVacancy>>>
+    export type ApplyToPublicVacancyMutationBody = BodyType<ApplyToPublicVacancyBody>
+    export type ApplyToPublicVacancyMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Submit an anonymous application (submission only, no candidate account)
+ */
+export const useApplyToPublicVacancy = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applyToPublicVacancy>>, TError,{orgSlug: string;vacancyPublicId: string;data: BodyType<ApplyToPublicVacancyBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof applyToPublicVacancy>>,
+        TError,
+        {orgSlug: string;vacancyPublicId: string;data: BodyType<ApplyToPublicVacancyBody>},
+        TContext
+      > => {
+      return useMutation(getApplyToPublicVacancyMutationOptions(options));
+    }
+
+export const getGetPublicApplicationStatusUrl = (orgSlug: string,
+    token: string,) => {
+
+
+
+
+  return `/api/careers/${orgSlug}/application-status/${token}`
+}
+
+/**
+ * Never a bare email lookup — only the signed, time-limited token emailed at submission (90-day TTL). Scoped to the organization resolved from orgSlug; a token belonging to a different organization is indistinguishable from an unknown one. Rate-limited per IP to prevent token brute-forcing.
+ * @summary Anonymous application status check by emailed token
+ */
+export const getPublicApplicationStatus = async (orgSlug: string,
+    token: string, options?: RequestInit): Promise<ApplicationStatusResponse> => {
+
+  return customFetch<ApplicationStatusResponse>(getGetPublicApplicationStatusUrl(orgSlug,token),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPublicApplicationStatusQueryKey = (orgSlug: string,
+    token: string,) => {
+    return [
+    `/api/careers/${orgSlug}/application-status/${token}`
+    ] as const;
+    }
+
+
+export const getGetPublicApplicationStatusQueryOptions = <TData = Awaited<ReturnType<typeof getPublicApplicationStatus>>, TError = ErrorType<ApiError>>(orgSlug: string,
+    token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicApplicationStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPublicApplicationStatusQueryKey(orgSlug,token);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublicApplicationStatus>>> = ({ signal }) => getPublicApplicationStatus(orgSlug,token, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: orgSlug !== null && orgSlug !== undefined && token !== null && token !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPublicApplicationStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPublicApplicationStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getPublicApplicationStatus>>>
+export type GetPublicApplicationStatusQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Anonymous application status check by emailed token
+ */
+
+export function useGetPublicApplicationStatus<TData = Awaited<ReturnType<typeof getPublicApplicationStatus>>, TError = ErrorType<ApiError>>(
+ orgSlug: string,
+    token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicApplicationStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPublicApplicationStatusQueryOptions(orgSlug,token,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getApproveLeaveRequestUrl = (organizationId: number,
     employeeId: number,

@@ -1250,6 +1250,77 @@ export interface UpdateVacancyInput {
   questions?: VacancyQuestionInput[];
 }
 
+/**
+ * Deliberately narrow — only what a careers page header needs. Never the internal Organization DTO (no status, no type, no internal id).
+ */
+export interface PublicOrganization {
+  slug: string;
+  name: string;
+  /** @nullable */
+  logoUrl: string | null;
+}
+
+/**
+ * Public-safe projection only — never requisitionId, the vacancy's own internal serial id, hiring manager/recruiter identity, salary, or any internal note. Looked up and referenced only by publicId.
+ */
+export interface PublicVacancySummary {
+  publicId: string;
+  title: string;
+  /** @nullable */
+  departmentName: string | null;
+  locations: string[];
+  /** @nullable */
+  employmentType: string | null;
+  /** @nullable */
+  workplaceType: string | null;
+  openingsCount: number;
+  /** @nullable */
+  openDate: string | null;
+  /** @nullable */
+  closeDate: string | null;
+  /**
+     * Truncated jobDescription (220 chars) for card display.
+     * @nullable
+     */
+  summary: string | null;
+  featured: boolean;
+}
+
+export interface PublicVacancyListResponse {
+  items: PublicVacancySummary[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export type PublicVacancyDetail = PublicVacancySummary & ({
+  /** @nullable */
+  jobDescription: string | null;
+  /** @nullable */
+  responsibilities: string | null;
+  /** @nullable */
+  requirements: string | null;
+  /** @nullable */
+  preferredQualifications: string | null;
+  /** @nullable */
+  seoTitle: string | null;
+  /** @nullable */
+  seoDescription: string | null;
+});
+
+export interface ApplicationSubmittedResponse {
+  submitted: boolean;
+  /** The new (or pre-existing, on an idempotent repeat) application's public reference. Never the internal serial id. */
+  publicId: string;
+}
+
+export interface ApplicationStatusResponse {
+  vacancyTitle: string;
+  submittedAt: string;
+  /** Always "submitted" in this workstream — pipeline-derived status begins with W51 (Application Pipeline & Stage Movement). */
+  status: string;
+}
+
 export type LeaveTypeStatus = typeof LeaveTypeStatus[keyof typeof LeaveTypeStatus];
 
 
@@ -2720,6 +2791,29 @@ export const ListVacanciesStatus = {
   closed: 'closed',
   archived: 'archived',
 } as const;
+
+export type ListPublicVacanciesParams = {
+search?: string;
+department?: string;
+location?: string;
+employmentType?: string;
+workplaceType?: string;
+page?: number;
+/**
+ * @maximum 50
+ */
+pageSize?: number;
+};
+
+export type ApplyToPublicVacancyBody = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  resume: Blob;
+  /** Honeypot — must always be left empty. Not a real field. */
+  website?: string;
+};
 
 export type ListLeaveBalanceLedgerParams = {
 leaveTypeId?: number;

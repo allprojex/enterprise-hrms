@@ -3461,6 +3461,136 @@ export const ArchiveVacancyResponse = zod.object({
 
 
 /**
+ * No authentication. Resolves the organization by its own slug only — never a numeric ID. Returns the same 404 whether the slug doesn't exist, the organization is suspended, or its careers portal isn't enabled (recruitment_settings.enabled / externalRecruitmentEnabled) — these are never distinguished, so a probing request can never learn which condition applied.
+ * @summary Public organization profile for a careers page
+ */
+export const GetPublicCareersOrganizationParams = zod.object({
+  "orgSlug": zod.coerce.string()
+})
+
+export const GetPublicCareersOrganizationResponse = zod.object({
+  "slug": zod.string(),
+  "name": zod.string(),
+  "logoUrl": zod.string().nullable()
+}).describe('Deliberately narrow — only what a careers page header needs. Never the internal Organization DTO (no status, no type, no internal id).')
+
+
+/**
+ * Only vacancies with status=published, visibility != internal, and (if set) a closeDate that has not yet passed. Never includes salary, internal IDs, requisition linkage, or any recruiter/hiring- manager identity — vacancies carry no salary field at all, and job_requisitions' own salary range is explicitly org-internal-only, never surfaced here (docs/PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md §9). Reads never mutate a vacancy's lifecycle, even when its closeDate has passed.
+ * @summary Public, paginated, filterable vacancy list
+ */
+export const ListPublicVacanciesParams = zod.object({
+  "orgSlug": zod.coerce.string()
+})
+
+export const listPublicVacanciesQueryPageDefault = 1;
+export const listPublicVacanciesQueryPageSizeDefault = 20;
+export const listPublicVacanciesQueryPageSizeMax = 50;
+
+
+
+export const ListPublicVacanciesQueryParams = zod.object({
+  "search": zod.coerce.string().optional(),
+  "department": zod.coerce.string().optional(),
+  "location": zod.coerce.string().optional(),
+  "employmentType": zod.coerce.string().optional(),
+  "workplaceType": zod.coerce.string().optional(),
+  "page": zod.coerce.number().default(listPublicVacanciesQueryPageDefault),
+  "pageSize": zod.coerce.number().max(listPublicVacanciesQueryPageSizeMax).default(listPublicVacanciesQueryPageSizeDefault)
+})
+
+export const ListPublicVacanciesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "publicId": zod.string(),
+  "title": zod.string(),
+  "departmentName": zod.string().nullable(),
+  "locations": zod.array(zod.string()),
+  "employmentType": zod.string().nullable(),
+  "workplaceType": zod.string().nullable(),
+  "openingsCount": zod.number(),
+  "openDate": zod.coerce.date().nullable(),
+  "closeDate": zod.coerce.date().nullable(),
+  "summary": zod.string().nullable().describe('Truncated jobDescription (220 chars) for card display.'),
+  "featured": zod.boolean()
+}).describe('Public-safe projection only — never requisitionId, the vacancy\'s own internal serial id, hiring manager\/recruiter identity, salary, or any internal note. Looked up and referenced only by publicId.')),
+  "total": zod.number(),
+  "page": zod.number(),
+  "pageSize": zod.number()
+})
+
+
+/**
+ * Looked up by publicId only — the internal serial ID is never accepted or exposed. Returns 404 whether the vacancy doesn't exist, belongs to a different organization than orgSlug resolves to, or simply isn't publicly eligible right now (draft/scheduled/paused/ closed/archived/internal-only/past its own closeDate) — never distinguished.
+ * @summary Public vacancy detail
+ */
+export const GetPublicVacancyParams = zod.object({
+  "orgSlug": zod.coerce.string(),
+  "vacancyPublicId": zod.coerce.string()
+})
+
+export const GetPublicVacancyResponse = zod.object({
+  "publicId": zod.string(),
+  "title": zod.string(),
+  "departmentName": zod.string().nullable(),
+  "locations": zod.array(zod.string()),
+  "employmentType": zod.string().nullable(),
+  "workplaceType": zod.string().nullable(),
+  "openingsCount": zod.number(),
+  "openDate": zod.coerce.date().nullable(),
+  "closeDate": zod.coerce.date().nullable(),
+  "summary": zod.string().nullable().describe('Truncated jobDescription (220 chars) for card display.'),
+  "featured": zod.boolean()
+}).describe('Public-safe projection only — never requisitionId, the vacancy\'s own internal serial id, hiring manager\/recruiter identity, salary, or any internal note. Looked up and referenced only by publicId.').and(zod.object({
+  "jobDescription": zod.string().nullable(),
+  "responsibilities": zod.string().nullable(),
+  "requirements": zod.string().nullable(),
+  "preferredQualifications": zod.string().nullable(),
+  "seoTitle": zod.string().nullable(),
+  "seoDescription": zod.string().nullable()
+}))
+
+
+/**
+ * The highest-risk public route in this codebase. Rate-limited per IP (5/15min, stricter than /auth/login's 10/15min given the larger file-upload payload). A hidden honeypot field ("website") that a real applicant never sees — if filled, the exact same success response is returned with nothing persisted, never revealing detection to an automated submitter. The resume file passes through the same documentValidation.ts signature/size/type checks as every other upload in this codebase (PDF/JPEG/PNG/DOCX/XLSX, 10MB max). A second submission from the same email against the same vacancy is idempotent — returns the existing application (200, not 201), never creates a second row. On a genuinely new submission, an application-status link is emailed via the existing Resend provider (reused unchanged from the forgot-password flow, W19) — delivery failure is logged, never surfaced to the caller. Never reveals whether a given email has applied before.
+ * @summary Submit an anonymous application (submission only, no candidate account)
+ */
+export const ApplyToPublicVacancyParams = zod.object({
+  "orgSlug": zod.coerce.string(),
+  "vacancyPublicId": zod.coerce.string()
+})
+
+export const ApplyToPublicVacancyBody = zod.object({
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "email": zod.string(),
+  "phone": zod.string().optional(),
+  "resume": zod.instanceof(File),
+  "website": zod.string().optional().describe('Honeypot — must always be left empty. Not a real field.')
+})
+
+export const ApplyToPublicVacancyResponse = zod.object({
+  "submitted": zod.boolean(),
+  "publicId": zod.string().describe('The new (or pre-existing, on an idempotent repeat) application\'s public reference. Never the internal serial id.')
+})
+
+
+/**
+ * Never a bare email lookup — only the signed, time-limited token emailed at submission (90-day TTL). Scoped to the organization resolved from orgSlug; a token belonging to a different organization is indistinguishable from an unknown one. Rate-limited per IP to prevent token brute-forcing.
+ * @summary Anonymous application status check by emailed token
+ */
+export const GetPublicApplicationStatusParams = zod.object({
+  "orgSlug": zod.coerce.string(),
+  "token": zod.coerce.string()
+})
+
+export const GetPublicApplicationStatusResponse = zod.object({
+  "vacancyTitle": zod.string(),
+  "submittedAt": zod.coerce.date(),
+  "status": zod.string().describe('Always \"submitted\" in this workstream — pipeline-derived status begins with W51 (Application Pipeline & Stage Movement).')
+})
+
+
+/**
  * Manager-scoped or organization-wide (leave_request.manage) approval authority required, on top of holding leave_request.approve — neither alone is sufficient. Self-approval is rejected. Atomically transitions the request and posts the immutable usage ledger entry (W34) in one transaction; rejected with a 409 if the request is no longer pending (already decided, concurrently or otherwise).
  * @summary Approve a pending leave request
  */

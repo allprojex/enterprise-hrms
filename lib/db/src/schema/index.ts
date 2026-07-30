@@ -43,3 +43,7 @@ export * from "./requisition-approvals";
 export * from "./vacancies";
 export * from "./vacancy-locations";
 export * from "./vacancy-questions";
+export * from "./candidates";
+export * from "./candidate-consents";
+export * from "./candidate-documents";
+export * from "./applications";

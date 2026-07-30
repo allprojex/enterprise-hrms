@@ -46,6 +46,8 @@ tags:
     description: Recruitment Configuration operations (settings, workflows, stages)
   - name: vacancies
     description: Vacancy management operations (the postable unit produced from an approved job requisition)
+  - name: public-careers
+    description: Unauthenticated public careers portal operations (organization-slug-scoped listing, detail, and anonymous application submission)
 
 paths:
   /healthz:
@@ -3388,6 +3390,268 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "404":
           description: Vacancy not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /careers/{orgSlug}:
+    get:
+      operationId: getPublicCareersOrganization
+      tags: [public-careers]
+      summary: Public organization profile for a careers page
+      description: >-
+        No authentication. Resolves the organization by its own slug only —
+        never a numeric ID. Returns the same 404 whether the slug doesn't
+        exist, the organization is suspended, or its careers portal isn't
+        enabled (recruitment_settings.enabled / externalRecruitmentEnabled)
+        — these are never distinguished, so a probing request can never
+        learn which condition applied.
+      parameters:
+        - name: orgSlug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Public organization profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicOrganization"
+        "404":
+          description: Careers page not available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /careers/{orgSlug}/vacancies:
+    get:
+      operationId: listPublicVacancies
+      tags: [public-careers]
+      summary: Public, paginated, filterable vacancy list
+      description: >-
+        Only vacancies with status=published, visibility != internal, and
+        (if set) a closeDate that has not yet passed. Never includes
+        salary, internal IDs, requisition linkage, or any recruiter/hiring-
+        manager identity — vacancies carry no salary field at all, and
+        job_requisitions' own salary range is explicitly org-internal-only,
+        never surfaced here (docs/PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md
+        §9). Reads never mutate a vacancy's lifecycle, even when its
+        closeDate has passed.
+      parameters:
+        - name: orgSlug
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: department
+          in: query
+          schema:
+            type: string
+        - name: location
+          in: query
+          schema:
+            type: string
+        - name: employmentType
+          in: query
+          schema:
+            type: string
+        - name: workplaceType
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 50
+      responses:
+        "200":
+          description: Paginated public vacancy list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicVacancyListResponse"
+        "404":
+          description: Careers page not available (same collapsed 404 as GET /careers/{orgSlug})
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /careers/{orgSlug}/jobs/{vacancyPublicId}:
+    get:
+      operationId: getPublicVacancy
+      tags: [public-careers]
+      summary: Public vacancy detail
+      description: >-
+        Looked up by publicId only — the internal serial ID is never
+        accepted or exposed. Returns 404 whether the vacancy doesn't exist,
+        belongs to a different organization than orgSlug resolves to, or
+        simply isn't publicly eligible right now (draft/scheduled/paused/
+        closed/archived/internal-only/past its own closeDate) — never
+        distinguished.
+      parameters:
+        - name: orgSlug
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: vacancyPublicId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Public vacancy detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicVacancyDetail"
+        "404":
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /careers/{orgSlug}/jobs/{vacancyPublicId}/apply:
+    post:
+      operationId: applyToPublicVacancy
+      tags: [public-careers]
+      summary: Submit an anonymous application (submission only, no candidate account)
+      description: >-
+        The highest-risk public route in this codebase. Rate-limited per IP
+        (5/15min, stricter than /auth/login's 10/15min given the larger
+        file-upload payload). A hidden honeypot field ("website") that a
+        real applicant never sees — if filled, the exact same success
+        response is returned with nothing persisted, never revealing
+        detection to an automated submitter. The resume file passes through
+        the same documentValidation.ts signature/size/type checks as every
+        other upload in this codebase (PDF/JPEG/PNG/DOCX/XLSX, 10MB max). A
+        second submission from the same email against the same vacancy is
+        idempotent — returns the existing application (200, not 201), never
+        creates a second row. On a genuinely new submission, an
+        application-status link is emailed via the existing Resend
+        provider (reused unchanged from the forgot-password flow, W19) —
+        delivery failure is logged, never surfaced to the caller. Never
+        reveals whether a given email has applied before.
+      parameters:
+        - name: orgSlug
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: vacancyPublicId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [firstName, lastName, email, resume]
+              properties:
+                firstName:
+                  type: string
+                lastName:
+                  type: string
+                email:
+                  type: string
+                phone:
+                  type: string
+                resume:
+                  type: string
+                  format: binary
+                website:
+                  type: string
+                  description: Honeypot — must always be left empty. Not a real field.
+      responses:
+        "201":
+          description: Application submitted (new)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplicationSubmittedResponse"
+        "200":
+          description: Application already existed for this email and vacancy (idempotent repeat submission)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplicationSubmittedResponse"
+        "400":
+          description: Missing required fields, invalid resume file, or the organization's applicationLimitPerCandidate was reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Job not found (or not publicly eligible for application)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "429":
+          description: Too many applications submitted from this IP
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /careers/{orgSlug}/application-status/{token}:
+    get:
+      operationId: getPublicApplicationStatus
+      tags: [public-careers]
+      summary: Anonymous application status check by emailed token
+      description: >-
+        Never a bare email lookup — only the signed, time-limited token
+        emailed at submission (90-day TTL). Scoped to the organization
+        resolved from orgSlug; a token belonging to a different
+        organization is indistinguishable from an unknown one. Rate-limited
+        per IP to prevent token brute-forcing.
+      parameters:
+        - name: orgSlug
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Application status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplicationStatusResponse"
+        "404":
+          description: Not found (unknown, expired, or cross-organization token)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "429":
+          description: Too many status checks from this IP
           content:
             application/json:
               schema:
@@ -6857,6 +7121,122 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/VacancyQuestionInput"
+
+    PublicOrganization:
+      type: object
+      description: Deliberately narrow — only what a careers page header needs. Never the internal Organization DTO (no status, no type, no internal id).
+      required: [slug, name, logoUrl]
+      properties:
+        slug:
+          type: string
+        name:
+          type: string
+        logoUrl:
+          type: ["string", "null"]
+
+    PublicVacancySummary:
+      type: object
+      description: >-
+        Public-safe projection only — never requisitionId, the vacancy's
+        own internal serial id, hiring manager/recruiter identity, salary,
+        or any internal note. Looked up and referenced only by publicId.
+      required:
+        - publicId
+        - title
+        - departmentName
+        - locations
+        - employmentType
+        - workplaceType
+        - openingsCount
+        - openDate
+        - closeDate
+        - summary
+        - featured
+      properties:
+        publicId:
+          type: string
+        title:
+          type: string
+        departmentName:
+          type: ["string", "null"]
+        locations:
+          type: array
+          items:
+            type: string
+        employmentType:
+          type: ["string", "null"]
+        workplaceType:
+          type: ["string", "null"]
+        openingsCount:
+          type: integer
+        openDate:
+          type: ["string", "null"]
+          format: date-time
+        closeDate:
+          type: ["string", "null"]
+          format: date-time
+        summary:
+          type: ["string", "null"]
+          description: Truncated jobDescription (220 chars) for card display.
+        featured:
+          type: boolean
+
+    PublicVacancyListResponse:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicVacancySummary"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+
+    PublicVacancyDetail:
+      allOf:
+        - $ref: "#/components/schemas/PublicVacancySummary"
+        - type: object
+          required: [jobDescription, responsibilities, requirements, preferredQualifications, seoTitle, seoDescription]
+          properties:
+            jobDescription:
+              type: ["string", "null"]
+            responsibilities:
+              type: ["string", "null"]
+            requirements:
+              type: ["string", "null"]
+            preferredQualifications:
+              type: ["string", "null"]
+            seoTitle:
+              type: ["string", "null"]
+            seoDescription:
+              type: ["string", "null"]
+
+    ApplicationSubmittedResponse:
+      type: object
+      required: [submitted, publicId]
+      properties:
+        submitted:
+          type: boolean
+        publicId:
+          type: string
+          description: The new (or pre-existing, on an idempotent repeat) application's public reference. Never the internal serial id.
+
+    ApplicationStatusResponse:
+      type: object
+      required: [vacancyTitle, submittedAt, status]
+      properties:
+        vacancyTitle:
+          type: string
+        submittedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          description: Always "submitted" in this workstream — pipeline-derived status begins with W51 (Application Pipeline & Stage Movement).
 
     LeaveType:
       type: object

@@ -176,6 +176,13 @@
       "when": 1785364212461,
       "tag": "0024_salty_wither",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1785367934882,
+      "tag": "0025_dashing_wolverine",
+      "breakpoints": true
     }
   ]
 }

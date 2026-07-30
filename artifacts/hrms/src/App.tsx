@@ -35,6 +35,10 @@ import RequisitionDetail from '@/pages/requisition-detail';
 import RequisitionApprovals from '@/pages/requisition-approvals';
 import Vacancies from '@/pages/vacancies';
 import VacancyEditor from '@/pages/vacancy-editor';
+import CareersLanding from '@/pages/careers-landing';
+import CareersVacancyDetail from '@/pages/careers-vacancy-detail';
+import CareersApply from '@/pages/careers-apply';
+import CareersStatus from '@/pages/careers-status';
 import { ModuleGate } from '@/components/module-gate';
 
 const queryClient = new QueryClient({
@@ -65,6 +69,12 @@ function Router() {
       <Route path="/reset-password/:token" component={ResetPassword} />
       <Route path="/invite/:token" component={InviteAccept} />
       <Route path="/unauthorized" component={Unauthorized} />
+
+      {/* Public Careers Portal (Phase 3A, W49) -- no <AppShell>, no auth, never wrapped in SecureRoute */}
+      <Route path="/careers/:orgSlug/jobs/:vacancyPublicId/apply" component={CareersApply} />
+      <Route path="/careers/:orgSlug/jobs/:vacancyPublicId" component={CareersVacancyDetail} />
+      <Route path="/careers/:orgSlug/status/:token" component={CareersStatus} />
+      <Route path="/careers/:orgSlug" component={CareersLanding} />
 
       {/* Secure routes */}
       <Route path="/dashboard">

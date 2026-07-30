@@ -16,3 +16,15 @@ if (!Element.prototype.releasePointerCapture) {
 if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {};
 }
+
+// Radix's Checkbox (and other size-aware primitives) measure themselves via
+// ResizeObserver, which jsdom doesn't implement either — without this stub,
+// mounting one outside a closed dialog (e.g. always-visible on a page,
+// rather than inside a Dialog that starts closed) throws.
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}
