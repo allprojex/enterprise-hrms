@@ -177,7 +177,11 @@ export default function ApplicationDetail() {
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             Back to Applications
           </Link>
-          <h1 className="text-3xl font-bold text-foreground">{application.candidateName}</h1>
+          <h1 className="text-3xl font-bold text-foreground">
+            <Link href={`/candidates/${application.candidateId}`} className="hover:underline" data-testid="link-candidate-profile">
+              {application.candidateName}
+            </Link>
+          </h1>
           <p className="text-muted-foreground">{application.vacancyTitle}</p>
           <Badge variant={CATEGORY_VARIANT[application.currentStageCategory] ?? 'outline'} className="capitalize" data-testid="badge-application-stage">
             {application.currentStageName ?? application.currentStageCategory}

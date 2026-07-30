@@ -50,3 +50,7 @@ export * from "./applications";
 export * from "./application-stage-history";
 export * from "./application-answers";
 export * from "./application-scores";
+export * from "./candidate-notes";
+export * from "./candidate-tags";
+export * from "./talent-pools";
+export * from "./talent-pool-members";

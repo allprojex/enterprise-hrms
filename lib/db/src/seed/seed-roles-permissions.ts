@@ -113,6 +113,30 @@ const PERMISSIONS = [
   // unused until this workstream. Same org_admin/hr_manager-only rollout
   // as every other administrative Recruitment permission.
   { key: "application.manage", resource: "application", action: "manage" },
+  // Phase 3A, W53 — Candidate Notes, Tags, and Talent Pools. `candidate.read`
+  // and `candidate.notes.read` are both seeded to every role, same reasoning
+  // as vacancy.read/application.read (any employee could be the assigned
+  // recruiter/hiring manager on a requisition linked to one of the
+  // candidate's applications — visibility is narrowed per-record in the
+  // service layer, assigned/organization-wide only, no "own" tier, W50
+  // deferred; §7's Candidate notes row carries the same assigned/org-wide
+  // tiers as Candidates, unlike Talent pools below). `candidate.manage` and
+  // `candidate.notes.write` are the administrative counterparts,
+  // org_admin/hr_manager only — every Recruitment *write* action stays
+  // admin-only regardless of a resource's read-side assigned tier, same
+  // rollout as application.pipeline.move/application.manage over
+  // application.read. `candidate.manage` also gates tag add/remove per this
+  // workstream's own scope decision (avoiding a dedicated tags permission).
+  // `talent_pool.read`/`.manage` are org-wide only (§7 — no "assigned" tier
+  // at all: a pool isn't reachable through any one requisition's
+  // recruiter/hiring-manager), so both are org_admin/hr_manager only, same
+  // rollout as leave_type.manage.
+  { key: "candidate.read", resource: "candidate", action: "read" },
+  { key: "candidate.manage", resource: "candidate", action: "manage" },
+  { key: "candidate.notes.read", resource: "candidate", action: "notes.read" },
+  { key: "candidate.notes.write", resource: "candidate", action: "notes.write" },
+  { key: "talent_pool.read", resource: "talent_pool", action: "read" },
+  { key: "talent_pool.manage", resource: "talent_pool", action: "manage" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -159,6 +183,12 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "application.read",
     "application.pipeline.move",
     "application.manage",
+    "candidate.read",
+    "candidate.manage",
+    "candidate.notes.read",
+    "candidate.notes.write",
+    "talent_pool.read",
+    "talent_pool.manage",
   ],
   hr_manager: [
     "organization.read",
@@ -195,6 +225,12 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "application.read",
     "application.pipeline.move",
     "application.manage",
+    "candidate.read",
+    "candidate.manage",
+    "candidate.notes.read",
+    "candidate.notes.write",
+    "talent_pool.read",
+    "talent_pool.manage",
   ],
   employee: [
     "organization.read",
@@ -210,6 +246,8 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "requisition.read",
     "vacancy.read",
     "application.read",
+    "candidate.read",
+    "candidate.notes.read",
   ],
 };
 

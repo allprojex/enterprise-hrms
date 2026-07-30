@@ -3902,6 +3902,352 @@ export const SubmitApplicationScoreResponse = zod.object({
 
 
 /**
+ * Visibility-filtered per caller: organization-wide for candidate.manage holders, otherwise scoped to candidates reachable via any application whose linked requisition assigns the caller as recruiter or hiring manager (a candidate carries no recruiter/hiring-manager column of its own — resolved three hops out: candidate -> applications -> vacancies -> requisitions).
+ * @summary List candidates (internal directory)
+ */
+export const ListCandidatesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const listCandidatesQueryPageDefault = 1;
+export const listCandidatesQueryPageSizeDefault = 20;
+
+export const ListCandidatesQueryParams = zod.object({
+  "search": zod.coerce.string().optional().describe('Matches candidate name or email.'),
+  "page": zod.coerce.number().default(listCandidatesQueryPageDefault),
+  "pageSize": zod.coerce.number().default(listCandidatesQueryPageSizeDefault)
+})
+
+export const ListCandidatesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "email": zod.string(),
+  "phone": zod.string().nullable(),
+  "source": zod.string(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Internal ATS view of a W49 candidate record (this route requires authentication and candidate.read). Visibility-filtered per caller the same way as Applications — organization-wide for candidate.manage holders, otherwise scoped to candidates reachable via an application to a requisition that assigns the caller as recruiter or hiring manager. This workstream (W53) never redesigns the candidate record itself, only adds this internal read path.')),
+  "total": zod.number(),
+  "page": zod.number(),
+  "pageSize": zod.number()
+})
+
+
+/**
+ * Returns 404 both when the candidate doesn't exist and when it exists but isn't visible to this caller — never distinguishing the two.
+ * @summary Get a candidate
+ */
+export const GetCandidateParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const GetCandidateResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "email": zod.string(),
+  "phone": zod.string().nullable(),
+  "source": zod.string(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Internal ATS view of a W49 candidate record (this route requires authentication and candidate.read). Visibility-filtered per caller the same way as Applications — organization-wide for candidate.manage holders, otherwise scoped to candidates reachable via an application to a requisition that assigns the caller as recruiter or hiring manager. This workstream (W53) never redesigns the candidate record itself, only adds this internal read path.')
+
+
+/**
+ * Never exposed to an applicant — no candidate-session read path exists anywhere in this codebase (W50 deferred). Newest first.
+ * @summary List a candidate's recruiter notes
+ */
+export const ListCandidateNotesParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ListCandidateNotesResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "candidateId": zod.number(),
+  "applicationId": zod.number().nullable().describe('Null for a candidate-level note; set for a note scoped to one specific application.'),
+  "authorMembershipId": zod.number().nullable(),
+  "note": zod.string(),
+  "createdAt": zod.coerce.date()
+}).describe('Create-only — no update\/delete path exists (a correction is a new note, never an edit of a past one). Never exposed to an applicant — no candidate-session read path exists anywhere in this codebase (W50 deferred).')
+export const ListCandidateNotesResponse = zod.array(ListCandidateNotesResponseItem)
+
+
+/**
+ * Create-only — no update/delete path exists. `applicationId` (if supplied) distinguishes an application-level note from a candidate-level one, and must belong to this candidate.
+ * @summary Add a recruiter note to a candidate
+ */
+export const CreateCandidateNoteParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const CreateCandidateNoteBody = zod.object({
+  "note": zod.string().min(1),
+  "applicationId": zod.number().nullish().describe('Must belong to this candidate if supplied.')
+})
+
+export const CreateCandidateNoteResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "candidateId": zod.number(),
+  "applicationId": zod.number().nullable().describe('Null for a candidate-level note; set for a note scoped to one specific application.'),
+  "authorMembershipId": zod.number().nullable(),
+  "note": zod.string(),
+  "createdAt": zod.coerce.date()
+}).describe('Create-only — no update\/delete path exists (a correction is a new note, never an edit of a past one). Never exposed to an applicant — no candidate-session read path exists anywhere in this codebase (W50 deferred).')
+
+
+/**
+ * Alphabetical by tag.
+ * @summary List a candidate's tags
+ */
+export const ListCandidateTagsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ListCandidateTagsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "candidateId": zod.number(),
+  "tag": zod.string(),
+  "createdAt": zod.coerce.date()
+}).describe('Free-text label, never a fixed enum — tag values are never hard-coded.')
+export const ListCandidateTagsResponse = zod.array(ListCandidateTagsResponseItem)
+
+
+/**
+ * Free-text — tag values are never a fixed enum or Master Data domain.
+ * @summary Add a tag to a candidate
+ */
+export const AddCandidateTagParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const AddCandidateTagBody = zod.object({
+  "tag": zod.string().min(1)
+})
+
+export const AddCandidateTagResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "candidateId": zod.number(),
+  "tag": zod.string(),
+  "createdAt": zod.coerce.date()
+}).describe('Free-text label, never a fixed enum — tag values are never hard-coded.')
+
+
+/**
+ * @summary Remove a tag from a candidate
+ */
+export const RemoveCandidateTagParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number(),
+  "tagId": zod.coerce.number()
+})
+
+export const RemoveCandidateTagResponse = zod.void()
+
+
+/**
+ * @summary List an organization's talent pools
+ */
+export const ListTalentPoolsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListTalentPoolsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullable(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Reusable, org-scoped candidate grouping — never tied to a single vacancy or requisition.')
+export const ListTalentPoolsResponse = zod.array(ListTalentPoolsResponseItem)
+
+
+/**
+ * @summary Create a talent pool
+ */
+export const CreateTalentPoolParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+
+
+export const CreateTalentPoolBody = zod.object({
+  "name": zod.string().min(1),
+  "description": zod.string().nullish()
+})
+
+export const CreateTalentPoolResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullable(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Reusable, org-scoped candidate grouping — never tied to a single vacancy or requisition.')
+
+
+/**
+ * @summary Get a talent pool
+ */
+export const GetTalentPoolParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "poolId": zod.coerce.number()
+})
+
+export const GetTalentPoolResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullable(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Reusable, org-scoped candidate grouping — never tied to a single vacancy or requisition.')
+
+
+/**
+ * @summary Update a talent pool
+ */
+export const UpdateTalentPoolParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "poolId": zod.coerce.number()
+})
+
+
+
+
+export const UpdateTalentPoolBody = zod.object({
+  "name": zod.string().min(1).optional(),
+  "description": zod.string().nullish()
+})
+
+export const UpdateTalentPoolResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullable(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Reusable, org-scoped candidate grouping — never tied to a single vacancy or requisition.')
+
+
+/**
+ * @summary Archive a talent pool
+ */
+export const ArchiveTalentPoolParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "poolId": zod.coerce.number()
+})
+
+export const ArchiveTalentPoolResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullable(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Reusable, org-scoped candidate grouping — never tied to a single vacancy or requisition.')
+
+
+/**
+ * @summary Reactivate an archived talent pool
+ */
+export const ReactivateTalentPoolParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "poolId": zod.coerce.number()
+})
+
+export const ReactivateTalentPoolResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullable(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Reusable, org-scoped candidate grouping — never tied to a single vacancy or requisition.')
+
+
+/**
+ * @summary List a talent pool's members
+ */
+export const ListTalentPoolMembersParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "poolId": zod.coerce.number()
+})
+
+export const ListTalentPoolMembersResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "talentPoolId": zod.number(),
+  "candidateId": zod.number(),
+  "addedByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date()
+})
+export const ListTalentPoolMembersResponse = zod.array(ListTalentPoolMembersResponseItem)
+
+
+/**
+ * @summary Add a candidate to a talent pool
+ */
+export const AddTalentPoolMemberParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "poolId": zod.coerce.number()
+})
+
+export const AddTalentPoolMemberBody = zod.object({
+  "candidateId": zod.number()
+})
+
+export const AddTalentPoolMemberResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "talentPoolId": zod.number(),
+  "candidateId": zod.number(),
+  "addedByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Remove a candidate from a talent pool
+ */
+export const RemoveTalentPoolMemberParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "poolId": zod.coerce.number(),
+  "candidateId": zod.coerce.number()
+})
+
+export const RemoveTalentPoolMemberResponse = zod.void()
+
+
+/**
  * No authentication. Resolves the organization by its own slug only — never a numeric ID. Returns the same 404 whether the slug doesn't exist, the organization is suspended, or its careers portal isn't enabled (recruitment_settings.enabled / externalRecruitmentEnabled) — these are never distinguished, so a probing request can never learn which condition applied.
  * @summary Public organization profile for a careers page
  */

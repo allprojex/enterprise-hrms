@@ -50,6 +50,10 @@ tags:
     description: Internal recruitment application pipeline operations (review, stage movement, reject/withdraw/reopen) — the start of the ATS
   - name: public-careers
     description: Unauthenticated public careers portal operations (organization-slug-scoped listing, detail, and anonymous application submission)
+  - name: candidates
+    description: Internal candidate directory, notes, and tags operations (W53 — candidate records themselves are W49's, this workstream adds internal read access plus collaboration features)
+  - name: talent-pools
+    description: Reusable, org-scoped candidate grouping operations (W53) — never tied to a single vacancy or requisition
 
 paths:
   /healthz:
@@ -3699,6 +3703,549 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "404":
           description: Application not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/candidates:
+    get:
+      operationId: listCandidates
+      tags: [candidates]
+      summary: List candidates (internal directory)
+      description: >-
+        Visibility-filtered per caller: organization-wide for
+        candidate.manage holders, otherwise scoped to candidates reachable
+        via any application whose linked requisition assigns the caller as
+        recruiter or hiring manager (a candidate carries no
+        recruiter/hiring-manager column of its own — resolved three hops
+        out: candidate -> applications -> vacancies -> requisitions).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: search
+          in: query
+          description: Matches candidate name or email.
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Paginated, visibility-filtered candidate list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CandidateListResponse"
+
+  /organizations/{organizationId}/candidates/{id}:
+    get:
+      operationId: getCandidate
+      tags: [candidates]
+      summary: Get a candidate
+      description: Returns 404 both when the candidate doesn't exist and when it exists but isn't visible to this caller — never distinguishing the two.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Candidate detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Candidate"
+        "404":
+          description: Candidate not found (or not visible to this caller)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/candidates/{id}/notes:
+    get:
+      operationId: listCandidateNotes
+      tags: [candidates]
+      summary: List a candidate's recruiter notes
+      description: Never exposed to an applicant — no candidate-session read path exists anywhere in this codebase (W50 deferred). Newest first.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Candidate notes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CandidateNote"
+        "404":
+          description: Candidate not found (or not visible to this caller)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createCandidateNote
+      tags: [candidates]
+      summary: Add a recruiter note to a candidate
+      description: >-
+        Create-only — no update/delete path exists. `applicationId` (if
+        supplied) distinguishes an application-level note from a
+        candidate-level one, and must belong to this candidate.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCandidateNoteInput"
+      responses:
+        "201":
+          description: Note created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CandidateNote"
+        "400":
+          description: Invalid note (empty text, or applicationId doesn't belong to this candidate)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Candidate not found (or not visible to this caller)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/candidates/{id}/tags:
+    get:
+      operationId: listCandidateTags
+      tags: [candidates]
+      summary: List a candidate's tags
+      description: Alphabetical by tag.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Candidate tags
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CandidateTag"
+        "404":
+          description: Candidate not found (or not visible to this caller)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: addCandidateTag
+      tags: [candidates]
+      summary: Add a tag to a candidate
+      description: Free-text — tag values are never a fixed enum or Master Data domain.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddCandidateTagInput"
+      responses:
+        "201":
+          description: Tag added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CandidateTag"
+        "400":
+          description: Invalid tag (empty text)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Candidate not found (or not visible to this caller)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: This candidate already has that tag
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/candidates/{id}/tags/{tagId}:
+    delete:
+      operationId: removeCandidateTag
+      tags: [candidates]
+      summary: Remove a tag from a candidate
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: tagId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Tag removed
+        "404":
+          description: Candidate not found (or not visible to this caller), or tag not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/talent-pools:
+    get:
+      operationId: listTalentPools
+      tags: [talent-pools]
+      summary: List an organization's talent pools
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of talent pools
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TalentPool"
+    post:
+      operationId: createTalentPool
+      tags: [talent-pools]
+      summary: Create a talent pool
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTalentPoolInput"
+      responses:
+        "201":
+          description: Talent pool created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TalentPool"
+        "409":
+          description: A talent pool with this name already exists in the organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/talent-pools/{poolId}:
+    get:
+      operationId: getTalentPool
+      tags: [talent-pools]
+      summary: Get a talent pool
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Talent pool detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TalentPool"
+        "404":
+          description: Talent pool not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    patch:
+      operationId: updateTalentPool
+      tags: [talent-pools]
+      summary: Update a talent pool
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTalentPoolInput"
+      responses:
+        "200":
+          description: Talent pool updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TalentPool"
+        "404":
+          description: Talent pool not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: A talent pool with this name already exists in the organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/talent-pools/{poolId}/archive:
+    post:
+      operationId: archiveTalentPool
+      tags: [talent-pools]
+      summary: Archive a talent pool
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Talent pool archived
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TalentPool"
+        "404":
+          description: Talent pool not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/talent-pools/{poolId}/reactivate:
+    post:
+      operationId: reactivateTalentPool
+      tags: [talent-pools]
+      summary: Reactivate an archived talent pool
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Talent pool reactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TalentPool"
+        "404":
+          description: Talent pool not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/talent-pools/{poolId}/members:
+    get:
+      operationId: listTalentPoolMembers
+      tags: [talent-pools]
+      summary: List a talent pool's members
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Talent pool members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TalentPoolMember"
+        "404":
+          description: Talent pool not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: addTalentPoolMember
+      tags: [talent-pools]
+      summary: Add a candidate to a talent pool
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddTalentPoolMemberInput"
+      responses:
+        "201":
+          description: Candidate added to the talent pool
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TalentPoolMember"
+        "404":
+          description: Talent pool or candidate not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Candidate is already a member of this talent pool
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/talent-pools/{poolId}/members/{candidateId}:
+    delete:
+      operationId: removeTalentPoolMember
+      tags: [talent-pools]
+      summary: Remove a candidate from a talent pool
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: poolId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: candidateId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Candidate removed from the talent pool
+        "404":
+          description: Talent pool member not found
           content:
             application/json:
               schema:
@@ -7663,6 +8210,184 @@ components:
       properties:
         comment:
           type: ["string", "null"]
+
+    Candidate:
+      type: object
+      description: >-
+        Internal ATS view of a W49 candidate record (this route requires
+        authentication and candidate.read). Visibility-filtered per caller
+        the same way as Applications — organization-wide for candidate.manage
+        holders, otherwise scoped to candidates reachable via an application
+        to a requisition that assigns the caller as recruiter or hiring
+        manager. This workstream (W53) never redesigns the candidate record
+        itself, only adds this internal read path.
+      required: [id, organizationId, firstName, lastName, email, phone, source, isActive, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: ["string", "null"]
+        source:
+          type: string
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CandidateListResponse:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Candidate"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+
+    CandidateNote:
+      type: object
+      description: >-
+        Create-only — no update/delete path exists (a correction is a new
+        note, never an edit of a past one). Never exposed to an applicant —
+        no candidate-session read path exists anywhere in this codebase (W50
+        deferred).
+      required: [id, organizationId, candidateId, applicationId, authorMembershipId, note, createdAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        candidateId:
+          type: integer
+        applicationId:
+          type: ["integer", "null"]
+          description: Null for a candidate-level note; set for a note scoped to one specific application.
+        authorMembershipId:
+          type: ["integer", "null"]
+        note:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateCandidateNoteInput:
+      type: object
+      required: [note]
+      properties:
+        note:
+          type: string
+          minLength: 1
+        applicationId:
+          type: ["integer", "null"]
+          description: Must belong to this candidate if supplied.
+
+    CandidateTag:
+      type: object
+      description: Free-text label, never a fixed enum — tag values are never hard-coded.
+      required: [id, organizationId, candidateId, tag, createdAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        candidateId:
+          type: integer
+        tag:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    AddCandidateTagInput:
+      type: object
+      required: [tag]
+      properties:
+        tag:
+          type: string
+          minLength: 1
+
+    TalentPool:
+      type: object
+      description: Reusable, org-scoped candidate grouping — never tied to a single vacancy or requisition.
+      required: [id, organizationId, name, description, isActive, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateTalentPoolInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: ["string", "null"]
+
+    UpdateTalentPoolInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: ["string", "null"]
+
+    TalentPoolMember:
+      type: object
+      required: [id, organizationId, talentPoolId, candidateId, addedByMembershipId, createdAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        talentPoolId:
+          type: integer
+        candidateId:
+          type: integer
+        addedByMembershipId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    AddTalentPoolMemberInput:
+      type: object
+      required: [candidateId]
+      properties:
+        candidateId:
+          type: integer
 
     PublicOrganization:
       type: object

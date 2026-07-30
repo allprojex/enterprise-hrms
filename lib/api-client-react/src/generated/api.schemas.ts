@@ -1427,6 +1427,116 @@ export interface ReopenApplicationInput {
 }
 
 /**
+ * Internal ATS view of a W49 candidate record (this route requires authentication and candidate.read). Visibility-filtered per caller the same way as Applications — organization-wide for candidate.manage holders, otherwise scoped to candidates reachable via an application to a requisition that assigns the caller as recruiter or hiring manager. This workstream (W53) never redesigns the candidate record itself, only adds this internal read path.
+ */
+export interface Candidate {
+  id: number;
+  organizationId: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  /** @nullable */
+  phone: string | null;
+  source: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CandidateListResponse {
+  items: Candidate[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/**
+ * Create-only — no update/delete path exists (a correction is a new note, never an edit of a past one). Never exposed to an applicant — no candidate-session read path exists anywhere in this codebase (W50 deferred).
+ */
+export interface CandidateNote {
+  id: number;
+  organizationId: number;
+  candidateId: number;
+  /**
+     * Null for a candidate-level note; set for a note scoped to one specific application.
+     * @nullable
+     */
+  applicationId: number | null;
+  /** @nullable */
+  authorMembershipId: number | null;
+  note: string;
+  createdAt: string;
+}
+
+export interface CreateCandidateNoteInput {
+  /** @minLength 1 */
+  note: string;
+  /**
+     * Must belong to this candidate if supplied.
+     * @nullable
+     */
+  applicationId?: number | null;
+}
+
+/**
+ * Free-text label, never a fixed enum — tag values are never hard-coded.
+ */
+export interface CandidateTag {
+  id: number;
+  organizationId: number;
+  candidateId: number;
+  tag: string;
+  createdAt: string;
+}
+
+export interface AddCandidateTagInput {
+  /** @minLength 1 */
+  tag: string;
+}
+
+/**
+ * Reusable, org-scoped candidate grouping — never tied to a single vacancy or requisition.
+ */
+export interface TalentPool {
+  id: number;
+  organizationId: number;
+  name: string;
+  /** @nullable */
+  description: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTalentPoolInput {
+  /** @minLength 1 */
+  name: string;
+  /** @nullable */
+  description?: string | null;
+}
+
+export interface UpdateTalentPoolInput {
+  /** @minLength 1 */
+  name?: string;
+  /** @nullable */
+  description?: string | null;
+}
+
+export interface TalentPoolMember {
+  id: number;
+  organizationId: number;
+  talentPoolId: number;
+  candidateId: number;
+  /** @nullable */
+  addedByMembershipId: number | null;
+  createdAt: string;
+}
+
+export interface AddTalentPoolMemberInput {
+  candidateId: number;
+}
+
+/**
  * Deliberately narrow — only what a careers page header needs. Never the internal Organization DTO (no status, no type, no internal id).
  */
 export interface PublicOrganization {
@@ -3012,6 +3122,15 @@ export const ListApplicationsStageCategory = {
   rejected: 'rejected',
   withdrawn: 'withdrawn',
 } as const;
+
+export type ListCandidatesParams = {
+/**
+ * Matches candidate name or email.
+ */
+search?: string;
+page?: number;
+pageSize?: number;
+};
 
 export type ListPublicVacanciesParams = {
 search?: string;
