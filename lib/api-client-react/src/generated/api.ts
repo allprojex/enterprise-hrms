@@ -28,6 +28,8 @@ import type {
   AddMemberInput,
   AdjustLeaveBalanceInput,
   ApiError,
+  ApplicationDetail,
+  ApplicationListResponse,
   ApplicationStatusResponse,
   ApplicationSubmittedResponse,
   ApplyToPublicVacancyBody,
@@ -78,6 +80,7 @@ import type {
   LeaveRequest,
   LeaveType,
   LinkEmployeeUserInput,
+  ListApplicationsParams,
   ListAuditEventsParams,
   ListEmployeesParams,
   ListJobRequisitionsParams,
@@ -92,6 +95,7 @@ import type {
   MembershipSummary,
   MessageResponse,
   Module,
+  MoveApplicationStageInput,
   MyEmployeeResponse,
   Notification,
   Organization,
@@ -112,8 +116,10 @@ import type {
   RecruitmentSettings,
   RecruitmentStage,
   RecruitmentWorkflow,
+  RejectApplicationInput,
   RejectJobRequisitionInput,
   RejectLeaveRequestInput,
+  ReopenApplicationInput,
   Report,
   ReportRunResult,
   RequisitionApproval,
@@ -150,7 +156,8 @@ import type {
   UserProfile,
   UserProfileUpdate,
   Vacancy,
-  VacancyListResponse
+  VacancyListResponse,
+  WithdrawApplicationInput
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -7372,6 +7379,479 @@ export const useArchiveVacancy = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getArchiveVacancyMutationOptions(options));
+    }
+
+export const getListApplicationsUrl = (organizationId: number,
+    params?: ListApplicationsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/applications?${stringifiedParams}` : `/api/organizations/${organizationId}/applications`
+}
+
+/**
+ * Visibility-filtered per caller: organization-wide for application.pipeline.move holders, otherwise scoped to applications whose linked requisition assigns the caller as recruiter or hiring manager (an application carries no recruiter/hiring-manager column of its own — resolved two hops out via its vacancy's requisition, docs/PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md §7). No candidate- session ("own") tier exists — anonymous applicants never reach this route (W50 deferred, no candidate account/session mechanism exists).
+ * @summary List applications (internal ATS review)
+ */
+export const listApplications = async (organizationId: number,
+    params?: ListApplicationsParams, options?: RequestInit): Promise<ApplicationListResponse> => {
+
+  return customFetch<ApplicationListResponse>(getListApplicationsUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListApplicationsQueryKey = (organizationId: number,
+    params?: ListApplicationsParams,) => {
+    return [
+    `/api/organizations/${organizationId}/applications`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListApplicationsQueryOptions = <TData = Awaited<ReturnType<typeof listApplications>>, TError = ErrorType<unknown>>(organizationId: number,
+    params?: ListApplicationsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listApplications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListApplicationsQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listApplications>>> = ({ signal }) => listApplications(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listApplications>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListApplicationsQueryResult = NonNullable<Awaited<ReturnType<typeof listApplications>>>
+export type ListApplicationsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List applications (internal ATS review)
+ */
+
+export function useListApplications<TData = Awaited<ReturnType<typeof listApplications>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    params?: ListApplicationsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listApplications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListApplicationsQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetApplicationUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/applications/${id}`
+}
+
+/**
+ * Returns 404 both when the application doesn't exist and when it exists but isn't visible to this caller — never distinguishing the two.
+ * @summary Get an application (candidate info, current stage, documents, immutable history)
+ */
+export const getApplication = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<ApplicationDetail> => {
+
+  return customFetch<ApplicationDetail>(getGetApplicationUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetApplicationQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/applications/${id}`
+    ] as const;
+    }
+
+
+export const getGetApplicationQueryOptions = <TData = Awaited<ReturnType<typeof getApplication>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getApplication>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetApplicationQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApplication>>> = ({ signal }) => getApplication(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApplication>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetApplicationQueryResult = NonNullable<Awaited<ReturnType<typeof getApplication>>>
+export type GetApplicationQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get an application (candidate info, current stage, documents, immutable history)
+ */
+
+export function useGetApplication<TData = Awaited<ReturnType<typeof getApplication>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getApplication>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetApplicationQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getMoveApplicationStageUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/applications/${id}/move-stage`
+}
+
+/**
+ * Validated server-side against the vacancy's own workflow stage list — never a client-supplied "next stage" trusted as-is. Rejected with 400 if the application is currently in a terminal stage (use reopen first), the vacancy has no configured workflow, or toStageId doesn't belong to that workflow. Terminal categories (hired/rejected/withdrawn) are reachable only through their own dedicated actions, never through this one.
+ * @summary Move an application to another active, non-terminal stage in its vacancy's own workflow
+ */
+export const moveApplicationStage = async (organizationId: number,
+    id: number,
+    moveApplicationStageInput: MoveApplicationStageInput, options?: RequestInit): Promise<ApplicationDetail> => {
+
+  return customFetch<ApplicationDetail>(getMoveApplicationStageUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(moveApplicationStageInput)
+  }
+);}
+
+
+
+
+
+export const getMoveApplicationStageMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof moveApplicationStage>>, TError,{organizationId: number;id: number;data: BodyType<MoveApplicationStageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof moveApplicationStage>>, TError,{organizationId: number;id: number;data: BodyType<MoveApplicationStageInput>}, TContext> => {
+
+const mutationKey = ['moveApplicationStage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof moveApplicationStage>>, {organizationId: number;id: number;data: BodyType<MoveApplicationStageInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  moveApplicationStage(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MoveApplicationStageMutationResult = NonNullable<Awaited<ReturnType<typeof moveApplicationStage>>>
+    export type MoveApplicationStageMutationBody = BodyType<MoveApplicationStageInput>
+    export type MoveApplicationStageMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Move an application to another active, non-terminal stage in its vacancy's own workflow
+ */
+export const useMoveApplicationStage = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof moveApplicationStage>>, TError,{organizationId: number;id: number;data: BodyType<MoveApplicationStageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof moveApplicationStage>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<MoveApplicationStageInput>},
+        TContext
+      > => {
+      return useMutation(getMoveApplicationStageMutationOptions(options));
+    }
+
+export const getRejectApplicationUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/applications/${id}/reject`
+}
+
+/**
+ * Moves the application to the vacancy's workflow's rejected-category stage. 400 if no such stage is configured, or the application is already in a terminal stage.
+ * @summary Reject an application
+ */
+export const rejectApplication = async (organizationId: number,
+    id: number,
+    rejectApplicationInput?: RejectApplicationInput, options?: RequestInit): Promise<ApplicationDetail> => {
+
+  return customFetch<ApplicationDetail>(getRejectApplicationUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(rejectApplicationInput)
+  }
+);}
+
+
+
+
+
+export const getRejectApplicationMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectApplication>>, TError,{organizationId: number;id: number;data?: BodyType<RejectApplicationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectApplication>>, TError,{organizationId: number;id: number;data?: BodyType<RejectApplicationInput>}, TContext> => {
+
+const mutationKey = ['rejectApplication'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectApplication>>, {organizationId: number;id: number;data?: BodyType<RejectApplicationInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  rejectApplication(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectApplicationMutationResult = NonNullable<Awaited<ReturnType<typeof rejectApplication>>>
+    export type RejectApplicationMutationBody = BodyType<RejectApplicationInput> | undefined
+    export type RejectApplicationMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Reject an application
+ */
+export const useRejectApplication = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectApplication>>, TError,{organizationId: number;id: number;data?: BodyType<RejectApplicationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rejectApplication>>,
+        TError,
+        {organizationId: number;id: number;data?: BodyType<RejectApplicationInput>},
+        TContext
+      > => {
+      return useMutation(getRejectApplicationMutationOptions(options));
+    }
+
+export const getWithdrawApplicationUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/applications/${id}/withdraw`
+}
+
+/**
+ * Moves the application to the vacancy's workflow's withdrawn-category stage. 400 if no such stage is configured, or the application is already in a terminal stage.
+ * @summary Withdraw an application
+ */
+export const withdrawApplication = async (organizationId: number,
+    id: number,
+    withdrawApplicationInput?: WithdrawApplicationInput, options?: RequestInit): Promise<ApplicationDetail> => {
+
+  return customFetch<ApplicationDetail>(getWithdrawApplicationUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(withdrawApplicationInput)
+  }
+);}
+
+
+
+
+
+export const getWithdrawApplicationMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawApplication>>, TError,{organizationId: number;id: number;data?: BodyType<WithdrawApplicationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof withdrawApplication>>, TError,{organizationId: number;id: number;data?: BodyType<WithdrawApplicationInput>}, TContext> => {
+
+const mutationKey = ['withdrawApplication'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof withdrawApplication>>, {organizationId: number;id: number;data?: BodyType<WithdrawApplicationInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  withdrawApplication(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type WithdrawApplicationMutationResult = NonNullable<Awaited<ReturnType<typeof withdrawApplication>>>
+    export type WithdrawApplicationMutationBody = BodyType<WithdrawApplicationInput> | undefined
+    export type WithdrawApplicationMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Withdraw an application
+ */
+export const useWithdrawApplication = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawApplication>>, TError,{organizationId: number;id: number;data?: BodyType<WithdrawApplicationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof withdrawApplication>>,
+        TError,
+        {organizationId: number;id: number;data?: BodyType<WithdrawApplicationInput>},
+        TContext
+      > => {
+      return useMutation(getWithdrawApplicationMutationOptions(options));
+    }
+
+export const getReopenApplicationUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/applications/${id}/reopen`
+}
+
+/**
+ * Moves the application from its terminal stage back to the vacancy's workflow's applied-category stage, clearing any rejection/withdrawal reason. 400 if the application isn't currently in a terminal stage, or no applied-category stage is configured.
+ * @summary Reopen a rejected or withdrawn application
+ */
+export const reopenApplication = async (organizationId: number,
+    id: number,
+    reopenApplicationInput?: ReopenApplicationInput, options?: RequestInit): Promise<ApplicationDetail> => {
+
+  return customFetch<ApplicationDetail>(getReopenApplicationUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reopenApplicationInput)
+  }
+);}
+
+
+
+
+
+export const getReopenApplicationMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reopenApplication>>, TError,{organizationId: number;id: number;data?: BodyType<ReopenApplicationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reopenApplication>>, TError,{organizationId: number;id: number;data?: BodyType<ReopenApplicationInput>}, TContext> => {
+
+const mutationKey = ['reopenApplication'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reopenApplication>>, {organizationId: number;id: number;data?: BodyType<ReopenApplicationInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  reopenApplication(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReopenApplicationMutationResult = NonNullable<Awaited<ReturnType<typeof reopenApplication>>>
+    export type ReopenApplicationMutationBody = BodyType<ReopenApplicationInput> | undefined
+    export type ReopenApplicationMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Reopen a rejected or withdrawn application
+ */
+export const useReopenApplication = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reopenApplication>>, TError,{organizationId: number;id: number;data?: BodyType<ReopenApplicationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reopenApplication>>,
+        TError,
+        {organizationId: number;id: number;data?: BodyType<ReopenApplicationInput>},
+        TContext
+      > => {
+      return useMutation(getReopenApplicationMutationOptions(options));
     }
 
 export const getGetPublicCareersOrganizationUrl = (orgSlug: string,) => {

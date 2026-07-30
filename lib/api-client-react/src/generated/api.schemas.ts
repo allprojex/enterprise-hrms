@@ -1251,6 +1251,119 @@ export interface UpdateVacancyInput {
 }
 
 /**
+ * The current stage's fixed category, or "applied" for a never-triaged application (currentStageId null) — computed for display, never stored.
+ */
+export type ApplicationSummaryCurrentStageCategory = typeof ApplicationSummaryCurrentStageCategory[keyof typeof ApplicationSummaryCurrentStageCategory];
+
+
+export const ApplicationSummaryCurrentStageCategory = {
+  applied: 'applied',
+  screening: 'screening',
+  interview: 'interview',
+  assessment: 'assessment',
+  offer: 'offer',
+  hired: 'hired',
+  rejected: 'rejected',
+  withdrawn: 'withdrawn',
+} as const;
+
+/**
+ * Internal ATS view — unlike the public careers DTOs, this freely exposes internal ids (this route requires authentication and application.read).
+ */
+export interface ApplicationSummary {
+  id: number;
+  vacancyId: number;
+  vacancyTitle: string;
+  candidateId: number;
+  candidateName: string;
+  candidateEmail: string;
+  /** @nullable */
+  currentStageId: number | null;
+  /** @nullable */
+  currentStageName: string | null;
+  /** The current stage's fixed category, or "applied" for a never-triaged application (currentStageId null) — computed for display, never stored. */
+  currentStageCategory: ApplicationSummaryCurrentStageCategory;
+  submittedAt: string;
+}
+
+export interface ApplicationListResponse {
+  items: ApplicationSummary[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/**
+ * Metadata only — this workstream does not add a document download/streaming endpoint.
+ */
+export interface ApplicationDocumentSummary {
+  id: number;
+  categoryCode: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+}
+
+/**
+ * Immutable — never updated or deleted through any application API.
+ */
+export interface ApplicationStageHistoryEntry {
+  id: number;
+  organizationId: number;
+  applicationId: number;
+  /**
+     * Null for an application's first recorded movement.
+     * @nullable
+     */
+  fromStageId: number | null;
+  toStageId: number;
+  /** @nullable */
+  movedByMembershipId: number | null;
+  /**
+     * Optional free-text comment supplied with the movement.
+     * @nullable
+     */
+  reason: string | null;
+  movedAt: string;
+}
+
+export type ApplicationDetail = ApplicationSummary & ({
+  /** @nullable */
+  candidatePhone: string | null;
+  /** @nullable */
+  rejectionReasonCode: string | null;
+  /** @nullable */
+  withdrawalReasonCode: string | null;
+  documents: ApplicationDocumentSummary[];
+  history: ApplicationStageHistoryEntry[];
+});
+
+export interface MoveApplicationStageInput {
+  toStageId: number;
+  /** @nullable */
+  comment?: string | null;
+}
+
+export interface RejectApplicationInput {
+  /** @nullable */
+  reasonCode?: string | null;
+  /** @nullable */
+  comment?: string | null;
+}
+
+export interface WithdrawApplicationInput {
+  /** @nullable */
+  reasonCode?: string | null;
+  /** @nullable */
+  comment?: string | null;
+}
+
+export interface ReopenApplicationInput {
+  /** @nullable */
+  comment?: string | null;
+}
+
+/**
  * Deliberately narrow — only what a careers page header needs. Never the internal Organization DTO (no status, no type, no internal id).
  */
 export interface PublicOrganization {
@@ -2790,6 +2903,31 @@ export const ListVacanciesStatus = {
   paused: 'paused',
   closed: 'closed',
   archived: 'archived',
+} as const;
+
+export type ListApplicationsParams = {
+vacancyId?: number;
+stageCategory?: ListApplicationsStageCategory;
+/**
+ * Matches candidate name or email.
+ */
+search?: string;
+page?: number;
+pageSize?: number;
+};
+
+export type ListApplicationsStageCategory = typeof ListApplicationsStageCategory[keyof typeof ListApplicationsStageCategory];
+
+
+export const ListApplicationsStageCategory = {
+  applied: 'applied',
+  screening: 'screening',
+  interview: 'interview',
+  assessment: 'assessment',
+  offer: 'offer',
+  hired: 'hired',
+  rejected: 'rejected',
+  withdrawn: 'withdrawn',
 } as const;
 
 export type ListPublicVacanciesParams = {

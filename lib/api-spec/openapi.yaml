@@ -46,6 +46,8 @@ tags:
     description: Recruitment Configuration operations (settings, workflows, stages)
   - name: vacancies
     description: Vacancy management operations (the postable unit produced from an approved job requisition)
+  - name: applications
+    description: Internal recruitment application pipeline operations (review, stage movement, reject/withdraw/reopen) — the start of the ATS
   - name: public-careers
     description: Unauthenticated public careers portal operations (organization-slug-scoped listing, detail, and anonymous application submission)
 
@@ -3390,6 +3392,265 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "404":
           description: Vacancy not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/applications:
+    get:
+      operationId: listApplications
+      tags: [applications]
+      summary: List applications (internal ATS review)
+      description: >-
+        Visibility-filtered per caller: organization-wide for
+        application.pipeline.move holders, otherwise scoped to applications
+        whose linked requisition assigns the caller as recruiter or hiring
+        manager (an application carries no recruiter/hiring-manager column
+        of its own — resolved two hops out via its vacancy's requisition,
+        docs/PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md §7). No candidate-
+        session ("own") tier exists — anonymous applicants never reach this
+        route (W50 deferred, no candidate account/session mechanism exists).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: vacancyId
+          in: query
+          schema:
+            type: integer
+        - name: stageCategory
+          in: query
+          schema:
+            type: string
+            enum: [applied, screening, interview, assessment, offer, hired, rejected, withdrawn]
+        - name: search
+          in: query
+          description: Matches candidate name or email.
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Paginated, visibility-filtered application list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplicationListResponse"
+
+  /organizations/{organizationId}/applications/{id}:
+    get:
+      operationId: getApplication
+      tags: [applications]
+      summary: Get an application (candidate info, current stage, documents, immutable history)
+      description: Returns 404 both when the application doesn't exist and when it exists but isn't visible to this caller — never distinguishing the two.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Application detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplicationDetail"
+        "404":
+          description: Application not found (or not visible to this caller)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/applications/{id}/move-stage:
+    post:
+      operationId: moveApplicationStage
+      tags: [applications]
+      summary: Move an application to another active, non-terminal stage in its vacancy's own workflow
+      description: >-
+        Validated server-side against the vacancy's own workflow stage
+        list — never a client-supplied "next stage" trusted as-is.
+        Rejected with 400 if the application is currently in a terminal
+        stage (use reopen first), the vacancy has no configured workflow,
+        or toStageId doesn't belong to that workflow. Terminal categories
+        (hired/rejected/withdrawn) are reachable only through their own
+        dedicated actions, never through this one.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MoveApplicationStageInput"
+      responses:
+        "200":
+          description: Application moved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplicationDetail"
+        "400":
+          description: Invalid transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Application not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/applications/{id}/reject:
+    post:
+      operationId: rejectApplication
+      tags: [applications]
+      summary: Reject an application
+      description: Moves the application to the vacancy's workflow's rejected-category stage. 400 if no such stage is configured, or the application is already in a terminal stage.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RejectApplicationInput"
+      responses:
+        "200":
+          description: Application rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplicationDetail"
+        "400":
+          description: Invalid transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Application not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/applications/{id}/withdraw:
+    post:
+      operationId: withdrawApplication
+      tags: [applications]
+      summary: Withdraw an application
+      description: Moves the application to the vacancy's workflow's withdrawn-category stage. 400 if no such stage is configured, or the application is already in a terminal stage.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WithdrawApplicationInput"
+      responses:
+        "200":
+          description: Application withdrawn
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplicationDetail"
+        "400":
+          description: Invalid transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Application not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/applications/{id}/reopen:
+    post:
+      operationId: reopenApplication
+      tags: [applications]
+      summary: Reopen a rejected or withdrawn application
+      description: Moves the application from its terminal stage back to the vacancy's workflow's applied-category stage, clearing any rejection/withdrawal reason. 400 if the application isn't currently in a terminal stage, or no applied-category stage is configured.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReopenApplicationInput"
+      responses:
+        "200":
+          description: Application reopened
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplicationDetail"
+        "400":
+          description: Invalid transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Application not found
           content:
             application/json:
               schema:
@@ -7121,6 +7382,156 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/VacancyQuestionInput"
+
+    ApplicationSummary:
+      type: object
+      description: >-
+        Internal ATS view — unlike the public careers DTOs, this freely
+        exposes internal ids (this route requires authentication and
+        application.read).
+      required:
+        - id
+        - vacancyId
+        - vacancyTitle
+        - candidateId
+        - candidateName
+        - candidateEmail
+        - currentStageId
+        - currentStageName
+        - currentStageCategory
+        - submittedAt
+      properties:
+        id:
+          type: integer
+        vacancyId:
+          type: integer
+        vacancyTitle:
+          type: string
+        candidateId:
+          type: integer
+        candidateName:
+          type: string
+        candidateEmail:
+          type: string
+        currentStageId:
+          type: ["integer", "null"]
+        currentStageName:
+          type: ["string", "null"]
+        currentStageCategory:
+          type: string
+          description: The current stage's fixed category, or "applied" for a never-triaged application (currentStageId null) — computed for display, never stored.
+          enum: [applied, screening, interview, assessment, offer, hired, rejected, withdrawn]
+        submittedAt:
+          type: string
+          format: date-time
+
+    ApplicationListResponse:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApplicationSummary"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+
+    ApplicationDocumentSummary:
+      type: object
+      description: Metadata only — this workstream does not add a document download/streaming endpoint.
+      required: [id, categoryCode, fileName, mimeType, fileSize]
+      properties:
+        id:
+          type: integer
+        categoryCode:
+          type: string
+        fileName:
+          type: string
+        mimeType:
+          type: string
+        fileSize:
+          type: integer
+
+    ApplicationStageHistoryEntry:
+      type: object
+      description: Immutable — never updated or deleted through any application API.
+      required: [id, organizationId, applicationId, fromStageId, toStageId, movedByMembershipId, reason, movedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        applicationId:
+          type: integer
+        fromStageId:
+          type: ["integer", "null"]
+          description: Null for an application's first recorded movement.
+        toStageId:
+          type: integer
+        movedByMembershipId:
+          type: ["integer", "null"]
+        reason:
+          type: ["string", "null"]
+          description: Optional free-text comment supplied with the movement.
+        movedAt:
+          type: string
+          format: date-time
+
+    ApplicationDetail:
+      allOf:
+        - $ref: "#/components/schemas/ApplicationSummary"
+        - type: object
+          required: [candidatePhone, rejectionReasonCode, withdrawalReasonCode, documents, history]
+          properties:
+            candidatePhone:
+              type: ["string", "null"]
+            rejectionReasonCode:
+              type: ["string", "null"]
+            withdrawalReasonCode:
+              type: ["string", "null"]
+            documents:
+              type: array
+              items:
+                $ref: "#/components/schemas/ApplicationDocumentSummary"
+            history:
+              type: array
+              items:
+                $ref: "#/components/schemas/ApplicationStageHistoryEntry"
+
+    MoveApplicationStageInput:
+      type: object
+      required: [toStageId]
+      properties:
+        toStageId:
+          type: integer
+        comment:
+          type: ["string", "null"]
+
+    RejectApplicationInput:
+      type: object
+      properties:
+        reasonCode:
+          type: ["string", "null"]
+        comment:
+          type: ["string", "null"]
+
+    WithdrawApplicationInput:
+      type: object
+      properties:
+        reasonCode:
+          type: ["string", "null"]
+        comment:
+          type: ["string", "null"]
+
+    ReopenApplicationInput:
+      type: object
+      properties:
+        comment:
+          type: ["string", "null"]
 
     PublicOrganization:
       type: object

@@ -1,0 +1,154 @@
+/**
+ * Tests for the Application detail page (Phase 3A, W51).
+ * @workspace/api-client-react is mocked at the hook level — no real network
+ * requests are made.
+ */
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Router, Route } from 'wouter';
+import { memoryLocation } from 'wouter/memory-location';
+import ApplicationDetail from '@/pages/application-detail';
+import type { ApplicationDetail as ApplicationDetailType } from '@workspace/api-client-react';
+
+const { state } = vi.hoisted(() => ({
+  state: {
+    application: undefined as ApplicationDetailType | undefined,
+    isLoading: false,
+    error: undefined as unknown,
+  },
+}));
+
+vi.mock('@workspace/api-client-react', () => ({
+  useGetMe: () => ({ data: { id: 1, activeOrganizationId: 10, organizationId: 10 } }),
+  getGetMeQueryKey: () => ['getMe'],
+  useGetApplication: () => ({ data: state.application, isLoading: state.isLoading, error: state.error, refetch: vi.fn() }),
+  getGetApplicationQueryKey: (orgId: number, id: number) => ['application', orgId, id],
+  useGetVacancy: () => ({ data: { id: 100, workflowId: 300 } }),
+  getGetVacancyQueryKey: (orgId: number, id: number) => ['vacancy', orgId, id],
+  useListRecruitmentStages: () => ({
+    data: [
+      { id: 1, organizationId: 10, workflowId: 300, name: 'Applied', category: 'applied', displayOrder: 0, isRequired: false, isTerminal: false, isActive: true, createdAt: '', updatedAt: '' },
+      { id: 2, organizationId: 10, workflowId: 300, name: 'Screening', category: 'screening', displayOrder: 1, isRequired: false, isTerminal: false, isActive: true, createdAt: '', updatedAt: '' },
+    ],
+  }),
+  getListRecruitmentStagesQueryKey: (orgId: number, workflowId: number) => ['stages', orgId, workflowId],
+  useMoveApplicationStage: () => ({ mutate: vi.fn(), isPending: false }),
+  useRejectApplication: () => ({ mutate: vi.fn(), isPending: false }),
+  useWithdrawApplication: () => ({ mutate: vi.fn(), isPending: false }),
+  useReopenApplication: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+
+function baseApplication(overrides: Partial<ApplicationDetailType> = {}): ApplicationDetailType {
+  return {
+    id: 1,
+    vacancyId: 100,
+    vacancyTitle: 'Software Engineer',
+    candidateId: 200,
+    candidateName: 'Jane Doe',
+    candidateEmail: 'jane@example.com',
+    candidatePhone: '555-1234',
+    currentStageId: null,
+    currentStageName: null,
+    currentStageCategory: 'applied',
+    rejectionReasonCode: null,
+    withdrawalReasonCode: null,
+    submittedAt: new Date().toISOString(),
+    documents: [],
+    history: [],
+    ...overrides,
+  };
+}
+
+function renderPage() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const { hook } = memoryLocation({ path: '/applications/1', record: true });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <Router hook={hook}>
+        <Route path="/applications/:id">{() => <ApplicationDetail />}</Route>
+      </Router>
+    </QueryClientProvider>,
+  );
+}
+
+describe('Application detail page', () => {
+  it('shows a loading state without crashing', () => {
+    state.application = undefined;
+    state.isLoading = true;
+    state.error = undefined;
+    renderPage();
+    expect(screen.queryByTestId('badge-application-stage')).not.toBeInTheDocument();
+  });
+
+  it('shows an error state without crashing', () => {
+    state.application = undefined;
+    state.isLoading = false;
+    state.error = { error: 'boom' };
+    renderPage();
+    expect(screen.getByText(/could not load this application/i)).toBeInTheDocument();
+  });
+
+  it('renders candidate info and current stage', () => {
+    state.application = baseApplication();
+    state.isLoading = false;
+    state.error = undefined;
+    renderPage();
+    expect(screen.getByText('Jane Doe')).toBeInTheDocument();
+    expect(screen.getByText('jane@example.com')).toBeInTheDocument();
+    expect(screen.getByText('555-1234')).toBeInTheDocument();
+    expect(screen.getByTestId('badge-application-stage')).toHaveTextContent('applied');
+  });
+
+  it('shows reject/withdraw actions and the move-stage control for a non-terminal application', () => {
+    state.application = baseApplication({ currentStageCategory: 'screening' });
+    state.isLoading = false;
+    state.error = undefined;
+    renderPage();
+    expect(screen.getByTestId('button-reject-application')).toBeInTheDocument();
+    expect(screen.getByTestId('button-withdraw-application')).toBeInTheDocument();
+    expect(screen.getByTestId('select-move-target-stage')).toBeInTheDocument();
+    expect(screen.queryByTestId('button-reopen-application')).not.toBeInTheDocument();
+  });
+
+  it('shows only reopen for a terminal (rejected) application, hiding reject/withdraw/move controls', () => {
+    state.application = baseApplication({ currentStageCategory: 'rejected', rejectionReasonCode: 'not_qualified' });
+    state.isLoading = false;
+    state.error = undefined;
+    renderPage();
+    expect(screen.getByTestId('button-reopen-application')).toBeInTheDocument();
+    expect(screen.queryByTestId('button-reject-application')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('button-withdraw-application')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('select-move-target-stage')).not.toBeInTheDocument();
+    expect(screen.getByText('not_qualified')).toBeInTheDocument();
+  });
+
+  it('renders immutable history entries', () => {
+    state.application = baseApplication({
+      history: [
+        { id: 1, organizationId: 10, applicationId: 1, fromStageId: null, toStageId: 1, movedByMembershipId: 5, reason: 'Initial triage', movedAt: new Date().toISOString() },
+      ],
+    });
+    state.isLoading = false;
+    state.error = undefined;
+    renderPage();
+    expect(screen.getByTestId('row-history-1')).toHaveTextContent('Initial triage');
+  });
+
+  it('shows empty states when there is no history or documents', () => {
+    state.application = baseApplication();
+    state.isLoading = false;
+    state.error = undefined;
+    renderPage();
+    expect(screen.getByText(/no movements recorded yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/no documents uploaded/i)).toBeInTheDocument();
+  });
+
+  it('renders uploaded documents', () => {
+    state.application = baseApplication({ documents: [{ id: 1, categoryCode: 'resume', fileName: 'resume.pdf', mimeType: 'application/pdf', fileSize: 1024 }] });
+    state.isLoading = false;
+    state.error = undefined;
+    renderPage();
+    expect(screen.getByTestId('row-document-1')).toHaveTextContent('resume.pdf');
+  });
+});

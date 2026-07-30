@@ -47,3 +47,4 @@ export * from "./candidates";
 export * from "./candidate-consents";
 export * from "./candidate-documents";
 export * from "./applications";
+export * from "./application-stage-history";

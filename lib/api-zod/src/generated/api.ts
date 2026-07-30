@@ -3461,6 +3461,283 @@ export const ArchiveVacancyResponse = zod.object({
 
 
 /**
+ * Visibility-filtered per caller: organization-wide for application.pipeline.move holders, otherwise scoped to applications whose linked requisition assigns the caller as recruiter or hiring manager (an application carries no recruiter/hiring-manager column of its own — resolved two hops out via its vacancy's requisition, docs/PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md §7). No candidate- session ("own") tier exists — anonymous applicants never reach this route (W50 deferred, no candidate account/session mechanism exists).
+ * @summary List applications (internal ATS review)
+ */
+export const ListApplicationsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const listApplicationsQueryPageDefault = 1;
+export const listApplicationsQueryPageSizeDefault = 20;
+
+export const ListApplicationsQueryParams = zod.object({
+  "vacancyId": zod.coerce.number().optional(),
+  "stageCategory": zod.enum(['applied', 'screening', 'interview', 'assessment', 'offer', 'hired', 'rejected', 'withdrawn']).optional(),
+  "search": zod.coerce.string().optional().describe('Matches candidate name or email.'),
+  "page": zod.coerce.number().default(listApplicationsQueryPageDefault),
+  "pageSize": zod.coerce.number().default(listApplicationsQueryPageSizeDefault)
+})
+
+export const ListApplicationsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "vacancyId": zod.number(),
+  "vacancyTitle": zod.string(),
+  "candidateId": zod.number(),
+  "candidateName": zod.string(),
+  "candidateEmail": zod.string(),
+  "currentStageId": zod.number().nullable(),
+  "currentStageName": zod.string().nullable(),
+  "currentStageCategory": zod.enum(['applied', 'screening', 'interview', 'assessment', 'offer', 'hired', 'rejected', 'withdrawn']).describe('The current stage\'s fixed category, or \"applied\" for a never-triaged application (currentStageId null) — computed for display, never stored.'),
+  "submittedAt": zod.coerce.date()
+}).describe('Internal ATS view — unlike the public careers DTOs, this freely exposes internal ids (this route requires authentication and application.read).')),
+  "total": zod.number(),
+  "page": zod.number(),
+  "pageSize": zod.number()
+})
+
+
+/**
+ * Returns 404 both when the application doesn't exist and when it exists but isn't visible to this caller — never distinguishing the two.
+ * @summary Get an application (candidate info, current stage, documents, immutable history)
+ */
+export const GetApplicationParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const GetApplicationResponse = zod.object({
+  "id": zod.number(),
+  "vacancyId": zod.number(),
+  "vacancyTitle": zod.string(),
+  "candidateId": zod.number(),
+  "candidateName": zod.string(),
+  "candidateEmail": zod.string(),
+  "currentStageId": zod.number().nullable(),
+  "currentStageName": zod.string().nullable(),
+  "currentStageCategory": zod.enum(['applied', 'screening', 'interview', 'assessment', 'offer', 'hired', 'rejected', 'withdrawn']).describe('The current stage\'s fixed category, or \"applied\" for a never-triaged application (currentStageId null) — computed for display, never stored.'),
+  "submittedAt": zod.coerce.date()
+}).describe('Internal ATS view — unlike the public careers DTOs, this freely exposes internal ids (this route requires authentication and application.read).').and(zod.object({
+  "candidatePhone": zod.string().nullable(),
+  "rejectionReasonCode": zod.string().nullable(),
+  "withdrawalReasonCode": zod.string().nullable(),
+  "documents": zod.array(zod.object({
+  "id": zod.number(),
+  "categoryCode": zod.string(),
+  "fileName": zod.string(),
+  "mimeType": zod.string(),
+  "fileSize": zod.number()
+}).describe('Metadata only — this workstream does not add a document download\/streaming endpoint.')),
+  "history": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "fromStageId": zod.number().nullable().describe('Null for an application\'s first recorded movement.'),
+  "toStageId": zod.number(),
+  "movedByMembershipId": zod.number().nullable(),
+  "reason": zod.string().nullable().describe('Optional free-text comment supplied with the movement.'),
+  "movedAt": zod.coerce.date()
+}).describe('Immutable — never updated or deleted through any application API.'))
+}))
+
+
+/**
+ * Validated server-side against the vacancy's own workflow stage list — never a client-supplied "next stage" trusted as-is. Rejected with 400 if the application is currently in a terminal stage (use reopen first), the vacancy has no configured workflow, or toStageId doesn't belong to that workflow. Terminal categories (hired/rejected/withdrawn) are reachable only through their own dedicated actions, never through this one.
+ * @summary Move an application to another active, non-terminal stage in its vacancy's own workflow
+ */
+export const MoveApplicationStageParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const MoveApplicationStageBody = zod.object({
+  "toStageId": zod.number(),
+  "comment": zod.string().nullish()
+})
+
+export const MoveApplicationStageResponse = zod.object({
+  "id": zod.number(),
+  "vacancyId": zod.number(),
+  "vacancyTitle": zod.string(),
+  "candidateId": zod.number(),
+  "candidateName": zod.string(),
+  "candidateEmail": zod.string(),
+  "currentStageId": zod.number().nullable(),
+  "currentStageName": zod.string().nullable(),
+  "currentStageCategory": zod.enum(['applied', 'screening', 'interview', 'assessment', 'offer', 'hired', 'rejected', 'withdrawn']).describe('The current stage\'s fixed category, or \"applied\" for a never-triaged application (currentStageId null) — computed for display, never stored.'),
+  "submittedAt": zod.coerce.date()
+}).describe('Internal ATS view — unlike the public careers DTOs, this freely exposes internal ids (this route requires authentication and application.read).').and(zod.object({
+  "candidatePhone": zod.string().nullable(),
+  "rejectionReasonCode": zod.string().nullable(),
+  "withdrawalReasonCode": zod.string().nullable(),
+  "documents": zod.array(zod.object({
+  "id": zod.number(),
+  "categoryCode": zod.string(),
+  "fileName": zod.string(),
+  "mimeType": zod.string(),
+  "fileSize": zod.number()
+}).describe('Metadata only — this workstream does not add a document download\/streaming endpoint.')),
+  "history": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "fromStageId": zod.number().nullable().describe('Null for an application\'s first recorded movement.'),
+  "toStageId": zod.number(),
+  "movedByMembershipId": zod.number().nullable(),
+  "reason": zod.string().nullable().describe('Optional free-text comment supplied with the movement.'),
+  "movedAt": zod.coerce.date()
+}).describe('Immutable — never updated or deleted through any application API.'))
+}))
+
+
+/**
+ * Moves the application to the vacancy's workflow's rejected-category stage. 400 if no such stage is configured, or the application is already in a terminal stage.
+ * @summary Reject an application
+ */
+export const RejectApplicationParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const RejectApplicationBody = zod.object({
+  "reasonCode": zod.string().nullish(),
+  "comment": zod.string().nullish()
+})
+
+export const RejectApplicationResponse = zod.object({
+  "id": zod.number(),
+  "vacancyId": zod.number(),
+  "vacancyTitle": zod.string(),
+  "candidateId": zod.number(),
+  "candidateName": zod.string(),
+  "candidateEmail": zod.string(),
+  "currentStageId": zod.number().nullable(),
+  "currentStageName": zod.string().nullable(),
+  "currentStageCategory": zod.enum(['applied', 'screening', 'interview', 'assessment', 'offer', 'hired', 'rejected', 'withdrawn']).describe('The current stage\'s fixed category, or \"applied\" for a never-triaged application (currentStageId null) — computed for display, never stored.'),
+  "submittedAt": zod.coerce.date()
+}).describe('Internal ATS view — unlike the public careers DTOs, this freely exposes internal ids (this route requires authentication and application.read).').and(zod.object({
+  "candidatePhone": zod.string().nullable(),
+  "rejectionReasonCode": zod.string().nullable(),
+  "withdrawalReasonCode": zod.string().nullable(),
+  "documents": zod.array(zod.object({
+  "id": zod.number(),
+  "categoryCode": zod.string(),
+  "fileName": zod.string(),
+  "mimeType": zod.string(),
+  "fileSize": zod.number()
+}).describe('Metadata only — this workstream does not add a document download\/streaming endpoint.')),
+  "history": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "fromStageId": zod.number().nullable().describe('Null for an application\'s first recorded movement.'),
+  "toStageId": zod.number(),
+  "movedByMembershipId": zod.number().nullable(),
+  "reason": zod.string().nullable().describe('Optional free-text comment supplied with the movement.'),
+  "movedAt": zod.coerce.date()
+}).describe('Immutable — never updated or deleted through any application API.'))
+}))
+
+
+/**
+ * Moves the application to the vacancy's workflow's withdrawn-category stage. 400 if no such stage is configured, or the application is already in a terminal stage.
+ * @summary Withdraw an application
+ */
+export const WithdrawApplicationParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const WithdrawApplicationBody = zod.object({
+  "reasonCode": zod.string().nullish(),
+  "comment": zod.string().nullish()
+})
+
+export const WithdrawApplicationResponse = zod.object({
+  "id": zod.number(),
+  "vacancyId": zod.number(),
+  "vacancyTitle": zod.string(),
+  "candidateId": zod.number(),
+  "candidateName": zod.string(),
+  "candidateEmail": zod.string(),
+  "currentStageId": zod.number().nullable(),
+  "currentStageName": zod.string().nullable(),
+  "currentStageCategory": zod.enum(['applied', 'screening', 'interview', 'assessment', 'offer', 'hired', 'rejected', 'withdrawn']).describe('The current stage\'s fixed category, or \"applied\" for a never-triaged application (currentStageId null) — computed for display, never stored.'),
+  "submittedAt": zod.coerce.date()
+}).describe('Internal ATS view — unlike the public careers DTOs, this freely exposes internal ids (this route requires authentication and application.read).').and(zod.object({
+  "candidatePhone": zod.string().nullable(),
+  "rejectionReasonCode": zod.string().nullable(),
+  "withdrawalReasonCode": zod.string().nullable(),
+  "documents": zod.array(zod.object({
+  "id": zod.number(),
+  "categoryCode": zod.string(),
+  "fileName": zod.string(),
+  "mimeType": zod.string(),
+  "fileSize": zod.number()
+}).describe('Metadata only — this workstream does not add a document download\/streaming endpoint.')),
+  "history": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "fromStageId": zod.number().nullable().describe('Null for an application\'s first recorded movement.'),
+  "toStageId": zod.number(),
+  "movedByMembershipId": zod.number().nullable(),
+  "reason": zod.string().nullable().describe('Optional free-text comment supplied with the movement.'),
+  "movedAt": zod.coerce.date()
+}).describe('Immutable — never updated or deleted through any application API.'))
+}))
+
+
+/**
+ * Moves the application from its terminal stage back to the vacancy's workflow's applied-category stage, clearing any rejection/withdrawal reason. 400 if the application isn't currently in a terminal stage, or no applied-category stage is configured.
+ * @summary Reopen a rejected or withdrawn application
+ */
+export const ReopenApplicationParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ReopenApplicationBody = zod.object({
+  "comment": zod.string().nullish()
+})
+
+export const ReopenApplicationResponse = zod.object({
+  "id": zod.number(),
+  "vacancyId": zod.number(),
+  "vacancyTitle": zod.string(),
+  "candidateId": zod.number(),
+  "candidateName": zod.string(),
+  "candidateEmail": zod.string(),
+  "currentStageId": zod.number().nullable(),
+  "currentStageName": zod.string().nullable(),
+  "currentStageCategory": zod.enum(['applied', 'screening', 'interview', 'assessment', 'offer', 'hired', 'rejected', 'withdrawn']).describe('The current stage\'s fixed category, or \"applied\" for a never-triaged application (currentStageId null) — computed for display, never stored.'),
+  "submittedAt": zod.coerce.date()
+}).describe('Internal ATS view — unlike the public careers DTOs, this freely exposes internal ids (this route requires authentication and application.read).').and(zod.object({
+  "candidatePhone": zod.string().nullable(),
+  "rejectionReasonCode": zod.string().nullable(),
+  "withdrawalReasonCode": zod.string().nullable(),
+  "documents": zod.array(zod.object({
+  "id": zod.number(),
+  "categoryCode": zod.string(),
+  "fileName": zod.string(),
+  "mimeType": zod.string(),
+  "fileSize": zod.number()
+}).describe('Metadata only — this workstream does not add a document download\/streaming endpoint.')),
+  "history": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "fromStageId": zod.number().nullable().describe('Null for an application\'s first recorded movement.'),
+  "toStageId": zod.number(),
+  "movedByMembershipId": zod.number().nullable(),
+  "reason": zod.string().nullable().describe('Optional free-text comment supplied with the movement.'),
+  "movedAt": zod.coerce.date()
+}).describe('Immutable — never updated or deleted through any application API.'))
+}))
+
+
+/**
  * No authentication. Resolves the organization by its own slug only — never a numeric ID. Returns the same 404 whether the slug doesn't exist, the organization is suspended, or its careers portal isn't enabled (recruitment_settings.enabled / externalRecruitmentEnabled) — these are never distinguished, so a probing request can never learn which condition applied.
  * @summary Public organization profile for a careers page
  */

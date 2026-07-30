@@ -39,6 +39,9 @@ import CareersLanding from '@/pages/careers-landing';
 import CareersVacancyDetail from '@/pages/careers-vacancy-detail';
 import CareersApply from '@/pages/careers-apply';
 import CareersStatus from '@/pages/careers-status';
+import Applications from '@/pages/applications';
+import ApplicationDetail from '@/pages/application-detail';
+import Pipeline from '@/pages/pipeline';
 import { ModuleGate } from '@/components/module-gate';
 
 const queryClient = new QueryClient({
@@ -151,6 +154,15 @@ function Router() {
       </Route>
       <Route path="/vacancies">
         {() => <SecureRoute component={Vacancies} moduleKey="recruitment" />}
+      </Route>
+      <Route path="/applications/:id">
+        {() => <SecureRoute component={ApplicationDetail} moduleKey="recruitment" />}
+      </Route>
+      <Route path="/applications">
+        {() => <SecureRoute component={Applications} moduleKey="recruitment" />}
+      </Route>
+      <Route path="/pipeline">
+        {() => <SecureRoute component={Pipeline} moduleKey="recruitment" />}
       </Route>
 
       {/* 404 fallback */}

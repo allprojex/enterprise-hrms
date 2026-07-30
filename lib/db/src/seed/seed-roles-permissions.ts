@@ -90,6 +90,21 @@ const PERMISSIONS = [
   { key: "vacancy.manage", resource: "vacancy", action: "manage" },
   { key: "vacancy.publish", resource: "vacancy", action: "publish" },
   { key: "vacancy.close", resource: "vacancy", action: "close" },
+  // Phase 3A, W51 — Application Pipeline & Stage Movement. `application.read`
+  // is seeded to every role, same reasoning as vacancy.read/requisition.read
+  // (any employee could be the assigned recruiter/hiring manager on the
+  // application's linked requisition — visibility itself is narrowed
+  // per-record in the service layer, assigned/organization-wide only, no
+  // "own" tier since no candidate-session concept exists, W50 deferred).
+  // `application.pipeline.move` gates every stage-movement action
+  // (move-stage/reject/withdraw/reopen) — administrative, org_admin/
+  // hr_manager only, same rollout as vacancy.publish/vacancy.close (the
+  // permission matrix's "Assigned" column is realized as a visibility tier
+  // only, not a broader role grant, mirroring every prior Recruitment
+  // workstream's precedent since no dedicated "recruiter"/"hiring manager"
+  // role exists in this platform's role model).
+  { key: "application.read", resource: "application", action: "read" },
+  { key: "application.pipeline.move", resource: "application", action: "pipeline.move" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -133,6 +148,8 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "vacancy.manage",
     "vacancy.publish",
     "vacancy.close",
+    "application.read",
+    "application.pipeline.move",
   ],
   hr_manager: [
     "organization.read",
@@ -166,6 +183,8 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "vacancy.manage",
     "vacancy.publish",
     "vacancy.close",
+    "application.read",
+    "application.pipeline.move",
   ],
   employee: [
     "organization.read",
@@ -180,6 +199,7 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "leave_request.approve",
     "requisition.read",
     "vacancy.read",
+    "application.read",
   ],
 };
 
