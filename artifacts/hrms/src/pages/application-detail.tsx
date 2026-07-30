@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, Link } from 'wouter';
-import { ArrowLeft, FileText, RotateCcw, XCircle, LogOut } from 'lucide-react';
+import { ArrowLeft, FileText, RotateCcw, XCircle, LogOut, AlertTriangle, Star } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -28,6 +28,7 @@ import {
   useRejectApplication,
   useWithdrawApplication,
   useReopenApplication,
+  useSubmitApplicationScore,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -77,6 +78,7 @@ export default function ApplicationDetail() {
   const rejectMutation = useRejectApplication();
   const withdrawMutation = useWithdrawApplication();
   const reopenMutation = useReopenApplication();
+  const scoreMutation = useSubmitApplicationScore();
 
   const [toStageId, setToStageId] = useState('');
   const [rejectOpen, setRejectOpen] = useState(false);
@@ -85,6 +87,9 @@ export default function ApplicationDetail() {
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [withdrawReason, setWithdrawReason] = useState('');
   const [withdrawComment, setWithdrawComment] = useState('');
+  const [scoreType, setScoreType] = useState('screening');
+  const [scoreValue, setScoreValue] = useState('');
+  const [scoreNotes, setScoreNotes] = useState('');
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getGetApplicationQueryKey(organizationId, applicationId) });
 
@@ -130,6 +135,19 @@ export default function ApplicationDetail() {
       {
         onSuccess: () => { invalidate(); toast({ title: 'Application reopened' }); },
         onError: (err) => toast({ title: 'Could not reopen application', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  const handleSubmitScore = (e: React.FormEvent) => {
+    e.preventDefault();
+    const parsedScore = Number(scoreValue);
+    if (!scoreValue.trim() || !Number.isFinite(parsedScore)) return;
+    scoreMutation.mutate(
+      { organizationId, id: applicationId, data: { scoreType: scoreType as 'screening' | 'interview' | 'overall', score: parsedScore, notes: scoreNotes.trim() || undefined } },
+      {
+        onSuccess: () => { invalidate(); setScoreValue(''); setScoreNotes(''); toast({ title: 'Score submitted' }); },
+        onError: (err) => toast({ title: 'Could not submit score', description: errorMessage(err), variant: 'destructive' }),
       },
     );
   };
@@ -262,6 +280,91 @@ export default function ApplicationDetail() {
                 </li>
               ))}
             </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      {application.answers.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Screening Answers</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="divide-y divide-border">
+              {application.answers.map((answer) => (
+                <li key={answer.id} className="py-3 space-y-1" data-testid={`row-answer-${answer.id}`}>
+                  <p className="text-sm font-medium text-foreground">{answer.questionText}</p>
+                  <p className="text-sm text-muted-foreground">{answer.answerText}</p>
+                  {answer.knockoutFailed && (
+                    <p className="flex items-center gap-1 text-xs text-destructive" data-testid={`badge-knockout-failed-${answer.id}`}>
+                      <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+                      Knockout failed — review before proceeding
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            Scoring
+            {application.scoreRollup != null && (
+              <Badge variant="secondary" className="flex items-center gap-1" data-testid="badge-score-rollup">
+                <Star className="h-3 w-3" aria-hidden="true" />
+                {application.scoreRollup.toFixed(1)}
+              </Badge>
+            )}
+          </CardTitle>
+          <CardDescription>Append-only — a new entry every time, never edited</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {application.scores.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No scores submitted yet.</p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {application.scores.map((s) => (
+                <li key={s.id} className="py-2 space-y-1" data-testid={`row-score-${s.id}`}>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="capitalize">{s.scoreType}</Badge>
+                    <span className="text-sm font-medium text-foreground">{s.score}</span>
+                  </div>
+                  {s.notes && <p className="text-xs text-muted-foreground">{s.notes}</p>}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {!isTerminal && (
+            <form onSubmit={handleSubmitScore} className="flex flex-wrap gap-2 items-end pt-2 border-t border-border">
+              <div className="space-y-2">
+                <Label htmlFor="score-type">Type</Label>
+                <Select value={scoreType} onValueChange={setScoreType}>
+                  <SelectTrigger id="score-type" className="w-36" data-testid="select-score-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="screening">Screening</SelectItem>
+                    <SelectItem value="interview">Interview</SelectItem>
+                    <SelectItem value="overall">Overall</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="score-value">Score</Label>
+                <Input id="score-value" type="number" step="0.1" value={scoreValue} onChange={(e) => setScoreValue(e.target.value)} className="w-24" data-testid="input-score-value" />
+              </div>
+              <div className="space-y-2 flex-1 min-w-[150px]">
+                <Label htmlFor="score-notes">Notes (optional)</Label>
+                <Input id="score-notes" value={scoreNotes} onChange={(e) => setScoreNotes(e.target.value)} data-testid="input-score-notes" />
+              </div>
+              <Button type="submit" disabled={!scoreValue.trim() || scoreMutation.isPending} data-testid="button-submit-score">
+                {scoreMutation.isPending ? 'Submitting…' : 'Submit Score'}
+              </Button>
+            </form>
           )}
         </CardContent>
       </Card>

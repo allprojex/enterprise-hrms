@@ -24,6 +24,8 @@ import {
   db,
   applicationsTable,
   applicationStageHistoryTable,
+  applicationAnswersTable,
+  vacancyQuestionsTable,
   candidatesTable,
   candidateDocumentsTable,
   vacanciesTable,
@@ -31,6 +33,8 @@ import {
   recruitmentStagesTable,
   type Application,
   type ApplicationStageHistory,
+  type ApplicationAnswer,
+  type ApplicationScore,
   type Candidate,
   type CandidateDocument,
   type Vacancy,
@@ -43,6 +47,7 @@ import {
   hasOrgWideRecruitmentAccess,
   isAssignedRecruitmentActor,
 } from "./recruitmentAuthorization";
+import { listApplicationScores, computeScoreRollup } from "./applicationScoring";
 
 export class ApplicationNotFoundError extends Error {
   constructor() {
@@ -74,9 +79,19 @@ export async function resolveApplicationVisibilityContext(params: {
   applicationUserId: number;
   membershipId: number;
 }): Promise<ApplicationVisibilityContext> {
-  const isOrgWide = await hasOrgWideRecruitmentAccess(params.membershipId, "application.pipeline.move");
+  // Org-wide reach is signaled by holding either administrative permission
+  // for this resource — `application.pipeline.move` (stage transitions,
+  // W51) or `application.manage` (scoring, W52) — not just one of them.
+  // Both are seeded together to org_admin/hr_manager/super_admin in
+  // practice, but a caller legitimately holding only one (e.g. a scoped
+  // integration role) must still see the application they're permitted to
+  // act on, not just be allowed to act on it blind.
+  const [isOrgWideByMove, isOrgWideByManage] = await Promise.all([
+    hasOrgWideRecruitmentAccess(params.membershipId, "application.pipeline.move"),
+    hasOrgWideRecruitmentAccess(params.membershipId, "application.manage"),
+  ]);
   const actorEmployeeId = await resolveRecruitmentActorEmployeeId(params.organizationId, params.applicationUserId);
-  return { isOrgWide, actorEmployeeId };
+  return { isOrgWide: isOrgWideByMove || isOrgWideByManage, actorEmployeeId };
 }
 
 function isVisible(requisition: JobRequisition | undefined, ctx: ApplicationVisibilityContext): boolean {
@@ -248,16 +263,31 @@ export async function listApplications(params: ListApplicationsParams): Promise<
   };
 }
 
+export interface ApplicationAnswerWithQuestion {
+  id: number;
+  vacancyQuestionId: number;
+  questionText: string;
+  answerText: string;
+  knockoutFailed: boolean;
+  createdAt: ApplicationAnswer["createdAt"];
+}
+
 export interface ApplicationDetail extends ApplicationSummary {
   candidatePhone: string | null;
   rejectionReasonCode: string | null;
   withdrawalReasonCode: string | null;
   documents: Pick<CandidateDocument, "id" | "categoryCode" | "fileName" | "mimeType" | "fileSize">[];
   history: ApplicationStageHistory[];
+  answers: ApplicationAnswerWithQuestion[];
+  // Immutable log of every score entry, newest first, plus the single
+  // computed rollup value (§12) — never applications.score, which stays
+  // permanently null/unused (see applicationScoring.ts).
+  scores: ApplicationScore[];
+  scoreRollup: number | null;
 }
 
 async function loadApplicationDetail(application: Application): Promise<ApplicationDetail> {
-  const [vacancy, candidate, stage, documents, history] = await Promise.all([
+  const [vacancy, candidate, stage, documents, history, answerRows, scores] = await Promise.all([
     findVacancyInOrg(application.organizationId, application.vacancyId),
     db
       .select()
@@ -268,7 +298,21 @@ async function loadApplicationDetail(application: Application): Promise<Applicat
     application.currentStageId != null ? findStageInOrg(application.organizationId, application.currentStageId) : Promise.resolve(null),
     db.select().from(candidateDocumentsTable).where(and(eq(candidateDocumentsTable.applicationId, application.id), eq(candidateDocumentsTable.isActive, true))),
     db.select().from(applicationStageHistoryTable).where(eq(applicationStageHistoryTable.applicationId, application.id)).orderBy(asc(applicationStageHistoryTable.movedAt)),
+    db.select().from(applicationAnswersTable).where(eq(applicationAnswersTable.applicationId, application.id)),
+    listApplicationScores(application.organizationId, application.id),
   ]);
+
+  const questionIds = [...new Set(answerRows.map((a) => a.vacancyQuestionId))];
+  const questions = questionIds.length ? await db.select().from(vacancyQuestionsTable).where(inArray(vacancyQuestionsTable.id, questionIds)) : [];
+  const questionById = new Map(questions.map((q) => [q.id, q]));
+  const answers: ApplicationAnswerWithQuestion[] = answerRows.map((a) => ({
+    id: a.id,
+    vacancyQuestionId: a.vacancyQuestionId,
+    questionText: questionById.get(a.vacancyQuestionId)?.questionText ?? "Unknown question",
+    answerText: a.answerText,
+    knockoutFailed: a.knockoutFailed,
+    createdAt: a.createdAt,
+  }));
 
   return {
     ...toSummary(application, vacancy ?? undefined, candidate, stage ?? undefined),
@@ -277,6 +321,9 @@ async function loadApplicationDetail(application: Application): Promise<Applicat
     withdrawalReasonCode: application.withdrawalReasonCode,
     documents: documents.map((d) => ({ id: d.id, categoryCode: d.categoryCode, fileName: d.fileName, mimeType: d.mimeType, fileSize: d.fileSize })),
     history,
+    answers,
+    scores,
+    scoreRollup: computeScoreRollup(scores),
   };
 }
 

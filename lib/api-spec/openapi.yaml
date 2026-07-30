@@ -3656,6 +3656,54 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/applications/{id}/scores:
+    post:
+      operationId: submitApplicationScore
+      tags: [applications]
+      summary: Submit a scoring entry for an application (W52)
+      description: >-
+        Append-only — a new row every time, never an edit. Distinct from
+        stage movement: scoring evaluates an application without changing
+        its stage, so this is gated by application.manage, not
+        application.pipeline.move. applications.score is never written —
+        the rollup is always recomputed on read (see ApplicationDetail.scoreRollup, §12).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitApplicationScoreInput"
+      responses:
+        "201":
+          description: Score submitted — returns the refreshed application detail (including the recomputed scoreRollup)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplicationDetail"
+        "400":
+          description: Invalid score
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Application not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /careers/{orgSlug}:
     get:
       operationId: getPublicCareersOrganization
@@ -3841,6 +3889,15 @@ paths:
                 resume:
                   type: string
                   format: binary
+                answers:
+                  type: string
+                  description: >-
+                    JSON-encoded array of {vacancyQuestionId, answerText}
+                    objects (W52) — optional, answers to any subset of the
+                    vacancy's screening questions. A vacancyQuestionId that
+                    doesn't belong to this vacancy is silently ignored, not
+                    an error. Knockout evaluation happens server-side at
+                    submission and never auto-rejects (§12).
                 website:
                   type: string
                   description: Honeypot — must always be left empty. Not a real field.
@@ -7481,11 +7538,68 @@ components:
           type: string
           format: date-time
 
+    ApplicationAnswerSummary:
+      type: object
+      description: A candidate's response to one of the vacancy's screening questions (W52), captured at apply time — write-once, never edited.
+      required: [id, vacancyQuestionId, questionText, answerText, knockoutFailed, createdAt]
+      properties:
+        id:
+          type: integer
+        vacancyQuestionId:
+          type: integer
+        questionText:
+          type: string
+        answerText:
+          type: string
+        knockoutFailed:
+          type: boolean
+          description: Computed server-side at submission for yes_no/multiple_choice knockout questions only. A failed knockout flags this row for review — it never auto-rejects the application (§12).
+        createdAt:
+          type: string
+          format: date-time
+
+    ApplicationScoreEntry:
+      type: object
+      description: Append-only — no update/delete path exists. Multiple entries per scoreType are expected as different reviewers score independently.
+      required: [id, organizationId, applicationId, scoredByMembershipId, scoreType, score, notes, createdAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        applicationId:
+          type: integer
+        scoredByMembershipId:
+          type: ["integer", "null"]
+        scoreType:
+          type: string
+          enum: [screening, interview, overall]
+        score:
+          type: string
+          description: Decimal string (numeric(5,2) column) — parse to a number for display/arithmetic.
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    SubmitApplicationScoreInput:
+      type: object
+      required: [scoreType, score]
+      properties:
+        scoreType:
+          type: string
+          enum: [screening, interview, overall]
+        score:
+          type: number
+        notes:
+          type: ["string", "null"]
+
     ApplicationDetail:
       allOf:
         - $ref: "#/components/schemas/ApplicationSummary"
         - type: object
-          required: [candidatePhone, rejectionReasonCode, withdrawalReasonCode, documents, history]
+          required: [candidatePhone, rejectionReasonCode, withdrawalReasonCode, documents, history, answers, scores, scoreRollup]
           properties:
             candidatePhone:
               type: ["string", "null"]
@@ -7501,6 +7615,23 @@ components:
               type: array
               items:
                 $ref: "#/components/schemas/ApplicationStageHistoryEntry"
+            answers:
+              type: array
+              items:
+                $ref: "#/components/schemas/ApplicationAnswerSummary"
+            scores:
+              type: array
+              items:
+                $ref: "#/components/schemas/ApplicationScoreEntry"
+              description: Newest first.
+            scoreRollup:
+              type: ["number", "null"]
+              description: >-
+                Computed on read from `scores` — an explicit "overall"
+                entry wins outright if one exists, otherwise the average of
+                whichever of screening/interview have a latest entry. Null
+                when no scores exist. Never applications.score (that column
+                stays permanently unused — §12).
 
     MoveApplicationStageInput:
       type: object
@@ -7607,11 +7738,27 @@ components:
         pageSize:
           type: integer
 
+    PublicVacancyQuestion:
+      type: object
+      description: >-
+        Deliberately excludes isKnockout/expectedAnswer (W52) — a candidate
+        must never learn which questions are knockout-screened or what
+        answer is "correct."
+      required: [id, questionText, questionType]
+      properties:
+        id:
+          type: integer
+        questionText:
+          type: string
+        questionType:
+          type: string
+          enum: [text, yes_no, multiple_choice, numeric]
+
     PublicVacancyDetail:
       allOf:
         - $ref: "#/components/schemas/PublicVacancySummary"
         - type: object
-          required: [jobDescription, responsibilities, requirements, preferredQualifications, seoTitle, seoDescription]
+          required: [jobDescription, responsibilities, requirements, preferredQualifications, seoTitle, seoDescription, questions]
           properties:
             jobDescription:
               type: ["string", "null"]
@@ -7625,6 +7772,10 @@ components:
               type: ["string", "null"]
             seoDescription:
               type: ["string", "null"]
+            questions:
+              type: array
+              items:
+                $ref: "#/components/schemas/PublicVacancyQuestion"
 
     ApplicationSubmittedResponse:
       type: object

@@ -37,6 +37,7 @@ vi.mock('@workspace/api-client-react', () => ({
   useRejectApplication: () => ({ mutate: vi.fn(), isPending: false }),
   useWithdrawApplication: () => ({ mutate: vi.fn(), isPending: false }),
   useReopenApplication: () => ({ mutate: vi.fn(), isPending: false }),
+  useSubmitApplicationScore: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 function baseApplication(overrides: Partial<ApplicationDetailType> = {}): ApplicationDetailType {
@@ -56,6 +57,9 @@ function baseApplication(overrides: Partial<ApplicationDetailType> = {}): Applic
     submittedAt: new Date().toISOString(),
     documents: [],
     history: [],
+    answers: [],
+    scores: [],
+    scoreRollup: null,
     ...overrides,
   };
 }
@@ -150,5 +154,62 @@ describe('Application detail page', () => {
     state.error = undefined;
     renderPage();
     expect(screen.getByTestId('row-document-1')).toHaveTextContent('resume.pdf');
+  });
+
+  it('renders screening answers, flagging a failed knockout', () => {
+    state.application = baseApplication({
+      answers: [
+        { id: 1, vacancyQuestionId: 10, questionText: 'Authorized to work?', answerText: 'no', knockoutFailed: true, createdAt: new Date().toISOString() },
+        { id: 2, vacancyQuestionId: 11, questionText: 'Years of experience?', answerText: '5', knockoutFailed: false, createdAt: new Date().toISOString() },
+      ],
+    });
+    state.isLoading = false;
+    state.error = undefined;
+    renderPage();
+    expect(screen.getByTestId('row-answer-1')).toHaveTextContent('Authorized to work?');
+    expect(screen.getByTestId('badge-knockout-failed-1')).toBeInTheDocument();
+    expect(screen.queryByTestId('badge-knockout-failed-2')).not.toBeInTheDocument();
+  });
+
+  it('does not render a screening answers card when there are no answers', () => {
+    state.application = baseApplication();
+    state.isLoading = false;
+    state.error = undefined;
+    renderPage();
+    expect(screen.queryByText(/screening answers/i)).not.toBeInTheDocument();
+  });
+
+  it('renders score entries and the computed rollup badge', () => {
+    state.application = baseApplication({
+      scores: [{ id: 1, organizationId: 10, applicationId: 1, scoredByMembershipId: 5, scoreType: 'screening', score: '8.0', notes: 'Strong candidate', createdAt: new Date().toISOString() }],
+      scoreRollup: 8,
+    });
+    state.isLoading = false;
+    state.error = undefined;
+    renderPage();
+    expect(screen.getByTestId('row-score-1')).toHaveTextContent('Strong candidate');
+    expect(screen.getByTestId('badge-score-rollup')).toHaveTextContent('8.0');
+  });
+
+  it('shows the score-entry form for a non-terminal application, hidden for a terminal one', () => {
+    state.application = baseApplication({ currentStageCategory: 'screening' });
+    state.isLoading = false;
+    state.error = undefined;
+    const { unmount } = renderPage();
+    expect(screen.getByTestId('button-submit-score')).toBeInTheDocument();
+    unmount();
+
+    state.application = baseApplication({ currentStageCategory: 'rejected' });
+    renderPage();
+    expect(screen.queryByTestId('button-submit-score')).not.toBeInTheDocument();
+  });
+
+  it('shows an empty state when no scores have been submitted yet', () => {
+    state.application = baseApplication();
+    state.isLoading = false;
+    state.error = undefined;
+    renderPage();
+    expect(screen.getByText(/no scores submitted yet/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('badge-score-rollup')).not.toBeInTheDocument();
   });
 });

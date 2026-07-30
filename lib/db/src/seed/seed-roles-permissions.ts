@@ -105,6 +105,14 @@ const PERMISSIONS = [
   // role exists in this platform's role model).
   { key: "application.read", resource: "application", action: "read" },
   { key: "application.pipeline.move", resource: "application", action: "pipeline.move" },
+  // Phase 3A, W52 — Screening Questions & Scoring. `application.manage`
+  // gates score submission specifically — distinct from
+  // `application.pipeline.move` (stage transitions) since scoring
+  // evaluates an application without ever changing its stage. Already
+  // named in the frozen §7 permission matrix (Applications row), just
+  // unused until this workstream. Same org_admin/hr_manager-only rollout
+  // as every other administrative Recruitment permission.
+  { key: "application.manage", resource: "application", action: "manage" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -150,6 +158,7 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "vacancy.close",
     "application.read",
     "application.pipeline.move",
+    "application.manage",
   ],
   hr_manager: [
     "organization.read",
@@ -185,6 +194,7 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "vacancy.close",
     "application.read",
     "application.pipeline.move",
+    "application.manage",
   ],
   employee: [
     "organization.read",

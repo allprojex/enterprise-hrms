@@ -57,6 +57,28 @@ function parseOptionalString(raw: unknown): string | undefined {
   return typeof value === "string" && value.trim() !== "" ? value.trim() : undefined;
 }
 
+/**
+ * `answers` (W52) arrives as a JSON-encoded string field alongside the
+ * resume file in the same multipart request — multipart/form-data has no
+ * native way to carry a nested array of objects. Malformed or missing
+ * input is silently treated as "no answers" rather than failing the whole
+ * submission over one optional field.
+ */
+function parseAnswers(raw: unknown): { vacancyQuestionId: number; answerText: string }[] {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (typeof value !== "string" || value.trim() === "") return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((a): a is { vacancyQuestionId: unknown; answerText: unknown } => typeof a === "object" && a !== null)
+      .map((a) => ({ vacancyQuestionId: Number(a.vacancyQuestionId), answerText: String(a.answerText ?? "") }))
+      .filter((a) => Number.isFinite(a.vacancyQuestionId) && a.answerText.trim() !== "");
+  } catch {
+    return [];
+  }
+}
+
 // GET /careers/:orgSlug
 router.get("/careers/:orgSlug", async (req, res): Promise<void> => {
   const org = await resolvePublicOrganization(String(req.params.orgSlug));
@@ -159,6 +181,7 @@ router.post(
         email,
         phone,
         resumeFile: { mimetype: req.file.mimetype, size: req.file.size, buffer: req.file.buffer, originalname: req.file.originalname },
+        answers: parseAnswers(req.body?.answers),
       });
       res.status(isNew ? 201 : 200).json({ submitted: true, publicId: application.publicId });
     } catch (err) {

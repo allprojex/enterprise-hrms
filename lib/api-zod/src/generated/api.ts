@@ -3538,7 +3538,26 @@ export const GetApplicationResponse = zod.object({
   "movedByMembershipId": zod.number().nullable(),
   "reason": zod.string().nullable().describe('Optional free-text comment supplied with the movement.'),
   "movedAt": zod.coerce.date()
-}).describe('Immutable — never updated or deleted through any application API.'))
+}).describe('Immutable — never updated or deleted through any application API.')),
+  "answers": zod.array(zod.object({
+  "id": zod.number(),
+  "vacancyQuestionId": zod.number(),
+  "questionText": zod.string(),
+  "answerText": zod.string(),
+  "knockoutFailed": zod.boolean().describe('Computed server-side at submission for yes_no\/multiple_choice knockout questions only. A failed knockout flags this row for review — it never auto-rejects the application (§12).'),
+  "createdAt": zod.coerce.date()
+}).describe('A candidate\'s response to one of the vacancy\'s screening questions (W52), captured at apply time — write-once, never edited.')),
+  "scores": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "scoredByMembershipId": zod.number().nullable(),
+  "scoreType": zod.enum(['screening', 'interview', 'overall']),
+  "score": zod.string().describe('Decimal string (numeric(5,2) column) — parse to a number for display\/arithmetic.'),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Append-only — no update\/delete path exists. Multiple entries per scoreType are expected as different reviewers score independently.')).describe('Newest first.'),
+  "scoreRollup": zod.number().nullable().describe('Computed on read from `scores` — an explicit \"overall\" entry wins outright if one exists, otherwise the average of whichever of screening\/interview have a latest entry. Null when no scores exist. Never applications.score (that column stays permanently unused — §12).')
 }))
 
 
@@ -3587,7 +3606,26 @@ export const MoveApplicationStageResponse = zod.object({
   "movedByMembershipId": zod.number().nullable(),
   "reason": zod.string().nullable().describe('Optional free-text comment supplied with the movement.'),
   "movedAt": zod.coerce.date()
-}).describe('Immutable — never updated or deleted through any application API.'))
+}).describe('Immutable — never updated or deleted through any application API.')),
+  "answers": zod.array(zod.object({
+  "id": zod.number(),
+  "vacancyQuestionId": zod.number(),
+  "questionText": zod.string(),
+  "answerText": zod.string(),
+  "knockoutFailed": zod.boolean().describe('Computed server-side at submission for yes_no\/multiple_choice knockout questions only. A failed knockout flags this row for review — it never auto-rejects the application (§12).'),
+  "createdAt": zod.coerce.date()
+}).describe('A candidate\'s response to one of the vacancy\'s screening questions (W52), captured at apply time — write-once, never edited.')),
+  "scores": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "scoredByMembershipId": zod.number().nullable(),
+  "scoreType": zod.enum(['screening', 'interview', 'overall']),
+  "score": zod.string().describe('Decimal string (numeric(5,2) column) — parse to a number for display\/arithmetic.'),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Append-only — no update\/delete path exists. Multiple entries per scoreType are expected as different reviewers score independently.')).describe('Newest first.'),
+  "scoreRollup": zod.number().nullable().describe('Computed on read from `scores` — an explicit \"overall\" entry wins outright if one exists, otherwise the average of whichever of screening\/interview have a latest entry. Null when no scores exist. Never applications.score (that column stays permanently unused — §12).')
 }))
 
 
@@ -3636,7 +3674,26 @@ export const RejectApplicationResponse = zod.object({
   "movedByMembershipId": zod.number().nullable(),
   "reason": zod.string().nullable().describe('Optional free-text comment supplied with the movement.'),
   "movedAt": zod.coerce.date()
-}).describe('Immutable — never updated or deleted through any application API.'))
+}).describe('Immutable — never updated or deleted through any application API.')),
+  "answers": zod.array(zod.object({
+  "id": zod.number(),
+  "vacancyQuestionId": zod.number(),
+  "questionText": zod.string(),
+  "answerText": zod.string(),
+  "knockoutFailed": zod.boolean().describe('Computed server-side at submission for yes_no\/multiple_choice knockout questions only. A failed knockout flags this row for review — it never auto-rejects the application (§12).'),
+  "createdAt": zod.coerce.date()
+}).describe('A candidate\'s response to one of the vacancy\'s screening questions (W52), captured at apply time — write-once, never edited.')),
+  "scores": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "scoredByMembershipId": zod.number().nullable(),
+  "scoreType": zod.enum(['screening', 'interview', 'overall']),
+  "score": zod.string().describe('Decimal string (numeric(5,2) column) — parse to a number for display\/arithmetic.'),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Append-only — no update\/delete path exists. Multiple entries per scoreType are expected as different reviewers score independently.')).describe('Newest first.'),
+  "scoreRollup": zod.number().nullable().describe('Computed on read from `scores` — an explicit \"overall\" entry wins outright if one exists, otherwise the average of whichever of screening\/interview have a latest entry. Null when no scores exist. Never applications.score (that column stays permanently unused — §12).')
 }))
 
 
@@ -3685,7 +3742,26 @@ export const WithdrawApplicationResponse = zod.object({
   "movedByMembershipId": zod.number().nullable(),
   "reason": zod.string().nullable().describe('Optional free-text comment supplied with the movement.'),
   "movedAt": zod.coerce.date()
-}).describe('Immutable — never updated or deleted through any application API.'))
+}).describe('Immutable — never updated or deleted through any application API.')),
+  "answers": zod.array(zod.object({
+  "id": zod.number(),
+  "vacancyQuestionId": zod.number(),
+  "questionText": zod.string(),
+  "answerText": zod.string(),
+  "knockoutFailed": zod.boolean().describe('Computed server-side at submission for yes_no\/multiple_choice knockout questions only. A failed knockout flags this row for review — it never auto-rejects the application (§12).'),
+  "createdAt": zod.coerce.date()
+}).describe('A candidate\'s response to one of the vacancy\'s screening questions (W52), captured at apply time — write-once, never edited.')),
+  "scores": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "scoredByMembershipId": zod.number().nullable(),
+  "scoreType": zod.enum(['screening', 'interview', 'overall']),
+  "score": zod.string().describe('Decimal string (numeric(5,2) column) — parse to a number for display\/arithmetic.'),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Append-only — no update\/delete path exists. Multiple entries per scoreType are expected as different reviewers score independently.')).describe('Newest first.'),
+  "scoreRollup": zod.number().nullable().describe('Computed on read from `scores` — an explicit \"overall\" entry wins outright if one exists, otherwise the average of whichever of screening\/interview have a latest entry. Null when no scores exist. Never applications.score (that column stays permanently unused — §12).')
 }))
 
 
@@ -3733,7 +3809,95 @@ export const ReopenApplicationResponse = zod.object({
   "movedByMembershipId": zod.number().nullable(),
   "reason": zod.string().nullable().describe('Optional free-text comment supplied with the movement.'),
   "movedAt": zod.coerce.date()
-}).describe('Immutable — never updated or deleted through any application API.'))
+}).describe('Immutable — never updated or deleted through any application API.')),
+  "answers": zod.array(zod.object({
+  "id": zod.number(),
+  "vacancyQuestionId": zod.number(),
+  "questionText": zod.string(),
+  "answerText": zod.string(),
+  "knockoutFailed": zod.boolean().describe('Computed server-side at submission for yes_no\/multiple_choice knockout questions only. A failed knockout flags this row for review — it never auto-rejects the application (§12).'),
+  "createdAt": zod.coerce.date()
+}).describe('A candidate\'s response to one of the vacancy\'s screening questions (W52), captured at apply time — write-once, never edited.')),
+  "scores": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "scoredByMembershipId": zod.number().nullable(),
+  "scoreType": zod.enum(['screening', 'interview', 'overall']),
+  "score": zod.string().describe('Decimal string (numeric(5,2) column) — parse to a number for display\/arithmetic.'),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Append-only — no update\/delete path exists. Multiple entries per scoreType are expected as different reviewers score independently.')).describe('Newest first.'),
+  "scoreRollup": zod.number().nullable().describe('Computed on read from `scores` — an explicit \"overall\" entry wins outright if one exists, otherwise the average of whichever of screening\/interview have a latest entry. Null when no scores exist. Never applications.score (that column stays permanently unused — §12).')
+}))
+
+
+/**
+ * Append-only — a new row every time, never an edit. Distinct from stage movement: scoring evaluates an application without changing its stage, so this is gated by application.manage, not application.pipeline.move. applications.score is never written — the rollup is always recomputed on read (see ApplicationDetail.scoreRollup, §12).
+ * @summary Submit a scoring entry for an application (W52)
+ */
+export const SubmitApplicationScoreParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const SubmitApplicationScoreBody = zod.object({
+  "scoreType": zod.enum(['screening', 'interview', 'overall']),
+  "score": zod.number(),
+  "notes": zod.string().nullish()
+})
+
+export const SubmitApplicationScoreResponse = zod.object({
+  "id": zod.number(),
+  "vacancyId": zod.number(),
+  "vacancyTitle": zod.string(),
+  "candidateId": zod.number(),
+  "candidateName": zod.string(),
+  "candidateEmail": zod.string(),
+  "currentStageId": zod.number().nullable(),
+  "currentStageName": zod.string().nullable(),
+  "currentStageCategory": zod.enum(['applied', 'screening', 'interview', 'assessment', 'offer', 'hired', 'rejected', 'withdrawn']).describe('The current stage\'s fixed category, or \"applied\" for a never-triaged application (currentStageId null) — computed for display, never stored.'),
+  "submittedAt": zod.coerce.date()
+}).describe('Internal ATS view — unlike the public careers DTOs, this freely exposes internal ids (this route requires authentication and application.read).').and(zod.object({
+  "candidatePhone": zod.string().nullable(),
+  "rejectionReasonCode": zod.string().nullable(),
+  "withdrawalReasonCode": zod.string().nullable(),
+  "documents": zod.array(zod.object({
+  "id": zod.number(),
+  "categoryCode": zod.string(),
+  "fileName": zod.string(),
+  "mimeType": zod.string(),
+  "fileSize": zod.number()
+}).describe('Metadata only — this workstream does not add a document download\/streaming endpoint.')),
+  "history": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "fromStageId": zod.number().nullable().describe('Null for an application\'s first recorded movement.'),
+  "toStageId": zod.number(),
+  "movedByMembershipId": zod.number().nullable(),
+  "reason": zod.string().nullable().describe('Optional free-text comment supplied with the movement.'),
+  "movedAt": zod.coerce.date()
+}).describe('Immutable — never updated or deleted through any application API.')),
+  "answers": zod.array(zod.object({
+  "id": zod.number(),
+  "vacancyQuestionId": zod.number(),
+  "questionText": zod.string(),
+  "answerText": zod.string(),
+  "knockoutFailed": zod.boolean().describe('Computed server-side at submission for yes_no\/multiple_choice knockout questions only. A failed knockout flags this row for review — it never auto-rejects the application (§12).'),
+  "createdAt": zod.coerce.date()
+}).describe('A candidate\'s response to one of the vacancy\'s screening questions (W52), captured at apply time — write-once, never edited.')),
+  "scores": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "scoredByMembershipId": zod.number().nullable(),
+  "scoreType": zod.enum(['screening', 'interview', 'overall']),
+  "score": zod.string().describe('Decimal string (numeric(5,2) column) — parse to a number for display\/arithmetic.'),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Append-only — no update\/delete path exists. Multiple entries per scoreType are expected as different reviewers score independently.')).describe('Newest first.'),
+  "scoreRollup": zod.number().nullable().describe('Computed on read from `scores` — an explicit \"overall\" entry wins outright if one exists, otherwise the average of whichever of screening\/interview have a latest entry. Null when no scores exist. Never applications.score (that column stays permanently unused — §12).')
 }))
 
 
@@ -3823,7 +3987,12 @@ export const GetPublicVacancyResponse = zod.object({
   "requirements": zod.string().nullable(),
   "preferredQualifications": zod.string().nullable(),
   "seoTitle": zod.string().nullable(),
-  "seoDescription": zod.string().nullable()
+  "seoDescription": zod.string().nullable(),
+  "questions": zod.array(zod.object({
+  "id": zod.number(),
+  "questionText": zod.string(),
+  "questionType": zod.enum(['text', 'yes_no', 'multiple_choice', 'numeric'])
+}).describe('Deliberately excludes isKnockout\/expectedAnswer (W52) — a candidate must never learn which questions are knockout-screened or what answer is \"correct.\"'))
 }))
 
 
@@ -3842,6 +4011,7 @@ export const ApplyToPublicVacancyBody = zod.object({
   "email": zod.string(),
   "phone": zod.string().optional(),
   "resume": zod.instanceof(File),
+  "answers": zod.string().optional().describe('JSON-encoded array of {vacancyQuestionId, answerText} objects (W52) — optional, answers to any subset of the vacancy\'s screening questions. A vacancyQuestionId that doesn\'t belong to this vacancy is silently ignored, not an error. Knockout evaluation happens server-side at submission and never auto-rejects (§12).'),
   "website": zod.string().optional().describe('Honeypot — must always be left empty. Not a real field.')
 })
 

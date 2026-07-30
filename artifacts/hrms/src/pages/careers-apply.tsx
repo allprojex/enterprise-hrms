@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import {
   useGetPublicCareersOrganization,
   getGetPublicCareersOrganizationQueryKey,
@@ -48,10 +49,17 @@ export default function CareersApply() {
   // genuine submission.
   const [website, setWebsite] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  // Answers (W52) — optional, keyed by vacancyQuestionId. Sent as a
+  // JSON-encoded string field alongside the resume file, since
+  // multipart/form-data has no native way to carry a nested array.
+  const [answers, setAnswers] = useState<Record<number, string>>({});
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!firstName.trim() || !lastName.trim() || !email.trim() || !resume || !consented) return;
+    const answerPayload = Object.entries(answers)
+      .filter(([, answerText]) => answerText.trim() !== '')
+      .map(([vacancyQuestionId, answerText]) => ({ vacancyQuestionId: Number(vacancyQuestionId), answerText: answerText.trim() }));
     applyMutation.mutate(
       {
         orgSlug,
@@ -63,6 +71,7 @@ export default function CareersApply() {
           phone: phone.trim() || undefined,
           resume,
           website: website || undefined,
+          answers: answerPayload.length ? JSON.stringify(answerPayload) : undefined,
         },
       },
       { onSuccess: () => setSubmitted(true) },
@@ -167,6 +176,36 @@ export default function CareersApply() {
                 </div>
                 <p className="text-xs text-muted-foreground">PDF, JPEG, PNG, DOCX, or XLSX — up to 10MB.</p>
               </div>
+
+              {vacancy.questions.length > 0 && (
+                <div className="space-y-4 border-t border-border pt-4">
+                  {vacancy.questions.map((q) => (
+                    <div key={q.id} className="space-y-2">
+                      <Label htmlFor={`apply-question-${q.id}`}>{q.questionText}</Label>
+                      {q.questionType === 'yes_no' ? (
+                        <Select value={answers[q.id] ?? ''} onValueChange={(v) => setAnswers((prev) => ({ ...prev, [q.id]: v }))}>
+                          <SelectTrigger id={`apply-question-${q.id}`} data-testid={`select-question-${q.id}`}>
+                            <SelectValue placeholder="Select an answer" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="yes">Yes</SelectItem>
+                            <SelectItem value="no">No</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          id={`apply-question-${q.id}`}
+                          type={q.questionType === 'numeric' ? 'number' : 'text'}
+                          value={answers[q.id] ?? ''}
+                          onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
+                          data-testid={`input-question-${q.id}`}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="flex items-start gap-2">
                 <Checkbox id="apply-consent" checked={consented} onCheckedChange={(v) => setConsented(!!v)} data-testid="checkbox-consent" />
                 <Label htmlFor="apply-consent" className="text-sm font-normal leading-snug">

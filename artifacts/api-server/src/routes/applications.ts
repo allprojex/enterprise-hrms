@@ -1,5 +1,5 @@
 import { Router, type Response } from "express";
-import { MoveApplicationStageBody, RejectApplicationBody, WithdrawApplicationBody, ReopenApplicationBody } from "@workspace/api-zod";
+import { MoveApplicationStageBody, RejectApplicationBody, WithdrawApplicationBody, ReopenApplicationBody, SubmitApplicationScoreBody } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireMembership, type MembershipRequest } from "../middlewares/requireMembership";
 import { requirePermission } from "../middlewares/requirePermission";
@@ -16,6 +16,7 @@ import {
   ApplicationNotFoundError,
   InvalidStageTransitionError,
 } from "../lib/applicationPipeline";
+import { submitApplicationScore, ApplicationScoreTargetNotFoundError, InvalidApplicationScoreError } from "../lib/applicationScoring";
 
 const router = Router();
 
@@ -266,6 +267,55 @@ router.post(
       res.json(detail);
     } catch (err) {
       if (handleTransitionError(err, res)) return;
+      throw err;
+    }
+  },
+);
+
+// POST /organizations/:organizationId/applications/:id/scores
+router.post(
+  "/organizations/:organizationId/applications/:id/scores",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requireModuleEnabled(RECRUITMENT_MODULE_KEY),
+  requirePermission("application.manage"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const applicationId = parseId(req.params.id);
+    if (isNaN(applicationId)) {
+      res.status(400).json({ error: "Invalid application ID" });
+      return;
+    }
+    const parsed = SubmitApplicationScoreBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    try {
+      await submitApplicationScore({
+        organizationId: req.membership!.organizationId,
+        applicationId,
+        scoreType: parsed.data.scoreType,
+        score: parsed.data.score,
+        notes: parsed.data.notes,
+        actorApplicationUserId: req.userId!,
+        actorMembershipId: req.membership!.id,
+      });
+      const visibility = await resolveApplicationVisibilityContext({
+        organizationId: req.membership!.organizationId,
+        applicationUserId: req.userId!,
+        membershipId: req.membership!.id,
+      });
+      const detail = await getVisibleApplicationById(req.membership!.organizationId, applicationId, visibility);
+      res.status(201).json(detail);
+    } catch (err) {
+      if (err instanceof ApplicationScoreTargetNotFoundError) {
+        res.status(404).json({ error: err.message });
+        return;
+      }
+      if (err instanceof InvalidApplicationScoreError) {
+        res.status(400).json({ error: err.message });
+        return;
+      }
       throw err;
     }
   },

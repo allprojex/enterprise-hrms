@@ -31,6 +31,8 @@ const {
   candidateConsentsTable,
   candidateDocumentsTable,
   applicationsTable,
+  vacancyQuestionsTable,
+  applicationAnswersTable,
 } = vi.hoisted(() => {
   function mockTable(name: string, columns: string[]) {
     const table: Record<string, string> & { __name: string } = { __name: name } as never;
@@ -50,6 +52,8 @@ const {
       candidateConsentRows: [] as Record<string, unknown>[],
       candidateDocumentRows: [] as Record<string, unknown>[],
       applicationRows: [] as Record<string, unknown>[],
+      vacancyQuestionRows: [] as Record<string, unknown>[],
+      applicationAnswerRows: [] as Record<string, unknown>[],
       idCounters: new Map<string, number>(),
     },
     organizationsTable: mockTable("organizations", ["id", "slug", "name", "logoUrl", "status"]),
@@ -77,6 +81,8 @@ const {
     candidateConsentsTable: mockTable("candidate_consents", ["id", "organizationId", "candidateId", "privacyNoticeVersion", "consentText"]),
     candidateDocumentsTable: mockTable("candidate_documents", ["id", "organizationId", "candidateId", "applicationId", "categoryCode", "fileName", "mimeType", "fileSize", "storageKey"]),
     applicationsTable: mockTable("applications", ["id", "organizationId", "candidateId", "vacancyId", "publicId", "statusCheckToken", "statusCheckTokenExpiresAt", "submittedAt"]),
+    vacancyQuestionsTable: mockTable("vacancy_questions", ["id", "organizationId", "vacancyId", "questionText", "questionType", "isKnockout", "expectedAnswer", "displayOrder", "isActive"]),
+    applicationAnswersTable: mockTable("application_answers", ["id", "organizationId", "applicationId", "vacancyQuestionId", "answerText", "knockoutFailed"]),
   };
 });
 
@@ -109,6 +115,8 @@ function getRowsFor(table: { __name: string }): Record<string, unknown>[] {
   if (table === candidateConsentsTable) return fixtures.candidateConsentRows;
   if (table === candidateDocumentsTable) return fixtures.candidateDocumentRows;
   if (table === applicationsTable) return fixtures.applicationRows;
+  if (table === vacancyQuestionsTable) return fixtures.vacancyQuestionRows;
+  if (table === applicationAnswersTable) return fixtures.applicationAnswerRows;
   return [];
 }
 
@@ -117,6 +125,7 @@ function setRowsFor(table: { __name: string }, rows: Record<string, unknown>[]) 
   else if (table === candidateConsentsTable) fixtures.candidateConsentRows = rows;
   else if (table === candidateDocumentsTable) fixtures.candidateDocumentRows = rows;
   else if (table === applicationsTable) fixtures.applicationRows = rows;
+  else if (table === applicationAnswersTable) fixtures.applicationAnswerRows = rows;
 }
 
 function selectBuilder(table: { __name: string }) {
@@ -166,6 +175,8 @@ vi.mock("@workspace/db", () => ({
   candidateConsentsTable,
   candidateDocumentsTable,
   applicationsTable,
+  vacancyQuestionsTable,
+  applicationAnswersTable,
   db: {
     ...makeQueryClient(),
     transaction: async (cb: (tx: ReturnType<typeof makeQueryClient>) => Promise<unknown>) => cb(makeQueryClient()),
@@ -236,6 +247,8 @@ beforeEach(() => {
   fixtures.candidateConsentRows = [];
   fixtures.candidateDocumentRows = [];
   fixtures.applicationRows = [];
+  fixtures.vacancyQuestionRows = [];
+  fixtures.applicationAnswerRows = [];
   fixtures.idCounters = new Map();
   // rateLimitMock is deliberately never cleared -- the real route file
   // only calls the rateLimit(...) factory once, at module load time
@@ -477,6 +490,60 @@ describe("POST /api/careers/:orgSlug/jobs/:vacancyPublicId/apply", () => {
 
   it("wires a rate limiter with a stricter window than login", () => {
     expect(rateLimitMock).toHaveBeenCalledWith(expect.objectContaining({ limit: 5 }));
+  });
+
+  describe("screening question answers (W52)", () => {
+    const TEXT_QUESTION_ID = 1;
+    const KNOCKOUT_YES_NO_ID = 2;
+
+    beforeEach(() => {
+      fixtures.vacancyQuestionRows = [
+        { id: TEXT_QUESTION_ID, organizationId: ORG_ID, vacancyId: 1, questionText: "Years of experience?", questionType: "text", isKnockout: false, expectedAnswer: null, displayOrder: 0, isActive: true },
+        { id: KNOCKOUT_YES_NO_ID, organizationId: ORG_ID, vacancyId: 1, questionText: "Authorized to work?", questionType: "yes_no", isKnockout: true, expectedAnswer: "yes", displayOrder: 1, isActive: true },
+      ];
+    });
+
+    it("captures answers alongside the application, with no knockout failure when the answer matches", async () => {
+      const res = await request(app)
+        .post(`/api/careers/${ORG_SLUG}/jobs/vac-public-1/apply`)
+        .field("firstName", "Jane")
+        .field("lastName", "Doe")
+        .field("email", "jane@example.com")
+        .field("answers", JSON.stringify([{ vacancyQuestionId: TEXT_QUESTION_ID, answerText: "5 years" }, { vacancyQuestionId: KNOCKOUT_YES_NO_ID, answerText: "yes" }]))
+        .attach("resume", PDF_BUFFER, { filename: "resume.pdf", contentType: "application/pdf" });
+
+      expect(res.status).toBe(201);
+      expect(fixtures.applicationAnswerRows).toHaveLength(2);
+      const knockoutAnswer = fixtures.applicationAnswerRows.find((a) => a.vacancyQuestionId === KNOCKOUT_YES_NO_ID);
+      expect(knockoutAnswer).toMatchObject({ answerText: "yes", knockoutFailed: false });
+    });
+
+    it("flags a failed knockout answer without rejecting the application", async () => {
+      const res = await request(app)
+        .post(`/api/careers/${ORG_SLUG}/jobs/vac-public-1/apply`)
+        .field("firstName", "Jane")
+        .field("lastName", "Doe")
+        .field("email", "jane@example.com")
+        .field("answers", JSON.stringify([{ vacancyQuestionId: KNOCKOUT_YES_NO_ID, answerText: "no" }]))
+        .attach("resume", PDF_BUFFER, { filename: "resume.pdf", contentType: "application/pdf" });
+
+      expect(res.status).toBe(201); // never auto-rejected, per §12
+      expect(fixtures.applicationAnswerRows).toHaveLength(1);
+      expect(fixtures.applicationAnswerRows[0]).toMatchObject({ answerText: "no", knockoutFailed: true });
+    });
+
+    it("silently ignores an answer for a question that doesn't belong to this vacancy", async () => {
+      const res = await request(app)
+        .post(`/api/careers/${ORG_SLUG}/jobs/vac-public-1/apply`)
+        .field("firstName", "Jane")
+        .field("lastName", "Doe")
+        .field("email", "jane@example.com")
+        .field("answers", JSON.stringify([{ vacancyQuestionId: 9999, answerText: "irrelevant" }]))
+        .attach("resume", PDF_BUFFER, { filename: "resume.pdf", contentType: "application/pdf" });
+
+      expect(res.status).toBe(201);
+      expect(fixtures.applicationAnswerRows).toHaveLength(0);
+    });
   });
 });
 

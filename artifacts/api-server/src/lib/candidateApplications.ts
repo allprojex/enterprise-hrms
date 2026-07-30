@@ -1,25 +1,38 @@
 /**
- * Public application submission (Phase 3A, W49 — Public Careers Portal).
+ * Public application submission (Phase 3A, W49 — Public Careers Portal;
+ * answer capture added in W52 — Screening Questions & Scoring).
  * "Applications (submission only)" per the frozen plan's own W49 scope note
  * — creating a candidate/application/consent/document is this workstream's
- * job; pipeline movement, scoring, rejection/withdrawal, and therefore the
- * reapplication-waiting-period rule they'd gate, belong to W51 (Application
- * Pipeline & Stage Movement). `duplicateCandidatePolicy` (W44) is read but
+ * job; pipeline movement (W51) and scoring (W52, see applicationScoring.ts)
+ * are separate workstreams. `duplicateCandidatePolicy` (W44) is read but
  * not yet enforced here for the same reason — with no terminal application
  * state reachable in this workstream, there is nothing yet for either
  * setting to meaningfully act on; both are wired through unchanged for a
  * later workstream to start honoring.
+ *
+ * Answer capture (W52): submitted alongside the original apply fields, not
+ * a separate endpoint — the frozen plan's own API impact line for W52 is
+ * explicit that "answers [are] captured at W49's apply endpoint." Knockout
+ * evaluation happens here, at submission time, against
+ * `vacancyQuestions.expectedAnswer` (§12) — but only for yes_no/
+ * multiple_choice questions, and a failed knockout only flags the answer
+ * row for recruiter review; it never auto-rejects the application (§12 is
+ * explicit that automatic rejection on a possibly-miskeyed expected answer
+ * is a real failure mode worth a human check).
  */
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import {
   db,
   candidatesTable,
   candidateConsentsTable,
   candidateDocumentsTable,
   applicationsTable,
+  applicationAnswersTable,
   vacanciesTable,
+  vacancyQuestionsTable,
   type Candidate,
   type Application,
+  type VacancyQuestion,
 } from "@workspace/db";
 import { generateToken } from "./auth";
 import { validateDocumentUpload, InvalidDocumentError } from "./documentValidation";
@@ -86,6 +99,11 @@ async function findOrCreateCandidate(
   return created;
 }
 
+export interface SubmitPublicApplicationAnswerInput {
+  vacancyQuestionId: number;
+  answerText: string;
+}
+
 export interface SubmitPublicApplicationParams {
   organizationId: number;
   organizationSlug: string;
@@ -98,6 +116,18 @@ export interface SubmitPublicApplicationParams {
   email: string;
   phone?: string | null;
   resumeFile: { mimetype: string; size: number; buffer: Buffer; originalname: string };
+  answers?: SubmitPublicApplicationAnswerInput[];
+}
+
+// Knockout auto-scoring only ever applies to these two question types
+// (§12) — free-text and numeric answers have no single canonical
+// "expected answer" comparison, so they're never flagged.
+const KNOCKOUT_SCORABLE_TYPES: VacancyQuestion["questionType"][] = ["yes_no", "multiple_choice"];
+
+function computeKnockoutFailed(question: VacancyQuestion, answerText: string): boolean {
+  if (!question.isKnockout || question.expectedAnswer == null) return false;
+  if (!KNOCKOUT_SCORABLE_TYPES.includes(question.questionType)) return false;
+  return answerText.trim().toLowerCase() !== question.expectedAnswer.trim().toLowerCase();
 }
 
 /**
@@ -165,6 +195,35 @@ export async function submitPublicApplication(params: SubmitPublicApplicationPar
       fileSize: params.resumeFile.size,
       storageKey,
     });
+
+    if (params.answers?.length) {
+      const questionIds = params.answers.map((a) => a.vacancyQuestionId);
+      const questions = await tx
+        .select()
+        .from(vacancyQuestionsTable)
+        .where(and(eq(vacancyQuestionsTable.vacancyId, params.vacancyId), inArray(vacancyQuestionsTable.id, questionIds)));
+      const questionById = new Map(questions.map((q) => [q.id, q]));
+
+      // Silently ignores any vacancyQuestionId that doesn't belong to this
+      // vacancy — no error surfaced, since answers are optional and a
+      // mismatched id carries no security implication (never trusted for
+      // anything beyond this vacancy's own question set).
+      const validAnswers = params.answers.filter((a) => questionById.has(a.vacancyQuestionId));
+      if (validAnswers.length) {
+        await tx.insert(applicationAnswersTable).values(
+          validAnswers.map((a) => {
+            const question = questionById.get(a.vacancyQuestionId)!;
+            return {
+              organizationId: params.organizationId,
+              applicationId: application.id,
+              vacancyQuestionId: a.vacancyQuestionId,
+              answerText: a.answerText,
+              knockoutFailed: computeKnockoutFailed(question, a.answerText),
+            };
+          }),
+        );
+      }
+    }
 
     return { application, isNew: true, candidate };
   });

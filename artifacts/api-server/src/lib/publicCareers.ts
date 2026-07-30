@@ -16,6 +16,7 @@ import {
   organizationsTable,
   vacanciesTable,
   vacancyLocationsTable,
+  vacancyQuestionsTable,
   jobRequisitionsTable,
   branchesTable,
   departmentsTable,
@@ -84,6 +85,12 @@ export interface PublicVacancySummary {
   featured: boolean;
 }
 
+export interface PublicVacancyQuestion {
+  id: number;
+  questionText: string;
+  questionType: "text" | "yes_no" | "multiple_choice" | "numeric";
+}
+
 export interface PublicVacancyDetail extends PublicVacancySummary {
   jobDescription: string | null;
   responsibilities: string | null;
@@ -91,6 +98,11 @@ export interface PublicVacancyDetail extends PublicVacancySummary {
   preferredQualifications: string | null;
   seoTitle: string | null;
   seoDescription: string | null;
+  // Deliberately excludes isKnockout/expectedAnswer (W52) — a candidate
+  // must never learn which questions are knockout-screened or what answer
+  // is "correct" (§12's knockout logic is an internal recruiting signal,
+  // not public information).
+  questions: PublicVacancyQuestion[];
 }
 
 const SUMMARY_MAX_LENGTH = 220;
@@ -218,6 +230,11 @@ export async function getPublicVacancyByPublicId(organizationId: number, vacancy
   if (!vacancy || !isVacancyPubliclyEligible(vacancy)) return null;
 
   const ctx = await loadEnrichmentContext([vacancy]);
+  const questions = await db
+    .select()
+    .from(vacancyQuestionsTable)
+    .where(and(eq(vacancyQuestionsTable.vacancyId, vacancy.id), eq(vacancyQuestionsTable.isActive, true)));
+
   return {
     ...toSummaryDto(vacancy, ctx),
     jobDescription: vacancy.jobDescription,
@@ -226,6 +243,9 @@ export async function getPublicVacancyByPublicId(organizationId: number, vacancy
     preferredQualifications: vacancy.preferredQualifications,
     seoTitle: vacancy.seoTitle,
     seoDescription: vacancy.seoDescription,
+    questions: questions
+      .sort((a, b) => a.displayOrder - b.displayOrder)
+      .map((q) => ({ id: q.id, questionText: q.questionText, questionType: q.questionType })),
   };
 }
 

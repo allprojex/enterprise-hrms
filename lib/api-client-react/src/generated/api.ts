@@ -130,6 +130,7 @@ import type {
   RunReportParams,
   SeparateEmployeeInput,
   SetPrimaryHrInput,
+  SubmitApplicationScoreInput,
   SwitchOrganizationInput,
   TransferEmployeeInput,
   UpdateBranchInput,
@@ -7854,6 +7855,81 @@ export const useReopenApplication = <TError = ErrorType<ApiError>,
       return useMutation(getReopenApplicationMutationOptions(options));
     }
 
+export const getSubmitApplicationScoreUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/applications/${id}/scores`
+}
+
+/**
+ * Append-only — a new row every time, never an edit. Distinct from stage movement: scoring evaluates an application without changing its stage, so this is gated by application.manage, not application.pipeline.move. applications.score is never written — the rollup is always recomputed on read (see ApplicationDetail.scoreRollup, §12).
+ * @summary Submit a scoring entry for an application (W52)
+ */
+export const submitApplicationScore = async (organizationId: number,
+    id: number,
+    submitApplicationScoreInput: SubmitApplicationScoreInput, options?: RequestInit): Promise<ApplicationDetail> => {
+
+  return customFetch<ApplicationDetail>(getSubmitApplicationScoreUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(submitApplicationScoreInput)
+  }
+);}
+
+
+
+
+
+export const getSubmitApplicationScoreMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitApplicationScore>>, TError,{organizationId: number;id: number;data: BodyType<SubmitApplicationScoreInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitApplicationScore>>, TError,{organizationId: number;id: number;data: BodyType<SubmitApplicationScoreInput>}, TContext> => {
+
+const mutationKey = ['submitApplicationScore'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitApplicationScore>>, {organizationId: number;id: number;data: BodyType<SubmitApplicationScoreInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  submitApplicationScore(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitApplicationScoreMutationResult = NonNullable<Awaited<ReturnType<typeof submitApplicationScore>>>
+    export type SubmitApplicationScoreMutationBody = BodyType<SubmitApplicationScoreInput>
+    export type SubmitApplicationScoreMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Submit a scoring entry for an application (W52)
+ */
+export const useSubmitApplicationScore = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitApplicationScore>>, TError,{organizationId: number;id: number;data: BodyType<SubmitApplicationScoreInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitApplicationScore>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<SubmitApplicationScoreInput>},
+        TContext
+      > => {
+      return useMutation(getSubmitApplicationScoreMutationOptions(options));
+    }
+
 export const getGetPublicCareersOrganizationUrl = (orgSlug: string,) => {
 
 
@@ -8129,6 +8205,9 @@ if(applyToPublicVacancyBody.phone !== undefined) {
  formData.append(`phone`, applyToPublicVacancyBody.phone);
  }
 formData.append(`resume`, applyToPublicVacancyBody.resume);
+if(applyToPublicVacancyBody.answers !== undefined) {
+ formData.append(`answers`, applyToPublicVacancyBody.answers);
+ }
 if(applyToPublicVacancyBody.website !== undefined) {
  formData.append(`website`, applyToPublicVacancyBody.website);
  }

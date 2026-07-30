@@ -22,9 +22,12 @@ const {
   employeeUserLinksTable,
   applicationsTable,
   applicationStageHistoryTable,
+  applicationAnswersTable,
+  applicationScoresTable,
   candidatesTable,
   candidateDocumentsTable,
   vacanciesTable,
+  vacancyQuestionsTable,
   jobRequisitionsTable,
   recruitmentStagesTable,
   auditEventsTable,
@@ -46,9 +49,12 @@ const {
       employeeUserLinkRows: [] as Record<string, unknown>[],
       applicationRows: [] as Record<string, unknown>[],
       applicationStageHistoryRows: [] as Record<string, unknown>[],
+      applicationAnswerRows: [] as Record<string, unknown>[],
+      applicationScoreRows: [] as Record<string, unknown>[],
       candidateRows: [] as Record<string, unknown>[],
       candidateDocumentRows: [] as Record<string, unknown>[],
       vacancyRows: [] as Record<string, unknown>[],
+      vacancyQuestionRows: [] as Record<string, unknown>[],
       jobRequisitionRows: [] as Record<string, unknown>[],
       recruitmentStageRows: [] as Record<string, unknown>[],
       idCounters: new Map<string, number>(),
@@ -75,9 +81,12 @@ const {
       "submittedAt",
     ]),
     applicationStageHistoryTable: mockTable("application_stage_history", ["id", "organizationId", "applicationId", "fromStageId", "toStageId", "movedByMembershipId", "reason", "movedAt"]),
+    applicationAnswersTable: mockTable("application_answers", ["id", "organizationId", "applicationId", "vacancyQuestionId", "answerText", "knockoutFailed"]),
+    applicationScoresTable: mockTable("application_scores", ["id", "organizationId", "applicationId", "scoredByMembershipId", "scoreType", "score", "notes", "createdAt"]),
     candidatesTable: mockTable("candidates", ["id", "organizationId", "firstName", "lastName", "email", "phone"]),
     candidateDocumentsTable: mockTable("candidate_documents", ["id", "organizationId", "candidateId", "applicationId", "categoryCode", "fileName", "mimeType", "fileSize", "isActive"]),
     vacanciesTable: mockTable("vacancies", ["id", "organizationId", "requisitionId", "workflowId", "title"]),
+    vacancyQuestionsTable: mockTable("vacancy_questions", ["id", "organizationId", "vacancyId", "questionText", "questionType", "isKnockout", "expectedAnswer", "displayOrder", "isActive"]),
     jobRequisitionsTable: mockTable("job_requisitions", ["id", "organizationId", "recruiterEmployeeId", "hiringManagerEmployeeId"]),
     recruitmentStagesTable: mockTable("recruitment_stages", ["id", "organizationId", "workflowId", "name", "category", "displayOrder", "isActive"]),
     auditEventsTable: mockTable("audit_events", []),
@@ -107,9 +116,12 @@ function getRowsFor(table: { __name: string }): Record<string, unknown>[] {
   if (table === employeeUserLinksTable) return fixtures.employeeUserLinkRows;
   if (table === applicationsTable) return fixtures.applicationRows;
   if (table === applicationStageHistoryTable) return fixtures.applicationStageHistoryRows;
+  if (table === applicationAnswersTable) return fixtures.applicationAnswerRows;
+  if (table === applicationScoresTable) return fixtures.applicationScoreRows;
   if (table === candidatesTable) return fixtures.candidateRows;
   if (table === candidateDocumentsTable) return fixtures.candidateDocumentRows;
   if (table === vacanciesTable) return fixtures.vacancyRows;
+  if (table === vacancyQuestionsTable) return fixtures.vacancyQuestionRows;
   if (table === jobRequisitionsTable) return fixtures.jobRequisitionRows;
   if (table === recruitmentStagesTable) return fixtures.recruitmentStageRows;
   return [];
@@ -118,6 +130,7 @@ function getRowsFor(table: { __name: string }): Record<string, unknown>[] {
 function setRowsFor(table: { __name: string }, rows: Record<string, unknown>[]) {
   if (table === applicationsTable) fixtures.applicationRows = rows;
   else if (table === applicationStageHistoryTable) fixtures.applicationStageHistoryRows = rows;
+  else if (table === applicationScoresTable) fixtures.applicationScoreRows = rows;
 }
 
 function selectBuilder(table: { __name: string }) {
@@ -225,9 +238,12 @@ vi.mock("@workspace/db", () => ({
   employeeUserLinksTable,
   applicationsTable,
   applicationStageHistoryTable,
+  applicationAnswersTable,
+  applicationScoresTable,
   candidatesTable,
   candidateDocumentsTable,
   vacanciesTable,
+  vacancyQuestionsTable,
   jobRequisitionsTable,
   recruitmentStagesTable,
   auditEventsTable,
@@ -328,9 +344,12 @@ beforeEach(() => {
   fixtures.employeeUserLinkRows = [];
   fixtures.applicationRows = [];
   fixtures.applicationStageHistoryRows = [];
+  fixtures.applicationAnswerRows = [];
+  fixtures.applicationScoreRows = [];
   fixtures.candidateRows = [];
   fixtures.candidateDocumentRows = [];
   fixtures.vacancyRows = [];
+  fixtures.vacancyQuestionRows = [];
   fixtures.jobRequisitionRows = [];
   fixtures.recruitmentStageRows = [];
   fixtures.idCounters = new Map();
@@ -428,6 +447,24 @@ describe("GET /api/organizations/:organizationId/applications/:id", () => {
     expect(res.status).toBe(200);
     expect(res.body.documents).toHaveLength(1);
     expect(res.body.history).toEqual([]);
+    expect(res.body.answers).toEqual([]);
+    expect(res.body.scores).toEqual([]);
+    expect(res.body.scoreRollup).toBeNull();
+  });
+
+  it("includes screening answers (with question text) and never the internal knockout config on GET detail", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["application.read", "application.pipeline.move"]);
+    mockRecruitmentModuleEnabled(true);
+    seedVacancyAndRequisition();
+    seedApplication();
+    fixtures.vacancyQuestionRows = [{ id: 1, organizationId: ORG_ID, vacancyId: VACANCY_ID, questionText: "Authorized to work?", questionType: "yes_no", isKnockout: true, expectedAnswer: "yes", displayOrder: 0, isActive: true }];
+    fixtures.applicationAnswerRows = [{ id: 1, organizationId: ORG_ID, applicationId: APPLICATION_ID, vacancyQuestionId: 1, answerText: "no", knockoutFailed: true }];
+
+    const res = await request(app).get(`/api/organizations/10/applications/${APPLICATION_ID}`).set("Authorization", "Bearer valid-token");
+    expect(res.status).toBe(200);
+    expect(res.body.answers).toEqual([{ id: 1, vacancyQuestionId: 1, questionText: "Authorized to work?", answerText: "no", knockoutFailed: true, createdAt: undefined }]);
   });
 
   it("returns 404 for an application belonging to a different organization", async () => {
@@ -583,5 +620,55 @@ describe("POST /api/organizations/:organizationId/applications/:id/reopen", () =
     fixtures.recruitmentStageRows = fixtures.recruitmentStageRows.filter((s) => s.category !== "applied");
     const res = await request(app).post(`/api/organizations/10/applications/${APPLICATION_ID}/reopen`).set("Authorization", "Bearer valid-token").send({});
     expect(res.status).toBe(400);
+  });
+});
+
+describe("POST /api/organizations/:organizationId/applications/:id/scores", () => {
+  beforeEach(() => {
+    mockSession();
+    mockActiveMembership();
+    mockRecruitmentModuleEnabled(true);
+    seedVacancyAndRequisition();
+    seedApplication();
+  });
+
+  it("returns 403 without application.manage", async () => {
+    mockPermissions(["application.read", "application.pipeline.move"]);
+    const res = await request(app).post(`/api/organizations/10/applications/${APPLICATION_ID}/scores`).set("Authorization", "Bearer valid-token").send({ scoreType: "screening", score: 8 });
+    expect(res.status).toBe(403);
+  });
+
+  it("submits a score entry and returns the refreshed detail with a computed rollup, never writing applications.score", async () => {
+    mockPermissions(["application.manage"]);
+    const res = await request(app).post(`/api/organizations/10/applications/${APPLICATION_ID}/scores`).set("Authorization", "Bearer valid-token").send({ scoreType: "screening", score: 8, notes: "Strong candidate" });
+    expect(res.status).toBe(201);
+    expect(res.body.scores).toHaveLength(1);
+    expect(res.body.scores[0]).toMatchObject({ scoreType: "screening", notes: "Strong candidate" });
+    expect(res.body.scoreRollup).toBe(8);
+    expect(fixtures.applicationRows[0].score).toBeUndefined(); // applications.score is never written (§12)
+  });
+
+  it("an explicit overall score wins the rollup outright over screening/interview averages", async () => {
+    mockPermissions(["application.manage"]);
+    await request(app).post(`/api/organizations/10/applications/${APPLICATION_ID}/scores`).set("Authorization", "Bearer valid-token").send({ scoreType: "screening", score: 6 });
+    await request(app).post(`/api/organizations/10/applications/${APPLICATION_ID}/scores`).set("Authorization", "Bearer valid-token").send({ scoreType: "interview", score: 8 });
+    const res = await request(app).post(`/api/organizations/10/applications/${APPLICATION_ID}/scores`).set("Authorization", "Bearer valid-token").send({ scoreType: "overall", score: 9 });
+    expect(res.status).toBe(201);
+    expect(res.body.scoreRollup).toBe(9);
+  });
+
+  it("averages the latest screening and interview scores when no overall entry exists", async () => {
+    mockPermissions(["application.manage"]);
+    await request(app).post(`/api/organizations/10/applications/${APPLICATION_ID}/scores`).set("Authorization", "Bearer valid-token").send({ scoreType: "screening", score: 6 });
+    const res = await request(app).post(`/api/organizations/10/applications/${APPLICATION_ID}/scores`).set("Authorization", "Bearer valid-token").send({ scoreType: "interview", score: 10 });
+    expect(res.status).toBe(201);
+    expect(res.body.scoreRollup).toBe(8);
+  });
+
+  it("returns 404 for a score submission on an application belonging to a different organization", async () => {
+    mockPermissions(["application.manage"]);
+    fixtures.applicationRows = [{ id: 1, organizationId: OTHER_ORG_ID, candidateId: 1, vacancyId: 1, currentStageId: null, publicId: "x", submittedAt: new Date() }];
+    const res = await request(app).post("/api/organizations/10/applications/1/scores").set("Authorization", "Bearer valid-token").send({ scoreType: "screening", score: 5 });
+    expect(res.status).toBe(404);
   });
 });

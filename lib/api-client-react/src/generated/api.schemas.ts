@@ -1327,6 +1327,61 @@ export interface ApplicationStageHistoryEntry {
   movedAt: string;
 }
 
+/**
+ * A candidate's response to one of the vacancy's screening questions (W52), captured at apply time — write-once, never edited.
+ */
+export interface ApplicationAnswerSummary {
+  id: number;
+  vacancyQuestionId: number;
+  questionText: string;
+  answerText: string;
+  /** Computed server-side at submission for yes_no/multiple_choice knockout questions only. A failed knockout flags this row for review — it never auto-rejects the application (§12). */
+  knockoutFailed: boolean;
+  createdAt: string;
+}
+
+export type ApplicationScoreEntryScoreType = typeof ApplicationScoreEntryScoreType[keyof typeof ApplicationScoreEntryScoreType];
+
+
+export const ApplicationScoreEntryScoreType = {
+  screening: 'screening',
+  interview: 'interview',
+  overall: 'overall',
+} as const;
+
+/**
+ * Append-only — no update/delete path exists. Multiple entries per scoreType are expected as different reviewers score independently.
+ */
+export interface ApplicationScoreEntry {
+  id: number;
+  organizationId: number;
+  applicationId: number;
+  /** @nullable */
+  scoredByMembershipId: number | null;
+  scoreType: ApplicationScoreEntryScoreType;
+  /** Decimal string (numeric(5,2) column) — parse to a number for display/arithmetic. */
+  score: string;
+  /** @nullable */
+  notes: string | null;
+  createdAt: string;
+}
+
+export type SubmitApplicationScoreInputScoreType = typeof SubmitApplicationScoreInputScoreType[keyof typeof SubmitApplicationScoreInputScoreType];
+
+
+export const SubmitApplicationScoreInputScoreType = {
+  screening: 'screening',
+  interview: 'interview',
+  overall: 'overall',
+} as const;
+
+export interface SubmitApplicationScoreInput {
+  scoreType: SubmitApplicationScoreInputScoreType;
+  score: number;
+  /** @nullable */
+  notes?: string | null;
+}
+
 export type ApplicationDetail = ApplicationSummary & ({
   /** @nullable */
   candidatePhone: string | null;
@@ -1336,6 +1391,14 @@ export type ApplicationDetail = ApplicationSummary & ({
   withdrawalReasonCode: string | null;
   documents: ApplicationDocumentSummary[];
   history: ApplicationStageHistoryEntry[];
+  answers: ApplicationAnswerSummary[];
+  /** Newest first. */
+  scores: ApplicationScoreEntry[];
+  /**
+     * Computed on read from `scores` — an explicit "overall" entry wins outright if one exists, otherwise the average of whichever of screening/interview have a latest entry. Null when no scores exist. Never applications.score (that column stays permanently unused — §12).
+     * @nullable
+     */
+  scoreRollup: number | null;
 });
 
 export interface MoveApplicationStageInput {
@@ -1406,6 +1469,25 @@ export interface PublicVacancyListResponse {
   pageSize: number;
 }
 
+export type PublicVacancyQuestionQuestionType = typeof PublicVacancyQuestionQuestionType[keyof typeof PublicVacancyQuestionQuestionType];
+
+
+export const PublicVacancyQuestionQuestionType = {
+  text: 'text',
+  yes_no: 'yes_no',
+  multiple_choice: 'multiple_choice',
+  numeric: 'numeric',
+} as const;
+
+/**
+ * Deliberately excludes isKnockout/expectedAnswer (W52) — a candidate must never learn which questions are knockout-screened or what answer is "correct."
+ */
+export interface PublicVacancyQuestion {
+  id: number;
+  questionText: string;
+  questionType: PublicVacancyQuestionQuestionType;
+}
+
 export type PublicVacancyDetail = PublicVacancySummary & ({
   /** @nullable */
   jobDescription: string | null;
@@ -1419,6 +1501,7 @@ export type PublicVacancyDetail = PublicVacancySummary & ({
   seoTitle: string | null;
   /** @nullable */
   seoDescription: string | null;
+  questions: PublicVacancyQuestion[];
 });
 
 export interface ApplicationSubmittedResponse {
@@ -2949,6 +3032,8 @@ export type ApplyToPublicVacancyBody = {
   email: string;
   phone?: string;
   resume: Blob;
+  /** JSON-encoded array of {vacancyQuestionId, answerText} objects (W52) — optional, answers to any subset of the vacancy's screening questions. A vacancyQuestionId that doesn't belong to this vacancy is silently ignored, not an error. Knockout evaluation happens server-side at submission and never auto-rejects (§12). */
+  answers?: string;
   /** Honeypot — must always be left empty. Not a real field. */
   website?: string;
 };

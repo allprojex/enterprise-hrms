@@ -30,7 +30,7 @@ vi.mock('@workspace/api-client-react', () => ({
 }));
 
 function baseVacancy(overrides: Record<string, unknown> = {}) {
-  return { publicId: 'vac-1', title: 'Software Engineer', ...overrides };
+  return { publicId: 'vac-1', title: 'Software Engineer', questions: [], ...overrides };
 }
 
 function renderPage() {
@@ -107,5 +107,52 @@ describe('Careers apply shell page', () => {
     state.error = undefined;
     renderPage();
     expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
+  });
+
+  it('renders screening questions when the vacancy has any, with a select for yes/no', () => {
+    state.vacancy = baseVacancy({
+      questions: [
+        { id: 1, questionText: 'Authorized to work?', questionType: 'yes_no' },
+        { id: 2, questionText: 'Years of experience?', questionType: 'numeric' },
+      ],
+    });
+    state.isLoading = false;
+    state.error = undefined;
+    renderPage();
+    expect(screen.getByText('Authorized to work?')).toBeInTheDocument();
+    expect(screen.getByTestId('select-question-1')).toBeInTheDocument();
+    expect(screen.getByTestId('input-question-2')).toHaveAttribute('type', 'number');
+  });
+
+  it('never renders a screening-questions section when the vacancy has none', () => {
+    state.vacancy = baseVacancy();
+    state.isLoading = false;
+    state.error = undefined;
+    renderPage();
+    expect(screen.queryByTestId(/select-question-|input-question-/)).not.toBeInTheDocument();
+  });
+
+  it('includes answers as a JSON-encoded field in the submission payload', () => {
+    state.vacancy = baseVacancy({ questions: [{ id: 1, questionText: 'Years of experience?', questionType: 'numeric' }] });
+    state.isLoading = false;
+    state.error = undefined;
+    const mutate = vi.fn();
+    state.applyMutate = mutate;
+    renderPage();
+
+    fireEvent.change(screen.getByTestId('input-first-name'), { target: { value: 'Jane' } });
+    fireEvent.change(screen.getByTestId('input-last-name'), { target: { value: 'Doe' } });
+    fireEvent.change(screen.getByTestId('input-email'), { target: { value: 'jane@example.com' } });
+    fireEvent.change(screen.getByTestId('input-question-1'), { target: { value: '5' } });
+    const resumeInput = screen.getByTestId('input-resume') as HTMLInputElement;
+    const file = new File(['fake'], 'resume.pdf', { type: 'application/pdf' });
+    Object.defineProperty(resumeInput, 'files', { value: [file] });
+    fireEvent.change(resumeInput);
+    fireEvent.click(screen.getByTestId('checkbox-consent'));
+    fireEvent.submit(screen.getByTestId('button-submit-application').closest('form')!);
+
+    expect(mutate).toHaveBeenCalledTimes(1);
+    const submittedData = mutate.mock.calls[0][0].data;
+    expect(JSON.parse(submittedData.answers)).toEqual([{ vacancyQuestionId: 1, answerText: '5' }]);
   });
 });
