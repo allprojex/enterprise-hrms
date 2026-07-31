@@ -4511,6 +4511,129 @@ export const UpdateInterviewResponse = zod.object({
 
 
 /**
+ * Visibility-filtered: a scorecard.read_all holder sees every panel member's scorecard plus a computed panelSummary (submitted/pending counts, recommendation tally — never stored, always recomputed on read, the same discipline as W52's scoreRollup); anyone else sees only their own scorecard (possibly none), and panelSummary is null. scorecard.submit never implies scorecard.read_all — an interviewer never sees a colleague's scorecard through this route, submitted or not.
+ * @summary List scorecards for an interview
+ */
+export const ListInterviewScorecardsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ListInterviewScorecardsResponse = zod.object({
+  "scorecards": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "interviewId": zod.number(),
+  "interviewerMembershipId": zod.number().nullable(),
+  "recommendation": zod.enum(['strong_yes', 'yes', 'no', 'strong_no']).nullable(),
+  "overallComment": zod.string().nullable(),
+  "submittedAt": zod.coerce.date().nullable().describe('Null while still a draft. Set exactly once — a submitted scorecard is immutable from the owning interviewer\'s side.'),
+  "finalizedAt": zod.coerce.date().nullable().describe('Set only by an HR\/recruiter administrator (scorecard.finalize) — never by the submitting interviewer themselves.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "responses": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "scorecardId": zod.number(),
+  "criterion": zod.string(),
+  "rating": zod.number().nullable(),
+  "comment": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('One per-criterion answer within a scorecard. `criterion` is plain free text supplied per submission — no organization-configurable criteria\/template table exists in this frozen scope. `rating` has no defined scale in the frozen plan and is kept an unconstrained integer, the same unconstrained-numeric posture application_scores.score (W52) already established for a comparable field. Immutable once the parent scorecard is submitted (in practice) \/ finalized (formally).'))
+}).describe('One per panel member per interview. Deliberately never exposes externalInterviewerToken\/expiry (reserved for a later workstream, never consumed by any route here — an internal-only column, never a DTO field, so a raw token can never leak through this API even once another workstream starts populating it). No weighting\/rollup number exists in the frozen model — recommendation is the only structured summary field.')),
+  "panelSummary": zod.object({
+  "totalPanelMembers": zod.number(),
+  "submittedCount": zod.number(),
+  "pendingCount": zod.number(),
+  "recommendationCounts": zod.object({
+  "strong_yes": zod.number(),
+  "yes": zod.number(),
+  "no": zod.number(),
+  "strong_no": zod.number()
+})
+}).nullable().describe('Computed on every read, never stored — the same discipline as W52\'s scoreRollup. Null unless the caller holds scorecard.read_all.')
+})
+
+
+/**
+ * Upserts the caller's own draft — panel membership is re-verified fresh on every call, never cached. Supplying `submit: true` transitions draft -> submitted in the same call (§10 lists no separate submit route); once submitted, further calls are rejected (400) — a submitted scorecard cannot be silently replaced. Rejected for a cancelled interview.
+ * @summary Save or submit the caller's own scorecard for an interview
+ */
+export const SaveInterviewScorecardParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const SaveInterviewScorecardBody = zod.object({
+  "recommendation": zod.enum(['strong_yes', 'yes', 'no', 'strong_no']).nullish(),
+  "overallComment": zod.string().nullish(),
+  "responses": zod.array(zod.object({
+  "criterion": zod.string().min(1),
+  "rating": zod.number().nullish(),
+  "comment": zod.string().nullish()
+})).optional().describe('Full replace of the response set on every save.'),
+  "submit": zod.boolean().optional().describe('When true, transitions this draft to submitted in the same call.')
+})
+
+export const SaveInterviewScorecardResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "interviewId": zod.number(),
+  "interviewerMembershipId": zod.number().nullable(),
+  "recommendation": zod.enum(['strong_yes', 'yes', 'no', 'strong_no']).nullable(),
+  "overallComment": zod.string().nullable(),
+  "submittedAt": zod.coerce.date().nullable().describe('Null while still a draft. Set exactly once — a submitted scorecard is immutable from the owning interviewer\'s side.'),
+  "finalizedAt": zod.coerce.date().nullable().describe('Set only by an HR\/recruiter administrator (scorecard.finalize) — never by the submitting interviewer themselves.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "responses": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "scorecardId": zod.number(),
+  "criterion": zod.string(),
+  "rating": zod.number().nullable(),
+  "comment": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('One per-criterion answer within a scorecard. `criterion` is plain free text supplied per submission — no organization-configurable criteria\/template table exists in this frozen scope. `rating` has no defined scale in the frozen plan and is kept an unconstrained integer, the same unconstrained-numeric posture application_scores.score (W52) already established for a comparable field. Immutable once the parent scorecard is submitted (in practice) \/ finalized (formally).'))
+}).describe('One per panel member per interview. Deliberately never exposes externalInterviewerToken\/expiry (reserved for a later workstream, never consumed by any route here — an internal-only column, never a DTO field, so a raw token can never leak through this API even once another workstream starts populating it). No weighting\/rollup number exists in the frozen model — recommendation is the only structured summary field.')
+
+
+/**
+ * HR/recruiter-only — there is no "own" tier for finalize; the submitting interviewer can never finalize their own scorecard. Only a submitted, not-yet-finalized scorecard can be finalized.
+ * @summary Finalize (lock) a submitted scorecard
+ */
+export const FinalizeInterviewScorecardParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const FinalizeInterviewScorecardResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "interviewId": zod.number(),
+  "interviewerMembershipId": zod.number().nullable(),
+  "recommendation": zod.enum(['strong_yes', 'yes', 'no', 'strong_no']).nullable(),
+  "overallComment": zod.string().nullable(),
+  "submittedAt": zod.coerce.date().nullable().describe('Null while still a draft. Set exactly once — a submitted scorecard is immutable from the owning interviewer\'s side.'),
+  "finalizedAt": zod.coerce.date().nullable().describe('Set only by an HR\/recruiter administrator (scorecard.finalize) — never by the submitting interviewer themselves.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "responses": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "scorecardId": zod.number(),
+  "criterion": zod.string(),
+  "rating": zod.number().nullable(),
+  "comment": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('One per-criterion answer within a scorecard. `criterion` is plain free text supplied per submission — no organization-configurable criteria\/template table exists in this frozen scope. `rating` has no defined scale in the frozen plan and is kept an unconstrained integer, the same unconstrained-numeric posture application_scores.score (W52) already established for a comparable field. Immutable once the parent scorecard is submitted (in practice) \/ finalized (formally).'))
+}).describe('One per panel member per interview. Deliberately never exposes externalInterviewerToken\/expiry (reserved for a later workstream, never consumed by any route here — an internal-only column, never a DTO field, so a raw token can never leak through this API even once another workstream starts populating it). No weighting\/rollup number exists in the frozen model — recommendation is the only structured summary field.')
+
+
+/**
  * No authentication. Resolves the organization by its own slug only — never a numeric ID. Returns the same 404 whether the slug doesn't exist, the organization is suspended, or its careers portal isn't enabled (recruitment_settings.enabled / externalRecruitmentEnabled) — these are never distinguished, so a probing request can never learn which condition applied.
  * @summary Public organization profile for a careers page
  */

@@ -79,6 +79,8 @@ import type {
   HealthStatus,
   Interview,
   InterviewListResponse,
+  InterviewScorecard,
+  InterviewScorecardListResponse,
   InvitationCreated,
   InvitationPreview,
   JobRequisition,
@@ -140,6 +142,7 @@ import type {
   RestructurePositionInput,
   Role,
   RunReportParams,
+  SaveInterviewScorecardInput,
   ScheduleInterviewInput,
   SeparateEmployeeInput,
   SetPrimaryHrInput,
@@ -9672,6 +9675,238 @@ export const useUpdateInterview = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getUpdateInterviewMutationOptions(options));
+    }
+
+export const getListInterviewScorecardsUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/interviews/${id}/scorecards`
+}
+
+/**
+ * Visibility-filtered: a scorecard.read_all holder sees every panel member's scorecard plus a computed panelSummary (submitted/pending counts, recommendation tally — never stored, always recomputed on read, the same discipline as W52's scoreRollup); anyone else sees only their own scorecard (possibly none), and panelSummary is null. scorecard.submit never implies scorecard.read_all — an interviewer never sees a colleague's scorecard through this route, submitted or not.
+ * @summary List scorecards for an interview
+ */
+export const listInterviewScorecards = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<InterviewScorecardListResponse> => {
+
+  return customFetch<InterviewScorecardListResponse>(getListInterviewScorecardsUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListInterviewScorecardsQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/interviews/${id}/scorecards`
+    ] as const;
+    }
+
+
+export const getListInterviewScorecardsQueryOptions = <TData = Awaited<ReturnType<typeof listInterviewScorecards>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listInterviewScorecards>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListInterviewScorecardsQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listInterviewScorecards>>> = ({ signal }) => listInterviewScorecards(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listInterviewScorecards>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListInterviewScorecardsQueryResult = NonNullable<Awaited<ReturnType<typeof listInterviewScorecards>>>
+export type ListInterviewScorecardsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List scorecards for an interview
+ */
+
+export function useListInterviewScorecards<TData = Awaited<ReturnType<typeof listInterviewScorecards>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listInterviewScorecards>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListInterviewScorecardsQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSaveInterviewScorecardUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/interviews/${id}/scorecards`
+}
+
+/**
+ * Upserts the caller's own draft — panel membership is re-verified fresh on every call, never cached. Supplying `submit: true` transitions draft -> submitted in the same call (§10 lists no separate submit route); once submitted, further calls are rejected (400) — a submitted scorecard cannot be silently replaced. Rejected for a cancelled interview.
+ * @summary Save or submit the caller's own scorecard for an interview
+ */
+export const saveInterviewScorecard = async (organizationId: number,
+    id: number,
+    saveInterviewScorecardInput: SaveInterviewScorecardInput, options?: RequestInit): Promise<InterviewScorecard> => {
+
+  return customFetch<InterviewScorecard>(getSaveInterviewScorecardUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(saveInterviewScorecardInput)
+  }
+);}
+
+
+
+
+
+export const getSaveInterviewScorecardMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveInterviewScorecard>>, TError,{organizationId: number;id: number;data: BodyType<SaveInterviewScorecardInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveInterviewScorecard>>, TError,{organizationId: number;id: number;data: BodyType<SaveInterviewScorecardInput>}, TContext> => {
+
+const mutationKey = ['saveInterviewScorecard'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveInterviewScorecard>>, {organizationId: number;id: number;data: BodyType<SaveInterviewScorecardInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  saveInterviewScorecard(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveInterviewScorecardMutationResult = NonNullable<Awaited<ReturnType<typeof saveInterviewScorecard>>>
+    export type SaveInterviewScorecardMutationBody = BodyType<SaveInterviewScorecardInput>
+    export type SaveInterviewScorecardMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Save or submit the caller's own scorecard for an interview
+ */
+export const useSaveInterviewScorecard = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveInterviewScorecard>>, TError,{organizationId: number;id: number;data: BodyType<SaveInterviewScorecardInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveInterviewScorecard>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<SaveInterviewScorecardInput>},
+        TContext
+      > => {
+      return useMutation(getSaveInterviewScorecardMutationOptions(options));
+    }
+
+export const getFinalizeInterviewScorecardUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/scorecards/${id}/finalize`
+}
+
+/**
+ * HR/recruiter-only — there is no "own" tier for finalize; the submitting interviewer can never finalize their own scorecard. Only a submitted, not-yet-finalized scorecard can be finalized.
+ * @summary Finalize (lock) a submitted scorecard
+ */
+export const finalizeInterviewScorecard = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<InterviewScorecard> => {
+
+  return customFetch<InterviewScorecard>(getFinalizeInterviewScorecardUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getFinalizeInterviewScorecardMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof finalizeInterviewScorecard>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof finalizeInterviewScorecard>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['finalizeInterviewScorecard'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof finalizeInterviewScorecard>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  finalizeInterviewScorecard(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type FinalizeInterviewScorecardMutationResult = NonNullable<Awaited<ReturnType<typeof finalizeInterviewScorecard>>>
+
+    export type FinalizeInterviewScorecardMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Finalize (lock) a submitted scorecard
+ */
+export const useFinalizeInterviewScorecard = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof finalizeInterviewScorecard>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof finalizeInterviewScorecard>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getFinalizeInterviewScorecardMutationOptions(options));
     }
 
 export const getGetPublicCareersOrganizationUrl = (orgSlug: string,) => {

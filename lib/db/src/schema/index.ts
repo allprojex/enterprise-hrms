@@ -56,3 +56,5 @@ export * from "./talent-pools";
 export * from "./talent-pool-members";
 export * from "./interviews";
 export * from "./interview-panel-members";
+export * from "./interview-scorecards";
+export * from "./interview-scorecard-responses";

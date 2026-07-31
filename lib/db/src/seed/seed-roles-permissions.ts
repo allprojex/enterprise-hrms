@@ -160,6 +160,24 @@ const PERMISSIONS = [
   // documented precedent).
   { key: "interview.read", resource: "interview", action: "read" },
   { key: "interview.manage", resource: "interview", action: "manage" },
+  // Phase 3A, W55 — Interview Scorecards. §7's own three keys, used exactly
+  // as named: `scorecard.submit` is seeded to every role (any employee could
+  // be an assigned panel interviewer — matches interview.read's broad
+  // rollout), but visibility is narrowed at the service layer to strictly
+  // the caller's own scorecard, freshly re-verified against
+  // interview_panel_members on every write. `scorecard.read_all` and
+  // `scorecard.finalize` are org_admin/hr_manager only — §7 marks both with
+  // no "own"/assigned tier at all (unlike interview.manage, this isn't a
+  // rollout judgment call: the matrix literally has no assigned-column
+  // checkmark for either). Critically, `scorecard.submit` never implies
+  // `scorecard.read_all` even for an org_admin/hr_manager who is also a
+  // panel member — §7's own integrity note: "an interviewer must not see
+  // colleagues' scores before submitting their own" (bias prevention) — so
+  // the service layer's read path checks read_all independently of submit,
+  // never treating org-wide submit-rollout as a backdoor into read_all.
+  { key: "scorecard.submit", resource: "scorecard", action: "submit" },
+  { key: "scorecard.read_all", resource: "scorecard", action: "read_all" },
+  { key: "scorecard.finalize", resource: "scorecard", action: "finalize" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -214,6 +232,9 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "talent_pool.manage",
     "interview.read",
     "interview.manage",
+    "scorecard.submit",
+    "scorecard.read_all",
+    "scorecard.finalize",
   ],
   hr_manager: [
     "organization.read",
@@ -258,6 +279,9 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "talent_pool.manage",
     "interview.read",
     "interview.manage",
+    "scorecard.submit",
+    "scorecard.read_all",
+    "scorecard.finalize",
   ],
   employee: [
     "organization.read",
@@ -276,6 +300,7 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "candidate.read",
     "candidate.notes.read",
     "interview.read",
+    "scorecard.submit",
   ],
 };
 

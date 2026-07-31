@@ -56,6 +56,8 @@ tags:
     description: Reusable, org-scoped candidate grouping operations (W53) — never tied to a single vacancy or requisition
   - name: interviews
     description: Interview scheduling and panel composition operations (W54) — scheduling only, never evaluation (scores/recommendations/hiring decisions are W55's interview_scorecards)
+  - name: interview-scorecards
+    description: Independent, lockable interview evaluation operations (W55) — one scorecard per panel member per interview, never redesigning W54 scheduling or mixing with W52's screening scores
 
 paths:
   /healthz:
@@ -4491,6 +4493,132 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/interviews/{id}/scorecards:
+    get:
+      operationId: listInterviewScorecards
+      tags: [interview-scorecards]
+      summary: List scorecards for an interview
+      description: >-
+        Visibility-filtered: a scorecard.read_all holder sees every panel
+        member's scorecard plus a computed panelSummary (submitted/pending
+        counts, recommendation tally — never stored, always recomputed on
+        read, the same discipline as W52's scoreRollup); anyone else sees
+        only their own scorecard (possibly none), and panelSummary is null.
+        scorecard.submit never implies scorecard.read_all — an interviewer
+        never sees a colleague's scorecard through this route, submitted or
+        not.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Scorecards visible to this caller
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InterviewScorecardListResponse"
+        "404":
+          description: Interview not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: saveInterviewScorecard
+      tags: [interview-scorecards]
+      summary: Save or submit the caller's own scorecard for an interview
+      description: >-
+        Upserts the caller's own draft — panel membership is re-verified
+        fresh on every call, never cached. Supplying `submit: true`
+        transitions draft -> submitted in the same call (§10 lists no
+        separate submit route); once submitted, further calls are rejected
+        (400) — a submitted scorecard cannot be silently replaced. Rejected
+        for a cancelled interview.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveInterviewScorecardInput"
+      responses:
+        "200":
+          description: Scorecard saved (or submitted)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InterviewScorecard"
+        "400":
+          description: Invalid fields, the interview is cancelled, the caller is not a panel member, or the scorecard is already submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Interview not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/scorecards/{id}/finalize:
+    post:
+      operationId: finalizeInterviewScorecard
+      tags: [interview-scorecards]
+      summary: Finalize (lock) a submitted scorecard
+      description: >-
+        HR/recruiter-only — there is no "own" tier for finalize; the
+        submitting interviewer can never finalize their own scorecard. Only
+        a submitted, not-yet-finalized scorecard can be finalized.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Scorecard finalized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InterviewScorecard"
+        "400":
+          description: Only a submitted, not-yet-finalized scorecard can be finalized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Scorecard not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /careers/{orgSlug}:
     get:
       operationId: getPublicCareersOrganization
@@ -8786,6 +8914,144 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PanelMemberInput"
+
+    InterviewScorecardResponse:
+      type: object
+      description: >-
+        One per-criterion answer within a scorecard. `criterion` is plain
+        free text supplied per submission — no organization-configurable
+        criteria/template table exists in this frozen scope. `rating` has no
+        defined scale in the frozen plan and is kept an unconstrained
+        integer, the same unconstrained-numeric posture application_scores.score
+        (W52) already established for a comparable field. Immutable once the
+        parent scorecard is submitted (in practice) / finalized (formally).
+      required: [id, organizationId, scorecardId, criterion, rating, comment, createdAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        scorecardId:
+          type: integer
+        criterion:
+          type: string
+        rating:
+          type: ["integer", "null"]
+        comment:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    ResponseInput:
+      type: object
+      required: [criterion]
+      properties:
+        criterion:
+          type: string
+          minLength: 1
+        rating:
+          type: ["integer", "null"]
+        comment:
+          type: ["string", "null"]
+
+    InterviewScorecard:
+      type: object
+      description: >-
+        One per panel member per interview. Deliberately never exposes
+        externalInterviewerToken/expiry (reserved for a later workstream,
+        never consumed by any route here — an internal-only column, never a
+        DTO field, so a raw token can never leak through this API even once
+        another workstream starts populating it). No weighting/rollup number
+        exists in the frozen model — recommendation is the only structured
+        summary field.
+      required: [id, organizationId, interviewId, interviewerMembershipId, recommendation, overallComment, submittedAt, finalizedAt, createdAt, updatedAt, responses]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        interviewId:
+          type: integer
+        interviewerMembershipId:
+          type: ["integer", "null"]
+        recommendation:
+          type: ["string", "null"]
+          enum: [strong_yes, yes, no, strong_no]
+        overallComment:
+          type: ["string", "null"]
+        submittedAt:
+          type: ["string", "null"]
+          format: date-time
+          description: Null while still a draft. Set exactly once — a submitted scorecard is immutable from the owning interviewer's side.
+        finalizedAt:
+          type: ["string", "null"]
+          format: date-time
+          description: Set only by an HR/recruiter administrator (scorecard.finalize) — never by the submitting interviewer themselves.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        responses:
+          type: array
+          items:
+            $ref: "#/components/schemas/InterviewScorecardResponse"
+
+    SaveInterviewScorecardInput:
+      type: object
+      properties:
+        recommendation:
+          type: ["string", "null"]
+          enum: [strong_yes, yes, no, strong_no]
+        overallComment:
+          type: ["string", "null"]
+        responses:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResponseInput"
+          description: Full replace of the response set on every save.
+        submit:
+          type: boolean
+          description: When true, transitions this draft to submitted in the same call.
+
+    RecommendationCounts:
+      type: object
+      required: [strong_yes, yes, no, strong_no]
+      properties:
+        strong_yes:
+          type: integer
+        yes:
+          type: integer
+        no:
+          type: integer
+        strong_no:
+          type: integer
+
+    InterviewScorecardListResponse:
+      type: object
+      required: [scorecards, panelSummary]
+      properties:
+        scorecards:
+          type: array
+          items:
+            $ref: "#/components/schemas/InterviewScorecard"
+        panelSummary:
+          type: ["object", "null"]
+          description: >-
+            Computed on every read, never stored — the same discipline as
+            W52's scoreRollup. Null unless the caller holds scorecard.read_all.
+          required: [totalPanelMembers, submittedCount, pendingCount, recommendationCounts]
+          properties:
+            totalPanelMembers:
+              type: integer
+            submittedCount:
+              type: integer
+            pendingCount:
+              type: integer
+            recommendationCounts:
+              $ref: "#/components/schemas/RecommendationCounts"
 
     PublicOrganization:
       type: object

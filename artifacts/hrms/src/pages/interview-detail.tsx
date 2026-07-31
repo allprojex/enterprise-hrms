@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, Link, useLocation } from 'wouter';
-import { ArrowLeft, CalendarClock, Users, X, Plus, XCircle, CheckCircle2, UserX, RefreshCw } from 'lucide-react';
+import { ArrowLeft, CalendarClock, Users, X, Plus, XCircle, CheckCircle2, UserX, RefreshCw, ClipboardList } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -219,8 +219,15 @@ export default function InterviewDetail() {
             {interview.status.replace('_', ' ')}
           </Badge>
         </div>
-        {isScheduled && (
-          <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Link href={`/interviews/${interview.id}/scorecard`}>
+            <Button variant="outline" data-testid="link-interview-scorecard">
+              <ClipboardList className="h-4 w-4" aria-hidden="true" />
+              Scorecard
+            </Button>
+          </Link>
+          {isScheduled && (
+            <>
             <Button variant="outline" onClick={openReschedule} data-testid="button-reschedule-interview">
               <RefreshCw className="h-4 w-4" aria-hidden="true" />
               Reschedule
@@ -237,8 +244,9 @@ export default function InterviewDetail() {
               <XCircle className="h-4 w-4" aria-hidden="true" />
               Cancel
             </Button>
-          </div>
-        )}
+            </>
+          )}
+        </div>
       </div>
 
       <Card>

@@ -1688,6 +1688,122 @@ export interface UpdateInterviewInput {
 }
 
 /**
+ * One per-criterion answer within a scorecard. `criterion` is plain free text supplied per submission — no organization-configurable criteria/template table exists in this frozen scope. `rating` has no defined scale in the frozen plan and is kept an unconstrained integer, the same unconstrained-numeric posture application_scores.score (W52) already established for a comparable field. Immutable once the parent scorecard is submitted (in practice) / finalized (formally).
+ */
+export interface InterviewScorecardResponse {
+  id: number;
+  organizationId: number;
+  scorecardId: number;
+  criterion: string;
+  /** @nullable */
+  rating: number | null;
+  /** @nullable */
+  comment: string | null;
+  createdAt: string;
+}
+
+export interface ResponseInput {
+  /** @minLength 1 */
+  criterion: string;
+  /** @nullable */
+  rating?: number | null;
+  /** @nullable */
+  comment?: string | null;
+}
+
+/**
+ * @nullable
+ */
+export type InterviewScorecardRecommendation = typeof InterviewScorecardRecommendation[keyof typeof InterviewScorecardRecommendation] | null;
+
+
+export const InterviewScorecardRecommendation = {
+  strong_yes: 'strong_yes',
+  yes: 'yes',
+  no: 'no',
+  strong_no: 'strong_no',
+} as const;
+
+/**
+ * One per panel member per interview. Deliberately never exposes externalInterviewerToken/expiry (reserved for a later workstream, never consumed by any route here — an internal-only column, never a DTO field, so a raw token can never leak through this API even once another workstream starts populating it). No weighting/rollup number exists in the frozen model — recommendation is the only structured summary field.
+ */
+export interface InterviewScorecard {
+  id: number;
+  organizationId: number;
+  interviewId: number;
+  /** @nullable */
+  interviewerMembershipId: number | null;
+  /** @nullable */
+  recommendation: InterviewScorecardRecommendation;
+  /** @nullable */
+  overallComment: string | null;
+  /**
+     * Null while still a draft. Set exactly once — a submitted scorecard is immutable from the owning interviewer's side.
+     * @nullable
+     */
+  submittedAt: string | null;
+  /**
+     * Set only by an HR/recruiter administrator (scorecard.finalize) — never by the submitting interviewer themselves.
+     * @nullable
+     */
+  finalizedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  responses: InterviewScorecardResponse[];
+}
+
+/**
+ * @nullable
+ */
+export type SaveInterviewScorecardInputRecommendation = typeof SaveInterviewScorecardInputRecommendation[keyof typeof SaveInterviewScorecardInputRecommendation] | null;
+
+
+export const SaveInterviewScorecardInputRecommendation = {
+  strong_yes: 'strong_yes',
+  yes: 'yes',
+  no: 'no',
+  strong_no: 'strong_no',
+} as const;
+
+export interface SaveInterviewScorecardInput {
+  /** @nullable */
+  recommendation?: SaveInterviewScorecardInputRecommendation;
+  /** @nullable */
+  overallComment?: string | null;
+  /** Full replace of the response set on every save. */
+  responses?: ResponseInput[];
+  /** When true, transitions this draft to submitted in the same call. */
+  submit?: boolean;
+}
+
+export interface RecommendationCounts {
+  strong_yes: number;
+  yes: number;
+  no: number;
+  strong_no: number;
+}
+
+/**
+ * Computed on every read, never stored — the same discipline as W52's scoreRollup. Null unless the caller holds scorecard.read_all.
+ * @nullable
+ */
+export type InterviewScorecardListResponsePanelSummary = {
+  totalPanelMembers: number;
+  submittedCount: number;
+  pendingCount: number;
+  recommendationCounts: RecommendationCounts;
+} | null;
+
+export interface InterviewScorecardListResponse {
+  scorecards: InterviewScorecard[];
+  /**
+     * Computed on every read, never stored — the same discipline as W52's scoreRollup. Null unless the caller holds scorecard.read_all.
+     * @nullable
+     */
+  panelSummary: InterviewScorecardListResponsePanelSummary;
+}
+
+/**
  * Deliberately narrow — only what a careers page header needs. Never the internal Organization DTO (no status, no type, no internal id).
  */
 export interface PublicOrganization {
