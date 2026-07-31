@@ -1,119 +1,225 @@
 # Claude Development Handoff
 
-_Prepared: 2026-07-30, end of session. Read this first, before `PROJECT_STATUS.md`, before starting any new work._
+_Prepared: 2026-07-31, end of session. Read this first, before `PROJECT_STATUS.md`, before starting any new work._
 
 ---
 
-## 1. Current Project
+# Project
 
-Enterprise HRMS — a configurable, multi-tenant Human Resource ERP platform (one shared foundation, config-driven per organization type; see `CLAUDE.md` at the repo root for the full product/architecture principles). Monorepo: `artifacts/api-server` (Express), `artifacts/hrms` (React/Vite frontend), `lib/db` (Drizzle ORM schema/migrations), `lib/api-spec` (OpenAPI source of truth), `lib/api-client-react` + `lib/api-zod` (generated clients — never hand-edited).
+- **Project name:** Enterprise HRMS — a configurable, multi-tenant Human Resource ERP platform (one shared foundation, config-driven per organization type; see `CLAUDE.md` at the repo root for the full product/architecture principles). Monorepo: `artifacts/api-server` (Express), `artifacts/hrms` (React/Vite frontend), `lib/db` (Drizzle ORM schema/migrations), `lib/api-spec` (OpenAPI source of truth), `lib/api-client-react` + `lib/api-zod` (generated clients — never hand-edited).
+- **Current branch:** `main`. No feature branches in use — every workstream has been committed and pushed directly to `main`.
+- **Latest commit hash:**
+  ```
+  07281fe777a8e5dd156d344a537594499c825674  (short: 07281fe)
+  feat(recruitment): add reference and background checks
+  ```
+  Confirmed pushed and in sync with `origin/main` as of this handoff (`git status -sb` shows no ahead/behind).
+- **Current phase:** Phase 3A — Recruitment & Hiring, in progress. Frozen plan: `docs/PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md` (21 workstreams, W43–W63).
+- **Current workstream completed:** W56 — Reference & Background Checks.
+- **Next workstream:** W57 — Offers.
 
-## 2. Current Phase
+---
 
-**Phase 3A — Recruitment & Hiring**, in progress. Frozen plan: `docs/PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md` (21 workstreams, W43–W63).
+# Current Status
 
-Completed: W43, W44, W45, W46, W47, W49, W51.
-Deferred (not completed): W50.
-There is no session "W48" — see §7 below.
+## Completed workstreams (Phase 3A, session numbering — see "no session W48" note below)
 
-## 3. Current Branch
+- **W43 — Recruitment Foundation.**
+- **W44 — Recruitment Configuration Foundation.** `recruitment_settings`, `recruitment_workflows`, `recruitment_stages`.
+- **W45 — Job Requisition Foundation.** `job_requisitions`.
+- **W46 — Requisition Approval Workflow** (frozen document's own W47). `requisition_approvals`.
+- **W47 — Vacancy Management Foundation** (frozen document's own W48). `vacancies`, `vacancy_locations`, `vacancy_questions`. Internal CRUD/lifecycle only.
+- **W49 — Public Careers Portal (Read + Apply Shell).** Full frozen scope (escalated from the task prompt's own narrower framing, user-confirmed via `AskUserQuestion`) — public org/vacancy read plus a real anonymous application-submission pipeline: `candidates`, `candidate_consents`, `candidate_documents`, `applications`.
+- **W51 — Application Pipeline & Stage Movement.** `application_stage_history`; stage move/reject/withdraw/reopen against W44's `recruitment_stages`.
+- **W52 — Screening Questions & Scoring.** `application_answers`, `application_scores`; answer capture added to W49's existing apply endpoint; knockout evaluation (never auto-rejects); computed, never-stored `scoreRollup`.
+- **W53 — Candidate Notes, Tags, and Talent Pools.** `candidate_notes`, `candidate_tags`, `talent_pools`, `talent_pool_members`; internal candidate read (`lib/candidates.ts`) added as a byproduct.
+- **W54 — Interviews & Scheduling.** `interviews`, `interview_panel_members`; scheduling only, no evaluation. Reschedule realized as cancel-old-row + create-new-row, never in-place date mutation.
+- **W55 — Interview Scorecards.** `interview_scorecards`, `interview_scorecard_responses`; independent, lockable evaluations, one per panel member per interview. No template/criteria/weighting system exists in the frozen scope.
+- **W56 — Reference & Background Checks.** `reference_checks` (reuses `application.read`/`.manage` — no dedicated permission), `background_checks` (own dedicated, organization-wide-only `background_check.read`/`.manage` pair).
 
-`main`. No feature branches in use — every workstream has been committed and pushed directly to `main`.
+## Deferred workstreams
 
-## 4. Latest Commit Hash
+- **W50 — Candidate Accounts & Verification — DEFERRED, not completed** (approved product decision, 2026-07-30). Full reasoning and the original, unmodified scope are preserved in `docs/PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md`'s own W50 section (marked `STATUS: DEFERRED — NOT IMPLEMENTED`) and in `PROJECT_STATUS.md`'s W50 entry. In one line: W49 already delivers the minimum useful public recruitment product (anonymous applications, consent, CV upload, signed-token status checking); candidate accounts add real auth surface and support burden with no demonstrated need yet. **Do not implement W50 unless explicitly instructed.** Nothing built since W50 (W51 through W56) has needed anything from it.
+- **W39 (Phase 2B)** — employment-history and skills/qualifications/certifications aggregation into Employee Self-Service — remains open, unrelated to Phase 3A, not touched this session.
 
-```
-37b032165baa5b310778c8d51f4ef8ca62724111  (short: 37b0321)
-feat(recruitment): add application pipeline
-```
-Confirmed pushed and in sync with `origin/main` as of this handoff (`git status -sb` shows no ahead/behind).
+## Known limitations (deliberate, documented — not oversights)
 
-## 5. Today's Completed Workstreams
+- **No scorecard/reference-check/background-check template or criteria configuration system.** The frozen §9 table plan for W55/W56 defines only free-text fields (`criterion`, `checkType`) — no organization-configurable Master Data domain, no weighting, no rating scale.
+- **External-panel-member interview evaluation is deferred.** `interview_scorecards.externalInterviewerToken`/`externalInterviewerTokenExpiresAt` are reserved columns (per §9) but no route consumes them — §10 lists no external/public route for scorecards, mirroring `vacancies.publicId`'s "reserved, not consumed" precedent.
+- **No consent-gating for background checks.** The frozen `background_checks` row has no `consentReference`/consent-linkage column — W49's application-submission consent is not reinterpreted as blanket permission, but no second, check-specific consent record was invented either.
+- **No live browser/dev-database walkthrough has been possible in this environment for any Recruitment workstream** — this environment has no provisioned dev database. All verification has relied on the automated backend/frontend test suites, typecheck, lint, and production build.
 
-(Session numbering — see §7 for the numbering note.)
+---
 
-- **W47 — Vacancy Management Foundation.** `vacancies`, `vacancy_locations`, `vacancy_questions`. Internal CRUD/lifecycle only (draft→scheduled/published→paused⇄published→closed→archived). Commit `e793b67`.
-- **W49 — Public Careers Portal (Read + Apply Shell).** Full frozen scope, not a shell — public org/vacancy read plus a real anonymous application-submission pipeline (`candidates`, `candidate_consents`, `candidate_documents`, `applications`). This was a deliberate escalation over the task prompt's own narrower framing, confirmed with the user via `AskUserQuestion` before building — see §7. Commit `083e430`.
-- **W50 — Candidate Accounts & Verification — DEFERRED, not completed.** Documentation-only. See §6.
-- **W51 — Application Pipeline & Stage Movement.** The start of the ATS: `application_stage_history` (one new table), stage movement/reject/withdraw/reopen against W44's existing `recruitment_stages`. Commit `37b0321`.
+# Today's Accomplishments
 
-## 6. Deferred Workstreams
+Today's session completed five workstreams end-to-end: **W52, W53, W54, W55, W56** (W43–W51 were completed in earlier sessions this phase; see `PROJECT_STATUS.md` for their own entries).
 
-**W50 — Candidate Accounts & Verification.** Formally deferred by an approved product decision (2026-07-30), not skipped or forgotten. Full reasoning and the original, unmodified scope are preserved in `docs/PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md`'s own W50 section (marked `STATUS: DEFERRED — NOT IMPLEMENTED`) and in `PROJECT_STATUS.md`'s W50 entry. In one line: W49 already delivers the minimum useful public recruitment product (anonymous applications, consent, CV upload, signed-token status checking); candidate accounts add real auth surface and support burden with no demonstrated need yet. **Do not implement W50 unless explicitly instructed.**
+## Architecture decisions
 
-**W39 (Phase 2B)** — employment-history and skills/qualifications/certifications aggregation into Employee Self-Service — remains open, unrelated to today's work, not touched today.
+- **W52:** screening answers captured by *modifying* W49's existing apply endpoint (not a new endpoint) — knockout evaluation happens at submission time and only *flags* a failed answer for review, never auto-rejects. `applications.score` stays permanently unused; `scoreRollup` is computed fresh on every read from `application_scores` (explicit `overall` entry wins outright; otherwise the average of latest screening/interview entries).
+- **W53:** notes/tags/talent pools kept as three independently extensible abstractions, not merged. `candidate_notes.applicationId` (nullable) distinguishes candidate-level vs. application-level notes. Talent pools are organization-wide only (no assigned tier) since a pool isn't reachable through any one requisition's recruiter/hiring-manager.
+- **W54:** interview visibility introduced a genuinely new "assigned" shape for this phase — not the recruiter/hiring-manager-on-linked-requisition chain every other resource uses, but direct panel membership on that specific interview (`interview_panel_members.interviewerMembershipId == caller`). Rescheduling is cancel-old-row + create-new-row, never in-place date mutation (§4.5).
+- **W55:** scorecards deliberately excluded any template/criteria/weighting system since none exists in the frozen model (`criterion` is free text, `rating` is an unconstrained integer). `scorecard.submit` never implies `scorecard.read_all`, even for the same caller — an interviewer never sees a colleague's scorecard through this API, submitted or not.
+- **W56:** reference checks and background checks kept as two distinct business processes in separate tables/lib/route files. Reference checks reuse `application.read`/`.manage` (no dedicated permission exists in §7); background checks get their own dedicated, organization-wide-only `background_check.read`/`.manage` pair — holding `application.read`/`.manage` (or `candidate.read`) never implies background-check access.
 
-## 7. Important Architecture Decisions Made Today
+## Security decisions
 
-1. **W49 scope escalation, user-confirmed.** The W49 task prompt's own body described a narrow "shell" (no persistence, no file upload) while separately saying "the frozen plan controls" on conflict — and the frozen plan's actual Objective/Scope for W49 requires a real anonymous submission pipeline. This was flagged explicitly and the user chose the full frozen scope via `AskUserQuestion` before any code was written. **If a future task prompt for a later workstream also conflicts with its own frozen-plan section, flag it the same way — do not silently pick either interpretation.**
-2. **Numbering resync at W49.** Sessions building W45–W47 used a session numbering one behind the frozen document's own (e.g. session-"W47" = frozen document's own W48). The user explicitly instructed this session to stop that drift starting at W49 — use the frozen document's numbering directly from W49 onward. **There is no session "W48."** Full explanation is in `PROJECT_STATUS.md`'s "Current Phase" section — read it before assuming any workstream number lines up 1:1 with the frozen document without checking.
-3. **W50 deferral, and no ADR log exists.** This repository has no established ADR/architecture-decision-record file or directory convention — only informal, uncatalogued `"ADR-NNN"` citations appear inline inside the phase-plan documents, with no canonical source to append to. The W50 deferral decision was recorded directly in `docs/PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md`'s own W50 section and in `PROJECT_STATUS.md` instead of inventing a new ADR framework for one decision. **If a future task asks to "record an architecture decision," check first whether this is still true — do not assume an ADR log exists.**
-4. **Public vacancy eligibility applies its own independent `openDate`/`closeDate` gate**, regardless of internal `status`. W47's "manual flip" lets a staff operator publish a vacancy internally before its `openDate` (deliberate feature); W49's public read layer still hides it from the public until `openDate` arrives, and still hides a `published` vacancy whose `closeDate` has passed. The public boundary never mutates the stored vacancy — filtering is applied fresh on every read.
-5. **W51 stage model reuses W44's `recruitment_stages` unchanged** — it did **not** introduce a new hardcoded stage/status enum. Every stage maps to one of the frozen plan's 8 fixed categories (`applied/screening/interview/assessment/offer/hired/rejected/withdrawn`); system logic keys off category, never an org's own stage label. Only one new table was added (`application_stage_history`) — no separate comments table, per the frozen plan's own "one new table" database-impact line.
-6. **Recurring permission-rollout precedent** (established across W45/W47/W51): the frozen plan's §7 permission matrix marks an "Assigned" tier for several administrative actions (e.g. requisition update, vacancy publish/close, application pipeline move), but every workstream so far has realized "Assigned" as a **visibility** tier only, not a broader role grant — the actual write permission key is seeded to `org_admin`/`hr_manager`/`super_admin` only, since no dedicated "recruiter"/"hiring manager" role exists in this platform's role model. **Follow this same pattern for any new Recruitment permission** unless explicitly told otherwise.
-7. **Visibility/404 discipline, consistent since W45:** a record that exists but isn't visible to the caller returns 404, identical to a nonexistent record — never 403 — so visibility can never be probed via a status-code difference. Applies to job requisitions, vacancies, applications, and (for tenant/careers-portal existence itself) public organization resolution.
+- **W54/W55/W56:** three separate, real leaks were found and fixed during each workstream's own pre-commit security review, each with a dedicated regression test added:
+  - W55: `interview_scorecards.externalInterviewerToken`/`externalInterviewerTokenExpiresAt` were being spread from the raw DB row into every API response — fixed with an explicit `PublicInterviewScorecard` omission.
+  - W56: `background_checks.documentStorageKey` (the raw evidence file storage key) was likewise being spread into responses — fixed with a `PublicBackgroundCheck` shape that exposes only a computed `hasEvidence` boolean.
+  - W55: the scorecard GET route's permission gate incorrectly required `scorecard.submit` specifically, which would have 403'd a caller holding only `scorecard.read_all` — fixed to accept either permission.
+- Every workstream this session confirmed: no automatic stage move / offer / hiring action is ever triggered by a scorecard, interview outcome, or check result; no sensitive fields (referee contact, resultSummary, notes, vendor reference, storage keys, raw tokens) ever appear in `recordAuditEvent` metadata.
 
-## 8. Current Database Migration Number
+## Permission decisions
 
-Latest applied-in-sequence (generated, **not applied to any database**): `0026_previous_adam_destine.sql` (+ hand-authored `.down.sql`).
+- New permission keys added this session: `interview.read`/`.manage` (W54), `scorecard.submit`/`.read_all`/`.finalize` (W55), `background_check.read`/`.manage` (W56).
+- Recurring rollout pattern followed for every new "read" key: seeded broadly (every role) to enable the assigned-visibility tier where one exists; every new "write"/"manage" key stays `org_admin`/`hr_manager`-only, since no dedicated recruiter/hiring-manager role exists in this platform's role model.
+- W56 is the first resource this phase with a permission (`background_check.read`/`.manage`) that has **no assigned tier at all** — flat organization-wide-only, per §7's own matrix (explicitly "the narrowest permission in the matrix").
 
-Full Phase 3A migration set so far: `0021` (W44 config), `0022` (W45 requisitions), `0023` (W46 approvals), `0024` (W47 vacancies), `0025` (W49 candidates/applications), `0026` (W51 application_stage_history) — 13 new tables total across Phase 3A, all purely additive. Journal is sequential, no gaps. Zero drift confirmed after every generation (re-run `drizzle-kit generate` to re-verify — it should report "No schema changes, nothing to migrate").
+## Database changes / migrations created (none applied)
 
-**None of these migrations have been applied to any database.** They are all awaiting explicit approval per `CLAUDE.md`'s Database Rules.
+- `0027_violet_ozymandias.sql` (W52 — `application_answers`, `application_scores`)
+- `0028_simple_onslaught.sql` (W53 — `candidate_notes`, `candidate_tags`, `talent_pools`, `talent_pool_members`)
+- `0029_flawless_captain_midlands.sql` (W54 — `interviews`, `interview_panel_members`)
+- `0030_wide_doctor_octopus.sql` (W55 — `interview_scorecards`, `interview_scorecard_responses`)
+- `0031_premium_wolfsbane.sql` (W56 — `reference_checks`, `background_checks`)
 
-## 9. Current Test Totals
+All five have a hand-authored `.down.sql`, are purely additive, and are **not applied to any database** — zero drift confirmed after every generation.
 
-- **Backend:** 511 / 511 passing (`artifacts/api-server`, vitest)
-- **Frontend:** 134 / 134 passing (`artifacts/hrms`, vitest)
-- Typecheck: clean across all workspaces. Lint: clean. Production build: succeeds for `api-server`, `hrms`, `mockup-sandbox`.
-- OpenAPI → generated clients: zero unexpected diff, verified across two consecutive `codegen` runs.
+## OpenAPI changes
 
-## 10. Open Issues or Blockers
+New tags/schemas/paths added for `applications` (answers/scores embedded), `candidates`, `talent-pools`, `interviews`, `interview-scorecards`, `reference-checks`, `background-checks`. Codegen verified zero unexpected diff across two consecutive runs after every workstream. One notable codegen quirk found and worked around (W55): a nullable-object-via-`allOf` OpenAPI pattern produced a broken `(unknown | null) & X` TypeScript type via orval — replaced with a plain inlined `type: ["object", "null"]` shape.
 
-None. Every workstream completed today finished in the `Complete` state with all its own verification green. No known regressions, no failing tests, no unresolved TODOs left in the code from today's work.
+## Frontend additions
 
-## 11. Files Intentionally Left Untouched
+`/candidates/:id`, `/talent-pools`, `/interviews`, `/interviews/:id`, `/interviews/:id/scorecard` (new pages); an "Interviews" card + Schedule dialog and "Reference Checks"/"Background Checks" sections added to the existing `/applications/:id` page; a "Scorecard" link added to `/interviews/:id`. Nav links added for Talent Pools and Interviews.
 
-- **`artifacts/hrms/src/pages/login.tsx`** — modified before this session began (pre-existing, unrelated work). Every workstream today explicitly confirmed this file remained untouched before staging/committing. **Do not commit or stage this file** unless the user asks for it directly — it is not part of any Recruitment workstream.
-- Various untracked pre-existing items never touched or staged by any Recruitment commit: `.agents/skills/`, `.claude/`, `.mcp.json`, `CLAUDE.md`, `CONTRIBUTING.md`, `HRMS-Projects/`, `artifacts/api-server/uploads/`, `docs/.claude/`, `docs/architecture/`, `skills-lock.json`. Leave these alone unless separately instructed.
+## Backend additions
 
-## 12. Exact Next Workstream
+New lib files: `candidates.ts`, `candidateNotes.ts`, `candidateTags.ts`, `talentPools.ts`, `interviews.ts`, `interviewScorecards.ts`, `referenceChecks.ts`, `backgroundChecks.ts`. New route files for each. `orgScopedRefs.ts` extended (added `organizationMembershipsTable` to the reusable cross-org-reference-validation union).
 
-**W52 — Screening Questions & Scoring** (`docs/PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md` §23, line 516).
+## Tests added
 
-- **Objective:** Answer capture, knockout evaluation, scoring rollup.
-- **Dependencies:** W48 (= this session's W47, Vacancy Management — complete) and W51 (Application Pipeline — complete). **W52 is unblocked.**
-- **Scope:** two new tables — `application_answers`, `application_scores`.
-- **API impact:** answers captured **at W49's existing apply endpoint** (`POST /careers/:orgSlug/jobs/:vacancyPublicId/apply`) — this means W52 will need to *modify* that existing W49 route/service to accept and persist answers to the vacancy's `vacancy_questions`, not just add new endpoints. Scores get new endpoints on `/applications/:id`.
-- **Frontend impact:** answers shown on `/applications/:id` (the page built in W51); a new score-entry UI.
-- **Verification:** knockout-flagging correctness, score-recomputation-on-read tests.
+- Backend: 542 → 600 passing (43 files) — candidatesTalentPools (22), interviews (19), interviewScorecards (14→15), referenceChecks (10), backgroundChecks (14).
+- Frontend: 158 → 186 passing (28 files) — candidate-detail (8), talent-pools (8), interviews (6), interview-detail (7), interview-scorecard (8), plus 7 new cases added to `application-detail.test.tsx`.
 
-## 13. Exact First Instruction the Next Claude Session Should Follow
+## Verification results
 
-Do not start coding immediately. First:
+Every workstream this session finished with: focused + full backend suite green, focused + full frontend suite green, full-workspace typecheck clean, lint clean, OpenAPI codegen zero-diff (x2), migration drift zero, production build green for `api-server`/`hrms`/`mockup-sandbox`. No live database/browser environment exists here — this was stated explicitly in every workstream's final report, never silently assumed.
 
-1. Read `CLAUDE.md`, this file, and `PROJECT_STATUS.md`'s "Current Phase" + the W51 and W49 entries in "Phase 3A Progress" (for the `vacancy_questions` and `applications`/`candidates` shapes W52 builds on).
-2. Read the W52 section of `docs/PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md` in full (§23), plus §9 (Database Table Plan) for the frozen `application_answers`/`application_scores` field lists, since past workstreams have found the compact §23 entries incomplete on their own.
-3. Read the actual, currently-implemented `submitPublicApplication` in `artifacts/api-server/src/lib/candidateApplications.ts` (W49) and the vacancy_questions schema (`lib/db/src/schema/vacancy-questions.ts`, W47) before designing how answers get captured — this workstream modifies existing W49 code, it doesn't just add new files.
-4. Reconcile the frozen plan against reality the same way every prior workstream in this session did (each workstream so far found at least one gap between the compact §23 line and either the fuller spec elsewhere in the doc, or what a prior workstream actually shipped) — document any such gap transparently rather than silently picking an interpretation, and use `AskUserQuestion` if a genuine scope conflict (like W49's) comes up again.
-5. Only then implement, following the same pattern every prior workstream used: schema → migration (`drizzle-kit generate`, hand-author `.down.sql`, confirm zero drift) → service lib → permissions → routes → OpenAPI → codegen (verify zero-diff twice) → frontend → focused tests (backend + frontend) → full verification → `PROJECT_STATUS.md` update → review diff → stage only this workstream's files → commit → push.
+---
 
-## 14. Anything the Next Session Must NOT Modify
+# Current Architecture Decisions
 
-- **`artifacts/hrms/src/pages/login.tsx`** — pre-existing, unrelated. Never stage or commit it.
-- **W50's scope** — do not implement candidate accounts/authentication/sessions unless the user explicitly un-defers it.
-- **Completed workstreams' own files** (W43–W47, W49, W51) — extend via new files/additive changes only if W52 genuinely requires it (e.g. the W49 apply-route modification called out in §12 above is expected and fine); do not redesign or refactor anything outside what W52's own frozen scope requires.
-- **Any already-generated migration `0021`–`0026`** — never edit a past migration file; a new one is always `0027` (check `lib/db/drizzle/meta/_journal.json` for the true next number before generating, don't assume).
-- **`lib/api-client-react/src/generated/*` and `lib/api-zod/src/generated/*`** — never hand-edited, only ever produced by `pnpm --filter @workspace/api-spec run codegen` after editing `lib/api-spec/openapi.yaml`.
-- **Do not apply any migration to a live database** — every migration in this project remains generated-but-unapplied pending the user's explicit approval, per `CLAUDE.md`.
+(Cumulative list of decisions still governing the project — see `PROJECT_STATUS.md`'s Phase 3A Progress entries for the full reasoning behind each. Not rewriting older, still-valid decisions from W43–W51 beyond what's listed here.)
 
-## 15. Implementation Notes to Continue Safely
+- **W50 (Candidate Accounts) is formally deferred**, not cancelled — no candidate-session/authentication concept exists anywhere in this codebase.
+- **Anonymous-first recruitment model** (W49): every application is anonymous; a candidate has no account/login/session; status is checked only via a signed, time-limited token.
+- **Pipeline uses configurable recruitment stages** (W44/W51): stages are org-configurable rows mapped to 8 fixed categories; system logic keys off category, never an org's own stage label.
+- **Interview scheduling is fully separated from interview evaluation** (W54 vs. W55): `interviews`/`interview_panel_members` know nothing about scores/recommendations; `interview_scorecards`/`interview_scorecard_responses` never write to W54's tables.
+- **Screening/scoring (W52) is a distinct process from interview scorecards (W55)** — never merged into one rollup, never mixed with reference/background checks (W56) either, despite all four superficially "tracking an evaluation."
+- **Computed rollups instead of stored totals, everywhere this pattern applies:** `application.scoreRollup` (W52) and the interview scorecard panel-completion summary (W55) are both computed fresh on every read from their source rows, never persisted or cached.
+- **Immutable/append-only history wherever the frozen plan requires it:** `application_stage_history`, interview rescheduling (cancel + new row, not in-place), a submitted scorecard (immutable from the interviewer's side), a terminal reference/background check (no further status or result change).
+- **404-not-403 visibility discipline, consistent since W45:** a record that exists but isn't visible to the caller returns 404, identical to nonexistent — never 403 — so visibility can never be probed via status code.
+- **"Assigned" visibility tier is a narrowing filter only, never a broader role grant** — every administrative write permission this phase (`application.manage`, `vacancy.manage`, `interview.manage`, etc.) stays `org_admin`/`hr_manager`-only regardless of a resource's read-side assigned tier, since no dedicated recruiter/hiring-manager role exists in this platform's role model. `background_check.read`/`.manage` (W56) has no assigned tier at all, by the frozen matrix's own design, not by this rollout convention.
+- **Org-wide visibility is signaled by holding the resource's own administrative permission** (e.g. `application.manage`, `candidate.manage`, `interview.manage`) — never a separate "org-wide" permission key.
+- **No ADR log exists in this repository** — architecture decisions are recorded directly in `PROJECT_STATUS.md` and the frozen plan's own sections, not a separate framework.
 
-- **Migration generation requires a dummy `DATABASE_URL`** to run offline (no real DB connection needed for `generate`): `DATABASE_URL="postgres://user:password@localhost:5432/hrms" pnpm --filter @workspace/db run generate`.
-- **Test harness pattern:** every backend test file in this phase (`vacancies.test.ts`, `publicCareers.test.ts`, `applicationPipeline.test.ts`) uses the same hand-rolled `vi.mock("@workspace/db", ...)` + `vi.mock("drizzle-orm", ...)` in-memory table/query-builder mock — copy the newest one (`applicationPipeline.test.ts`) as the starting template for W52's tests rather than reinventing it.
-- **Frontend test gotcha already fixed:** `artifacts/hrms/src/test/setup.ts` now stubs `ResizeObserver` (needed by Radix's `Checkbox` and similar size-aware primitives when mounted outside a closed dialog) — don't re-add this, it's already there.
-- **`wouter`'s `useParams()` only populates inside a matching `<Route>`** — frontend tests must wrap the page under test in a `<Route path="...">{() => <Page/>}</Route>`, not just render it bare inside `<Router>`, or route params will silently come back empty.
-- **Codegen quirk:** avoid `format: email` in OpenAPI string schemas — it broke code generation against this repo's pinned Zod version earlier this session (produces `zod.email()`, unsupported here). Use plain `type: string` for email fields, matching every existing endpoint.
-- **`recruitment_settings` has diverged from the frozen plan's §9 field list** (e.g. no `careersSlug`, no `vacancyApprovalRequired`, has `externalRecruitmentEnabled`/`duplicateCandidatePolicy` instead) — always check the actual schema file (`lib/db/src/schema/recruitment-settings.ts`) rather than trusting §9's prose when a workstream depends on a settings field.
-- **Vacancies carry no salary field**, and `job_requisitions.salaryRangeMin/Max/Currency` is explicitly "org-internal only, never public" — if W52 or later touches anything salary-adjacent, preserve that boundary.
-- **`applications.currentStageId` is nullable and commonly `null`** for anything not yet triaged through W51's pipeline — code reading it (including whatever W52 builds) must handle the null case, treated as the `applied` category for display purposes only, never written back.
+---
+
+# Database State
+
+- **Latest migration:** `0031_premium_wolfsbane.sql` (+ hand-authored `.down.sql`).
+- **Unapplied migrations:** `0021` through `0031` (eleven migrations, twenty-five new tables total across Phase 3A) — **none applied to any database**, all awaiting explicit approval per `CLAUDE.md`'s Database Rules.
+- **Migration drift status:** zero drift confirmed after every generation this session (`drizzle-kit generate` reports "No schema changes, nothing to migrate" against the current schema). Journal (`lib/db/drizzle/meta/_journal.json`) is sequential, no gaps.
+
+---
+
+# Verification Status
+
+- **Backend tests:** 600 / 600 passing (`artifacts/api-server`, vitest, 43 files).
+- **Frontend tests:** 186 / 186 passing (`artifacts/hrms`, vitest, 28 files).
+- **Typecheck:** clean across all workspaces (`pnpm run typecheck`).
+- **Lint:** clean (`artifacts/hrms` — `eslint src --max-warnings=0`; no dedicated lint script exists for `api-server`).
+- **Build:** production build succeeds for `api-server`, `hrms`, `mockup-sandbox`.
+- **OpenAPI/codegen:** zero unexpected diff, verified across two consecutive `codegen` runs after every workstream.
+- **Migration drift:** zero, confirmed after every generation.
+
+---
+
+# Files Intentionally Left Untouched
+
+- **`artifacts/hrms/src/pages/login.tsx`** — modified before this session began (pre-existing, unrelated work). Every workstream this session explicitly confirmed this file remained untouched before staging/committing. **Do not commit or stage this file** unless the user asks for it directly.
+- Untracked pre-existing items never touched or staged by any Recruitment commit: `.agents/skills/`, `.claude/`, `.mcp.json`, `CLAUDE.md`, `CONTRIBUTING.md`, `HRMS-Projects/`, `artifacts/api-server/uploads/`, `docs/.claude/`, `docs/architecture/`, `skills-lock.json`. Leave these alone unless separately instructed.
+
+---
+
+# Next Workstream
+
+**W57 — Offers** (`docs/PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md` §23, line 561).
+
+- **Objective:** Offer drafting, versioning, and approval.
+- **Dependencies:** W51 (Application Pipeline — complete), and reuses W47's (Requisition Approval Workflow's) approval-chain shape. **W57 is unblocked.**
+- **Scope:** three new tables — `offers`, `offer_versions`, `offer_approvals`.
+- **Database impact:** three new tables.
+- **API impact:** per §10 — read the exact route list there before assuming shape; this session's every workstream found the compact §23 line under-specifies the actual route surface at least once.
+- **Frontend impact:** `/offers`, `/offers/:id`.
+- **Verification:** versioning-never-overwrites tests, single-active-offer enforcement (per org policy).
+
+## Important architecture rules for W57
+
+- §14 (Offers — Versioning and Approval) already describes the model in prose: an `offers` row is a stable envelope; `offer_versions` holds the actual content, one immutable row per revision. Editing a `draft` version updates that row in place; editing an `approved`/`issued` version creates a **new** version row and marks the prior one `superseded` — never overwritten. `offers.currentVersionId` always points at the latest non-superseded version. Read §14 in full before designing the schema.
+- Whether multiple *active* (non-superseded, non-terminal) offers may exist per application simultaneously is an **org policy flag** (§9/§17) — default is **one active offer per application**, enforced by a partial unique index per §9's own table note. Check the exact frozen field name for this policy flag on `recruitment_settings` before assuming one exists — W44's actual settings schema has already diverged from §9's prose once this phase (documented in `PROJECT_STATUS.md`'s W44 entry and `lib/db/src/schema/recruitment-settings.ts`'s own header comment).
+- §7's permission matrix row: `offer.read`/`.manage`/`.approve`/`.issue`/`.withdraw` — Own: none, Assigned: `.manage` (draft only), Org-wide: `.approve`/`.issue`/`.withdraw`. This is a genuinely different shape from every prior workstream's permission rollout (an assigned recruiter/hiring manager CAN write, just only to a draft) — do not default to the "every write stays admin-only" pattern from W51–W56 without checking this row's actual text first.
+- Reuse W46's (`requisitionApprovals.ts`) approval-chain shape where the frozen plan says to — do not reinvent a second approval-workflow pattern.
+
+## Things that must NOT be implemented in W57
+
+- Employee conversion (a later workstream).
+- Any real compensation-negotiation workflow beyond what the frozen `offer_versions` field list actually defines.
+- Any external e-signature or document-generation integration (documented boundary only, per §15, unless the frozen W57 section explicitly says otherwise — read it first).
+- Candidate-facing offer acceptance/decline UI unless W57's own frontend-impact line calls for it (it currently only names `/offers`, `/offers/:id` — both internal-staff routes).
+- Anything from W50 (still deferred) or W39 (Phase 2B, still open, unrelated).
+
+## Expected deliverables
+
+Schema (`offers`, `offer_versions`, `offer_approvals`) → migration (`0032`, hand-authored `.down.sql`, zero drift) → service lib(s) → permissions → routes → OpenAPI (zero-diff x2) → frontend (`/offers`, `/offers/:id`) → focused backend + frontend tests → full verification → security review → `PROJECT_STATUS.md` update → diff review → stage only W57 files → commit (`feat(recruitment): add offers` or as instructed) → push.
+
+---
+
+# Startup Instructions
+
+The exact instructions the next Claude Code session should follow, in order:
+
+1. Read `CLAUDE.md`.
+2. Read `PROJECT_STATUS.md` (top summary + "Current Phase" + the W56 entry in "Phase 3A Progress" at minimum, for the most recent precedents).
+3. Read `docs/CLAUDE_HANDOFF.md` (this file) in full.
+4. Read only the exact W57 section of `docs/PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md` — §23's compact entry, §14 (Offers — Versioning and Approval) in full, the relevant §7 permission-matrix row, the relevant §9 database-table-plan rows, and the §10 API-plan lines for offers.
+5. Do not scan the repository. Do not inspect unrelated HR modules.
+6. Implement only W57 — Offers. Do not begin W58.
+7. Preserve all existing architecture decisions listed above — do not redesign W44–W56's own files beyond what W57 genuinely requires (e.g. reusing an existing visibility resolver or permission is expected; refactoring one is not).
+8. Do not modify W50 (still deferred) or close the outstanding W39 (Phase 2B) scope.
+9. Follow the same overall workflow every prior workstream this session used: inspect focused dependencies → reconcile exact frozen scope → implement → focused tests → full verification → security review → documentation → review full diff → stage only this workstream's files → commit → push → stop.
+
+---
+
+# Git State
+
+- **Working tree state:** clean except `artifacts/hrms/src/pages/login.tsx` (pre-existing, unrelated, intentionally left modified-but-uncommitted) and the pre-existing untracked items listed above.
+- **Latest pushed commit:** `07281fe` — `feat(recruitment): add reference and background checks` — confirmed in sync with `origin/main` (no ahead/behind).
+- **Branch:** `main`.
+- **Unrelated files intentionally untouched:** `artifacts/hrms/src/pages/login.tsx`, `.agents/skills/`, `.claude/`, `.mcp.json`, `CLAUDE.md`, `CONTRIBUTING.md`, `HRMS-Projects/`, `artifacts/api-server/uploads/`, `docs/.claude/`, `docs/architecture/`, `skills-lock.json`.
+
+---
+
+# Notes for Tomorrow
+
+- **Migration generation requires a dummy `DATABASE_URL`** to run offline: `DATABASE_URL="postgres://user:password@localhost:5432/hrms" pnpm --filter @workspace/db run generate`. Next migration number is `0032` — confirm against `lib/db/drizzle/meta/_journal.json` before generating, don't assume.
+- **Test harness pattern:** every backend test file this phase uses the same hand-rolled `vi.mock("@workspace/db", ...)` + `vi.mock("drizzle-orm", ...)` in-memory table/query-builder mock. Copy the newest, most relevant one as a starting template — `referenceChecks.test.ts` if W57 needs the full application-visibility chain (`resolveApplicationVisibilityContext`/`getVisibleApplicationById`), `backgroundChecks.test.ts` if a flat dedicated-permission model (no assigned tier) is closer to what's needed. If file uploads are involved, mock `../lib/fileStorage` directly (see `backgroundChecks.test.ts`) rather than writing to real disk.
+- **`wouter`'s `useParams()` only populates inside a matching `<Route>`** — frontend tests must wrap the page under test in `<Route path="...">{() => <Page/>}</Route>`.
+- **React lint gotcha:** this codebase's eslint config enforces `react-hooks/set-state-in-effect` — don't initialize form state from fetched data via `useEffect` + a manual "initialized" flag; instead extract a subcomponent that lazily initializes local state directly from props at mount time (see `interview-scorecard.tsx`'s `MyEvaluationCard` for the pattern).
+- **DTO-leak discipline:** whenever a table has a column that shouldn't reach the client (a reserved/future-use column, an internal storage key, a raw token), explicitly omit it in the service layer before returning — never rely on the OpenAPI schema alone to "hide" a field the route handler still spreads from the raw DB row. Two real instances of this bug were caught and fixed this session (W55, W56); check for it proactively in W57 if `offers`/`offer_versions` end up with any internal-only field.
+- **Avoid `format: email`** in OpenAPI string schemas — breaks codegen against this repo's pinned Zod version. Use plain `type: string`.
+- **Permission design checklist for any new resource:** (1) does §7's matrix give it its own dedicated permission, or does it reuse an existing one? (2) does the matrix show an "Assigned" tier, and if so, is it realized as visibility-narrowing-only (the W51–W56 default) or does it actually grant broader write access (W57's `offer.manage` may be the first exception — check before assuming)? (3) is "org-wide" reach signaled by the resource's own `.manage`/equivalent permission, never a separate key?
+- **`recruitment_settings` has diverged from the frozen plan's §9 field list** — always check the actual schema file (`lib/db/src/schema/recruitment-settings.ts`) rather than trusting §9's prose when a workstream (like W57's org-policy offer-count flag) depends on a settings field.
