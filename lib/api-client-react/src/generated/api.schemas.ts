@@ -1804,6 +1804,111 @@ export interface InterviewScorecardListResponse {
 }
 
 /**
+ * Shared status model (§4.7) for both reference and background checks. No "cancelled"/"expired" state exists — a check that can't be completed is recorded as unable_to_complete.
+ */
+export type ReferenceBackgroundCheckStatus = typeof ReferenceBackgroundCheckStatus[keyof typeof ReferenceBackgroundCheckStatus];
+
+
+export const ReferenceBackgroundCheckStatus = {
+  requested: 'requested',
+  in_progress: 'in_progress',
+  completed: 'completed',
+  flagged: 'flagged',
+  unable_to_complete: 'unable_to_complete',
+} as const;
+
+/**
+ * Referee contact + outcome, status-tracked, no vendor integration. Column list is exactly §9's `reference_checks` row. No dedicated reference-check permission exists — visibility/write reuse the application's own read/manage pair.
+ */
+export interface ReferenceCheck {
+  id: number;
+  organizationId: number;
+  applicationId: number;
+  refereeName: string;
+  refereeContact: string;
+  /** @nullable */
+  refereeRelationship: string | null;
+  status: ReferenceBackgroundCheckStatus;
+  /** @nullable */
+  notes: string | null;
+  /** @nullable */
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateReferenceCheckInput {
+  /** @minLength 1 */
+  refereeName: string;
+  /** @minLength 1 */
+  refereeContact: string;
+  /** @nullable */
+  refereeRelationship?: string | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export type UpdateReferenceCheckStatusInputStatus = typeof UpdateReferenceCheckStatusInputStatus[keyof typeof UpdateReferenceCheckStatusInputStatus];
+
+
+export const UpdateReferenceCheckStatusInputStatus = {
+  in_progress: 'in_progress',
+  completed: 'completed',
+  flagged: 'flagged',
+  unable_to_complete: 'unable_to_complete',
+} as const;
+
+export interface UpdateReferenceCheckStatusInput {
+  status: UpdateReferenceCheckStatusInputStatus;
+  /** @nullable */
+  notes?: string | null;
+}
+
+/**
+ * Background check tracking, status-tracked, no vendor integration — vendorReference is a plain, manually-entered string, never a real provider API call. Column list is exactly §9's `background_checks` row, minus the raw documentStorageKey (never exposed — hasEvidence signals its presence instead). Gated by its own dedicated background_check.read/.manage pair, organization-wide only.
+ */
+export interface BackgroundCheck {
+  id: number;
+  organizationId: number;
+  applicationId: number;
+  /** Free text — no organization-configurable criteria/type table exists in this frozen scope. */
+  checkType: string;
+  status: ReferenceBackgroundCheckStatus;
+  /** @nullable */
+  vendorReference: string | null;
+  /** @nullable */
+  resultSummary: string | null;
+  hasEvidence: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateBackgroundCheckInput {
+  /** @minLength 1 */
+  checkType: string;
+  /** @nullable */
+  vendorReference?: string | null;
+}
+
+export type UpdateBackgroundCheckStatusInputStatus = typeof UpdateBackgroundCheckStatusInputStatus[keyof typeof UpdateBackgroundCheckStatusInputStatus];
+
+
+export const UpdateBackgroundCheckStatusInputStatus = {
+  in_progress: 'in_progress',
+  completed: 'completed',
+  flagged: 'flagged',
+  unable_to_complete: 'unable_to_complete',
+} as const;
+
+export interface UpdateBackgroundCheckStatusInput {
+  status: UpdateBackgroundCheckStatusInputStatus;
+  /** @nullable */
+  resultSummary?: string | null;
+  /** @nullable */
+  vendorReference?: string | null;
+}
+
+/**
  * Deliberately narrow — only what a careers page header needs. Never the internal Organization DTO (no status, no type, no internal id).
  */
 export interface PublicOrganization {
@@ -3415,6 +3520,10 @@ export const ListInterviewsStatus = {
   cancelled: 'cancelled',
   no_show: 'no_show',
 } as const;
+
+export type AttachBackgroundCheckEvidenceBody = {
+  file: Blob;
+};
 
 export type ListPublicVacanciesParams = {
 search?: string;

@@ -178,6 +178,21 @@ const PERMISSIONS = [
   { key: "scorecard.submit", resource: "scorecard", action: "submit" },
   { key: "scorecard.read_all", resource: "scorecard", action: "read_all" },
   { key: "scorecard.finalize", resource: "scorecard", action: "finalize" },
+  // Phase 3A, W56 — Reference & Background Checks. No dedicated
+  // `reference_check.*` permission exists in §7's matrix at all — reference
+  // checks reuse the existing `application.read`/`.manage` pair (assigned
+  // recruiter/hiring manager + organization-wide), the same tier as viewing/
+  // scoring the application itself (W52's own precedent for `application.manage`
+  // gating an assessment action on an application). `background_check.read`/
+  // `.manage` ARE their own dedicated pair — §7 marks this row org-wide only,
+  // no assigned tier at all (explicitly "the narrowest permission in the
+  // matrix" per §23's own verification line), so both are org_admin/
+  // hr_manager only, same rollout as talent_pool.read/.manage — holding
+  // application.read/.manage (or even candidate.read) never implies
+  // background-check access, since result content is explicitly flagged
+  // "highly sensitive" in §9, unlike reference checks' "referee PII".
+  { key: "background_check.read", resource: "background_check", action: "read" },
+  { key: "background_check.manage", resource: "background_check", action: "manage" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -235,6 +250,8 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "scorecard.submit",
     "scorecard.read_all",
     "scorecard.finalize",
+    "background_check.read",
+    "background_check.manage",
   ],
   hr_manager: [
     "organization.read",
@@ -282,6 +299,8 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "scorecard.submit",
     "scorecard.read_all",
     "scorecard.finalize",
+    "background_check.read",
+    "background_check.manage",
   ],
   employee: [
     "organization.read",

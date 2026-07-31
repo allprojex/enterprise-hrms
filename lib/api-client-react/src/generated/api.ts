@@ -37,8 +37,10 @@ import type {
   ApplyToPublicVacancyBody,
   ApproveJobRequisitionInput,
   AssignRoleInput,
+  AttachBackgroundCheckEvidenceBody,
   AuditEventListResponse,
   AuthSession,
+  BackgroundCheck,
   Branch,
   CancelJobRequisitionInput,
   Candidate,
@@ -47,6 +49,7 @@ import type {
   CandidateTag,
   ConfirmEmployeeInput,
   CopyRoleTemplateInput,
+  CreateBackgroundCheckInput,
   CreateBranchInput,
   CreateCandidateNoteInput,
   CreateDepartmentInput,
@@ -62,6 +65,7 @@ import type {
   CreatePublicHolidayInput,
   CreateRecruitmentStageInput,
   CreateRecruitmentWorkflowInput,
+  CreateReferenceCheckInput,
   CreateTalentPoolInput,
   CreateVacancyInput,
   DashboardSummary,
@@ -130,6 +134,7 @@ import type {
   RecruitmentSettings,
   RecruitmentStage,
   RecruitmentWorkflow,
+  ReferenceCheck,
   RejectApplicationInput,
   RejectJobRequisitionInput,
   RejectLeaveRequestInput,
@@ -151,6 +156,7 @@ import type {
   TalentPool,
   TalentPoolMember,
   TransferEmployeeInput,
+  UpdateBackgroundCheckStatusInput,
   UpdateBranchInput,
   UpdateDepartmentInput,
   UpdateEmployeeCertificationInput,
@@ -170,6 +176,7 @@ import type {
   UpdateRecruitmentSettingsInput,
   UpdateRecruitmentStageInput,
   UpdateRecruitmentWorkflowInput,
+  UpdateReferenceCheckStatusInput,
   UpdateTalentPoolInput,
   UpdateVacancyInput,
   UploadEmployeeDocumentBody,
@@ -9908,6 +9915,643 @@ export const useFinalizeInterviewScorecard = <TError = ErrorType<ApiError>,
       > => {
       return useMutation(getFinalizeInterviewScorecardMutationOptions(options));
     }
+
+export const getListReferenceChecksUrl = (organizationId: number,
+    applicationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/applications/${applicationId}/reference-checks`
+}
+
+/**
+ * No dedicated reference-check permission exists — visibility reuses the application's own (assigned recruiter/hiring manager + organization-wide via application.read). Returns 404 both when the application doesn't exist and when it exists but isn't visible to this caller.
+ * @summary List reference checks for an application
+ */
+export const listReferenceChecks = async (organizationId: number,
+    applicationId: number, options?: RequestInit): Promise<ReferenceCheck[]> => {
+
+  return customFetch<ReferenceCheck[]>(getListReferenceChecksUrl(organizationId,applicationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListReferenceChecksQueryKey = (organizationId: number,
+    applicationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/applications/${applicationId}/reference-checks`
+    ] as const;
+    }
+
+
+export const getListReferenceChecksQueryOptions = <TData = Awaited<ReturnType<typeof listReferenceChecks>>, TError = ErrorType<ApiError>>(organizationId: number,
+    applicationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listReferenceChecks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListReferenceChecksQueryKey(organizationId,applicationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listReferenceChecks>>> = ({ signal }) => listReferenceChecks(organizationId,applicationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && applicationId !== null && applicationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listReferenceChecks>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListReferenceChecksQueryResult = NonNullable<Awaited<ReturnType<typeof listReferenceChecks>>>
+export type ListReferenceChecksQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List reference checks for an application
+ */
+
+export function useListReferenceChecks<TData = Awaited<ReturnType<typeof listReferenceChecks>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    applicationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listReferenceChecks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListReferenceChecksQueryOptions(organizationId,applicationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateReferenceCheckUrl = (organizationId: number,
+    applicationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/applications/${applicationId}/reference-checks`
+}
+
+/**
+ * Created at status "requested". Rejected (400) if an active (requested/in_progress) reference check already exists for the same refereeContact on this application.
+ * @summary Request a reference check for an application
+ */
+export const createReferenceCheck = async (organizationId: number,
+    applicationId: number,
+    createReferenceCheckInput: CreateReferenceCheckInput, options?: RequestInit): Promise<ReferenceCheck> => {
+
+  return customFetch<ReferenceCheck>(getCreateReferenceCheckUrl(organizationId,applicationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createReferenceCheckInput)
+  }
+);}
+
+
+
+
+
+export const getCreateReferenceCheckMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createReferenceCheck>>, TError,{organizationId: number;applicationId: number;data: BodyType<CreateReferenceCheckInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createReferenceCheck>>, TError,{organizationId: number;applicationId: number;data: BodyType<CreateReferenceCheckInput>}, TContext> => {
+
+const mutationKey = ['createReferenceCheck'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createReferenceCheck>>, {organizationId: number;applicationId: number;data: BodyType<CreateReferenceCheckInput>}> = (props) => {
+          const {organizationId,applicationId,data} = props ?? {};
+
+          return  createReferenceCheck(organizationId,applicationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateReferenceCheckMutationResult = NonNullable<Awaited<ReturnType<typeof createReferenceCheck>>>
+    export type CreateReferenceCheckMutationBody = BodyType<CreateReferenceCheckInput>
+    export type CreateReferenceCheckMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Request a reference check for an application
+ */
+export const useCreateReferenceCheck = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createReferenceCheck>>, TError,{organizationId: number;applicationId: number;data: BodyType<CreateReferenceCheckInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createReferenceCheck>>,
+        TError,
+        {organizationId: number;applicationId: number;data: BodyType<CreateReferenceCheckInput>},
+        TContext
+      > => {
+      return useMutation(getCreateReferenceCheckMutationOptions(options));
+    }
+
+export const getUpdateReferenceCheckStatusUrl = (organizationId: number,
+    applicationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/applications/${applicationId}/reference-checks/${id}`
+}
+
+/**
+ * Valid target statuses are in_progress, completed, flagged, or unable_to_complete (never back to requested). Sets completedAt when moving to a terminal status. A completed/flagged/unable_to_complete reference check is immutable — no further update is accepted.
+ * @summary Record a reference check's status/outcome
+ */
+export const updateReferenceCheckStatus = async (organizationId: number,
+    applicationId: number,
+    id: number,
+    updateReferenceCheckStatusInput: UpdateReferenceCheckStatusInput, options?: RequestInit): Promise<ReferenceCheck> => {
+
+  return customFetch<ReferenceCheck>(getUpdateReferenceCheckStatusUrl(organizationId,applicationId,id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateReferenceCheckStatusInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateReferenceCheckStatusMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateReferenceCheckStatus>>, TError,{organizationId: number;applicationId: number;id: number;data: BodyType<UpdateReferenceCheckStatusInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateReferenceCheckStatus>>, TError,{organizationId: number;applicationId: number;id: number;data: BodyType<UpdateReferenceCheckStatusInput>}, TContext> => {
+
+const mutationKey = ['updateReferenceCheckStatus'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateReferenceCheckStatus>>, {organizationId: number;applicationId: number;id: number;data: BodyType<UpdateReferenceCheckStatusInput>}> = (props) => {
+          const {organizationId,applicationId,id,data} = props ?? {};
+
+          return  updateReferenceCheckStatus(organizationId,applicationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateReferenceCheckStatusMutationResult = NonNullable<Awaited<ReturnType<typeof updateReferenceCheckStatus>>>
+    export type UpdateReferenceCheckStatusMutationBody = BodyType<UpdateReferenceCheckStatusInput>
+    export type UpdateReferenceCheckStatusMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Record a reference check's status/outcome
+ */
+export const useUpdateReferenceCheckStatus = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateReferenceCheckStatus>>, TError,{organizationId: number;applicationId: number;id: number;data: BodyType<UpdateReferenceCheckStatusInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateReferenceCheckStatus>>,
+        TError,
+        {organizationId: number;applicationId: number;id: number;data: BodyType<UpdateReferenceCheckStatusInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateReferenceCheckStatusMutationOptions(options));
+    }
+
+export const getListBackgroundChecksUrl = (organizationId: number,
+    applicationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/applications/${applicationId}/background-checks`
+}
+
+/**
+ * Gated by the dedicated background_check.read permission — organization-wide only, no assigned tier at all (§7's narrowest permission row). Holding application.read/.manage never implies access here. Never exposes the raw evidence storage key — each item carries a hasEvidence boolean instead.
+ * @summary List background checks for an application
+ */
+export const listBackgroundChecks = async (organizationId: number,
+    applicationId: number, options?: RequestInit): Promise<BackgroundCheck[]> => {
+
+  return customFetch<BackgroundCheck[]>(getListBackgroundChecksUrl(organizationId,applicationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListBackgroundChecksQueryKey = (organizationId: number,
+    applicationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/applications/${applicationId}/background-checks`
+    ] as const;
+    }
+
+
+export const getListBackgroundChecksQueryOptions = <TData = Awaited<ReturnType<typeof listBackgroundChecks>>, TError = ErrorType<ApiError>>(organizationId: number,
+    applicationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBackgroundChecks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListBackgroundChecksQueryKey(organizationId,applicationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listBackgroundChecks>>> = ({ signal }) => listBackgroundChecks(organizationId,applicationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && applicationId !== null && applicationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listBackgroundChecks>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListBackgroundChecksQueryResult = NonNullable<Awaited<ReturnType<typeof listBackgroundChecks>>>
+export type ListBackgroundChecksQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List background checks for an application
+ */
+
+export function useListBackgroundChecks<TData = Awaited<ReturnType<typeof listBackgroundChecks>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    applicationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBackgroundChecks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListBackgroundChecksQueryOptions(organizationId,applicationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateBackgroundCheckUrl = (organizationId: number,
+    applicationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/applications/${applicationId}/background-checks`
+}
+
+/**
+ * Created at status "requested". checkType is free text (no Master Data domain exists in this frozen scope). Rejected (400) if an active (requested/in_progress) background check of the same checkType already exists for this application.
+ * @summary Request a background check for an application
+ */
+export const createBackgroundCheck = async (organizationId: number,
+    applicationId: number,
+    createBackgroundCheckInput: CreateBackgroundCheckInput, options?: RequestInit): Promise<BackgroundCheck> => {
+
+  return customFetch<BackgroundCheck>(getCreateBackgroundCheckUrl(organizationId,applicationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createBackgroundCheckInput)
+  }
+);}
+
+
+
+
+
+export const getCreateBackgroundCheckMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBackgroundCheck>>, TError,{organizationId: number;applicationId: number;data: BodyType<CreateBackgroundCheckInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createBackgroundCheck>>, TError,{organizationId: number;applicationId: number;data: BodyType<CreateBackgroundCheckInput>}, TContext> => {
+
+const mutationKey = ['createBackgroundCheck'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createBackgroundCheck>>, {organizationId: number;applicationId: number;data: BodyType<CreateBackgroundCheckInput>}> = (props) => {
+          const {organizationId,applicationId,data} = props ?? {};
+
+          return  createBackgroundCheck(organizationId,applicationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateBackgroundCheckMutationResult = NonNullable<Awaited<ReturnType<typeof createBackgroundCheck>>>
+    export type CreateBackgroundCheckMutationBody = BodyType<CreateBackgroundCheckInput>
+    export type CreateBackgroundCheckMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Request a background check for an application
+ */
+export const useCreateBackgroundCheck = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBackgroundCheck>>, TError,{organizationId: number;applicationId: number;data: BodyType<CreateBackgroundCheckInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createBackgroundCheck>>,
+        TError,
+        {organizationId: number;applicationId: number;data: BodyType<CreateBackgroundCheckInput>},
+        TContext
+      > => {
+      return useMutation(getCreateBackgroundCheckMutationOptions(options));
+    }
+
+export const getUpdateBackgroundCheckStatusUrl = (organizationId: number,
+    applicationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/applications/${applicationId}/background-checks/${id}`
+}
+
+/**
+ * Valid target statuses are in_progress, completed, flagged, or unable_to_complete (never back to requested). A completed/flagged/ unable_to_complete background check is immutable — no further update is accepted, and no automatic rejection, stage move, offer, or hiring action is ever triggered by a result.
+ * @summary Record a background check's status/result
+ */
+export const updateBackgroundCheckStatus = async (organizationId: number,
+    applicationId: number,
+    id: number,
+    updateBackgroundCheckStatusInput: UpdateBackgroundCheckStatusInput, options?: RequestInit): Promise<BackgroundCheck> => {
+
+  return customFetch<BackgroundCheck>(getUpdateBackgroundCheckStatusUrl(organizationId,applicationId,id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateBackgroundCheckStatusInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateBackgroundCheckStatusMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateBackgroundCheckStatus>>, TError,{organizationId: number;applicationId: number;id: number;data: BodyType<UpdateBackgroundCheckStatusInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateBackgroundCheckStatus>>, TError,{organizationId: number;applicationId: number;id: number;data: BodyType<UpdateBackgroundCheckStatusInput>}, TContext> => {
+
+const mutationKey = ['updateBackgroundCheckStatus'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateBackgroundCheckStatus>>, {organizationId: number;applicationId: number;id: number;data: BodyType<UpdateBackgroundCheckStatusInput>}> = (props) => {
+          const {organizationId,applicationId,id,data} = props ?? {};
+
+          return  updateBackgroundCheckStatus(organizationId,applicationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateBackgroundCheckStatusMutationResult = NonNullable<Awaited<ReturnType<typeof updateBackgroundCheckStatus>>>
+    export type UpdateBackgroundCheckStatusMutationBody = BodyType<UpdateBackgroundCheckStatusInput>
+    export type UpdateBackgroundCheckStatusMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Record a background check's status/result
+ */
+export const useUpdateBackgroundCheckStatus = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateBackgroundCheckStatus>>, TError,{organizationId: number;applicationId: number;id: number;data: BodyType<UpdateBackgroundCheckStatusInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateBackgroundCheckStatus>>,
+        TError,
+        {organizationId: number;applicationId: number;id: number;data: BodyType<UpdateBackgroundCheckStatusInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateBackgroundCheckStatusMutationOptions(options));
+    }
+
+export const getAttachBackgroundCheckEvidenceUrl = (organizationId: number,
+    applicationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/applications/${applicationId}/background-checks/${id}/evidence`
+}
+
+/**
+ * multipart/form-data upload, validated by file signature (not just Content-Type), 10MB max, same allowed types as every other document upload in this codebase. Replaces any prior evidence file for this check (the old file is deleted). Rejected once the check is terminal (completed/flagged/unable_to_complete) — no silent overwrite of finalized evidence.
+ * @summary Attach (or replace) evidence for a background check
+ */
+export const attachBackgroundCheckEvidence = async (organizationId: number,
+    applicationId: number,
+    id: number,
+    attachBackgroundCheckEvidenceBody: AttachBackgroundCheckEvidenceBody, options?: RequestInit): Promise<BackgroundCheck> => {
+    const formData = new FormData();
+formData.append(`file`, attachBackgroundCheckEvidenceBody.file);
+
+  return customFetch<BackgroundCheck>(getAttachBackgroundCheckEvidenceUrl(organizationId,applicationId,id),
+  {
+    ...options,
+    method: 'POST'
+    ,
+    body: formData
+  }
+);}
+
+
+
+
+
+export const getAttachBackgroundCheckEvidenceMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof attachBackgroundCheckEvidence>>, TError,{organizationId: number;applicationId: number;id: number;data: BodyType<AttachBackgroundCheckEvidenceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof attachBackgroundCheckEvidence>>, TError,{organizationId: number;applicationId: number;id: number;data: BodyType<AttachBackgroundCheckEvidenceBody>}, TContext> => {
+
+const mutationKey = ['attachBackgroundCheckEvidence'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof attachBackgroundCheckEvidence>>, {organizationId: number;applicationId: number;id: number;data: BodyType<AttachBackgroundCheckEvidenceBody>}> = (props) => {
+          const {organizationId,applicationId,id,data} = props ?? {};
+
+          return  attachBackgroundCheckEvidence(organizationId,applicationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AttachBackgroundCheckEvidenceMutationResult = NonNullable<Awaited<ReturnType<typeof attachBackgroundCheckEvidence>>>
+    export type AttachBackgroundCheckEvidenceMutationBody = BodyType<AttachBackgroundCheckEvidenceBody>
+    export type AttachBackgroundCheckEvidenceMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Attach (or replace) evidence for a background check
+ */
+export const useAttachBackgroundCheckEvidence = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof attachBackgroundCheckEvidence>>, TError,{organizationId: number;applicationId: number;id: number;data: BodyType<AttachBackgroundCheckEvidenceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof attachBackgroundCheckEvidence>>,
+        TError,
+        {organizationId: number;applicationId: number;id: number;data: BodyType<AttachBackgroundCheckEvidenceBody>},
+        TContext
+      > => {
+      return useMutation(getAttachBackgroundCheckEvidenceMutationOptions(options));
+    }
+
+export const getGetBackgroundCheckEvidenceUrl = (organizationId: number,
+    applicationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/applications/${applicationId}/background-checks/${id}/evidence`
+}
+
+/**
+ * Signed, authenticated access only — never a public URL. Gated by background_check.read, same as the rest of this resource.
+ * @summary Retrieve a background check's evidence file
+ */
+export const getBackgroundCheckEvidence = async (organizationId: number,
+    applicationId: number,
+    id: number, options?: RequestInit): Promise<Blob> => {
+
+  return customFetch<Blob>(getGetBackgroundCheckEvidenceUrl(organizationId,applicationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetBackgroundCheckEvidenceQueryKey = (organizationId: number,
+    applicationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/applications/${applicationId}/background-checks/${id}/evidence`
+    ] as const;
+    }
+
+
+export const getGetBackgroundCheckEvidenceQueryOptions = <TData = Awaited<ReturnType<typeof getBackgroundCheckEvidence>>, TError = ErrorType<ApiError>>(organizationId: number,
+    applicationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBackgroundCheckEvidence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetBackgroundCheckEvidenceQueryKey(organizationId,applicationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBackgroundCheckEvidence>>> = ({ signal }) => getBackgroundCheckEvidence(organizationId,applicationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && applicationId !== null && applicationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBackgroundCheckEvidence>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetBackgroundCheckEvidenceQueryResult = NonNullable<Awaited<ReturnType<typeof getBackgroundCheckEvidence>>>
+export type GetBackgroundCheckEvidenceQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Retrieve a background check's evidence file
+ */
+
+export function useGetBackgroundCheckEvidence<TData = Awaited<ReturnType<typeof getBackgroundCheckEvidence>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    applicationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBackgroundCheckEvidence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetBackgroundCheckEvidenceQueryOptions(organizationId,applicationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetPublicCareersOrganizationUrl = (orgSlug: string,) => {
 

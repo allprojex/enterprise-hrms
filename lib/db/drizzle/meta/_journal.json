@@ -218,6 +218,13 @@
       "when": 1785510839873,
       "tag": "0030_wide_doctor_octopus",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1785519736845,
+      "tag": "0031_premium_wolfsbane",
+      "breakpoints": true
     }
   ]
 }

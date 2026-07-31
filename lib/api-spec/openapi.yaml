@@ -58,6 +58,10 @@ tags:
     description: Interview scheduling and panel composition operations (W54) — scheduling only, never evaluation (scores/recommendations/hiring decisions are W55's interview_scorecards)
   - name: interview-scorecards
     description: Independent, lockable interview evaluation operations (W55) — one scorecard per panel member per interview, never redesigning W54 scheduling or mixing with W52's screening scores
+  - name: reference-checks
+    description: Referee contact and outcome tracking operations (W56) — status-tracked, no vendor integration
+  - name: background-checks
+    description: Background check tracking operations (W56) — status-tracked, no vendor/government integration; its own dedicated, organization-wide-only permission pair since result content is highly sensitive
 
 paths:
   /healthz:
@@ -4619,6 +4623,372 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/applications/{applicationId}/reference-checks:
+    get:
+      operationId: listReferenceChecks
+      tags: [reference-checks]
+      summary: List reference checks for an application
+      description: >-
+        No dedicated reference-check permission exists — visibility reuses
+        the application's own (assigned recruiter/hiring manager +
+        organization-wide via application.read). Returns 404 both when the
+        application doesn't exist and when it exists but isn't visible to
+        this caller.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Reference checks for this application
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReferenceCheck"
+        "404":
+          description: Application not found (or not visible to this caller)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createReferenceCheck
+      tags: [reference-checks]
+      summary: Request a reference check for an application
+      description: >-
+        Created at status "requested". Rejected (400) if an active
+        (requested/in_progress) reference check already exists for the same
+        refereeContact on this application.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReferenceCheckInput"
+      responses:
+        "201":
+          description: Reference check requested
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReferenceCheck"
+        "400":
+          description: Invalid fields, or a duplicate active reference check for this referee already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Application not found (or not visible to this caller)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/applications/{applicationId}/reference-checks/{id}:
+    patch:
+      operationId: updateReferenceCheckStatus
+      tags: [reference-checks]
+      summary: Record a reference check's status/outcome
+      description: >-
+        Valid target statuses are in_progress, completed, flagged, or
+        unable_to_complete (never back to requested). Sets completedAt when
+        moving to a terminal status. A completed/flagged/unable_to_complete
+        reference check is immutable — no further update is accepted.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateReferenceCheckStatusInput"
+      responses:
+        "200":
+          description: Reference check updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReferenceCheck"
+        "400":
+          description: Invalid status, or the reference check is already terminal (immutable)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Reference check not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/applications/{applicationId}/background-checks:
+    get:
+      operationId: listBackgroundChecks
+      tags: [background-checks]
+      summary: List background checks for an application
+      description: >-
+        Gated by the dedicated background_check.read permission —
+        organization-wide only, no assigned tier at all (§7's narrowest
+        permission row). Holding application.read/.manage never implies
+        access here. Never exposes the raw evidence storage key — each item
+        carries a hasEvidence boolean instead.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Background checks for this application
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BackgroundCheck"
+        "404":
+          description: Application not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createBackgroundCheck
+      tags: [background-checks]
+      summary: Request a background check for an application
+      description: >-
+        Created at status "requested". checkType is free text (no
+        Master Data domain exists in this frozen scope). Rejected (400) if
+        an active (requested/in_progress) background check of the same
+        checkType already exists for this application.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBackgroundCheckInput"
+      responses:
+        "201":
+          description: Background check requested
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BackgroundCheck"
+        "400":
+          description: Invalid fields, or a duplicate active check of this type already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Application not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/applications/{applicationId}/background-checks/{id}:
+    patch:
+      operationId: updateBackgroundCheckStatus
+      tags: [background-checks]
+      summary: Record a background check's status/result
+      description: >-
+        Valid target statuses are in_progress, completed, flagged, or
+        unable_to_complete (never back to requested). A completed/flagged/
+        unable_to_complete background check is immutable — no further
+        update is accepted, and no automatic rejection, stage move, offer,
+        or hiring action is ever triggered by a result.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBackgroundCheckStatusInput"
+      responses:
+        "200":
+          description: Background check updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BackgroundCheck"
+        "400":
+          description: Invalid status, or the background check is already terminal (immutable)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Background check not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/applications/{applicationId}/background-checks/{id}/evidence:
+    post:
+      operationId: attachBackgroundCheckEvidence
+      tags: [background-checks]
+      summary: Attach (or replace) evidence for a background check
+      description: >-
+        multipart/form-data upload, validated by file signature (not just
+        Content-Type), 10MB max, same allowed types as every other document
+        upload in this codebase. Replaces any prior evidence file for this
+        check (the old file is deleted). Rejected once the check is
+        terminal (completed/flagged/unable_to_complete) — no silent
+        overwrite of finalized evidence.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Evidence attached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BackgroundCheck"
+        "400":
+          description: Invalid file, or the background check is already terminal (immutable)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Background check not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    get:
+      operationId: getBackgroundCheckEvidence
+      tags: [background-checks]
+      summary: Retrieve a background check's evidence file
+      description: >-
+        Signed, authenticated access only — never a public URL. Gated by
+        background_check.read, same as the rest of this resource.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The evidence file
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Background check not found, or no evidence has been attached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /careers/{orgSlug}:
     get:
       operationId: getPublicCareersOrganization
@@ -9052,6 +9422,128 @@ components:
               type: integer
             recommendationCounts:
               $ref: "#/components/schemas/RecommendationCounts"
+
+    ReferenceBackgroundCheckStatus:
+      type: string
+      description: Shared status model (§4.7) for both reference and background checks. No "cancelled"/"expired" state exists — a check that can't be completed is recorded as unable_to_complete.
+      enum: [requested, in_progress, completed, flagged, unable_to_complete]
+
+    ReferenceCheck:
+      type: object
+      description: >-
+        Referee contact + outcome, status-tracked, no vendor integration.
+        Column list is exactly §9's `reference_checks` row. No dedicated
+        reference-check permission exists — visibility/write reuse the
+        application's own read/manage pair.
+      required: [id, organizationId, applicationId, refereeName, refereeContact, refereeRelationship, status, notes, completedAt, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        applicationId:
+          type: integer
+        refereeName:
+          type: string
+        refereeContact:
+          type: string
+        refereeRelationship:
+          type: ["string", "null"]
+        status:
+          $ref: "#/components/schemas/ReferenceBackgroundCheckStatus"
+        notes:
+          type: ["string", "null"]
+        completedAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateReferenceCheckInput:
+      type: object
+      required: [refereeName, refereeContact]
+      properties:
+        refereeName:
+          type: string
+          minLength: 1
+        refereeContact:
+          type: string
+          minLength: 1
+        refereeRelationship:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+
+    UpdateReferenceCheckStatusInput:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [in_progress, completed, flagged, unable_to_complete]
+        notes:
+          type: ["string", "null"]
+
+    BackgroundCheck:
+      type: object
+      description: >-
+        Background check tracking, status-tracked, no vendor integration —
+        vendorReference is a plain, manually-entered string, never a real
+        provider API call. Column list is exactly §9's `background_checks`
+        row, minus the raw documentStorageKey (never exposed — hasEvidence
+        signals its presence instead). Gated by its own dedicated
+        background_check.read/.manage pair, organization-wide only.
+      required: [id, organizationId, applicationId, checkType, status, vendorReference, resultSummary, hasEvidence, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        applicationId:
+          type: integer
+        checkType:
+          type: string
+          description: Free text — no organization-configurable criteria/type table exists in this frozen scope.
+        status:
+          $ref: "#/components/schemas/ReferenceBackgroundCheckStatus"
+        vendorReference:
+          type: ["string", "null"]
+        resultSummary:
+          type: ["string", "null"]
+        hasEvidence:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateBackgroundCheckInput:
+      type: object
+      required: [checkType]
+      properties:
+        checkType:
+          type: string
+          minLength: 1
+        vendorReference:
+          type: ["string", "null"]
+
+    UpdateBackgroundCheckStatusInput:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [in_progress, completed, flagged, unable_to_complete]
+        resultSummary:
+          type: ["string", "null"]
+        vendorReference:
+          type: ["string", "null"]
 
     PublicOrganization:
       type: object

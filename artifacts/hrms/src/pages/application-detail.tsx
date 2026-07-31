@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, Link } from 'wouter';
-import { ArrowLeft, FileText, RotateCcw, XCircle, LogOut, AlertTriangle, Star, CalendarClock, Plus } from 'lucide-react';
+import { ArrowLeft, FileText, RotateCcw, XCircle, LogOut, AlertTriangle, Star, CalendarClock, Plus, UserCheck, ShieldCheck, Download, Upload } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -32,14 +32,430 @@ import {
   useListApplicationInterviews,
   getListApplicationInterviewsQueryKey,
   useScheduleInterview,
+  useListReferenceChecks,
+  getListReferenceChecksQueryKey,
+  useCreateReferenceCheck,
+  useUpdateReferenceCheckStatus,
+  useListBackgroundChecks,
+  getListBackgroundChecksQueryKey,
+  useCreateBackgroundCheck,
+  useUpdateBackgroundCheckStatus,
+  useAttachBackgroundCheckEvidence,
+  getGetBackgroundCheckEvidenceUrl,
   type InterviewInterviewType,
+  type ReferenceBackgroundCheckStatus,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { QueryError } from '@/components/query-error';
+import { getStoredToken } from '@/lib/auth';
 
 function errorMessage(err: unknown): string | undefined {
   return err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
+}
+
+const CHECK_STATUS_VARIANT: Record<string, 'secondary' | 'outline' | 'destructive'> = {
+  requested: 'outline',
+  in_progress: 'secondary',
+  completed: 'secondary',
+  flagged: 'destructive',
+  unable_to_complete: 'destructive',
+};
+
+const TERMINAL_CHECK_STATUSES: ReferenceBackgroundCheckStatus[] = ['completed', 'flagged', 'unable_to_complete'];
+
+/** Reference checks reuse application.read/.manage — no dedicated permission, so this section is always attempted. */
+function ReferenceChecksSection({ organizationId, applicationId }: { organizationId: number; applicationId: number }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const { data: checks } = useListReferenceChecks(organizationId, applicationId, {
+    query: { queryKey: getListReferenceChecksQueryKey(organizationId, applicationId), enabled: organizationId > 0 && applicationId > 0 },
+  });
+  const createMutation = useCreateReferenceCheck();
+  const updateMutation = useUpdateReferenceCheckStatus();
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [refereeName, setRefereeName] = useState('');
+  const [refereeContact, setRefereeContact] = useState('');
+  const [refereeRelationship, setRefereeRelationship] = useState('');
+  const [notes, setNotes] = useState('');
+  const [outcomeCheckId, setOutcomeCheckId] = useState<number | null>(null);
+  const [outcomeStatus, setOutcomeStatus] = useState<string>('in_progress');
+  const [outcomeNotes, setOutcomeNotes] = useState('');
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: getListReferenceChecksQueryKey(organizationId, applicationId) });
+
+  const openCreate = () => {
+    setRefereeName('');
+    setRefereeContact('');
+    setRefereeRelationship('');
+    setNotes('');
+    setCreateOpen(true);
+  };
+
+  const handleCreate = (e: React.FormEvent) => {
+    e.preventDefault();
+    createMutation.mutate(
+      { organizationId, applicationId, data: { refereeName, refereeContact, refereeRelationship: refereeRelationship.trim() || undefined, notes: notes.trim() || undefined } },
+      {
+        onSuccess: () => { invalidate(); setCreateOpen(false); toast({ title: 'Reference check requested' }); },
+        onError: (err) => toast({ title: 'Could not request reference check', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  const openOutcome = (checkId: number) => {
+    setOutcomeCheckId(checkId);
+    setOutcomeStatus('in_progress');
+    setOutcomeNotes('');
+  };
+
+  const handleRecordOutcome = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!outcomeCheckId) return;
+    updateMutation.mutate(
+      { organizationId, applicationId, id: outcomeCheckId, data: { status: outcomeStatus as 'in_progress' | 'completed' | 'flagged' | 'unable_to_complete', notes: outcomeNotes.trim() || undefined } },
+      {
+        onSuccess: () => { invalidate(); setOutcomeCheckId(null); toast({ title: 'Reference check updated' }); },
+        onError: (err) => toast({ title: 'Could not update reference check', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle className="text-base flex items-center gap-2">
+            <UserCheck className="h-4 w-4" aria-hidden="true" />
+            Reference Checks
+          </CardTitle>
+          <CardDescription>Status-tracked — informs the decision, never makes it</CardDescription>
+        </div>
+        <Button size="sm" variant="outline" onClick={openCreate} data-testid="button-request-reference-check">
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Request Reference Check
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {!checks || checks.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No reference checks requested yet.</p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {checks.map((c) => (
+              <li key={c.id} className="py-3 space-y-1" data-testid={`row-reference-check-${c.id}`}>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-foreground">{c.refereeName} <span className="text-xs text-muted-foreground">({c.refereeContact})</span></p>
+                  <Badge variant={CHECK_STATUS_VARIANT[c.status] ?? 'outline'} className="capitalize">{c.status.replace(/_/g, ' ')}</Badge>
+                </div>
+                {c.refereeRelationship && <p className="text-xs text-muted-foreground">{c.refereeRelationship}</p>}
+                {c.notes && <p className="text-sm text-muted-foreground">{c.notes}</p>}
+                {!TERMINAL_CHECK_STATUSES.includes(c.status) && (
+                  <Button size="sm" variant="outline" onClick={() => openOutcome(c.id)} data-testid={`button-record-outcome-${c.id}`}>
+                    Record Outcome
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent>
+          <form onSubmit={handleCreate}>
+            <DialogHeader>
+              <DialogTitle>Request Reference Check</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="referee-name">Referee Name *</Label>
+                <Input id="referee-name" value={refereeName} onChange={(e) => setRefereeName(e.target.value)} required data-testid="input-referee-name" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="referee-contact">Referee Contact *</Label>
+                <Input id="referee-contact" value={refereeContact} onChange={(e) => setRefereeContact(e.target.value)} required data-testid="input-referee-contact" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="referee-relationship">Relationship (optional)</Label>
+                <Input id="referee-relationship" value={refereeRelationship} onChange={(e) => setRefereeRelationship(e.target.value)} data-testid="input-referee-relationship" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="reference-notes">Notes (optional)</Label>
+                <Input id="reference-notes" value={notes} onChange={(e) => setNotes(e.target.value)} data-testid="input-reference-notes" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={!refereeName.trim() || !refereeContact.trim() || createMutation.isPending} data-testid="button-confirm-request-reference-check">
+                {createMutation.isPending ? 'Requesting…' : 'Request'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={outcomeCheckId != null} onOpenChange={(open) => !open && setOutcomeCheckId(null)}>
+        <DialogContent>
+          <form onSubmit={handleRecordOutcome}>
+            <DialogHeader>
+              <DialogTitle>Record Outcome</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="outcome-status">Status</Label>
+                <Select value={outcomeStatus} onValueChange={setOutcomeStatus}>
+                  <SelectTrigger id="outcome-status" data-testid="select-reference-outcome-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="in_progress">In Progress</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="flagged">Flagged</SelectItem>
+                    <SelectItem value="unable_to_complete">Unable to Complete</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="outcome-notes">Notes (optional)</Label>
+                <Input id="outcome-notes" value={outcomeNotes} onChange={(e) => setOutcomeNotes(e.target.value)} data-testid="input-reference-outcome-notes" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={updateMutation.isPending} data-testid="button-confirm-reference-outcome">
+                {updateMutation.isPending ? 'Saving…' : 'Save'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+}
+
+/** background_check.read/.manage are their own dedicated, organization-wide-only permission — a caller lacking it gets a 403, and this section quietly renders nothing rather than a scary error card. */
+function BackgroundChecksSection({ organizationId, applicationId }: { organizationId: number; applicationId: number }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const { data: checks, error } = useListBackgroundChecks(organizationId, applicationId, {
+    query: { queryKey: getListBackgroundChecksQueryKey(organizationId, applicationId), enabled: organizationId > 0 && applicationId > 0, retry: false },
+  });
+  const createMutation = useCreateBackgroundCheck();
+  const updateMutation = useUpdateBackgroundCheckStatus();
+  const evidenceMutation = useAttachBackgroundCheckEvidence();
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [checkType, setCheckType] = useState('');
+  const [vendorReference, setVendorReference] = useState('');
+  const [resultCheckId, setResultCheckId] = useState<number | null>(null);
+  const [resultStatus, setResultStatus] = useState<string>('in_progress');
+  const [resultSummary, setResultSummary] = useState('');
+  const [resultVendorReference, setResultVendorReference] = useState('');
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: getListBackgroundChecksQueryKey(organizationId, applicationId) });
+
+  if (error) return null;
+
+  const openCreate = () => {
+    setCheckType('');
+    setVendorReference('');
+    setCreateOpen(true);
+  };
+
+  const handleCreate = (e: React.FormEvent) => {
+    e.preventDefault();
+    createMutation.mutate(
+      { organizationId, applicationId, data: { checkType, vendorReference: vendorReference.trim() || undefined } },
+      {
+        onSuccess: () => { invalidate(); setCreateOpen(false); toast({ title: 'Background check requested' }); },
+        onError: (err) => toast({ title: 'Could not request background check', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  const openResult = (checkId: number) => {
+    setResultCheckId(checkId);
+    setResultStatus('in_progress');
+    setResultSummary('');
+    setResultVendorReference('');
+  };
+
+  const handleRecordResult = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resultCheckId) return;
+    updateMutation.mutate(
+      {
+        organizationId,
+        applicationId,
+        id: resultCheckId,
+        data: {
+          status: resultStatus as 'in_progress' | 'completed' | 'flagged' | 'unable_to_complete',
+          resultSummary: resultSummary.trim() || undefined,
+          vendorReference: resultVendorReference.trim() || undefined,
+        },
+      },
+      {
+        onSuccess: () => { invalidate(); setResultCheckId(null); toast({ title: 'Background check updated' }); },
+        onError: (err) => toast({ title: 'Could not update background check', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  const handleUploadEvidence = (checkId: number, file: File) => {
+    evidenceMutation.mutate(
+      { organizationId, applicationId, id: checkId, data: { file } },
+      {
+        onSuccess: () => { invalidate(); toast({ title: 'Evidence attached' }); },
+        onError: (err) => toast({ title: 'Could not attach evidence', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  const handleDownloadEvidence = async (checkId: number) => {
+    const token = getStoredToken();
+    const res = await fetch(getGetBackgroundCheckEvidenceUrl(organizationId, applicationId, checkId), {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      toast({ title: 'Could not download evidence', variant: 'destructive' });
+      return;
+    }
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    a.download = 'evidence';
+    a.click();
+    URL.revokeObjectURL(objectUrl);
+  };
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle className="text-base flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+            Background Checks
+          </CardTitle>
+          <CardDescription>Result content is highly sensitive — restricted to background_check.manage</CardDescription>
+        </div>
+        <Button size="sm" variant="outline" onClick={openCreate} data-testid="button-request-background-check">
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Request Background Check
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {!checks || checks.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No background checks requested yet.</p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {checks.map((c) => (
+              <li key={c.id} className="py-3 space-y-1" data-testid={`row-background-check-${c.id}`}>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-foreground capitalize">{c.checkType}</p>
+                  <Badge variant={CHECK_STATUS_VARIANT[c.status] ?? 'outline'} className="capitalize">{c.status.replace(/_/g, ' ')}</Badge>
+                </div>
+                {c.vendorReference && <p className="text-xs text-muted-foreground">Ref: {c.vendorReference}</p>}
+                {c.resultSummary && <p className="text-sm text-muted-foreground">{c.resultSummary}</p>}
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {!TERMINAL_CHECK_STATUSES.includes(c.status) && (
+                    <>
+                      <Button size="sm" variant="outline" onClick={() => openResult(c.id)} data-testid={`button-record-result-${c.id}`}>
+                        Record Result
+                      </Button>
+                      <label className="inline-flex">
+                        <input
+                          type="file"
+                          className="hidden"
+                          data-testid={`input-evidence-file-${c.id}`}
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUploadEvidence(c.id, f); e.target.value = ''; }}
+                        />
+                        <Button size="sm" variant="outline" type="button" asChild>
+                          <span>
+                            <Upload className="h-4 w-4" aria-hidden="true" />
+                            {c.hasEvidence ? 'Replace Evidence' : 'Attach Evidence'}
+                          </span>
+                        </Button>
+                      </label>
+                    </>
+                  )}
+                  {c.hasEvidence && (
+                    <Button size="sm" variant="ghost" onClick={() => handleDownloadEvidence(c.id)} data-testid={`button-download-evidence-${c.id}`}>
+                      <Download className="h-4 w-4" aria-hidden="true" />
+                      Download Evidence
+                    </Button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent>
+          <form onSubmit={handleCreate}>
+            <DialogHeader>
+              <DialogTitle>Request Background Check</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="check-type">Check Type *</Label>
+                <Input id="check-type" value={checkType} onChange={(e) => setCheckType(e.target.value)} placeholder="e.g. Identity, Right to Work" required data-testid="input-check-type" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="create-vendor-reference">Vendor Reference (optional)</Label>
+                <Input id="create-vendor-reference" value={vendorReference} onChange={(e) => setVendorReference(e.target.value)} data-testid="input-create-vendor-reference" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={!checkType.trim() || createMutation.isPending} data-testid="button-confirm-request-background-check">
+                {createMutation.isPending ? 'Requesting…' : 'Request'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={resultCheckId != null} onOpenChange={(open) => !open && setResultCheckId(null)}>
+        <DialogContent>
+          <form onSubmit={handleRecordResult}>
+            <DialogHeader>
+              <DialogTitle>Record Result</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="result-status">Status</Label>
+                <Select value={resultStatus} onValueChange={setResultStatus}>
+                  <SelectTrigger id="result-status" data-testid="select-background-result-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="in_progress">In Progress</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="flagged">Flagged</SelectItem>
+                    <SelectItem value="unable_to_complete">Unable to Complete</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="result-summary">Result Summary (optional)</Label>
+                <Input id="result-summary" value={resultSummary} onChange={(e) => setResultSummary(e.target.value)} data-testid="input-result-summary" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="result-vendor-reference">Vendor Reference (optional)</Label>
+                <Input id="result-vendor-reference" value={resultVendorReference} onChange={(e) => setResultVendorReference(e.target.value)} data-testid="input-result-vendor-reference" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={updateMutation.isPending} data-testid="button-confirm-background-result">
+                {updateMutation.isPending ? 'Saving…' : 'Save'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
 }
 
 const CATEGORY_VARIANT: Record<string, 'secondary' | 'outline' | 'destructive'> = {
@@ -483,6 +899,9 @@ export default function ApplicationDetail() {
           )}
         </CardContent>
       </Card>
+
+      <ReferenceChecksSection organizationId={organizationId} applicationId={applicationId} />
+      <BackgroundChecksSection organizationId={organizationId} applicationId={applicationId} />
 
       <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
         <DialogContent>

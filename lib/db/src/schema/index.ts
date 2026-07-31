@@ -58,3 +58,5 @@ export * from "./interviews";
 export * from "./interview-panel-members";
 export * from "./interview-scorecards";
 export * from "./interview-scorecard-responses";
+export * from "./reference-checks";
+export * from "./background-checks";

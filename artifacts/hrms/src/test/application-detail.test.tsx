@@ -17,6 +17,9 @@ const { state } = vi.hoisted(() => ({
     isLoading: false,
     error: undefined as unknown,
     interviews: [] as unknown[],
+    referenceChecks: [] as unknown[],
+    backgroundChecks: [] as unknown[],
+    backgroundChecksError: undefined as unknown,
   },
 }));
 
@@ -42,6 +45,16 @@ vi.mock('@workspace/api-client-react', () => ({
   useListApplicationInterviews: () => ({ data: state.interviews, refetch: vi.fn() }),
   getListApplicationInterviewsQueryKey: (orgId: number, appId: number) => ['applicationInterviews', orgId, appId],
   useScheduleInterview: () => ({ mutate: vi.fn(), isPending: false }),
+  useListReferenceChecks: () => ({ data: state.referenceChecks }),
+  getListReferenceChecksQueryKey: (orgId: number, appId: number) => ['referenceChecks', orgId, appId],
+  useCreateReferenceCheck: () => ({ mutate: vi.fn(), isPending: false }),
+  useUpdateReferenceCheckStatus: () => ({ mutate: vi.fn(), isPending: false }),
+  useListBackgroundChecks: () => ({ data: state.backgroundChecks, error: state.backgroundChecksError }),
+  getListBackgroundChecksQueryKey: (orgId: number, appId: number) => ['backgroundChecks', orgId, appId],
+  useCreateBackgroundCheck: () => ({ mutate: vi.fn(), isPending: false }),
+  useUpdateBackgroundCheckStatus: () => ({ mutate: vi.fn(), isPending: false }),
+  useAttachBackgroundCheckEvidence: () => ({ mutate: vi.fn(), isPending: false }),
+  getGetBackgroundCheckEvidenceUrl: (orgId: number, appId: number, id: number) => `/api/organizations/${orgId}/applications/${appId}/background-checks/${id}/evidence`,
 }));
 
 function baseApplication(overrides: Partial<ApplicationDetailType> = {}): ApplicationDetailType {
@@ -215,5 +228,98 @@ describe('Application detail page', () => {
     renderPage();
     expect(screen.getByText(/no scores submitted yet/i)).toBeInTheDocument();
     expect(screen.queryByTestId('badge-score-rollup')).not.toBeInTheDocument();
+  });
+
+  describe('Reference Checks section', () => {
+    it('shows an empty state and a request button', () => {
+      state.application = baseApplication();
+      state.isLoading = false;
+      state.error = undefined;
+      state.referenceChecks = [];
+      renderPage();
+      expect(screen.getByText(/no reference checks requested yet/i)).toBeInTheDocument();
+      expect(screen.getByTestId('button-request-reference-check')).toBeInTheDocument();
+    });
+
+    it('renders a requested reference check with a Record Outcome action', () => {
+      state.application = baseApplication();
+      state.isLoading = false;
+      state.error = undefined;
+      state.referenceChecks = [
+        { id: 1, organizationId: 10, applicationId: 1, refereeName: 'Alex Manager', refereeContact: 'alex@example.com', refereeRelationship: 'Former Manager', status: 'requested', notes: null, completedAt: null, createdAt: '', updatedAt: '' },
+      ];
+      renderPage();
+      const row = screen.getByTestId('row-reference-check-1');
+      expect(row).toHaveTextContent('Alex Manager');
+      expect(row).toHaveTextContent('Former Manager');
+      expect(row).toHaveTextContent('requested');
+      expect(screen.getByTestId('button-record-outcome-1')).toBeInTheDocument();
+    });
+
+    it('hides Record Outcome once a reference check is terminal (completed)', () => {
+      state.application = baseApplication();
+      state.isLoading = false;
+      state.error = undefined;
+      state.referenceChecks = [
+        { id: 1, organizationId: 10, applicationId: 1, refereeName: 'Alex Manager', refereeContact: 'alex@example.com', refereeRelationship: null, status: 'completed', notes: 'Positive', completedAt: new Date().toISOString(), createdAt: '', updatedAt: '' },
+      ];
+      renderPage();
+      expect(screen.queryByTestId('button-record-outcome-1')).not.toBeInTheDocument();
+      expect(screen.getByTestId('row-reference-check-1')).toHaveTextContent('Positive');
+    });
+  });
+
+  describe('Background Checks section', () => {
+    it('shows an empty state and a request button', () => {
+      state.application = baseApplication();
+      state.isLoading = false;
+      state.error = undefined;
+      state.backgroundChecks = [];
+      state.backgroundChecksError = undefined;
+      renderPage();
+      expect(screen.getByText(/no background checks requested yet/i)).toBeInTheDocument();
+      expect(screen.getByTestId('button-request-background-check')).toBeInTheDocument();
+    });
+
+    it('renders a requested background check with Record Result and Attach Evidence actions', () => {
+      state.application = baseApplication();
+      state.isLoading = false;
+      state.error = undefined;
+      state.backgroundChecksError = undefined;
+      state.backgroundChecks = [
+        { id: 1, organizationId: 10, applicationId: 1, checkType: 'identity', status: 'requested', vendorReference: null, resultSummary: null, hasEvidence: false, createdAt: '', updatedAt: '' },
+      ];
+      renderPage();
+      const row = screen.getByTestId('row-background-check-1');
+      expect(row).toHaveTextContent('identity');
+      expect(row).toHaveTextContent('requested');
+      expect(screen.getByTestId('button-record-result-1')).toBeInTheDocument();
+      expect(screen.queryByTestId('button-download-evidence-1')).not.toBeInTheDocument();
+    });
+
+    it('shows a Download Evidence action once evidence is attached, hides upload/result actions once terminal', () => {
+      state.application = baseApplication();
+      state.isLoading = false;
+      state.error = undefined;
+      state.backgroundChecksError = undefined;
+      state.backgroundChecks = [
+        { id: 1, organizationId: 10, applicationId: 1, checkType: 'identity', status: 'completed', vendorReference: 'REF-1', resultSummary: 'Verified', hasEvidence: true, createdAt: '', updatedAt: '' },
+      ];
+      renderPage();
+      expect(screen.getByTestId('button-download-evidence-1')).toBeInTheDocument();
+      expect(screen.queryByTestId('button-record-result-1')).not.toBeInTheDocument();
+      expect(screen.getByTestId('row-background-check-1')).toHaveTextContent('Verified');
+    });
+
+    it('renders nothing when the caller lacks background_check access (403)', () => {
+      state.application = baseApplication();
+      state.isLoading = false;
+      state.error = undefined;
+      state.backgroundChecks = [];
+      state.backgroundChecksError = { error: 'Forbidden' };
+      renderPage();
+      expect(screen.queryByText(/background checks/i)).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-request-background-check')).not.toBeInTheDocument();
+    });
   });
 });

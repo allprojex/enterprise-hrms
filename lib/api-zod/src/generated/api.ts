@@ -4634,6 +4634,222 @@ export const FinalizeInterviewScorecardResponse = zod.object({
 
 
 /**
+ * No dedicated reference-check permission exists — visibility reuses the application's own (assigned recruiter/hiring manager + organization-wide via application.read). Returns 404 both when the application doesn't exist and when it exists but isn't visible to this caller.
+ * @summary List reference checks for an application
+ */
+export const ListReferenceChecksParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "applicationId": zod.coerce.number()
+})
+
+export const ListReferenceChecksResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "refereeName": zod.string(),
+  "refereeContact": zod.string(),
+  "refereeRelationship": zod.string().nullable(),
+  "status": zod.enum(['requested', 'in_progress', 'completed', 'flagged', 'unable_to_complete']).describe('Shared status model (§4.7) for both reference and background checks. No \"cancelled\"\/\"expired\" state exists — a check that can\'t be completed is recorded as unable_to_complete.'),
+  "notes": zod.string().nullable(),
+  "completedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Referee contact + outcome, status-tracked, no vendor integration. Column list is exactly §9\'s `reference_checks` row. No dedicated reference-check permission exists — visibility\/write reuse the application\'s own read\/manage pair.')
+export const ListReferenceChecksResponse = zod.array(ListReferenceChecksResponseItem)
+
+
+/**
+ * Created at status "requested". Rejected (400) if an active (requested/in_progress) reference check already exists for the same refereeContact on this application.
+ * @summary Request a reference check for an application
+ */
+export const CreateReferenceCheckParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "applicationId": zod.coerce.number()
+})
+
+
+
+
+
+export const CreateReferenceCheckBody = zod.object({
+  "refereeName": zod.string().min(1),
+  "refereeContact": zod.string().min(1),
+  "refereeRelationship": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateReferenceCheckResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "refereeName": zod.string(),
+  "refereeContact": zod.string(),
+  "refereeRelationship": zod.string().nullable(),
+  "status": zod.enum(['requested', 'in_progress', 'completed', 'flagged', 'unable_to_complete']).describe('Shared status model (§4.7) for both reference and background checks. No \"cancelled\"\/\"expired\" state exists — a check that can\'t be completed is recorded as unable_to_complete.'),
+  "notes": zod.string().nullable(),
+  "completedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Referee contact + outcome, status-tracked, no vendor integration. Column list is exactly §9\'s `reference_checks` row. No dedicated reference-check permission exists — visibility\/write reuse the application\'s own read\/manage pair.')
+
+
+/**
+ * Valid target statuses are in_progress, completed, flagged, or unable_to_complete (never back to requested). Sets completedAt when moving to a terminal status. A completed/flagged/unable_to_complete reference check is immutable — no further update is accepted.
+ * @summary Record a reference check's status/outcome
+ */
+export const UpdateReferenceCheckStatusParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "applicationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const UpdateReferenceCheckStatusBody = zod.object({
+  "status": zod.enum(['in_progress', 'completed', 'flagged', 'unable_to_complete']),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateReferenceCheckStatusResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "refereeName": zod.string(),
+  "refereeContact": zod.string(),
+  "refereeRelationship": zod.string().nullable(),
+  "status": zod.enum(['requested', 'in_progress', 'completed', 'flagged', 'unable_to_complete']).describe('Shared status model (§4.7) for both reference and background checks. No \"cancelled\"\/\"expired\" state exists — a check that can\'t be completed is recorded as unable_to_complete.'),
+  "notes": zod.string().nullable(),
+  "completedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Referee contact + outcome, status-tracked, no vendor integration. Column list is exactly §9\'s `reference_checks` row. No dedicated reference-check permission exists — visibility\/write reuse the application\'s own read\/manage pair.')
+
+
+/**
+ * Gated by the dedicated background_check.read permission — organization-wide only, no assigned tier at all (§7's narrowest permission row). Holding application.read/.manage never implies access here. Never exposes the raw evidence storage key — each item carries a hasEvidence boolean instead.
+ * @summary List background checks for an application
+ */
+export const ListBackgroundChecksParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "applicationId": zod.coerce.number()
+})
+
+export const ListBackgroundChecksResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "checkType": zod.string().describe('Free text — no organization-configurable criteria\/type table exists in this frozen scope.'),
+  "status": zod.enum(['requested', 'in_progress', 'completed', 'flagged', 'unable_to_complete']).describe('Shared status model (§4.7) for both reference and background checks. No \"cancelled\"\/\"expired\" state exists — a check that can\'t be completed is recorded as unable_to_complete.'),
+  "vendorReference": zod.string().nullable(),
+  "resultSummary": zod.string().nullable(),
+  "hasEvidence": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Background check tracking, status-tracked, no vendor integration — vendorReference is a plain, manually-entered string, never a real provider API call. Column list is exactly §9\'s `background_checks` row, minus the raw documentStorageKey (never exposed — hasEvidence signals its presence instead). Gated by its own dedicated background_check.read\/.manage pair, organization-wide only.')
+export const ListBackgroundChecksResponse = zod.array(ListBackgroundChecksResponseItem)
+
+
+/**
+ * Created at status "requested". checkType is free text (no Master Data domain exists in this frozen scope). Rejected (400) if an active (requested/in_progress) background check of the same checkType already exists for this application.
+ * @summary Request a background check for an application
+ */
+export const CreateBackgroundCheckParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "applicationId": zod.coerce.number()
+})
+
+
+
+
+export const CreateBackgroundCheckBody = zod.object({
+  "checkType": zod.string().min(1),
+  "vendorReference": zod.string().nullish()
+})
+
+export const CreateBackgroundCheckResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "checkType": zod.string().describe('Free text — no organization-configurable criteria\/type table exists in this frozen scope.'),
+  "status": zod.enum(['requested', 'in_progress', 'completed', 'flagged', 'unable_to_complete']).describe('Shared status model (§4.7) for both reference and background checks. No \"cancelled\"\/\"expired\" state exists — a check that can\'t be completed is recorded as unable_to_complete.'),
+  "vendorReference": zod.string().nullable(),
+  "resultSummary": zod.string().nullable(),
+  "hasEvidence": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Background check tracking, status-tracked, no vendor integration — vendorReference is a plain, manually-entered string, never a real provider API call. Column list is exactly §9\'s `background_checks` row, minus the raw documentStorageKey (never exposed — hasEvidence signals its presence instead). Gated by its own dedicated background_check.read\/.manage pair, organization-wide only.')
+
+
+/**
+ * Valid target statuses are in_progress, completed, flagged, or unable_to_complete (never back to requested). A completed/flagged/ unable_to_complete background check is immutable — no further update is accepted, and no automatic rejection, stage move, offer, or hiring action is ever triggered by a result.
+ * @summary Record a background check's status/result
+ */
+export const UpdateBackgroundCheckStatusParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "applicationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const UpdateBackgroundCheckStatusBody = zod.object({
+  "status": zod.enum(['in_progress', 'completed', 'flagged', 'unable_to_complete']),
+  "resultSummary": zod.string().nullish(),
+  "vendorReference": zod.string().nullish()
+})
+
+export const UpdateBackgroundCheckStatusResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "checkType": zod.string().describe('Free text — no organization-configurable criteria\/type table exists in this frozen scope.'),
+  "status": zod.enum(['requested', 'in_progress', 'completed', 'flagged', 'unable_to_complete']).describe('Shared status model (§4.7) for both reference and background checks. No \"cancelled\"\/\"expired\" state exists — a check that can\'t be completed is recorded as unable_to_complete.'),
+  "vendorReference": zod.string().nullable(),
+  "resultSummary": zod.string().nullable(),
+  "hasEvidence": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Background check tracking, status-tracked, no vendor integration — vendorReference is a plain, manually-entered string, never a real provider API call. Column list is exactly §9\'s `background_checks` row, minus the raw documentStorageKey (never exposed — hasEvidence signals its presence instead). Gated by its own dedicated background_check.read\/.manage pair, organization-wide only.')
+
+
+/**
+ * multipart/form-data upload, validated by file signature (not just Content-Type), 10MB max, same allowed types as every other document upload in this codebase. Replaces any prior evidence file for this check (the old file is deleted). Rejected once the check is terminal (completed/flagged/unable_to_complete) — no silent overwrite of finalized evidence.
+ * @summary Attach (or replace) evidence for a background check
+ */
+export const AttachBackgroundCheckEvidenceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "applicationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const AttachBackgroundCheckEvidenceBody = zod.object({
+  "file": zod.instanceof(File)
+})
+
+export const AttachBackgroundCheckEvidenceResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "checkType": zod.string().describe('Free text — no organization-configurable criteria\/type table exists in this frozen scope.'),
+  "status": zod.enum(['requested', 'in_progress', 'completed', 'flagged', 'unable_to_complete']).describe('Shared status model (§4.7) for both reference and background checks. No \"cancelled\"\/\"expired\" state exists — a check that can\'t be completed is recorded as unable_to_complete.'),
+  "vendorReference": zod.string().nullable(),
+  "resultSummary": zod.string().nullable(),
+  "hasEvidence": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Background check tracking, status-tracked, no vendor integration — vendorReference is a plain, manually-entered string, never a real provider API call. Column list is exactly §9\'s `background_checks` row, minus the raw documentStorageKey (never exposed — hasEvidence signals its presence instead). Gated by its own dedicated background_check.read\/.manage pair, organization-wide only.')
+
+
+/**
+ * Signed, authenticated access only — never a public URL. Gated by background_check.read, same as the rest of this resource.
+ * @summary Retrieve a background check's evidence file
+ */
+export const GetBackgroundCheckEvidenceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "applicationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const GetBackgroundCheckEvidenceResponse = zod.unknown()
+
+
+/**
  * No authentication. Resolves the organization by its own slug only — never a numeric ID. Returns the same 404 whether the slug doesn't exist, the organization is suspended, or its careers portal isn't enabled (recruitment_settings.enabled / externalRecruitmentEnabled) — these are never distinguished, so a probing request can never learn which condition applied.
  * @summary Public organization profile for a careers page
  */
