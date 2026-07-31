@@ -54,3 +54,5 @@ export * from "./candidate-notes";
 export * from "./candidate-tags";
 export * from "./talent-pools";
 export * from "./talent-pool-members";
+export * from "./interviews";
+export * from "./interview-panel-members";

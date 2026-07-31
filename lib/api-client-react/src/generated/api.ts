@@ -77,6 +77,8 @@ import type {
   ForgotPasswordInput,
   GrantRolePermissionInput,
   HealthStatus,
+  Interview,
+  InterviewListResponse,
   InvitationCreated,
   InvitationPreview,
   JobRequisition,
@@ -92,6 +94,7 @@ import type {
   ListAuditEventsParams,
   ListCandidatesParams,
   ListEmployeesParams,
+  ListInterviewsParams,
   ListJobRequisitionsParams,
   ListLeaveBalanceLedgerParams,
   ListLeaveCalendarParams,
@@ -137,6 +140,7 @@ import type {
   RestructurePositionInput,
   Role,
   RunReportParams,
+  ScheduleInterviewInput,
   SeparateEmployeeInput,
   SetPrimaryHrInput,
   SubmitApplicationScoreInput,
@@ -151,6 +155,7 @@ import type {
   UpdateEmployeeInput,
   UpdateEmployeeQualificationInput,
   UpdateEmployeeSkillInput,
+  UpdateInterviewInput,
   UpdateJobRequisitionInput,
   UpdateLeavePolicyInput,
   UpdateLeaveTypeInput,
@@ -9186,6 +9191,487 @@ export const useRemoveTalentPoolMember = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getRemoveTalentPoolMemberMutationOptions(options));
+    }
+
+export const getListInterviewsUrl = (organizationId: number,
+    params?: ListInterviewsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/interviews?${stringifiedParams}` : `/api/organizations/${organizationId}/interviews`
+}
+
+/**
+ * Top-level, not nested under one application — backs the frozen §11 frontend route `/interviews` ("calendar/list of scheduled interviews for the caller"). Visibility-filtered per caller: organization-wide for interview.manage holders, otherwise scoped to interviews where the caller's own membership appears on the panel (§7 — "own scheduled interviews as interviewer").
+ * @summary List interviews across applications (calendar/list view)
+ */
+export const listInterviews = async (organizationId: number,
+    params?: ListInterviewsParams, options?: RequestInit): Promise<InterviewListResponse> => {
+
+  return customFetch<InterviewListResponse>(getListInterviewsUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListInterviewsQueryKey = (organizationId: number,
+    params?: ListInterviewsParams,) => {
+    return [
+    `/api/organizations/${organizationId}/interviews`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListInterviewsQueryOptions = <TData = Awaited<ReturnType<typeof listInterviews>>, TError = ErrorType<unknown>>(organizationId: number,
+    params?: ListInterviewsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listInterviews>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListInterviewsQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listInterviews>>> = ({ signal }) => listInterviews(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listInterviews>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListInterviewsQueryResult = NonNullable<Awaited<ReturnType<typeof listInterviews>>>
+export type ListInterviewsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List interviews across applications (calendar/list view)
+ */
+
+export function useListInterviews<TData = Awaited<ReturnType<typeof listInterviews>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    params?: ListInterviewsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listInterviews>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListInterviewsQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetInterviewUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/interviews/${id}`
+}
+
+/**
+ * Returns 404 both when the interview doesn't exist and when it exists but isn't visible to this caller — never distinguishing the two.
+ * @summary Get an interview (including its panel)
+ */
+export const getInterview = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<Interview> => {
+
+  return customFetch<Interview>(getGetInterviewUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetInterviewQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/interviews/${id}`
+    ] as const;
+    }
+
+
+export const getGetInterviewQueryOptions = <TData = Awaited<ReturnType<typeof getInterview>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInterview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetInterviewQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getInterview>>> = ({ signal }) => getInterview(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getInterview>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetInterviewQueryResult = NonNullable<Awaited<ReturnType<typeof getInterview>>>
+export type GetInterviewQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get an interview (including its panel)
+ */
+
+export function useGetInterview<TData = Awaited<ReturnType<typeof getInterview>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInterview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetInterviewQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCancelInterviewUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/interviews/${id}/cancel`
+}
+
+/**
+ * Only a currently-scheduled interview can be cancelled.
+ * @summary Cancel a scheduled interview
+ */
+export const cancelInterview = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<Interview> => {
+
+  return customFetch<Interview>(getCancelInterviewUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCancelInterviewMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelInterview>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelInterview>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['cancelInterview'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelInterview>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  cancelInterview(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelInterviewMutationResult = NonNullable<Awaited<ReturnType<typeof cancelInterview>>>
+
+    export type CancelInterviewMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Cancel a scheduled interview
+ */
+export const useCancelInterview = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelInterview>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelInterview>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getCancelInterviewMutationOptions(options));
+    }
+
+export const getListApplicationInterviewsUrl = (organizationId: number,
+    applicationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/applications/${applicationId}/interviews`
+}
+
+/**
+ * @summary List interviews scheduled for one application
+ */
+export const listApplicationInterviews = async (organizationId: number,
+    applicationId: number, options?: RequestInit): Promise<Interview[]> => {
+
+  return customFetch<Interview[]>(getListApplicationInterviewsUrl(organizationId,applicationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListApplicationInterviewsQueryKey = (organizationId: number,
+    applicationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/applications/${applicationId}/interviews`
+    ] as const;
+    }
+
+
+export const getListApplicationInterviewsQueryOptions = <TData = Awaited<ReturnType<typeof listApplicationInterviews>>, TError = ErrorType<ApiError>>(organizationId: number,
+    applicationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listApplicationInterviews>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListApplicationInterviewsQueryKey(organizationId,applicationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listApplicationInterviews>>> = ({ signal }) => listApplicationInterviews(organizationId,applicationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && applicationId !== null && applicationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listApplicationInterviews>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListApplicationInterviewsQueryResult = NonNullable<Awaited<ReturnType<typeof listApplicationInterviews>>>
+export type ListApplicationInterviewsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List interviews scheduled for one application
+ */
+
+export function useListApplicationInterviews<TData = Awaited<ReturnType<typeof listApplicationInterviews>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    applicationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listApplicationInterviews>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListApplicationInterviewsQueryOptions(organizationId,applicationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getScheduleInterviewUrl = (organizationId: number,
+    applicationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/applications/${applicationId}/interviews`
+}
+
+/**
+ * Optionally sets the initial panel composition in the same call.
+ * @summary Schedule an interview for an application
+ */
+export const scheduleInterview = async (organizationId: number,
+    applicationId: number,
+    scheduleInterviewInput: ScheduleInterviewInput, options?: RequestInit): Promise<Interview> => {
+
+  return customFetch<Interview>(getScheduleInterviewUrl(organizationId,applicationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(scheduleInterviewInput)
+  }
+);}
+
+
+
+
+
+export const getScheduleInterviewMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof scheduleInterview>>, TError,{organizationId: number;applicationId: number;data: BodyType<ScheduleInterviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof scheduleInterview>>, TError,{organizationId: number;applicationId: number;data: BodyType<ScheduleInterviewInput>}, TContext> => {
+
+const mutationKey = ['scheduleInterview'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof scheduleInterview>>, {organizationId: number;applicationId: number;data: BodyType<ScheduleInterviewInput>}> = (props) => {
+          const {organizationId,applicationId,data} = props ?? {};
+
+          return  scheduleInterview(organizationId,applicationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ScheduleInterviewMutationResult = NonNullable<Awaited<ReturnType<typeof scheduleInterview>>>
+    export type ScheduleInterviewMutationBody = BodyType<ScheduleInterviewInput>
+    export type ScheduleInterviewMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Schedule an interview for an application
+ */
+export const useScheduleInterview = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof scheduleInterview>>, TError,{organizationId: number;applicationId: number;data: BodyType<ScheduleInterviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof scheduleInterview>>,
+        TError,
+        {organizationId: number;applicationId: number;data: BodyType<ScheduleInterviewInput>},
+        TContext
+      > => {
+      return useMutation(getScheduleInterviewMutationOptions(options));
+    }
+
+export const getUpdateInterviewUrl = (organizationId: number,
+    applicationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/applications/${applicationId}/interviews/${id}`
+}
+
+/**
+ * Supplying scheduledAt reschedules (cancels the current row, creates a new one — §4.5) rather than mutating the date in place; otherwise performs an ordinary in-place update. Only a currently-scheduled interview can be updated.
+ * @summary Update, reschedule, or replace the panel of an interview
+ */
+export const updateInterview = async (organizationId: number,
+    applicationId: number,
+    id: number,
+    updateInterviewInput: UpdateInterviewInput, options?: RequestInit): Promise<Interview> => {
+
+  return customFetch<Interview>(getUpdateInterviewUrl(organizationId,applicationId,id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateInterviewInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateInterviewMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateInterview>>, TError,{organizationId: number;applicationId: number;id: number;data: BodyType<UpdateInterviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateInterview>>, TError,{organizationId: number;applicationId: number;id: number;data: BodyType<UpdateInterviewInput>}, TContext> => {
+
+const mutationKey = ['updateInterview'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateInterview>>, {organizationId: number;applicationId: number;id: number;data: BodyType<UpdateInterviewInput>}> = (props) => {
+          const {organizationId,applicationId,id,data} = props ?? {};
+
+          return  updateInterview(organizationId,applicationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateInterviewMutationResult = NonNullable<Awaited<ReturnType<typeof updateInterview>>>
+    export type UpdateInterviewMutationBody = BodyType<UpdateInterviewInput>
+    export type UpdateInterviewMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update, reschedule, or replace the panel of an interview
+ */
+export const useUpdateInterview = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateInterview>>, TError,{organizationId: number;applicationId: number;id: number;data: BodyType<UpdateInterviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateInterview>>,
+        TError,
+        {organizationId: number;applicationId: number;id: number;data: BodyType<UpdateInterviewInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateInterviewMutationOptions(options));
     }
 
 export const getGetPublicCareersOrganizationUrl = (orgSlug: string,) => {

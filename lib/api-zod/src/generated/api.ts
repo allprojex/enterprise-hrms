@@ -4248,6 +4248,269 @@ export const RemoveTalentPoolMemberResponse = zod.void()
 
 
 /**
+ * Top-level, not nested under one application — backs the frozen §11 frontend route `/interviews` ("calendar/list of scheduled interviews for the caller"). Visibility-filtered per caller: organization-wide for interview.manage holders, otherwise scoped to interviews where the caller's own membership appears on the panel (§7 — "own scheduled interviews as interviewer").
+ * @summary List interviews across applications (calendar/list view)
+ */
+export const ListInterviewsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const listInterviewsQueryPageDefault = 1;
+export const listInterviewsQueryPageSizeDefault = 20;
+
+export const ListInterviewsQueryParams = zod.object({
+  "applicationId": zod.coerce.number().optional(),
+  "status": zod.enum(['scheduled', 'completed', 'cancelled', 'no_show']).optional(),
+  "page": zod.coerce.number().default(listInterviewsQueryPageDefault),
+  "pageSize": zod.coerce.number().default(listInterviewsQueryPageSizeDefault)
+})
+
+export const ListInterviewsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "interviewType": zod.enum(['phone', 'virtual', 'in_person']),
+  "scheduledAt": zod.coerce.date(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullable(),
+  "meetingLink": zod.string().nullable(),
+  "status": zod.enum(['scheduled', 'completed', 'cancelled', 'no_show']),
+  "outcome": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "panelMembers": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "interviewId": zod.number(),
+  "interviewerMembershipId": zod.number().nullable(),
+  "externalInterviewerName": zod.string().nullable(),
+  "externalInterviewerEmail": zod.string().nullable(),
+  "role": zod.enum(['lead', 'member']),
+  "conflictDeclared": zod.boolean().describe('A plain self-declared flag — no automated behavior is attached to it in this workstream.'),
+  "createdAt": zod.coerce.date()
+}).describe('Panel composition only, independent from interview results. `interviewerMembershipId` is null for an external interviewer, captured by name\/email only (no login, no external-interviewer portal).'))
+}).describe('Scheduling only — never evaluation. Column list is exactly §9\'s `interviews` row; no notes\/timezone\/separate-end-time field exists. `outcome` is a short free-text summary settable only once the interview is marked completed, never a score\/recommendation (W55\'s `interview_scorecards` is a separate table).')),
+  "total": zod.number(),
+  "page": zod.number(),
+  "pageSize": zod.number()
+})
+
+
+/**
+ * Returns 404 both when the interview doesn't exist and when it exists but isn't visible to this caller — never distinguishing the two.
+ * @summary Get an interview (including its panel)
+ */
+export const GetInterviewParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const GetInterviewResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "interviewType": zod.enum(['phone', 'virtual', 'in_person']),
+  "scheduledAt": zod.coerce.date(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullable(),
+  "meetingLink": zod.string().nullable(),
+  "status": zod.enum(['scheduled', 'completed', 'cancelled', 'no_show']),
+  "outcome": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "panelMembers": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "interviewId": zod.number(),
+  "interviewerMembershipId": zod.number().nullable(),
+  "externalInterviewerName": zod.string().nullable(),
+  "externalInterviewerEmail": zod.string().nullable(),
+  "role": zod.enum(['lead', 'member']),
+  "conflictDeclared": zod.boolean().describe('A plain self-declared flag — no automated behavior is attached to it in this workstream.'),
+  "createdAt": zod.coerce.date()
+}).describe('Panel composition only, independent from interview results. `interviewerMembershipId` is null for an external interviewer, captured by name\/email only (no login, no external-interviewer portal).'))
+}).describe('Scheduling only — never evaluation. Column list is exactly §9\'s `interviews` row; no notes\/timezone\/separate-end-time field exists. `outcome` is a short free-text summary settable only once the interview is marked completed, never a score\/recommendation (W55\'s `interview_scorecards` is a separate table).')
+
+
+/**
+ * Only a currently-scheduled interview can be cancelled.
+ * @summary Cancel a scheduled interview
+ */
+export const CancelInterviewParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const CancelInterviewResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "interviewType": zod.enum(['phone', 'virtual', 'in_person']),
+  "scheduledAt": zod.coerce.date(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullable(),
+  "meetingLink": zod.string().nullable(),
+  "status": zod.enum(['scheduled', 'completed', 'cancelled', 'no_show']),
+  "outcome": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "panelMembers": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "interviewId": zod.number(),
+  "interviewerMembershipId": zod.number().nullable(),
+  "externalInterviewerName": zod.string().nullable(),
+  "externalInterviewerEmail": zod.string().nullable(),
+  "role": zod.enum(['lead', 'member']),
+  "conflictDeclared": zod.boolean().describe('A plain self-declared flag — no automated behavior is attached to it in this workstream.'),
+  "createdAt": zod.coerce.date()
+}).describe('Panel composition only, independent from interview results. `interviewerMembershipId` is null for an external interviewer, captured by name\/email only (no login, no external-interviewer portal).'))
+}).describe('Scheduling only — never evaluation. Column list is exactly §9\'s `interviews` row; no notes\/timezone\/separate-end-time field exists. `outcome` is a short free-text summary settable only once the interview is marked completed, never a score\/recommendation (W55\'s `interview_scorecards` is a separate table).')
+
+
+/**
+ * @summary List interviews scheduled for one application
+ */
+export const ListApplicationInterviewsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "applicationId": zod.coerce.number()
+})
+
+export const ListApplicationInterviewsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "interviewType": zod.enum(['phone', 'virtual', 'in_person']),
+  "scheduledAt": zod.coerce.date(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullable(),
+  "meetingLink": zod.string().nullable(),
+  "status": zod.enum(['scheduled', 'completed', 'cancelled', 'no_show']),
+  "outcome": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "panelMembers": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "interviewId": zod.number(),
+  "interviewerMembershipId": zod.number().nullable(),
+  "externalInterviewerName": zod.string().nullable(),
+  "externalInterviewerEmail": zod.string().nullable(),
+  "role": zod.enum(['lead', 'member']),
+  "conflictDeclared": zod.boolean().describe('A plain self-declared flag — no automated behavior is attached to it in this workstream.'),
+  "createdAt": zod.coerce.date()
+}).describe('Panel composition only, independent from interview results. `interviewerMembershipId` is null for an external interviewer, captured by name\/email only (no login, no external-interviewer portal).'))
+}).describe('Scheduling only — never evaluation. Column list is exactly §9\'s `interviews` row; no notes\/timezone\/separate-end-time field exists. `outcome` is a short free-text summary settable only once the interview is marked completed, never a score\/recommendation (W55\'s `interview_scorecards` is a separate table).')
+export const ListApplicationInterviewsResponse = zod.array(ListApplicationInterviewsResponseItem)
+
+
+/**
+ * Optionally sets the initial panel composition in the same call.
+ * @summary Schedule an interview for an application
+ */
+export const ScheduleInterviewParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "applicationId": zod.coerce.number()
+})
+
+export const ScheduleInterviewBody = zod.object({
+  "interviewType": zod.enum(['phone', 'virtual', 'in_person']),
+  "scheduledAt": zod.coerce.date(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullish(),
+  "meetingLink": zod.string().nullish(),
+  "panelMembers": zod.array(zod.object({
+  "interviewerMembershipId": zod.number().nullish(),
+  "externalInterviewerName": zod.string().nullish(),
+  "externalInterviewerEmail": zod.string().nullish(),
+  "role": zod.enum(['lead', 'member']).optional(),
+  "conflictDeclared": zod.boolean().optional()
+}).describe('Either interviewerMembershipId (internal) or both externalInterviewerName and externalInterviewerEmail (external) must be supplied, never both, never neither.')).optional()
+})
+
+export const ScheduleInterviewResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "interviewType": zod.enum(['phone', 'virtual', 'in_person']),
+  "scheduledAt": zod.coerce.date(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullable(),
+  "meetingLink": zod.string().nullable(),
+  "status": zod.enum(['scheduled', 'completed', 'cancelled', 'no_show']),
+  "outcome": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "panelMembers": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "interviewId": zod.number(),
+  "interviewerMembershipId": zod.number().nullable(),
+  "externalInterviewerName": zod.string().nullable(),
+  "externalInterviewerEmail": zod.string().nullable(),
+  "role": zod.enum(['lead', 'member']),
+  "conflictDeclared": zod.boolean().describe('A plain self-declared flag — no automated behavior is attached to it in this workstream.'),
+  "createdAt": zod.coerce.date()
+}).describe('Panel composition only, independent from interview results. `interviewerMembershipId` is null for an external interviewer, captured by name\/email only (no login, no external-interviewer portal).'))
+}).describe('Scheduling only — never evaluation. Column list is exactly §9\'s `interviews` row; no notes\/timezone\/separate-end-time field exists. `outcome` is a short free-text summary settable only once the interview is marked completed, never a score\/recommendation (W55\'s `interview_scorecards` is a separate table).')
+
+
+/**
+ * Supplying scheduledAt reschedules (cancels the current row, creates a new one — §4.5) rather than mutating the date in place; otherwise performs an ordinary in-place update. Only a currently-scheduled interview can be updated.
+ * @summary Update, reschedule, or replace the panel of an interview
+ */
+export const UpdateInterviewParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "applicationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const UpdateInterviewBody = zod.object({
+  "interviewType": zod.enum(['phone', 'virtual', 'in_person']).optional(),
+  "scheduledAt": zod.coerce.date().optional(),
+  "durationMinutes": zod.number().optional(),
+  "location": zod.string().nullish(),
+  "meetingLink": zod.string().nullish(),
+  "status": zod.enum(['completed', 'no_show']).optional(),
+  "outcome": zod.string().nullish(),
+  "panelMembers": zod.array(zod.object({
+  "interviewerMembershipId": zod.number().nullish(),
+  "externalInterviewerName": zod.string().nullish(),
+  "externalInterviewerEmail": zod.string().nullish(),
+  "role": zod.enum(['lead', 'member']).optional(),
+  "conflictDeclared": zod.boolean().optional()
+}).describe('Either interviewerMembershipId (internal) or both externalInterviewerName and externalInterviewerEmail (external) must be supplied, never both, never neither.')).optional()
+}).describe('Supplying scheduledAt reschedules — cancels the current row and creates a brand new one (§4.5), never mutating a scheduled interview\'s date in place. Omitting scheduledAt performs an ordinary in-place update, including a status transition to completed\/no_show and\/or a full panel replace.')
+
+export const UpdateInterviewResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "interviewType": zod.enum(['phone', 'virtual', 'in_person']),
+  "scheduledAt": zod.coerce.date(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullable(),
+  "meetingLink": zod.string().nullable(),
+  "status": zod.enum(['scheduled', 'completed', 'cancelled', 'no_show']),
+  "outcome": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "panelMembers": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "interviewId": zod.number(),
+  "interviewerMembershipId": zod.number().nullable(),
+  "externalInterviewerName": zod.string().nullable(),
+  "externalInterviewerEmail": zod.string().nullable(),
+  "role": zod.enum(['lead', 'member']),
+  "conflictDeclared": zod.boolean().describe('A plain self-declared flag — no automated behavior is attached to it in this workstream.'),
+  "createdAt": zod.coerce.date()
+}).describe('Panel composition only, independent from interview results. `interviewerMembershipId` is null for an external interviewer, captured by name\/email only (no login, no external-interviewer portal).'))
+}).describe('Scheduling only — never evaluation. Column list is exactly §9\'s `interviews` row; no notes\/timezone\/separate-end-time field exists. `outcome` is a short free-text summary settable only once the interview is marked completed, never a score\/recommendation (W55\'s `interview_scorecards` is a separate table).')
+
+
+/**
  * No authentication. Resolves the organization by its own slug only — never a numeric ID. Returns the same 404 whether the slug doesn't exist, the organization is suspended, or its careers portal isn't enabled (recruitment_settings.enabled / externalRecruitmentEnabled) — these are never distinguished, so a probing request can never learn which condition applied.
  * @summary Public organization profile for a careers page
  */

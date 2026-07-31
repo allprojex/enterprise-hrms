@@ -137,6 +137,29 @@ const PERMISSIONS = [
   { key: "candidate.notes.write", resource: "candidate", action: "notes.write" },
   { key: "talent_pool.read", resource: "talent_pool", action: "read" },
   { key: "talent_pool.manage", resource: "talent_pool", action: "manage" },
+  // Phase 3A, W54 — Interviews & Scheduling. §7's Interviews row is a single
+  // `interview.read` / `.manage` pair with the assigned tier marked "own
+  // scheduled interviews as interviewer" against that one pair — unlike
+  // every prior resource's two-key split (e.g. candidate.notes.read/.write),
+  // there is no separate write-only key documented here. Kept consistent
+  // with this codebase's established rollout rather than treated as a new
+  // exception: `interview.read` is seeded to every role (any employee could
+  // be an assigned panel interviewer — visibility narrowed per-record in the
+  // service layer by panel membership, not the recruiter/hiring-manager
+  // chain other resources use). `interview.manage` (schedule/update/
+  // reschedule/cancel/panel changes — no dedicated panel-management
+  // permission, per §7's own "avoid permission explosion" note) stays
+  // org_admin/hr_manager only, the same admin-only rollout every other
+  // Recruitment write action uses regardless of a resource's read-side
+  // assigned tier (application.pipeline.move/application.manage over
+  // application.read; candidate.manage/candidate.notes.write over
+  // candidate.read/candidate.notes.read) — an assigned interviewer sees
+  // their own scheduled interviews but does not gain a broader write grant,
+  // consistent with "no dedicated recruiter/hiring-manager role exists in
+  // this platform's role model" (vacancies.ts/applicationPipeline.ts's own
+  // documented precedent).
+  { key: "interview.read", resource: "interview", action: "read" },
+  { key: "interview.manage", resource: "interview", action: "manage" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -189,6 +212,8 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "candidate.notes.write",
     "talent_pool.read",
     "talent_pool.manage",
+    "interview.read",
+    "interview.manage",
   ],
   hr_manager: [
     "organization.read",
@@ -231,6 +256,8 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "candidate.notes.write",
     "talent_pool.read",
     "talent_pool.manage",
+    "interview.read",
+    "interview.manage",
   ],
   employee: [
     "organization.read",
@@ -248,6 +275,7 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "application.read",
     "candidate.read",
     "candidate.notes.read",
+    "interview.read",
   ],
 };
 

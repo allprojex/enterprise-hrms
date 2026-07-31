@@ -1536,6 +1536,157 @@ export interface AddTalentPoolMemberInput {
   candidateId: number;
 }
 
+export type InterviewPanelMemberRole = typeof InterviewPanelMemberRole[keyof typeof InterviewPanelMemberRole];
+
+
+export const InterviewPanelMemberRole = {
+  lead: 'lead',
+  member: 'member',
+} as const;
+
+/**
+ * Panel composition only, independent from interview results. `interviewerMembershipId` is null for an external interviewer, captured by name/email only (no login, no external-interviewer portal).
+ */
+export interface InterviewPanelMember {
+  id: number;
+  organizationId: number;
+  interviewId: number;
+  /** @nullable */
+  interviewerMembershipId: number | null;
+  /** @nullable */
+  externalInterviewerName: string | null;
+  /** @nullable */
+  externalInterviewerEmail: string | null;
+  role: InterviewPanelMemberRole;
+  /** A plain self-declared flag — no automated behavior is attached to it in this workstream. */
+  conflictDeclared: boolean;
+  createdAt: string;
+}
+
+export type PanelMemberInputRole = typeof PanelMemberInputRole[keyof typeof PanelMemberInputRole];
+
+
+export const PanelMemberInputRole = {
+  lead: 'lead',
+  member: 'member',
+} as const;
+
+/**
+ * Either interviewerMembershipId (internal) or both externalInterviewerName and externalInterviewerEmail (external) must be supplied, never both, never neither.
+ */
+export interface PanelMemberInput {
+  /** @nullable */
+  interviewerMembershipId?: number | null;
+  /** @nullable */
+  externalInterviewerName?: string | null;
+  /** @nullable */
+  externalInterviewerEmail?: string | null;
+  role?: PanelMemberInputRole;
+  conflictDeclared?: boolean;
+}
+
+export type InterviewInterviewType = typeof InterviewInterviewType[keyof typeof InterviewInterviewType];
+
+
+export const InterviewInterviewType = {
+  phone: 'phone',
+  virtual: 'virtual',
+  in_person: 'in_person',
+} as const;
+
+export type InterviewStatus = typeof InterviewStatus[keyof typeof InterviewStatus];
+
+
+export const InterviewStatus = {
+  scheduled: 'scheduled',
+  completed: 'completed',
+  cancelled: 'cancelled',
+  no_show: 'no_show',
+} as const;
+
+/**
+ * Scheduling only — never evaluation. Column list is exactly §9's `interviews` row; no notes/timezone/separate-end-time field exists. `outcome` is a short free-text summary settable only once the interview is marked completed, never a score/recommendation (W55's `interview_scorecards` is a separate table).
+ */
+export interface Interview {
+  id: number;
+  organizationId: number;
+  applicationId: number;
+  interviewType: InterviewInterviewType;
+  scheduledAt: string;
+  durationMinutes: number;
+  /** @nullable */
+  location: string | null;
+  /** @nullable */
+  meetingLink: string | null;
+  status: InterviewStatus;
+  /** @nullable */
+  outcome: string | null;
+  createdAt: string;
+  updatedAt: string;
+  panelMembers: InterviewPanelMember[];
+}
+
+export interface InterviewListResponse {
+  items: Interview[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export type ScheduleInterviewInputInterviewType = typeof ScheduleInterviewInputInterviewType[keyof typeof ScheduleInterviewInputInterviewType];
+
+
+export const ScheduleInterviewInputInterviewType = {
+  phone: 'phone',
+  virtual: 'virtual',
+  in_person: 'in_person',
+} as const;
+
+export interface ScheduleInterviewInput {
+  interviewType: ScheduleInterviewInputInterviewType;
+  scheduledAt: string;
+  durationMinutes: number;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  meetingLink?: string | null;
+  panelMembers?: PanelMemberInput[];
+}
+
+export type UpdateInterviewInputInterviewType = typeof UpdateInterviewInputInterviewType[keyof typeof UpdateInterviewInputInterviewType];
+
+
+export const UpdateInterviewInputInterviewType = {
+  phone: 'phone',
+  virtual: 'virtual',
+  in_person: 'in_person',
+} as const;
+
+export type UpdateInterviewInputStatus = typeof UpdateInterviewInputStatus[keyof typeof UpdateInterviewInputStatus];
+
+
+export const UpdateInterviewInputStatus = {
+  completed: 'completed',
+  no_show: 'no_show',
+} as const;
+
+/**
+ * Supplying scheduledAt reschedules — cancels the current row and creates a brand new one (§4.5), never mutating a scheduled interview's date in place. Omitting scheduledAt performs an ordinary in-place update, including a status transition to completed/no_show and/or a full panel replace.
+ */
+export interface UpdateInterviewInput {
+  interviewType?: UpdateInterviewInputInterviewType;
+  scheduledAt?: string;
+  durationMinutes?: number;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  meetingLink?: string | null;
+  status?: UpdateInterviewInputStatus;
+  /** @nullable */
+  outcome?: string | null;
+  panelMembers?: PanelMemberInput[];
+}
+
 /**
  * Deliberately narrow — only what a careers page header needs. Never the internal Organization DTO (no status, no type, no internal id).
  */
@@ -3131,6 +3282,23 @@ search?: string;
 page?: number;
 pageSize?: number;
 };
+
+export type ListInterviewsParams = {
+applicationId?: number;
+status?: ListInterviewsStatus;
+page?: number;
+pageSize?: number;
+};
+
+export type ListInterviewsStatus = typeof ListInterviewsStatus[keyof typeof ListInterviewsStatus];
+
+
+export const ListInterviewsStatus = {
+  scheduled: 'scheduled',
+  completed: 'completed',
+  cancelled: 'cancelled',
+  no_show: 'no_show',
+} as const;
 
 export type ListPublicVacanciesParams = {
 search?: string;

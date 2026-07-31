@@ -16,6 +16,7 @@ const { state } = vi.hoisted(() => ({
     application: undefined as ApplicationDetailType | undefined,
     isLoading: false,
     error: undefined as unknown,
+    interviews: [] as unknown[],
   },
 }));
 
@@ -38,6 +39,9 @@ vi.mock('@workspace/api-client-react', () => ({
   useWithdrawApplication: () => ({ mutate: vi.fn(), isPending: false }),
   useReopenApplication: () => ({ mutate: vi.fn(), isPending: false }),
   useSubmitApplicationScore: () => ({ mutate: vi.fn(), isPending: false }),
+  useListApplicationInterviews: () => ({ data: state.interviews, refetch: vi.fn() }),
+  getListApplicationInterviewsQueryKey: (orgId: number, appId: number) => ['applicationInterviews', orgId, appId],
+  useScheduleInterview: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 function baseApplication(overrides: Partial<ApplicationDetailType> = {}): ApplicationDetailType {

@@ -31,6 +31,7 @@ import {
   UserCheck,
   LayoutGrid,
   Users2,
+  Video,
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -295,6 +296,7 @@ export function AppShell({ children }: AppShellProps) {
     ...(isHrCapable ? [{ href: '/vacancies', label: 'Vacancies', icon: Megaphone } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/applications', label: 'Applications', icon: UserCheck } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/pipeline', label: 'Pipeline Board', icon: LayoutGrid } satisfies NavItem] : []),
+    ...(isHrCapable ? [{ href: '/interviews', label: 'Interviews', icon: Video } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/talent-pools', label: 'Talent Pools', icon: Users2 } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/recruitment-settings', label: 'Recruitment Settings', icon: UserPlus } satisfies NavItem] : []),
     { href: '/organizations',  label: 'Organisations',  icon: Building },

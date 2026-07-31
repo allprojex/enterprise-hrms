@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, Link } from 'wouter';
-import { ArrowLeft, FileText, RotateCcw, XCircle, LogOut, AlertTriangle, Star } from 'lucide-react';
+import { ArrowLeft, FileText, RotateCcw, XCircle, LogOut, AlertTriangle, Star, CalendarClock, Plus } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -29,6 +29,10 @@ import {
   useWithdrawApplication,
   useReopenApplication,
   useSubmitApplicationScore,
+  useListApplicationInterviews,
+  getListApplicationInterviewsQueryKey,
+  useScheduleInterview,
+  type InterviewInterviewType,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -47,6 +51,13 @@ const CATEGORY_VARIANT: Record<string, 'secondary' | 'outline' | 'destructive'> 
   hired: 'secondary',
   rejected: 'destructive',
   withdrawn: 'destructive',
+};
+
+const INTERVIEW_STATUS_VARIANT: Record<string, 'secondary' | 'outline' | 'destructive'> = {
+  scheduled: 'secondary',
+  completed: 'outline',
+  cancelled: 'destructive',
+  no_show: 'destructive',
 };
 
 export default function ApplicationDetail() {
@@ -74,11 +85,16 @@ export default function ApplicationDetail() {
     query: { queryKey: getListRecruitmentStagesQueryKey(organizationId, vacancy?.workflowId ?? 0), enabled: organizationId > 0 && !!vacancy?.workflowId },
   });
 
+  const { data: interviews, refetch: refetchInterviews } = useListApplicationInterviews(organizationId, applicationId, {
+    query: { queryKey: getListApplicationInterviewsQueryKey(organizationId, applicationId), enabled: organizationId > 0 && applicationId > 0 },
+  });
+
   const moveMutation = useMoveApplicationStage();
   const rejectMutation = useRejectApplication();
   const withdrawMutation = useWithdrawApplication();
   const reopenMutation = useReopenApplication();
   const scoreMutation = useSubmitApplicationScore();
+  const scheduleInterviewMutation = useScheduleInterview();
 
   const [toStageId, setToStageId] = useState('');
   const [rejectOpen, setRejectOpen] = useState(false);
@@ -90,6 +106,12 @@ export default function ApplicationDetail() {
   const [scoreType, setScoreType] = useState('screening');
   const [scoreValue, setScoreValue] = useState('');
   const [scoreNotes, setScoreNotes] = useState('');
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [interviewType, setInterviewType] = useState<InterviewInterviewType>('virtual');
+  const [scheduledAt, setScheduledAt] = useState('');
+  const [duration, setDuration] = useState('60');
+  const [location, setLocation] = useState('');
+  const [meetingLink, setMeetingLink] = useState('');
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getGetApplicationQueryKey(organizationId, applicationId) });
 
@@ -148,6 +170,37 @@ export default function ApplicationDetail() {
       {
         onSuccess: () => { invalidate(); setScoreValue(''); setScoreNotes(''); toast({ title: 'Score submitted' }); },
         onError: (err) => toast({ title: 'Could not submit score', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  const openSchedule = () => {
+    setInterviewType('virtual');
+    setScheduledAt('');
+    setDuration('60');
+    setLocation('');
+    setMeetingLink('');
+    setScheduleOpen(true);
+  };
+
+  const handleScheduleInterview = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!scheduledAt) return;
+    scheduleInterviewMutation.mutate(
+      {
+        organizationId,
+        applicationId,
+        data: {
+          interviewType,
+          scheduledAt: new Date(scheduledAt).toISOString(),
+          durationMinutes: Number(duration),
+          location: location.trim() || undefined,
+          meetingLink: meetingLink.trim() || undefined,
+        },
+      },
+      {
+        onSuccess: () => { refetchInterviews(); setScheduleOpen(false); toast({ title: 'Interview scheduled' }); },
+        onError: (err) => toast({ title: 'Could not schedule interview', description: errorMessage(err), variant: 'destructive' }),
       },
     );
   };
@@ -396,6 +449,41 @@ export default function ApplicationDetail() {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <CalendarClock className="h-4 w-4" aria-hidden="true" />
+              Interviews
+            </CardTitle>
+            <CardDescription>Scheduling only — evaluation is a separate workstream</CardDescription>
+          </div>
+          <Button size="sm" variant="outline" onClick={openSchedule} data-testid="button-schedule-interview">
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Schedule Interview
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {!interviews || interviews.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No interviews scheduled yet.</p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {interviews.map((interview) => (
+                <li key={interview.id} className="py-3 flex items-center justify-between" data-testid={`row-interview-${interview.id}`}>
+                  <div>
+                    <Link href={`/interviews/${interview.id}`} className="text-sm font-medium text-foreground hover:underline" data-testid={`link-interview-${interview.id}`}>
+                      {new Date(interview.scheduledAt).toLocaleString()}
+                    </Link>
+                    <p className="text-xs text-muted-foreground capitalize">{interview.interviewType.replace('_', ' ')} · {interview.durationMinutes} min</p>
+                  </div>
+                  <Badge variant={INTERVIEW_STATUS_VARIANT[interview.status] ?? 'outline'} className="capitalize">{interview.status.replace('_', ' ')}</Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
       <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
         <DialogContent>
           <form onSubmit={handleReject}>
@@ -440,6 +528,52 @@ export default function ApplicationDetail() {
             <DialogFooter>
               <Button type="submit" variant="outline" disabled={withdrawMutation.isPending} data-testid="button-confirm-withdraw">
                 {withdrawMutation.isPending ? 'Withdrawing…' : 'Confirm Withdrawal'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={scheduleOpen} onOpenChange={setScheduleOpen}>
+        <DialogContent>
+          <form onSubmit={handleScheduleInterview}>
+            <DialogHeader>
+              <DialogTitle>Schedule Interview</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="interview-type">Type</Label>
+                <Select value={interviewType} onValueChange={(v) => setInterviewType(v as InterviewInterviewType)}>
+                  <SelectTrigger id="interview-type" data-testid="select-interview-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="phone">Phone</SelectItem>
+                    <SelectItem value="virtual">Virtual</SelectItem>
+                    <SelectItem value="in_person">In Person</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="interview-scheduled-at">Date &amp; Time *</Label>
+                <Input id="interview-scheduled-at" type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} required data-testid="input-interview-scheduled-at" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="interview-duration">Duration (minutes) *</Label>
+                <Input id="interview-duration" type="number" min={1} value={duration} onChange={(e) => setDuration(e.target.value)} required data-testid="input-interview-duration" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="interview-location">Location (optional)</Label>
+                <Input id="interview-location" value={location} onChange={(e) => setLocation(e.target.value)} data-testid="input-interview-location" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="interview-meeting-link">Meeting Link (optional)</Label>
+                <Input id="interview-meeting-link" value={meetingLink} onChange={(e) => setMeetingLink(e.target.value)} data-testid="input-interview-meeting-link" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={!scheduledAt || scheduleInterviewMutation.isPending} data-testid="button-confirm-schedule-interview">
+                {scheduleInterviewMutation.isPending ? 'Scheduling…' : 'Schedule Interview'}
               </Button>
             </DialogFooter>
           </form>

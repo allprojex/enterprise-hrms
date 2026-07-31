@@ -54,6 +54,8 @@ tags:
     description: Internal candidate directory, notes, and tags operations (W53 — candidate records themselves are W49's, this workstream adds internal read access plus collaboration features)
   - name: talent-pools
     description: Reusable, org-scoped candidate grouping operations (W53) — never tied to a single vacancy or requisition
+  - name: interviews
+    description: Interview scheduling and panel composition operations (W54) — scheduling only, never evaluation (scores/recommendations/hiring decisions are W55's interview_scorecards)
 
 paths:
   /healthz:
@@ -4251,6 +4253,244 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/interviews:
+    get:
+      operationId: listInterviews
+      tags: [interviews]
+      summary: List interviews across applications (calendar/list view)
+      description: >-
+        Top-level, not nested under one application — backs the frozen §11
+        frontend route `/interviews` ("calendar/list of scheduled interviews
+        for the caller"). Visibility-filtered per caller: organization-wide
+        for interview.manage holders, otherwise scoped to interviews where
+        the caller's own membership appears on the panel (§7 — "own
+        scheduled interviews as interviewer").
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: applicationId
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [scheduled, completed, cancelled, no_show]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Paginated, visibility-filtered interview list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InterviewListResponse"
+
+  /organizations/{organizationId}/interviews/{id}:
+    get:
+      operationId: getInterview
+      tags: [interviews]
+      summary: Get an interview (including its panel)
+      description: Returns 404 both when the interview doesn't exist and when it exists but isn't visible to this caller — never distinguishing the two.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Interview detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Interview"
+        "404":
+          description: Interview not found (or not visible to this caller)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/interviews/{id}/cancel:
+    post:
+      operationId: cancelInterview
+      tags: [interviews]
+      summary: Cancel a scheduled interview
+      description: Only a currently-scheduled interview can be cancelled.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Interview cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Interview"
+        "400":
+          description: Only a scheduled interview can be cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Interview not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/applications/{applicationId}/interviews:
+    get:
+      operationId: listApplicationInterviews
+      tags: [interviews]
+      summary: List interviews scheduled for one application
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Interviews for this application, visibility-filtered
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Interview"
+        "404":
+          description: Application not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: scheduleInterview
+      tags: [interviews]
+      summary: Schedule an interview for an application
+      description: Optionally sets the initial panel composition in the same call.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScheduleInterviewInput"
+      responses:
+        "201":
+          description: Interview scheduled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Interview"
+        "400":
+          description: Invalid interview fields or panel composition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Application not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/applications/{applicationId}/interviews/{id}:
+    patch:
+      operationId: updateInterview
+      tags: [interviews]
+      summary: Update, reschedule, or replace the panel of an interview
+      description: >-
+        Supplying scheduledAt reschedules (cancels the current row, creates
+        a new one — §4.5) rather than mutating the date in place; otherwise
+        performs an ordinary in-place update. Only a currently-scheduled
+        interview can be updated.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateInterviewInput"
+      responses:
+        "200":
+          description: Interview updated (or the newly-created rescheduled interview)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Interview"
+        "400":
+          description: Invalid fields, or the interview is not currently scheduled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Interview not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /careers/{orgSlug}:
     get:
       operationId: getPublicCareersOrganization
@@ -8388,6 +8628,164 @@ components:
       properties:
         candidateId:
           type: integer
+
+    InterviewPanelMember:
+      type: object
+      description: >-
+        Panel composition only, independent from interview results.
+        `interviewerMembershipId` is null for an external interviewer,
+        captured by name/email only (no login, no external-interviewer
+        portal).
+      required: [id, organizationId, interviewId, interviewerMembershipId, externalInterviewerName, externalInterviewerEmail, role, conflictDeclared, createdAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        interviewId:
+          type: integer
+        interviewerMembershipId:
+          type: ["integer", "null"]
+        externalInterviewerName:
+          type: ["string", "null"]
+        externalInterviewerEmail:
+          type: ["string", "null"]
+        role:
+          type: string
+          enum: [lead, member]
+        conflictDeclared:
+          type: boolean
+          description: A plain self-declared flag — no automated behavior is attached to it in this workstream.
+        createdAt:
+          type: string
+          format: date-time
+
+    PanelMemberInput:
+      type: object
+      description: Either interviewerMembershipId (internal) or both externalInterviewerName and externalInterviewerEmail (external) must be supplied, never both, never neither.
+      properties:
+        interviewerMembershipId:
+          type: ["integer", "null"]
+        externalInterviewerName:
+          type: ["string", "null"]
+        externalInterviewerEmail:
+          type: ["string", "null"]
+        role:
+          type: string
+          enum: [lead, member]
+        conflictDeclared:
+          type: boolean
+
+    Interview:
+      type: object
+      description: >-
+        Scheduling only — never evaluation. Column list is exactly §9's
+        `interviews` row; no notes/timezone/separate-end-time field exists.
+        `outcome` is a short free-text summary settable only once the
+        interview is marked completed, never a score/recommendation
+        (W55's `interview_scorecards` is a separate table).
+      required: [id, organizationId, applicationId, interviewType, scheduledAt, durationMinutes, location, meetingLink, status, outcome, createdAt, updatedAt, panelMembers]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        applicationId:
+          type: integer
+        interviewType:
+          type: string
+          enum: [phone, virtual, in_person]
+        scheduledAt:
+          type: string
+          format: date-time
+        durationMinutes:
+          type: integer
+        location:
+          type: ["string", "null"]
+        meetingLink:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [scheduled, completed, cancelled, no_show]
+        outcome:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        panelMembers:
+          type: array
+          items:
+            $ref: "#/components/schemas/InterviewPanelMember"
+
+    InterviewListResponse:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Interview"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+
+    ScheduleInterviewInput:
+      type: object
+      required: [interviewType, scheduledAt, durationMinutes]
+      properties:
+        interviewType:
+          type: string
+          enum: [phone, virtual, in_person]
+        scheduledAt:
+          type: string
+          format: date-time
+        durationMinutes:
+          type: integer
+        location:
+          type: ["string", "null"]
+        meetingLink:
+          type: ["string", "null"]
+        panelMembers:
+          type: array
+          items:
+            $ref: "#/components/schemas/PanelMemberInput"
+
+    UpdateInterviewInput:
+      type: object
+      description: >-
+        Supplying scheduledAt reschedules — cancels the current row and
+        creates a brand new one (§4.5), never mutating a scheduled
+        interview's date in place. Omitting scheduledAt performs an ordinary
+        in-place update, including a status transition to completed/no_show
+        and/or a full panel replace.
+      properties:
+        interviewType:
+          type: string
+          enum: [phone, virtual, in_person]
+        scheduledAt:
+          type: string
+          format: date-time
+        durationMinutes:
+          type: integer
+        location:
+          type: ["string", "null"]
+        meetingLink:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [completed, no_show]
+        outcome:
+          type: ["string", "null"]
+        panelMembers:
+          type: array
+          items:
+            $ref: "#/components/schemas/PanelMemberInput"
 
     PublicOrganization:
       type: object
