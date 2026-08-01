@@ -64,6 +64,7 @@ import type {
   CreateOfferInput,
   CreateOrganizationInput,
   CreatePositionInput,
+  CreatePreEmploymentRequirementInput,
   CreatePublicHolidayInput,
   CreateRecruitmentStageInput,
   CreateRecruitmentWorkflowInput,
@@ -131,6 +132,8 @@ import type {
   PasswordResetStatus,
   Permission,
   Position,
+  PreEmploymentRequirement,
+  PreEmploymentRequirementListResponse,
   PrimaryHrAssignment,
   PrimaryHrAssignmentOrNull,
   PromoteEmployeeInput,
@@ -180,6 +183,7 @@ import type {
   UpdateOrganizationInput,
   UpdateOrganizationModuleInput,
   UpdatePositionInput,
+  UpdatePreEmploymentRequirementStatusInput,
   UpdatePublicHolidayInput,
   UpdateRecruitmentSettingsInput,
   UpdateRecruitmentStageInput,
@@ -11422,6 +11426,241 @@ export const useWithdrawOfferVersion = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getWithdrawOfferVersionMutationOptions(options));
+    }
+
+export const getListPreEmploymentRequirementsUrl = (organizationId: number,
+    applicationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/applications/${applicationId}/pre-employment-requirements`
+}
+
+/**
+ * No dedicated permission exists — visibility reuses the application's own (assigned recruiter/hiring manager + organization-wide via application.read). Returns 404 both when the application doesn't exist and when it exists but isn't visible to this caller. `summary.readyForConversion` mirrors §13's own convert-to-employee readiness rule exactly ("every non-waived row is satisfied") — computed on every read, never stored, and does not itself gate or trigger conversion.
+ * @summary List pre-employment requirements for an application
+ */
+export const listPreEmploymentRequirements = async (organizationId: number,
+    applicationId: number, options?: RequestInit): Promise<PreEmploymentRequirementListResponse> => {
+
+  return customFetch<PreEmploymentRequirementListResponse>(getListPreEmploymentRequirementsUrl(organizationId,applicationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPreEmploymentRequirementsQueryKey = (organizationId: number,
+    applicationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/applications/${applicationId}/pre-employment-requirements`
+    ] as const;
+    }
+
+
+export const getListPreEmploymentRequirementsQueryOptions = <TData = Awaited<ReturnType<typeof listPreEmploymentRequirements>>, TError = ErrorType<ApiError>>(organizationId: number,
+    applicationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPreEmploymentRequirements>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPreEmploymentRequirementsQueryKey(organizationId,applicationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPreEmploymentRequirements>>> = ({ signal }) => listPreEmploymentRequirements(organizationId,applicationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && applicationId !== null && applicationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPreEmploymentRequirements>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPreEmploymentRequirementsQueryResult = NonNullable<Awaited<ReturnType<typeof listPreEmploymentRequirements>>>
+export type ListPreEmploymentRequirementsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List pre-employment requirements for an application
+ */
+
+export function useListPreEmploymentRequirements<TData = Awaited<ReturnType<typeof listPreEmploymentRequirements>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    applicationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPreEmploymentRequirements>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPreEmploymentRequirementsQueryOptions(organizationId,applicationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreatePreEmploymentRequirementUrl = (organizationId: number,
+    applicationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/applications/${applicationId}/pre-employment-requirements`
+}
+
+/**
+ * Created at status "pending". Rejected (400) if this requirementCode is already tracked for this application (unique per applicationId/requirementCode).
+ * @summary Track a new pre-employment requirement for an application
+ */
+export const createPreEmploymentRequirement = async (organizationId: number,
+    applicationId: number,
+    createPreEmploymentRequirementInput: CreatePreEmploymentRequirementInput, options?: RequestInit): Promise<PreEmploymentRequirement> => {
+
+  return customFetch<PreEmploymentRequirement>(getCreatePreEmploymentRequirementUrl(organizationId,applicationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createPreEmploymentRequirementInput)
+  }
+);}
+
+
+
+
+
+export const getCreatePreEmploymentRequirementMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPreEmploymentRequirement>>, TError,{organizationId: number;applicationId: number;data: BodyType<CreatePreEmploymentRequirementInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPreEmploymentRequirement>>, TError,{organizationId: number;applicationId: number;data: BodyType<CreatePreEmploymentRequirementInput>}, TContext> => {
+
+const mutationKey = ['createPreEmploymentRequirement'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPreEmploymentRequirement>>, {organizationId: number;applicationId: number;data: BodyType<CreatePreEmploymentRequirementInput>}> = (props) => {
+          const {organizationId,applicationId,data} = props ?? {};
+
+          return  createPreEmploymentRequirement(organizationId,applicationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePreEmploymentRequirementMutationResult = NonNullable<Awaited<ReturnType<typeof createPreEmploymentRequirement>>>
+    export type CreatePreEmploymentRequirementMutationBody = BodyType<CreatePreEmploymentRequirementInput>
+    export type CreatePreEmploymentRequirementMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Track a new pre-employment requirement for an application
+ */
+export const useCreatePreEmploymentRequirement = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPreEmploymentRequirement>>, TError,{organizationId: number;applicationId: number;data: BodyType<CreatePreEmploymentRequirementInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createPreEmploymentRequirement>>,
+        TError,
+        {organizationId: number;applicationId: number;data: BodyType<CreatePreEmploymentRequirementInput>},
+        TContext
+      > => {
+      return useMutation(getCreatePreEmploymentRequirementMutationOptions(options));
+    }
+
+export const getUpdatePreEmploymentRequirementStatusUrl = (organizationId: number,
+    applicationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/applications/${applicationId}/pre-employment-requirements/${id}`
+}
+
+/**
+ * Status is freely settable between pending/satisfied/waived — no one-way lifecycle is enforced (a checklist correction, e.g. reverting a mistaken "satisfied" back to "pending", is allowed). Sets satisfiedAt when moving to "satisfied"; clears it otherwise. Never creates an employee or activates any HR module by itself.
+ * @summary Update a pre-employment requirement's status
+ */
+export const updatePreEmploymentRequirementStatus = async (organizationId: number,
+    applicationId: number,
+    id: number,
+    updatePreEmploymentRequirementStatusInput: UpdatePreEmploymentRequirementStatusInput, options?: RequestInit): Promise<PreEmploymentRequirement> => {
+
+  return customFetch<PreEmploymentRequirement>(getUpdatePreEmploymentRequirementStatusUrl(organizationId,applicationId,id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updatePreEmploymentRequirementStatusInput)
+  }
+);}
+
+
+
+
+
+export const getUpdatePreEmploymentRequirementStatusMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePreEmploymentRequirementStatus>>, TError,{organizationId: number;applicationId: number;id: number;data: BodyType<UpdatePreEmploymentRequirementStatusInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updatePreEmploymentRequirementStatus>>, TError,{organizationId: number;applicationId: number;id: number;data: BodyType<UpdatePreEmploymentRequirementStatusInput>}, TContext> => {
+
+const mutationKey = ['updatePreEmploymentRequirementStatus'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePreEmploymentRequirementStatus>>, {organizationId: number;applicationId: number;id: number;data: BodyType<UpdatePreEmploymentRequirementStatusInput>}> = (props) => {
+          const {organizationId,applicationId,id,data} = props ?? {};
+
+          return  updatePreEmploymentRequirementStatus(organizationId,applicationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdatePreEmploymentRequirementStatusMutationResult = NonNullable<Awaited<ReturnType<typeof updatePreEmploymentRequirementStatus>>>
+    export type UpdatePreEmploymentRequirementStatusMutationBody = BodyType<UpdatePreEmploymentRequirementStatusInput>
+    export type UpdatePreEmploymentRequirementStatusMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update a pre-employment requirement's status
+ */
+export const useUpdatePreEmploymentRequirementStatus = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePreEmploymentRequirementStatus>>, TError,{organizationId: number;applicationId: number;id: number;data: BodyType<UpdatePreEmploymentRequirementStatusInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updatePreEmploymentRequirementStatus>>,
+        TError,
+        {organizationId: number;applicationId: number;id: number;data: BodyType<UpdatePreEmploymentRequirementStatusInput>},
+        TContext
+      > => {
+      return useMutation(getUpdatePreEmploymentRequirementStatusMutationOptions(options));
     }
 
 export const getGetPublicCareersOrganizationUrl = (orgSlug: string,) => {

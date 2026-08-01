@@ -5265,6 +5265,95 @@ export const WithdrawOfferVersionResponse = zod.object({
 
 
 /**
+ * No dedicated permission exists — visibility reuses the application's own (assigned recruiter/hiring manager + organization-wide via application.read). Returns 404 both when the application doesn't exist and when it exists but isn't visible to this caller. `summary.readyForConversion` mirrors §13's own convert-to-employee readiness rule exactly ("every non-waived row is satisfied") — computed on every read, never stored, and does not itself gate or trigger conversion.
+ * @summary List pre-employment requirements for an application
+ */
+export const ListPreEmploymentRequirementsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "applicationId": zod.coerce.number()
+})
+
+export const ListPreEmploymentRequirementsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "requirementCode": zod.string().describe('Free text (e.g. right-to-work doc, medical, reference-complete) — no fixed\/Ghana-specific list is hard-coded.'),
+  "status": zod.enum(['pending', 'satisfied', 'waived']),
+  "satisfiedAt": zod.coerce.date().nullable(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A single checklist item tracked against an application before employee conversion. Column list is exactly §9\'s `pre_employment_requirements` row. No dedicated permission exists — visibility\/write reuse the application\'s own read\/manage pair. requirementCode is a Master Data reference (free text, not FK-validated), the same convention as candidate_documents.categoryCode.')),
+  "summary": zod.object({
+  "totalCount": zod.number(),
+  "pendingCount": zod.number(),
+  "satisfiedCount": zod.number(),
+  "waivedCount": zod.number(),
+  "readyForConversion": zod.boolean().describe('Mirrors §13\'s own convert-to-employee readiness rule (\"every non-waived row is satisfied\"). Vacuously true when no requirements are tracked. Informational only — does not itself gate or trigger conversion.')
+}).describe('Computed on every read, never stored — the same discipline as W52\'s scoreRollup\/W55\'s panelSummary.')
+})
+
+
+/**
+ * Created at status "pending". Rejected (400) if this requirementCode is already tracked for this application (unique per applicationId/requirementCode).
+ * @summary Track a new pre-employment requirement for an application
+ */
+export const CreatePreEmploymentRequirementParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "applicationId": zod.coerce.number()
+})
+
+
+
+
+export const CreatePreEmploymentRequirementBody = zod.object({
+  "requirementCode": zod.string().min(1),
+  "notes": zod.string().nullish()
+})
+
+export const CreatePreEmploymentRequirementResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "requirementCode": zod.string().describe('Free text (e.g. right-to-work doc, medical, reference-complete) — no fixed\/Ghana-specific list is hard-coded.'),
+  "status": zod.enum(['pending', 'satisfied', 'waived']),
+  "satisfiedAt": zod.coerce.date().nullable(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A single checklist item tracked against an application before employee conversion. Column list is exactly §9\'s `pre_employment_requirements` row. No dedicated permission exists — visibility\/write reuse the application\'s own read\/manage pair. requirementCode is a Master Data reference (free text, not FK-validated), the same convention as candidate_documents.categoryCode.')
+
+
+/**
+ * Status is freely settable between pending/satisfied/waived — no one-way lifecycle is enforced (a checklist correction, e.g. reverting a mistaken "satisfied" back to "pending", is allowed). Sets satisfiedAt when moving to "satisfied"; clears it otherwise. Never creates an employee or activates any HR module by itself.
+ * @summary Update a pre-employment requirement's status
+ */
+export const UpdatePreEmploymentRequirementStatusParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "applicationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const UpdatePreEmploymentRequirementStatusBody = zod.object({
+  "status": zod.enum(['pending', 'satisfied', 'waived']),
+  "notes": zod.string().nullish()
+})
+
+export const UpdatePreEmploymentRequirementStatusResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "requirementCode": zod.string().describe('Free text (e.g. right-to-work doc, medical, reference-complete) — no fixed\/Ghana-specific list is hard-coded.'),
+  "status": zod.enum(['pending', 'satisfied', 'waived']),
+  "satisfiedAt": zod.coerce.date().nullable(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A single checklist item tracked against an application before employee conversion. Column list is exactly §9\'s `pre_employment_requirements` row. No dedicated permission exists — visibility\/write reuse the application\'s own read\/manage pair. requirementCode is a Master Data reference (free text, not FK-validated), the same convention as candidate_documents.categoryCode.')
+
+
+/**
  * No authentication. Resolves the organization by its own slug only — never a numeric ID. Returns the same 404 whether the slug doesn't exist, the organization is suspended, or its careers portal isn't enabled (recruitment_settings.enabled / externalRecruitmentEnabled) — these are never distinguished, so a probing request can never learn which condition applied.
  * @summary Public organization profile for a careers page
  */

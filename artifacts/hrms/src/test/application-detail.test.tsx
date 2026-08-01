@@ -22,6 +22,7 @@ const { state } = vi.hoisted(() => ({
     backgroundChecksError: undefined as unknown,
     offer: undefined as unknown,
     offerError: undefined as unknown,
+    requirements: undefined as unknown,
   },
 }));
 
@@ -60,6 +61,10 @@ vi.mock('@workspace/api-client-react', () => ({
   useGetOfferForApplication: () => ({ data: state.offer, error: state.offerError }),
   getGetOfferForApplicationQueryKey: (orgId: number, appId: number) => ['offerForApplication', orgId, appId],
   useCreateOffer: () => ({ mutate: vi.fn(), isPending: false }),
+  useListPreEmploymentRequirements: () => ({ data: state.requirements }),
+  getListPreEmploymentRequirementsQueryKey: (orgId: number, appId: number) => ['preEmploymentRequirements', orgId, appId],
+  useCreatePreEmploymentRequirement: () => ({ mutate: vi.fn(), isPending: false }),
+  useUpdatePreEmploymentRequirementStatus: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 function baseApplication(overrides: Partial<ApplicationDetailType> = {}): ApplicationDetailType {
@@ -364,6 +369,62 @@ describe('Application detail page', () => {
       renderPage();
       expect(screen.queryByText(/^offer$/i)).not.toBeInTheDocument();
       expect(screen.queryByTestId('button-create-offer')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Pre-Employment Requirements section', () => {
+    it('shows an empty state and an add button', () => {
+      state.application = baseApplication();
+      state.isLoading = false;
+      state.error = undefined;
+      state.requirements = { items: [], summary: { totalCount: 0, pendingCount: 0, satisfiedCount: 0, waivedCount: 0, readyForConversion: true } };
+      renderPage();
+      expect(screen.getByText(/no requirements tracked yet/i)).toBeInTheDocument();
+      expect(screen.getByTestId('button-add-requirement')).toBeInTheDocument();
+    });
+
+    it('renders a pending requirement with an Update Status action', () => {
+      state.application = baseApplication();
+      state.isLoading = false;
+      state.error = undefined;
+      state.requirements = {
+        items: [{ id: 1, organizationId: 10, applicationId: 1, requirementCode: 'right_to_work', status: 'pending', satisfiedAt: null, notes: null, createdAt: '', updatedAt: '' }],
+        summary: { totalCount: 1, pendingCount: 1, satisfiedCount: 0, waivedCount: 0, readyForConversion: false },
+      };
+      renderPage();
+      const row = screen.getByTestId('row-requirement-1');
+      expect(row).toHaveTextContent('right_to_work');
+      expect(row).toHaveTextContent('pending');
+      expect(screen.getByTestId('button-update-requirement-1')).toBeInTheDocument();
+    });
+
+    it('still shows Update Status once satisfied (no terminal immutability)', () => {
+      state.application = baseApplication();
+      state.isLoading = false;
+      state.error = undefined;
+      state.requirements = {
+        items: [{ id: 1, organizationId: 10, applicationId: 1, requirementCode: 'right_to_work', status: 'satisfied', satisfiedAt: new Date().toISOString(), notes: 'Verified', createdAt: '', updatedAt: '' }],
+        summary: { totalCount: 1, pendingCount: 0, satisfiedCount: 1, waivedCount: 0, readyForConversion: true },
+      };
+      renderPage();
+      expect(screen.getByTestId('row-requirement-1')).toHaveTextContent('satisfied');
+      expect(screen.getByTestId('row-requirement-1')).toHaveTextContent('Verified');
+      expect(screen.getByTestId('button-update-requirement-1')).toBeInTheDocument();
+    });
+
+    it('shows a resolved-count summary in the section description', () => {
+      state.application = baseApplication();
+      state.isLoading = false;
+      state.error = undefined;
+      state.requirements = {
+        items: [
+          { id: 1, organizationId: 10, applicationId: 1, requirementCode: 'right_to_work', status: 'satisfied', satisfiedAt: new Date().toISOString(), notes: null, createdAt: '', updatedAt: '' },
+          { id: 2, organizationId: 10, applicationId: 1, requirementCode: 'medical', status: 'pending', satisfiedAt: null, notes: null, createdAt: '', updatedAt: '' },
+        ],
+        summary: { totalCount: 2, pendingCount: 1, satisfiedCount: 1, waivedCount: 0, readyForConversion: false },
+      };
+      renderPage();
+      expect(screen.getByText('1 of 2 resolved')).toBeInTheDocument();
     });
   });
 });

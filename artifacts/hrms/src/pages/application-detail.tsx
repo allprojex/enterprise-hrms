@@ -45,8 +45,13 @@ import {
   useGetOfferForApplication,
   getGetOfferForApplicationQueryKey,
   useCreateOffer,
+  useListPreEmploymentRequirements,
+  getListPreEmploymentRequirementsQueryKey,
+  useCreatePreEmploymentRequirement,
+  useUpdatePreEmploymentRequirementStatus,
   type InterviewInterviewType,
   type ReferenceBackgroundCheckStatus,
+  type PreEmploymentRequirementStatus,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -529,6 +534,174 @@ function OfferSection({ organizationId, applicationId }: { organizationId: numbe
   );
 }
 
+const REQUIREMENT_STATUS_VARIANT: Record<string, 'secondary' | 'outline' | 'destructive'> = {
+  pending: 'outline',
+  satisfied: 'secondary',
+  waived: 'secondary',
+};
+
+/**
+ * No dedicated permission exists for this resource — reuses
+ * application.read/.manage, same as ReferenceChecksSection above. Status
+ * is freely settable (pending/satisfied/waived, no one-way lifecycle), so
+ * every row always shows an "Update Status" action, never hidden once
+ * "terminal" the way reference/background checks are. This checklist
+ * never creates an employee or activates any HR module by itself —
+ * conversion is a later workstream's own action.
+ */
+function PreEmploymentRequirementsSection({ organizationId, applicationId }: { organizationId: number; applicationId: number }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const { data: result } = useListPreEmploymentRequirements(organizationId, applicationId, {
+    query: { queryKey: getListPreEmploymentRequirementsQueryKey(organizationId, applicationId), enabled: organizationId > 0 && applicationId > 0 },
+  });
+  const createMutation = useCreatePreEmploymentRequirement();
+  const updateMutation = useUpdatePreEmploymentRequirementStatus();
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [requirementCode, setRequirementCode] = useState('');
+  const [createNotes, setCreateNotes] = useState('');
+  const [statusRequirementId, setStatusRequirementId] = useState<number | null>(null);
+  const [statusValue, setStatusValue] = useState<PreEmploymentRequirementStatus>('pending');
+  const [statusNotes, setStatusNotes] = useState('');
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: getListPreEmploymentRequirementsQueryKey(organizationId, applicationId) });
+
+  const openCreate = () => {
+    setRequirementCode('');
+    setCreateNotes('');
+    setCreateOpen(true);
+  };
+
+  const handleCreate = (e: React.FormEvent) => {
+    e.preventDefault();
+    createMutation.mutate(
+      { organizationId, applicationId, data: { requirementCode, notes: createNotes.trim() || undefined } },
+      {
+        onSuccess: () => { invalidate(); setCreateOpen(false); toast({ title: 'Requirement added' }); },
+        onError: (err) => toast({ title: 'Could not add requirement', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  const openStatus = (requirementId: number, currentStatus: PreEmploymentRequirementStatus, currentNotes: string | null) => {
+    setStatusRequirementId(requirementId);
+    setStatusValue(currentStatus);
+    setStatusNotes(currentNotes ?? '');
+  };
+
+  const handleUpdateStatus = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!statusRequirementId) return;
+    updateMutation.mutate(
+      { organizationId, applicationId, id: statusRequirementId, data: { status: statusValue, notes: statusNotes.trim() || undefined } },
+      {
+        onSuccess: () => { invalidate(); setStatusRequirementId(null); toast({ title: 'Requirement updated' }); },
+        onError: (err) => toast({ title: 'Could not update requirement', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle className="text-base flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+            Pre-Employment Requirements
+          </CardTitle>
+          <CardDescription>
+            {result ? `${result.summary.satisfiedCount + result.summary.waivedCount} of ${result.summary.totalCount} resolved` : 'A checklist before employee conversion — never itself creates an employee'}
+          </CardDescription>
+        </div>
+        <Button size="sm" variant="outline" onClick={openCreate} data-testid="button-add-requirement">
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Add Requirement
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {!result || result.items.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No requirements tracked yet.</p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {result.items.map((r) => (
+              <li key={r.id} className="py-3 space-y-1" data-testid={`row-requirement-${r.id}`}>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-foreground">{r.requirementCode}</p>
+                  <Badge variant={REQUIREMENT_STATUS_VARIANT[r.status] ?? 'outline'} className="capitalize">{r.status}</Badge>
+                </div>
+                {r.notes && <p className="text-sm text-muted-foreground">{r.notes}</p>}
+                <Button size="sm" variant="outline" onClick={() => openStatus(r.id, r.status, r.notes)} data-testid={`button-update-requirement-${r.id}`}>
+                  Update Status
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent>
+          <form onSubmit={handleCreate}>
+            <DialogHeader>
+              <DialogTitle>Add Pre-Employment Requirement</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="requirement-code">Requirement *</Label>
+                <Input id="requirement-code" value={requirementCode} onChange={(e) => setRequirementCode(e.target.value)} placeholder="e.g. right_to_work, medical, reference_complete" required data-testid="input-requirement-code" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="requirement-create-notes">Notes (optional)</Label>
+                <Input id="requirement-create-notes" value={createNotes} onChange={(e) => setCreateNotes(e.target.value)} data-testid="input-requirement-create-notes" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={!requirementCode.trim() || createMutation.isPending} data-testid="button-confirm-add-requirement">
+                {createMutation.isPending ? 'Adding…' : 'Add'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={statusRequirementId != null} onOpenChange={(open) => !open && setStatusRequirementId(null)}>
+        <DialogContent>
+          <form onSubmit={handleUpdateStatus}>
+            <DialogHeader>
+              <DialogTitle>Update Requirement Status</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="requirement-status">Status</Label>
+                <Select value={statusValue} onValueChange={(v) => setStatusValue(v as PreEmploymentRequirementStatus)}>
+                  <SelectTrigger id="requirement-status" data-testid="select-requirement-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="satisfied">Satisfied</SelectItem>
+                    <SelectItem value="waived">Waived</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="requirement-status-notes">Notes (optional)</Label>
+                <Input id="requirement-status-notes" value={statusNotes} onChange={(e) => setStatusNotes(e.target.value)} data-testid="input-requirement-status-notes" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={updateMutation.isPending} data-testid="button-confirm-update-requirement">
+                {updateMutation.isPending ? 'Saving…' : 'Save'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+}
+
 const CATEGORY_VARIANT: Record<string, 'secondary' | 'outline' | 'destructive'> = {
   applied: 'outline',
   screening: 'secondary',
@@ -972,6 +1145,7 @@ export default function ApplicationDetail() {
       </Card>
 
       <OfferSection organizationId={organizationId} applicationId={applicationId} />
+      <PreEmploymentRequirementsSection organizationId={organizationId} applicationId={applicationId} />
       <ReferenceChecksSection organizationId={organizationId} applicationId={applicationId} />
       <BackgroundChecksSection organizationId={organizationId} applicationId={applicationId} />
 

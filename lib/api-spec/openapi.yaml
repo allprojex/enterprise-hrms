@@ -69,6 +69,12 @@ tags:
       first Recruitment write permission this phase seeded to every role
       (assigned recruiter/hiring manager can manage their own draft, per
       §7); offer.approve/.issue/.withdraw stay organization-wide only
+  - name: pre-employment-requirements
+    description: >-
+      Checklist tracking before employee conversion (W58) — no dedicated
+      permission exists, reuses application.read/.manage; status is freely
+      settable (pending/satisfied/waived, no one-way lifecycle) and never
+      itself creates an employee or activates any HR module
 
 paths:
   /healthz:
@@ -5446,6 +5452,142 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/applications/{applicationId}/pre-employment-requirements:
+    get:
+      operationId: listPreEmploymentRequirements
+      tags: [pre-employment-requirements]
+      summary: List pre-employment requirements for an application
+      description: >-
+        No dedicated permission exists — visibility reuses the
+        application's own (assigned recruiter/hiring manager +
+        organization-wide via application.read). Returns 404 both when the
+        application doesn't exist and when it exists but isn't visible to
+        this caller. `summary.readyForConversion` mirrors §13's own
+        convert-to-employee readiness rule exactly ("every non-waived row
+        is satisfied") — computed on every read, never stored, and does
+        not itself gate or trigger conversion.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Pre-employment requirements for this application
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PreEmploymentRequirementListResponse"
+        "404":
+          description: Application not found (or not visible to this caller)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createPreEmploymentRequirement
+      tags: [pre-employment-requirements]
+      summary: Track a new pre-employment requirement for an application
+      description: >-
+        Created at status "pending". Rejected (400) if this requirementCode
+        is already tracked for this application (unique per
+        applicationId/requirementCode).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePreEmploymentRequirementInput"
+      responses:
+        "201":
+          description: Pre-employment requirement created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PreEmploymentRequirement"
+        "400":
+          description: Invalid fields, or this requirement is already tracked for this application
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Application not found (or not visible to this caller)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/applications/{applicationId}/pre-employment-requirements/{id}:
+    patch:
+      operationId: updatePreEmploymentRequirementStatus
+      tags: [pre-employment-requirements]
+      summary: Update a pre-employment requirement's status
+      description: >-
+        Status is freely settable between pending/satisfied/waived — no
+        one-way lifecycle is enforced (a checklist correction, e.g.
+        reverting a mistaken "satisfied" back to "pending", is allowed).
+        Sets satisfiedAt when moving to "satisfied"; clears it otherwise.
+        Never creates an employee or activates any HR module by itself.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePreEmploymentRequirementStatusInput"
+      responses:
+        "200":
+          description: Pre-employment requirement updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PreEmploymentRequirement"
+        "400":
+          description: Invalid status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Pre-employment requirement not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /careers/{orgSlug}:
     get:
       operationId: getPublicCareersOrganization
@@ -10286,6 +10428,89 @@ components:
       type: object
       properties:
         reason:
+          type: ["string", "null"]
+
+    PreEmploymentRequirement:
+      type: object
+      description: >-
+        A single checklist item tracked against an application before
+        employee conversion. Column list is exactly §9's
+        `pre_employment_requirements` row. No dedicated permission exists —
+        visibility/write reuse the application's own read/manage pair.
+        requirementCode is a Master Data reference (free text, not
+        FK-validated), the same convention as candidate_documents.categoryCode.
+      required: [id, organizationId, applicationId, requirementCode, status, satisfiedAt, notes, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        applicationId:
+          type: integer
+        requirementCode:
+          type: string
+          description: Free text (e.g. right-to-work doc, medical, reference-complete) — no fixed/Ghana-specific list is hard-coded.
+        status:
+          type: string
+          enum: [pending, satisfied, waived]
+        satisfiedAt:
+          type: ["string", "null"]
+          format: date-time
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PreEmploymentRequirementSummary:
+      type: object
+      description: Computed on every read, never stored — the same discipline as W52's scoreRollup/W55's panelSummary.
+      required: [totalCount, pendingCount, satisfiedCount, waivedCount, readyForConversion]
+      properties:
+        totalCount:
+          type: integer
+        pendingCount:
+          type: integer
+        satisfiedCount:
+          type: integer
+        waivedCount:
+          type: integer
+        readyForConversion:
+          type: boolean
+          description: Mirrors §13's own convert-to-employee readiness rule ("every non-waived row is satisfied"). Vacuously true when no requirements are tracked. Informational only — does not itself gate or trigger conversion.
+
+    PreEmploymentRequirementListResponse:
+      type: object
+      required: [items, summary]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PreEmploymentRequirement"
+        summary:
+          $ref: "#/components/schemas/PreEmploymentRequirementSummary"
+
+    CreatePreEmploymentRequirementInput:
+      type: object
+      required: [requirementCode]
+      properties:
+        requirementCode:
+          type: string
+          minLength: 1
+        notes:
+          type: ["string", "null"]
+
+    UpdatePreEmploymentRequirementStatusInput:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [pending, satisfied, waived]
+        notes:
           type: ["string", "null"]
 
     PublicOrganization:

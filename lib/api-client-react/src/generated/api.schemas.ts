@@ -2245,6 +2245,72 @@ export interface WithdrawOfferVersionInput {
   reason?: string | null;
 }
 
+export type PreEmploymentRequirementStatus = typeof PreEmploymentRequirementStatus[keyof typeof PreEmploymentRequirementStatus];
+
+
+export const PreEmploymentRequirementStatus = {
+  pending: 'pending',
+  satisfied: 'satisfied',
+  waived: 'waived',
+} as const;
+
+/**
+ * A single checklist item tracked against an application before employee conversion. Column list is exactly §9's `pre_employment_requirements` row. No dedicated permission exists — visibility/write reuse the application's own read/manage pair. requirementCode is a Master Data reference (free text, not FK-validated), the same convention as candidate_documents.categoryCode.
+ */
+export interface PreEmploymentRequirement {
+  id: number;
+  organizationId: number;
+  applicationId: number;
+  /** Free text (e.g. right-to-work doc, medical, reference-complete) — no fixed/Ghana-specific list is hard-coded. */
+  requirementCode: string;
+  status: PreEmploymentRequirementStatus;
+  /** @nullable */
+  satisfiedAt: string | null;
+  /** @nullable */
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Computed on every read, never stored — the same discipline as W52's scoreRollup/W55's panelSummary.
+ */
+export interface PreEmploymentRequirementSummary {
+  totalCount: number;
+  pendingCount: number;
+  satisfiedCount: number;
+  waivedCount: number;
+  /** Mirrors §13's own convert-to-employee readiness rule ("every non-waived row is satisfied"). Vacuously true when no requirements are tracked. Informational only — does not itself gate or trigger conversion. */
+  readyForConversion: boolean;
+}
+
+export interface PreEmploymentRequirementListResponse {
+  items: PreEmploymentRequirement[];
+  summary: PreEmploymentRequirementSummary;
+}
+
+export interface CreatePreEmploymentRequirementInput {
+  /** @minLength 1 */
+  requirementCode: string;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export type UpdatePreEmploymentRequirementStatusInputStatus = typeof UpdatePreEmploymentRequirementStatusInputStatus[keyof typeof UpdatePreEmploymentRequirementStatusInputStatus];
+
+
+export const UpdatePreEmploymentRequirementStatusInputStatus = {
+  pending: 'pending',
+  satisfied: 'satisfied',
+  waived: 'waived',
+} as const;
+
+export interface UpdatePreEmploymentRequirementStatusInput {
+  status: UpdatePreEmploymentRequirementStatusInputStatus;
+  /** @nullable */
+  notes?: string | null;
+}
+
 /**
  * Deliberately narrow — only what a careers page header needs. Never the internal Organization DTO (no status, no type, no internal id).
  */
