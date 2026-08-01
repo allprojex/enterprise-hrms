@@ -20,6 +20,8 @@ const { state } = vi.hoisted(() => ({
     referenceChecks: [] as unknown[],
     backgroundChecks: [] as unknown[],
     backgroundChecksError: undefined as unknown,
+    offer: undefined as unknown,
+    offerError: undefined as unknown,
   },
 }));
 
@@ -55,6 +57,9 @@ vi.mock('@workspace/api-client-react', () => ({
   useUpdateBackgroundCheckStatus: () => ({ mutate: vi.fn(), isPending: false }),
   useAttachBackgroundCheckEvidence: () => ({ mutate: vi.fn(), isPending: false }),
   getGetBackgroundCheckEvidenceUrl: (orgId: number, appId: number, id: number) => `/api/organizations/${orgId}/applications/${appId}/background-checks/${id}/evidence`,
+  useGetOfferForApplication: () => ({ data: state.offer, error: state.offerError }),
+  getGetOfferForApplicationQueryKey: (orgId: number, appId: number) => ['offerForApplication', orgId, appId],
+  useCreateOffer: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 function baseApplication(overrides: Partial<ApplicationDetailType> = {}): ApplicationDetailType {
@@ -320,6 +325,45 @@ describe('Application detail page', () => {
       renderPage();
       expect(screen.queryByText(/background checks/i)).not.toBeInTheDocument();
       expect(screen.queryByTestId('button-request-background-check')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Offer section', () => {
+    it('shows an empty state and a create button when no offer exists yet (404)', () => {
+      state.application = baseApplication();
+      state.isLoading = false;
+      state.error = undefined;
+      state.offer = undefined;
+      state.offerError = { status: 404, message: 'Offer not found' };
+      renderPage();
+      expect(screen.getByText(/no offer created yet/i)).toBeInTheDocument();
+      expect(screen.getByTestId('button-create-offer')).toBeInTheDocument();
+    });
+
+    it('renders a link to the offer with its current version status when one exists', () => {
+      state.application = baseApplication();
+      state.isLoading = false;
+      state.error = undefined;
+      state.offerError = undefined;
+      state.offer = {
+        offer: { id: 7, organizationId: 10, applicationId: 1, currentVersionId: 1, createdAt: '', updatedAt: '' },
+        versions: [{ id: 1, organizationId: 10, offerId: 7, versionNumber: 1, proposedStartDate: null, employmentType: null, workplaceType: null, location: null, compensationSummary: null, conditions: null, expiryDate: null, letterTemplateId: null, status: 'draft', createdAt: '', updatedAt: '' }],
+      };
+      renderPage();
+      expect(screen.getByTestId('link-offer')).toHaveAttribute('href', '/offers/7');
+      expect(screen.getByTestId('link-offer')).toHaveTextContent('draft');
+      expect(screen.queryByTestId('button-create-offer')).not.toBeInTheDocument();
+    });
+
+    it('renders nothing when the caller lacks offer access (a non-404 error)', () => {
+      state.application = baseApplication();
+      state.isLoading = false;
+      state.error = undefined;
+      state.offer = undefined;
+      state.offerError = { status: 403, message: 'Forbidden' };
+      renderPage();
+      expect(screen.queryByText(/^offer$/i)).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-create-offer')).not.toBeInTheDocument();
     });
   });
 });

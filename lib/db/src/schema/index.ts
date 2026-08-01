@@ -60,3 +60,6 @@ export * from "./interview-scorecards";
 export * from "./interview-scorecard-responses";
 export * from "./reference-checks";
 export * from "./background-checks";
+export * from "./offers";
+export * from "./offer-versions";
+export * from "./offer-approvals";

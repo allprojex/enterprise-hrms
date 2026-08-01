@@ -193,6 +193,34 @@ const PERMISSIONS = [
   // "highly sensitive" in §9, unlike reference checks' "referee PII".
   { key: "background_check.read", resource: "background_check", action: "read" },
   { key: "background_check.manage", resource: "background_check", action: "manage" },
+  // Phase 3A, W57 — Offers. `offer.read`/`offer.manage` are the FIRST
+  // Recruitment write pair this phase seeded broadly (org_admin, hr_manager,
+  // AND employee) — every prior write permission this phase
+  // (application.pipeline.move/.manage, candidate.manage,
+  // interview.manage, ...) stayed org_admin/hr_manager only regardless of
+  // its own read-side assigned tier, because no delegated recruiter/hiring-
+  // manager role exists in this codebase's actual three-role model. §7's
+  // own matrix marks offer.manage's Assigned column "✔ manage draft" (real
+  // write, not just visibility) — and unlike those prior resources, there
+  // is genuinely no other mechanism through which an assigned recruiter or
+  // hiring manager (a plain "employee" role holder, identified only via
+  // the linked requisition's recruiterEmployeeId/hiringManagerEmployeeId)
+  // could ever exercise it, so this is a deliberate, textually-supported
+  // first exception rather than a broadened rollout policy going forward.
+  // The service layer (lib/offers.ts) still independently gates every
+  // write on the caller actually being the assigned recruiter/hiring
+  // manager (or org-wide) — holding `offer.manage` alone never lets an
+  // unrelated employee write an unrelated offer. `offer.approve`/`.issue`/
+  // `.withdraw` remain org_admin/hr_manager only, organization-wide only,
+  // per §7's own explicit "no assigned tier" marking for those three keys
+  // — the same admin-only rollout every other Recruitment approval/
+  // finalization action this phase uses (requisition.approve,
+  // scorecard.finalize, background_check.manage).
+  { key: "offer.read", resource: "offer", action: "read" },
+  { key: "offer.manage", resource: "offer", action: "manage" },
+  { key: "offer.approve", resource: "offer", action: "approve" },
+  { key: "offer.issue", resource: "offer", action: "issue" },
+  { key: "offer.withdraw", resource: "offer", action: "withdraw" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -252,6 +280,11 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "scorecard.finalize",
     "background_check.read",
     "background_check.manage",
+    "offer.read",
+    "offer.manage",
+    "offer.approve",
+    "offer.issue",
+    "offer.withdraw",
   ],
   hr_manager: [
     "organization.read",
@@ -301,6 +334,11 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "scorecard.finalize",
     "background_check.read",
     "background_check.manage",
+    "offer.read",
+    "offer.manage",
+    "offer.approve",
+    "offer.issue",
+    "offer.withdraw",
   ],
   employee: [
     "organization.read",
@@ -320,6 +358,8 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "candidate.notes.read",
     "interview.read",
     "scorecard.submit",
+    "offer.read",
+    "offer.manage",
   ],
 };
 

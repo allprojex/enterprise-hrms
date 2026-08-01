@@ -4850,6 +4850,421 @@ export const GetBackgroundCheckEvidenceResponse = zod.unknown()
 
 
 /**
+ * Visibility-filtered per caller: organization-wide for offer.approve/ .issue/.withdraw holders, otherwise scoped to offers whose linked requisition assigns the caller as recruiter or hiring manager (docs/PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md §7).
+ * @summary List offers
+ */
+export const ListOffersParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const listOffersQueryPageDefault = 1;
+export const listOffersQueryPageSizeDefault = 20;
+
+export const ListOffersQueryParams = zod.object({
+  "page": zod.coerce.number().default(listOffersQueryPageDefault),
+  "pageSize": zod.coerce.number().default(listOffersQueryPageSizeDefault)
+})
+
+export const ListOffersResponse = zod.object({
+  "items": zod.array(zod.object({
+  "offer": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "currentVersionId": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A stable envelope per application — the actual content lives in OfferVersion, never here (§14). currentVersionId always points at the latest non-superseded version.'),
+  "currentVersion": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "offerId": zod.number(),
+  "versionNumber": zod.number(),
+  "proposedStartDate": zod.coerce.date().nullable(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullable(),
+  "workplaceType": zod.union([zod.literal('onsite'),zod.literal('remote'),zod.literal('hybrid'),zod.literal(null)]).nullable(),
+  "location": zod.string().nullable(),
+  "compensationSummary": zod.record(zod.string(), zod.unknown()).nullable(),
+  "conditions": zod.string().nullable(),
+  "expiryDate": zod.coerce.date().nullable(),
+  "letterTemplateId": zod.number().nullable(),
+  "status": zod.enum(['draft', 'pending_approval', 'approved', 'issued', 'accepted', 'declined', 'expired', 'withdrawn', 'superseded']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).nullable().describe('Null only for the brief instant between creating the offer envelope and its first version within the same transaction — never observable via this list endpoint in practice. Inlined (not $ref\'d) because a nullable $ref\/allOf combination breaks this repo\'s orval codegen (see the `offers` tag description \/ W55\'s own documented fix for the same issue).'),
+  "vacancyTitle": zod.string(),
+  "applicationId": zod.number()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "pageSize": zod.number()
+})
+
+
+/**
+ * Returns 404 both when the offer doesn't exist and when it exists but isn't visible to this caller — never distinguishing the two.
+ * @summary Get an offer by ID
+ */
+export const GetOfferParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const GetOfferResponse = zod.object({
+  "offer": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "currentVersionId": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A stable envelope per application — the actual content lives in OfferVersion, never here (§14). currentVersionId always points at the latest non-superseded version.'),
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "offerId": zod.number(),
+  "versionNumber": zod.number(),
+  "proposedStartDate": zod.coerce.date().nullable(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullable(),
+  "workplaceType": zod.union([zod.literal('onsite'),zod.literal('remote'),zod.literal('hybrid'),zod.literal(null)]).nullable(),
+  "location": zod.string().nullable(),
+  "compensationSummary": zod.record(zod.string(), zod.unknown()).nullable().describe('Recruitment-scoped fields only (base salary, currency, bonus, benefits summary) — never a full payroll\/compensation structure. Caller-supplied, unvalidated shape.'),
+  "conditions": zod.string().nullable(),
+  "expiryDate": zod.coerce.date().nullable(),
+  "letterTemplateId": zod.number().nullable().describe('Reserved — no offer-letter template mechanism exists in this workstream\'s scope. Always null.'),
+  "status": zod.enum(['draft', 'pending_approval', 'approved', 'issued', 'accepted', 'declined', 'expired', 'withdrawn', 'superseded']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('One immutable revision of an offer\'s content — column list is exactly §9\'s `offer_versions` row, minus the raw generatedDocumentStorageKey (a reserved, never-populated internal file-storage reference, never exposed — same DTO-shaping discipline as W55\/W56\'s own stripped internal-only columns). letterTemplateId is a plain, unpopulated reserved FK-shaped integer — no offer-letter template mechanism exists in this workstream\'s scope.')).describe('Every version of this offer, oldest first (versionNumber ascending) — including superseded ones, for full history.')
+})
+
+
+/**
+ * Only permitted while the current version is "draft" (§14). An approved/issued version must go through `POST .../offers/{id}/versions` instead — this endpoint returns 400 if called on anything else (pending_approval or a terminal state too).
+ * @summary Edit the offer's current version in place
+ */
+export const UpdateDraftOfferVersionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const UpdateDraftOfferVersionBody = zod.object({
+  "proposedStartDate": zod.coerce.date().nullish(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullish(),
+  "workplaceType": zod.union([zod.literal('onsite'),zod.literal('remote'),zod.literal('hybrid'),zod.literal(null)]).nullish(),
+  "location": zod.string().nullish(),
+  "compensationSummary": zod.record(zod.string(), zod.unknown()).nullish(),
+  "conditions": zod.string().nullish(),
+  "expiryDate": zod.coerce.date().nullish()
+}).describe('Used both for PATCH ...\/offers\/{id} (edit the current draft in place) and POST ...\/offers\/{id}\/versions (create a new draft from an approved\/issued version) — same field shape either way.')
+
+export const UpdateDraftOfferVersionResponse = zod.object({
+  "offer": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "currentVersionId": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A stable envelope per application — the actual content lives in OfferVersion, never here (§14). currentVersionId always points at the latest non-superseded version.'),
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "offerId": zod.number(),
+  "versionNumber": zod.number(),
+  "proposedStartDate": zod.coerce.date().nullable(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullable(),
+  "workplaceType": zod.union([zod.literal('onsite'),zod.literal('remote'),zod.literal('hybrid'),zod.literal(null)]).nullable(),
+  "location": zod.string().nullable(),
+  "compensationSummary": zod.record(zod.string(), zod.unknown()).nullable().describe('Recruitment-scoped fields only (base salary, currency, bonus, benefits summary) — never a full payroll\/compensation structure. Caller-supplied, unvalidated shape.'),
+  "conditions": zod.string().nullable(),
+  "expiryDate": zod.coerce.date().nullable(),
+  "letterTemplateId": zod.number().nullable().describe('Reserved — no offer-letter template mechanism exists in this workstream\'s scope. Always null.'),
+  "status": zod.enum(['draft', 'pending_approval', 'approved', 'issued', 'accepted', 'declined', 'expired', 'withdrawn', 'superseded']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('One immutable revision of an offer\'s content — column list is exactly §9\'s `offer_versions` row, minus the raw generatedDocumentStorageKey (a reserved, never-populated internal file-storage reference, never exposed — same DTO-shaping discipline as W55\/W56\'s own stripped internal-only columns). letterTemplateId is a plain, unpopulated reserved FK-shaped integer — no offer-letter template mechanism exists in this workstream\'s scope.')).describe('Every version of this offer, oldest first (versionNumber ascending) — including superseded ones, for full history.')
+})
+
+
+/**
+ * Only permitted while the current version is "approved" or "issued" (§14's second editing branch) — the prior version is marked superseded in the same transaction as the new draft version is created. Returns 400 if the current version is still draft (edit it in place via PATCH .../offers/{id} instead), awaiting a decision, or terminal.
+ * @summary Create a new offer version
+ */
+export const CreateNewOfferVersionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const CreateNewOfferVersionBody = zod.object({
+  "proposedStartDate": zod.coerce.date().nullish(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullish(),
+  "workplaceType": zod.union([zod.literal('onsite'),zod.literal('remote'),zod.literal('hybrid'),zod.literal(null)]).nullish(),
+  "location": zod.string().nullish(),
+  "compensationSummary": zod.record(zod.string(), zod.unknown()).nullish(),
+  "conditions": zod.string().nullish(),
+  "expiryDate": zod.coerce.date().nullish()
+}).describe('Used both for PATCH ...\/offers\/{id} (edit the current draft in place) and POST ...\/offers\/{id}\/versions (create a new draft from an approved\/issued version) — same field shape either way.')
+
+export const CreateNewOfferVersionResponse = zod.object({
+  "offer": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "currentVersionId": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A stable envelope per application — the actual content lives in OfferVersion, never here (§14). currentVersionId always points at the latest non-superseded version.'),
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "offerId": zod.number(),
+  "versionNumber": zod.number(),
+  "proposedStartDate": zod.coerce.date().nullable(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullable(),
+  "workplaceType": zod.union([zod.literal('onsite'),zod.literal('remote'),zod.literal('hybrid'),zod.literal(null)]).nullable(),
+  "location": zod.string().nullable(),
+  "compensationSummary": zod.record(zod.string(), zod.unknown()).nullable().describe('Recruitment-scoped fields only (base salary, currency, bonus, benefits summary) — never a full payroll\/compensation structure. Caller-supplied, unvalidated shape.'),
+  "conditions": zod.string().nullable(),
+  "expiryDate": zod.coerce.date().nullable(),
+  "letterTemplateId": zod.number().nullable().describe('Reserved — no offer-letter template mechanism exists in this workstream\'s scope. Always null.'),
+  "status": zod.enum(['draft', 'pending_approval', 'approved', 'issued', 'accepted', 'declined', 'expired', 'withdrawn', 'superseded']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('One immutable revision of an offer\'s content — column list is exactly §9\'s `offer_versions` row, minus the raw generatedDocumentStorageKey (a reserved, never-populated internal file-storage reference, never exposed — same DTO-shaping discipline as W55\/W56\'s own stripped internal-only columns). letterTemplateId is a plain, unpopulated reserved FK-shaped integer — no offer-letter template mechanism exists in this workstream\'s scope.')).describe('Every version of this offer, oldest first (versionNumber ascending) — including superseded ones, for full history.')
+})
+
+
+/**
+ * At most one offer ever exists per application (offers_application_unique) — returns a single object, not a list. 404 both when no offer exists yet and when one exists but isn't visible to this caller.
+ * @summary Get the offer for an application
+ */
+export const GetOfferForApplicationParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "applicationId": zod.coerce.number()
+})
+
+export const GetOfferForApplicationResponse = zod.object({
+  "offer": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "currentVersionId": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A stable envelope per application — the actual content lives in OfferVersion, never here (§14). currentVersionId always points at the latest non-superseded version.'),
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "offerId": zod.number(),
+  "versionNumber": zod.number(),
+  "proposedStartDate": zod.coerce.date().nullable(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullable(),
+  "workplaceType": zod.union([zod.literal('onsite'),zod.literal('remote'),zod.literal('hybrid'),zod.literal(null)]).nullable(),
+  "location": zod.string().nullable(),
+  "compensationSummary": zod.record(zod.string(), zod.unknown()).nullable().describe('Recruitment-scoped fields only (base salary, currency, bonus, benefits summary) — never a full payroll\/compensation structure. Caller-supplied, unvalidated shape.'),
+  "conditions": zod.string().nullable(),
+  "expiryDate": zod.coerce.date().nullable(),
+  "letterTemplateId": zod.number().nullable().describe('Reserved — no offer-letter template mechanism exists in this workstream\'s scope. Always null.'),
+  "status": zod.enum(['draft', 'pending_approval', 'approved', 'issued', 'accepted', 'declined', 'expired', 'withdrawn', 'superseded']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('One immutable revision of an offer\'s content — column list is exactly §9\'s `offer_versions` row, minus the raw generatedDocumentStorageKey (a reserved, never-populated internal file-storage reference, never exposed — same DTO-shaping discipline as W55\/W56\'s own stripped internal-only columns). letterTemplateId is a plain, unpopulated reserved FK-shaped integer — no offer-letter template mechanism exists in this workstream\'s scope.')).describe('Every version of this offer, oldest first (versionNumber ascending) — including superseded ones, for full history.')
+})
+
+
+/**
+ * Creates the offer envelope and its first (draft) version in one transaction. Requires offer.manage — org-wide holders may create an offer for any application; an assigned recruiter or hiring manager (per the application's linked requisition) may create one for their own application, §7's first "assigned tier can really write" case this phase. 409 if the application already has an offer.
+ * @summary Create an offer for an application
+ */
+export const CreateOfferParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "applicationId": zod.coerce.number()
+})
+
+export const CreateOfferBody = zod.object({
+  "proposedStartDate": zod.coerce.date().nullish(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullish(),
+  "workplaceType": zod.union([zod.literal('onsite'),zod.literal('remote'),zod.literal('hybrid'),zod.literal(null)]).nullish(),
+  "location": zod.string().nullish(),
+  "compensationSummary": zod.record(zod.string(), zod.unknown()).nullish(),
+  "conditions": zod.string().nullish(),
+  "expiryDate": zod.coerce.date().nullish()
+}).describe('Fields for the offer\'s first (draft) version. Every field is optional — an empty draft can be created and filled in later via PATCH.')
+
+export const CreateOfferResponse = zod.object({
+  "offer": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "currentVersionId": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A stable envelope per application — the actual content lives in OfferVersion, never here (§14). currentVersionId always points at the latest non-superseded version.'),
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "offerId": zod.number(),
+  "versionNumber": zod.number(),
+  "proposedStartDate": zod.coerce.date().nullable(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullable(),
+  "workplaceType": zod.union([zod.literal('onsite'),zod.literal('remote'),zod.literal('hybrid'),zod.literal(null)]).nullable(),
+  "location": zod.string().nullable(),
+  "compensationSummary": zod.record(zod.string(), zod.unknown()).nullable().describe('Recruitment-scoped fields only (base salary, currency, bonus, benefits summary) — never a full payroll\/compensation structure. Caller-supplied, unvalidated shape.'),
+  "conditions": zod.string().nullable(),
+  "expiryDate": zod.coerce.date().nullable(),
+  "letterTemplateId": zod.number().nullable().describe('Reserved — no offer-letter template mechanism exists in this workstream\'s scope. Always null.'),
+  "status": zod.enum(['draft', 'pending_approval', 'approved', 'issued', 'accepted', 'declined', 'expired', 'withdrawn', 'superseded']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('One immutable revision of an offer\'s content — column list is exactly §9\'s `offer_versions` row, minus the raw generatedDocumentStorageKey (a reserved, never-populated internal file-storage reference, never exposed — same DTO-shaping discipline as W55\/W56\'s own stripped internal-only columns). letterTemplateId is a plain, unpopulated reserved FK-shaped integer — no offer-letter template mechanism exists in this workstream\'s scope.')).describe('Every version of this offer, oldest first (versionNumber ascending) — including superseded ones, for full history.')
+})
+
+
+/**
+ * draft -> pending_approval only, creating the single required approval step in the same transaction. Requires offer.manage (org-wide or assigned, same as create/edit).
+ * @summary Submit a draft offer version for approval
+ */
+export const SubmitOfferVersionForApprovalParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const SubmitOfferVersionForApprovalResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "offerId": zod.number(),
+  "versionNumber": zod.number(),
+  "proposedStartDate": zod.coerce.date().nullable(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullable(),
+  "workplaceType": zod.union([zod.literal('onsite'),zod.literal('remote'),zod.literal('hybrid'),zod.literal(null)]).nullable(),
+  "location": zod.string().nullable(),
+  "compensationSummary": zod.record(zod.string(), zod.unknown()).nullable().describe('Recruitment-scoped fields only (base salary, currency, bonus, benefits summary) — never a full payroll\/compensation structure. Caller-supplied, unvalidated shape.'),
+  "conditions": zod.string().nullable(),
+  "expiryDate": zod.coerce.date().nullable(),
+  "letterTemplateId": zod.number().nullable().describe('Reserved — no offer-letter template mechanism exists in this workstream\'s scope. Always null.'),
+  "status": zod.enum(['draft', 'pending_approval', 'approved', 'issued', 'accepted', 'declined', 'expired', 'withdrawn', 'superseded']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('One immutable revision of an offer\'s content — column list is exactly §9\'s `offer_versions` row, minus the raw generatedDocumentStorageKey (a reserved, never-populated internal file-storage reference, never exposed — same DTO-shaping discipline as W55\/W56\'s own stripped internal-only columns). letterTemplateId is a plain, unpopulated reserved FK-shaped integer — no offer-letter template mechanism exists in this workstream\'s scope.')
+
+
+/**
+ * Same visibility as GET .../offers/{id} (resolved via the version's parent offer) — 404 both when the version doesn't exist and when it exists but isn't visible to this caller.
+ * @summary Immutable approval decision history for an offer version
+ */
+export const ListOfferApprovalsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ListOfferApprovalsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "offerVersionId": zod.number(),
+  "sequence": zod.number(),
+  "approverMembershipId": zod.number().nullable().describe('Resolved at decision time (who actually decided) — null while pending.'),
+  "decision": zod.enum(['pending', 'approved', 'rejected']),
+  "decidedAt": zod.coerce.date().nullable(),
+  "comment": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('A single approval step\'s decision record — mirrors RequisitionApproval exactly (§9\'s own \"mirrors requisition_approvals\" instruction). This workstream writes only sequence 1. No reject route exists (see the `offers` tag description) — \"rejected\" is a structurally valid but currently unreachable decision value.')
+export const ListOfferApprovalsResponse = zod.array(ListOfferApprovalsResponseItem)
+
+
+/**
+ * Requires offer.approve (organization-wide only — no assigned tier for this action per §7). Atomically finalizes the single approval step and transitions the offer version pending_approval -> approved in one transaction; 409 if the version is no longer awaiting a decision.
+ * @summary Approve a pending offer version
+ */
+export const ApproveOfferVersionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ApproveOfferVersionBody = zod.object({
+  "comment": zod.string().nullish()
+})
+
+export const ApproveOfferVersionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "offerId": zod.number(),
+  "versionNumber": zod.number(),
+  "proposedStartDate": zod.coerce.date().nullable(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullable(),
+  "workplaceType": zod.union([zod.literal('onsite'),zod.literal('remote'),zod.literal('hybrid'),zod.literal(null)]).nullable(),
+  "location": zod.string().nullable(),
+  "compensationSummary": zod.record(zod.string(), zod.unknown()).nullable().describe('Recruitment-scoped fields only (base salary, currency, bonus, benefits summary) — never a full payroll\/compensation structure. Caller-supplied, unvalidated shape.'),
+  "conditions": zod.string().nullable(),
+  "expiryDate": zod.coerce.date().nullable(),
+  "letterTemplateId": zod.number().nullable().describe('Reserved — no offer-letter template mechanism exists in this workstream\'s scope. Always null.'),
+  "status": zod.enum(['draft', 'pending_approval', 'approved', 'issued', 'accepted', 'declined', 'expired', 'withdrawn', 'superseded']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('One immutable revision of an offer\'s content — column list is exactly §9\'s `offer_versions` row, minus the raw generatedDocumentStorageKey (a reserved, never-populated internal file-storage reference, never exposed — same DTO-shaping discipline as W55\/W56\'s own stripped internal-only columns). letterTemplateId is a plain, unpopulated reserved FK-shaped integer — no offer-letter template mechanism exists in this workstream\'s scope.')
+
+
+/**
+ * approved -> issued only. Requires offer.issue (organization-wide only — no assigned tier for this action per §7).
+ * @summary Issue an approved offer version
+ */
+export const IssueOfferVersionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const IssueOfferVersionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "offerId": zod.number(),
+  "versionNumber": zod.number(),
+  "proposedStartDate": zod.coerce.date().nullable(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullable(),
+  "workplaceType": zod.union([zod.literal('onsite'),zod.literal('remote'),zod.literal('hybrid'),zod.literal(null)]).nullable(),
+  "location": zod.string().nullable(),
+  "compensationSummary": zod.record(zod.string(), zod.unknown()).nullable().describe('Recruitment-scoped fields only (base salary, currency, bonus, benefits summary) — never a full payroll\/compensation structure. Caller-supplied, unvalidated shape.'),
+  "conditions": zod.string().nullable(),
+  "expiryDate": zod.coerce.date().nullable(),
+  "letterTemplateId": zod.number().nullable().describe('Reserved — no offer-letter template mechanism exists in this workstream\'s scope. Always null.'),
+  "status": zod.enum(['draft', 'pending_approval', 'approved', 'issued', 'accepted', 'declined', 'expired', 'withdrawn', 'superseded']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('One immutable revision of an offer\'s content — column list is exactly §9\'s `offer_versions` row, minus the raw generatedDocumentStorageKey (a reserved, never-populated internal file-storage reference, never exposed — same DTO-shaping discipline as W55\/W56\'s own stripped internal-only columns). letterTemplateId is a plain, unpopulated reserved FK-shaped integer — no offer-letter template mechanism exists in this workstream\'s scope.')
+
+
+/**
+ * pending_approval, approved, or issued -> withdrawn. The only abort action this workstream builds — no separate reject route exists (§10 names only submit-for-approval/approve/issue/withdraw), so this also doubles as "reject a pending version". Requires offer.withdraw (organization-wide only — no assigned tier for this action per §7).
+ * @summary Withdraw a pending, approved, or issued offer version
+ */
+export const WithdrawOfferVersionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const WithdrawOfferVersionBody = zod.object({
+  "reason": zod.string().nullish()
+})
+
+export const WithdrawOfferVersionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "offerId": zod.number(),
+  "versionNumber": zod.number(),
+  "proposedStartDate": zod.coerce.date().nullable(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullable(),
+  "workplaceType": zod.union([zod.literal('onsite'),zod.literal('remote'),zod.literal('hybrid'),zod.literal(null)]).nullable(),
+  "location": zod.string().nullable(),
+  "compensationSummary": zod.record(zod.string(), zod.unknown()).nullable().describe('Recruitment-scoped fields only (base salary, currency, bonus, benefits summary) — never a full payroll\/compensation structure. Caller-supplied, unvalidated shape.'),
+  "conditions": zod.string().nullable(),
+  "expiryDate": zod.coerce.date().nullable(),
+  "letterTemplateId": zod.number().nullable().describe('Reserved — no offer-letter template mechanism exists in this workstream\'s scope. Always null.'),
+  "status": zod.enum(['draft', 'pending_approval', 'approved', 'issued', 'accepted', 'declined', 'expired', 'withdrawn', 'superseded']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('One immutable revision of an offer\'s content — column list is exactly §9\'s `offer_versions` row, minus the raw generatedDocumentStorageKey (a reserved, never-populated internal file-storage reference, never exposed — same DTO-shaping discipline as W55\/W56\'s own stripped internal-only columns). letterTemplateId is a plain, unpopulated reserved FK-shaped integer — no offer-letter template mechanism exists in this workstream\'s scope.')
+
+
+/**
  * No authentication. Resolves the organization by its own slug only — never a numeric ID. Returns the same 404 whether the slug doesn't exist, the organization is suspended, or its careers portal isn't enabled (recruitment_settings.enabled / externalRecruitmentEnabled) — these are never distinguished, so a probing request can never learn which condition applied.
  * @summary Public organization profile for a careers page
  */

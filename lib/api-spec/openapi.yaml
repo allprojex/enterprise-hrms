@@ -62,6 +62,13 @@ tags:
     description: Referee contact and outcome tracking operations (W56) — status-tracked, no vendor integration
   - name: background-checks
     description: Background check tracking operations (W56) — status-tracked, no vendor/government integration; its own dedicated, organization-wide-only permission pair since result content is highly sensitive
+  - name: offers
+    description: >-
+      Versioned offer envelope, single-step approval, and issue/withdraw
+      operations (W57) — the final Recruitment stage. offer.manage is the
+      first Recruitment write permission this phase seeded to every role
+      (assigned recruiter/hiring manager can manage their own draft, per
+      §7); offer.approve/.issue/.withdraw stay organization-wide only
 
 paths:
   /healthz:
@@ -4989,6 +4996,456 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/offers:
+    get:
+      operationId: listOffers
+      tags: [offers]
+      summary: List offers
+      description: >-
+        Visibility-filtered per caller: organization-wide for offer.approve/
+        .issue/.withdraw holders, otherwise scoped to offers whose linked
+        requisition assigns the caller as recruiter or hiring manager
+        (docs/PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md §7).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Paginated, visibility-filtered offer list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfferListResponse"
+
+  /organizations/{organizationId}/offers/{id}:
+    get:
+      operationId: getOffer
+      tags: [offers]
+      summary: Get an offer by ID
+      description: Returns 404 both when the offer doesn't exist and when it exists but isn't visible to this caller — never distinguishing the two.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Offer, including every version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfferDetail"
+        "404":
+          description: Offer not found (or not visible to this caller)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    patch:
+      operationId: updateDraftOfferVersion
+      tags: [offers]
+      summary: Edit the offer's current version in place
+      description: >-
+        Only permitted while the current version is "draft" (§14). An
+        approved/issued version must go through `POST
+        .../offers/{id}/versions` instead — this endpoint returns 400 if
+        called on anything else (pending_approval or a terminal state too).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOfferVersionInput"
+      responses:
+        "200":
+          description: Offer's draft version updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfferDetail"
+        "400":
+          description: The current version is not editable in place (not draft)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Offer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/offers/{id}/versions:
+    post:
+      operationId: createNewOfferVersion
+      tags: [offers]
+      summary: Create a new offer version
+      description: >-
+        Only permitted while the current version is "approved" or "issued"
+        (§14's second editing branch) — the prior version is marked
+        superseded in the same transaction as the new draft version is
+        created. Returns 400 if the current version is still draft (edit it
+        in place via PATCH .../offers/{id} instead), awaiting a decision, or
+        terminal.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOfferVersionInput"
+      responses:
+        "201":
+          description: New draft offer version created; the prior version is now superseded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfferDetail"
+        "400":
+          description: The current version does not accept a new version in its current status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Offer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/applications/{applicationId}/offers:
+    get:
+      operationId: getOfferForApplication
+      tags: [offers]
+      summary: Get the offer for an application
+      description: >-
+        At most one offer ever exists per application
+        (offers_application_unique) — returns a single object, not a list.
+        404 both when no offer exists yet and when one exists but isn't
+        visible to this caller.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The application's offer, including every version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfferDetail"
+        "404":
+          description: No offer exists for this application (or it exists but isn't visible to this caller)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createOffer
+      tags: [offers]
+      summary: Create an offer for an application
+      description: >-
+        Creates the offer envelope and its first (draft) version in one
+        transaction. Requires offer.manage — org-wide holders may create an
+        offer for any application; an assigned recruiter or hiring manager
+        (per the application's linked requisition) may create one for their
+        own application, §7's first "assigned tier can really write" case
+        this phase. 409 if the application already has an offer.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOfferInput"
+      responses:
+        "201":
+          description: Offer created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfferDetail"
+        "404":
+          description: Application not found (or not visible to this caller)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: This application already has an offer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/offers/versions/{id}/submit-for-approval:
+    post:
+      operationId: submitOfferVersionForApproval
+      tags: [offers]
+      summary: Submit a draft offer version for approval
+      description: >-
+        draft -> pending_approval only, creating the single required
+        approval step in the same transaction. Requires offer.manage
+        (org-wide or assigned, same as create/edit).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Offer version submitted for approval
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfferVersion"
+        "400":
+          description: Only a draft offer version can be submitted for approval
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Offer version not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/offers/versions/{id}/approvals:
+    get:
+      operationId: listOfferApprovals
+      tags: [offers]
+      summary: Immutable approval decision history for an offer version
+      description: >-
+        Same visibility as GET .../offers/{id} (resolved via the version's
+        parent offer) — 404 both when the version doesn't exist and when it
+        exists but isn't visible to this caller.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Approval decision history, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OfferApproval"
+        "404":
+          description: Offer version not found (or not visible to this caller)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/offers/versions/{id}/approve:
+    post:
+      operationId: approveOfferVersion
+      tags: [offers]
+      summary: Approve a pending offer version
+      description: >-
+        Requires offer.approve (organization-wide only — no assigned tier
+        for this action per §7). Atomically finalizes the single approval
+        step and transitions the offer version pending_approval -> approved
+        in one transaction; 409 if the version is no longer awaiting a
+        decision.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApproveOfferVersionInput"
+      responses:
+        "200":
+          description: Offer version approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfferVersion"
+        "404":
+          description: Offer version not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Offer version is not currently awaiting a decision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/offers/versions/{id}/issue:
+    post:
+      operationId: issueOfferVersion
+      tags: [offers]
+      summary: Issue an approved offer version
+      description: approved -> issued only. Requires offer.issue (organization-wide only — no assigned tier for this action per §7).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Offer version issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfferVersion"
+        "400":
+          description: Only an approved offer version can be issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Offer version not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/offers/versions/{id}/withdraw:
+    post:
+      operationId: withdrawOfferVersion
+      tags: [offers]
+      summary: Withdraw a pending, approved, or issued offer version
+      description: >-
+        pending_approval, approved, or issued -> withdrawn. The only abort
+        action this workstream builds — no separate reject route exists (§10
+        names only submit-for-approval/approve/issue/withdraw), so this also
+        doubles as "reject a pending version". Requires offer.withdraw
+        (organization-wide only — no assigned tier for this action per §7).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WithdrawOfferVersionInput"
+      responses:
+        "200":
+          description: Offer version withdrawn
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfferVersion"
+        "400":
+          description: Only a pending, approved, or issued offer version can be withdrawn
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Offer version not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /careers/{orgSlug}:
     get:
       operationId: getPublicCareersOrganization
@@ -9543,6 +10000,292 @@ components:
         resultSummary:
           type: ["string", "null"]
         vendorReference:
+          type: ["string", "null"]
+
+    OfferVersion:
+      type: object
+      description: >-
+        One immutable revision of an offer's content — column list is
+        exactly §9's `offer_versions` row, minus the raw
+        generatedDocumentStorageKey (a reserved, never-populated internal
+        file-storage reference, never exposed — same DTO-shaping discipline
+        as W55/W56's own stripped internal-only columns). letterTemplateId
+        is a plain, unpopulated reserved FK-shaped integer — no offer-letter
+        template mechanism exists in this workstream's scope.
+      required:
+        - id
+        - organizationId
+        - offerId
+        - versionNumber
+        - proposedStartDate
+        - employmentType
+        - workplaceType
+        - location
+        - compensationSummary
+        - conditions
+        - expiryDate
+        - letterTemplateId
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        offerId:
+          type: integer
+        versionNumber:
+          type: integer
+        proposedStartDate:
+          type: ["string", "null"]
+          format: date
+        employmentType:
+          type: ["string", "null"]
+          enum: [full_time, part_time, contract, intern, temporary, null]
+        workplaceType:
+          type: ["string", "null"]
+          enum: [onsite, remote, hybrid, null]
+        location:
+          type: ["string", "null"]
+        compensationSummary:
+          description: Recruitment-scoped fields only (base salary, currency, bonus, benefits summary) — never a full payroll/compensation structure. Caller-supplied, unvalidated shape.
+          type: ["object", "null"]
+          additionalProperties: true
+        conditions:
+          type: ["string", "null"]
+        expiryDate:
+          type: ["string", "null"]
+          format: date
+        letterTemplateId:
+          type: ["integer", "null"]
+          description: Reserved — no offer-letter template mechanism exists in this workstream's scope. Always null.
+        status:
+          type: string
+          enum: [draft, pending_approval, approved, issued, accepted, declined, expired, withdrawn, superseded]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Offer:
+      type: object
+      description: >-
+        A stable envelope per application — the actual content lives in
+        OfferVersion, never here (§14). currentVersionId always points at
+        the latest non-superseded version.
+      required: [id, organizationId, applicationId, currentVersionId, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        applicationId:
+          type: integer
+        currentVersionId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    OfferDetail:
+      type: object
+      required: [offer, versions]
+      properties:
+        offer:
+          $ref: "#/components/schemas/Offer"
+        versions:
+          type: array
+          description: Every version of this offer, oldest first (versionNumber ascending) — including superseded ones, for full history.
+          items:
+            $ref: "#/components/schemas/OfferVersion"
+
+    OfferListItem:
+      type: object
+      required: [offer, currentVersion, vacancyTitle, applicationId]
+      properties:
+        offer:
+          $ref: "#/components/schemas/Offer"
+        currentVersion:
+          description: >-
+            Null only for the brief instant between creating the offer
+            envelope and its first version within the same transaction —
+            never observable via this list endpoint in practice. Inlined
+            (not $ref'd) because a nullable $ref/allOf combination breaks
+            this repo's orval codegen (see the `offers` tag description /
+            W55's own documented fix for the same issue).
+          type: ["object", "null"]
+          required:
+            - id
+            - organizationId
+            - offerId
+            - versionNumber
+            - proposedStartDate
+            - employmentType
+            - workplaceType
+            - location
+            - compensationSummary
+            - conditions
+            - expiryDate
+            - letterTemplateId
+            - status
+            - createdAt
+            - updatedAt
+          properties:
+            id:
+              type: integer
+            organizationId:
+              type: integer
+            offerId:
+              type: integer
+            versionNumber:
+              type: integer
+            proposedStartDate:
+              type: ["string", "null"]
+              format: date
+            employmentType:
+              type: ["string", "null"]
+              enum: [full_time, part_time, contract, intern, temporary, null]
+            workplaceType:
+              type: ["string", "null"]
+              enum: [onsite, remote, hybrid, null]
+            location:
+              type: ["string", "null"]
+            compensationSummary:
+              type: ["object", "null"]
+              additionalProperties: true
+            conditions:
+              type: ["string", "null"]
+            expiryDate:
+              type: ["string", "null"]
+              format: date
+            letterTemplateId:
+              type: ["integer", "null"]
+            status:
+              type: string
+              enum: [draft, pending_approval, approved, issued, accepted, declined, expired, withdrawn, superseded]
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+        vacancyTitle:
+          type: string
+        applicationId:
+          type: integer
+
+    OfferListResponse:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OfferListItem"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+
+    OfferApproval:
+      type: object
+      description: >-
+        A single approval step's decision record — mirrors
+        RequisitionApproval exactly (§9's own "mirrors requisition_approvals"
+        instruction). This workstream writes only sequence 1. No reject
+        route exists (see the `offers` tag description) — "rejected" is a
+        structurally valid but currently unreachable decision value.
+      required: [id, organizationId, offerVersionId, sequence, approverMembershipId, decision, decidedAt, comment, createdAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        offerVersionId:
+          type: integer
+        sequence:
+          type: integer
+        approverMembershipId:
+          type: ["integer", "null"]
+          description: Resolved at decision time (who actually decided) — null while pending.
+        decision:
+          type: string
+          enum: [pending, approved, rejected]
+        decidedAt:
+          type: ["string", "null"]
+          format: date-time
+        comment:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateOfferInput:
+      type: object
+      description: Fields for the offer's first (draft) version. Every field is optional — an empty draft can be created and filled in later via PATCH.
+      properties:
+        proposedStartDate:
+          type: ["string", "null"]
+          format: date
+        employmentType:
+          type: ["string", "null"]
+          enum: [full_time, part_time, contract, intern, temporary, null]
+        workplaceType:
+          type: ["string", "null"]
+          enum: [onsite, remote, hybrid, null]
+        location:
+          type: ["string", "null"]
+        compensationSummary:
+          type: ["object", "null"]
+          additionalProperties: true
+        conditions:
+          type: ["string", "null"]
+        expiryDate:
+          type: ["string", "null"]
+          format: date
+
+    UpdateOfferVersionInput:
+      type: object
+      description: Used both for PATCH .../offers/{id} (edit the current draft in place) and POST .../offers/{id}/versions (create a new draft from an approved/issued version) — same field shape either way.
+      properties:
+        proposedStartDate:
+          type: ["string", "null"]
+          format: date
+        employmentType:
+          type: ["string", "null"]
+          enum: [full_time, part_time, contract, intern, temporary, null]
+        workplaceType:
+          type: ["string", "null"]
+          enum: [onsite, remote, hybrid, null]
+        location:
+          type: ["string", "null"]
+        compensationSummary:
+          type: ["object", "null"]
+          additionalProperties: true
+        conditions:
+          type: ["string", "null"]
+        expiryDate:
+          type: ["string", "null"]
+          format: date
+
+    ApproveOfferVersionInput:
+      type: object
+      properties:
+        comment:
+          type: ["string", "null"]
+
+    WithdrawOfferVersionInput:
+      type: object
+      properties:
+        reason:
           type: ["string", "null"]
 
     PublicOrganization:

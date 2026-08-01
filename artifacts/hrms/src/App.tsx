@@ -47,6 +47,8 @@ import TalentPools from '@/pages/talent-pools';
 import Interviews from '@/pages/interviews';
 import InterviewDetail from '@/pages/interview-detail';
 import InterviewScorecard from '@/pages/interview-scorecard';
+import Offers from '@/pages/offers';
+import OfferDetail from '@/pages/offer-detail';
 import { ModuleGate } from '@/components/module-gate';
 
 const queryClient = new QueryClient({
@@ -183,6 +185,12 @@ function Router() {
       </Route>
       <Route path="/interviews">
         {() => <SecureRoute component={Interviews} moduleKey="recruitment" />}
+      </Route>
+      <Route path="/offers/:id">
+        {() => <SecureRoute component={OfferDetail} moduleKey="recruitment" />}
+      </Route>
+      <Route path="/offers">
+        {() => <SecureRoute component={Offers} moduleKey="recruitment" />}
       </Route>
 
       {/* 404 fallback */}

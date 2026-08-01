@@ -1909,6 +1909,343 @@ export interface UpdateBackgroundCheckStatusInput {
 }
 
 /**
+ * @nullable
+ */
+export type OfferVersionEmploymentType = typeof OfferVersionEmploymentType[keyof typeof OfferVersionEmploymentType] | null;
+
+
+export const OfferVersionEmploymentType = {
+  full_time: 'full_time',
+  part_time: 'part_time',
+  contract: 'contract',
+  intern: 'intern',
+  temporary: 'temporary',
+} as const;
+
+/**
+ * @nullable
+ */
+export type OfferVersionWorkplaceType = typeof OfferVersionWorkplaceType[keyof typeof OfferVersionWorkplaceType] | null;
+
+
+export const OfferVersionWorkplaceType = {
+  onsite: 'onsite',
+  remote: 'remote',
+  hybrid: 'hybrid',
+} as const;
+
+/**
+ * Recruitment-scoped fields only (base salary, currency, bonus, benefits summary) — never a full payroll/compensation structure. Caller-supplied, unvalidated shape.
+ * @nullable
+ */
+export type OfferVersionCompensationSummary = { [key: string]: unknown } | null;
+
+export type OfferVersionStatus = typeof OfferVersionStatus[keyof typeof OfferVersionStatus];
+
+
+export const OfferVersionStatus = {
+  draft: 'draft',
+  pending_approval: 'pending_approval',
+  approved: 'approved',
+  issued: 'issued',
+  accepted: 'accepted',
+  declined: 'declined',
+  expired: 'expired',
+  withdrawn: 'withdrawn',
+  superseded: 'superseded',
+} as const;
+
+/**
+ * One immutable revision of an offer's content — column list is exactly §9's `offer_versions` row, minus the raw generatedDocumentStorageKey (a reserved, never-populated internal file-storage reference, never exposed — same DTO-shaping discipline as W55/W56's own stripped internal-only columns). letterTemplateId is a plain, unpopulated reserved FK-shaped integer — no offer-letter template mechanism exists in this workstream's scope.
+ */
+export interface OfferVersion {
+  id: number;
+  organizationId: number;
+  offerId: number;
+  versionNumber: number;
+  /** @nullable */
+  proposedStartDate: string | null;
+  /** @nullable */
+  employmentType: OfferVersionEmploymentType;
+  /** @nullable */
+  workplaceType: OfferVersionWorkplaceType;
+  /** @nullable */
+  location: string | null;
+  /**
+     * Recruitment-scoped fields only (base salary, currency, bonus, benefits summary) — never a full payroll/compensation structure. Caller-supplied, unvalidated shape.
+     * @nullable
+     */
+  compensationSummary: OfferVersionCompensationSummary;
+  /** @nullable */
+  conditions: string | null;
+  /** @nullable */
+  expiryDate: string | null;
+  /**
+     * Reserved — no offer-letter template mechanism exists in this workstream's scope. Always null.
+     * @nullable
+     */
+  letterTemplateId: number | null;
+  status: OfferVersionStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * A stable envelope per application — the actual content lives in OfferVersion, never here (§14). currentVersionId always points at the latest non-superseded version.
+ */
+export interface Offer {
+  id: number;
+  organizationId: number;
+  applicationId: number;
+  /** @nullable */
+  currentVersionId: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OfferDetail {
+  offer: Offer;
+  /** Every version of this offer, oldest first (versionNumber ascending) — including superseded ones, for full history. */
+  versions: OfferVersion[];
+}
+
+/**
+ * @nullable
+ */
+export type OfferListItemCurrentVersionEmploymentType = typeof OfferListItemCurrentVersionEmploymentType[keyof typeof OfferListItemCurrentVersionEmploymentType] | null;
+
+
+export const OfferListItemCurrentVersionEmploymentType = {
+  full_time: 'full_time',
+  part_time: 'part_time',
+  contract: 'contract',
+  intern: 'intern',
+  temporary: 'temporary',
+} as const;
+
+/**
+ * @nullable
+ */
+export type OfferListItemCurrentVersionWorkplaceType = typeof OfferListItemCurrentVersionWorkplaceType[keyof typeof OfferListItemCurrentVersionWorkplaceType] | null;
+
+
+export const OfferListItemCurrentVersionWorkplaceType = {
+  onsite: 'onsite',
+  remote: 'remote',
+  hybrid: 'hybrid',
+} as const;
+
+/**
+ * @nullable
+ */
+export type OfferListItemCurrentVersionCompensationSummary = { [key: string]: unknown } | null;
+
+export type OfferListItemCurrentVersionStatus = typeof OfferListItemCurrentVersionStatus[keyof typeof OfferListItemCurrentVersionStatus];
+
+
+export const OfferListItemCurrentVersionStatus = {
+  draft: 'draft',
+  pending_approval: 'pending_approval',
+  approved: 'approved',
+  issued: 'issued',
+  accepted: 'accepted',
+  declined: 'declined',
+  expired: 'expired',
+  withdrawn: 'withdrawn',
+  superseded: 'superseded',
+} as const;
+
+/**
+ * Null only for the brief instant between creating the offer envelope and its first version within the same transaction — never observable via this list endpoint in practice. Inlined (not $ref'd) because a nullable $ref/allOf combination breaks this repo's orval codegen (see the `offers` tag description / W55's own documented fix for the same issue).
+ * @nullable
+ */
+export type OfferListItemCurrentVersion = {
+  id: number;
+  organizationId: number;
+  offerId: number;
+  versionNumber: number;
+  /** @nullable */
+  proposedStartDate: string | null;
+  /** @nullable */
+  employmentType: OfferListItemCurrentVersionEmploymentType;
+  /** @nullable */
+  workplaceType: OfferListItemCurrentVersionWorkplaceType;
+  /** @nullable */
+  location: string | null;
+  /** @nullable */
+  compensationSummary: OfferListItemCurrentVersionCompensationSummary;
+  /** @nullable */
+  conditions: string | null;
+  /** @nullable */
+  expiryDate: string | null;
+  /** @nullable */
+  letterTemplateId: number | null;
+  status: OfferListItemCurrentVersionStatus;
+  createdAt: string;
+  updatedAt: string;
+} | null;
+
+export interface OfferListItem {
+  offer: Offer;
+  /**
+     * Null only for the brief instant between creating the offer envelope and its first version within the same transaction — never observable via this list endpoint in practice. Inlined (not $ref'd) because a nullable $ref/allOf combination breaks this repo's orval codegen (see the `offers` tag description / W55's own documented fix for the same issue).
+     * @nullable
+     */
+  currentVersion: OfferListItemCurrentVersion;
+  vacancyTitle: string;
+  applicationId: number;
+}
+
+export interface OfferListResponse {
+  items: OfferListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export type OfferApprovalDecision = typeof OfferApprovalDecision[keyof typeof OfferApprovalDecision];
+
+
+export const OfferApprovalDecision = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+/**
+ * A single approval step's decision record — mirrors RequisitionApproval exactly (§9's own "mirrors requisition_approvals" instruction). This workstream writes only sequence 1. No reject route exists (see the `offers` tag description) — "rejected" is a structurally valid but currently unreachable decision value.
+ */
+export interface OfferApproval {
+  id: number;
+  organizationId: number;
+  offerVersionId: number;
+  sequence: number;
+  /**
+     * Resolved at decision time (who actually decided) — null while pending.
+     * @nullable
+     */
+  approverMembershipId: number | null;
+  decision: OfferApprovalDecision;
+  /** @nullable */
+  decidedAt: string | null;
+  /** @nullable */
+  comment: string | null;
+  createdAt: string;
+}
+
+/**
+ * @nullable
+ */
+export type CreateOfferInputEmploymentType = typeof CreateOfferInputEmploymentType[keyof typeof CreateOfferInputEmploymentType] | null;
+
+
+export const CreateOfferInputEmploymentType = {
+  full_time: 'full_time',
+  part_time: 'part_time',
+  contract: 'contract',
+  intern: 'intern',
+  temporary: 'temporary',
+} as const;
+
+/**
+ * @nullable
+ */
+export type CreateOfferInputWorkplaceType = typeof CreateOfferInputWorkplaceType[keyof typeof CreateOfferInputWorkplaceType] | null;
+
+
+export const CreateOfferInputWorkplaceType = {
+  onsite: 'onsite',
+  remote: 'remote',
+  hybrid: 'hybrid',
+} as const;
+
+/**
+ * @nullable
+ */
+export type CreateOfferInputCompensationSummary = { [key: string]: unknown } | null;
+
+/**
+ * Fields for the offer's first (draft) version. Every field is optional — an empty draft can be created and filled in later via PATCH.
+ */
+export interface CreateOfferInput {
+  /** @nullable */
+  proposedStartDate?: string | null;
+  /** @nullable */
+  employmentType?: CreateOfferInputEmploymentType;
+  /** @nullable */
+  workplaceType?: CreateOfferInputWorkplaceType;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  compensationSummary?: CreateOfferInputCompensationSummary;
+  /** @nullable */
+  conditions?: string | null;
+  /** @nullable */
+  expiryDate?: string | null;
+}
+
+/**
+ * @nullable
+ */
+export type UpdateOfferVersionInputEmploymentType = typeof UpdateOfferVersionInputEmploymentType[keyof typeof UpdateOfferVersionInputEmploymentType] | null;
+
+
+export const UpdateOfferVersionInputEmploymentType = {
+  full_time: 'full_time',
+  part_time: 'part_time',
+  contract: 'contract',
+  intern: 'intern',
+  temporary: 'temporary',
+} as const;
+
+/**
+ * @nullable
+ */
+export type UpdateOfferVersionInputWorkplaceType = typeof UpdateOfferVersionInputWorkplaceType[keyof typeof UpdateOfferVersionInputWorkplaceType] | null;
+
+
+export const UpdateOfferVersionInputWorkplaceType = {
+  onsite: 'onsite',
+  remote: 'remote',
+  hybrid: 'hybrid',
+} as const;
+
+/**
+ * @nullable
+ */
+export type UpdateOfferVersionInputCompensationSummary = { [key: string]: unknown } | null;
+
+/**
+ * Used both for PATCH .../offers/{id} (edit the current draft in place) and POST .../offers/{id}/versions (create a new draft from an approved/issued version) — same field shape either way.
+ */
+export interface UpdateOfferVersionInput {
+  /** @nullable */
+  proposedStartDate?: string | null;
+  /** @nullable */
+  employmentType?: UpdateOfferVersionInputEmploymentType;
+  /** @nullable */
+  workplaceType?: UpdateOfferVersionInputWorkplaceType;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  compensationSummary?: UpdateOfferVersionInputCompensationSummary;
+  /** @nullable */
+  conditions?: string | null;
+  /** @nullable */
+  expiryDate?: string | null;
+}
+
+export interface ApproveOfferVersionInput {
+  /** @nullable */
+  comment?: string | null;
+}
+
+export interface WithdrawOfferVersionInput {
+  /** @nullable */
+  reason?: string | null;
+}
+
+/**
  * Deliberately narrow — only what a careers page header needs. Never the internal Organization DTO (no status, no type, no internal id).
  */
 export interface PublicOrganization {
@@ -3523,6 +3860,11 @@ export const ListInterviewsStatus = {
 
 export type AttachBackgroundCheckEvidenceBody = {
   file: Blob;
+};
+
+export type ListOffersParams = {
+page?: number;
+pageSize?: number;
 };
 
 export type ListPublicVacanciesParams = {

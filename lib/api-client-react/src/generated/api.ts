@@ -36,6 +36,7 @@ import type {
   ApplicationSubmittedResponse,
   ApplyToPublicVacancyBody,
   ApproveJobRequisitionInput,
+  ApproveOfferVersionInput,
   AssignRoleInput,
   AttachBackgroundCheckEvidenceBody,
   AuditEventListResponse,
@@ -60,6 +61,7 @@ import type {
   CreateLeaveRequestInput,
   CreateLeaveTypeInput,
   CreateMasterDataItemInput,
+  CreateOfferInput,
   CreateOrganizationInput,
   CreatePositionInput,
   CreatePublicHolidayInput,
@@ -104,6 +106,7 @@ import type {
   ListJobRequisitionsParams,
   ListLeaveBalanceLedgerParams,
   ListLeaveCalendarParams,
+  ListOffersParams,
   ListPublicHolidaysParams,
   ListPublicVacanciesParams,
   ListVacanciesParams,
@@ -116,6 +119,10 @@ import type {
   MoveApplicationStageInput,
   MyEmployeeResponse,
   Notification,
+  OfferApproval,
+  OfferDetail,
+  OfferListResponse,
+  OfferVersion,
   Organization,
   OrganizationConfig,
   OrganizationMember,
@@ -168,6 +175,7 @@ import type {
   UpdateJobRequisitionInput,
   UpdateLeavePolicyInput,
   UpdateLeaveTypeInput,
+  UpdateOfferVersionInput,
   UpdateOrganizationConfigInput,
   UpdateOrganizationInput,
   UpdateOrganizationModuleInput,
@@ -185,7 +193,8 @@ import type {
   UserProfileUpdate,
   Vacancy,
   VacancyListResponse,
-  WithdrawApplicationInput
+  WithdrawApplicationInput,
+  WithdrawOfferVersionInput
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -10552,6 +10561,868 @@ export function useGetBackgroundCheckEvidence<TData = Awaited<ReturnType<typeof 
 
 
 
+
+export const getListOffersUrl = (organizationId: number,
+    params?: ListOffersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/offers?${stringifiedParams}` : `/api/organizations/${organizationId}/offers`
+}
+
+/**
+ * Visibility-filtered per caller: organization-wide for offer.approve/ .issue/.withdraw holders, otherwise scoped to offers whose linked requisition assigns the caller as recruiter or hiring manager (docs/PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md §7).
+ * @summary List offers
+ */
+export const listOffers = async (organizationId: number,
+    params?: ListOffersParams, options?: RequestInit): Promise<OfferListResponse> => {
+
+  return customFetch<OfferListResponse>(getListOffersUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOffersQueryKey = (organizationId: number,
+    params?: ListOffersParams,) => {
+    return [
+    `/api/organizations/${organizationId}/offers`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListOffersQueryOptions = <TData = Awaited<ReturnType<typeof listOffers>>, TError = ErrorType<unknown>>(organizationId: number,
+    params?: ListOffersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOffers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOffersQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOffers>>> = ({ signal }) => listOffers(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOffers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOffersQueryResult = NonNullable<Awaited<ReturnType<typeof listOffers>>>
+export type ListOffersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List offers
+ */
+
+export function useListOffers<TData = Awaited<ReturnType<typeof listOffers>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    params?: ListOffersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOffers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOffersQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetOfferUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/offers/${id}`
+}
+
+/**
+ * Returns 404 both when the offer doesn't exist and when it exists but isn't visible to this caller — never distinguishing the two.
+ * @summary Get an offer by ID
+ */
+export const getOffer = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<OfferDetail> => {
+
+  return customFetch<OfferDetail>(getGetOfferUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOfferQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/offers/${id}`
+    ] as const;
+    }
+
+
+export const getGetOfferQueryOptions = <TData = Awaited<ReturnType<typeof getOffer>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOffer>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOfferQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOffer>>> = ({ signal }) => getOffer(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOffer>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOfferQueryResult = NonNullable<Awaited<ReturnType<typeof getOffer>>>
+export type GetOfferQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get an offer by ID
+ */
+
+export function useGetOffer<TData = Awaited<ReturnType<typeof getOffer>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOffer>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOfferQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateDraftOfferVersionUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/offers/${id}`
+}
+
+/**
+ * Only permitted while the current version is "draft" (§14). An approved/issued version must go through `POST .../offers/{id}/versions` instead — this endpoint returns 400 if called on anything else (pending_approval or a terminal state too).
+ * @summary Edit the offer's current version in place
+ */
+export const updateDraftOfferVersion = async (organizationId: number,
+    id: number,
+    updateOfferVersionInput: UpdateOfferVersionInput, options?: RequestInit): Promise<OfferDetail> => {
+
+  return customFetch<OfferDetail>(getUpdateDraftOfferVersionUrl(organizationId,id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateOfferVersionInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateDraftOfferVersionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateDraftOfferVersion>>, TError,{organizationId: number;id: number;data: BodyType<UpdateOfferVersionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateDraftOfferVersion>>, TError,{organizationId: number;id: number;data: BodyType<UpdateOfferVersionInput>}, TContext> => {
+
+const mutationKey = ['updateDraftOfferVersion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateDraftOfferVersion>>, {organizationId: number;id: number;data: BodyType<UpdateOfferVersionInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  updateDraftOfferVersion(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateDraftOfferVersionMutationResult = NonNullable<Awaited<ReturnType<typeof updateDraftOfferVersion>>>
+    export type UpdateDraftOfferVersionMutationBody = BodyType<UpdateOfferVersionInput>
+    export type UpdateDraftOfferVersionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Edit the offer's current version in place
+ */
+export const useUpdateDraftOfferVersion = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateDraftOfferVersion>>, TError,{organizationId: number;id: number;data: BodyType<UpdateOfferVersionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateDraftOfferVersion>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<UpdateOfferVersionInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateDraftOfferVersionMutationOptions(options));
+    }
+
+export const getCreateNewOfferVersionUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/offers/${id}/versions`
+}
+
+/**
+ * Only permitted while the current version is "approved" or "issued" (§14's second editing branch) — the prior version is marked superseded in the same transaction as the new draft version is created. Returns 400 if the current version is still draft (edit it in place via PATCH .../offers/{id} instead), awaiting a decision, or terminal.
+ * @summary Create a new offer version
+ */
+export const createNewOfferVersion = async (organizationId: number,
+    id: number,
+    updateOfferVersionInput: UpdateOfferVersionInput, options?: RequestInit): Promise<OfferDetail> => {
+
+  return customFetch<OfferDetail>(getCreateNewOfferVersionUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateOfferVersionInput)
+  }
+);}
+
+
+
+
+
+export const getCreateNewOfferVersionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createNewOfferVersion>>, TError,{organizationId: number;id: number;data: BodyType<UpdateOfferVersionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createNewOfferVersion>>, TError,{organizationId: number;id: number;data: BodyType<UpdateOfferVersionInput>}, TContext> => {
+
+const mutationKey = ['createNewOfferVersion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createNewOfferVersion>>, {organizationId: number;id: number;data: BodyType<UpdateOfferVersionInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  createNewOfferVersion(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateNewOfferVersionMutationResult = NonNullable<Awaited<ReturnType<typeof createNewOfferVersion>>>
+    export type CreateNewOfferVersionMutationBody = BodyType<UpdateOfferVersionInput>
+    export type CreateNewOfferVersionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Create a new offer version
+ */
+export const useCreateNewOfferVersion = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createNewOfferVersion>>, TError,{organizationId: number;id: number;data: BodyType<UpdateOfferVersionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createNewOfferVersion>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<UpdateOfferVersionInput>},
+        TContext
+      > => {
+      return useMutation(getCreateNewOfferVersionMutationOptions(options));
+    }
+
+export const getGetOfferForApplicationUrl = (organizationId: number,
+    applicationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/applications/${applicationId}/offers`
+}
+
+/**
+ * At most one offer ever exists per application (offers_application_unique) — returns a single object, not a list. 404 both when no offer exists yet and when one exists but isn't visible to this caller.
+ * @summary Get the offer for an application
+ */
+export const getOfferForApplication = async (organizationId: number,
+    applicationId: number, options?: RequestInit): Promise<OfferDetail> => {
+
+  return customFetch<OfferDetail>(getGetOfferForApplicationUrl(organizationId,applicationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOfferForApplicationQueryKey = (organizationId: number,
+    applicationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/applications/${applicationId}/offers`
+    ] as const;
+    }
+
+
+export const getGetOfferForApplicationQueryOptions = <TData = Awaited<ReturnType<typeof getOfferForApplication>>, TError = ErrorType<ApiError>>(organizationId: number,
+    applicationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfferForApplication>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOfferForApplicationQueryKey(organizationId,applicationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOfferForApplication>>> = ({ signal }) => getOfferForApplication(organizationId,applicationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && applicationId !== null && applicationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOfferForApplication>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOfferForApplicationQueryResult = NonNullable<Awaited<ReturnType<typeof getOfferForApplication>>>
+export type GetOfferForApplicationQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get the offer for an application
+ */
+
+export function useGetOfferForApplication<TData = Awaited<ReturnType<typeof getOfferForApplication>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    applicationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfferForApplication>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOfferForApplicationQueryOptions(organizationId,applicationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateOfferUrl = (organizationId: number,
+    applicationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/applications/${applicationId}/offers`
+}
+
+/**
+ * Creates the offer envelope and its first (draft) version in one transaction. Requires offer.manage — org-wide holders may create an offer for any application; an assigned recruiter or hiring manager (per the application's linked requisition) may create one for their own application, §7's first "assigned tier can really write" case this phase. 409 if the application already has an offer.
+ * @summary Create an offer for an application
+ */
+export const createOffer = async (organizationId: number,
+    applicationId: number,
+    createOfferInput?: CreateOfferInput, options?: RequestInit): Promise<OfferDetail> => {
+
+  return customFetch<OfferDetail>(getCreateOfferUrl(organizationId,applicationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createOfferInput)
+  }
+);}
+
+
+
+
+
+export const getCreateOfferMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOffer>>, TError,{organizationId: number;applicationId: number;data?: BodyType<CreateOfferInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createOffer>>, TError,{organizationId: number;applicationId: number;data?: BodyType<CreateOfferInput>}, TContext> => {
+
+const mutationKey = ['createOffer'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createOffer>>, {organizationId: number;applicationId: number;data?: BodyType<CreateOfferInput>}> = (props) => {
+          const {organizationId,applicationId,data} = props ?? {};
+
+          return  createOffer(organizationId,applicationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateOfferMutationResult = NonNullable<Awaited<ReturnType<typeof createOffer>>>
+    export type CreateOfferMutationBody = BodyType<CreateOfferInput> | undefined
+    export type CreateOfferMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Create an offer for an application
+ */
+export const useCreateOffer = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOffer>>, TError,{organizationId: number;applicationId: number;data?: BodyType<CreateOfferInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createOffer>>,
+        TError,
+        {organizationId: number;applicationId: number;data?: BodyType<CreateOfferInput>},
+        TContext
+      > => {
+      return useMutation(getCreateOfferMutationOptions(options));
+    }
+
+export const getSubmitOfferVersionForApprovalUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/offers/versions/${id}/submit-for-approval`
+}
+
+/**
+ * draft -> pending_approval only, creating the single required approval step in the same transaction. Requires offer.manage (org-wide or assigned, same as create/edit).
+ * @summary Submit a draft offer version for approval
+ */
+export const submitOfferVersionForApproval = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<OfferVersion> => {
+
+  return customFetch<OfferVersion>(getSubmitOfferVersionForApprovalUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getSubmitOfferVersionForApprovalMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitOfferVersionForApproval>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitOfferVersionForApproval>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['submitOfferVersionForApproval'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitOfferVersionForApproval>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  submitOfferVersionForApproval(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitOfferVersionForApprovalMutationResult = NonNullable<Awaited<ReturnType<typeof submitOfferVersionForApproval>>>
+
+    export type SubmitOfferVersionForApprovalMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Submit a draft offer version for approval
+ */
+export const useSubmitOfferVersionForApproval = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitOfferVersionForApproval>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitOfferVersionForApproval>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getSubmitOfferVersionForApprovalMutationOptions(options));
+    }
+
+export const getListOfferApprovalsUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/offers/versions/${id}/approvals`
+}
+
+/**
+ * Same visibility as GET .../offers/{id} (resolved via the version's parent offer) — 404 both when the version doesn't exist and when it exists but isn't visible to this caller.
+ * @summary Immutable approval decision history for an offer version
+ */
+export const listOfferApprovals = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<OfferApproval[]> => {
+
+  return customFetch<OfferApproval[]>(getListOfferApprovalsUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOfferApprovalsQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/offers/versions/${id}/approvals`
+    ] as const;
+    }
+
+
+export const getListOfferApprovalsQueryOptions = <TData = Awaited<ReturnType<typeof listOfferApprovals>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOfferApprovals>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOfferApprovalsQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOfferApprovals>>> = ({ signal }) => listOfferApprovals(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOfferApprovals>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOfferApprovalsQueryResult = NonNullable<Awaited<ReturnType<typeof listOfferApprovals>>>
+export type ListOfferApprovalsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Immutable approval decision history for an offer version
+ */
+
+export function useListOfferApprovals<TData = Awaited<ReturnType<typeof listOfferApprovals>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOfferApprovals>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOfferApprovalsQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getApproveOfferVersionUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/offers/versions/${id}/approve`
+}
+
+/**
+ * Requires offer.approve (organization-wide only — no assigned tier for this action per §7). Atomically finalizes the single approval step and transitions the offer version pending_approval -> approved in one transaction; 409 if the version is no longer awaiting a decision.
+ * @summary Approve a pending offer version
+ */
+export const approveOfferVersion = async (organizationId: number,
+    id: number,
+    approveOfferVersionInput?: ApproveOfferVersionInput, options?: RequestInit): Promise<OfferVersion> => {
+
+  return customFetch<OfferVersion>(getApproveOfferVersionUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(approveOfferVersionInput)
+  }
+);}
+
+
+
+
+
+export const getApproveOfferVersionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveOfferVersion>>, TError,{organizationId: number;id: number;data?: BodyType<ApproveOfferVersionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveOfferVersion>>, TError,{organizationId: number;id: number;data?: BodyType<ApproveOfferVersionInput>}, TContext> => {
+
+const mutationKey = ['approveOfferVersion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveOfferVersion>>, {organizationId: number;id: number;data?: BodyType<ApproveOfferVersionInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  approveOfferVersion(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveOfferVersionMutationResult = NonNullable<Awaited<ReturnType<typeof approveOfferVersion>>>
+    export type ApproveOfferVersionMutationBody = BodyType<ApproveOfferVersionInput> | undefined
+    export type ApproveOfferVersionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Approve a pending offer version
+ */
+export const useApproveOfferVersion = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveOfferVersion>>, TError,{organizationId: number;id: number;data?: BodyType<ApproveOfferVersionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveOfferVersion>>,
+        TError,
+        {organizationId: number;id: number;data?: BodyType<ApproveOfferVersionInput>},
+        TContext
+      > => {
+      return useMutation(getApproveOfferVersionMutationOptions(options));
+    }
+
+export const getIssueOfferVersionUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/offers/versions/${id}/issue`
+}
+
+/**
+ * approved -> issued only. Requires offer.issue (organization-wide only — no assigned tier for this action per §7).
+ * @summary Issue an approved offer version
+ */
+export const issueOfferVersion = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<OfferVersion> => {
+
+  return customFetch<OfferVersion>(getIssueOfferVersionUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getIssueOfferVersionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof issueOfferVersion>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof issueOfferVersion>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['issueOfferVersion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof issueOfferVersion>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  issueOfferVersion(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type IssueOfferVersionMutationResult = NonNullable<Awaited<ReturnType<typeof issueOfferVersion>>>
+
+    export type IssueOfferVersionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Issue an approved offer version
+ */
+export const useIssueOfferVersion = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof issueOfferVersion>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof issueOfferVersion>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getIssueOfferVersionMutationOptions(options));
+    }
+
+export const getWithdrawOfferVersionUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/offers/versions/${id}/withdraw`
+}
+
+/**
+ * pending_approval, approved, or issued -> withdrawn. The only abort action this workstream builds — no separate reject route exists (§10 names only submit-for-approval/approve/issue/withdraw), so this also doubles as "reject a pending version". Requires offer.withdraw (organization-wide only — no assigned tier for this action per §7).
+ * @summary Withdraw a pending, approved, or issued offer version
+ */
+export const withdrawOfferVersion = async (organizationId: number,
+    id: number,
+    withdrawOfferVersionInput?: WithdrawOfferVersionInput, options?: RequestInit): Promise<OfferVersion> => {
+
+  return customFetch<OfferVersion>(getWithdrawOfferVersionUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(withdrawOfferVersionInput)
+  }
+);}
+
+
+
+
+
+export const getWithdrawOfferVersionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawOfferVersion>>, TError,{organizationId: number;id: number;data?: BodyType<WithdrawOfferVersionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof withdrawOfferVersion>>, TError,{organizationId: number;id: number;data?: BodyType<WithdrawOfferVersionInput>}, TContext> => {
+
+const mutationKey = ['withdrawOfferVersion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof withdrawOfferVersion>>, {organizationId: number;id: number;data?: BodyType<WithdrawOfferVersionInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  withdrawOfferVersion(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type WithdrawOfferVersionMutationResult = NonNullable<Awaited<ReturnType<typeof withdrawOfferVersion>>>
+    export type WithdrawOfferVersionMutationBody = BodyType<WithdrawOfferVersionInput> | undefined
+    export type WithdrawOfferVersionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Withdraw a pending, approved, or issued offer version
+ */
+export const useWithdrawOfferVersion = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawOfferVersion>>, TError,{organizationId: number;id: number;data?: BodyType<WithdrawOfferVersionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof withdrawOfferVersion>>,
+        TError,
+        {organizationId: number;id: number;data?: BodyType<WithdrawOfferVersionInput>},
+        TContext
+      > => {
+      return useMutation(getWithdrawOfferVersionMutationOptions(options));
+    }
 
 export const getGetPublicCareersOrganizationUrl = (orgSlug: string,) => {
 

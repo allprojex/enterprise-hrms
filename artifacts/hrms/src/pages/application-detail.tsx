@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useParams, Link } from 'wouter';
-import { ArrowLeft, FileText, RotateCcw, XCircle, LogOut, AlertTriangle, Star, CalendarClock, Plus, UserCheck, ShieldCheck, Download, Upload } from 'lucide-react';
+import { useParams, Link, useLocation } from 'wouter';
+import { ArrowLeft, FileText, RotateCcw, XCircle, LogOut, AlertTriangle, Star, CalendarClock, Plus, UserCheck, ShieldCheck, Download, Upload, FileSignature } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -42,6 +42,9 @@ import {
   useUpdateBackgroundCheckStatus,
   useAttachBackgroundCheckEvidence,
   getGetBackgroundCheckEvidenceUrl,
+  useGetOfferForApplication,
+  getGetOfferForApplicationQueryKey,
+  useCreateOffer,
   type InterviewInterviewType,
   type ReferenceBackgroundCheckStatus,
 } from '@workspace/api-client-react';
@@ -454,6 +457,74 @@ function BackgroundChecksSection({ organizationId, applicationId }: { organizati
           </form>
         </DialogContent>
       </Dialog>
+    </Card>
+  );
+}
+
+const OFFER_STATUS_VARIANT: Record<string, 'secondary' | 'outline' | 'destructive'> = {
+  draft: 'outline',
+  pending_approval: 'secondary',
+  approved: 'secondary',
+  issued: 'secondary',
+  accepted: 'secondary',
+  declined: 'destructive',
+  expired: 'destructive',
+  withdrawn: 'destructive',
+  superseded: 'outline',
+};
+
+/** offer.manage is broadly seeded (including to "employee") — an assigned recruiter/hiring manager can create/manage their own application's offer here, not just org-wide staff. A 404 means no offer exists yet, not an error. */
+function OfferSection({ organizationId, applicationId }: { organizationId: number; applicationId: number }) {
+  const [, navigate] = useLocation();
+  const { toast } = useToast();
+  const { data: offer, error } = useGetOfferForApplication(organizationId, applicationId, {
+    query: { queryKey: getGetOfferForApplicationQueryKey(organizationId, applicationId), enabled: organizationId > 0 && applicationId > 0, retry: false },
+  });
+  const createMutation = useCreateOffer();
+
+  const notFound = error != null && typeof error === 'object' && 'status' in error && (error as { status: number }).status === 404;
+
+  const handleCreate = () => {
+    createMutation.mutate(
+      { organizationId, applicationId, data: {} },
+      {
+        onSuccess: (created) => navigate(`/offers/${created.offer.id}`),
+        onError: (err) => toast({ title: 'Could not create offer', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  if (error && !notFound) return null;
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle className="text-base flex items-center gap-2">
+            <FileSignature className="h-4 w-4" aria-hidden="true" />
+            Offer
+          </CardTitle>
+          <CardDescription>A versioned offer envelope, taken through approval before being issued</CardDescription>
+        </div>
+        {notFound && (
+          <Button size="sm" variant="outline" onClick={handleCreate} disabled={createMutation.isPending} data-testid="button-create-offer">
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            {createMutation.isPending ? 'Creating…' : 'Create Offer'}
+          </Button>
+        )}
+      </CardHeader>
+      <CardContent>
+        {notFound || !offer ? (
+          <p className="text-sm text-muted-foreground">No offer created yet.</p>
+        ) : (
+          <Link href={`/offers/${offer.offer.id}`} className="flex items-center justify-between hover:underline" data-testid="link-offer">
+            <span className="text-sm font-medium text-foreground">Version {offer.versions[offer.versions.length - 1]?.versionNumber ?? 1}</span>
+            <Badge variant={OFFER_STATUS_VARIANT[offer.versions[offer.versions.length - 1]?.status ?? 'draft'] ?? 'outline'} className="capitalize">
+              {(offer.versions[offer.versions.length - 1]?.status ?? 'draft').replace(/_/g, ' ')}
+            </Badge>
+          </Link>
+        )}
+      </CardContent>
     </Card>
   );
 }
@@ -900,6 +971,7 @@ export default function ApplicationDetail() {
         </CardContent>
       </Card>
 
+      <OfferSection organizationId={organizationId} applicationId={applicationId} />
       <ReferenceChecksSection organizationId={organizationId} applicationId={applicationId} />
       <BackgroundChecksSection organizationId={organizationId} applicationId={applicationId} />
 
