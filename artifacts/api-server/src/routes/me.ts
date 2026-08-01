@@ -1,11 +1,22 @@
 import { Router, type Response, type NextFunction } from "express";
 import { eq, and, isNull, inArray } from "drizzle-orm";
 import { db, organizationsTable, membershipRolesTable, rolesTable, primaryHrAssignmentsTable } from "@workspace/db";
+import { ApplyToInternalVacancyBody } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { getActiveMembershipsForUser, getActiveMembership, resolveActiveOrganizationId } from "../lib/membership";
 import { requireModuleEnabled } from "../middlewares/requireModuleEnabled";
 import type { MembershipRequest } from "../middlewares/requireMembership";
 import { resolveOwnEmployeeProfile } from "../lib/employeeSelfService";
+import { RECRUITMENT_MODULE_KEY } from "../lib/recruitmentAuthorization";
+import {
+  listInternalVacancies,
+  submitInternalApplication,
+  listOwnInternalApplications,
+  NotLinkedToEmployeeError,
+  EmployeeNotActiveError,
+  VacancyNotEligibleForInternalApplyError,
+  EmployeeMissingEmailError,
+} from "../lib/employeeInternalApplications";
 
 const router = Router();
 
@@ -119,6 +130,83 @@ router.get(
   async (req: MembershipRequest, res): Promise<void> => {
     const profile = await resolveOwnEmployeeProfile(req.membership!.organizationId, req.userId!);
     res.json({ linked: profile != null, employee: profile });
+  },
+);
+
+function handleInternalApplicationError(err: unknown, res: Response): boolean {
+  if (err instanceof NotLinkedToEmployeeError || err instanceof EmployeeNotActiveError) {
+    res.status(403).json({ error: err.message });
+    return true;
+  }
+  if (err instanceof VacancyNotEligibleForInternalApplyError) {
+    res.status(404).json({ error: err.message });
+    return true;
+  }
+  if (err instanceof EmployeeMissingEmailError) {
+    res.status(400).json({ error: err.message });
+    return true;
+  }
+  return false;
+}
+
+// GET /me/internal-vacancies
+// Employee Self-Service Internal Applications (W60): gated on both
+// employee_self_service and recruitment independently (§8) — the ESS page
+// itself only needs employee_self_service; this section additionally,
+// independently requires recruitment, so a disabled recruitment module
+// degrades only this one section on the frontend, never the whole page.
+router.get(
+  "/me/internal-vacancies",
+  requireAuth as any,
+  requireActiveOrganizationMembership,
+  requireModuleEnabled("employee_self_service"),
+  requireModuleEnabled(RECRUITMENT_MODULE_KEY),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const result = await listInternalVacancies(req.membership!.organizationId, req.userId!);
+    res.json(result);
+  },
+);
+
+// POST /me/internal-vacancies/:publicId/apply
+router.post(
+  "/me/internal-vacancies/:publicId/apply",
+  requireAuth as any,
+  requireActiveOrganizationMembership,
+  requireModuleEnabled("employee_self_service"),
+  requireModuleEnabled(RECRUITMENT_MODULE_KEY),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const publicIdRaw = Array.isArray(req.params.publicId) ? req.params.publicId[0] : req.params.publicId;
+    const parsed = ApplyToInternalVacancyBody.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    try {
+      const result = await submitInternalApplication({
+        organizationId: req.membership!.organizationId,
+        applicationUserId: req.userId!,
+        actorMembershipId: req.membership!.id,
+        vacancyPublicId: publicIdRaw,
+        answers: parsed.data.answers,
+      });
+      res.status(201).json({ id: result.application.id, isNew: result.isNew, status: "submitted" });
+    } catch (err) {
+      if (handleInternalApplicationError(err, res)) return;
+      throw err;
+    }
+  },
+);
+
+// GET /me/applications
+router.get(
+  "/me/applications",
+  requireAuth as any,
+  requireActiveOrganizationMembership,
+  requireModuleEnabled("employee_self_service"),
+  requireModuleEnabled(RECRUITMENT_MODULE_KEY),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const result = await listOwnInternalApplications(req.membership!.organizationId, req.userId!);
+    res.json(result);
   },
 );
 

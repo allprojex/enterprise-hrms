@@ -334,6 +334,137 @@ export interface MyEmployeeResponse {
   employee: SelfServiceEmployeeProfile | null;
 }
 
+export type InternalVacancyQuestionQuestionType = typeof InternalVacancyQuestionQuestionType[keyof typeof InternalVacancyQuestionQuestionType];
+
+
+export const InternalVacancyQuestionQuestionType = {
+  text: 'text',
+  yes_no: 'yes_no',
+  multiple_choice: 'multiple_choice',
+  numeric: 'numeric',
+} as const;
+
+/**
+ * Deliberately excludes isKnockout/expectedAnswer (W52) — an applicant must never learn which questions are knockout-screened or what answer is "correct".
+ */
+export interface InternalVacancyQuestion {
+  id: number;
+  questionText: string;
+  questionType: InternalVacancyQuestionQuestionType;
+}
+
+/**
+ * @nullable
+ */
+export type InternalVacancySummaryEmploymentType = typeof InternalVacancySummaryEmploymentType[keyof typeof InternalVacancySummaryEmploymentType] | null;
+
+
+export const InternalVacancySummaryEmploymentType = {
+  full_time: 'full_time',
+  part_time: 'part_time',
+  contract: 'contract',
+  intern: 'intern',
+  temporary: 'temporary',
+} as const;
+
+/**
+ * @nullable
+ */
+export type InternalVacancySummaryWorkplaceType = typeof InternalVacancySummaryWorkplaceType[keyof typeof InternalVacancySummaryWorkplaceType] | null;
+
+
+export const InternalVacancySummaryWorkplaceType = {
+  onsite: 'onsite',
+  remote: 'remote',
+  hybrid: 'hybrid',
+} as const;
+
+/**
+ * Deliberately restricted — no recruiter, hiring-manager, requisition, approval, or audit detail is ever included, the same discipline as the public careers DTO.
+ */
+export interface InternalVacancySummary {
+  publicId: string;
+  title: string;
+  /** @nullable */
+  departmentName: string | null;
+  /** @nullable */
+  employmentType: InternalVacancySummaryEmploymentType;
+  /** @nullable */
+  workplaceType: InternalVacancySummaryWorkplaceType;
+  openingsCount: number;
+  /** @nullable */
+  openDate: string | null;
+  /** @nullable */
+  closeDate: string | null;
+  /** @nullable */
+  jobDescription: string | null;
+  /** @nullable */
+  responsibilities: string | null;
+  /** @nullable */
+  requirements: string | null;
+  /** @nullable */
+  preferredQualifications: string | null;
+  questions: InternalVacancyQuestion[];
+}
+
+export interface InternalVacanciesResponse {
+  /** False when the caller's login isn't linked to an employee record — the same intentional, safe state as MyEmployeeResponse.linked. */
+  linked: boolean;
+  /** Meaningful only when linked is true — false when the linked employee is not currently active (probation/on_leave/suspended/terminated). */
+  active: boolean;
+  items: InternalVacancySummary[];
+}
+
+export interface SubmitInternalApplicationAnswerInput {
+  vacancyQuestionId: number;
+  answerText: string;
+}
+
+export interface SubmitInternalApplicationInput {
+  answers?: SubmitInternalApplicationAnswerInput[];
+}
+
+export type MyInternalApplicationSubmitResultStatus = typeof MyInternalApplicationSubmitResultStatus[keyof typeof MyInternalApplicationSubmitResultStatus];
+
+
+export const MyInternalApplicationSubmitResultStatus = {
+  submitted: 'submitted',
+} as const;
+
+export interface MyInternalApplicationSubmitResult {
+  id: number;
+  /** False when a prior application to this vacancy already existed and was returned as-is (idempotent repeat submission). */
+  isNew: boolean;
+  status: MyInternalApplicationSubmitResultStatus;
+}
+
+export type MyInternalApplicationSummaryCurrentStageCategory = typeof MyInternalApplicationSummaryCurrentStageCategory[keyof typeof MyInternalApplicationSummaryCurrentStageCategory];
+
+
+export const MyInternalApplicationSummaryCurrentStageCategory = {
+  applied: 'applied',
+  screening: 'screening',
+  interview: 'interview',
+  assessment: 'assessment',
+  offer: 'offer',
+  hired: 'hired',
+  rejected: 'rejected',
+  withdrawn: 'withdrawn',
+} as const;
+
+export interface MyInternalApplicationSummary {
+  id: number;
+  vacancyTitle: string;
+  currentStageCategory: MyInternalApplicationSummaryCurrentStageCategory;
+  submittedAt: string;
+}
+
+export interface MyInternalApplicationsResponse {
+  linked: boolean;
+  active: boolean;
+  items: MyInternalApplicationSummary[];
+}
+
 export type LeaveRequestStatus = typeof LeaveRequestStatus[keyof typeof LeaveRequestStatus];
 
 

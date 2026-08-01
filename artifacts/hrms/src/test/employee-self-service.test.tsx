@@ -20,6 +20,10 @@ const { state } = vi.hoisted(() => ({
     documents: [] as unknown[],
     documentsLoading: false,
     documentsError: undefined as unknown,
+    internalVacancies: undefined as unknown,
+    internalVacanciesError: undefined as unknown,
+    myInternalApplications: undefined as unknown,
+    applyMutate: vi.fn() as (...args: unknown[]) => void,
   },
 }));
 
@@ -41,6 +45,12 @@ vi.mock('@workspace/api-client-react', () => ({
   getListLeaveBalancesQueryKey: () => ['leaveBalances'],
   useCreateLeaveRequest: () => ({ mutate: vi.fn(), isPending: false }),
   useCancelLeaveRequest: () => ({ mutate: vi.fn(), isPending: false }),
+  // Internal Vacancies / My Applications (W60)
+  useListMyInternalVacancies: () => ({ data: state.internalVacancies, isLoading: false, error: state.internalVacanciesError, refetch: vi.fn() }),
+  getListMyInternalVacanciesQueryKey: () => ['myInternalVacancies'],
+  useApplyToInternalVacancy: () => ({ mutate: state.applyMutate, isPending: false }),
+  useListMyInternalApplications: () => ({ data: state.myInternalApplications, isLoading: false, error: undefined, refetch: vi.fn() }),
+  getListMyInternalApplicationsQueryKey: () => ['myInternalApplications'],
 }));
 
 function baseEmployee(overrides: Partial<SelfServiceEmployeeProfile> = {}): SelfServiceEmployeeProfile {
@@ -180,5 +190,131 @@ describe('Employee Self-Service page', () => {
     renderEss();
     await userEvent.click(screen.getByTestId('tab-my-documents'));
     expect(screen.getByText(/no documents on file/i)).toBeInTheDocument();
+  });
+
+  it('renders Internal Vacancies and My Applications tabs for a linked user', () => {
+    state.myEmployeeLoading = false;
+    state.myEmployeeError = undefined;
+    state.myEmployee = { linked: true, employee: baseEmployee() };
+    state.modules = [mod({ key: 'leave', enabled: true }), mod({ key: 'recruitment', enabled: true })];
+    state.documents = [];
+    renderEss();
+    expect(screen.getByTestId('tab-internal-vacancies')).toBeInTheDocument();
+    expect(screen.getByTestId('tab-my-internal-applications')).toBeInTheDocument();
+  });
+
+  it('handles a disabled Recruitment module cleanly instead of a broken page', async () => {
+    state.myEmployeeLoading = false;
+    state.myEmployeeError = undefined;
+    state.myEmployee = { linked: true, employee: baseEmployee() };
+    state.modules = [mod({ key: 'leave', enabled: true }), mod({ key: 'recruitment', enabled: false })];
+    state.documents = [];
+    renderEss();
+    await userEvent.click(screen.getByTestId('tab-internal-vacancies'));
+    expect(screen.getByText(/recruitment isn't enabled/i)).toBeInTheDocument();
+  });
+
+  it("shows the controlled not-eligible state when the linked employee isn't active", async () => {
+    state.myEmployeeLoading = false;
+    state.myEmployeeError = undefined;
+    state.myEmployee = { linked: true, employee: baseEmployee() };
+    state.modules = [mod({ key: 'leave', enabled: true }), mod({ key: 'recruitment', enabled: true })];
+    state.internalVacancies = { linked: true, active: false, items: [] };
+    renderEss();
+    await userEvent.click(screen.getByTestId('tab-internal-vacancies'));
+    expect(screen.getByText(/internal applications aren't available/i)).toBeInTheDocument();
+  });
+
+  it('shows an empty state when there are no eligible internal vacancies', async () => {
+    state.myEmployeeLoading = false;
+    state.myEmployeeError = undefined;
+    state.myEmployee = { linked: true, employee: baseEmployee() };
+    state.modules = [mod({ key: 'leave', enabled: true }), mod({ key: 'recruitment', enabled: true })];
+    state.internalVacancies = { linked: true, active: true, items: [] };
+    renderEss();
+    await userEvent.click(screen.getByTestId('tab-internal-vacancies'));
+    expect(screen.getByText(/no internal vacancies right now/i)).toBeInTheDocument();
+  });
+
+  it('lists eligible internal vacancies and opens the apply dialog with no recruiter controls', async () => {
+    state.myEmployeeLoading = false;
+    state.myEmployeeError = undefined;
+    state.myEmployee = { linked: true, employee: baseEmployee() };
+    state.modules = [mod({ key: 'leave', enabled: true }), mod({ key: 'recruitment', enabled: true })];
+    state.internalVacancies = {
+      linked: true,
+      active: true,
+      items: [
+        {
+          publicId: 'vac-pub-1',
+          title: 'Internal Analyst',
+          departmentName: 'Finance',
+          employmentType: 'full_time',
+          workplaceType: 'onsite',
+          openingsCount: 1,
+          openDate: null,
+          closeDate: null,
+          jobDescription: 'Analyze things',
+          responsibilities: null,
+          requirements: null,
+          preferredQualifications: null,
+          questions: [],
+        },
+      ],
+    };
+    renderEss();
+    await userEvent.click(screen.getByTestId('tab-internal-vacancies'));
+    expect(screen.getByTestId('card-internal-vacancy-vac-pub-1')).toHaveTextContent('Internal Analyst');
+    await userEvent.click(screen.getByTestId('button-view-internal-vacancy-vac-pub-1'));
+    expect(screen.getByTestId('button-submit-internal-application')).toBeInTheDocument();
+    expect(screen.queryByText(/recruiter/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/hiring manager/i)).not.toBeInTheDocument();
+  });
+
+  it('submits an application from the apply dialog', async () => {
+    state.myEmployeeLoading = false;
+    state.myEmployeeError = undefined;
+    state.myEmployee = { linked: true, employee: baseEmployee() };
+    state.modules = [mod({ key: 'leave', enabled: true }), mod({ key: 'recruitment', enabled: true })];
+    state.internalVacancies = {
+      linked: true,
+      active: true,
+      items: [{ publicId: 'vac-pub-1', title: 'Internal Analyst', departmentName: null, employmentType: null, workplaceType: null, openingsCount: 1, openDate: null, closeDate: null, jobDescription: null, responsibilities: null, requirements: null, preferredQualifications: null, questions: [] }],
+    };
+    const applyMutate = vi.fn((_vars, opts) => opts.onSuccess({ id: 1, isNew: true, status: 'submitted' }));
+    state.applyMutate = applyMutate;
+    renderEss();
+    await userEvent.click(screen.getByTestId('tab-internal-vacancies'));
+    await userEvent.click(screen.getByTestId('button-view-internal-vacancy-vac-pub-1'));
+    await userEvent.click(screen.getByTestId('button-submit-internal-application'));
+    expect(applyMutate).toHaveBeenCalledWith(expect.objectContaining({ publicId: 'vac-pub-1' }), expect.anything());
+  });
+
+  it('shows My Applications with a status badge', async () => {
+    state.myEmployeeLoading = false;
+    state.myEmployeeError = undefined;
+    state.myEmployee = { linked: true, employee: baseEmployee() };
+    state.modules = [mod({ key: 'leave', enabled: true }), mod({ key: 'recruitment', enabled: true })];
+    state.myInternalApplications = {
+      linked: true,
+      active: true,
+      items: [{ id: 1, vacancyTitle: 'Internal Analyst', currentStageCategory: 'screening', submittedAt: new Date().toISOString() }],
+    };
+    renderEss();
+    await userEvent.click(screen.getByTestId('tab-my-internal-applications'));
+    const row = screen.getByTestId('row-my-internal-application-1');
+    expect(row).toHaveTextContent('Internal Analyst');
+    expect(row).toHaveTextContent('screening');
+  });
+
+  it('shows an empty state when there are no internal applications yet', async () => {
+    state.myEmployeeLoading = false;
+    state.myEmployeeError = undefined;
+    state.myEmployee = { linked: true, employee: baseEmployee() };
+    state.modules = [mod({ key: 'leave', enabled: true }), mod({ key: 'recruitment', enabled: true })];
+    state.myInternalApplications = { linked: true, active: true, items: [] };
+    renderEss();
+    await userEvent.click(screen.getByTestId('tab-my-internal-applications'));
+    expect(screen.getByText(/no internal applications yet/i)).toBeInTheDocument();
   });
 });

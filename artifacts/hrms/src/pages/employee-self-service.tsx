@@ -1,8 +1,13 @@
-import { UserCircle, FileText, CalendarClock } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState } from 'react';
+import { UserCircle, FileText, CalendarClock, Briefcase, Send } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import {
   useGetMe,
   getGetMeQueryKey,
@@ -12,11 +17,23 @@ import {
   getListOrganizationModulesQueryKey,
   useListEmployeeDocuments,
   getListEmployeeDocumentsQueryKey,
+  useListMyInternalVacancies,
+  getListMyInternalVacanciesQueryKey,
+  useApplyToInternalVacancy,
+  useListMyInternalApplications,
+  getListMyInternalApplicationsQueryKey,
   type SelfServiceEmployeeProfile,
+  type InternalVacancySummary,
 } from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { QueryError } from '@/components/query-error';
 import { isModuleAccessible } from '@/lib/module-access';
+import { useToast } from '@/hooks/use-toast';
 import MyLeave from './my-leave';
+
+function errorMessage(err: unknown): string | undefined {
+  return err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
+}
 
 function formatDate(value: string | null | undefined): string | null {
   return value ? new Date(value).toLocaleDateString() : null;
@@ -148,6 +165,210 @@ function MyDocumentsTab({ organizationId, employeeId }: { organizationId: number
   );
 }
 
+const STAGE_VARIANT: Record<string, 'secondary' | 'outline' | 'destructive'> = {
+  applied: 'outline',
+  screening: 'secondary',
+  interview: 'secondary',
+  assessment: 'secondary',
+  offer: 'secondary',
+  hired: 'secondary',
+  rejected: 'destructive',
+  withdrawn: 'destructive',
+};
+
+/** linked/active are both intentional 200-OK controlled states from the backend (never a 403) — this card renders identically for either, since both mean "nothing to show here right now," not an error. */
+function NotEligibleForInternalCard() {
+  return (
+    <Card>
+      <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
+          <Briefcase className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
+        </div>
+        <h3 className="text-lg font-semibold text-foreground mb-2">Internal applications aren't available</h3>
+        <p className="text-sm text-muted-foreground max-w-sm">
+          This is only available to active employees with a linked employee record. Please contact your HR administrator if you believe this is unexpected.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * No dedicated internal vacancy *detail* route exists in the frozen §10
+ * API — the list response already carries every field a detail view
+ * needs, so "detail" is just showing the same already-fetched item in a
+ * dialog, never a second network fetch.
+ */
+function InternalVacanciesTab({ organizationId }: { organizationId: number }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const { data, isLoading, error, refetch } = useListMyInternalVacancies({
+    query: { queryKey: getListMyInternalVacanciesQueryKey(), enabled: organizationId > 0 },
+  });
+  const applyMutation = useApplyToInternalVacancy();
+
+  const [selected, setSelected] = useState<InternalVacancySummary | null>(null);
+  const [answers, setAnswers] = useState<Record<number, string>>({});
+
+  const openVacancy = (vacancy: InternalVacancySummary) => {
+    setAnswers({});
+    setSelected(vacancy);
+  };
+
+  const handleApply = () => {
+    if (!selected) return;
+    const answerList = Object.entries(answers)
+      .filter(([, text]) => text.trim())
+      .map(([vacancyQuestionId, answerText]) => ({ vacancyQuestionId: Number(vacancyQuestionId), answerText }));
+    applyMutation.mutate(
+      { publicId: selected.publicId, data: answerList.length ? { answers: answerList } : undefined },
+      {
+        onSuccess: (result) => {
+          queryClient.invalidateQueries({ queryKey: getListMyInternalApplicationsQueryKey() });
+          setSelected(null);
+          toast({ title: result.isNew ? 'Application submitted' : "You've already applied to this vacancy" });
+        },
+        onError: (err) => toast({ title: 'Could not submit application', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  if (error) return <QueryError title="Could not load internal vacancies" onRetry={() => refetch()} />;
+  if (isLoading) return <Skeleton className="h-64 w-full" />;
+  if (!data || !data.linked || !data.active) return <NotEligibleForInternalCard />;
+
+  if (data.items.length === 0) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
+            <Briefcase className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
+          </div>
+          <h3 className="text-lg font-semibold text-foreground mb-2">No internal vacancies right now</h3>
+          <p className="text-sm text-muted-foreground max-w-sm">Check back later for openings you're eligible to apply to.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {data.items.map((vacancy) => (
+          <Card key={vacancy.publicId} data-testid={`card-internal-vacancy-${vacancy.publicId}`}>
+            <CardHeader>
+              <CardTitle className="text-base">{vacancy.title}</CardTitle>
+              <CardDescription>{vacancy.departmentName ?? 'Unspecified department'}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                {vacancy.employmentType && <Badge variant="outline" className="capitalize">{vacancy.employmentType.replace('_', ' ')}</Badge>}
+                {vacancy.workplaceType && <Badge variant="outline" className="capitalize">{vacancy.workplaceType}</Badge>}
+              </div>
+              <Button size="sm" onClick={() => openVacancy(vacancy)} data-testid={`button-view-internal-vacancy-${vacancy.publicId}`}>
+                View &amp; Apply
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <Dialog open={selected != null} onOpenChange={(open) => !open && setSelected(null)}>
+        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
+          {selected && (
+            <>
+              <DialogHeader>
+                <DialogTitle>{selected.title}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                {selected.jobDescription && <p className="text-sm text-muted-foreground whitespace-pre-wrap">{selected.jobDescription}</p>}
+                {selected.responsibilities && (
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Responsibilities</p>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{selected.responsibilities}</p>
+                  </div>
+                )}
+                {selected.requirements && (
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Requirements</p>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{selected.requirements}</p>
+                  </div>
+                )}
+                {selected.questions.length > 0 && (
+                  <div className="space-y-3 pt-2 border-t border-border">
+                    <p className="text-sm font-medium text-foreground">Screening Questions</p>
+                    {selected.questions.map((q) => (
+                      <div key={q.id} className="space-y-1">
+                        <Label htmlFor={`question-${q.id}`}>{q.questionText}</Label>
+                        <Input
+                          id={`question-${q.id}`}
+                          value={answers[q.id] ?? ''}
+                          onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
+                          data-testid={`input-internal-answer-${q.id}`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <DialogFooter>
+                <Button onClick={handleApply} disabled={applyMutation.isPending} data-testid="button-submit-internal-application">
+                  <Send className="h-4 w-4" aria-hidden="true" />
+                  {applyMutation.isPending ? 'Submitting…' : 'Submit Application'}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function MyInternalApplicationsTab({ organizationId }: { organizationId: number }) {
+  const { data, isLoading, error, refetch } = useListMyInternalApplications({
+    query: { queryKey: getListMyInternalApplicationsQueryKey(), enabled: organizationId > 0 },
+  });
+
+  if (error) return <QueryError title="Could not load your internal applications" onRetry={() => refetch()} />;
+  if (isLoading) return <Skeleton className="h-64 w-full" />;
+  if (!data || !data.linked || !data.active) return <NotEligibleForInternalCard />;
+
+  if (data.items.length === 0) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
+            <Send className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
+          </div>
+          <h3 className="text-lg font-semibold text-foreground mb-2">No internal applications yet</h3>
+          <p className="text-sm text-muted-foreground max-w-sm">Applications you submit from the Internal Vacancies tab will appear here.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardContent className="pt-6">
+        <ul className="divide-y divide-border">
+          {data.items.map((application) => (
+            <li key={application.id} className="py-3 flex items-center justify-between" data-testid={`row-my-internal-application-${application.id}`}>
+              <div>
+                <p className="text-sm font-medium text-foreground">{application.vacancyTitle}</p>
+                <p className="text-xs text-muted-foreground">{new Date(application.submittedAt).toLocaleDateString()}</p>
+              </div>
+              <Badge variant={STAGE_VARIANT[application.currentStageCategory] ?? 'outline'} className="capitalize">
+                {application.currentStageCategory}
+              </Badge>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function EmployeeSelfService() {
   const { data: user } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const organizationId = user?.activeOrganizationId ?? user?.organizationId ?? 0;
@@ -168,6 +389,10 @@ export default function EmployeeSelfService() {
     query: { queryKey: getListOrganizationModulesQueryKey(organizationId), enabled: organizationId > 0 },
   });
   const leaveAccessible = !!modules && isModuleAccessible(modules, 'leave');
+  // Same independent-gating rule as Leave (§8) — Internal Vacancies/My
+  // Applications degrade to a controlled message when recruitment is
+  // disabled, never blocking the rest of the ESS page.
+  const recruitmentAccessible = !!modules && isModuleAccessible(modules, 'recruitment');
 
   if (error) {
     return (
@@ -221,6 +446,8 @@ export default function EmployeeSelfService() {
           <TabsTrigger value="profile" data-testid="tab-my-profile">My Profile</TabsTrigger>
           <TabsTrigger value="leave" data-testid="tab-my-leave">My Leave</TabsTrigger>
           <TabsTrigger value="documents" data-testid="tab-my-documents">My Documents</TabsTrigger>
+          <TabsTrigger value="internal-vacancies" data-testid="tab-internal-vacancies">Internal Vacancies</TabsTrigger>
+          <TabsTrigger value="my-internal-applications" data-testid="tab-my-internal-applications">My Applications</TabsTrigger>
         </TabsList>
         <TabsContent value="profile">
           <MyProfileTab employee={employee} />
@@ -247,6 +474,36 @@ export default function EmployeeSelfService() {
         </TabsContent>
         <TabsContent value="documents">
           <MyDocumentsTab organizationId={organizationId} employeeId={employee.id} />
+        </TabsContent>
+        <TabsContent value="internal-vacancies">
+          {recruitmentAccessible ? (
+            <InternalVacanciesTab organizationId={organizationId} />
+          ) : (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+                <Briefcase className="h-8 w-8 text-muted-foreground mb-4" aria-hidden="true" />
+                <h3 className="text-lg font-semibold text-foreground mb-2">Recruitment isn't enabled</h3>
+                <p className="text-sm text-muted-foreground max-w-sm">
+                  Your organisation hasn't enabled the Recruitment module, so internal vacancies aren't available here.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+        <TabsContent value="my-internal-applications">
+          {recruitmentAccessible ? (
+            <MyInternalApplicationsTab organizationId={organizationId} />
+          ) : (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+                <Send className="h-8 w-8 text-muted-foreground mb-4" aria-hidden="true" />
+                <h3 className="text-lg font-semibold text-foreground mb-2">Recruitment isn't enabled</h3>
+                <p className="text-sm text-muted-foreground max-w-sm">
+                  Your organisation hasn't enabled the Recruitment module, so your internal applications aren't available here.
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
     </div>

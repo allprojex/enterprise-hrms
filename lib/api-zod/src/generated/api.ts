@@ -378,6 +378,73 @@ export const GetMyEmployeeResponse = zod.object({
 
 
 /**
+ * Resolves "which employee is me" the same way GET /me/employee does — never a client-supplied employee ID. `linked: false` (unlinked login) or `active: false` (linked but not an active employee) both return `items: []` as an intentional 200-OK controlled state, not an error, mirroring GET /me/employee's own "linked: false" precedent. Only vacancies that are published, internally visible (visibility internal or both), and within their open/close window are included — never recruiter, hiring-manager, requisition, approval, or audit detail. Gated by both employee_self_service and recruitment (independently — a disabled recruitment module degrades only this section, per §8).
+ * @summary List internal vacancies eligible for the caller to apply to (Employee Self-Service Internal Applications, W60)
+ */
+export const ListMyInternalVacanciesResponse = zod.object({
+  "linked": zod.boolean().describe('False when the caller\'s login isn\'t linked to an employee record — the same intentional, safe state as MyEmployeeResponse.linked.'),
+  "active": zod.boolean().describe('Meaningful only when linked is true — false when the linked employee is not currently active (probation\/on_leave\/suspended\/terminated).'),
+  "items": zod.array(zod.object({
+  "publicId": zod.string(),
+  "title": zod.string(),
+  "departmentName": zod.string().nullable(),
+  "employmentType": zod.union([zod.literal('full_time'),zod.literal('part_time'),zod.literal('contract'),zod.literal('intern'),zod.literal('temporary'),zod.literal(null)]).nullable(),
+  "workplaceType": zod.union([zod.literal('onsite'),zod.literal('remote'),zod.literal('hybrid'),zod.literal(null)]).nullable(),
+  "openingsCount": zod.number(),
+  "openDate": zod.coerce.date().nullable(),
+  "closeDate": zod.coerce.date().nullable(),
+  "jobDescription": zod.string().nullable(),
+  "responsibilities": zod.string().nullable(),
+  "requirements": zod.string().nullable(),
+  "preferredQualifications": zod.string().nullable(),
+  "questions": zod.array(zod.object({
+  "id": zod.number(),
+  "questionText": zod.string(),
+  "questionType": zod.enum(['text', 'yes_no', 'multiple_choice', 'numeric'])
+}).describe('Deliberately excludes isKnockout\/expectedAnswer (W52) — an applicant must never learn which questions are knockout-screened or what answer is \"correct\".'))
+}).describe('Deliberately restricted — no recruiter, hiring-manager, requisition, approval, or audit detail is ever included, the same discipline as the public careers DTO.'))
+})
+
+
+/**
+ * Employee identity, candidate resolution/linkage, and vacancy eligibility are all re-derived and re-validated server-side — nothing supplied by the caller beyond the vacancy's publicId and optional screening answers is trusted. Idempotent: a repeat submission to the same vacancy returns the existing application (isNew: false), never a second row (applications.candidateId + vacancyId is unique). Enters the existing W51 pipeline unchanged, source marked "internal_ess". Never invokes W59's employee conversion and never changes the employee record. 403 if the caller has no active employee link (unlike the two GET endpoints, a blocked write action is a conventional error here, not a 200-with-flag response).
+ * @summary Submit an internal application to a vacancy (W60)
+ */
+export const ApplyToInternalVacancyParams = zod.object({
+  "publicId": zod.coerce.string()
+})
+
+export const ApplyToInternalVacancyBody = zod.object({
+  "answers": zod.array(zod.object({
+  "vacancyQuestionId": zod.number(),
+  "answerText": zod.string()
+})).optional()
+})
+
+export const ApplyToInternalVacancyResponse = zod.object({
+  "id": zod.number(),
+  "isNew": zod.boolean().describe('False when a prior application to this vacancy already existed and was returned as-is (idempotent repeat submission).'),
+  "status": zod.enum(['submitted'])
+})
+
+
+/**
+ * Only the caller's own applications, resolved via the same employee-candidate linkage established at submission time — never another employee's. No recruiter notes, screening scores, interview scorecards, reference/background checks, or offer/approval detail is ever included. Same controlled `linked`/`active` 200-OK state as GET /me/internal-vacancies.
+ * @summary List the caller's own internal applications (W60)
+ */
+export const ListMyInternalApplicationsResponse = zod.object({
+  "linked": zod.boolean(),
+  "active": zod.boolean(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "vacancyTitle": zod.string(),
+  "currentStageCategory": zod.enum(['applied', 'screening', 'interview', 'assessment', 'offer', 'hired', 'rejected', 'withdrawn']),
+  "submittedAt": zod.coerce.date()
+}))
+})
+
+
+/**
  * Search, filter, and paginate the organization's employee directory
  * @summary List employees
  */

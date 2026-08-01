@@ -540,6 +540,125 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /me/internal-vacancies:
+    get:
+      operationId: listMyInternalVacancies
+      tags: [self-service]
+      summary: List internal vacancies eligible for the caller to apply to (Employee Self-Service Internal Applications, W60)
+      description: >-
+        Resolves "which employee is me" the same way GET /me/employee does —
+        never a client-supplied employee ID. `linked: false` (unlinked
+        login) or `active: false` (linked but not an active employee) both
+        return `items: []` as an intentional 200-OK controlled state, not
+        an error, mirroring GET /me/employee's own "linked: false"
+        precedent. Only vacancies that are published, internally visible
+        (visibility internal or both), and within their open/close window
+        are included — never recruiter, hiring-manager, requisition,
+        approval, or audit detail. Gated by both employee_self_service and
+        recruitment (independently — a disabled recruitment module
+        degrades only this section, per §8).
+      responses:
+        "200":
+          description: Eligible internal vacancies, or the controlled not-linked/not-active state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalVacanciesResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: No active organization membership, or a required module is disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /me/internal-vacancies/{publicId}/apply:
+    post:
+      operationId: applyToInternalVacancy
+      tags: [self-service]
+      summary: Submit an internal application to a vacancy (W60)
+      description: >-
+        Employee identity, candidate resolution/linkage, and vacancy
+        eligibility are all re-derived and re-validated server-side —
+        nothing supplied by the caller beyond the vacancy's publicId and
+        optional screening answers is trusted. Idempotent: a repeat
+        submission to the same vacancy returns the existing application
+        (isNew: false), never a second row (applications.candidateId +
+        vacancyId is unique). Enters the existing W51 pipeline unchanged,
+        source marked "internal_ess". Never invokes W59's employee
+        conversion and never changes the employee record. 403 if the
+        caller has no active employee link (unlike the two GET endpoints,
+        a blocked write action is a conventional error here, not a
+        200-with-flag response).
+      parameters:
+        - name: publicId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitInternalApplicationInput"
+      responses:
+        "201":
+          description: Application submitted (or the existing one returned idempotently)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyInternalApplicationSubmitResult"
+        "403":
+          description: No active employee link for this user in this organization, or the employee is not active
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Vacancy not found (or not internally eligible)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /me/applications:
+    get:
+      operationId: listMyInternalApplications
+      tags: [self-service]
+      summary: List the caller's own internal applications (W60)
+      description: >-
+        Only the caller's own applications, resolved via the same
+        employee-candidate linkage established at submission time — never
+        another employee's. No recruiter notes, screening scores, interview
+        scorecards, reference/background checks, or offer/approval detail
+        is ever included. Same controlled `linked`/`active` 200-OK state as
+        GET /me/internal-vacancies.
+      responses:
+        "200":
+          description: The caller's own internal applications, or the controlled not-linked/not-active state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyInternalApplicationsResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: No active organization membership, or a required module is disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /organizations/{organizationId}/employees:
     get:
       operationId: listEmployees
@@ -8304,6 +8423,133 @@ components:
           anyOf:
             - $ref: "#/components/schemas/SelfServiceEmployeeProfile"
             - type: "null"
+
+    InternalVacancyQuestion:
+      type: object
+      description: Deliberately excludes isKnockout/expectedAnswer (W52) — an applicant must never learn which questions are knockout-screened or what answer is "correct".
+      required: [id, questionText, questionType]
+      properties:
+        id:
+          type: integer
+        questionText:
+          type: string
+        questionType:
+          type: string
+          enum: [text, yes_no, multiple_choice, numeric]
+
+    InternalVacancySummary:
+      type: object
+      description: >-
+        Deliberately restricted — no recruiter, hiring-manager,
+        requisition, approval, or audit detail is ever included, the same
+        discipline as the public careers DTO.
+      required: [publicId, title, departmentName, employmentType, workplaceType, openingsCount, openDate, closeDate, jobDescription, responsibilities, requirements, preferredQualifications, questions]
+      properties:
+        publicId:
+          type: string
+        title:
+          type: string
+        departmentName:
+          type: ["string", "null"]
+        employmentType:
+          type: ["string", "null"]
+          enum: [full_time, part_time, contract, intern, temporary, null]
+        workplaceType:
+          type: ["string", "null"]
+          enum: [onsite, remote, hybrid, null]
+        openingsCount:
+          type: integer
+        openDate:
+          type: ["string", "null"]
+          format: date-time
+        closeDate:
+          type: ["string", "null"]
+          format: date-time
+        jobDescription:
+          type: ["string", "null"]
+        responsibilities:
+          type: ["string", "null"]
+        requirements:
+          type: ["string", "null"]
+        preferredQualifications:
+          type: ["string", "null"]
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/InternalVacancyQuestion"
+
+    InternalVacanciesResponse:
+      type: object
+      required: [linked, active, items]
+      properties:
+        linked:
+          type: boolean
+          description: False when the caller's login isn't linked to an employee record — the same intentional, safe state as MyEmployeeResponse.linked.
+        active:
+          type: boolean
+          description: Meaningful only when linked is true — false when the linked employee is not currently active (probation/on_leave/suspended/terminated).
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/InternalVacancySummary"
+
+    SubmitInternalApplicationAnswerInput:
+      type: object
+      required: [vacancyQuestionId, answerText]
+      properties:
+        vacancyQuestionId:
+          type: integer
+        answerText:
+          type: string
+
+    SubmitInternalApplicationInput:
+      type: object
+      properties:
+        answers:
+          type: array
+          items:
+            $ref: "#/components/schemas/SubmitInternalApplicationAnswerInput"
+
+    MyInternalApplicationSubmitResult:
+      type: object
+      required: [id, isNew, status]
+      properties:
+        id:
+          type: integer
+        isNew:
+          type: boolean
+          description: False when a prior application to this vacancy already existed and was returned as-is (idempotent repeat submission).
+        status:
+          type: string
+          enum: [submitted]
+
+    MyInternalApplicationSummary:
+      type: object
+      required: [id, vacancyTitle, currentStageCategory, submittedAt]
+      properties:
+        id:
+          type: integer
+        vacancyTitle:
+          type: string
+        currentStageCategory:
+          type: string
+          enum: [applied, screening, interview, assessment, offer, hired, rejected, withdrawn]
+        submittedAt:
+          type: string
+          format: date-time
+
+    MyInternalApplicationsResponse:
+      type: object
+      required: [linked, active, items]
+      properties:
+        linked:
+          type: boolean
+        active:
+          type: boolean
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/MyInternalApplicationSummary"
 
     Address:
       type: object

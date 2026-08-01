@@ -85,6 +85,7 @@ import type {
   ForgotPasswordInput,
   GrantRolePermissionInput,
   HealthStatus,
+  InternalVacanciesResponse,
   Interview,
   InterviewListResponse,
   InterviewScorecard,
@@ -120,6 +121,8 @@ import type {
   Module,
   MoveApplicationStageInput,
   MyEmployeeResponse,
+  MyInternalApplicationSubmitResult,
+  MyInternalApplicationsResponse,
   Notification,
   OfferApproval,
   OfferDetail,
@@ -163,6 +166,7 @@ import type {
   SeparateEmployeeInput,
   SetPrimaryHrInput,
   SubmitApplicationScoreInput,
+  SubmitInternalApplicationInput,
   SwitchOrganizationInput,
   TalentPool,
   TalentPoolMember,
@@ -1485,6 +1489,235 @@ export function useGetMyEmployee<TData = Awaited<ReturnType<typeof getMyEmployee
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetMyEmployeeQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListMyInternalVacanciesUrl = () => {
+
+
+
+
+  return `/api/me/internal-vacancies`
+}
+
+/**
+ * Resolves "which employee is me" the same way GET /me/employee does — never a client-supplied employee ID. `linked: false` (unlinked login) or `active: false` (linked but not an active employee) both return `items: []` as an intentional 200-OK controlled state, not an error, mirroring GET /me/employee's own "linked: false" precedent. Only vacancies that are published, internally visible (visibility internal or both), and within their open/close window are included — never recruiter, hiring-manager, requisition, approval, or audit detail. Gated by both employee_self_service and recruitment (independently — a disabled recruitment module degrades only this section, per §8).
+ * @summary List internal vacancies eligible for the caller to apply to (Employee Self-Service Internal Applications, W60)
+ */
+export const listMyInternalVacancies = async ( options?: RequestInit): Promise<InternalVacanciesResponse> => {
+
+  return customFetch<InternalVacanciesResponse>(getListMyInternalVacanciesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyInternalVacanciesQueryKey = () => {
+    return [
+    `/api/me/internal-vacancies`
+    ] as const;
+    }
+
+
+export const getListMyInternalVacanciesQueryOptions = <TData = Awaited<ReturnType<typeof listMyInternalVacancies>>, TError = ErrorType<ApiError>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyInternalVacancies>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyInternalVacanciesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyInternalVacancies>>> = ({ signal }) => listMyInternalVacancies({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyInternalVacancies>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMyInternalVacanciesQueryResult = NonNullable<Awaited<ReturnType<typeof listMyInternalVacancies>>>
+export type ListMyInternalVacanciesQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List internal vacancies eligible for the caller to apply to (Employee Self-Service Internal Applications, W60)
+ */
+
+export function useListMyInternalVacancies<TData = Awaited<ReturnType<typeof listMyInternalVacancies>>, TError = ErrorType<ApiError>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyInternalVacancies>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMyInternalVacanciesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getApplyToInternalVacancyUrl = (publicId: string,) => {
+
+
+
+
+  return `/api/me/internal-vacancies/${publicId}/apply`
+}
+
+/**
+ * Employee identity, candidate resolution/linkage, and vacancy eligibility are all re-derived and re-validated server-side — nothing supplied by the caller beyond the vacancy's publicId and optional screening answers is trusted. Idempotent: a repeat submission to the same vacancy returns the existing application (isNew: false), never a second row (applications.candidateId + vacancyId is unique). Enters the existing W51 pipeline unchanged, source marked "internal_ess". Never invokes W59's employee conversion and never changes the employee record. 403 if the caller has no active employee link (unlike the two GET endpoints, a blocked write action is a conventional error here, not a 200-with-flag response).
+ * @summary Submit an internal application to a vacancy (W60)
+ */
+export const applyToInternalVacancy = async (publicId: string,
+    submitInternalApplicationInput?: SubmitInternalApplicationInput, options?: RequestInit): Promise<MyInternalApplicationSubmitResult> => {
+
+  return customFetch<MyInternalApplicationSubmitResult>(getApplyToInternalVacancyUrl(publicId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(submitInternalApplicationInput)
+  }
+);}
+
+
+
+
+
+export const getApplyToInternalVacancyMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applyToInternalVacancy>>, TError,{publicId: string;data?: BodyType<SubmitInternalApplicationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof applyToInternalVacancy>>, TError,{publicId: string;data?: BodyType<SubmitInternalApplicationInput>}, TContext> => {
+
+const mutationKey = ['applyToInternalVacancy'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof applyToInternalVacancy>>, {publicId: string;data?: BodyType<SubmitInternalApplicationInput>}> = (props) => {
+          const {publicId,data} = props ?? {};
+
+          return  applyToInternalVacancy(publicId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApplyToInternalVacancyMutationResult = NonNullable<Awaited<ReturnType<typeof applyToInternalVacancy>>>
+    export type ApplyToInternalVacancyMutationBody = BodyType<SubmitInternalApplicationInput> | undefined
+    export type ApplyToInternalVacancyMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Submit an internal application to a vacancy (W60)
+ */
+export const useApplyToInternalVacancy = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applyToInternalVacancy>>, TError,{publicId: string;data?: BodyType<SubmitInternalApplicationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof applyToInternalVacancy>>,
+        TError,
+        {publicId: string;data?: BodyType<SubmitInternalApplicationInput>},
+        TContext
+      > => {
+      return useMutation(getApplyToInternalVacancyMutationOptions(options));
+    }
+
+export const getListMyInternalApplicationsUrl = () => {
+
+
+
+
+  return `/api/me/applications`
+}
+
+/**
+ * Only the caller's own applications, resolved via the same employee-candidate linkage established at submission time — never another employee's. No recruiter notes, screening scores, interview scorecards, reference/background checks, or offer/approval detail is ever included. Same controlled `linked`/`active` 200-OK state as GET /me/internal-vacancies.
+ * @summary List the caller's own internal applications (W60)
+ */
+export const listMyInternalApplications = async ( options?: RequestInit): Promise<MyInternalApplicationsResponse> => {
+
+  return customFetch<MyInternalApplicationsResponse>(getListMyInternalApplicationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyInternalApplicationsQueryKey = () => {
+    return [
+    `/api/me/applications`
+    ] as const;
+    }
+
+
+export const getListMyInternalApplicationsQueryOptions = <TData = Awaited<ReturnType<typeof listMyInternalApplications>>, TError = ErrorType<ApiError>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyInternalApplications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyInternalApplicationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyInternalApplications>>> = ({ signal }) => listMyInternalApplications({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyInternalApplications>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMyInternalApplicationsQueryResult = NonNullable<Awaited<ReturnType<typeof listMyInternalApplications>>>
+export type ListMyInternalApplicationsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List the caller's own internal applications (W60)
+ */
+
+export function useListMyInternalApplications<TData = Awaited<ReturnType<typeof listMyInternalApplications>>, TError = ErrorType<ApiError>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyInternalApplications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMyInternalApplicationsQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

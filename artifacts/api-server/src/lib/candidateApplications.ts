@@ -74,7 +74,15 @@ function buildStatusCheckEmail(params: { firstName: string; vacancyTitle: string
   return { html, text };
 }
 
-async function findOrCreateCandidate(
+/**
+ * Exported for reuse by employeeInternalApplications.ts (Phase 3A, W60) —
+ * the same "resolve by (organizationId, lower(email)), else create"
+ * dedup rule applies whether the applicant is an anonymous public
+ * candidate or an authenticated employee applying internally; there is
+ * exactly one candidate-resolution pathway, mirroring how W59 extracted
+ * `createEmployee` rather than letting a second workstream reimplement it.
+ */
+export async function findOrCreateCandidate(
   tx: QueryClient,
   params: { organizationId: number; firstName: string; lastName: string; email: string; phone?: string | null },
 ): Promise<Candidate> {
