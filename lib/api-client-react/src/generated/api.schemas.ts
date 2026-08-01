@@ -2312,6 +2312,27 @@ export interface UpdatePreEmploymentRequirementStatusInput {
 }
 
 /**
+ * Immutable provenance record left behind once an application converts to a real employee. Column list is exactly §9's `candidate_employee_links` row. Unique on applicationId (one conversion per application) and on employeeId (one recruitment provenance per employee).
+ */
+export interface CandidateEmployeeLink {
+  id: number;
+  organizationId: number;
+  candidateId: number;
+  applicationId: number;
+  employeeId: number;
+  convertedAt: string;
+  /** @nullable */
+  convertedByMembershipId: number | null;
+}
+
+export interface ConversionResult {
+  link: CandidateEmployeeLink;
+  employeeId: number;
+  /** True only when an existing employee (an internal candidate, via candidates.linkedInternalEmployeeId) was reused rather than a new one created. */
+  reusedExistingEmployee: boolean;
+}
+
+/**
  * Deliberately narrow — only what a careers page header needs. Never the internal Organization DTO (no status, no type, no internal id).
  */
 export interface PublicOrganization {

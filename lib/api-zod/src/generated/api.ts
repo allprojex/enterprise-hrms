@@ -5354,6 +5354,30 @@ export const UpdatePreEmploymentRequirementStatusResponse = zod.object({
 
 
 /**
+ * Requires both candidate.convert_to_employee and employee.write — neither alone is sufficient. Eligible only when the application is in a hired-category stage AND every non-waived pre-employment requirement is satisfied (no offer-status check — this workstream builds no candidate-facing offer acceptance flow). Reuses the existing employee-creation service unchanged; an internal candidate (candidates.linkedInternalEmployeeId already set) reuses that existing employee rather than creating a second one. 409 if this application (or, for an internal candidate, this employee) has already been converted — genuinely idempotent under retry.
+ * @summary Convert a hired application into an employee
+ */
+export const ConvertApplicationToEmployeeParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "applicationId": zod.coerce.number()
+})
+
+export const ConvertApplicationToEmployeeResponse = zod.object({
+  "link": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "candidateId": zod.number(),
+  "applicationId": zod.number(),
+  "employeeId": zod.number(),
+  "convertedAt": zod.coerce.date(),
+  "convertedByMembershipId": zod.number().nullable()
+}).describe('Immutable provenance record left behind once an application converts to a real employee. Column list is exactly §9\'s `candidate_employee_links` row. Unique on applicationId (one conversion per application) and on employeeId (one recruitment provenance per employee).'),
+  "employeeId": zod.number(),
+  "reusedExistingEmployee": zod.boolean().describe('True only when an existing employee (an internal candidate, via candidates.linkedInternalEmployeeId) was reused rather than a new one created.')
+})
+
+
+/**
  * No authentication. Resolves the organization by its own slug only — never a numeric ID. Returns the same 404 whether the slug doesn't exist, the organization is suspended, or its careers portal isn't enabled (recruitment_settings.enabled / externalRecruitmentEnabled) — these are never distinguished, so a probing request can never learn which condition applied.
  * @summary Public organization profile for a careers page
  */

@@ -4,7 +4,7 @@
  * requests are made.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Router, Route } from 'wouter';
 import { memoryLocation } from 'wouter/memory-location';
@@ -23,6 +23,7 @@ const { state } = vi.hoisted(() => ({
     offer: undefined as unknown,
     offerError: undefined as unknown,
     requirements: undefined as unknown,
+    convertMutate: vi.fn() as (...args: unknown[]) => void,
   },
 }));
 
@@ -65,6 +66,7 @@ vi.mock('@workspace/api-client-react', () => ({
   getListPreEmploymentRequirementsQueryKey: (orgId: number, appId: number) => ['preEmploymentRequirements', orgId, appId],
   useCreatePreEmploymentRequirement: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdatePreEmploymentRequirementStatus: () => ({ mutate: vi.fn(), isPending: false }),
+  useConvertApplicationToEmployee: () => ({ mutate: state.convertMutate, isPending: false }),
 }));
 
 function baseApplication(overrides: Partial<ApplicationDetailType> = {}): ApplicationDetailType {
@@ -425,6 +427,46 @@ describe('Application detail page', () => {
       };
       renderPage();
       expect(screen.getByText('1 of 2 resolved')).toBeInTheDocument();
+    });
+  });
+
+  describe('Convert to Employee action', () => {
+    it('is hidden when the application is not in a hired-category stage', () => {
+      state.application = baseApplication({ currentStageCategory: 'screening' });
+      state.isLoading = false;
+      state.error = undefined;
+      state.requirements = { items: [], summary: { totalCount: 0, pendingCount: 0, satisfiedCount: 0, waivedCount: 0, readyForConversion: true } };
+      renderPage();
+      expect(screen.queryByTestId('button-convert-to-employee')).not.toBeInTheDocument();
+    });
+
+    it('is shown but disabled when hired but pre-employment requirements are not all resolved', () => {
+      state.application = baseApplication({ currentStageCategory: 'hired' });
+      state.isLoading = false;
+      state.error = undefined;
+      state.requirements = { items: [], summary: { totalCount: 1, pendingCount: 1, satisfiedCount: 0, waivedCount: 0, readyForConversion: false } };
+      renderPage();
+      expect(screen.getByTestId('button-convert-to-employee')).toBeDisabled();
+    });
+
+    it('is enabled when hired and every requirement is resolved', () => {
+      state.application = baseApplication({ currentStageCategory: 'hired' });
+      state.isLoading = false;
+      state.error = undefined;
+      state.requirements = { items: [], summary: { totalCount: 0, pendingCount: 0, satisfiedCount: 0, waivedCount: 0, readyForConversion: true } };
+      renderPage();
+      expect(screen.getByTestId('button-convert-to-employee')).toBeEnabled();
+    });
+
+    it('shows a View Employee link after a successful conversion', () => {
+      state.application = baseApplication({ currentStageCategory: 'hired' });
+      state.isLoading = false;
+      state.error = undefined;
+      state.requirements = { items: [], summary: { totalCount: 0, pendingCount: 0, satisfiedCount: 0, waivedCount: 0, readyForConversion: true } };
+      state.convertMutate = vi.fn((_vars, opts) => opts.onSuccess({ link: { id: 1 }, employeeId: 77, reusedExistingEmployee: false }));
+      renderPage();
+      fireEvent.click(screen.getByTestId('button-convert-to-employee'));
+      expect(screen.getByTestId('link-converted-employee')).toHaveAttribute('href', '/employees/77');
     });
   });
 });

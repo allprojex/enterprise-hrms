@@ -29,7 +29,7 @@ import { assertBelongsToOrganization, CrossOrganizationReferenceError } from "..
 import {
   listEmployees,
   getEmployeeById,
-  generateEmployeeNumber,
+  createEmployee,
   assertEmployeeReferencesValid,
   separateEmployee,
   rehireEmployee,
@@ -213,20 +213,11 @@ router.post(
     const organizationId = req.membership!.organizationId;
 
     try {
-      await assertEmployeeReferencesValid(organizationId, parsed.data);
-
-      const employeeNumber = parsed.data.employeeNumber ?? (await generateEmployeeNumber(organizationId));
-
-      const [employee] = await db
-        .insert(employeesTable)
-        .values({
-          ...parsed.data,
-          employeeNumber,
-          organizationId,
-          createdBy: req.userId!,
-          updatedBy: req.userId!,
-        })
-        .returning();
+      const employee = await createEmployee(db, {
+        organizationId,
+        fields: parsed.data,
+        actorApplicationUserId: req.userId!,
+      });
 
       const labels = await resolveEmployeeLabels([employee]);
       res.status(201).json(formatEmployee(employee, labels, true));

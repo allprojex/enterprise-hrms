@@ -1,5 +1,5 @@
 import { and, eq, ilike, or, count, desc, type SQL } from "drizzle-orm";
-import { db, employeesTable, departmentsTable, branchesTable, positionsTable } from "@workspace/db";
+import { db, employeesTable, departmentsTable, branchesTable, positionsTable, type Employee } from "@workspace/db";
 import { assertBelongsToOrganization } from "./orgScopedRefs";
 import { recordAuditEvent } from "./auditLog";
 import { recordEmploymentPeriodEvent } from "./employmentLifecycleService";
@@ -81,6 +81,78 @@ export async function generateEmployeeNumber(organizationId: number): Promise<st
     .where(eq(employeesTable.organizationId, organizationId));
   const sequence = (row?.value ?? 0) + 1;
   return `EMP-${String(sequence).padStart(4, "0")}`;
+}
+
+// Structurally accepts either the global `db` or a `db.transaction(...)`
+// callback's `tx` — lets employee creation run inside a caller's own
+// transaction (e.g. employeeConversion.ts's convert-to-employee) without a
+// second query-client type, the same pattern established by
+// leaveBalances.ts/requisitionApprovals.ts/offers.ts.
+type QueryClient = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+export interface EmployeeCreateFields {
+  firstName: string;
+  lastName: string;
+  middleName?: string | null;
+  preferredName?: string | null;
+  gender?: Employee["gender"];
+  dateOfBirth?: Date | null;
+  maritalStatus?: Employee["maritalStatus"];
+  nationality?: string | null;
+  nationalId?: string | null;
+  passportNumber?: string | null;
+  personalEmail?: string | null;
+  workEmail?: string | null;
+  phoneNumber?: string | null;
+  alternatePhoneNumber?: string | null;
+  residentialAddress?: unknown;
+  emergencyContacts?: unknown;
+  departmentId?: number | null;
+  branchId?: number | null;
+  positionId?: number | null;
+  reportingManagerId?: number | null;
+  employmentType?: Employee["employmentType"];
+  hireDate?: Date | null;
+  probationEndDate?: Date | null;
+  workLocation?: string | null;
+  notes?: string | null;
+  employeeNumber?: string | null;
+}
+
+/**
+ * The single authoritative employee-creation pathway — the exact logic
+ * `POST /organizations/:id/employees` has always used (extracted from
+ * routes/employees.ts, not reimplemented), now also reused by
+ * employeeConversion.ts's convert-to-employee (Phase 3A, W59) so that
+ * exactly one code path ever inserts into `employees`. Accepts a
+ * `QueryClient` so a caller (like convert-to-employee) can run this inside
+ * its own transaction; the existing HTTP route continues to call it with
+ * the plain `db`.
+ */
+export async function createEmployee(
+  client: QueryClient,
+  params: {
+    organizationId: number;
+    fields: EmployeeCreateFields;
+    actorApplicationUserId: number;
+  },
+): Promise<Employee> {
+  await assertEmployeeReferencesValid(params.organizationId, params.fields);
+
+  const employeeNumber = params.fields.employeeNumber ?? (await generateEmployeeNumber(params.organizationId));
+
+  const [employee] = await client
+    .insert(employeesTable)
+    .values({
+      ...params.fields,
+      employeeNumber,
+      organizationId: params.organizationId,
+      createdBy: params.actorApplicationUserId,
+      updatedBy: params.actorApplicationUserId,
+    })
+    .returning();
+
+  return employee;
 }
 
 export interface ListEmployeesParams {

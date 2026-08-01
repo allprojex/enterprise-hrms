@@ -221,6 +221,17 @@ const PERMISSIONS = [
   { key: "offer.approve", resource: "offer", action: "approve" },
   { key: "offer.issue", resource: "offer", action: "issue" },
   { key: "offer.withdraw", resource: "offer", action: "withdraw" },
+  // Phase 3A, W59 — Employee Conversion. §7's own row: "— / — / ✔ (mirrors
+  // employee.write's existing gate)" — no own/assigned tier at all, and
+  // deliberately NOT a second employee-creation authority. This gates only
+  // the recruitment-side POST .../applications/:id/convert-to-employee
+  // trigger; the actual employee INSERT still runs through
+  // createEmployee (lib/employees.ts), which the route additionally
+  // requires employee.write for — neither permission alone can bypass the
+  // other (this workstream's own explicit security requirement). Seeded to
+  // the exact same roles as employee.write (org_admin, hr_manager only),
+  // never to "employee".
+  { key: "candidate.convert_to_employee", resource: "candidate", action: "convert_to_employee" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -285,6 +296,7 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "offer.approve",
     "offer.issue",
     "offer.withdraw",
+    "candidate.convert_to_employee",
   ],
   hr_manager: [
     "organization.read",
@@ -339,6 +351,7 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "offer.approve",
     "offer.issue",
     "offer.withdraw",
+    "candidate.convert_to_employee",
   ],
   employee: [
     "organization.read",

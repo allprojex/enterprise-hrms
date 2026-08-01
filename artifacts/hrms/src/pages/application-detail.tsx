@@ -49,9 +49,11 @@ import {
   getListPreEmploymentRequirementsQueryKey,
   useCreatePreEmploymentRequirement,
   useUpdatePreEmploymentRequirementStatus,
+  useConvertApplicationToEmployee,
   type InterviewInterviewType,
   type ReferenceBackgroundCheckStatus,
   type PreEmploymentRequirementStatus,
+  type ApplicationDetail as ApplicationDetailType,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -702,6 +704,57 @@ function PreEmploymentRequirementsSection({ organizationId, applicationId }: { o
   );
 }
 
+/**
+ * Eligibility is derived entirely from data the page already fetches
+ * (application.currentStageCategory + the pre-employment requirements
+ * summary's readyForConversion) — no separate "conversion status" GET
+ * route exists in the frozen plan's own §10 line (only the POST action
+ * itself), so this is the only way to know eligibility ahead of clicking.
+ * Requires both candidate.convert_to_employee and employee.write
+ * server-side; this button is simply hidden outside a hired-category
+ * stage rather than attempting a permission check client-side.
+ */
+function ConvertToEmployeeAction({ organizationId, applicationId, application }: { organizationId: number; applicationId: number; application: ApplicationDetailType }) {
+  const { toast } = useToast();
+  const { data: result } = useListPreEmploymentRequirements(organizationId, applicationId, {
+    query: { queryKey: getListPreEmploymentRequirementsQueryKey(organizationId, applicationId), enabled: organizationId > 0 && applicationId > 0 },
+  });
+  const convertMutation = useConvertApplicationToEmployee();
+  const [convertedEmployeeId, setConvertedEmployeeId] = useState<number | null>(null);
+
+  if (application.currentStageCategory !== 'hired') return null;
+
+  const isReady = result?.summary.readyForConversion ?? false;
+
+  if (convertedEmployeeId != null) {
+    return (
+      <Link href={`/employees/${convertedEmployeeId}`} data-testid="link-converted-employee">
+        <Button variant="outline">
+          <UserCheck className="h-4 w-4" aria-hidden="true" />
+          View Employee
+        </Button>
+      </Link>
+    );
+  }
+
+  const handleConvert = () => {
+    convertMutation.mutate(
+      { organizationId, applicationId },
+      {
+        onSuccess: (converted) => { setConvertedEmployeeId(converted.employeeId); toast({ title: 'Converted to employee' }); },
+        onError: (err) => toast({ title: 'Could not convert to employee', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <Button variant="outline" onClick={handleConvert} disabled={!isReady || convertMutation.isPending} data-testid="button-convert-to-employee">
+      <UserCheck className="h-4 w-4" aria-hidden="true" />
+      {convertMutation.isPending ? 'Converting…' : 'Convert to Employee'}
+    </Button>
+  );
+}
+
 const CATEGORY_VARIANT: Record<string, 'secondary' | 'outline' | 'destructive'> = {
   applied: 'outline',
   screening: 'secondary',
@@ -901,6 +954,7 @@ export default function ApplicationDetail() {
           </Badge>
         </div>
         <div className="flex gap-2">
+          <ConvertToEmployeeAction organizationId={organizationId} applicationId={applicationId} application={application} />
           {!isTerminal && (
             <>
               <Button variant="outline" onClick={() => setWithdrawOpen(true)} data-testid="button-withdraw-application">

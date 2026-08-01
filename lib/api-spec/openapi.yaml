@@ -75,6 +75,12 @@ tags:
       permission exists, reuses application.read/.manage; status is freely
       settable (pending/satisfied/waived, no one-way lifecycle) and never
       itself creates an employee or activates any HR module
+  - name: employee-conversion
+    description: >-
+      The controlled hand-off from Recruitment to HR (W59) — reuses the
+      existing employee-creation service unchanged (one authoritative
+      pathway); requires both candidate.convert_to_employee and
+      employee.write, neither alone sufficient
 
 paths:
   /healthz:
@@ -5588,6 +5594,59 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/applications/{applicationId}/convert-to-employee:
+    post:
+      operationId: convertApplicationToEmployee
+      tags: [employee-conversion]
+      summary: Convert a hired application into an employee
+      description: >-
+        Requires both candidate.convert_to_employee and employee.write —
+        neither alone is sufficient. Eligible only when the application is
+        in a hired-category stage AND every non-waived pre-employment
+        requirement is satisfied (no offer-status check — this workstream
+        builds no candidate-facing offer acceptance flow). Reuses the
+        existing employee-creation service unchanged; an internal
+        candidate (candidates.linkedInternalEmployeeId already set) reuses
+        that existing employee rather than creating a second one. 409 if
+        this application (or, for an internal candidate, this employee)
+        has already been converted — genuinely idempotent under retry.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "201":
+          description: Application converted to an employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversionResult"
+        "400":
+          description: The application is not eligible for conversion yet (not hired-category, or a non-waived pre-employment requirement is not satisfied)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Application not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: This application has already been converted to an employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /careers/{orgSlug}:
     get:
       operationId: getPublicCareersOrganization
@@ -10512,6 +10571,44 @@ components:
           enum: [pending, satisfied, waived]
         notes:
           type: ["string", "null"]
+
+    CandidateEmployeeLink:
+      type: object
+      description: >-
+        Immutable provenance record left behind once an application
+        converts to a real employee. Column list is exactly §9's
+        `candidate_employee_links` row. Unique on applicationId (one
+        conversion per application) and on employeeId (one recruitment
+        provenance per employee).
+      required: [id, organizationId, candidateId, applicationId, employeeId, convertedAt, convertedByMembershipId]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        candidateId:
+          type: integer
+        applicationId:
+          type: integer
+        employeeId:
+          type: integer
+        convertedAt:
+          type: string
+          format: date-time
+        convertedByMembershipId:
+          type: ["integer", "null"]
+
+    ConversionResult:
+      type: object
+      required: [link, employeeId, reusedExistingEmployee]
+      properties:
+        link:
+          $ref: "#/components/schemas/CandidateEmployeeLink"
+        employeeId:
+          type: integer
+        reusedExistingEmployee:
+          type: boolean
+          description: True only when an existing employee (an internal candidate, via candidates.linkedInternalEmployeeId) was reused rather than a new one created.
 
     PublicOrganization:
       type: object

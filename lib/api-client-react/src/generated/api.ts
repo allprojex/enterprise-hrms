@@ -49,6 +49,7 @@ import type {
   CandidateNote,
   CandidateTag,
   ConfirmEmployeeInput,
+  ConversionResult,
   CopyRoleTemplateInput,
   CreateBackgroundCheckInput,
   CreateBranchInput,
@@ -11661,6 +11662,80 @@ export const useUpdatePreEmploymentRequirementStatus = <TError = ErrorType<ApiEr
         TContext
       > => {
       return useMutation(getUpdatePreEmploymentRequirementStatusMutationOptions(options));
+    }
+
+export const getConvertApplicationToEmployeeUrl = (organizationId: number,
+    applicationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/applications/${applicationId}/convert-to-employee`
+}
+
+/**
+ * Requires both candidate.convert_to_employee and employee.write — neither alone is sufficient. Eligible only when the application is in a hired-category stage AND every non-waived pre-employment requirement is satisfied (no offer-status check — this workstream builds no candidate-facing offer acceptance flow). Reuses the existing employee-creation service unchanged; an internal candidate (candidates.linkedInternalEmployeeId already set) reuses that existing employee rather than creating a second one. 409 if this application (or, for an internal candidate, this employee) has already been converted — genuinely idempotent under retry.
+ * @summary Convert a hired application into an employee
+ */
+export const convertApplicationToEmployee = async (organizationId: number,
+    applicationId: number, options?: RequestInit): Promise<ConversionResult> => {
+
+  return customFetch<ConversionResult>(getConvertApplicationToEmployeeUrl(organizationId,applicationId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getConvertApplicationToEmployeeMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof convertApplicationToEmployee>>, TError,{organizationId: number;applicationId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof convertApplicationToEmployee>>, TError,{organizationId: number;applicationId: number}, TContext> => {
+
+const mutationKey = ['convertApplicationToEmployee'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof convertApplicationToEmployee>>, {organizationId: number;applicationId: number}> = (props) => {
+          const {organizationId,applicationId} = props ?? {};
+
+          return  convertApplicationToEmployee(organizationId,applicationId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConvertApplicationToEmployeeMutationResult = NonNullable<Awaited<ReturnType<typeof convertApplicationToEmployee>>>
+
+    export type ConvertApplicationToEmployeeMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Convert a hired application into an employee
+ */
+export const useConvertApplicationToEmployee = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof convertApplicationToEmployee>>, TError,{organizationId: number;applicationId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof convertApplicationToEmployee>>,
+        TError,
+        {organizationId: number;applicationId: number},
+        TContext
+      > => {
+      return useMutation(getConvertApplicationToEmployeeMutationOptions(options));
     }
 
 export const getGetPublicCareersOrganizationUrl = (orgSlug: string,) => {
