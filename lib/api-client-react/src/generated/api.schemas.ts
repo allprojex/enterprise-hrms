@@ -3918,6 +3918,43 @@ export interface ReportRunResult {
   rows: ReportRunResultRowsItem[];
 }
 
+export type RecruitmentStageBreakdownItemCategory = typeof RecruitmentStageBreakdownItemCategory[keyof typeof RecruitmentStageBreakdownItemCategory];
+
+
+export const RecruitmentStageBreakdownItemCategory = {
+  applied: 'applied',
+  screening: 'screening',
+  interview: 'interview',
+  assessment: 'assessment',
+  offer: 'offer',
+  hired: 'hired',
+  rejected: 'rejected',
+  withdrawn: 'withdrawn',
+} as const;
+
+export interface RecruitmentStageBreakdownItem {
+  /** @nullable */
+  stageId: number | null;
+  stageName: string;
+  category: RecruitmentStageBreakdownItemCategory;
+  count: number;
+}
+
+export interface RecruitmentWorkloadItem {
+  employeeId: number;
+  employeeName: string;
+  openRequisitionsCount: number;
+}
+
+export interface RecruitmentDashboard {
+  openRequisitionsCount: number;
+  openVacanciesCount: number;
+  totalApplicantsCount: number;
+  candidatesByStage: RecruitmentStageBreakdownItem[];
+  recruiterWorkload: RecruitmentWorkloadItem[];
+  hiringManagerWorkload: RecruitmentWorkloadItem[];
+}
+
 export type ListEmployeesParams = {
 search?: string;
 departmentId?: number;
@@ -4131,6 +4168,18 @@ export type RunReportFormat = typeof RunReportFormat[keyof typeof RunReportForma
 
 
 export const RunReportFormat = {
+  json: 'json',
+  csv: 'csv',
+} as const;
+
+export type RunRecruitmentReportParams = {
+format?: RunRecruitmentReportFormat;
+};
+
+export type RunRecruitmentReportFormat = typeof RunRecruitmentReportFormat[keyof typeof RunRecruitmentReportFormat];
+
+
+export const RunRecruitmentReportFormat = {
   json: 'json',
   csv: 'csv',
 } as const;

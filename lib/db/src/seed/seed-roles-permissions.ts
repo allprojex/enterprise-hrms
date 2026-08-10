@@ -232,6 +232,19 @@ const PERMISSIONS = [
   // the exact same roles as employee.write (org_admin, hr_manager only),
   // never to "employee".
   { key: "candidate.convert_to_employee", resource: "candidate", action: "convert_to_employee" },
+  // Phase 3A, W61 — Recruitment Dashboard & Reporting. §7's own single row:
+  // "Assigned ✔ (own workload/pipeline scope) / Org-wide ✔" — the same
+  // broad-rollout, service-layer-narrowed shape as every other Recruitment
+  // *read* permission this phase (requisition.read, vacancy.read,
+  // application.read, candidate.read, interview.read, offer.read): seeded
+  // to every role since any employee could be the assigned recruiter/
+  // hiring manager on a requisition, with org-wide vs. assigned-workload
+  // reach resolved per-request in the service layer (lib/recruitmentReporting.ts),
+  // never by this permission grant alone — holding it never yields
+  // organization-wide analytics for an employee with no requisition
+  // assignment. This is the sole permission key W61 introduces; there is no
+  // separate dashboard-only key.
+  { key: "recruitment.reports.read", resource: "recruitment", action: "reports.read" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -297,6 +310,7 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "offer.issue",
     "offer.withdraw",
     "candidate.convert_to_employee",
+    "recruitment.reports.read",
   ],
   hr_manager: [
     "organization.read",
@@ -352,6 +366,7 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "offer.issue",
     "offer.withdraw",
     "candidate.convert_to_employee",
+    "recruitment.reports.read",
   ],
   employee: [
     "organization.read",
@@ -373,6 +388,7 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "scorecard.submit",
     "offer.read",
     "offer.manage",
+    "recruitment.reports.read",
   ],
 };
 

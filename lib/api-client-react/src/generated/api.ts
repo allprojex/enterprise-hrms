@@ -145,6 +145,7 @@ import type {
   PublicOrganization,
   PublicVacancyDetail,
   PublicVacancyListResponse,
+  RecruitmentDashboard,
   RecruitmentSettings,
   RecruitmentStage,
   RecruitmentWorkflow,
@@ -160,6 +161,7 @@ import type {
   RestructureDepartmentInput,
   RestructurePositionInput,
   Role,
+  RunRecruitmentReportParams,
   RunReportParams,
   SaveInterviewScorecardInput,
   ScheduleInterviewInput,
@@ -17195,6 +17197,179 @@ export function useRunReport<TData = Awaited<ReturnType<typeof runReport>>, TErr
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getRunReportQueryOptions(organizationId,reportKey,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetRecruitmentDashboardUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/recruitment/dashboard`
+}
+
+/**
+ * Real-time counts (open requisitions, open vacancies, total applicants), a current pipeline-stage breakdown, and recruiter/ hiring-manager workload — computed live, never cached. Organization- wide staff see every figure; an assigned recruiter or hiring manager sees only their own workload/pipeline scope.
+ * @summary Recruitment dashboard summary
+ */
+export const getRecruitmentDashboard = async (organizationId: number, options?: RequestInit): Promise<RecruitmentDashboard> => {
+
+  return customFetch<RecruitmentDashboard>(getGetRecruitmentDashboardUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetRecruitmentDashboardQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/recruitment/dashboard`
+    ] as const;
+    }
+
+
+export const getGetRecruitmentDashboardQueryOptions = <TData = Awaited<ReturnType<typeof getRecruitmentDashboard>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRecruitmentDashboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetRecruitmentDashboardQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRecruitmentDashboard>>> = ({ signal }) => getRecruitmentDashboard(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRecruitmentDashboard>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetRecruitmentDashboardQueryResult = NonNullable<Awaited<ReturnType<typeof getRecruitmentDashboard>>>
+export type GetRecruitmentDashboardQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Recruitment dashboard summary
+ */
+
+export function useGetRecruitmentDashboard<TData = Awaited<ReturnType<typeof getRecruitmentDashboard>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRecruitmentDashboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetRecruitmentDashboardQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRunRecruitmentReportUrl = (organizationId: number,
+    reportKey: string,
+    params?: RunRecruitmentReportParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/recruitment/reports/${reportKey}?${stringifiedParams}` : `/api/organizations/${organizationId}/recruitment/reports/${reportKey}`
+}
+
+/**
+ * Computes a registered recruitment report (see GET /reports, category "recruitment") scoped to this organization and to the caller's recruitment visibility tier. Pass ?format=csv for a CSV download instead of JSON.
+ * @summary Run a recruitment report
+ */
+export const runRecruitmentReport = async (organizationId: number,
+    reportKey: string,
+    params?: RunRecruitmentReportParams, options?: RequestInit): Promise<ReportRunResult | string> => {
+
+  return customFetch<ReportRunResult | string>(getRunRecruitmentReportUrl(organizationId,reportKey,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getRunRecruitmentReportQueryKey = (organizationId: number,
+    reportKey: string,
+    params?: RunRecruitmentReportParams,) => {
+    return [
+    `/api/organizations/${organizationId}/recruitment/reports/${reportKey}`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getRunRecruitmentReportQueryOptions = <TData = Awaited<ReturnType<typeof runRecruitmentReport>>, TError = ErrorType<unknown>>(organizationId: number,
+    reportKey: string,
+    params?: RunRecruitmentReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runRecruitmentReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getRunRecruitmentReportQueryKey(organizationId,reportKey,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof runRecruitmentReport>>> = ({ signal }) => runRecruitmentReport(organizationId,reportKey,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && reportKey !== null && reportKey !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof runRecruitmentReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type RunRecruitmentReportQueryResult = NonNullable<Awaited<ReturnType<typeof runRecruitmentReport>>>
+export type RunRecruitmentReportQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Run a recruitment report
+ */
+
+export function useRunRecruitmentReport<TData = Awaited<ReturnType<typeof runRecruitmentReport>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    reportKey: string,
+    params?: RunRecruitmentReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runRecruitmentReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getRunRecruitmentReportQueryOptions(organizationId,reportKey,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

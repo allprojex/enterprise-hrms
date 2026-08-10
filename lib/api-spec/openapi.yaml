@@ -81,6 +81,17 @@ tags:
       existing employee-creation service unchanged (one authoritative
       pathway); requires both candidate.convert_to_employee and
       employee.write, neither alone sufficient
+  - name: recruitment-reporting
+    description: >-
+      Recruitment Dashboard & Reporting operations (W61) — read-only,
+      server-computed metrics over existing Recruitment tables, no stored
+      aggregate. Reuses the Reporting Foundation's registry/export
+      conventions (W17/ADR-016) via dedicated, visibility-scoped routes
+      (GET /reports still lists these entries for catalog purposes, but
+      they only execute here — see report-definitions.ts). Single
+      permission, recruitment.reports.read: assigned recruiter/hiring
+      manager sees their own workload/pipeline scope, organization-wide
+      HR sees everything.
 
 paths:
   /healthz:
@@ -8135,6 +8146,68 @@ paths:
               schema:
                 type: string
 
+  /organizations/{organizationId}/recruitment/dashboard:
+    get:
+      operationId: getRecruitmentDashboard
+      tags: [recruitment-reporting]
+      summary: Recruitment dashboard summary
+      description: >-
+        Real-time counts (open requisitions, open vacancies, total
+        applicants), a current pipeline-stage breakdown, and recruiter/
+        hiring-manager workload — computed live, never cached. Organization-
+        wide staff see every figure; an assigned recruiter or hiring manager
+        sees only their own workload/pipeline scope.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecruitmentDashboard"
+
+  /organizations/{organizationId}/recruitment/reports/{reportKey}:
+    get:
+      operationId: runRecruitmentReport
+      tags: [recruitment-reporting]
+      summary: Run a recruitment report
+      description: >-
+        Computes a registered recruitment report (see GET /reports, category
+        "recruitment") scoped to this organization and to the caller's
+        recruitment visibility tier. Pass ?format=csv for a CSV download
+        instead of JSON.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: reportKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [json, csv]
+      responses:
+        "200":
+          description: Recruitment report result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportRunResult"
+            text/csv:
+              schema:
+                type: string
+
 components:
   schemas:
     HealthStatus:
@@ -12547,3 +12620,51 @@ components:
           items:
             type: object
             additionalProperties: true
+
+    RecruitmentStageBreakdownItem:
+      type: object
+      required: [stageId, stageName, category, count]
+      properties:
+        stageId:
+          type: ["integer", "null"]
+        stageName:
+          type: string
+        category:
+          type: string
+          enum: [applied, screening, interview, assessment, offer, hired, rejected, withdrawn]
+        count:
+          type: integer
+
+    RecruitmentWorkloadItem:
+      type: object
+      required: [employeeId, employeeName, openRequisitionsCount]
+      properties:
+        employeeId:
+          type: integer
+        employeeName:
+          type: string
+        openRequisitionsCount:
+          type: integer
+
+    RecruitmentDashboard:
+      type: object
+      required: [openRequisitionsCount, openVacanciesCount, totalApplicantsCount, candidatesByStage, recruiterWorkload, hiringManagerWorkload]
+      properties:
+        openRequisitionsCount:
+          type: integer
+        openVacanciesCount:
+          type: integer
+        totalApplicantsCount:
+          type: integer
+        candidatesByStage:
+          type: array
+          items:
+            $ref: "#/components/schemas/RecruitmentStageBreakdownItem"
+        recruiterWorkload:
+          type: array
+          items:
+            $ref: "#/components/schemas/RecruitmentWorkloadItem"
+        hiringManagerWorkload:
+          type: array
+          items:
+            $ref: "#/components/schemas/RecruitmentWorkloadItem"

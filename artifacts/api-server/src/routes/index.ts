@@ -45,6 +45,7 @@ import masterDataRouter from "./masterData";
 import invitationsRouter from "./invitations";
 import organizationRolesRouter from "./organizationRoles";
 import reportsRouter from "./reports";
+import recruitmentReportingRouter from "./recruitmentReporting";
 
 const router: IRouter = Router();
 
@@ -94,5 +95,6 @@ router.use(masterDataRouter);
 router.use(invitationsRouter);
 router.use(organizationRolesRouter);
 router.use(reportsRouter);
+router.use(recruitmentReportingRouter);
 
 export default router;

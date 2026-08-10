@@ -7163,3 +7163,60 @@ export const RunReportResponse = zod.object({
 })
 
 
+/**
+ * Real-time counts (open requisitions, open vacancies, total applicants), a current pipeline-stage breakdown, and recruiter/ hiring-manager workload — computed live, never cached. Organization- wide staff see every figure; an assigned recruiter or hiring manager sees only their own workload/pipeline scope.
+ * @summary Recruitment dashboard summary
+ */
+export const GetRecruitmentDashboardParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetRecruitmentDashboardResponse = zod.object({
+  "openRequisitionsCount": zod.number(),
+  "openVacanciesCount": zod.number(),
+  "totalApplicantsCount": zod.number(),
+  "candidatesByStage": zod.array(zod.object({
+  "stageId": zod.number().nullable(),
+  "stageName": zod.string(),
+  "category": zod.enum(['applied', 'screening', 'interview', 'assessment', 'offer', 'hired', 'rejected', 'withdrawn']),
+  "count": zod.number()
+})),
+  "recruiterWorkload": zod.array(zod.object({
+  "employeeId": zod.number(),
+  "employeeName": zod.string(),
+  "openRequisitionsCount": zod.number()
+})),
+  "hiringManagerWorkload": zod.array(zod.object({
+  "employeeId": zod.number(),
+  "employeeName": zod.string(),
+  "openRequisitionsCount": zod.number()
+}))
+})
+
+
+/**
+ * Computes a registered recruitment report (see GET /reports, category "recruitment") scoped to this organization and to the caller's recruitment visibility tier. Pass ?format=csv for a CSV download instead of JSON.
+ * @summary Run a recruitment report
+ */
+export const RunRecruitmentReportParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "reportKey": zod.coerce.string()
+})
+
+export const RunRecruitmentReportQueryParams = zod.object({
+  "format": zod.enum(['json', 'csv']).optional()
+})
+
+export const RunRecruitmentReportResponse = zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "description": zod.string(),
+  "generatedAt": zod.coerce.date(),
+  "columns": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string()
+})),
+  "rows": zod.array(zod.record(zod.string(), zod.unknown()))
+})
+
+

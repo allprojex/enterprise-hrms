@@ -33,6 +33,7 @@ import {
   Users2,
   Video,
   FileSignature,
+  FileBarChart,
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -300,6 +301,13 @@ export function AppShell({ children }: AppShellProps) {
     ...(isHrCapable ? [{ href: '/interviews', label: 'Interviews', icon: Video } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/talent-pools', label: 'Talent Pools', icon: Users2 } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/offers', label: 'Offers', icon: FileSignature } satisfies NavItem] : []),
+    // Phase 3A, W61 — recruitment.reports.read is broadly seeded (assigned
+    // recruiter/hiring-manager scope, per §7), but the nav link itself
+    // follows the same isHrCapable-only precedent every other Recruitment
+    // nav entry already uses (see /offers above) — an assigned employee can
+    // still reach these pages directly by URL.
+    ...(isHrCapable ? [{ href: '/recruitment', label: 'Recruitment Dashboard', icon: LayoutDashboard } satisfies NavItem] : []),
+    ...(isHrCapable ? [{ href: '/recruitment-reports', label: 'Recruitment Reports', icon: FileBarChart } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/recruitment-settings', label: 'Recruitment Settings', icon: UserPlus } satisfies NavItem] : []),
     { href: '/organizations',  label: 'Organisations',  icon: Building },
     { href: '/notifications',  label: 'Notifications',  icon: Bell, badge: unreadCount },
