@@ -5,6 +5,7 @@
  * other tables. Run manually after applying migrations:
  *   pnpm --filter @workspace/db run seed:roles
  */
+import { sql } from "drizzle-orm";
 import { db, rolesTable, permissionsTable, rolePermissionsTable } from "../index";
 
 const SYSTEM_ROLES = [
@@ -393,7 +394,18 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
 };
 
 async function main() {
-  await db.insert(rolesTable).values([...SYSTEM_ROLES]).onConflictDoNothing({ target: rolesTable.key });
+  // roles.key has no plain unique constraint — only two partial ones
+  // (roles_system_key_unique on key WHERE organization_id is null,
+  // roles_org_key_unique on (organization_id, key) WHERE organization_id is
+  // not null, per ADR-015's system/org-copy split). SYSTEM_ROLES are always
+  // system templates (organizationId unset), so the conflict target must
+  // carry the same partial condition as roles_system_key_unique or Postgres
+  // rejects it with "no unique or exclusion constraint matching the ON
+  // CONFLICT specification" (42P10).
+  await db
+    .insert(rolesTable)
+    .values([...SYSTEM_ROLES])
+    .onConflictDoNothing({ target: rolesTable.key, where: sql`${rolesTable.organizationId} is null` });
   await db
     .insert(permissionsTable)
     .values([...PERMISSIONS])
