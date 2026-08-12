@@ -94,6 +94,13 @@ export async function updateRecruitmentWorkflow(params: {
   if (params.description !== undefined) patch.description = params.description;
   if (params.displayOrder !== undefined) patch.displayOrder = params.displayOrder;
 
+  // A body with no recognized fields (e.g. {} or only isDefault, which has
+  // its own dedicated set-default action) is a true no-op — return the
+  // current row unchanged rather than calling drizzle's .set({}), which
+  // throws "No values to set" and would otherwise surface as an unhandled
+  // 500. No audit event either, since nothing actually changed.
+  if (Object.keys(patch).length === 0) return before;
+
   try {
     const [updated] = await db
       .update(recruitmentWorkflowsTable)

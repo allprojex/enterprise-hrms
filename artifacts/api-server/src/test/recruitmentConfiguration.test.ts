@@ -519,6 +519,24 @@ describe("GET/POST/PATCH /api/organizations/:organizationId/recruitment-workflow
     expect(fixtures.recruitmentWorkflowRows.find((r) => r.id === 1)!.isDefault).toBe(false);
     expect(fixtures.recruitmentWorkflowRows.find((r) => r.id === 2)!.isDefault).toBe(true);
   });
+
+  it("PATCH with only isDefault (no recognized general-update field) returns the row unchanged instead of crashing — isDefault has its own dedicated set-default action", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["recruitment_settings.manage"]);
+    mockRecruitmentModuleEnabled(true);
+    fixtures.recruitmentWorkflowRows = [{ id: 1, organizationId: ORG_ID, name: "Standard Hiring", description: "Original", isActive: true, isDefault: false, displayOrder: 0 }];
+
+    const res = await request(app)
+      .patch("/api/organizations/10/recruitment-workflows/1")
+      .set("Authorization", "Bearer valid-token")
+      .send({ isDefault: true });
+
+    expect(res.status).toBe(200);
+    expect(res.body.name).toBe("Standard Hiring");
+    expect(res.body.description).toBe("Original");
+    expect(res.body.isDefault).toBe(false);
+  });
 });
 
 describe("GET/POST/PATCH /api/organizations/:organizationId/recruitment-workflows/:workflowId/stages", () => {
