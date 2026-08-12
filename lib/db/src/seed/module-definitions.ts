@@ -24,7 +24,11 @@ export const MODULE_DEFINITIONS: readonly ModuleDefinition[] = [
     description: "Job requisitions, candidate pipelines, and hiring workflows.",
     category: "hr-operations",
     version: "1.0.0",
-    status: "hidden",
+    // Phase 3A (W43-W62) shipped and verified end to end — flipped from
+    // "hidden" per this file's own documented convention ("a one-line
+    // change here once its workstream lands"). See PROJECT_STATUS.md's
+    // Phase 3A Completion Report.
+    status: "active",
     defaultEnabled: false,
     requiredModuleKeys: [],
     optionalModuleKeys: [],
@@ -90,7 +94,8 @@ export const MODULE_DEFINITIONS: readonly ModuleDefinition[] = [
     description: "Employee-facing portal for self-managed requests and records.",
     category: "hr-operations",
     version: "1.0.0",
-    status: "hidden",
+    // Shipped and verified (W39, W60) — see status note on "recruitment" above.
+    status: "active",
     defaultEnabled: false,
     requiredModuleKeys: [],
     optionalModuleKeys: [],
