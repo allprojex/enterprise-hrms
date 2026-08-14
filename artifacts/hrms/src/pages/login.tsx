@@ -4,7 +4,7 @@ import { Building2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useLogin } from '@workspace/api-client-react';
+import { useLogin, useGetTenantContext, getGetTenantContextQueryKey } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { storeToken } from '@/lib/auth';
@@ -16,6 +16,14 @@ export default function Login() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const loginMutation = useLogin();
+
+  // Safe, unauthenticated tenant context for the hostname the browser is
+  // actually on (e.g. wwm.localhost) — org name/logo only, never anything
+  // sensitive. Falls back to generic platform branding for an unmapped
+  // hostname (the platform's own base domain, or a hostname with no
+  // assigned tenant yet) — this can never fail to render a login form.
+  const { data: tenantContext } = useGetTenantContext({ query: { queryKey: getGetTenantContextQueryKey() } });
+  const tenantName = tenantContext?.resolved ? tenantContext.organizationName : null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,14 +64,25 @@ export default function Login() {
       >
         <div className="flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white">
-            <Building2 className="h-7 w-7 text-primary" />
+            {tenantContext?.resolved && tenantContext.logoUrl ? (
+              <img
+                src={tenantContext.logoUrl}
+                alt=""
+                className="h-8 w-8 object-contain"
+                data-testid="img-tenant-logo"
+              />
+            ) : (
+              <Building2 className="h-7 w-7 text-primary" />
+            )}
           </div>
-          <h1 className="text-xl font-semibold text-white font-sans">Enterprise HRMS</h1>
+          <h1 className="text-xl font-semibold text-white font-sans" data-testid="text-tenant-name">
+            {tenantName ?? 'Enterprise HRMS'}
+          </h1>
         </div>
 
         <div className="space-y-6">
           <h2 className="text-4xl font-bold text-white leading-tight">
-            Manage Your Workforce with Confidence
+            {tenantName ? `Welcome back to ${tenantName}` : 'Manage Your Workforce with Confidence'}
           </h2>
           <p className="text-lg text-white/90 leading-relaxed max-w-md">
             Access your organisation's HR platform. Track employees, manage leave, monitor
@@ -87,13 +106,17 @@ export default function Login() {
             >
               <Building2 className="h-7 w-7 text-primary-foreground" />
             </div>
-            <span className="text-xl font-semibold text-foreground font-sans">Enterprise HRMS</span>
+            <span className="text-xl font-semibold text-foreground font-sans">{tenantName ?? 'Enterprise HRMS'}</span>
           </div>
 
           <div className="space-y-6">
             <div className="space-y-2 text-center lg:text-left">
               <h1 className="text-3xl font-bold text-foreground">Welcome back</h1>
-              <p className="text-muted-foreground">Enter your credentials to access your account</p>
+              <p className="text-muted-foreground">
+                {tenantName
+                  ? `Sign in to ${tenantName}'s HR workspace`
+                  : 'Enter your credentials to access your account'}
+              </p>
             </div>
 
             <form

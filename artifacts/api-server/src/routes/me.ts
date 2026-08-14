@@ -4,6 +4,7 @@ import { db, organizationsTable, membershipRolesTable, rolesTable, primaryHrAssi
 import { ApplyToInternalVacancyBody } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { getActiveMembershipsForUser, getActiveMembership, resolveActiveOrganizationId } from "../lib/membership";
+import { hostnameOrganizationMismatch } from "../lib/organizationDomains";
 import { requireModuleEnabled } from "../middlewares/requireModuleEnabled";
 import type { MembershipRequest } from "../middlewares/requireMembership";
 import { resolveOwnEmployeeProfile } from "../lib/employeeSelfService";
@@ -42,6 +43,11 @@ async function requireActiveOrganizationMembership(
     req.user!.organizationId,
   );
   if (activeOrganizationId == null) {
+    res.status(403).json({ error: "No active organization membership" });
+    return;
+  }
+
+  if (hostnameOrganizationMismatch(req.resolvedTenantOrganizationId, activeOrganizationId)) {
     res.status(403).json({ error: "No active organization membership" });
     return;
   }

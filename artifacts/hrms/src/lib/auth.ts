@@ -6,7 +6,7 @@
  * Portable: uses only the Web Storage API — no platform-specific dependencies.
  */
 
-import { setAuthTokenGetter } from "@workspace/api-client-react";
+import { setAuthTokenGetter, setTenantHostnameGetter } from "@workspace/api-client-react";
 
 const TOKEN_KEY = "hrms_auth_token";
 
@@ -36,7 +36,13 @@ export function clearToken(): void {
   }
 }
 
-/** Call once at app boot to wire the stored token into every API request. */
+/**
+ * Call once at app boot to wire the stored token and the browser's own
+ * hostname into every API request. The hostname is only ever the caller's
+ * own (window.location.hostname) — see setTenantHostnameGetter's doc
+ * comment for why that carries no authorization weight on its own.
+ */
 export function initAuth(): void {
   setAuthTokenGetter(() => getStoredToken());
+  setTenantHostnameGetter(() => window.location.hostname);
 }

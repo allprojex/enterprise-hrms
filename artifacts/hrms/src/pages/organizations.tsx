@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Building, Users, Calendar, CheckCircle, Clock, Ban, Plus, Pencil } from 'lucide-react';
+import { Building, Users, Calendar, CheckCircle, Clock, Ban, Plus, Pencil, Globe, Copy, Star, PowerOff, Power } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -26,8 +26,18 @@ import {
   useReactivateOrganization,
   useGetMe,
   getGetMeQueryKey,
+  useListOrganizationDomains,
+  getListOrganizationDomainsQueryKey,
+  useCreateOrganizationDomain,
+  useActivateOrganizationDomain,
+  useDisableOrganizationDomain,
+  useSetPrimaryOrganizationDomain,
 } from '@workspace/api-client-react';
-import type { CreateOrganizationInputType } from '@workspace/api-client-react';
+import type {
+  CreateOrganizationInputType,
+  CreateOrganizationDomainInputDomainType,
+  OrganizationDomain,
+} from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { motion } from 'framer-motion';
@@ -51,6 +61,187 @@ function slugify(name: string): string {
     .trim()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
+}
+
+// Multi-Organization Tenant Infrastructure — platform-admin domain
+// management. Reserved to super_admin server-side (requireSuperAdmin); the
+// parent already gates rendering the same way (canManageSelectedOrg /
+// me.role check), this component assumes it is only ever mounted for a
+// caller who can actually call these routes.
+function DomainsPanel({ organizationId }: { organizationId: number }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [hostname, setHostname] = useState('');
+  const [domainType, setDomainType] = useState<CreateOrganizationDomainInputDomainType>('platform_subdomain');
+
+  const domainsQueryKey = getListOrganizationDomainsQueryKey(organizationId);
+  const { data: domains, isLoading, error } = useListOrganizationDomains(organizationId, {
+    query: { queryKey: domainsQueryKey },
+  });
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: domainsQueryKey });
+
+  const createMutation = useCreateOrganizationDomain();
+  const activateMutation = useActivateOrganizationDomain();
+  const disableMutation = useDisableOrganizationDomain();
+  const setPrimaryMutation = useSetPrimaryOrganizationDomain();
+
+  function errorMessage(err: unknown): string | undefined {
+    return err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
+  }
+
+  const handleCreate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!hostname.trim()) return;
+    createMutation.mutate(
+      { organizationId, data: { hostname: hostname.trim(), domainType } },
+      {
+        onSuccess: () => {
+          setHostname('');
+          invalidate();
+          toast({ title: 'Domain added' });
+        },
+        onError: (err) =>
+          toast({ title: 'Could not add domain', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  const handleCopy = async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast({ title: 'Copied to clipboard' });
+    } catch {
+      toast({ title: 'Could not copy', variant: 'destructive' });
+    }
+  };
+
+  return (
+    <div className="space-y-3 border-t border-border pt-4 mt-4">
+      <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+        <Globe className="h-4 w-4" aria-hidden="true" />
+        Domains
+      </h4>
+
+      {isLoading ? (
+        <Skeleton className="h-16 w-full" />
+      ) : error ? (
+        <p className="text-sm text-destructive">Could not load domains.</p>
+      ) : !domains || domains.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No testing hostname or custom domain assigned yet.</p>
+      ) : (
+        <ul className="space-y-2" aria-label="Organisation domains">
+          {domains.map((domain: OrganizationDomain) => (
+            <li
+              key={domain.id}
+              className="flex items-center justify-between gap-2 rounded-md border border-border p-2 text-sm"
+              data-testid={`row-domain-${domain.id}`}
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono truncate">{domain.hostname}</span>
+                  {domain.isPrimary && <Star className="h-3 w-3 text-accent flex-shrink-0" aria-label="Primary domain" />}
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span className="capitalize">{domain.domainType.replace('_', ' ')}</span>
+                  <span aria-hidden="true">·</span>
+                  <span className="capitalize">{domain.status}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7"
+                  onClick={() => handleCopy(domain.hostname)}
+                  aria-label={`Copy ${domain.hostname}`}
+                  data-testid={`button-copy-domain-${domain.id}`}
+                >
+                  <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                </Button>
+                {domain.status === 'active' ? (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    disabled={disableMutation.isPending}
+                    onClick={() => disableMutation.mutate({ organizationId, id: domain.id }, { onSuccess: invalidate })}
+                    aria-label={`Disable ${domain.hostname}`}
+                    data-testid={`button-disable-domain-${domain.id}`}
+                  >
+                    <PowerOff className="h-3.5 w-3.5" aria-hidden="true" />
+                  </Button>
+                ) : (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    disabled={activateMutation.isPending}
+                    onClick={() => activateMutation.mutate({ organizationId, id: domain.id }, { onSuccess: invalidate })}
+                    aria-label={`Activate ${domain.hostname}`}
+                    data-testid={`button-activate-domain-${domain.id}`}
+                  >
+                    <Power className="h-3.5 w-3.5" aria-hidden="true" />
+                  </Button>
+                )}
+                {domain.status === 'active' && !domain.isPrimary && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    disabled={setPrimaryMutation.isPending}
+                    onClick={() => setPrimaryMutation.mutate({ organizationId, id: domain.id }, { onSuccess: invalidate })}
+                    aria-label={`Mark ${domain.hostname} primary`}
+                    data-testid={`button-set-primary-domain-${domain.id}`}
+                  >
+                    <Star className="h-3.5 w-3.5" aria-hidden="true" />
+                  </Button>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <form onSubmit={handleCreate} className="flex items-end gap-2" aria-label="Add domain">
+        <div className="flex-1 space-y-1">
+          <Label htmlFor="domain-hostname" className="text-xs">
+            Hostname
+          </Label>
+          <Input
+            id="domain-hostname"
+            value={hostname}
+            onChange={(e) => setHostname(e.target.value)}
+            placeholder="wwm.localhost"
+            className="h-8 text-sm"
+            data-testid="input-domain-hostname"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="domain-type" className="text-xs">
+            Type
+          </Label>
+          <Select value={domainType} onValueChange={(v) => setDomainType(v as CreateOrganizationDomainInputDomainType)}>
+            <SelectTrigger id="domain-type" className="h-8 w-40 text-sm" data-testid="select-domain-type">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="platform_subdomain">Testing hostname</SelectItem>
+              <SelectItem value="custom_domain">Custom domain</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <Button
+          type="submit"
+          size="sm"
+          disabled={createMutation.isPending || !hostname.trim()}
+          data-testid="button-add-domain"
+        >
+          Add
+        </Button>
+      </form>
+    </div>
+  );
 }
 
 export default function Organizations() {
@@ -470,6 +661,7 @@ export default function Organizations() {
                   )}
                 </dl>
               ) : null}
+              {selectedOrg && me?.role === 'super_admin' && <DomainsPanel organizationId={selectedOrg.id} />}
             </CardContent>
           </Card>
         </div>

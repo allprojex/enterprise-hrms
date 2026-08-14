@@ -5,8 +5,10 @@ import { db, usersTable, sessionsTable } from "@workspace/db";
 import { LoginBody, ForgotPasswordBody, SwitchOrganizationBody, ResetPasswordBody } from "@workspace/api-zod";
 import { hashPassword, verifyPassword, generateToken } from "../lib/auth";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
+import type { TenantAwareRequest } from "../middlewares/resolveTenantHost";
 import { getActiveMembership, resolveActiveOrganizationId } from "../lib/membership";
 import { recordAuditEvent } from "../lib/auditLog";
+import { isSuperAdmin } from "../lib/authorization";
 import {
   requestPasswordReset,
   getPasswordResetTokenStatus,
@@ -45,7 +47,7 @@ function formatUser(user: typeof usersTable.$inferSelect, activeOrganizationId: 
 }
 
 // POST /auth/login
-router.post("/auth/login", loginRateLimiter, async (req, res): Promise<void> => {
+router.post("/auth/login", loginRateLimiter, async (req: TenantAwareRequest, res): Promise<void> => {
   const parsed = LoginBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -73,12 +75,28 @@ router.post("/auth/login", loginRateLimiter, async (req, res): Promise<void> => 
     return;
   }
 
+  // Multi-Organization Tenant Infrastructure: a resolved tenant hostname
+  // (e.g. acme.example-hrms.com) never grants login on its own, but it does
+  // deny one — a WWM-only account cannot log in from Acme's hostname, and
+  // vice versa. super_admin is exempt, the same platform-wide bypass this
+  // codebase already applies everywhere else (isSuperAdmin).
+  let tenantOrganizationId: number | null = null;
+  const resolvedTenant = req.resolvedTenantOrganizationId;
+  if (resolvedTenant != null && !isSuperAdmin(user)) {
+    const tenantMembership = await getActiveMembership(user.id, resolvedTenant);
+    if (!tenantMembership) {
+      res.status(403).json({ error: "This account does not have access to this organization" });
+      return;
+    }
+    tenantOrganizationId = resolvedTenant;
+  }
+
   const token = generateToken();
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
-  await db.insert(sessionsTable).values({ token, userId: user.id, expiresAt });
+  await db.insert(sessionsTable).values({ token, userId: user.id, expiresAt, activeOrganizationId: tenantOrganizationId });
 
-  const activeOrganizationId = await resolveActiveOrganizationId(user.id, null, user.organizationId);
+  const activeOrganizationId = await resolveActiveOrganizationId(user.id, tenantOrganizationId, user.organizationId);
 
   res.json({ user: formatUser(user, activeOrganizationId), token });
 });
@@ -145,7 +163,7 @@ router.post("/auth/reset-password/:token", async (req, res): Promise<void> => {
 router.post(
   "/auth/switch-organization",
   requireAuth as any,
-  async (req: AuthenticatedRequest, res): Promise<void> => {
+  async (req: AuthenticatedRequest & TenantAwareRequest, res): Promise<void> => {
     const parsed = SwitchOrganizationBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.message });
@@ -153,6 +171,19 @@ router.post(
     }
 
     const { organizationId } = parsed.data;
+
+    // Do not automatically switch tenants merely because a hostname was
+    // changed, and never let a hostname be used to switch into a
+    // different organization than the one it's bound to.
+    if (
+      req.resolvedTenantOrganizationId != null &&
+      req.resolvedTenantOrganizationId !== organizationId &&
+      !isSuperAdmin(req.user!)
+    ) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
     const membership = await getActiveMembership(req.userId!, organizationId);
     if (!membership) {
       res.status(403).json({ error: "Forbidden" });

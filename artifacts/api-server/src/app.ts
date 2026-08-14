@@ -4,6 +4,7 @@ import helmet from "helmet";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { resolveTenantHost } from "./middlewares/resolveTenantHost";
 
 const app: Express = express();
 
@@ -60,6 +61,12 @@ if (process.env.NODE_ENV === "production" && !allowedOrigins) {
 app.use(cors({ origin: allowedOrigins ?? true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Multi-Organization Tenant Infrastructure: resolves which organization (if
+// any) the request's hostname belongs to, before auth and before routing —
+// see middlewares/resolveTenantHost.ts. Purely informational; sits below
+// every permission/module check, never replaces one.
+app.use(resolveTenantHost as any);
 
 app.use("/api", router);
 

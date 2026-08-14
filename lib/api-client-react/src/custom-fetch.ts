@@ -17,6 +17,7 @@ const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
 let _baseUrl: string | null = null;
 let _authTokenGetter: AuthTokenGetter | null = null;
+let _tenantHostnameGetter: (() => string | null) | null = null;
 
 /**
  * Set a base URL that is prepended to every relative request URL
@@ -42,6 +43,20 @@ export function setBaseUrl(url: string | null): void {
  */
 export function setAuthTokenGetter(getter: AuthTokenGetter | null): void {
   _authTokenGetter = getter;
+}
+
+/**
+ * Register a getter that supplies the browser's own tenant hostname (e.g.
+ * `wwm.localhost`), sent as `X-Tenant-Hostname` on every request. This is a
+ * dev/split-origin convenience only — production's own `Host` header
+ * already differs per tenant subdomain once Nginx passes it through
+ * unmodified, so the backend prefers that over this header (see
+ * resolveTenantHost.ts). It carries no authorization weight either way;
+ * clearing or spoofing it can only remove or misdirect a consistency check,
+ * never grant access. Pass `null` to clear the getter.
+ */
+export function setTenantHostnameGetter(getter: (() => string | null) | null): void {
+  _tenantHostnameGetter = getter;
 }
 
 function isRequest(input: RequestInfo | URL): input is Request {
@@ -355,6 +370,13 @@ export async function customFetch<T = unknown>(
     const token = await _authTokenGetter();
     if (token) {
       headers.set("authorization", `Bearer ${token}`);
+    }
+  }
+
+  if (_tenantHostnameGetter && !headers.has("x-tenant-hostname")) {
+    const hostname = _tenantHostnameGetter();
+    if (hostname) {
+      headers.set("x-tenant-hostname", hostname);
     }
   }
 

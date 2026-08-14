@@ -119,6 +119,20 @@ function NavLinks({
   );
 }
 
+function OrgLabel({ currentOrg }: { currentOrg: MembershipSummary }) {
+  return (
+    <div className="border-b border-sidebar-border px-4 py-3">
+      <div
+        className="flex items-center gap-2 rounded-lg border border-sidebar-border bg-card px-3 py-2"
+        data-testid="text-org-current"
+      >
+        <Building className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
+        <span className="text-sm font-medium text-card-foreground truncate">{currentOrg.organizationName}</span>
+      </div>
+    </div>
+  );
+}
+
 function OrgSwitcher({
   currentOrg,
   organizations,
@@ -241,6 +255,12 @@ export function AppShell({ children }: AppShellProps) {
   const unreadCount = notifications?.filter((n) => !n.read).length ?? 0;
   const activeOrganizationId = user?.activeOrganizationId ?? user?.organizationId;
   const currentOrg = myOrganizations?.find((m) => m.organizationId === activeOrganizationId);
+  // Multi-Organization Tenant Infrastructure: a caller with only one
+  // legitimate membership never sees a switcher — there is nothing to
+  // switch to, and showing one would imply the platform has other tenant
+  // inventory to browse. A genuinely multi-org caller sees only their own
+  // real memberships (myOrganizations is already self-scoped server-side).
+  const hasMultipleOrganizations = (myOrganizations?.length ?? 0) > 1;
   const userInitials = user
     ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
     : '??';
@@ -360,14 +380,17 @@ export function AppShell({ children }: AppShellProps) {
         </div>
 
         {/* Organisation selector */}
-        {currentOrg && (
-          <OrgSwitcher
-            currentOrg={currentOrg}
-            organizations={myOrganizations ?? []}
-            disabled={switchOrganizationMutation.isPending}
-            onSwitch={handleSwitchOrganization}
-          />
-        )}
+        {currentOrg &&
+          (hasMultipleOrganizations ? (
+            <OrgSwitcher
+              currentOrg={currentOrg}
+              organizations={myOrganizations ?? []}
+              disabled={switchOrganizationMutation.isPending}
+              onSwitch={handleSwitchOrganization}
+            />
+          ) : (
+            <OrgLabel currentOrg={currentOrg} />
+          ))}
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Primary">
@@ -460,14 +483,17 @@ export function AppShell({ children }: AppShellProps) {
                 </Button>
               </div>
 
-              {currentOrg && (
-                <OrgSwitcher
-                  currentOrg={currentOrg}
-                  organizations={myOrganizations ?? []}
-                  disabled={switchOrganizationMutation.isPending}
-                  onSwitch={handleSwitchOrganization}
-                />
-              )}
+              {currentOrg &&
+                (hasMultipleOrganizations ? (
+                  <OrgSwitcher
+                    currentOrg={currentOrg}
+                    organizations={myOrganizations ?? []}
+                    disabled={switchOrganizationMutation.isPending}
+                    onSwitch={handleSwitchOrganization}
+                  />
+                ) : (
+                  <OrgLabel currentOrg={currentOrg} />
+                ))}
 
               <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Primary">
                 <NavLinks

@@ -63,6 +63,7 @@ import type {
   CreateLeaveTypeInput,
   CreateMasterDataItemInput,
   CreateOfferInput,
+  CreateOrganizationDomainInput,
   CreateOrganizationInput,
   CreatePositionInput,
   CreatePreEmploymentRequirementInput,
@@ -130,6 +131,7 @@ import type {
   OfferVersion,
   Organization,
   OrganizationConfig,
+  OrganizationDomain,
   OrganizationMember,
   OrganizationModule,
   OrganizationRole,
@@ -172,6 +174,7 @@ import type {
   SwitchOrganizationInput,
   TalentPool,
   TalentPoolMember,
+  TenantContext,
   TransferEmployeeInput,
   UpdateBackgroundCheckStatusInput,
   UpdateBranchInput,
@@ -301,6 +304,84 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getHealthCheckQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetTenantContextUrl = () => {
+
+
+
+
+  return `/api/tenant-context`
+}
+
+/**
+ * Public, unauthenticated. Resolved only from the request's own hostname (Host header, or X-Tenant-Hostname in this project's split-port dev setup) — accepts no hostname parameter, so it can never be used to enumerate other tenants. Returns `resolved: false` for every unresolvable case alike (unmapped hostname, disabled domain, suspended organization) — the response never distinguishes which.
+ * @summary Get safe tenant context for the current hostname
+ */
+export const getTenantContext = async ( options?: RequestInit): Promise<TenantContext> => {
+
+  return customFetch<TenantContext>(getGetTenantContextUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTenantContextQueryKey = () => {
+    return [
+    `/api/tenant-context`
+    ] as const;
+    }
+
+
+export const getGetTenantContextQueryOptions = <TData = Awaited<ReturnType<typeof getTenantContext>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTenantContext>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTenantContextQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTenantContext>>> = ({ signal }) => getTenantContext({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTenantContext>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTenantContextQueryResult = NonNullable<Awaited<ReturnType<typeof getTenantContext>>>
+export type GetTenantContextQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get safe tenant context for the current hostname
+ */
+
+export function useGetTenantContext<TData = Awaited<ReturnType<typeof getTenantContext>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTenantContext>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTenantContextQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -1345,6 +1426,379 @@ export const useReactivateOrganization = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getReactivateOrganizationMutationOptions(options));
+    }
+
+export const getListOrganizationDomainsUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/domains`
+}
+
+/**
+ * Platform super_admin only.
+ * @summary List an organization's domains
+ */
+export const listOrganizationDomains = async (organizationId: number, options?: RequestInit): Promise<OrganizationDomain[]> => {
+
+  return customFetch<OrganizationDomain[]>(getListOrganizationDomainsUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOrganizationDomainsQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/domains`
+    ] as const;
+    }
+
+
+export const getListOrganizationDomainsQueryOptions = <TData = Awaited<ReturnType<typeof listOrganizationDomains>>, TError = ErrorType<ApiError>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOrganizationDomains>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOrganizationDomainsQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOrganizationDomains>>> = ({ signal }) => listOrganizationDomains(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOrganizationDomains>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOrganizationDomainsQueryResult = NonNullable<Awaited<ReturnType<typeof listOrganizationDomains>>>
+export type ListOrganizationDomainsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List an organization's domains
+ */
+
+export function useListOrganizationDomains<TData = Awaited<ReturnType<typeof listOrganizationDomains>>, TError = ErrorType<ApiError>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOrganizationDomains>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOrganizationDomainsQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateOrganizationDomainUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/domains`
+}
+
+/**
+ * Platform super_admin only. platform_subdomain hostnames become active immediately (the platform itself controls those); custom_domain hostnames start pending until an operator activates them once DNS ownership has been confirmed out-of-band.
+ * @summary Assign a domain to an organization
+ */
+export const createOrganizationDomain = async (organizationId: number,
+    createOrganizationDomainInput: CreateOrganizationDomainInput, options?: RequestInit): Promise<OrganizationDomain> => {
+
+  return customFetch<OrganizationDomain>(getCreateOrganizationDomainUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createOrganizationDomainInput)
+  }
+);}
+
+
+
+
+
+export const getCreateOrganizationDomainMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOrganizationDomain>>, TError,{organizationId: number;data: BodyType<CreateOrganizationDomainInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createOrganizationDomain>>, TError,{organizationId: number;data: BodyType<CreateOrganizationDomainInput>}, TContext> => {
+
+const mutationKey = ['createOrganizationDomain'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createOrganizationDomain>>, {organizationId: number;data: BodyType<CreateOrganizationDomainInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createOrganizationDomain(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateOrganizationDomainMutationResult = NonNullable<Awaited<ReturnType<typeof createOrganizationDomain>>>
+    export type CreateOrganizationDomainMutationBody = BodyType<CreateOrganizationDomainInput>
+    export type CreateOrganizationDomainMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Assign a domain to an organization
+ */
+export const useCreateOrganizationDomain = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOrganizationDomain>>, TError,{organizationId: number;data: BodyType<CreateOrganizationDomainInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createOrganizationDomain>>,
+        TError,
+        {organizationId: number;data: BodyType<CreateOrganizationDomainInput>},
+        TContext
+      > => {
+      return useMutation(getCreateOrganizationDomainMutationOptions(options));
+    }
+
+export const getActivateOrganizationDomainUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/domains/${id}/activate`
+}
+
+/**
+ * Platform super_admin only. Moves a pending custom domain (DNS ownership confirmed out-of-band) or a disabled domain to active.
+ * @summary Activate a domain
+ */
+export const activateOrganizationDomain = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<OrganizationDomain> => {
+
+  return customFetch<OrganizationDomain>(getActivateOrganizationDomainUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getActivateOrganizationDomainMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof activateOrganizationDomain>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof activateOrganizationDomain>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['activateOrganizationDomain'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof activateOrganizationDomain>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  activateOrganizationDomain(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ActivateOrganizationDomainMutationResult = NonNullable<Awaited<ReturnType<typeof activateOrganizationDomain>>>
+
+    export type ActivateOrganizationDomainMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Activate a domain
+ */
+export const useActivateOrganizationDomain = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof activateOrganizationDomain>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof activateOrganizationDomain>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getActivateOrganizationDomainMutationOptions(options));
+    }
+
+export const getDisableOrganizationDomainUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/domains/${id}/disable`
+}
+
+/**
+ * Platform super_admin only. The domain immediately stops resolving to any tenant context; the row and its history are kept, not deleted. Clears the domain's primary flag if it held one.
+ * @summary Disable a domain
+ */
+export const disableOrganizationDomain = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<OrganizationDomain> => {
+
+  return customFetch<OrganizationDomain>(getDisableOrganizationDomainUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getDisableOrganizationDomainMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disableOrganizationDomain>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof disableOrganizationDomain>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['disableOrganizationDomain'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof disableOrganizationDomain>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  disableOrganizationDomain(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DisableOrganizationDomainMutationResult = NonNullable<Awaited<ReturnType<typeof disableOrganizationDomain>>>
+
+    export type DisableOrganizationDomainMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Disable a domain
+ */
+export const useDisableOrganizationDomain = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disableOrganizationDomain>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof disableOrganizationDomain>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getDisableOrganizationDomainMutationOptions(options));
+    }
+
+export const getSetPrimaryOrganizationDomainUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/domains/${id}/set-primary`
+}
+
+/**
+ * Platform super_admin only. Only an active domain may become primary; atomically clears any previous primary for the same organization.
+ * @summary Mark a domain primary
+ */
+export const setPrimaryOrganizationDomain = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<OrganizationDomain> => {
+
+  return customFetch<OrganizationDomain>(getSetPrimaryOrganizationDomainUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getSetPrimaryOrganizationDomainMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setPrimaryOrganizationDomain>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setPrimaryOrganizationDomain>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['setPrimaryOrganizationDomain'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setPrimaryOrganizationDomain>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  setPrimaryOrganizationDomain(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetPrimaryOrganizationDomainMutationResult = NonNullable<Awaited<ReturnType<typeof setPrimaryOrganizationDomain>>>
+
+    export type SetPrimaryOrganizationDomainMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Mark a domain primary
+ */
+export const useSetPrimaryOrganizationDomain = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setPrimaryOrganizationDomain>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setPrimaryOrganizationDomain>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getSetPrimaryOrganizationDomainMutationOptions(options));
     }
 
 export const getListMyOrganizationsUrl = () => {

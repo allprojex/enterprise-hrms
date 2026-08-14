@@ -164,6 +164,74 @@ export interface UpdateOrganizationInput {
   employeeCount?: number | null;
 }
 
+export type OrganizationDomainDomainType = typeof OrganizationDomainDomainType[keyof typeof OrganizationDomainDomainType];
+
+
+export const OrganizationDomainDomainType = {
+  platform_subdomain: 'platform_subdomain',
+  custom_domain: 'custom_domain',
+} as const;
+
+export type OrganizationDomainStatus = typeof OrganizationDomainStatus[keyof typeof OrganizationDomainStatus];
+
+
+export const OrganizationDomainStatus = {
+  pending: 'pending',
+  active: 'active',
+  disabled: 'disabled',
+} as const;
+
+export interface OrganizationDomain {
+  id: number;
+  organizationId: number;
+  hostname: string;
+  domainType: OrganizationDomainDomainType;
+  status: OrganizationDomainStatus;
+  isPrimary: boolean;
+  /** @nullable */
+  verifiedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CreateOrganizationDomainInputDomainType = typeof CreateOrganizationDomainInputDomainType[keyof typeof CreateOrganizationDomainInputDomainType];
+
+
+export const CreateOrganizationDomainInputDomainType = {
+  platform_subdomain: 'platform_subdomain',
+  custom_domain: 'custom_domain',
+} as const;
+
+export interface CreateOrganizationDomainInput {
+  /** @minLength 1 */
+  hostname: string;
+  domainType: CreateOrganizationDomainInputDomainType;
+}
+
+export type TenantContextOrganizationType = typeof TenantContextOrganizationType[keyof typeof TenantContextOrganizationType];
+
+
+export const TenantContextOrganizationType = {
+  business: 'business',
+  church: 'church',
+  ngo: 'ngo',
+  school: 'school',
+  hospital: 'hospital',
+  hotel: 'hotel',
+  government: 'government',
+  other: 'other',
+} as const;
+
+export interface TenantContext {
+  resolved: boolean;
+  organizationId?: number;
+  organizationName?: string;
+  organizationSlug?: string;
+  organizationType?: TenantContextOrganizationType;
+  /** @nullable */
+  logoUrl?: string | null;
+}
+
 export type MembershipSummaryStatus = typeof MembershipSummaryStatus[keyof typeof MembershipSummaryStatus];
 
 

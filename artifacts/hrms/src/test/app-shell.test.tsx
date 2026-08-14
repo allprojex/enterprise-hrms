@@ -17,6 +17,40 @@ import { AppShell } from '@/components/layout/app-shell';
 const switchMutateMock = vi.fn();
 const invalidateQueriesMock = vi.fn();
 
+const MULTI_ORG_MEMBERSHIPS = [
+  {
+    organizationId: 10,
+    organizationName: 'Acme HQ',
+    organizationSlug: 'acme',
+    status: 'active',
+    roles: ['org_admin'],
+    isPrimaryHr: false,
+  },
+  {
+    organizationId: 20,
+    organizationName: 'Acme Satellite',
+    organizationSlug: 'acme-2',
+    status: 'active',
+    roles: ['employee'],
+    isPrimaryHr: false,
+  },
+];
+
+// organizationId matches useGetMe's fixed activeOrganizationId (10) below,
+// so this stands in for "the caller's one and only membership."
+const SINGLE_ORG_MEMBERSHIPS = [
+  {
+    organizationId: 10,
+    organizationName: 'wwm',
+    organizationSlug: 'wwm',
+    status: 'active',
+    roles: ['org_admin'],
+    isPrimaryHr: false,
+  },
+];
+
+const { useListMyOrganizationsMock } = vi.hoisted(() => ({ useListMyOrganizationsMock: vi.fn() }));
+
 vi.mock('@tanstack/react-query', async () => {
   const actual = await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query');
   return {
@@ -41,26 +75,7 @@ vi.mock('@workspace/api-client-react', () => ({
   getGetMeQueryKey: () => ['getMe'],
   useListNotifications: () => ({ data: [] }),
   getListNotificationsQueryKey: () => ['notifications'],
-  useListMyOrganizations: () => ({
-    data: [
-      {
-        organizationId: 10,
-        organizationName: 'Acme HQ',
-        organizationSlug: 'acme',
-        status: 'active',
-        roles: ['org_admin'],
-        isPrimaryHr: false,
-      },
-      {
-        organizationId: 20,
-        organizationName: 'Acme Satellite',
-        organizationSlug: 'acme-2',
-        status: 'active',
-        roles: ['employee'],
-        isPrimaryHr: false,
-      },
-    ],
-  }),
+  useListMyOrganizations: () => useListMyOrganizationsMock(),
   getListMyOrganizationsQueryKey: () => ['myOrganizations'],
   useSwitchOrganization: () => ({ mutate: switchMutateMock, isPending: false }),
   useLogout: () => ({ mutate: vi.fn(), isPending: false }),
@@ -84,6 +99,7 @@ describe('AppShell organisation switcher', () => {
   beforeEach(() => {
     switchMutateMock.mockReset();
     invalidateQueriesMock.mockReset();
+    useListMyOrganizationsMock.mockReturnValue({ data: MULTI_ORG_MEMBERSHIPS });
   });
 
   it('shows the active organisation and is not disabled', () => {
@@ -138,5 +154,27 @@ describe('AppShell organisation switcher', () => {
       expect(screen.queryByTestId('option-org-10')).not.toBeInTheDocument();
     });
     expect(switchMutateMock).not.toHaveBeenCalled();
+  });
+});
+
+// Multi-Organization Tenant Infrastructure: a caller with only one
+// legitimate membership must never see a switcher — there is nothing real
+// to switch to, and the brief explicitly requires it hidden.
+describe('AppShell organisation display — single-organisation caller', () => {
+  beforeEach(() => {
+    switchMutateMock.mockReset();
+    invalidateQueriesMock.mockReset();
+    useListMyOrganizationsMock.mockReturnValue({ data: SINGLE_ORG_MEMBERSHIPS });
+  });
+
+  it('shows a plain organisation label, not a switcher control', () => {
+    renderShell();
+    expect(screen.getByTestId('text-org-current')).toHaveTextContent('wwm');
+    expect(screen.queryByTestId('button-org-selector')).not.toBeInTheDocument();
+  });
+
+  it('exposes no unrelated tenant inventory (no switcher menu to open)', () => {
+    renderShell();
+    expect(screen.queryByText('Switch organisation')).not.toBeInTheDocument();
   });
 });

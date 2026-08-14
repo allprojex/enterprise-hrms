@@ -92,6 +92,21 @@ tags:
       permission, recruitment.reports.read: assigned recruiter/hiring
       manager sees their own workload/pipeline scope, organization-wide
       HR sees everything.
+  - name: organization-domains
+    description: >-
+      Multi-Organization Tenant Infrastructure — platform-admin management
+      of the hostnames (platform testing subdomains and custom domains)
+      that resolve a request to an organization. Reserved to the platform
+      super_admin role; a resolved hostname only ever identifies tenant
+      context, it never grants authorization on its own — every
+      org-scoped route still independently re-verifies a live membership
+      the same way it always has. See docs/TENANT_DOMAINS_AND_ACCESS.md.
+  - name: tenant-context
+    description: >-
+      Unauthenticated, safe tenant branding lookup for the login
+      experience — resolved only from the caller's own request hostname,
+      never from a client-supplied hostname parameter (not a tenant
+      directory).
 
 paths:
   /healthz:
@@ -107,6 +122,27 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /tenant-context:
+    get:
+      operationId: getTenantContext
+      tags: [tenant-context]
+      summary: Get safe tenant context for the current hostname
+      description: >-
+        Public, unauthenticated. Resolved only from the request's own
+        hostname (Host header, or X-Tenant-Hostname in this project's
+        split-port dev setup) — accepts no hostname parameter, so it can
+        never be used to enumerate other tenants. Returns `resolved: false`
+        for every unresolvable case alike (unmapped hostname, disabled
+        domain, suspended organization) — the response never distinguishes
+        which.
+      responses:
+        "200":
+          description: Safe tenant context, or an unresolved marker
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantContext"
 
   /auth/login:
     post:
@@ -489,6 +525,199 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "404":
           description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/domains:
+    get:
+      operationId: listOrganizationDomains
+      tags: [organization-domains]
+      summary: List an organization's domains
+      description: Platform super_admin only.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of domains
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrganizationDomain"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createOrganizationDomain
+      tags: [organization-domains]
+      summary: Assign a domain to an organization
+      description: >-
+        Platform super_admin only. platform_subdomain hostnames become
+        active immediately (the platform itself controls those);
+        custom_domain hostnames start pending until an operator activates
+        them once DNS ownership has been confirmed out-of-band.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrganizationDomainInput"
+      responses:
+        "201":
+          description: Domain created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationDomain"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Hostname already assigned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/domains/{id}/activate:
+    post:
+      operationId: activateOrganizationDomain
+      tags: [organization-domains]
+      summary: Activate a domain
+      description: >-
+        Platform super_admin only. Moves a pending custom domain (DNS
+        ownership confirmed out-of-band) or a disabled domain to active.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Domain activated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationDomain"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/domains/{id}/disable:
+    post:
+      operationId: disableOrganizationDomain
+      tags: [organization-domains]
+      summary: Disable a domain
+      description: >-
+        Platform super_admin only. The domain immediately stops resolving
+        to any tenant context; the row and its history are kept, not
+        deleted. Clears the domain's primary flag if it held one.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Domain disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationDomain"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/domains/{id}/set-primary:
+    post:
+      operationId: setPrimaryOrganizationDomain
+      tags: [organization-domains]
+      summary: Mark a domain primary
+      description: >-
+        Platform super_admin only. Only an active domain may become
+        primary; atomically clears any previous primary for the same
+        organization.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Domain marked primary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationDomain"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Domain is not active
           content:
             application/json:
               schema:
@@ -8368,6 +8597,63 @@ components:
           type: ["string", "null"]
         employeeCount:
           type: ["integer", "null"]
+
+    OrganizationDomain:
+      type: object
+      required: [id, organizationId, hostname, domainType, status, isPrimary, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        hostname:
+          type: string
+        domainType:
+          type: string
+          enum: [platform_subdomain, custom_domain]
+        status:
+          type: string
+          enum: [pending, active, disabled]
+        isPrimary:
+          type: boolean
+        verifiedAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateOrganizationDomainInput:
+      type: object
+      required: [hostname, domainType]
+      properties:
+        hostname:
+          type: string
+          minLength: 1
+        domainType:
+          type: string
+          enum: [platform_subdomain, custom_domain]
+
+    TenantContext:
+      type: object
+      required: [resolved]
+      properties:
+        resolved:
+          type: boolean
+        organizationId:
+          type: integer
+        organizationName:
+          type: string
+        organizationSlug:
+          type: string
+        organizationType:
+          type: string
+          enum: [business, church, ngo, school, hospital, hotel, government, other]
+        logoUrl:
+          type: ["string", "null"]
 
     MembershipSummary:
       type: object

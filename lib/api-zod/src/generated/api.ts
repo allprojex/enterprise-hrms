@@ -18,6 +18,20 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * Public, unauthenticated. Resolved only from the request's own hostname (Host header, or X-Tenant-Hostname in this project's split-port dev setup) — accepts no hostname parameter, so it can never be used to enumerate other tenants. Returns `resolved: false` for every unresolvable case alike (unmapped hostname, disabled domain, suspended organization) — the response never distinguishes which.
+ * @summary Get safe tenant context for the current hostname
+ */
+export const GetTenantContextResponse = zod.object({
+  "resolved": zod.boolean(),
+  "organizationId": zod.number().optional(),
+  "organizationName": zod.string().optional(),
+  "organizationSlug": zod.string().optional(),
+  "organizationType": zod.enum(['business', 'church', 'ngo', 'school', 'hospital', 'hotel', 'government', 'other']).optional(),
+  "logoUrl": zod.string().nullish()
+})
+
+
+/**
  * Authenticate with email and password
  * @summary Login
  */
@@ -305,6 +319,123 @@ export const ReactivateOrganizationResponse = zod.object({
   "industry": zod.string().nullish(),
   "employeeCount": zod.number().nullish(),
   "createdAt": zod.coerce.date().optional()
+})
+
+
+/**
+ * Platform super_admin only.
+ * @summary List an organization's domains
+ */
+export const ListOrganizationDomainsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListOrganizationDomainsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "hostname": zod.string(),
+  "domainType": zod.enum(['platform_subdomain', 'custom_domain']),
+  "status": zod.enum(['pending', 'active', 'disabled']),
+  "isPrimary": zod.boolean(),
+  "verifiedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListOrganizationDomainsResponse = zod.array(ListOrganizationDomainsResponseItem)
+
+
+/**
+ * Platform super_admin only. platform_subdomain hostnames become active immediately (the platform itself controls those); custom_domain hostnames start pending until an operator activates them once DNS ownership has been confirmed out-of-band.
+ * @summary Assign a domain to an organization
+ */
+export const CreateOrganizationDomainParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+
+
+export const CreateOrganizationDomainBody = zod.object({
+  "hostname": zod.string().min(1),
+  "domainType": zod.enum(['platform_subdomain', 'custom_domain'])
+})
+
+export const CreateOrganizationDomainResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "hostname": zod.string(),
+  "domainType": zod.enum(['platform_subdomain', 'custom_domain']),
+  "status": zod.enum(['pending', 'active', 'disabled']),
+  "isPrimary": zod.boolean(),
+  "verifiedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Platform super_admin only. Moves a pending custom domain (DNS ownership confirmed out-of-band) or a disabled domain to active.
+ * @summary Activate a domain
+ */
+export const ActivateOrganizationDomainParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ActivateOrganizationDomainResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "hostname": zod.string(),
+  "domainType": zod.enum(['platform_subdomain', 'custom_domain']),
+  "status": zod.enum(['pending', 'active', 'disabled']),
+  "isPrimary": zod.boolean(),
+  "verifiedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Platform super_admin only. The domain immediately stops resolving to any tenant context; the row and its history are kept, not deleted. Clears the domain's primary flag if it held one.
+ * @summary Disable a domain
+ */
+export const DisableOrganizationDomainParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const DisableOrganizationDomainResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "hostname": zod.string(),
+  "domainType": zod.enum(['platform_subdomain', 'custom_domain']),
+  "status": zod.enum(['pending', 'active', 'disabled']),
+  "isPrimary": zod.boolean(),
+  "verifiedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Platform super_admin only. Only an active domain may become primary; atomically clears any previous primary for the same organization.
+ * @summary Mark a domain primary
+ */
+export const SetPrimaryOrganizationDomainParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const SetPrimaryOrganizationDomainResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "hostname": zod.string(),
+  "domainType": zod.enum(['platform_subdomain', 'custom_domain']),
+  "status": zod.enum(['pending', 'active', 'disabled']),
+  "isPrimary": zod.boolean(),
+  "verifiedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
 })
 
 

@@ -65,3 +65,4 @@ export * from "./offer-versions";
 export * from "./offer-approvals";
 export * from "./pre-employment-requirements";
 export * from "./candidate-employee-links";
+export * from "./organization-domains";

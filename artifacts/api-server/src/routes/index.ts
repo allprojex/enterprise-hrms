@@ -46,6 +46,8 @@ import invitationsRouter from "./invitations";
 import organizationRolesRouter from "./organizationRoles";
 import reportsRouter from "./reports";
 import recruitmentReportingRouter from "./recruitmentReporting";
+import organizationDomainsRouter from "./organizationDomains";
+import tenantContextRouter from "./tenantContext";
 
 const router: IRouter = Router();
 
@@ -96,5 +98,7 @@ router.use(invitationsRouter);
 router.use(organizationRolesRouter);
 router.use(reportsRouter);
 router.use(recruitmentReportingRouter);
+router.use(organizationDomainsRouter);
+router.use(tenantContextRouter);
 
 export default router;
