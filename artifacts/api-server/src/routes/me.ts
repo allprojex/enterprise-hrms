@@ -4,7 +4,7 @@ import { db, organizationsTable, membershipRolesTable, rolesTable, primaryHrAssi
 import { ApplyToInternalVacancyBody } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { getActiveMembershipsForUser, getActiveMembership, resolveActiveOrganizationId } from "../lib/membership";
-import { hostnameOrganizationMismatch } from "../lib/organizationDomains";
+import { hostnameOrganizationMismatch, shouldFailClosedForTenantResolution } from "../lib/organizationDomains";
 import { requireModuleEnabled } from "../middlewares/requireModuleEnabled";
 import type { MembershipRequest } from "../middlewares/requireMembership";
 import { resolveOwnEmployeeProfile } from "../lib/employeeSelfService";
@@ -44,6 +44,11 @@ async function requireActiveOrganizationMembership(
   );
   if (activeOrganizationId == null) {
     res.status(403).json({ error: "No active organization membership" });
+    return;
+  }
+
+  if (shouldFailClosedForTenantResolution(req.tenantResolutionFailed, false)) {
+    res.status(503).json({ error: "Tenant resolution is temporarily unavailable" });
     return;
   }
 

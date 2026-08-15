@@ -30,6 +30,13 @@ const {
       insertedSessions: [] as Record<string, unknown>[],
       updatedSessions: [] as Record<string, unknown>[],
       auditInserts: [] as Record<string, unknown>[],
+      // Simulates a genuine tenant-resolution infrastructure failure (a real
+      // query throwing against a properly mocked, properly exported table)
+      // — distinct from a test file simply not knowing about
+      // organization_domains at all, which resolves to "no tenant" safely
+      // rather than an error (see organizationDomains.ts's own
+      // resolveTenantByHostname guard and resolveTenantHostFailOpen.test.ts).
+      forceDomainQueryError: false,
     },
     usersTable: { __name: "users", email: "email" },
     sessionsTable: { __name: "sessions" },
@@ -119,6 +126,17 @@ vi.mock("@workspace/db", () => ({
                   ? fixtures.orgRows
                   : [];
 
+        if (table === organizationDomainsTable && fixtures.forceDomainQueryError) {
+          const failingBuilder = {
+            innerJoin: () => failingBuilder,
+            where: () => failingBuilder,
+            limit: () => Promise.reject(new Error("simulated tenant-domain lookup failure")),
+            then: (_resolve: (v: unknown) => void, reject?: (e: unknown) => void) =>
+              Promise.reject(new Error("simulated tenant-domain lookup failure")).catch((e) => reject?.(e)),
+          };
+          return failingBuilder;
+        }
+
         let condition: Condition = null;
         const builder = {
           innerJoin: () => builder,
@@ -156,6 +174,30 @@ vi.mock("@workspace/db", () => ({
 
 const { default: app } = await import("../app");
 const { hashPassword } = await import("../lib/auth");
+const { default: express } = await import("express");
+const { resolveTenantHost } = await import("../middlewares/resolveTenantHost");
+const { requireMembership } = await import("../middlewares/requireMembership");
+
+/**
+ * A minimal app exercising exactly resolveTenantHost -> requireMembership,
+ * bypassing requireAuth/requirePermission entirely (req.userId is injected
+ * directly) so the tenant-resolution fail-closed behavior can be tested in
+ * isolation from unrelated permission-grant plumbing this file doesn't mock.
+ */
+function buildMinimalTenantApp() {
+  const minimalApp = express();
+  minimalApp.use((req, _res, next) => {
+    (req as { userId?: number }).userId = 1;
+    next();
+  });
+  minimalApp.use(resolveTenantHost as unknown as express.RequestHandler);
+  minimalApp.get(
+    "/organizations/:organizationId/probe",
+    requireMembership("organizationId") as unknown as express.RequestHandler,
+    (_req, res) => res.json({ ok: true }),
+  );
+  return minimalApp;
+}
 
 const REAL_PASSWORD = "correct-horse-battery";
 const REAL_PASSWORD_HASH = await hashPassword(REAL_PASSWORD);
@@ -196,6 +238,7 @@ beforeEach(() => {
   fixtures.insertedSessions = [];
   fixtures.updatedSessions = [];
   fixtures.auditInserts = [];
+  fixtures.forceDomainQueryError = false;
 });
 
 describe("GET /api/tenant-context", () => {
@@ -388,5 +431,116 @@ describe("Platform-admin domain management — super_admin only", () => {
     expect(res.body.status).toBe("active");
     expect(fixtures.auditInserts).toHaveLength(1);
     expect(fixtures.auditInserts[0]).toMatchObject({ eventType: "organization_domain.created", organizationId: 3 });
+  });
+});
+
+describe("Tenant resolution infrastructure failure — fails closed, never silently open", () => {
+  it("requireMembership denies (503) when the tenant hostname lookup itself throws, even for a caller with a real membership", async () => {
+    fixtures.forceDomainQueryError = true;
+    fixtures.membershipRows = [{ applicationUserId: 1, organizationId: 3, status: "active" }];
+
+    const res = await request(buildMinimalTenantApp())
+      .get("/organizations/3/probe")
+      .set("X-Tenant-Hostname", "wwm.localhost");
+
+    expect(res.status).toBe(503);
+  });
+
+  it("requireMembership still succeeds normally once resolution is healthy again (regression guard, not a permanent lockout)", async () => {
+    fixtures.forceDomainQueryError = false;
+    fixtures.membershipRows = [{ applicationUserId: 1, organizationId: 3, status: "active" }];
+
+    const res = await request(buildMinimalTenantApp())
+      .get("/organizations/3/probe")
+      .set("X-Tenant-Hostname", "wwm.localhost");
+
+    expect(res.status).toBe(200);
+  });
+
+  it("an ordinary user cannot benefit from a resolution failure to reach an organization they have no membership in", async () => {
+    fixtures.forceDomainQueryError = true;
+    // The caller has no membership row anywhere — if the failure were
+    // silently treated as "no tenant restriction," this would still 403 on
+    // membership; the point of this test is that the response is the
+    // fail-closed 503, not an information leak about which layer denied it,
+    // and specifically not a 200.
+    fixtures.membershipRows = [];
+
+    const res = await request(buildMinimalTenantApp())
+      .get("/organizations/3/probe")
+      .set("X-Tenant-Hostname", "wwm.localhost");
+
+    expect(res.status).toBe(503);
+    expect(res.status).not.toBe(200);
+  });
+
+  it("POST /auth/login denies (503) an ordinary user when tenant resolution throws, even with fully correct credentials", async () => {
+    fixtures.forceDomainQueryError = true;
+    fixtures.userRows = [user({ organizationId: 3 })];
+    fixtures.membershipRows = [{ applicationUserId: 1, organizationId: 3, status: "active" }];
+
+    const res = await request(app)
+      .post("/api/auth/login")
+      .set("X-Tenant-Hostname", "wwm.localhost")
+      .send({ email: "admin@wwm.test", password: REAL_PASSWORD });
+
+    expect(res.status).toBe(503);
+    expect(fixtures.insertedSessions).toHaveLength(0);
+  });
+
+  it("POST /auth/login still exempts super_admin during a resolution failure (legitimate platform administration preserved)", async () => {
+    fixtures.forceDomainQueryError = true;
+    fixtures.userRows = [user({ role: "super_admin", organizationId: 3 })];
+
+    const res = await request(app)
+      .post("/api/auth/login")
+      .set("X-Tenant-Hostname", "wwm.localhost")
+      .send({ email: "admin@wwm.test", password: REAL_PASSWORD });
+
+    expect(res.status).toBe(200);
+  });
+
+  it("POST /auth/switch-organization denies (503) an ordinary user when tenant resolution throws", async () => {
+    fixtures.forceDomainQueryError = true;
+    mockSession({ organizationId: 3 });
+    fixtures.membershipRows = [{ applicationUserId: 1, organizationId: 3, status: "active" }];
+
+    const res = await request(app)
+      .post("/api/auth/switch-organization")
+      .set("Authorization", "Bearer valid-token")
+      .set("X-Tenant-Hostname", "wwm.localhost")
+      .send({ organizationId: 3 });
+
+    expect(res.status).toBe(503);
+    expect(fixtures.updatedSessions).toHaveLength(0);
+  });
+
+  it("GET /tenant-context is explicitly tenant-neutral: reports resolved:false, does not fail closed, on the same resolution failure", async () => {
+    fixtures.forceDomainQueryError = true;
+
+    const res = await request(app).get("/api/tenant-context").set("X-Tenant-Hostname", "wwm.localhost");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ resolved: false });
+  });
+
+  it("platform-admin domain routes are not coupled to resolveTenantHost's fail-closed contract (they were never conditioned on tenantResolutionFailed)", async () => {
+    // The request's own hostname lookup (resolveTenantHost, global) fails
+    // here too, but GET /organizations/:id/domains never reads
+    // req.tenantResolutionFailed at all — it is gated purely by
+    // requireSuperAdmin, independent of hostname resolution entirely, per
+    // "platform-admin routes remain intentionally platform-scoped." It
+    // therefore never returns resolveTenantHost's specific 503 contract —
+    // whatever it returns here is a consequence of its own list query
+    // (which happens to touch the same table), not of tenant-consistency
+    // enforcement.
+    fixtures.forceDomainQueryError = true;
+    mockSession({ role: "super_admin" });
+
+    const res = await request(app)
+      .get("/api/organizations/3/domains")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).not.toBe(503);
   });
 });

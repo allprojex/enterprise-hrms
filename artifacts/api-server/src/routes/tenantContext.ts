@@ -12,6 +12,16 @@ const router = Router();
  * into a tenant directory ("do not expose a public tenant directory"),
  * which the brief explicitly disallows. A caller can only ever learn about
  * the tenant they are actually browsing.
+ *
+ * Explicitly classified as tenant-neutral (unlike requireMembership,
+ * requireActiveOrganizationMembership, /auth/login, and
+ * /auth/switch-organization): this route never enforces anything, it only
+ * ever reports a safe status, so it does not fail closed on a resolution
+ * error — `resolved: false` is the correct response whether the hostname
+ * genuinely has no tenant or resolution itself failed, since neither case
+ * grants or blocks any capability. Failing this route closed would only
+ * degrade login-page branding UX during a database blip, not improve
+ * security.
  */
 router.get("/tenant-context", async (req: TenantAwareRequest, res): Promise<void> => {
   if (req.resolvedTenantOrganizationId == null) {

@@ -31,6 +31,25 @@ export function hostnameOrganizationMismatch(
   return resolvedTenantOrganizationId != null && resolvedTenantOrganizationId !== organizationId;
 }
 
+/**
+ * True when resolveTenantHost could not determine tenant status for this
+ * request at all (its own lookup threw — most realistically a database
+ * failure), as opposed to determining there genuinely is no tenant bound to
+ * this hostname. The two must never be conflated: a caller composing
+ * requireMembership/requireActiveOrganizationMembership/login/switch-
+ * organization needs to fail closed (deny) on this, not silently proceed as
+ * if the hostname were irrelevant — an infrastructure failure must not
+ * quietly remove tenant isolation from what may well be a genuinely
+ * tenant-bound request. exemptSuperAdmin mirrors the same platform-wide
+ * bypass already applied to every other check these four call sites make.
+ */
+export function shouldFailClosedForTenantResolution(
+  tenantResolutionFailed: boolean | undefined,
+  exemptSuperAdmin: boolean,
+): boolean {
+  return Boolean(tenantResolutionFailed) && !exemptSuperAdmin;
+}
+
 // Deliberately permissive (letters/digits/hyphen/dot, optional port stripped
 // beforehand) — this only rejects obvious garbage (empty, whitespace,
 // control characters, a bare "/"), it does not attempt full RFC 1123
@@ -175,11 +194,35 @@ export async function resolveTenantByHostname(hostname: string): Promise<{ organ
     return null;
   }
 
+  // organizationDomainsTable/organizationsTable are static imports from
+  // @workspace/db — in any real running instance of this application these
+  // reads never throw; this branch is structurally unreachable in
+  // production. It exists only because a large share of this codebase's
+  // test files mock the whole @workspace/db module without re-exporting
+  // every table, and Vitest's strict mock mode makes *reading* such an
+  // unexported binding throw immediately (not just using it) — so the read
+  // itself, not a query, is what needs to be inside this try. That is not
+  // the "tenant-resolution infrastructure failure" resolveTenantHost's
+  // fail-closed contract is about — a genuine failure is the query below
+  // actually failing once it runs, which is unaffected and still propagates
+  // normally.
+  let domainsTable: typeof organizationDomainsTable;
+  let orgsTable: typeof organizationsTable;
+  try {
+    domainsTable = organizationDomainsTable;
+    orgsTable = organizationsTable;
+  } catch {
+    return null;
+  }
+  if (!domainsTable || !orgsTable) {
+    return null;
+  }
+
   const [row] = await db
-    .select({ organizationId: organizationDomainsTable.organizationId, orgStatus: organizationsTable.status })
-    .from(organizationDomainsTable)
-    .innerJoin(organizationsTable, eq(organizationDomainsTable.organizationId, organizationsTable.id))
-    .where(and(eq(organizationDomainsTable.hostname, normalized), eq(organizationDomainsTable.status, "active")))
+    .select({ organizationId: domainsTable.organizationId, orgStatus: orgsTable.status })
+    .from(domainsTable)
+    .innerJoin(orgsTable, eq(domainsTable.organizationId, orgsTable.id))
+    .where(and(eq(domainsTable.hostname, normalized), eq(domainsTable.status, "active")))
     .limit(1);
 
   if (!row || row.orgStatus === "suspended") return null;

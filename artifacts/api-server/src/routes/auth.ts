@@ -9,6 +9,7 @@ import type { TenantAwareRequest } from "../middlewares/resolveTenantHost";
 import { getActiveMembership, resolveActiveOrganizationId } from "../lib/membership";
 import { recordAuditEvent } from "../lib/auditLog";
 import { isSuperAdmin } from "../lib/authorization";
+import { shouldFailClosedForTenantResolution } from "../lib/organizationDomains";
 import {
   requestPasswordReset,
   getPasswordResetTokenStatus,
@@ -79,7 +80,16 @@ router.post("/auth/login", loginRateLimiter, async (req: TenantAwareRequest, res
   // (e.g. acme.example-hrms.com) never grants login on its own, but it does
   // deny one — a WWM-only account cannot log in from Acme's hostname, and
   // vice versa. super_admin is exempt, the same platform-wide bypass this
-  // codebase already applies everywhere else (isSuperAdmin).
+  // codebase already applies everywhere else (isSuperAdmin). If tenant
+  // resolution itself failed (a database error, not a clean "no tenant
+  // bound to this hostname"), fail closed for everyone else too — an
+  // infrastructure failure must never be indistinguishable from "this
+  // hostname carries no tenant restriction."
+  if (shouldFailClosedForTenantResolution(req.tenantResolutionFailed, isSuperAdmin(user))) {
+    res.status(503).json({ error: "Tenant resolution is temporarily unavailable" });
+    return;
+  }
+
   let tenantOrganizationId: number | null = null;
   const resolvedTenant = req.resolvedTenantOrganizationId;
   if (resolvedTenant != null && !isSuperAdmin(user)) {
@@ -171,6 +181,16 @@ router.post(
     }
 
     const { organizationId } = parsed.data;
+
+    // If tenant resolution itself failed (a database error, not a clean "no
+    // tenant bound to this hostname"), fail closed rather than silently
+    // allowing the switch as if hostname were irrelevant. super_admin is
+    // exempt, the same platform-wide bypass applied to the mismatch check
+    // just below.
+    if (shouldFailClosedForTenantResolution(req.tenantResolutionFailed, isSuperAdmin(req.user!))) {
+      res.status(503).json({ error: "Tenant resolution is temporarily unavailable" });
+      return;
+    }
 
     // Do not automatically switch tenants merely because a hostname was
     // changed, and never let a hostname be used to switch into a
