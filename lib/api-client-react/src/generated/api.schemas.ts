@@ -7,6 +7,28 @@
  */
 export interface HealthStatus {
   status: string;
+  version?: string;
+}
+
+export type ReadinessStatusStatus = typeof ReadinessStatusStatus[keyof typeof ReadinessStatusStatus];
+
+
+export const ReadinessStatusStatus = {
+  ready: 'ready',
+  not_ready: 'not_ready',
+} as const;
+
+export type ReadinessStatusDatabase = typeof ReadinessStatusDatabase[keyof typeof ReadinessStatusDatabase];
+
+
+export const ReadinessStatusDatabase = {
+  ok: 'ok',
+  error: 'error',
+} as const;
+
+export interface ReadinessStatus {
+  status: ReadinessStatusStatus;
+  database: ReadinessStatusDatabase;
 }
 
 export interface ApiError {

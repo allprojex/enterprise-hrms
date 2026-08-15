@@ -190,10 +190,10 @@ function buildMinimalTenantApp() {
     (req as { userId?: number }).userId = 1;
     next();
   });
-  minimalApp.use(resolveTenantHost as unknown as express.RequestHandler);
+  minimalApp.use(resolveTenantHost as any);
   minimalApp.get(
     "/organizations/:organizationId/probe",
-    requireMembership("organizationId") as unknown as express.RequestHandler,
+    requireMembership("organizationId") as any,
     (_req, res) => res.json({ ok: true }),
   );
   return minimalApp;

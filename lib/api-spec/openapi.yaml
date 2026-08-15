@@ -113,8 +113,12 @@ paths:
     get:
       operationId: healthCheck
       tags: [health]
-      summary: Health check
-      description: Returns server health status
+      summary: Health check (liveness)
+      description: >-
+        Liveness only — confirms the process itself is up. Never touches the
+        database, so it can't be dragged down by a database outage; see
+        /readyz for that. Includes the deploy-time release version when set
+        (RELEASE_VERSION / GIT_COMMIT_SHA), "unknown" otherwise.
       responses:
         "200":
           description: Healthy
@@ -122,6 +126,30 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /readyz:
+    get:
+      operationId: readinessCheck
+      tags: [health]
+      summary: Readiness check
+      description: >-
+        Confirms this instance can actually reach the database. A load
+        balancer/orchestrator should stop routing traffic here (not restart
+        the process) on a failing readiness check — that distinction is why
+        this is a separate endpoint from /healthz.
+      responses:
+        "200":
+          description: Ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessStatus"
+        "503":
+          description: Not ready — the database is unreachable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessStatus"
 
   /tenant-context:
     get:
@@ -8444,8 +8472,23 @@ components:
       properties:
         status:
           type: string
+        version:
+          type: string
       required:
         - status
+
+    ReadinessStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ready, not_ready]
+        database:
+          type: string
+          enum: [ok, error]
+      required:
+        - status
+        - database
 
     ApiError:
       type: object

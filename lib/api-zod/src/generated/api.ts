@@ -9,11 +9,22 @@ import * as zod from 'zod';
 
 
 /**
- * Returns server health status
- * @summary Health check
+ * Liveness only — confirms the process itself is up. Never touches the database, so it can't be dragged down by a database outage; see /readyz for that. Includes the deploy-time release version when set (RELEASE_VERSION / GIT_COMMIT_SHA), "unknown" otherwise.
+ * @summary Health check (liveness)
  */
 export const HealthCheckResponse = zod.object({
-  "status": zod.string()
+  "status": zod.string(),
+  "version": zod.string().optional()
+})
+
+
+/**
+ * Confirms this instance can actually reach the database. A load balancer/orchestrator should stop routing traffic here (not restart the process) on a failing readiness check — that distinction is why this is a separate endpoint from /healthz.
+ * @summary Readiness check
+ */
+export const ReadinessCheckResponse = zod.object({
+  "status": zod.enum(['ready', 'not_ready']),
+  "database": zod.enum(['ok', 'error'])
 })
 
 
