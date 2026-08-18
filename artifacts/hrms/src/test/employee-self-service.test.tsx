@@ -5,7 +5,7 @@
  * its own hooks are stubbed here too rather than mocking the child component.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import EmployeeSelfService from '@/pages/employee-self-service';
@@ -24,6 +24,15 @@ const { state } = vi.hoisted(() => ({
     internalVacanciesError: undefined as unknown,
     myInternalApplications: undefined as unknown,
     applyMutate: vi.fn() as (...args: unknown[]) => void,
+    attendanceEvents: [] as unknown[],
+    attendanceEventsError: undefined as unknown,
+    attendanceSummary: [] as unknown[],
+    attendanceSummaryLoading: false,
+    attendanceSummaryError: undefined as unknown,
+    clockMutate: vi.fn() as (...args: unknown[]) => void,
+    clockPending: false,
+    requestMutate: vi.fn() as (...args: unknown[]) => void,
+    requestPending: false,
   },
 }));
 
@@ -51,6 +60,25 @@ vi.mock('@workspace/api-client-react', () => ({
   useApplyToInternalVacancy: () => ({ mutate: state.applyMutate, isPending: false }),
   useListMyInternalApplications: () => ({ data: state.myInternalApplications, isLoading: false, error: undefined, refetch: vi.fn() }),
   getListMyInternalApplicationsQueryKey: () => ['myInternalApplications'],
+  // My Attendance (W68) — reuses W65/W66/W67 hooks, stubbed here.
+  useRecordAttendanceEvent: () => ({ mutate: state.clockMutate, isPending: state.clockPending }),
+  useListAttendanceEvents: () => ({ data: state.attendanceEvents, isLoading: false, error: state.attendanceEventsError, refetch: vi.fn() }),
+  getListAttendanceEventsQueryKey: () => ['attendanceEvents'],
+  useGetAttendanceDailySummary: () => ({
+    data: state.attendanceSummary,
+    isLoading: state.attendanceSummaryLoading,
+    error: state.attendanceSummaryError,
+    refetch: vi.fn(),
+  }),
+  getGetAttendanceDailySummaryQueryKey: () => ['attendanceSummary'],
+  useRecordAttendanceAdjustment: () => ({ mutate: state.requestMutate, isPending: state.requestPending }),
+  RecordAttendanceAdjustmentInputAdjustmentType: {
+    manual_clock_in: 'manual_clock_in',
+    manual_clock_out: 'manual_clock_out',
+    mark_present: 'mark_present',
+    mark_absent: 'mark_absent',
+    excuse_absence: 'excuse_absence',
+  },
 }));
 
 function baseEmployee(overrides: Partial<SelfServiceEmployeeProfile> = {}): SelfServiceEmployeeProfile {
@@ -316,5 +344,178 @@ describe('Employee Self-Service page', () => {
     renderEss();
     await userEvent.click(screen.getByTestId('tab-my-internal-applications'));
     expect(screen.getByText(/no internal applications yet/i)).toBeInTheDocument();
+  });
+
+  describe('My Attendance tab (W68)', () => {
+    function resetAttendanceState() {
+      state.attendanceEvents = [];
+      state.attendanceEventsError = undefined;
+      state.attendanceSummary = [];
+      state.attendanceSummaryLoading = false;
+      state.attendanceSummaryError = undefined;
+      state.clockMutate = vi.fn();
+      state.clockPending = false;
+      state.requestMutate = vi.fn();
+      state.requestPending = false;
+    }
+
+    it('renders the My Attendance tab with clock controls when the module is enabled', async () => {
+      resetAttendanceState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'attendance', enabled: true })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-attendance'));
+      expect(screen.getByTestId('button-clock-in')).toBeInTheDocument();
+      expect(screen.getByTestId('button-clock-out')).toBeInTheDocument();
+      expect(screen.getByTestId('button-request-correction')).toBeInTheDocument();
+    });
+
+    it('handles a disabled Attendance module cleanly, without affecting My Leave', async () => {
+      resetAttendanceState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'leave', enabled: true }), mod({ key: 'attendance', enabled: false })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-attendance'));
+      expect(screen.getByText(/attendance isn't enabled/i)).toBeInTheDocument();
+      expect(screen.queryByTestId('button-clock-in')).not.toBeInTheDocument();
+
+      await userEvent.click(screen.getByTestId('tab-my-leave'));
+      expect(screen.queryByText(/leave isn't enabled/i)).not.toBeInTheDocument();
+    });
+
+    it('renders every W66 summary state with a human-readable label, including null as Not Applicable', async () => {
+      resetAttendanceState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'attendance', enabled: true })];
+      const statuses = ['present', 'late', 'partial', 'absent', 'on_leave', 'holiday', 'non_working_day', null];
+      state.attendanceSummary = statuses.map((status, i) => ({
+        organizationId: 10,
+        employeeId: 42,
+        date: `2030-01-0${i + 1}`,
+        status,
+        firstClockIn: null,
+        lastClockOut: null,
+        workedMinutes: null,
+        lateMinutes: null,
+        earlyDepartureMinutes: null,
+      }));
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-attendance'));
+      expect(screen.getByText('Present')).toBeInTheDocument();
+      expect(screen.getByText('Late')).toBeInTheDocument();
+      expect(screen.getByText('Partial')).toBeInTheDocument();
+      expect(screen.getByText('Absent')).toBeInTheDocument();
+      expect(screen.getByText('On Leave')).toBeInTheDocument();
+      expect(screen.getByText('Holiday')).toBeInTheDocument();
+      expect(screen.getByText('Non-Working Day')).toBeInTheDocument();
+      expect(screen.getByText('Not Applicable')).toBeInTheDocument();
+    });
+
+    it('shows an empty state when there is no attendance history yet', async () => {
+      resetAttendanceState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'attendance', enabled: true })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-attendance'));
+      expect(screen.getByText(/no attendance history yet/i)).toBeInTheDocument();
+    });
+
+    it('surfaces a summary API error (e.g. W66\'s missing-timezone 409) instead of crashing', async () => {
+      resetAttendanceState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'attendance', enabled: true })];
+      state.attendanceSummaryError = { error: 'Organization timezone is not configured' };
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-attendance'));
+      expect(screen.getByText(/could not load your attendance summary/i)).toBeInTheDocument();
+      expect(screen.getByText(/organization timezone is not configured/i)).toBeInTheDocument();
+    });
+
+    it('clock-in sends only eventType — no employeeId trust/broadening from the UI', async () => {
+      resetAttendanceState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'attendance', enabled: true })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-attendance'));
+      await userEvent.click(screen.getByTestId('button-clock-in'));
+      expect(state.clockMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ organizationId: 10, data: { eventType: 'clock_in' } }),
+        expect.anything(),
+      );
+    });
+
+    it('clock-out invokes the same own-clock API with eventType clock_out', async () => {
+      resetAttendanceState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'attendance', enabled: true })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-attendance'));
+      await userEvent.click(screen.getByTestId('button-clock-out'));
+      expect(state.clockMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ organizationId: 10, data: { eventType: 'clock_out' } }),
+        expect.anything(),
+      );
+    });
+
+    it('does not expose approval, rejection, or HR direct-entry controls to the employee', async () => {
+      resetAttendanceState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'attendance', enabled: true })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-attendance'));
+      expect(screen.queryByRole('button', { name: /approve/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /reject/i })).not.toBeInTheDocument();
+      expect(screen.queryByText(/select employee/i)).not.toBeInTheDocument();
+    });
+
+    it('disables correction submission until the required fields are filled, then submits through the W67 API', async () => {
+      resetAttendanceState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'attendance', enabled: true })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-attendance'));
+      await userEvent.click(screen.getByTestId('button-request-correction'));
+
+      const submit = screen.getByTestId('button-submit-correction-request');
+      expect(submit).toBeDisabled();
+
+      await userEvent.click(screen.getByTestId('select-correction-type'));
+      await userEvent.click(screen.getByRole('option', { name: 'Mark a day as present' }));
+      fireEvent.change(screen.getByTestId('input-correction-date'), { target: { value: '2024-01-05' } });
+      await userEvent.type(screen.getByTestId('input-correction-reason'), 'Forgot to clock in that day');
+
+      expect(submit).not.toBeDisabled();
+      await userEvent.click(submit);
+
+      expect(state.requestMutate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          organizationId: 10,
+          data: expect.objectContaining({
+            adjustmentType: 'mark_present',
+            date: '2024-01-05',
+            reason: 'Forgot to clock in that day',
+          }),
+        }),
+        expect.anything(),
+      );
+    });
   });
 });

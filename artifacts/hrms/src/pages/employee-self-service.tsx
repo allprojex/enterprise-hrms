@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { UserCircle, FileText, CalendarClock, Briefcase, Send } from 'lucide-react';
+import { UserCircle, FileText, CalendarClock, Briefcase, Send, Clock, LogIn, LogOut, Plus } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -7,7 +7,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import {
   useGetMe,
   getGetMeQueryKey,
@@ -22,8 +24,16 @@ import {
   useApplyToInternalVacancy,
   useListMyInternalApplications,
   getListMyInternalApplicationsQueryKey,
+  useRecordAttendanceEvent,
+  useListAttendanceEvents,
+  getListAttendanceEventsQueryKey,
+  useGetAttendanceDailySummary,
+  getGetAttendanceDailySummaryQueryKey,
+  useRecordAttendanceAdjustment,
+  RecordAttendanceAdjustmentInputAdjustmentType,
   type SelfServiceEmployeeProfile,
   type InternalVacancySummary,
+  type DailyAttendanceSummary,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { QueryError } from '@/components/query-error';
@@ -162,6 +172,347 @@ function MyDocumentsTab({ organizationId, employeeId }: { organizationId: number
         </ul>
       </CardContent>
     </Card>
+  );
+}
+
+const SUMMARY_STATUS_LABEL: Record<string, string> = {
+  present: 'Present',
+  late: 'Late',
+  partial: 'Partial',
+  absent: 'Absent',
+  on_leave: 'On Leave',
+  holiday: 'Holiday',
+  non_working_day: 'Non-Working Day',
+};
+
+const SUMMARY_STATUS_VARIANT: Record<string, 'secondary' | 'outline' | 'destructive'> = {
+  present: 'secondary',
+  late: 'outline',
+  partial: 'outline',
+  absent: 'destructive',
+  on_leave: 'outline',
+  holiday: 'outline',
+  non_working_day: 'outline',
+};
+
+const ADJUSTMENT_TYPE_LABEL: Record<string, string> = {
+  manual_clock_in: 'Correct my clock-in time',
+  manual_clock_out: 'Correct my clock-out time',
+  mark_present: 'Mark a day as present',
+  mark_absent: 'Mark a day as absent',
+  excuse_absence: 'Excuse an absence',
+};
+
+const EVENT_TYPE_LABEL: Record<string, string> = { clock_in: 'Clocked In', clock_out: 'Clocked Out' };
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// Last 7 organization-local-ish days ending today — a display-window choice
+// only (which dates to ask the read-model about), never a computation of
+// what those days' statuses actually are. The backend's civil-date
+// derivation (W66) is authoritative regardless of this browser-local
+// boundary being off by a day near midnight.
+function recentRange(): { from: string; to: string } {
+  const to = new Date();
+  const from = new Date(to);
+  from.setDate(from.getDate() - 6);
+  return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
+}
+
+function SummaryStatusBadge({ status }: { status: string | null | undefined }) {
+  if (!status) {
+    return <Badge variant="outline">Not Applicable</Badge>;
+  }
+  return (
+    <Badge variant={SUMMARY_STATUS_VARIANT[status] ?? 'outline'} className="capitalize">
+      {SUMMARY_STATUS_LABEL[status] ?? status}
+    </Badge>
+  );
+}
+
+/**
+ * Reuses W65 (clock events), W66 (daily summary read-model), and W67
+ * (employee correction requests) exactly as they already exist — no new
+ * backend route (W68's own frozen "Backend/API impact: none new"). No
+ * request-history list is shown: the frozen plan's own W67 scope never
+ * added a GET/list route for attendance_adjustments ("Backend/API impact:
+ * the three routes above" is exhaustive), so a submitted request is
+ * confirmed via toast, not rendered in a persisted list here — showing one
+ * would mean inventing frontend-only data the backend can't actually back.
+ */
+function MyAttendanceTab({ organizationId, employeeId }: { organizationId: number; employeeId: number }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const { from, to } = recentRange();
+
+  const eventsQuery = useListAttendanceEvents(organizationId, undefined, {
+    query: { queryKey: getListAttendanceEventsQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+  const summaryQuery = useGetAttendanceDailySummary(
+    organizationId,
+    employeeId,
+    { from, to },
+    {
+      query: {
+        queryKey: getGetAttendanceDailySummaryQueryKey(organizationId, employeeId, { from, to }),
+        enabled: organizationId > 0 && employeeId > 0,
+      },
+    },
+  );
+
+  const clockMutation = useRecordAttendanceEvent();
+  const requestMutation = useRecordAttendanceAdjustment();
+
+  const [requestOpen, setRequestOpen] = useState(false);
+  const [adjustmentType, setAdjustmentType] = useState<string>('');
+  const [date, setDate] = useState('');
+  const [correctedClockIn, setCorrectedClockIn] = useState('');
+  const [correctedClockOut, setCorrectedClockOut] = useState('');
+  const [reason, setReason] = useState('');
+
+  const invalidateAttendance = () => {
+    queryClient.invalidateQueries({ queryKey: getListAttendanceEventsQueryKey(organizationId) });
+    queryClient.invalidateQueries({ queryKey: getGetAttendanceDailySummaryQueryKey(organizationId, employeeId, { from, to }) });
+  };
+
+  const handleClock = (eventType: 'clock_in' | 'clock_out') => {
+    clockMutation.mutate(
+      { organizationId, data: { eventType } },
+      {
+        onSuccess: () => {
+          invalidateAttendance();
+          toast({ title: eventType === 'clock_in' ? 'Clocked in' : 'Clocked out' });
+        },
+        onError: (err) => toast({ title: 'Could not record the clock event', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  const resetRequestForm = () => {
+    setAdjustmentType('');
+    setDate('');
+    setCorrectedClockIn('');
+    setCorrectedClockOut('');
+    setReason('');
+  };
+
+  const handleSubmitRequest = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adjustmentType || !date || !reason.trim()) return;
+    requestMutation.mutate(
+      {
+        organizationId,
+        // employeeId is required by the request shape but never trusted for
+        // this branch — the backend always overrides it with the caller's
+        // own server-derived identity (see attendanceAdjustments.ts, W67).
+        // Sent here only to satisfy the request type, not as a real trust
+        // boundary.
+        data: {
+          employeeId,
+          date,
+          adjustmentType: adjustmentType as RecordAttendanceAdjustmentInputAdjustmentType,
+          correctedClockIn: adjustmentType === 'manual_clock_in' && correctedClockIn ? correctedClockIn : undefined,
+          correctedClockOut: adjustmentType === 'manual_clock_out' && correctedClockOut ? correctedClockOut : undefined,
+          reason: reason.trim(),
+        },
+      },
+      {
+        onSuccess: () => {
+          setRequestOpen(false);
+          resetRequestForm();
+          invalidateAttendance();
+          toast({ title: 'Correction request submitted', description: 'Your request is pending review by HR.' });
+        },
+        onError: (err) => toast({ title: 'Could not submit correction request', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  const summaries: DailyAttendanceSummary[] = Array.isArray(summaryQuery.data) ? summaryQuery.data : [];
+  const recentEvents = (eventsQuery.data ?? []).slice(0, 5);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex gap-3">
+          <Button
+            onClick={() => handleClock('clock_in')}
+            disabled={clockMutation.isPending}
+            data-testid="button-clock-in"
+          >
+            <LogIn className="h-4 w-4" aria-hidden="true" />
+            {clockMutation.isPending ? 'Recording…' : 'Clock In'}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => handleClock('clock_out')}
+            disabled={clockMutation.isPending}
+            data-testid="button-clock-out"
+          >
+            <LogOut className="h-4 w-4" aria-hidden="true" />
+            {clockMutation.isPending ? 'Recording…' : 'Clock Out'}
+          </Button>
+        </div>
+
+        <Dialog open={requestOpen} onOpenChange={(open) => { setRequestOpen(open); if (!open) resetRequestForm(); }}>
+          <DialogTrigger asChild>
+            <Button variant="secondary" data-testid="button-request-correction">
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Request a Correction
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <form onSubmit={handleSubmitRequest}>
+              <DialogHeader>
+                <DialogTitle>Request an Attendance Correction</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="attendance-correction-type">Correction Type *</Label>
+                  <Select value={adjustmentType} onValueChange={setAdjustmentType}>
+                    <SelectTrigger id="attendance-correction-type" data-testid="select-correction-type">
+                      <SelectValue placeholder="Choose a correction type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(ADJUSTMENT_TYPE_LABEL).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>{label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="attendance-correction-date">Date *</Label>
+                  <Input
+                    id="attendance-correction-date"
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    max={todayIso()}
+                    required
+                    data-testid="input-correction-date"
+                  />
+                </div>
+                {adjustmentType === 'manual_clock_in' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="attendance-correction-clock-in">Corrected Clock-In Time *</Label>
+                    <Input
+                      id="attendance-correction-clock-in"
+                      type="datetime-local"
+                      value={correctedClockIn}
+                      onChange={(e) => setCorrectedClockIn(e.target.value)}
+                      required
+                      data-testid="input-correction-clock-in"
+                    />
+                  </div>
+                )}
+                {adjustmentType === 'manual_clock_out' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="attendance-correction-clock-out">Corrected Clock-Out Time *</Label>
+                    <Input
+                      id="attendance-correction-clock-out"
+                      type="datetime-local"
+                      value={correctedClockOut}
+                      onChange={(e) => setCorrectedClockOut(e.target.value)}
+                      required
+                      data-testid="input-correction-clock-out"
+                    />
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="attendance-correction-reason">Reason *</Label>
+                  <Textarea
+                    id="attendance-correction-reason"
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    required
+                    data-testid="input-correction-reason"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  type="submit"
+                  disabled={
+                    requestMutation.isPending ||
+                    !adjustmentType ||
+                    !date ||
+                    !reason.trim() ||
+                    (adjustmentType === 'manual_clock_in' && !correctedClockIn) ||
+                    (adjustmentType === 'manual_clock_out' && !correctedClockOut)
+                  }
+                  data-testid="button-submit-correction-request"
+                >
+                  {requestMutation.isPending ? 'Submitting…' : 'Submit Request'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {summaryQuery.error ? (
+        <QueryError
+          title="Could not load your attendance summary"
+          message={errorMessage(summaryQuery.error) ?? 'Please try again.'}
+          onRetry={() => summaryQuery.refetch()}
+        />
+      ) : summaryQuery.isLoading ? (
+        <Skeleton className="h-48 w-full" />
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Recent Attendance</CardTitle>
+            <CardDescription>Last 7 days, most recent first</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {summaries.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No attendance history yet.</p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {[...summaries].reverse().map((day) => (
+                  <li key={day.date} className="flex items-center justify-between gap-4 py-3" data-testid={`row-attendance-summary-${day.date}`}>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{new Date(`${day.date}T00:00:00Z`).toLocaleDateString()}</p>
+                      {day.status === 'present' || day.status === 'late' ? (
+                        <p className="text-xs text-muted-foreground">
+                          {day.firstClockIn ? new Date(day.firstClockIn).toLocaleTimeString() : '—'} –{' '}
+                          {day.lastClockOut ? new Date(day.lastClockOut).toLocaleTimeString() : '—'}
+                        </p>
+                      ) : null}
+                    </div>
+                    <SummaryStatusBadge status={day.status} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {eventsQuery.error ? (
+        <QueryError title="Could not load your recent clock events" onRetry={() => eventsQuery.refetch()} />
+      ) : eventsQuery.isLoading ? (
+        <Skeleton className="h-32 w-full" />
+      ) : recentEvents.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Recent Clock Events</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="divide-y divide-border">
+              {recentEvents.map((event) => (
+                <li key={event.id} className="flex items-center justify-between gap-4 py-2" data-testid={`row-attendance-event-${event.id}`}>
+                  <span className="text-sm text-foreground">{EVENT_TYPE_LABEL[event.eventType] ?? event.eventType}</span>
+                  <span className="text-xs text-muted-foreground">{new Date(event.occurredAt).toLocaleString()}</span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      ) : null}
+    </div>
   );
 }
 
@@ -393,6 +744,10 @@ export default function EmployeeSelfService() {
   // Applications degrade to a controlled message when recruitment is
   // disabled, never blocking the rest of the ESS page.
   const recruitmentAccessible = !!modules && isModuleAccessible(modules, 'recruitment');
+  // Attendance (W68) is checked independently within this page — the same
+  // pattern as My Leave/Internal Vacancies (§5); employee_self_service
+  // stays this page's own outer gate, unaffected by Attendance's own state.
+  const attendanceAccessible = !!modules && isModuleAccessible(modules, 'attendance');
 
   if (error) {
     return (
@@ -444,6 +799,7 @@ export default function EmployeeSelfService() {
       <Tabs defaultValue="profile">
         <TabsList>
           <TabsTrigger value="profile" data-testid="tab-my-profile">My Profile</TabsTrigger>
+          <TabsTrigger value="attendance" data-testid="tab-my-attendance">My Attendance</TabsTrigger>
           <TabsTrigger value="leave" data-testid="tab-my-leave">My Leave</TabsTrigger>
           <TabsTrigger value="documents" data-testid="tab-my-documents">My Documents</TabsTrigger>
           <TabsTrigger value="internal-vacancies" data-testid="tab-internal-vacancies">Internal Vacancies</TabsTrigger>
@@ -451,6 +807,21 @@ export default function EmployeeSelfService() {
         </TabsList>
         <TabsContent value="profile">
           <MyProfileTab employee={employee} />
+        </TabsContent>
+        <TabsContent value="attendance">
+          {attendanceAccessible ? (
+            <MyAttendanceTab organizationId={organizationId} employeeId={employee.id} />
+          ) : (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+                <Clock className="h-8 w-8 text-muted-foreground mb-4" aria-hidden="true" />
+                <h3 className="text-lg font-semibold text-foreground mb-2">Attendance isn't enabled</h3>
+                <p className="text-sm text-muted-foreground max-w-sm">
+                  Your organisation hasn't enabled the Attendance module, so clocking and attendance history aren't available here.
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
         <TabsContent value="leave">
           {leaveAccessible ? (
