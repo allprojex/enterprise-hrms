@@ -640,6 +640,126 @@ export interface CreateLeaveRequestInput {
   attachmentDocumentId?: number;
 }
 
+export type AttendanceEventEventType = typeof AttendanceEventEventType[keyof typeof AttendanceEventEventType];
+
+
+export const AttendanceEventEventType = {
+  clock_in: 'clock_in',
+  clock_out: 'clock_out',
+} as const;
+
+/**
+ * biometric and import are schema-reserved values; no W65 route writes either.
+ */
+export type AttendanceEventSource = typeof AttendanceEventSource[keyof typeof AttendanceEventSource];
+
+
+export const AttendanceEventSource = {
+  self_service: 'self_service',
+  hr_manual: 'hr_manual',
+  biometric: 'biometric',
+  import: 'import',
+} as const;
+
+export interface AttendanceEvent {
+  id: number;
+  organizationId: number;
+  employeeId: number;
+  eventType: AttendanceEventEventType;
+  /** Server-authoritative instant — never client-supplied for a self-service event. */
+  occurredAt: string;
+  /** biometric and import are schema-reserved values; no W65 route writes either. */
+  source: AttendanceEventSource;
+  /** @nullable */
+  recordedByMembershipId?: number | null;
+  /** @nullable */
+  branchId?: number | null;
+  /** @nullable */
+  deviceReference?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+}
+
+export type RecordAttendanceEventInputEventType = typeof RecordAttendanceEventInputEventType[keyof typeof RecordAttendanceEventInputEventType];
+
+
+export const RecordAttendanceEventInputEventType = {
+  clock_in: 'clock_in',
+  clock_out: 'clock_out',
+} as const;
+
+export interface RecordAttendanceEventInput {
+  eventType: RecordAttendanceEventInputEventType;
+}
+
+export type AttendanceAdjustmentAdjustmentType = typeof AttendanceAdjustmentAdjustmentType[keyof typeof AttendanceAdjustmentAdjustmentType];
+
+
+export const AttendanceAdjustmentAdjustmentType = {
+  manual_clock_in: 'manual_clock_in',
+  manual_clock_out: 'manual_clock_out',
+  mark_present: 'mark_present',
+  mark_absent: 'mark_absent',
+  excuse_absence: 'excuse_absence',
+} as const;
+
+/**
+ * W65's HR direct-entry path always creates this as "approved" immediately. "pending" is reachable only by a later workstream's employee-initiated request path.
+ */
+export type AttendanceAdjustmentStatus = typeof AttendanceAdjustmentStatus[keyof typeof AttendanceAdjustmentStatus];
+
+
+export const AttendanceAdjustmentStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export interface AttendanceAdjustment {
+  id: number;
+  organizationId: number;
+  employeeId: number;
+  date: string;
+  adjustmentType: AttendanceAdjustmentAdjustmentType;
+  /** @nullable */
+  correctedClockIn?: string | null;
+  /** @nullable */
+  correctedClockOut?: string | null;
+  reason: string;
+  /** W65's HR direct-entry path always creates this as "approved" immediately. "pending" is reachable only by a later workstream's employee-initiated request path. */
+  status: AttendanceAdjustmentStatus;
+  /** @nullable */
+  requestedByMembershipId?: number | null;
+  /** @nullable */
+  decidedByMembershipId?: number | null;
+  /** @nullable */
+  decidedAt?: string | null;
+  createdAt: string;
+}
+
+export type RecordAttendanceAdjustmentInputAdjustmentType = typeof RecordAttendanceAdjustmentInputAdjustmentType[keyof typeof RecordAttendanceAdjustmentInputAdjustmentType];
+
+
+export const RecordAttendanceAdjustmentInputAdjustmentType = {
+  manual_clock_in: 'manual_clock_in',
+  manual_clock_out: 'manual_clock_out',
+  mark_present: 'mark_present',
+  mark_absent: 'mark_absent',
+  excuse_absence: 'excuse_absence',
+} as const;
+
+export interface RecordAttendanceAdjustmentInput {
+  employeeId: number;
+  date: string;
+  adjustmentType: RecordAttendanceAdjustmentInputAdjustmentType;
+  /** Required when adjustmentType is manual_clock_in. */
+  correctedClockIn?: string;
+  /** Required when adjustmentType is manual_clock_out. */
+  correctedClockOut?: string;
+  reason: string;
+}
+
 export interface LeaveBalanceSummary {
   leaveTypeId: number;
   leaveTypeName: string;
@@ -4087,6 +4207,10 @@ from: string;
 to: string;
 departmentId?: number;
 branchId?: number;
+};
+
+export type ListAttendanceEventsParams = {
+employeeId?: number;
 };
 
 export type ListPublicHolidaysParams = {

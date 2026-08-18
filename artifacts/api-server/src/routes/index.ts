@@ -48,6 +48,8 @@ import reportsRouter from "./reports";
 import recruitmentReportingRouter from "./recruitmentReporting";
 import organizationDomainsRouter from "./organizationDomains";
 import tenantContextRouter from "./tenantContext";
+import attendanceEventsRouter from "./attendanceEvents";
+import attendanceAdjustmentsRouter from "./attendanceAdjustments";
 
 const router: IRouter = Router();
 
@@ -100,5 +102,7 @@ router.use(reportsRouter);
 router.use(recruitmentReportingRouter);
 router.use(organizationDomainsRouter);
 router.use(tenantContextRouter);
+router.use(attendanceEventsRouter);
+router.use(attendanceAdjustmentsRouter);
 
 export default router;

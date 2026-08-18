@@ -2110,6 +2110,95 @@ export const ListLeaveCalendarResponse = zod.object({
 
 
 /**
+ * Own resource only. employeeId is always resolved server-side via employee_user_links — never accepted from the client. occurredAt is always the server's own clock — never client-supplied. No sequencing validation is applied (Phase 3B, Open Decision 1): a multi-segment day, or a raw duplicate clock-in with no intervening clock-out, is recorded as-is; the daily summary (a later workstream) decides how to interpret it. Gated by the "attendance" module.
+ * @summary Self-service clock-in or clock-out
+ */
+export const RecordAttendanceEventParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const RecordAttendanceEventBody = zod.object({
+  "eventType": zod.enum(['clock_in', 'clock_out'])
+})
+
+export const RecordAttendanceEventResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "eventType": zod.enum(['clock_in', 'clock_out']),
+  "occurredAt": zod.coerce.date().describe('Server-authoritative instant — never client-supplied for a self-service event.'),
+  "source": zod.enum(['self_service', 'hr_manual', 'biometric', 'import']).describe('biometric and import are schema-reserved values; no W65 route writes either.'),
+  "recordedByMembershipId": zod.number().nullish(),
+  "branchId": zod.number().nullish(),
+  "deviceReference": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * employeeId omitted defaults to the caller's own history. Own resource, team (employees.reportingManagerId), or organization-wide (attendance.manage) — gated by attendance.read.own at the route level, refined by an authorization check against the specific employee. Gated by the "attendance" module.
+ * @summary List attendance events for an employee
+ */
+export const ListAttendanceEventsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListAttendanceEventsQueryParams = zod.object({
+  "employeeId": zod.coerce.number().optional()
+})
+
+export const ListAttendanceEventsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "eventType": zod.enum(['clock_in', 'clock_out']),
+  "occurredAt": zod.coerce.date().describe('Server-authoritative instant — never client-supplied for a self-service event.'),
+  "source": zod.enum(['self_service', 'hr_manual', 'biometric', 'import']).describe('biometric and import are schema-reserved values; no W65 route writes either.'),
+  "recordedByMembershipId": zod.number().nullish(),
+  "branchId": zod.number().nullish(),
+  "deviceReference": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListAttendanceEventsResponse = zod.array(ListAttendanceEventsResponseItem)
+
+
+/**
+ * Requires attendance.manage (organization-wide tier). Auto-decided in the same operation it's created (status "approved", decidedByMembershipId = requestedByMembershipId) — the employee-initiated request/approve workflow is a later workstream, not implemented here. reason is always required. correctedClockIn is required when adjustmentType is manual_clock_in; correctedClockOut is required when adjustmentType is manual_clock_out. Gated by the "attendance" module.
+ * @summary HR direct-entry attendance correction (auto-approved)
+ */
+export const RecordAttendanceAdjustmentParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const RecordAttendanceAdjustmentBody = zod.object({
+  "employeeId": zod.number(),
+  "date": zod.coerce.date(),
+  "adjustmentType": zod.enum(['manual_clock_in', 'manual_clock_out', 'mark_present', 'mark_absent', 'excuse_absence']),
+  "correctedClockIn": zod.coerce.date().optional().describe('Required when adjustmentType is manual_clock_in.'),
+  "correctedClockOut": zod.coerce.date().optional().describe('Required when adjustmentType is manual_clock_out.'),
+  "reason": zod.string()
+})
+
+export const RecordAttendanceAdjustmentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "date": zod.coerce.date(),
+  "adjustmentType": zod.enum(['manual_clock_in', 'manual_clock_out', 'mark_present', 'mark_absent', 'excuse_absence']),
+  "correctedClockIn": zod.coerce.date().nullish(),
+  "correctedClockOut": zod.coerce.date().nullish(),
+  "reason": zod.string(),
+  "status": zod.enum(['pending', 'approved', 'rejected']).describe('W65\'s HR direct-entry path always creates this as \"approved\" immediately. \"pending\" is reachable only by a later workstream\'s employee-initiated request path.'),
+  "requestedByMembershipId": zod.number().nullish(),
+  "decidedByMembershipId": zod.number().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
  * Active holidays by default; a recurring holiday always matches every year filter, since it applies every year regardless of its stored template year. Gated by the "leave" module.
  * @summary List an organization's public holidays
  */

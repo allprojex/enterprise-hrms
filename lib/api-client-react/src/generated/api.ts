@@ -39,6 +39,8 @@ import type {
   ApproveOfferVersionInput,
   AssignRoleInput,
   AttachBackgroundCheckEvidenceBody,
+  AttendanceAdjustment,
+  AttendanceEvent,
   AuditEventListResponse,
   AuthSession,
   BackgroundCheck,
@@ -103,6 +105,7 @@ import type {
   LeaveType,
   LinkEmployeeUserInput,
   ListApplicationsParams,
+  ListAttendanceEventsParams,
   ListAuditEventsParams,
   ListCandidatesParams,
   ListEmployeesParams,
@@ -148,6 +151,8 @@ import type {
   PublicVacancyDetail,
   PublicVacancyListResponse,
   ReadinessStatus,
+  RecordAttendanceAdjustmentInput,
+  RecordAttendanceEventInput,
   RecruitmentDashboard,
   RecruitmentSettings,
   RecruitmentStage,
@@ -5205,6 +5210,242 @@ export function useListLeaveCalendar<TData = Awaited<ReturnType<typeof listLeave
 
 
 
+
+export const getRecordAttendanceEventUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/attendance-events`
+}
+
+/**
+ * Own resource only. employeeId is always resolved server-side via employee_user_links — never accepted from the client. occurredAt is always the server's own clock — never client-supplied. No sequencing validation is applied (Phase 3B, Open Decision 1): a multi-segment day, or a raw duplicate clock-in with no intervening clock-out, is recorded as-is; the daily summary (a later workstream) decides how to interpret it. Gated by the "attendance" module.
+ * @summary Self-service clock-in or clock-out
+ */
+export const recordAttendanceEvent = async (organizationId: number,
+    recordAttendanceEventInput: RecordAttendanceEventInput, options?: RequestInit): Promise<AttendanceEvent> => {
+
+  return customFetch<AttendanceEvent>(getRecordAttendanceEventUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(recordAttendanceEventInput)
+  }
+);}
+
+
+
+
+
+export const getRecordAttendanceEventMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordAttendanceEvent>>, TError,{organizationId: number;data: BodyType<RecordAttendanceEventInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordAttendanceEvent>>, TError,{organizationId: number;data: BodyType<RecordAttendanceEventInput>}, TContext> => {
+
+const mutationKey = ['recordAttendanceEvent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordAttendanceEvent>>, {organizationId: number;data: BodyType<RecordAttendanceEventInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  recordAttendanceEvent(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordAttendanceEventMutationResult = NonNullable<Awaited<ReturnType<typeof recordAttendanceEvent>>>
+    export type RecordAttendanceEventMutationBody = BodyType<RecordAttendanceEventInput>
+    export type RecordAttendanceEventMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Self-service clock-in or clock-out
+ */
+export const useRecordAttendanceEvent = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordAttendanceEvent>>, TError,{organizationId: number;data: BodyType<RecordAttendanceEventInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordAttendanceEvent>>,
+        TError,
+        {organizationId: number;data: BodyType<RecordAttendanceEventInput>},
+        TContext
+      > => {
+      return useMutation(getRecordAttendanceEventMutationOptions(options));
+    }
+
+export const getListAttendanceEventsUrl = (organizationId: number,
+    params?: ListAttendanceEventsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/attendance-events?${stringifiedParams}` : `/api/organizations/${organizationId}/attendance-events`
+}
+
+/**
+ * employeeId omitted defaults to the caller's own history. Own resource, team (employees.reportingManagerId), or organization-wide (attendance.manage) — gated by attendance.read.own at the route level, refined by an authorization check against the specific employee. Gated by the "attendance" module.
+ * @summary List attendance events for an employee
+ */
+export const listAttendanceEvents = async (organizationId: number,
+    params?: ListAttendanceEventsParams, options?: RequestInit): Promise<AttendanceEvent[]> => {
+
+  return customFetch<AttendanceEvent[]>(getListAttendanceEventsUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAttendanceEventsQueryKey = (organizationId: number,
+    params?: ListAttendanceEventsParams,) => {
+    return [
+    `/api/organizations/${organizationId}/attendance-events`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListAttendanceEventsQueryOptions = <TData = Awaited<ReturnType<typeof listAttendanceEvents>>, TError = ErrorType<ApiError>>(organizationId: number,
+    params?: ListAttendanceEventsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAttendanceEvents>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAttendanceEventsQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAttendanceEvents>>> = ({ signal }) => listAttendanceEvents(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAttendanceEvents>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAttendanceEventsQueryResult = NonNullable<Awaited<ReturnType<typeof listAttendanceEvents>>>
+export type ListAttendanceEventsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List attendance events for an employee
+ */
+
+export function useListAttendanceEvents<TData = Awaited<ReturnType<typeof listAttendanceEvents>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    params?: ListAttendanceEventsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAttendanceEvents>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAttendanceEventsQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRecordAttendanceAdjustmentUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/attendance-adjustments`
+}
+
+/**
+ * Requires attendance.manage (organization-wide tier). Auto-decided in the same operation it's created (status "approved", decidedByMembershipId = requestedByMembershipId) — the employee-initiated request/approve workflow is a later workstream, not implemented here. reason is always required. correctedClockIn is required when adjustmentType is manual_clock_in; correctedClockOut is required when adjustmentType is manual_clock_out. Gated by the "attendance" module.
+ * @summary HR direct-entry attendance correction (auto-approved)
+ */
+export const recordAttendanceAdjustment = async (organizationId: number,
+    recordAttendanceAdjustmentInput: RecordAttendanceAdjustmentInput, options?: RequestInit): Promise<AttendanceAdjustment> => {
+
+  return customFetch<AttendanceAdjustment>(getRecordAttendanceAdjustmentUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(recordAttendanceAdjustmentInput)
+  }
+);}
+
+
+
+
+
+export const getRecordAttendanceAdjustmentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordAttendanceAdjustment>>, TError,{organizationId: number;data: BodyType<RecordAttendanceAdjustmentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordAttendanceAdjustment>>, TError,{organizationId: number;data: BodyType<RecordAttendanceAdjustmentInput>}, TContext> => {
+
+const mutationKey = ['recordAttendanceAdjustment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordAttendanceAdjustment>>, {organizationId: number;data: BodyType<RecordAttendanceAdjustmentInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  recordAttendanceAdjustment(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordAttendanceAdjustmentMutationResult = NonNullable<Awaited<ReturnType<typeof recordAttendanceAdjustment>>>
+    export type RecordAttendanceAdjustmentMutationBody = BodyType<RecordAttendanceAdjustmentInput>
+    export type RecordAttendanceAdjustmentMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary HR direct-entry attendance correction (auto-approved)
+ */
+export const useRecordAttendanceAdjustment = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordAttendanceAdjustment>>, TError,{organizationId: number;data: BodyType<RecordAttendanceAdjustmentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordAttendanceAdjustment>>,
+        TError,
+        {organizationId: number;data: BodyType<RecordAttendanceAdjustmentInput>},
+        TContext
+      > => {
+      return useMutation(getRecordAttendanceAdjustmentMutationOptions(options));
+    }
 
 export const getListPublicHolidaysUrl = (organizationId: number,
     params?: ListPublicHolidaysParams,) => {

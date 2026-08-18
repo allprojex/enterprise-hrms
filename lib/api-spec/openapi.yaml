@@ -2399,6 +2399,145 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/attendance-events:
+    post:
+      operationId: recordAttendanceEvent
+      tags: [attendance-events]
+      summary: Self-service clock-in or clock-out
+      description: >-
+        Own resource only. employeeId is always resolved server-side via
+        employee_user_links — never accepted from the client. occurredAt is
+        always the server's own clock — never client-supplied. No sequencing
+        validation is applied (Phase 3B, Open Decision 1): a multi-segment
+        day, or a raw duplicate clock-in with no intervening clock-out, is
+        recorded as-is; the daily summary (a later workstream) decides how
+        to interpret it. Gated by the "attendance" module.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordAttendanceEventInput"
+      responses:
+        "201":
+          description: Attendance event recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceEvent"
+        "400":
+          description: Invalid eventType
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: No employee record linked to this account, or the employee is not eligible to record attendance (on_leave, suspended, terminated, or before hireDate)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Employee not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    get:
+      operationId: listAttendanceEvents
+      tags: [attendance-events]
+      summary: List attendance events for an employee
+      description: >-
+        employeeId omitted defaults to the caller's own history. Own
+        resource, team (employees.reportingManagerId), or organization-wide
+        (attendance.manage) — gated by attendance.read.own at the route
+        level, refined by an authorization check against the specific
+        employee. Gated by the "attendance" module.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Attendance events for the employee, most recent first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AttendanceEvent"
+        "403":
+          description: Not authorized to view this employee's attendance events
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/attendance-adjustments:
+    post:
+      operationId: recordAttendanceAdjustment
+      tags: [attendance-adjustments]
+      summary: HR direct-entry attendance correction (auto-approved)
+      description: >-
+        Requires attendance.manage (organization-wide tier). Auto-decided in
+        the same operation it's created (status "approved",
+        decidedByMembershipId = requestedByMembershipId) — the
+        employee-initiated request/approve workflow is a later workstream,
+        not implemented here. reason is always required. correctedClockIn is
+        required when adjustmentType is manual_clock_in; correctedClockOut is
+        required when adjustmentType is manual_clock_out. Gated by the
+        "attendance" module.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordAttendanceAdjustmentInput"
+      responses:
+        "201":
+          description: Attendance adjustment recorded and auto-approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceAdjustment"
+        "400":
+          description: Invalid adjustmentType, missing date/reason, or a required corrected timestamp is missing for the given adjustmentType
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Employee not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /organizations/{organizationId}/public-holidays:
     get:
       operationId: listPublicHolidays
@@ -9125,6 +9264,109 @@ components:
           type: string
         attachmentDocumentId:
           type: integer
+
+    AttendanceEvent:
+      type: object
+      required: [id, organizationId, employeeId, eventType, occurredAt, source, createdAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        employeeId:
+          type: integer
+        eventType:
+          type: string
+          enum: [clock_in, clock_out]
+        occurredAt:
+          type: string
+          format: date-time
+          description: Server-authoritative instant — never client-supplied for a self-service event.
+        source:
+          type: string
+          enum: [self_service, hr_manual, biometric, import]
+          description: biometric and import are schema-reserved values; no W65 route writes either.
+        recordedByMembershipId:
+          type: ["integer", "null"]
+        branchId:
+          type: ["integer", "null"]
+        deviceReference:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    RecordAttendanceEventInput:
+      type: object
+      required: [eventType]
+      properties:
+        eventType:
+          type: string
+          enum: [clock_in, clock_out]
+
+    AttendanceAdjustment:
+      type: object
+      required: [id, organizationId, employeeId, date, adjustmentType, reason, status, createdAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        employeeId:
+          type: integer
+        date:
+          type: string
+          format: date
+        adjustmentType:
+          type: string
+          enum: [manual_clock_in, manual_clock_out, mark_present, mark_absent, excuse_absence]
+        correctedClockIn:
+          type: ["string", "null"]
+          format: date-time
+        correctedClockOut:
+          type: ["string", "null"]
+          format: date-time
+        reason:
+          type: string
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+          description: W65's HR direct-entry path always creates this as "approved" immediately. "pending" is reachable only by a later workstream's employee-initiated request path.
+        requestedByMembershipId:
+          type: ["integer", "null"]
+        decidedByMembershipId:
+          type: ["integer", "null"]
+        decidedAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    RecordAttendanceAdjustmentInput:
+      type: object
+      required: [employeeId, date, adjustmentType, reason]
+      properties:
+        employeeId:
+          type: integer
+        date:
+          type: string
+          format: date
+        adjustmentType:
+          type: string
+          enum: [manual_clock_in, manual_clock_out, mark_present, mark_absent, excuse_absence]
+        correctedClockIn:
+          type: string
+          format: date-time
+          description: Required when adjustmentType is manual_clock_in.
+        correctedClockOut:
+          type: string
+          format: date-time
+          description: Required when adjustmentType is manual_clock_out.
+        reason:
+          type: string
 
     LeaveBalanceSummary:
       type: object
