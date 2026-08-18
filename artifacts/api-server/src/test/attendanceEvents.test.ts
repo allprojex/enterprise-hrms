@@ -112,16 +112,22 @@ vi.mock("@workspace/db", () => ({
           return sessionBuilder;
         }
 
+        // organizationMembershipsTable is deliberately NOT in this unfiltered
+        // bucket: getActiveMembership() filters by both applicationUserId
+        // and organizationId, and the cross-organization denial tests below
+        // depend on that filtering actually happening — an unfiltered
+        // passthrough would let a membership row for one organization
+        // satisfy a lookup for a different organizationId, silently masking
+        // a real authorization bug behind an unrelated 403 (e.g. module
+        // gating) instead of the intended membership-boundary check.
         const unfiltered =
-          table === organizationMembershipsTable
-            ? fixtures.membershipRows
-            : table === membershipRolesTable
-              ? fixtures.membershipRoleRows
-              : table === rolePermissionsTable
-                ? fixtures.permissionRows
-                : table === modulesTable
-                  ? fixtures.moduleRows
-                  : undefined;
+          table === membershipRolesTable
+            ? fixtures.membershipRoleRows
+            : table === rolePermissionsTable
+              ? fixtures.permissionRows
+              : table === modulesTable
+                ? fixtures.moduleRows
+                : undefined;
         if (unfiltered !== undefined) {
           const rows = unfiltered as unknown[];
           const passthroughBuilder = {
@@ -135,7 +141,8 @@ vi.mock("@workspace/db", () => ({
         }
 
         let rows: Record<string, unknown>[] = [];
-        if (table === organizationModulesTable) rows = fixtures.organizationModuleRows;
+        if (table === organizationMembershipsTable) rows = fixtures.membershipRows as Record<string, unknown>[];
+        else if (table === organizationModulesTable) rows = fixtures.organizationModuleRows;
         else if (table === employeesTable) rows = fixtures.employeeRows;
         else if (table === employeeUserLinksTable) rows = fixtures.employeeUserLinkRows;
         else if (table === attendanceEventsTable) rows = fixtures.attendanceEventRows;
@@ -432,6 +439,12 @@ describe("POST /api/organizations/:organizationId/attendance-events", () => {
   it("denies cross-organization membership entirely (no membership row for the other org)", async () => {
     mockSession();
     mockActiveMembership(5, ORG_ID);
+    // Module enabled for the OTHER org only, and a membership that exists
+    // only for ORG_ID — the 403 below can only come from requireMembership
+    // finding no (userId, OTHER_ORG_ID) row, never from module gating,
+    // since the module IS enabled for the org actually being requested.
+    // (organizationMembershipsTable is genuinely filtered by the mock —
+    // see the comment on the mock's own unfiltered-bucket exclusion above.)
     mockAttendanceModuleEnabled(OTHER_ORG_ID);
     mockPermissions(["attendance.clock.own"]);
     mockOwnEmployeeLinked();
@@ -443,6 +456,27 @@ describe("POST /api/organizations/:organizationId/attendance-events", () => {
       .send({ eventType: "clock_in" });
 
     expect(res.status).toBe(403);
+    expect(res.body.error).toBe("Forbidden");
+    // No event was written — proves this is a hard authorization denial,
+    // not merely an error response with a side effect that still occurred.
+    expect(fixtures.attendanceEventRows).toHaveLength(0);
+  });
+
+  it("succeeds for the same caller against their own organization (membership genuinely required, not merely present)", async () => {
+    mockSession();
+    mockActiveMembership(5, ORG_ID);
+    mockAttendanceModuleEnabled(ORG_ID);
+    mockPermissions(["attendance.clock.own"]);
+    mockOwnEmployeeLinked();
+    mockEligibleEmployee();
+
+    const res = await request(app)
+      .post(`/api/organizations/${ORG_ID}/attendance-events`)
+      .set("Authorization", "Bearer valid-token")
+      .send({ eventType: "clock_in" });
+
+    expect(res.status).toBe(201);
+    expect(fixtures.attendanceEventRows).toHaveLength(1);
   });
 });
 
