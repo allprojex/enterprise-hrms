@@ -40,3 +40,24 @@ changes — never edit or regenerate an already-applied one.
 All future migrations should be generated the normal way (`generate` → review → `migrate`)
 and will be ordinary incremental diffs; this reconciliation step is a one-time cost of
 adopting versioned migrations on top of an already-`push`-managed database.
+
+## 0036_enable_rls_deny_default.sql
+
+**Hand-authored, not `drizzle-kit generate` output.** The Drizzle schema definitions in this
+project (`lib/db/src/schema/*.ts`) don't express Row-Level Security state — `generate` diffs
+table/column/index/enum shape only, and enabling RLS changes none of that. This migration
+enables RLS, with zero policies, on all 68 tables in `public` — a deny-by-default posture for
+the `anon`/`authenticated` Supabase roles, which is the only thing standing between them and
+full CRUD on every table (their default grants were never narrowed; RLS was the intended gate
+and had never been enabled). It does not touch table ownership, columns, data, or the
+application's own connection: the app connects as the `postgres` role, which owns every table
+and carries `BYPASSRLS`, so this migration has zero effect on application behavior — see
+`docs/DEPLOYMENT_AND_TENANT_ARCHITECTURE.md` and the Supabase security audit in project history
+for the full verification. `FORCE ROW LEVEL SECURITY` is deliberately not used: it only changes
+behavior for the table *owner*, and `BYPASSRLS` overrides it regardless, so it would add
+nothing here. Tenant/permission-aware policies (matching the real `organization_memberships`
+authorization chain) remain explicitly out of scope for this migration — deny-by-default closes
+the actual exposure; real policies are a deliberate follow-on, not rushed in here.
+
+`0036_enable_rls_deny_default.down.sql` is the matching hand-written rollback — disables RLS on
+exactly the same 68 tables, touches no data.
