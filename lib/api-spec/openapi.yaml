@@ -2496,15 +2496,29 @@ paths:
     post:
       operationId: recordAttendanceAdjustment
       tags: [attendance-adjustments]
-      summary: HR direct-entry attendance correction (auto-approved)
+      summary: HR direct-entry correction (auto-approved), or an employee's own correction request (pending)
       description: >-
-        Requires attendance.manage (organization-wide tier). Auto-decided in
-        the same operation it's created (status "approved",
-        decidedByMembershipId = requestedByMembershipId) — the
-        employee-initiated request/approve workflow is a later workstream,
-        not implemented here. reason is always required. correctedClockIn is
-        required when adjustmentType is manual_clock_in; correctedClockOut is
-        required when adjustmentType is manual_clock_out. Gated by the
+        One shared endpoint, two branches, decided by whether the caller
+        holds attendance.manage — not by any request field. Requires
+        attendance.read.own at minimum (every role has it).
+
+
+        HR direct entry (attendance.manage holder): employeeId is
+        caller-supplied (the target employee). Auto-decided in the same
+        operation it's created (status "approved", decidedByMembershipId =
+        requestedByMembershipId).
+
+
+        Employee-initiated request (no attendance.manage): employeeId is
+        always server-derived from the authenticated caller — a
+        client-supplied employeeId in the body is ignored. Always created
+        "pending"; never auto-approves itself. Decided later via
+        POST .../attendance-adjustments/{id}/approve or .../reject.
+
+
+        reason is always required for both branches. correctedClockIn is
+        required when adjustmentType is manual_clock_in; correctedClockOut
+        is required when adjustmentType is manual_clock_out. Gated by the
         "attendance" module.
       parameters:
         - name: organizationId
@@ -2520,7 +2534,7 @@ paths:
               $ref: "#/components/schemas/RecordAttendanceAdjustmentInput"
       responses:
         "201":
-          description: Attendance adjustment recorded and auto-approved
+          description: Attendance adjustment recorded — status is "approved" for HR direct entry, "pending" for an employee-initiated request
           content:
             application/json:
               schema:
@@ -2531,8 +2545,96 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+        "403":
+          description: No employee record linked to this account (employee-initiated branch only)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "404":
-          description: Employee not found in this organization
+          description: Employee not found in this organization (HR direct-entry branch only)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/attendance-adjustments/{id}/approve:
+    post:
+      operationId: approveAttendanceAdjustment
+      tags: [attendance-adjustments]
+      summary: Approve a pending Attendance correction request
+      description: >-
+        Requires attendance.adjustment.approve — an organization-wide-only
+        tier for this workstream (no delegated/manager approval). An
+        atomic conditional update takes the row; a concurrent second
+        decision on the same request receives 409, never a silent
+        double-decision. Gated by the "attendance" module.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Adjustment approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceAdjustment"
+        "404":
+          description: Adjustment not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Adjustment is not pending — already decided
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/attendance-adjustments/{id}/reject:
+    post:
+      operationId: rejectAttendanceAdjustment
+      tags: [attendance-adjustments]
+      summary: Reject a pending Attendance correction request
+      description: >-
+        Requires attendance.adjustment.approve. Same atomic terminal-state
+        protection as approve — a rejected or already-approved request
+        cannot be redecided. Gated by the "attendance" module.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Adjustment rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceAdjustment"
+        "404":
+          description: Adjustment not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Adjustment is not pending — already decided
           content:
             application/json:
               schema:

@@ -5385,8 +5385,14 @@ export const getRecordAttendanceAdjustmentUrl = (organizationId: number,) => {
 }
 
 /**
- * Requires attendance.manage (organization-wide tier). Auto-decided in the same operation it's created (status "approved", decidedByMembershipId = requestedByMembershipId) — the employee-initiated request/approve workflow is a later workstream, not implemented here. reason is always required. correctedClockIn is required when adjustmentType is manual_clock_in; correctedClockOut is required when adjustmentType is manual_clock_out. Gated by the "attendance" module.
- * @summary HR direct-entry attendance correction (auto-approved)
+ * One shared endpoint, two branches, decided by whether the caller holds attendance.manage — not by any request field. Requires attendance.read.own at minimum (every role has it).
+ *
+ * HR direct entry (attendance.manage holder): employeeId is caller-supplied (the target employee). Auto-decided in the same operation it's created (status "approved", decidedByMembershipId = requestedByMembershipId).
+ *
+ * Employee-initiated request (no attendance.manage): employeeId is always server-derived from the authenticated caller — a client-supplied employeeId in the body is ignored. Always created "pending"; never auto-approves itself. Decided later via POST .../attendance-adjustments/{id}/approve or .../reject.
+ *
+ * reason is always required for both branches. correctedClockIn is required when adjustmentType is manual_clock_in; correctedClockOut is required when adjustmentType is manual_clock_out. Gated by the "attendance" module.
+ * @summary HR direct-entry correction (auto-approved), or an employee's own correction request (pending)
  */
 export const recordAttendanceAdjustment = async (organizationId: number,
     recordAttendanceAdjustmentInput: RecordAttendanceAdjustmentInput, options?: RequestInit): Promise<AttendanceAdjustment> => {
@@ -5436,7 +5442,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type RecordAttendanceAdjustmentMutationError = ErrorType<ApiError>
 
     /**
- * @summary HR direct-entry attendance correction (auto-approved)
+ * @summary HR direct-entry correction (auto-approved), or an employee's own correction request (pending)
  */
 export const useRecordAttendanceAdjustment = <TError = ErrorType<ApiError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordAttendanceAdjustment>>, TError,{organizationId: number;data: BodyType<RecordAttendanceAdjustmentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -5447,6 +5453,154 @@ export const useRecordAttendanceAdjustment = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getRecordAttendanceAdjustmentMutationOptions(options));
+    }
+
+export const getApproveAttendanceAdjustmentUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/attendance-adjustments/${id}/approve`
+}
+
+/**
+ * Requires attendance.adjustment.approve — an organization-wide-only tier for this workstream (no delegated/manager approval). An atomic conditional update takes the row; a concurrent second decision on the same request receives 409, never a silent double-decision. Gated by the "attendance" module.
+ * @summary Approve a pending Attendance correction request
+ */
+export const approveAttendanceAdjustment = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<AttendanceAdjustment> => {
+
+  return customFetch<AttendanceAdjustment>(getApproveAttendanceAdjustmentUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getApproveAttendanceAdjustmentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveAttendanceAdjustment>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveAttendanceAdjustment>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['approveAttendanceAdjustment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveAttendanceAdjustment>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  approveAttendanceAdjustment(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveAttendanceAdjustmentMutationResult = NonNullable<Awaited<ReturnType<typeof approveAttendanceAdjustment>>>
+
+    export type ApproveAttendanceAdjustmentMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Approve a pending Attendance correction request
+ */
+export const useApproveAttendanceAdjustment = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveAttendanceAdjustment>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveAttendanceAdjustment>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getApproveAttendanceAdjustmentMutationOptions(options));
+    }
+
+export const getRejectAttendanceAdjustmentUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/attendance-adjustments/${id}/reject`
+}
+
+/**
+ * Requires attendance.adjustment.approve. Same atomic terminal-state protection as approve — a rejected or already-approved request cannot be redecided. Gated by the "attendance" module.
+ * @summary Reject a pending Attendance correction request
+ */
+export const rejectAttendanceAdjustment = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<AttendanceAdjustment> => {
+
+  return customFetch<AttendanceAdjustment>(getRejectAttendanceAdjustmentUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRejectAttendanceAdjustmentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectAttendanceAdjustment>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectAttendanceAdjustment>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['rejectAttendanceAdjustment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectAttendanceAdjustment>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  rejectAttendanceAdjustment(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectAttendanceAdjustmentMutationResult = NonNullable<Awaited<ReturnType<typeof rejectAttendanceAdjustment>>>
+
+    export type RejectAttendanceAdjustmentMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Reject a pending Attendance correction request
+ */
+export const useRejectAttendanceAdjustment = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectAttendanceAdjustment>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rejectAttendanceAdjustment>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getRejectAttendanceAdjustmentMutationOptions(options));
     }
 
 export const getGetAttendanceDailySummaryUrl = (organizationId: number,

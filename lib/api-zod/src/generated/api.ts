@@ -2165,8 +2165,14 @@ export const ListAttendanceEventsResponse = zod.array(ListAttendanceEventsRespon
 
 
 /**
- * Requires attendance.manage (organization-wide tier). Auto-decided in the same operation it's created (status "approved", decidedByMembershipId = requestedByMembershipId) — the employee-initiated request/approve workflow is a later workstream, not implemented here. reason is always required. correctedClockIn is required when adjustmentType is manual_clock_in; correctedClockOut is required when adjustmentType is manual_clock_out. Gated by the "attendance" module.
- * @summary HR direct-entry attendance correction (auto-approved)
+ * One shared endpoint, two branches, decided by whether the caller holds attendance.manage — not by any request field. Requires attendance.read.own at minimum (every role has it).
+ *
+ * HR direct entry (attendance.manage holder): employeeId is caller-supplied (the target employee). Auto-decided in the same operation it's created (status "approved", decidedByMembershipId = requestedByMembershipId).
+ *
+ * Employee-initiated request (no attendance.manage): employeeId is always server-derived from the authenticated caller — a client-supplied employeeId in the body is ignored. Always created "pending"; never auto-approves itself. Decided later via POST .../attendance-adjustments/{id}/approve or .../reject.
+ *
+ * reason is always required for both branches. correctedClockIn is required when adjustmentType is manual_clock_in; correctedClockOut is required when adjustmentType is manual_clock_out. Gated by the "attendance" module.
+ * @summary HR direct-entry correction (auto-approved), or an employee's own correction request (pending)
  */
 export const RecordAttendanceAdjustmentParams = zod.object({
   "organizationId": zod.coerce.number()
@@ -2182,6 +2188,58 @@ export const RecordAttendanceAdjustmentBody = zod.object({
 })
 
 export const RecordAttendanceAdjustmentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "date": zod.coerce.date(),
+  "adjustmentType": zod.enum(['manual_clock_in', 'manual_clock_out', 'mark_present', 'mark_absent', 'excuse_absence']),
+  "correctedClockIn": zod.coerce.date().nullish(),
+  "correctedClockOut": zod.coerce.date().nullish(),
+  "reason": zod.string(),
+  "status": zod.enum(['pending', 'approved', 'rejected']).describe('W65\'s HR direct-entry path always creates this as \"approved\" immediately. \"pending\" is reachable only by a later workstream\'s employee-initiated request path.'),
+  "requestedByMembershipId": zod.number().nullish(),
+  "decidedByMembershipId": zod.number().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * Requires attendance.adjustment.approve — an organization-wide-only tier for this workstream (no delegated/manager approval). An atomic conditional update takes the row; a concurrent second decision on the same request receives 409, never a silent double-decision. Gated by the "attendance" module.
+ * @summary Approve a pending Attendance correction request
+ */
+export const ApproveAttendanceAdjustmentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ApproveAttendanceAdjustmentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "date": zod.coerce.date(),
+  "adjustmentType": zod.enum(['manual_clock_in', 'manual_clock_out', 'mark_present', 'mark_absent', 'excuse_absence']),
+  "correctedClockIn": zod.coerce.date().nullish(),
+  "correctedClockOut": zod.coerce.date().nullish(),
+  "reason": zod.string(),
+  "status": zod.enum(['pending', 'approved', 'rejected']).describe('W65\'s HR direct-entry path always creates this as \"approved\" immediately. \"pending\" is reachable only by a later workstream\'s employee-initiated request path.'),
+  "requestedByMembershipId": zod.number().nullish(),
+  "decidedByMembershipId": zod.number().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * Requires attendance.adjustment.approve. Same atomic terminal-state protection as approve — a rejected or already-approved request cannot be redecided. Gated by the "attendance" module.
+ * @summary Reject a pending Attendance correction request
+ */
+export const RejectAttendanceAdjustmentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const RejectAttendanceAdjustmentResponse = zod.object({
   "id": zod.number(),
   "organizationId": zod.number(),
   "employeeId": zod.number(),
