@@ -760,6 +760,60 @@ export interface RecordAttendanceAdjustmentInput {
   reason: string;
 }
 
+/**
+ * null means no summary is generated for this date — before hireDate, on/after separationDate, or an otherwise-absent day suppressed because the employee's current employmentStatus is on_leave or suspended.
+ * @nullable
+ */
+export type DailyAttendanceSummaryStatus = typeof DailyAttendanceSummaryStatus[keyof typeof DailyAttendanceSummaryStatus] | null;
+
+
+export const DailyAttendanceSummaryStatus = {
+  present: 'present',
+  late: 'late',
+  partial: 'partial',
+  absent: 'absent',
+  on_leave: 'on_leave',
+  holiday: 'holiday',
+  non_working_day: 'non_working_day',
+} as const;
+
+export interface DailyAttendanceSummary {
+  organizationId: number;
+  employeeId: number;
+  /** Organization-local civil date, never a browser-local or UTC-literal date. */
+  date: string;
+  /**
+     * null means no summary is generated for this date — before hireDate, on/after separationDate, or an otherwise-absent day suppressed because the employee's current employmentStatus is on_leave or suspended.
+     * @nullable
+     */
+  status: DailyAttendanceSummaryStatus;
+  /**
+     * Effective first clock-in for this civil date — an approved manual_clock_in adjustment overrides the raw event when present.
+     * @nullable
+     */
+  firstClockIn?: string | null;
+  /**
+     * Effective last clock-out for this civil date — an approved manual_clock_out adjustment overrides the raw event when present.
+     * @nullable
+     */
+  lastClockOut?: string | null;
+  /**
+     * firstClockIn to lastClockOut only (first-in/last-out, no multi-segment net-duration math). null unless status is present or late.
+     * @nullable
+     */
+  workedMinutes?: number | null;
+  /**
+     * Minutes past workStartTime + gracePeriodMinutes. 0 when on time. null unless status is present or late.
+     * @nullable
+     */
+  lateMinutes?: number | null;
+  /**
+     * Minutes before workEndTime. Informational only — never its own status value. null unless status is present or late.
+     * @nullable
+     */
+  earlyDepartureMinutes?: number | null;
+}
+
 export interface LeaveBalanceSummary {
   leaveTypeId: number;
   leaveTypeName: string;
@@ -4211,6 +4265,21 @@ branchId?: number;
 
 export type ListAttendanceEventsParams = {
 employeeId?: number;
+};
+
+export type GetAttendanceDailySummaryParams = {
+/**
+ * Single-day mode, YYYY-MM-DD (organization-local civil date). Mutually exclusive with from/to.
+ */
+date?: string;
+/**
+ * Range mode start (inclusive), YYYY-MM-DD.
+ */
+from?: string;
+/**
+ * Range mode end (inclusive), YYYY-MM-DD. Range cannot exceed 100 days.
+ */
+to?: string;
 };
 
 export type ListPublicHolidaysParams = {

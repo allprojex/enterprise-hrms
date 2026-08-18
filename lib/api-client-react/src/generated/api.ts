@@ -75,6 +75,7 @@ import type {
   CreateReferenceCheckInput,
   CreateTalentPoolInput,
   CreateVacancyInput,
+  DailyAttendanceSummary,
   DashboardSummary,
   Department,
   Employee,
@@ -86,6 +87,7 @@ import type {
   EmployeeQualification,
   EmployeeSkill,
   ForgotPasswordInput,
+  GetAttendanceDailySummaryParams,
   GrantRolePermissionInput,
   HealthStatus,
   InternalVacanciesResponse,
@@ -5446,6 +5448,101 @@ export const useRecordAttendanceAdjustment = <TError = ErrorType<ApiError>,
       > => {
       return useMutation(getRecordAttendanceAdjustmentMutationOptions(options));
     }
+
+export const getGetAttendanceDailySummaryUrl = (organizationId: number,
+    employeeId: number,
+    params?: GetAttendanceDailySummaryParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/employees/${employeeId}/attendance/summary?${stringifiedParams}` : `/api/organizations/${organizationId}/employees/${employeeId}/attendance/summary`
+}
+
+/**
+ * A computed read-model over attendance_events, approved attendance_adjustments, approved Leave, public holidays, and organization Attendance/timezone configuration — never a second source of truth, nothing is persisted or mutated by this read. Provide either `date` (single-day mode, returns one object) or both `from`/`to` (range mode, returns a dense array, one entry per date, max 100 days). Own resource, direct-report (team), or organization-wide (attendance.manage) — gated by attendance.read.own at the route level, refined by an authorization check against the specific employee. Gated by the "attendance" module. status is null when no summary is generated (before hireDate, on/after separationDate, or an otherwise-absent day for an employee whose current employmentStatus is on_leave/suspended).
+ * @summary Daily Attendance summary — single date or a date range
+ */
+export const getAttendanceDailySummary = async (organizationId: number,
+    employeeId: number,
+    params?: GetAttendanceDailySummaryParams, options?: RequestInit): Promise<DailyAttendanceSummary | DailyAttendanceSummary[]> => {
+
+  return customFetch<DailyAttendanceSummary | DailyAttendanceSummary[]>(getGetAttendanceDailySummaryUrl(organizationId,employeeId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAttendanceDailySummaryQueryKey = (organizationId: number,
+    employeeId: number,
+    params?: GetAttendanceDailySummaryParams,) => {
+    return [
+    `/api/organizations/${organizationId}/employees/${employeeId}/attendance/summary`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetAttendanceDailySummaryQueryOptions = <TData = Awaited<ReturnType<typeof getAttendanceDailySummary>>, TError = ErrorType<ApiError>>(organizationId: number,
+    employeeId: number,
+    params?: GetAttendanceDailySummaryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAttendanceDailySummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAttendanceDailySummaryQueryKey(organizationId,employeeId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAttendanceDailySummary>>> = ({ signal }) => getAttendanceDailySummary(organizationId,employeeId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && employeeId !== null && employeeId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAttendanceDailySummary>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAttendanceDailySummaryQueryResult = NonNullable<Awaited<ReturnType<typeof getAttendanceDailySummary>>>
+export type GetAttendanceDailySummaryQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Daily Attendance summary — single date or a date range
+ */
+
+export function useGetAttendanceDailySummary<TData = Awaited<ReturnType<typeof getAttendanceDailySummary>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    employeeId: number,
+    params?: GetAttendanceDailySummaryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAttendanceDailySummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAttendanceDailySummaryQueryOptions(organizationId,employeeId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListPublicHolidaysUrl = (organizationId: number,
     params?: ListPublicHolidaysParams,) => {

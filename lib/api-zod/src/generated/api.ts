@@ -2199,6 +2199,44 @@ export const RecordAttendanceAdjustmentResponse = zod.object({
 
 
 /**
+ * A computed read-model over attendance_events, approved attendance_adjustments, approved Leave, public holidays, and organization Attendance/timezone configuration — never a second source of truth, nothing is persisted or mutated by this read. Provide either `date` (single-day mode, returns one object) or both `from`/`to` (range mode, returns a dense array, one entry per date, max 100 days). Own resource, direct-report (team), or organization-wide (attendance.manage) — gated by attendance.read.own at the route level, refined by an authorization check against the specific employee. Gated by the "attendance" module. status is null when no summary is generated (before hireDate, on/after separationDate, or an otherwise-absent day for an employee whose current employmentStatus is on_leave/suspended).
+ * @summary Daily Attendance summary — single date or a date range
+ */
+export const GetAttendanceDailySummaryParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const GetAttendanceDailySummaryQueryParams = zod.object({
+  "date": zod.date().optional().describe('Single-day mode, YYYY-MM-DD (organization-local civil date). Mutually exclusive with from\/to.'),
+  "from": zod.date().optional().describe('Range mode start (inclusive), YYYY-MM-DD.'),
+  "to": zod.date().optional().describe('Range mode end (inclusive), YYYY-MM-DD. Range cannot exceed 100 days.')
+})
+
+export const GetAttendanceDailySummaryResponse = zod.union([zod.object({
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "date": zod.coerce.date().describe('Organization-local civil date, never a browser-local or UTC-literal date.'),
+  "status": zod.union([zod.literal('present'),zod.literal('late'),zod.literal('partial'),zod.literal('absent'),zod.literal('on_leave'),zod.literal('holiday'),zod.literal('non_working_day'),zod.literal(null)]).nullable().describe('null means no summary is generated for this date — before hireDate, on\/after separationDate, or an otherwise-absent day suppressed because the employee\'s current employmentStatus is on_leave or suspended.'),
+  "firstClockIn": zod.coerce.date().nullish().describe('Effective first clock-in for this civil date — an approved manual_clock_in adjustment overrides the raw event when present.'),
+  "lastClockOut": zod.coerce.date().nullish().describe('Effective last clock-out for this civil date — an approved manual_clock_out adjustment overrides the raw event when present.'),
+  "workedMinutes": zod.number().nullish().describe('firstClockIn to lastClockOut only (first-in\/last-out, no multi-segment net-duration math). null unless status is present or late.'),
+  "lateMinutes": zod.number().nullish().describe('Minutes past workStartTime + gracePeriodMinutes. 0 when on time. null unless status is present or late.'),
+  "earlyDepartureMinutes": zod.number().nullish().describe('Minutes before workEndTime. Informational only — never its own status value. null unless status is present or late.')
+}),zod.array(zod.object({
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "date": zod.coerce.date().describe('Organization-local civil date, never a browser-local or UTC-literal date.'),
+  "status": zod.union([zod.literal('present'),zod.literal('late'),zod.literal('partial'),zod.literal('absent'),zod.literal('on_leave'),zod.literal('holiday'),zod.literal('non_working_day'),zod.literal(null)]).nullable().describe('null means no summary is generated for this date — before hireDate, on\/after separationDate, or an otherwise-absent day suppressed because the employee\'s current employmentStatus is on_leave or suspended.'),
+  "firstClockIn": zod.coerce.date().nullish().describe('Effective first clock-in for this civil date — an approved manual_clock_in adjustment overrides the raw event when present.'),
+  "lastClockOut": zod.coerce.date().nullish().describe('Effective last clock-out for this civil date — an approved manual_clock_out adjustment overrides the raw event when present.'),
+  "workedMinutes": zod.number().nullish().describe('firstClockIn to lastClockOut only (first-in\/last-out, no multi-segment net-duration math). null unless status is present or late.'),
+  "lateMinutes": zod.number().nullish().describe('Minutes past workStartTime + gracePeriodMinutes. 0 when on time. null unless status is present or late.'),
+  "earlyDepartureMinutes": zod.number().nullish().describe('Minutes before workEndTime. Informational only — never its own status value. null unless status is present or late.')
+}))])
+
+
+/**
  * Active holidays by default; a recurring holiday always matches every year filter, since it applies every year regardless of its stored template year. Gated by the "leave" module.
  * @summary List an organization's public holidays
  */
