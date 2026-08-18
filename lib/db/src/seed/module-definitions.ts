@@ -39,7 +39,12 @@ export const MODULE_DEFINITIONS: readonly ModuleDefinition[] = [
     description: "Clock-in/out tracking and attendance records.",
     category: "hr-operations",
     version: "1.0.0",
-    status: "hidden",
+    // Phase 3B W64 foundation shipped (schema, permissions, authorization
+    // primitives) — flipped from "hidden" per this file's own documented
+    // convention. See status note on "recruitment" above. No capture route
+    // or self-service clocking exists yet; module availability does not by
+    // itself grant any organization access (see organization_modules).
+    status: "active",
     defaultEnabled: false,
     requiredModuleKeys: [],
     optionalModuleKeys: [],

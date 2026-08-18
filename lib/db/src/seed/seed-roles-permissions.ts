@@ -246,6 +246,18 @@ const PERMISSIONS = [
   // assignment. This is the sole permission key W61 introduces; there is no
   // separate dashboard-only key.
   { key: "recruitment.reports.read", resource: "recruitment", action: "reports.read" },
+  // Phase 3B, W64 — Attendance Foundation & Module Activation. Four keys
+  // total, per docs/PHASE_3B_ATTENDANCE_IMPLEMENTATION_PLAN.md §4's
+  // permission matrix. No "team" tier key: reading a direct report's
+  // attendance is resolved in the service layer via employees.
+  // reportingManagerId, the same own/service-layer-narrowed shape as every
+  // comparable permission in this platform (mirrors recruitment.reports.read
+  // and leave_request.read.own above) — holding attendance.read.own never
+  // by itself grants org-wide reach; that requires attendance.manage.
+  { key: "attendance.read.own", resource: "attendance", action: "read.own" },
+  { key: "attendance.clock.own", resource: "attendance", action: "clock.own" },
+  { key: "attendance.manage", resource: "attendance", action: "manage" },
+  { key: "attendance.adjustment.approve", resource: "attendance", action: "adjustment.approve" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -312,6 +324,10 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "offer.withdraw",
     "candidate.convert_to_employee",
     "recruitment.reports.read",
+    "attendance.read.own",
+    "attendance.clock.own",
+    "attendance.manage",
+    "attendance.adjustment.approve",
   ],
   hr_manager: [
     "organization.read",
@@ -368,6 +384,10 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "offer.withdraw",
     "candidate.convert_to_employee",
     "recruitment.reports.read",
+    "attendance.read.own",
+    "attendance.clock.own",
+    "attendance.manage",
+    "attendance.adjustment.approve",
   ],
   employee: [
     "organization.read",
@@ -390,6 +410,8 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "offer.read",
     "offer.manage",
     "recruitment.reports.read",
+    "attendance.read.own",
+    "attendance.clock.own",
   ],
 };
 
