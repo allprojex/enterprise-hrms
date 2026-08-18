@@ -52,3 +52,7 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# MCP server config — may contain embedded connection credentials
+# (e.g. the Supabase MCP server's authenticated URL)
+.mcp.json
