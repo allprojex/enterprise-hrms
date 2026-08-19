@@ -34,6 +34,7 @@ import {
   Video,
   FileSignature,
   FileBarChart,
+  ListChecks,
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -313,6 +314,11 @@ export function AppShell({ children }: AppShellProps) {
     { href: '/leave-types',    label: 'Leave Types',    icon: CalendarDays },
     ...(isHrCapable ? [{ href: '/leave-balances', label: 'Leave Balances', icon: Wallet } satisfies NavItem] : []),
     ...(isOrgAdmin ? [{ href: '/attendance-settings', label: 'Attendance Settings', icon: Clock } satisfies NavItem] : []),
+    // Phase 3B, W69 — nav entry is HR-capable-role-gated, same precedent as
+    // every other Recruitment/Leave-management nav entry this platform
+    // uses (see the isHrCapable entries around this one); the backend's
+    // own/team tier still lets a manager reach the page directly by URL.
+    ...(isHrCapable ? [{ href: '/attendance-register', label: 'Attendance Register', icon: ListChecks } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisitions', label: 'Job Requisitions', icon: ClipboardList } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisition-approvals', label: 'Requisition Approvals', icon: Stamp } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/vacancies', label: 'Vacancies', icon: Megaphone } satisfies NavItem] : []),

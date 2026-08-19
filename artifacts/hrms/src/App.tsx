@@ -28,6 +28,7 @@ import LeaveApprovals from '@/pages/leave-approvals';
 import LeaveCalendar from '@/pages/leave-calendar';
 import PublicHolidays from '@/pages/public-holidays';
 import AttendanceSettings from '@/pages/attendance-settings';
+import AttendanceRegister from '@/pages/attendance-register';
 import EmployeeSelfService from '@/pages/employee-self-service';
 import RecruitmentSettings from '@/pages/recruitment-settings';
 import Requisitions from '@/pages/requisitions';
@@ -142,6 +143,9 @@ function Router() {
       </Route>
       <Route path="/attendance-settings">
         {() => <SecureRoute component={AttendanceSettings} moduleKey="attendance" />}
+      </Route>
+      <Route path="/attendance-register">
+        {() => <SecureRoute component={AttendanceRegister} moduleKey="attendance" />}
       </Route>
       <Route path="/self-service">
         {() => <SecureRoute component={EmployeeSelfService} moduleKey="employee_self_service" />}

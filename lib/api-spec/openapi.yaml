@@ -2727,6 +2727,100 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/attendance:
+    get:
+      operationId: listAttendanceRegister
+      tags: [attendance-register]
+      summary: Attendance Register — internal HR/manager list view
+      description: >-
+        A view over the W66 daily-summary read-model, paginated by
+        employee (never a raw table scan, never a second summary engine).
+        attendance.manage holders get organization-wide visibility;
+        everyone else (attendance.read.own) sees only themselves and their
+        direct reports (employees.reportingManagerId) — the same
+        service-layer tier leaveCalendar.ts already uses, with no
+        dedicated attendance.read.team permission. employeeId/
+        departmentId/branchId filters can only narrow this authorized
+        scope, never broaden it — an employeeId outside the caller's
+        scope yields zero rows, not an error. status filters the computed
+        page: a row is kept if at least one of its days matches; `total`
+        reflects the employee-level scope/filter count before status
+        filtering. A manager with zero direct reports receives a valid
+        empty result, never an organization-wide fallback. Gated by the
+        "attendance" module.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: from
+          in: query
+          required: true
+          description: Inclusive range start, YYYY-MM-DD (organization-local civil date).
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: true
+          description: Inclusive range end, YYYY-MM-DD. Range cannot exceed 100 days. from=to gives a single-day ("daily") register; a wider range gives a "monthly" view.
+          schema:
+            type: string
+            format: date
+        - name: employeeId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: departmentId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: branchId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: status
+          in: query
+          required: false
+          description: One of the 7 DailyAttendanceSummary statuses (present, late, partial, absent, on_leave, holiday, non_working_day).
+          schema:
+            type: string
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: A page of the register
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceRegisterResponse"
+        "400":
+          description: Missing/invalid from or to, an inverted or too-wide range, or an invalid status value
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: The organization's timezone (general.timezone) is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /organizations/{organizationId}/public-holidays:
     get:
       operationId: listPublicHolidays
@@ -9594,6 +9688,34 @@ components:
         earlyDepartureMinutes:
           type: ["integer", "null"]
           description: Minutes before workEndTime. Informational only — never its own status value. null unless status is present or late.
+
+    AttendanceRegisterRow:
+      type: object
+      required: [employeeId, summaries]
+      properties:
+        employeeId:
+          type: integer
+        summaries:
+          type: array
+          description: One DailyAttendanceSummary per date in the requested range, for this employee. Employee identity/department/branch display names are resolved client-side from the already-loaded employee list, not duplicated here.
+          items:
+            $ref: "#/components/schemas/DailyAttendanceSummary"
+
+    AttendanceRegisterResponse:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AttendanceRegisterRow"
+        total:
+          type: integer
+          description: Employee count matching the caller's authorized scope and department/branch/employeeId filters — computed before any status filter is applied.
+        page:
+          type: integer
+        pageSize:
+          type: integer
 
     LeaveBalanceSummary:
       type: object

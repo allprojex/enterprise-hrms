@@ -2295,6 +2295,49 @@ export const GetAttendanceDailySummaryResponse = zod.union([zod.object({
 
 
 /**
+ * A view over the W66 daily-summary read-model, paginated by employee (never a raw table scan, never a second summary engine). attendance.manage holders get organization-wide visibility; everyone else (attendance.read.own) sees only themselves and their direct reports (employees.reportingManagerId) — the same service-layer tier leaveCalendar.ts already uses, with no dedicated attendance.read.team permission. employeeId/ departmentId/branchId filters can only narrow this authorized scope, never broaden it — an employeeId outside the caller's scope yields zero rows, not an error. status filters the computed page: a row is kept if at least one of its days matches; `total` reflects the employee-level scope/filter count before status filtering. A manager with zero direct reports receives a valid empty result, never an organization-wide fallback. Gated by the "attendance" module.
+ * @summary Attendance Register — internal HR/manager list view
+ */
+export const ListAttendanceRegisterParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const listAttendanceRegisterQueryPageDefault = 1;
+export const listAttendanceRegisterQueryPageSizeDefault = 20;
+
+export const ListAttendanceRegisterQueryParams = zod.object({
+  "from": zod.date().describe('Inclusive range start, YYYY-MM-DD (organization-local civil date).'),
+  "to": zod.date().describe('Inclusive range end, YYYY-MM-DD. Range cannot exceed 100 days. from=to gives a single-day (\"daily\") register; a wider range gives a \"monthly\" view.'),
+  "employeeId": zod.coerce.number().optional(),
+  "departmentId": zod.coerce.number().optional(),
+  "branchId": zod.coerce.number().optional(),
+  "status": zod.coerce.string().optional().describe('One of the 7 DailyAttendanceSummary statuses (present, late, partial, absent, on_leave, holiday, non_working_day).'),
+  "page": zod.coerce.number().default(listAttendanceRegisterQueryPageDefault),
+  "pageSize": zod.coerce.number().default(listAttendanceRegisterQueryPageSizeDefault)
+})
+
+export const ListAttendanceRegisterResponse = zod.object({
+  "items": zod.array(zod.object({
+  "employeeId": zod.number(),
+  "summaries": zod.array(zod.object({
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "date": zod.coerce.date().describe('Organization-local civil date, never a browser-local or UTC-literal date.'),
+  "status": zod.union([zod.literal('present'),zod.literal('late'),zod.literal('partial'),zod.literal('absent'),zod.literal('on_leave'),zod.literal('holiday'),zod.literal('non_working_day'),zod.literal(null)]).nullable().describe('null means no summary is generated for this date — before hireDate, on\/after separationDate, or an otherwise-absent day suppressed because the employee\'s current employmentStatus is on_leave or suspended.'),
+  "firstClockIn": zod.coerce.date().nullish().describe('Effective first clock-in for this civil date — an approved manual_clock_in adjustment overrides the raw event when present.'),
+  "lastClockOut": zod.coerce.date().nullish().describe('Effective last clock-out for this civil date — an approved manual_clock_out adjustment overrides the raw event when present.'),
+  "workedMinutes": zod.number().nullish().describe('firstClockIn to lastClockOut only (first-in\/last-out, no multi-segment net-duration math). null unless status is present or late.'),
+  "lateMinutes": zod.number().nullish().describe('Minutes past workStartTime + gracePeriodMinutes. 0 when on time. null unless status is present or late.'),
+  "earlyDepartureMinutes": zod.number().nullish().describe('Minutes before workEndTime. Informational only — never its own status value. null unless status is present or late.')
+})).describe('One DailyAttendanceSummary per date in the requested range, for this employee. Employee identity\/department\/branch display names are resolved client-side from the already-loaded employee list, not duplicated here.')
+})),
+  "total": zod.number().describe('Employee count matching the caller\'s authorized scope and department\/branch\/employeeId filters — computed before any status filter is applied.'),
+  "page": zod.number(),
+  "pageSize": zod.number()
+})
+
+
+/**
  * Active holidays by default; a recurring holiday always matches every year filter, since it applies every year regardless of its stored template year. Gated by the "leave" module.
  * @summary List an organization's public holidays
  */

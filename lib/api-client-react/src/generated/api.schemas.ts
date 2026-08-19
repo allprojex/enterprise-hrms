@@ -814,6 +814,20 @@ export interface DailyAttendanceSummary {
   earlyDepartureMinutes?: number | null;
 }
 
+export interface AttendanceRegisterRow {
+  employeeId: number;
+  /** One DailyAttendanceSummary per date in the requested range, for this employee. Employee identity/department/branch display names are resolved client-side from the already-loaded employee list, not duplicated here. */
+  summaries: DailyAttendanceSummary[];
+}
+
+export interface AttendanceRegisterResponse {
+  items: AttendanceRegisterRow[];
+  /** Employee count matching the caller's authorized scope and department/branch/employeeId filters — computed before any status filter is applied. */
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 export interface LeaveBalanceSummary {
   leaveTypeId: number;
   leaveTypeName: string;
@@ -4280,6 +4294,26 @@ from?: string;
  * Range mode end (inclusive), YYYY-MM-DD. Range cannot exceed 100 days.
  */
 to?: string;
+};
+
+export type ListAttendanceRegisterParams = {
+/**
+ * Inclusive range start, YYYY-MM-DD (organization-local civil date).
+ */
+from: string;
+/**
+ * Inclusive range end, YYYY-MM-DD. Range cannot exceed 100 days. from=to gives a single-day ("daily") register; a wider range gives a "monthly" view.
+ */
+to: string;
+employeeId?: number;
+departmentId?: number;
+branchId?: number;
+/**
+ * One of the 7 DailyAttendanceSummary statuses (present, late, partial, absent, on_leave, holiday, non_working_day).
+ */
+status?: string;
+page?: number;
+pageSize?: number;
 };
 
 export type ListPublicHolidaysParams = {

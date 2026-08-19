@@ -256,19 +256,7 @@ function civilDatesInRange(from: string, to: string): string[] {
   return dates;
 }
 
-/**
- * Fetches everything a [from, to] range of daily summaries needs in a fixed
- * small number of queries (employee, general config, attendance config,
- * events, adjustments, leave, holidays — 7 total regardless of range
- * length), then computes every date in-memory. Avoids per-day queries
- * entirely.
- */
-export async function getAttendanceDailySummaryRange(
-  organizationId: number,
-  employeeId: number,
-  from: string,
-  to: string,
-): Promise<DailyAttendanceSummary[]> {
+function validateRange(from: string, to: string): string[] {
   if (!ISO_DATE.test(from) || !ISO_DATE.test(to)) {
     throw new InvalidAttendanceSummaryRangeError("from and to must be in YYYY-MM-DD format");
   }
@@ -279,13 +267,48 @@ export async function getAttendanceDailySummaryRange(
   if (dates.length > MAX_RANGE_DAYS) {
     throw new InvalidAttendanceSummaryRangeError(`Date range cannot exceed ${MAX_RANGE_DAYS} days`);
   }
+  return dates;
+}
 
-  const [employee] = await db
+export interface AttendanceRegisterRow {
+  employeeId: number;
+  summaries: DailyAttendanceSummary[];
+}
+
+/**
+ * Batched multi-employee daily summary — the shared core both the
+ * single-employee W66 route (`getAttendanceDailySummaryRange` below, a thin
+ * wrapper over this) and the W69 register consume, per the frozen plan's
+ * own "reuse/refactor W66 service carefully rather than copying its logic"
+ * instruction. Fetches everything a [from, to] range needs in a fixed small
+ * number of queries *regardless of how many employees are requested*
+ * (employees, general config, attendance config, events, adjustments,
+ * leave, holidays — 7 total, batched via `inArray` rather than one round
+ * of queries per employee), then computes every (employee, date) pair
+ * in-memory via the same pure `computeDailySummaryForDate` W66 already
+ * established. Avoids both per-day and per-employee queries.
+ *
+ * `employeeIds` that don't resolve to a real employee in this organization
+ * are silently dropped from the result (the caller — a route handler — is
+ * expected to have already resolved a valid, authorized employee set;
+ * `getAttendanceDailySummaryRange`'s own wrapper below restores a hard
+ * "not found" error for its single-employee contract).
+ */
+export async function getAttendanceRegisterForEmployees(
+  organizationId: number,
+  employeeIds: number[],
+  from: string,
+  to: string,
+): Promise<AttendanceRegisterRow[]> {
+  const dates = validateRange(from, to);
+  if (employeeIds.length === 0) return [];
+
+  const employees = await db
     .select()
     .from(employeesTable)
-    .where(and(eq(employeesTable.id, employeeId), eq(employeesTable.organizationId, organizationId)))
-    .limit(1);
-  if (!employee) throw new EmployeeNotFoundError();
+    .where(and(eq(employeesTable.organizationId, organizationId), inArray(employeesTable.id, employeeIds)));
+  if (employees.length === 0) return [];
+  const resolvedEmployeeIds = employees.map((e) => e.id);
 
   const [generalConfig, attendanceConfig] = await Promise.all([
     getNamespaceConfig(organizationId, "general"),
@@ -298,9 +321,6 @@ export async function getAttendanceDailySummaryRange(
   const workEndTime = attendanceConfig.data.workEndTime as string;
   const gracePeriodMinutes = attendanceConfig.data.gracePeriodMinutes as number;
   const workDays = attendanceConfig.data.workDays as string[];
-
-  const hireCivilDate = employee.hireDate ? deriveCivilDate(new Date(employee.hireDate), timezone) : null;
-  const separationCivilDate = employee.separationDate ? deriveCivilDate(new Date(employee.separationDate), timezone) : null;
 
   // Padded by 1 day on each side so an event near the UTC boundary is never
   // missed regardless of the organization's UTC offset (max real-world
@@ -317,7 +337,7 @@ export async function getAttendanceDailySummaryRange(
       .where(
         and(
           eq(attendanceEventsTable.organizationId, organizationId),
-          eq(attendanceEventsTable.employeeId, employeeId),
+          inArray(attendanceEventsTable.employeeId, resolvedEmployeeIds),
           gte(attendanceEventsTable.occurredAt, paddedFrom),
           lte(attendanceEventsTable.occurredAt, paddedTo),
         ),
@@ -328,7 +348,7 @@ export async function getAttendanceDailySummaryRange(
       .where(
         and(
           eq(attendanceAdjustmentsTable.organizationId, organizationId),
-          eq(attendanceAdjustmentsTable.employeeId, employeeId),
+          inArray(attendanceAdjustmentsTable.employeeId, resolvedEmployeeIds),
           eq(attendanceAdjustmentsTable.status, "approved"),
           gte(attendanceAdjustmentsTable.date, from),
           lte(attendanceAdjustmentsTable.date, to),
@@ -340,66 +360,93 @@ export async function getAttendanceDailySummaryRange(
       .where(
         and(
           eq(leaveRequestsTable.organizationId, organizationId),
-          eq(leaveRequestsTable.employeeId, employeeId),
+          inArray(leaveRequestsTable.employeeId, resolvedEmployeeIds),
           eq(leaveRequestsTable.status, "approved"),
         ),
       ),
     resolveHolidayDatesInRange(organizationId, from, to),
   ]);
 
-  const eventsByDate = new Map<string, { firstClockIn: Date | null; lastClockOut: Date | null }>();
+  const eventsByEmployeeDate = new Map<number, Map<string, { firstClockIn: Date | null; lastClockOut: Date | null }>>();
   for (const event of events) {
     const civilDate = deriveCivilDate(new Date(event.occurredAt), timezone);
+    const eventsByDate = eventsByEmployeeDate.get(event.employeeId) ?? new Map();
     const bucket = eventsByDate.get(civilDate) ?? { firstClockIn: null, lastClockOut: null };
     const occurredAt = new Date(event.occurredAt);
     if (event.eventType === "clock_in" && (!bucket.firstClockIn || occurredAt < bucket.firstClockIn)) bucket.firstClockIn = occurredAt;
     if (event.eventType === "clock_out" && (!bucket.lastClockOut || occurredAt > bucket.lastClockOut)) bucket.lastClockOut = occurredAt;
     eventsByDate.set(civilDate, bucket);
+    eventsByEmployeeDate.set(event.employeeId, eventsByDate);
   }
 
-  // Most-recently-decided approved adjustment wins per (date, kind) when
-  // more than one exists for the same date.
-  const wholeDayAdjustmentByDate = new Map<string, AttendanceAdjustment>();
-  const manualClockInByDate = new Map<string, AttendanceAdjustment>();
-  const manualClockOutByDate = new Map<string, AttendanceAdjustment>();
+  // Most-recently-decided approved adjustment wins per (employee, date,
+  // kind) when more than one exists for the same date.
+  const wholeDayAdjustmentByEmployeeDate = new Map<number, Map<string, AttendanceAdjustment>>();
+  const manualClockInByEmployeeDate = new Map<number, Map<string, AttendanceAdjustment>>();
+  const manualClockOutByEmployeeDate = new Map<number, Map<string, AttendanceAdjustment>>();
   const isNewer = (a: AttendanceAdjustment, b?: AttendanceAdjustment) =>
     !b || (a.decidedAt && (!b.decidedAt || new Date(a.decidedAt) >= new Date(b.decidedAt)));
+  const setLatest = (byEmployee: Map<number, Map<string, AttendanceAdjustment>>, adjustment: AttendanceAdjustment) => {
+    const byDate = byEmployee.get(adjustment.employeeId) ?? new Map<string, AttendanceAdjustment>();
+    if (isNewer(adjustment, byDate.get(adjustment.date))) byDate.set(adjustment.date, adjustment);
+    byEmployee.set(adjustment.employeeId, byDate);
+  };
   for (const adjustment of adjustments) {
-    if (adjustment.adjustmentType === "manual_clock_in") {
-      if (isNewer(adjustment, manualClockInByDate.get(adjustment.date))) manualClockInByDate.set(adjustment.date, adjustment);
-    } else if (adjustment.adjustmentType === "manual_clock_out") {
-      if (isNewer(adjustment, manualClockOutByDate.get(adjustment.date))) manualClockOutByDate.set(adjustment.date, adjustment);
-    } else {
-      if (isNewer(adjustment, wholeDayAdjustmentByDate.get(adjustment.date))) wholeDayAdjustmentByDate.set(adjustment.date, adjustment);
-    }
+    if (adjustment.adjustmentType === "manual_clock_in") setLatest(manualClockInByEmployeeDate, adjustment);
+    else if (adjustment.adjustmentType === "manual_clock_out") setLatest(manualClockOutByEmployeeDate, adjustment);
+    else setLatest(wholeDayAdjustmentByEmployeeDate, adjustment);
   }
 
-  const approvedLeaveDates = new Set<string>();
+  const approvedLeaveDatesByEmployee = new Map<number, Set<string>>();
   for (const request of leaveRequests) {
     if (request.startDate > to || request.endDate < from) continue;
+    const leaveDates = approvedLeaveDatesByEmployee.get(request.employeeId) ?? new Set<string>();
     for (const civilDate of dates) {
-      if (civilDate >= request.startDate && civilDate <= request.endDate) approvedLeaveDates.add(civilDate);
+      if (civilDate >= request.startDate && civilDate <= request.endDate) leaveDates.add(civilDate);
     }
+    approvedLeaveDatesByEmployee.set(request.employeeId, leaveDates);
   }
 
-  const ctx: DayContext = {
-    hireCivilDate,
-    separationCivilDate,
-    employmentStatus: employee.employmentStatus,
-    holidayDates,
-    workDays,
-    workStartTime,
-    workEndTime,
-    gracePeriodMinutes,
-    timezone,
-    approvedLeaveDates,
-    eventsByDate,
-    wholeDayAdjustmentByDate,
-    manualClockInByDate,
-    manualClockOutByDate,
-  };
+  const emptyMap = new Map<string, never>();
+  const emptySet = new Set<string>();
 
-  return dates.map((civilDate) => computeDailySummaryForDate(organizationId, employeeId, civilDate, ctx));
+  return employees.map((employee) => {
+    const hireCivilDate = employee.hireDate ? deriveCivilDate(new Date(employee.hireDate), timezone) : null;
+    const separationCivilDate = employee.separationDate ? deriveCivilDate(new Date(employee.separationDate), timezone) : null;
+
+    const ctx: DayContext = {
+      hireCivilDate,
+      separationCivilDate,
+      employmentStatus: employee.employmentStatus,
+      holidayDates,
+      workDays,
+      workStartTime,
+      workEndTime,
+      gracePeriodMinutes,
+      timezone,
+      approvedLeaveDates: approvedLeaveDatesByEmployee.get(employee.id) ?? emptySet,
+      eventsByDate: eventsByEmployeeDate.get(employee.id) ?? emptyMap,
+      wholeDayAdjustmentByDate: wholeDayAdjustmentByEmployeeDate.get(employee.id) ?? emptyMap,
+      manualClockInByDate: manualClockInByEmployeeDate.get(employee.id) ?? emptyMap,
+      manualClockOutByDate: manualClockOutByEmployeeDate.get(employee.id) ?? emptyMap,
+    };
+
+    return {
+      employeeId: employee.id,
+      summaries: dates.map((civilDate) => computeDailySummaryForDate(organizationId, employee.id, civilDate, ctx)),
+    };
+  });
+}
+
+export async function getAttendanceDailySummaryRange(
+  organizationId: number,
+  employeeId: number,
+  from: string,
+  to: string,
+): Promise<DailyAttendanceSummary[]> {
+  const [row] = await getAttendanceRegisterForEmployees(organizationId, [employeeId], from, to);
+  if (!row) throw new EmployeeNotFoundError();
+  return row.summaries;
 }
 
 export async function getAttendanceDailySummary(organizationId: number, employeeId: number, date: string): Promise<DailyAttendanceSummary> {

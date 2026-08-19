@@ -41,6 +41,7 @@ import type {
   AttachBackgroundCheckEvidenceBody,
   AttendanceAdjustment,
   AttendanceEvent,
+  AttendanceRegisterResponse,
   AuditEventListResponse,
   AuthSession,
   BackgroundCheck,
@@ -108,6 +109,7 @@ import type {
   LinkEmployeeUserInput,
   ListApplicationsParams,
   ListAttendanceEventsParams,
+  ListAttendanceRegisterParams,
   ListAuditEventsParams,
   ListCandidatesParams,
   ListEmployeesParams,
@@ -5686,6 +5688,96 @@ export function useGetAttendanceDailySummary<TData = Awaited<ReturnType<typeof g
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetAttendanceDailySummaryQueryOptions(organizationId,employeeId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListAttendanceRegisterUrl = (organizationId: number,
+    params: ListAttendanceRegisterParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/attendance?${stringifiedParams}` : `/api/organizations/${organizationId}/attendance`
+}
+
+/**
+ * A view over the W66 daily-summary read-model, paginated by employee (never a raw table scan, never a second summary engine). attendance.manage holders get organization-wide visibility; everyone else (attendance.read.own) sees only themselves and their direct reports (employees.reportingManagerId) — the same service-layer tier leaveCalendar.ts already uses, with no dedicated attendance.read.team permission. employeeId/ departmentId/branchId filters can only narrow this authorized scope, never broaden it — an employeeId outside the caller's scope yields zero rows, not an error. status filters the computed page: a row is kept if at least one of its days matches; `total` reflects the employee-level scope/filter count before status filtering. A manager with zero direct reports receives a valid empty result, never an organization-wide fallback. Gated by the "attendance" module.
+ * @summary Attendance Register — internal HR/manager list view
+ */
+export const listAttendanceRegister = async (organizationId: number,
+    params: ListAttendanceRegisterParams, options?: RequestInit): Promise<AttendanceRegisterResponse> => {
+
+  return customFetch<AttendanceRegisterResponse>(getListAttendanceRegisterUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAttendanceRegisterQueryKey = (organizationId: number,
+    params?: ListAttendanceRegisterParams,) => {
+    return [
+    `/api/organizations/${organizationId}/attendance`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListAttendanceRegisterQueryOptions = <TData = Awaited<ReturnType<typeof listAttendanceRegister>>, TError = ErrorType<ApiError>>(organizationId: number,
+    params: ListAttendanceRegisterParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAttendanceRegister>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAttendanceRegisterQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAttendanceRegister>>> = ({ signal }) => listAttendanceRegister(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAttendanceRegister>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAttendanceRegisterQueryResult = NonNullable<Awaited<ReturnType<typeof listAttendanceRegister>>>
+export type ListAttendanceRegisterQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Attendance Register — internal HR/manager list view
+ */
+
+export function useListAttendanceRegister<TData = Awaited<ReturnType<typeof listAttendanceRegister>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    params: ListAttendanceRegisterParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAttendanceRegister>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAttendanceRegisterQueryOptions(organizationId,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

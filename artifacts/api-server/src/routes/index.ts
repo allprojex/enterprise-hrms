@@ -51,6 +51,7 @@ import tenantContextRouter from "./tenantContext";
 import attendanceEventsRouter from "./attendanceEvents";
 import attendanceAdjustmentsRouter from "./attendanceAdjustments";
 import attendanceDailySummaryRouter from "./attendanceDailySummary";
+import attendanceRegisterRouter from "./attendanceRegister";
 
 const router: IRouter = Router();
 
@@ -106,5 +107,6 @@ router.use(tenantContextRouter);
 router.use(attendanceEventsRouter);
 router.use(attendanceAdjustmentsRouter);
 router.use(attendanceDailySummaryRouter);
+router.use(attendanceRegisterRouter);
 
 export default router;
