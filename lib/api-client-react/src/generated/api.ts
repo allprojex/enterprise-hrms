@@ -40,6 +40,7 @@ import type {
   AssignRoleInput,
   AttachBackgroundCheckEvidenceBody,
   AttendanceAdjustment,
+  AttendanceDashboard,
   AttendanceEvent,
   AttendanceRegisterResponse,
   AuditEventListResponse,
@@ -89,6 +90,7 @@ import type {
   EmployeeSkill,
   ForgotPasswordInput,
   GetAttendanceDailySummaryParams,
+  GetAttendanceDashboardParams,
   GrantRolePermissionInput,
   HealthStatus,
   InternalVacanciesResponse,
@@ -173,6 +175,7 @@ import type {
   RestructureDepartmentInput,
   RestructurePositionInput,
   Role,
+  RunAttendanceReportParams,
   RunRecruitmentReportParams,
   RunReportParams,
   SaveInterviewScorecardInput,
@@ -5778,6 +5781,191 @@ export function useListAttendanceRegister<TData = Awaited<ReturnType<typeof list
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListAttendanceRegisterQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAttendanceDashboardUrl = (organizationId: number,
+    params?: GetAttendanceDashboardParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/attendance/dashboard?${stringifiedParams}` : `/api/organizations/${organizationId}/attendance/dashboard`
+}
+
+/**
+ * A zero-filled count of every W66 status (present, late, partial, absent, on_leave, holiday, non_working_day, and null/"not applicable") for a single organization-local civil date — "today" (organization-timezone-derived, never browser-local) by default, or an explicit ?date=. Computed live over the W66 read-model, never cached or persisted. Visibility mirrors the Attendance Register (W69) exactly: attendance.manage holders see the whole organization; everyone else sees only themselves and their direct reports. Gated by the "attendance" module.
+ * @summary Attendance dashboard — status tile breakdown for a single date
+ */
+export const getAttendanceDashboard = async (organizationId: number,
+    params?: GetAttendanceDashboardParams, options?: RequestInit): Promise<AttendanceDashboard> => {
+
+  return customFetch<AttendanceDashboard>(getGetAttendanceDashboardUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAttendanceDashboardQueryKey = (organizationId: number,
+    params?: GetAttendanceDashboardParams,) => {
+    return [
+    `/api/organizations/${organizationId}/attendance/dashboard`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetAttendanceDashboardQueryOptions = <TData = Awaited<ReturnType<typeof getAttendanceDashboard>>, TError = ErrorType<ApiError>>(organizationId: number,
+    params?: GetAttendanceDashboardParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAttendanceDashboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAttendanceDashboardQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAttendanceDashboard>>> = ({ signal }) => getAttendanceDashboard(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAttendanceDashboard>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAttendanceDashboardQueryResult = NonNullable<Awaited<ReturnType<typeof getAttendanceDashboard>>>
+export type GetAttendanceDashboardQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Attendance dashboard — status tile breakdown for a single date
+ */
+
+export function useGetAttendanceDashboard<TData = Awaited<ReturnType<typeof getAttendanceDashboard>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    params?: GetAttendanceDashboardParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAttendanceDashboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAttendanceDashboardQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRunAttendanceReportUrl = (organizationId: number,
+    reportKey: string,
+    params?: RunAttendanceReportParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/attendance/reports/${reportKey}?${stringifiedParams}` : `/api/organizations/${organizationId}/attendance/reports/${reportKey}`
+}
+
+/**
+ * Computes a registered attendance report (see GET /reports, category "attendance": attendance_daily_register, attendance_monthly_summary, attendance_late_arrivals, attendance_absenteeism) over a date range, scoped to the caller's own/team/organization-wide Attendance visibility tier (identical to the Register and Dashboard). from/to default to organization-local "today" when omitted, and reuse the same range validation as the Register (max 100 days, no inverted range). Pass ?format=csv for a CSV download instead of JSON.
+ * @summary Run an attendance report
+ */
+export const runAttendanceReport = async (organizationId: number,
+    reportKey: string,
+    params?: RunAttendanceReportParams, options?: RequestInit): Promise<ReportRunResult | string> => {
+
+  return customFetch<ReportRunResult | string>(getRunAttendanceReportUrl(organizationId,reportKey,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getRunAttendanceReportQueryKey = (organizationId: number,
+    reportKey: string,
+    params?: RunAttendanceReportParams,) => {
+    return [
+    `/api/organizations/${organizationId}/attendance/reports/${reportKey}`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getRunAttendanceReportQueryOptions = <TData = Awaited<ReturnType<typeof runAttendanceReport>>, TError = ErrorType<ApiError>>(organizationId: number,
+    reportKey: string,
+    params?: RunAttendanceReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runAttendanceReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getRunAttendanceReportQueryKey(organizationId,reportKey,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof runAttendanceReport>>> = ({ signal }) => runAttendanceReport(organizationId,reportKey,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && reportKey !== null && reportKey !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof runAttendanceReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type RunAttendanceReportQueryResult = NonNullable<Awaited<ReturnType<typeof runAttendanceReport>>>
+export type RunAttendanceReportQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Run an attendance report
+ */
+
+export function useRunAttendanceReport<TData = Awaited<ReturnType<typeof runAttendanceReport>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    reportKey: string,
+    params?: RunAttendanceReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runAttendanceReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getRunAttendanceReportQueryOptions(organizationId,reportKey,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

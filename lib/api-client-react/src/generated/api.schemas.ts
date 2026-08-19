@@ -828,6 +828,40 @@ export interface AttendanceRegisterResponse {
   pageSize: number;
 }
 
+/**
+ * A DailyAttendanceSummary status, or null for "not applicable" (no summary generated for that day).
+ * @nullable
+ */
+export type AttendanceDashboardBreakdownItemStatus = typeof AttendanceDashboardBreakdownItemStatus[keyof typeof AttendanceDashboardBreakdownItemStatus] | null;
+
+
+export const AttendanceDashboardBreakdownItemStatus = {
+  present: 'present',
+  late: 'late',
+  partial: 'partial',
+  absent: 'absent',
+  on_leave: 'on_leave',
+  holiday: 'holiday',
+  non_working_day: 'non_working_day',
+} as const;
+
+export interface AttendanceDashboardBreakdownItem {
+  /**
+     * A DailyAttendanceSummary status, or null for "not applicable" (no summary generated for that day).
+     * @nullable
+     */
+  status: AttendanceDashboardBreakdownItemStatus;
+  count: number;
+}
+
+export interface AttendanceDashboard {
+  date: string;
+  /** Employees in the caller's authorized scope (organization-wide, or self + direct reports). */
+  totalEmployeesCount: number;
+  /** All 8 buckets (7 statuses + null), zero-filled, in a fixed display order. */
+  statusBreakdown: AttendanceDashboardBreakdownItem[];
+}
+
 export interface LeaveBalanceSummary {
   leaveTypeId: number;
   leaveTypeName: string;
@@ -4315,6 +4349,27 @@ status?: string;
 page?: number;
 pageSize?: number;
 };
+
+export type GetAttendanceDashboardParams = {
+/**
+ * YYYY-MM-DD, organization-local civil date. Defaults to organization-local "today".
+ */
+date?: string;
+};
+
+export type RunAttendanceReportParams = {
+from?: string;
+to?: string;
+format?: RunAttendanceReportFormat;
+};
+
+export type RunAttendanceReportFormat = typeof RunAttendanceReportFormat[keyof typeof RunAttendanceReportFormat];
+
+
+export const RunAttendanceReportFormat = {
+  json: 'json',
+  csv: 'csv',
+} as const;
 
 export type ListPublicHolidaysParams = {
 year?: number;

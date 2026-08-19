@@ -40,7 +40,7 @@ import {
 
 export class InvalidAttendanceRegisterFilterError extends Error {}
 
-const ATTENDANCE_SUMMARY_STATUSES: readonly AttendanceSummaryStatus[] = [
+export const ATTENDANCE_SUMMARY_STATUSES: readonly AttendanceSummaryStatus[] = [
   "present",
   "late",
   "partial",

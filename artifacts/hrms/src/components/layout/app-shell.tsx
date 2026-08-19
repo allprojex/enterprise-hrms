@@ -319,6 +319,11 @@ export function AppShell({ children }: AppShellProps) {
     // uses (see the isHrCapable entries around this one); the backend's
     // own/team tier still lets a manager reach the page directly by URL.
     ...(isHrCapable ? [{ href: '/attendance-register', label: 'Attendance Register', icon: ListChecks } satisfies NavItem] : []),
+    // Phase 3B, W70 — same isHrCapable-only nav precedent as the Register
+    // above; own/team tier is still reachable directly by URL for anyone
+    // holding attendance.read.own, per attendanceReporting.ts's scope rules.
+    ...(isHrCapable ? [{ href: '/attendance-dashboard', label: 'Attendance Dashboard', icon: LayoutDashboard } satisfies NavItem] : []),
+    ...(isHrCapable ? [{ href: '/attendance-reports', label: 'Attendance Reports', icon: FileBarChart } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisitions', label: 'Job Requisitions', icon: ClipboardList } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisition-approvals', label: 'Requisition Approvals', icon: Stamp } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/vacancies', label: 'Vacancies', icon: Megaphone } satisfies NavItem] : []),

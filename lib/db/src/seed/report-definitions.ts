@@ -110,6 +110,46 @@ export const REPORT_DEFINITIONS: readonly ReportDefinition[] = [
     category: "recruitment",
     requiredPermissionKey: "recruitment.reports.read",
   },
+  // Phase 3B, W70 — Attendance Dashboard & Reporting (§7/§10 W70 row).
+  // Registered here for catalog discoverability via the existing GET
+  // /reports (ADR-016), but — like the recruitment_* keys above — NOT
+  // executed through the generic GET .../reports/:reportKey/run route
+  // (lib/reporting.ts's RUNNERS map has no entries for these keys, so that
+  // route safely 404s "Unknown report" for any of them). Attendance reports
+  // need the own/team/organization-wide visibility tiers the generic runner
+  // cannot express — execution is a dedicated, scope-aware route instead
+  // (GET .../attendance/reports/:reportKey,
+  // artifacts/api-server/src/routes/attendanceReporting.ts), reusing the
+  // same {columns, rows}/CSV export shape and requiredPermissionKey
+  // convention this registry already established.
+  {
+    key: "attendance_daily_register",
+    label: "Daily Register",
+    description: "Per-employee, per-day attendance status for a date range, flattened for export.",
+    category: "attendance",
+    requiredPermissionKey: "attendance.read.own",
+  },
+  {
+    key: "attendance_monthly_summary",
+    label: "Monthly Summary",
+    description: "Per-employee attendance status counts (present/late/partial/absent/on leave/holiday/non-working day) across a date range.",
+    category: "attendance",
+    requiredPermissionKey: "attendance.read.own",
+  },
+  {
+    key: "attendance_late_arrivals",
+    label: "Late Arrivals",
+    description: "Every late-arrival instance in a date range, with clock-in time and minutes late.",
+    category: "attendance",
+    requiredPermissionKey: "attendance.read.own",
+  },
+  {
+    key: "attendance_absenteeism",
+    label: "Absenteeism",
+    description: "Every unexplained-absence instance in a date range (excludes approved leave, holidays, and non-working days).",
+    category: "attendance",
+    requiredPermissionKey: "attendance.read.own",
+  },
 ] as const;
 
 /** Throws on a duplicate key — the only integrity rule this registry has (no dependency graph, unlike modules). */

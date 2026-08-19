@@ -2338,6 +2338,56 @@ export const ListAttendanceRegisterResponse = zod.object({
 
 
 /**
+ * A zero-filled count of every W66 status (present, late, partial, absent, on_leave, holiday, non_working_day, and null/"not applicable") for a single organization-local civil date — "today" (organization-timezone-derived, never browser-local) by default, or an explicit ?date=. Computed live over the W66 read-model, never cached or persisted. Visibility mirrors the Attendance Register (W69) exactly: attendance.manage holders see the whole organization; everyone else sees only themselves and their direct reports. Gated by the "attendance" module.
+ * @summary Attendance dashboard — status tile breakdown for a single date
+ */
+export const GetAttendanceDashboardParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetAttendanceDashboardQueryParams = zod.object({
+  "date": zod.date().optional().describe('YYYY-MM-DD, organization-local civil date. Defaults to organization-local \"today\".')
+})
+
+export const GetAttendanceDashboardResponse = zod.object({
+  "date": zod.coerce.date(),
+  "totalEmployeesCount": zod.number().describe('Employees in the caller\'s authorized scope (organization-wide, or self + direct reports).'),
+  "statusBreakdown": zod.array(zod.object({
+  "status": zod.union([zod.literal('present'),zod.literal('late'),zod.literal('partial'),zod.literal('absent'),zod.literal('on_leave'),zod.literal('holiday'),zod.literal('non_working_day'),zod.literal(null)]).nullable().describe('A DailyAttendanceSummary status, or null for \"not applicable\" (no summary generated for that day).'),
+  "count": zod.number()
+})).describe('All 8 buckets (7 statuses + null), zero-filled, in a fixed display order.')
+})
+
+
+/**
+ * Computes a registered attendance report (see GET /reports, category "attendance": attendance_daily_register, attendance_monthly_summary, attendance_late_arrivals, attendance_absenteeism) over a date range, scoped to the caller's own/team/organization-wide Attendance visibility tier (identical to the Register and Dashboard). from/to default to organization-local "today" when omitted, and reuse the same range validation as the Register (max 100 days, no inverted range). Pass ?format=csv for a CSV download instead of JSON.
+ * @summary Run an attendance report
+ */
+export const RunAttendanceReportParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "reportKey": zod.coerce.string()
+})
+
+export const RunAttendanceReportQueryParams = zod.object({
+  "from": zod.date().optional(),
+  "to": zod.date().optional(),
+  "format": zod.enum(['json', 'csv']).optional()
+})
+
+export const RunAttendanceReportResponse = zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "description": zod.string(),
+  "generatedAt": zod.coerce.date(),
+  "columns": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string()
+})),
+  "rows": zod.array(zod.record(zod.string(), zod.unknown()))
+})
+
+
+/**
  * Active holidays by default; a recurring holiday always matches every year filter, since it applies every year regardless of its stored template year. Gated by the "leave" module.
  * @summary List an organization's public holidays
  */
