@@ -16,7 +16,7 @@ _Last updated: 2026-08-11 — **Phase 3A — Recruitment & Hiring is complete.**
 
 ## Current Phase
 
-**Phase 3B — Attendance — In Progress.** W64 (Attendance Foundation & Module Activation), W65 (Attendance Event Capture), W66 (Daily Summary Read-Model & Leave/Holiday Integration), W67 (Attendance Adjustments: Employee-Initiated Requests + Approval), W68 (Employee Self-Service Attendance — ESS Integration), W69 (Attendance Register — Internal HR/Manager View), W70 (Attendance Dashboard & Reporting), and W71 (Phase 3B Verification) done: schema (`attendance_events`, `attendance_adjustments`, migration `0037`, RLS enabled), module flipped `hidden` → `active`, four permissions seeded, `lib/attendanceAuthorization.ts` foundation, real self-service clock-in/out + HR direct-entry routes, a live-computed daily summary read-model, employee-initiated correction requests with atomic approve/reject, a "My Attendance" ESS tab, an internal HR/manager Attendance Register, a Dashboard + four CSV-exportable Reports, and now a repo-wide verification pass (W71) confirming all of the above against the frozen plan end to end — **PASS, no defects found, zero source changes**. Next: **W72 — Phase 3B Completion Report**. See the Phase 3B Progress section below.
+**Phase 3B — Attendance — Complete.** All nine workstreams (W64–W72) done: schema (`attendance_events`, `attendance_adjustments`, migration `0037`, RLS enabled), module flipped `hidden` → `active`, four permissions seeded, `lib/attendanceAuthorization.ts` foundation, real self-service clock-in/out + HR direct-entry routes, a live-computed daily summary read-model, employee-initiated correction requests with atomic approve/reject, a "My Attendance" ESS tab, an internal HR/manager Attendance Register, a Dashboard + four CSV-exportable Reports, a repo-wide verification pass (W71 — PASS, no defects, zero source changes), and this formal completion report (W72). See the **Phase 3B Completion Report** below for the full closing record, and the Phase 3B Progress section for the per-workstream breakdown. Development-only; production remains completely untouched. Next roadmap step: see the Phase 3B Completion Report's own closing section.
 
 **Tenant Security — Closed.** Development session rotation completed (approved separately); a real organization-route hostname-consistency gap found during that re-verification is now fixed and live-QA'd (WWM/Acme isolation confirmed both directions). Production remains unassessed and untouched throughout this entire tenant-security thread. **Phase 3B — Attendance Capture** stays **DRAFT, NOT FROZEN** — W64 is next, pending your go-ahead.
 
@@ -32,7 +32,7 @@ _Last updated: 2026-08-11 — **Phase 3A — Recruitment & Hiring is complete.**
 
 ## Phase 3B Progress
 
-Status: **IN PROGRESS** (frozen: `docs/PHASE_3B_ATTENDANCE_IMPLEMENTATION_PLAN.md`).
+Status: **COMPLETE** (frozen: `docs/PHASE_3B_ATTENDANCE_IMPLEMENTATION_PLAN.md`).
 
 - **W64 — Attendance Foundation & Module Activation — Done (2026-08-19).** `attendance_events` (append-only clock-event log) and `attendance_adjustments` (correction/approval schema only) tables, migration `0037`, both RLS-enabled with zero policies; `attendance` module flipped `hidden` → `active`; four permissions seeded (`attendance.read.own`, `attendance.clock.own`, `attendance.manage`, `attendance.adjustment.approve`); `lib/attendanceAuthorization.ts` foundation (own/team/organization-wide tiers, mirrors `recruitmentAuthorization.ts`). No route, no capture flow, no frontend — exactly the frozen plan's own W64 scope.
 - **W65 — Attendance Event Capture (Self-Service Clocking + HR Manual Entry) — Done (2026-08-19).** `POST/GET .../attendance-events` (self-service, server-derived identity, no sequencing rejection per Open Decision 1) and `POST .../attendance-adjustments` (HR direct-entry, auto-approved). No new migration (reuses W64's tables). No frontend — API-only, per the frozen plan's own W65 scope. See this file's header paragraph above for full detail, including the two reconciliation notes (sequencing behavior; HR-manual mechanism routed through `attendance_adjustments` rather than a direct `attendance_events` write).
@@ -42,7 +42,240 @@ Status: **IN PROGRESS** (frozen: `docs/PHASE_3B_ATTENDANCE_IMPLEMENTATION_PLAN.m
 - **W69 — Attendance Register (Internal HR/Manager View) — Done (2026-08-19).** `GET .../organizations/:id/attendance` — a batched, paginated (by-employee) view over W66's existing read-model (`getAttendanceRegisterForEmployees`, refactored not duplicated); own/team/org-wide visibility via `attendanceAuthorization.ts` with no new permission (team tier via `employees.reportingManagerId`); filters (employee/department/branch/status) always AND-combined with the pre-resolved scope, never broadening it; status filtering happens after pagination (documented tradeoff); inline manual-entry dialog reuses W65/W67's `POST .../attendance-adjustments` verbatim, gated behind the same HR-capable role check used for nav gating to avoid a client-side employeeId-mismatch trap. No new migration. See this file's header paragraph above for full detail, including the API-contract simplification (from/to only, no separate date mode) and the pre-existing lint-tooling gap discovered (and flagged, not fixed) this session.
 - **W70 — Attendance Dashboard & Reporting — Done (2026-08-19).** `GET .../attendance/dashboard` (zero-filled tile breakdown of all 8 W66 status buckets for a single organization-local date, "today" by default) and `GET .../attendance/reports/:reportKey` (`attendance_daily_register`, `attendance_monthly_summary`, `attendance_late_arrivals`, `attendance_absenteeism` — reused Reporting Foundation registry, executed via a dedicated visibility-scoped route rather than the generic runner, same pattern as Recruitment's W61); own/team/org-wide visibility mirrors the Register (W69) exactly, no new permission key; CSV export via the existing `?format=csv` convention; no attendance-rate/lateness-rate metric (undefined by the frozen plan, not invented). No new migration. See this file's header paragraph above for full detail, including the deliberate ~10-line scope-resolution duplication (to avoid touching W69) and the "no rate metric" flag.
 - **W71 — Phase 3B Verification — Done (2026-08-19). PASS, no defects found, zero source changes.** Full regression (905 backend / 274 frontend), typecheck, codegen (deterministic, zero drift), migration ledger/drift (still `0037`, rollback files present), API contract (9 operationIds / 9 handlers, all module+permission-gated, no duplicates), data-integrity code inspection (append-only events, decision updates scoped to 3 fields only, audit confined to the adjustment routes), security baseline (70/70 RLS-enabled, 0 disabled, 0 policies, anon PostgREST denied), and a full live E2E QA pass against WWM + Acme (35/35 real assertions passed; one QA-script-only scripting mistake independently reverified as a non-issue) — all confirmed. See this file's header paragraph above for the full breakdown.
-- **W72 — Phase 3B Completion Report — Not started.**
+- **W72 — Phase 3B Completion Report — Done (2026-08-19).** Documentation-only, no source changes. Updated this file: status flipped to **COMPLETE**, added the **Phase 3B Completion Report** section below — mirroring the Phase 3A/2B/2A completion-report structure — covering completed scope, frozen-plan reconciliation, the applied migration state, permissions, authorization, tenant isolation, security posture, integrations, final verification totals, known non-blocking items, and production status.
+
+---
+
+## Phase 3B Completion Report (W72)
+
+All nine workstreams (W64–W72) are complete. Checking against `docs/PHASE_3B_ATTENDANCE_IMPLEMENTATION_PLAN.md`'s own per-workstream "Definition of done" lines (§10 — this document has no single numbered Phase Acceptance Criteria section the way Phase 3A's §24 does, so each workstream's own line is the frozen bar), item by item:
+
+- **W64** — "schema migrated..., permissions seeded, module enable-able, foundation tests green." Yes — migration `0037` applied to development (not merely generated; see Database below), four permissions seeded and confirmed live, `attendance` module flips active/enabled independently, 11 foundation tests green.
+- **W65** — "events genuinely recordable and readable through the real API against a real database." Yes — live-verified against `vkvirwdxoiwsiftaarox` in W65's own QA and re-confirmed in W71.
+- **W66** — "summary output verified correct against every documented status/eligibility rule in §3.3/§3.7." Yes — 14 pure-function + 23 route-integration tests, plus a non-UTC-timezone live QA pass (Asia/Tokyo) specifically exercising the civil-date boundary.
+- **W67** — "full request→decide cycle works, correctly distinct from W65's immediate HR-entry path." Yes — pending→approved/rejected, terminal-state `409`, concurrent-decision safety all live-verified, re-confirmed in W71's terminal-conflict re-test.
+- **W68** — "an employee can clock in/out and see their own attendance entirely through ESS." Yes — RTL suite plus live HTTP QA of the exact endpoints/payloads the tab sends.
+- **W69** — "HR can see and filter a real attendance register end to end." Yes.
+- **W70** — "dashboard and every frozen report verified correct against real data." Yes — all 4 report keys and the dashboard live-verified with mixed real statuses (present/late/absent) in both W70's own QA and W71's re-confirmation.
+- **W71** — repo-wide verification. **PASS, no defects found, zero source changes.**
+- **W72** (this report) — declares completion status accurately below, including every known non-blocking item, and does not claim Attendance's explicitly-excluded scope (§9) as built.
+
+### Executive Summary
+
+Phase 3B delivered a complete, tenant-isolated, live-computed Attendance module end to end: module activation → self-service clock-in/out and HR manual entry → a timezone-aware, precedence-ordered daily summary read-model integrated with Leave and Public Holidays → employee-initiated correction requests with atomic HR approve/reject → an ESS "My Attendance" tab → an internal HR/manager Attendance Register → an Attendance Dashboard → four CSV-exportable Attendance Reports — on top of the completed Foundation, Phase 2A, Phase 2B (which already delivered Leave and Employee Self Service ahead of Phase 3's own nominal ordering — see Next Roadmap Step below), and Phase 3A Recruitment. Nine workstreams (W64–W70) each shipped independently reviewed, tested, and live-QA'd against the real development database; W71 verified the phase as a whole with zero defects and zero source changes; W72 (this report) closes it.
+
+**A load-bearing distinction from every prior phase's completion report:** Phase 3B's migrations (`0036`, `0037`) are **already applied to the development database**, not merely generated and awaiting approval like every earlier phase's migrations. This reflects an explicit, separately-approved rollout discipline this session established starting with the Supabase RLS remediation (`0036`) and carried through Attendance (`0037`) — migrate → verify → seed → live QA against real data — documented in full in `docs/SUPABASE_SECURITY_REMEDIATION.md` and this file's own W64–W71 entries. **Production received none of this** — no migration, no data, no configuration change of any kind.
+
+### Workstreams Completed
+
+- **W64 — Attendance Foundation & Module Activation.** `attendance_events`/`attendance_adjustments` schema (migration `0037`), module flipped `hidden`→`active`, four permissions seeded, `lib/attendanceAuthorization.ts` foundation.
+- **W65 — Attendance Event Capture.** Self-service clock-in/out (server-derived identity, no sequencing rejection per Open Decision 1) and HR direct-entry (auto-approved via `attendance_adjustments`, not a raw `hr_manual` event — a deliberate reconciliation, see below).
+- **W66 — Daily Summary Read-Model & Leave/Holiday Integration.** `lib/attendanceDailySummary.ts`, precedence-ordered, timezone-aware, never persisted.
+- **W67 — Attendance Adjustments.** Employee-initiated requests, atomic approve/reject, organization-wide-only approval authority (Open Decision 3).
+- **W68 — Employee Self-Service Attendance.** "My Attendance" ESS tab, zero new backend routes.
+- **W69 — Attendance Register.** Batched, paginated internal HR/manager list view over the W66 read-model.
+- **W70 — Attendance Dashboard & Reporting.** Live tile breakdown + four CSV-exportable reports, reusing the W17/ADR-016 registry.
+- **W71 — Phase 3B Verification.** Full repo-wide verification pass; zero defects found, zero source changes.
+- **W72 — Phase 3B Completion Report.** This report.
+
+### Features Delivered
+
+**Capture:** an employee clocks themselves in/out through ESS (server-authoritative timestamp, server-derived identity — a client-supplied `employeeId` is always ignored); HR can enter/correct attendance directly for any organization employee via the same underlying mechanism, auto-approved immediately.
+
+**Computed status:** every day's attendance status (`present`/`late`/`partial`/`absent`/`on_leave`/`holiday`/`non_working_day`/`null`) is computed live on every read from raw events, approved adjustments, approved Leave, and Public Holidays — never stored, never a second calculation engine, always timezone-correct via the organization's own configured IANA timezone.
+
+**Correction workflow:** an employee can request a correction to their own attendance (always `pending`, never self-approving); HR/org-admin (`attendance.adjustment.approve`) decides it, atomically, with terminal-state protection against double-decision.
+
+**Self-service surface:** an ESS "My Attendance" tab — clock controls, a 7-day recent summary, recent raw events, and a correction-request form — independently module-gated exactly like My Leave and Internal Vacancies.
+
+**Internal management surfaces:** an Attendance Register (paginated, filterable, own/team/organization-wide scoped), an Attendance Dashboard (a same-day, zero-filled status tile breakdown), and four CSV-exportable Attendance Reports (`attendance_daily_register`, `attendance_monthly_summary`, `attendance_late_arrivals`, `attendance_absenteeism`) — all pure read-side aggregation over the identical W66 read-model, all sharing the identical own/team/organization-wide visibility tiers.
+
+### Frozen-Plan Reconciliation
+
+Interpretations and reconciliations made during implementation, each already individually documented in this file's own W64–W70 header paragraphs, consolidated here:
+
+- **Repeated clock-ins are permitted, not rejected** — Open Decision 1's own recommended default; a second clock-in with no intervening clock-out returns `201`, not `400`. Accidental rapid double-taps are treated as a client UX concern, not a server-integrity concern.
+- **First-in/last-out summary math** — no multi-segment (e.g. lunch-break) net-duration calculation; the schema supports it without change if ever needed later, but W64–W70 never required it.
+- **An incomplete clock pair reads as `partial`** — §3.3 lists `partial` in the status enum with no definition; this is the interpretation used throughout, live-verified end to end in W71 (clock-in alone → `partial`, clock-out completes it → `present`/`late`).
+- **`excuse_absence` maps to `on_leave`** — no literal 8th status exists among the 7 frozen values; the closest existing authorized-absence status was reused rather than inventing a new one.
+- **A missing organization timezone is a hard `409`, never a silent UTC fallback** — Open Decision 2's own recommended default, to avoid systematically wrong "late" calculations for any non-UTC organization.
+- **HR direct entry is a `attendance_adjustments` row (auto-approved), not a raw `attendance_events` row with `source: "hr_manual"`** — W65's own concrete "Backend/API impact" line assigns this the concrete route it actually got; `source: "hr_manual"` remains schema-valid but structurally unreached through any built route, same as `biometric`/`import`.
+- **Correction-request approval is organization-wide only, no manager/delegated tier** — Open Decision 3's own recommended default for W67; a manager-tier extension was never built or approved.
+- **No employee correction-request history/list UI or endpoint** — the frozen plan's own W67 "Backend/API impact" line is an exhaustive three-route list that never included a GET/list route; a submitted request is confirmed via its own create response, not a persisted-and-rendered history.
+- **No Attendance-rate or lateness-rate metric anywhere (dashboard or reports)** — the frozen W70 scope line defines only a raw-count tile breakdown with no denominator or exclusion rule specified anywhere in the frozen document; inventing one would have violated the "do not invent executive KPIs" discipline this session was held to. If ever wanted, it needs its own frozen definition first.
+- **No new charting library** — Recruitment's own dashboard precedent (plain Card/Badge/Table) was reused; nothing in W70 genuinely required a chart.
+- **`/attendance/dashboard` + `/attendance-reports` as dedicated routes**, not folded into the existing `GET /dashboard/summary` widget — Open Decision 4's own recommended default, given Attendance's comparable operational scope to Recruitment's own W61 precedent.
+- **The four W70 report keys** (`attendance_daily_register`, `attendance_monthly_summary`, `attendance_late_arrivals`, `attendance_absenteeism`) were selected from §7's own explicitly non-binding candidate list, at W70's own start, per that section's own "this plan's W70's own decision to make" framing.
+- **W69's status filter applies after employee-level pagination** — status is a computed field, not a stored column; `total` reflects the pre-status-filter employee-scope count. Documented as a deliberate, transparent tradeoff for a first register cut, not silently glossed over, and never silently changed by W70's own reporting work (which computes its own, separately correct, full-range totals for each report instead).
+- **No biometric device implementation** — `attendance_events.source` includes `biometric` as a schema-valid, reserved-only value (§3.6's own "boundary-only" framing, Open Decision 5's own recommended default); no device protocol exists to implement against yet.
+- **No payroll integration, overtime pay, shift scheduling/rostering, GPS/geofencing, mobile app, offline sync, advanced timesheets, project time tracking, or performance-penalty logic** — all explicitly listed in §9's own "Explicit Exclusions (this phase does not build)," never attempted.
+- **No persisted daily-summary table** — §3.3's own explicit "a computed read-model, not stored" instruction; every dashboard/report figure is computed live per request, exactly like Recruitment's own W61 reporting discipline.
+- **No persisted reporting/analytics table** — same discipline, extended to W70; `getAttendanceRegisterForEmployees` is the single shared computation both the Register and every Dashboard/Report figure route through.
+- **Cross-midnight/overnight shifts remain explicitly out of scope for W64–W70**, per §2's own framing — a clock-out is always paired with clock-in events sharing its own civil date; night-shift support is a later, separately-scoped extension if ever approved.
+
+None of the above are presented as defects — every one is either the frozen plan's own explicit exclusion, an Open Decision's own recommended default actually taken, or a reconciliation between the frozen document's general prose and its own more specific, controlling statement (per the "the frozen plan's most specific statement controls" discipline established from W65 onward).
+
+### Database
+
+**Migrations `0036`–`0037`, both applied to development, both purely additive with a hand-authored `.down.sql`:**
+- `0036_enable_rls_deny_default.sql` — enables RLS with zero policies on all (then-)68 public tables (Supabase Data API remediation, not Attendance-specific, but the security foundation every Attendance table was subsequently built on top of).
+- `0037_redundant_rictor.sql` — `attendance_events`, `attendance_adjustments` (W64), RLS-enabled with zero policies from the same migration, matching `0036`'s own precedent.
+
+**Current migration status (W71/W72 re-confirmed):** journal `0000`–`0037`, 38 sequential entries, no gaps or duplicates; every migration has a matching `.down.sql`; the development database's own `drizzle.__drizzle_migrations` table confirms row id 38 / journal index 37 (`0037_redundant_rictor`) as the latest applied migration, matching the source tree exactly; `drizzle-kit generate` reports "No schema changes, nothing to migrate" — zero drift. **No migration was applied to production** — production remains on whatever migration state it was at before this entire Phase 3B effort began; production rollout (including `0036`/`0037`) requires its own separate, explicit approval and preflight, per this session's own repeated instruction.
+
+**Total public tables: 70** (68 pre-`0036` + the 2 Attendance tables from `0037`) — **all 70 RLS-enabled, 0 RLS-disabled, 0 permissive policies anywhere in `public`.**
+
+### APIs
+
+**9 endpoints across 5 route files**, all registered exactly once, no duplicates (verified by direct route-file inspection in W71):
+
+| Route | Method | Permission |
+|---|---|---|
+| `.../attendance-events` | POST | `attendance.clock.own` |
+| `.../attendance-events` | GET | `attendance.read.own` |
+| `.../attendance-adjustments` | POST | `attendance.read.own` (branches internally on `attendance.manage`) |
+| `.../attendance-adjustments/:id/approve` | POST | `attendance.adjustment.approve` |
+| `.../attendance-adjustments/:id/reject` | POST | `attendance.adjustment.approve` |
+| `.../employees/:employeeId/attendance/summary` | GET | `attendance.read.own` |
+| `.../attendance` (Register) | GET | `attendance.read.own` |
+| `.../attendance/dashboard` | GET | `attendance.read.own` |
+| `.../attendance/reports/:reportKey` | GET | `attendance.read.own` |
+
+Every one of the 9 handlers composes the identical `requireAuth` → `requireMembership("organizationId")` → `requireModuleEnabled("attendance")` → `requirePermission(...)` chain — confirmed by direct grep across all 5 route files in W71, not assumed. **OpenAPI:** 9 matching paths under the `attendance-events`/`attendance-adjustments`/`attendance-daily-summary`/`attendance-register`/`attendance-reporting` tags. **Generated client:** 9 matching hooks (`useRecordAttendanceEvent`, `useListAttendanceEvents`, `useRecordAttendanceAdjustment`, `useApproveAttendanceAdjustment`, `useRejectAttendanceAdjustment`, `useGetAttendanceDailySummary`, `useListAttendanceRegister`, `useGetAttendanceDashboard`, `useRunAttendanceReport`) — confirmed present, zero missing, zero extra. `orval codegen` produces byte-identical output across two consecutive runs, and is identical to the already-checked-in generated files (zero drift from `openapi.yaml`, re-confirmed in W71).
+
+### Permissions
+
+Four permissions, seeded exactly per the frozen plan's own §4 matrix, unchanged since W64 — **no permission was ever added by W65–W70**:
+
+- **`attendance.clock.own`** — self clock-in/out. Seeded to `org_admin`/`hr_manager`/`employee` (every role).
+- **`attendance.read.own`** — the coarse route-level gate for every read surface (own/team-scoped register, dashboard, reports, summary) and the shared adjustments-creation route. Seeded to `org_admin`/`hr_manager`/`employee` (every role).
+- **`attendance.manage`** — organization-wide reach signal: HR direct-entry, organization-wide register/dashboard/reports. Seeded to `org_admin`/`hr_manager` only.
+- **`attendance.adjustment.approve`** — decide a pending correction request. Seeded to `org_admin`/`hr_manager` only.
+
+**No `attendance.read.team` or any manager-tier permission exists** — the "team" visibility tier (direct reports) is resolved entirely in the service layer via `employees.reportingManagerId`, the same mechanism `leaveCalendar.ts` already established for Leave — never a permission grant, exactly per §4's own explicit design.
+
+### Module Gating
+
+`attendance` — seeded in the Foundation's Module Registry as `status: "hidden"` until W64 flipped it to `active`; no organization is enabled by module availability alone (WWM and Acme both confirmed disabled at every checkpoint throughout W64–W71 except during each workstream's own bracketed, restored-afterward live QA window). Every one of the 9 routes composes `requireModuleEnabled("attendance")`, always paired with a specific `requirePermission` call — module gating is never a substitute for authorization, confirmed by direct inspection. Every frontend route wraps in `<ModuleGate moduleKey="attendance">`; ESS's "My Attendance" tab checks `attendance` accessibility independently within the ESS page (gated only by `employee_self_service` itself), degrading to a controlled message rather than a broken page — the identical pattern My Leave (W39) and Internal Vacancies (W60) already established.
+
+### Authorization Matrix
+
+- **Employee:** own clock-in/out, own summary read, own correction request. Cannot approve anything; cannot reach the organization-wide Register/Dashboard/Reports (own/team scope only, resolved server-side); cannot target another employee (server-derived identity on every write).
+- **Manager** (a plain `employee`-role holder who happens to be someone's `reportingManagerId`): own + direct-report visibility on the Register/Dashboard/Reports — no organization-wide fallback, live-verified repeatedly including a zero-direct-reports case (valid empty scope, never a fallback to organization-wide); filters can only narrow this scope, never broaden it (live-verified with an out-of-scope `employeeId` filter); cannot use any `attendance.manage`-gated functionality (HR direct entry, organization-wide register) unless independently granted that permission; cannot approve/reject unless independently granted `attendance.adjustment.approve`.
+- **HR Manager / Org Admin:** organization-wide read/manage per the seeded matrix above — HR direct entry, adjustment approval, organization-wide Register/Dashboard/Reports, all live-verified.
+- **Super Admin:** inherits `org_admin`-equivalent Attendance reach via the same seeded permission matrix; the platform's own established hostname-binding behavior (from the tenant-domain work preceding Phase 3B) is untouched by anything in W64–W70 — no Attendance route implements custom hostname logic of its own, so super_admin is neither granted nor denied anything beyond what the shared `requireMembership` tenant-consistency guard already enforces platform-wide.
+- **Module disabled:** denied independently of role or permission — confirmed live (a valid HR/org-admin token against a module-disabled organization still gets `403`).
+- **No membership:** denied — confirmed live repeatedly (WWM↔Acme cross-org tokens, unauthenticated requests).
+
+### Attendance Rules (final, as implemented)
+
+- **Clock timestamps are always server-authoritative** — `occurredAt` is the server's own clock, never a client-supplied value, on every self-service clock event.
+- **Civil dates are always derived server-side** from the organization's configured `general.timezone` via Node's `Intl.DateTimeFormat` (real IANA conversion, inherently DST-correct) — never client/browser-local, confirmed specifically with a non-UTC timezone (Asia/Tokyo) during W66's own live QA.
+- **A missing organization timezone is a hard `409`** on every data-bearing Attendance route (summary, register, dashboard, reports) — never a silent UTC fallback.
+- **Repeated clock-ins are permitted** — no sequencing rejection.
+- **First-clock-in/last-clock-out** is the summary's own worked-time math; no multi-segment net-duration calculation exists.
+- **An incomplete clock pair → `partial`**; a complete pair → `present` (on time) or `late` (past `workStartTime` + `gracePeriodMinutes`); no events at all on a configured work day → `absent`, unless the employee's *current* `employmentStatus` is `on_leave`/`suspended`, in which case it's suppressed to `null` instead.
+- **Approved Leave → `on_leave`**, beating an otherwise-`absent` day; a merely-*pending* Leave request has zero effect.
+- **A Public Holiday → `holiday`**; a non-configured work day (per §38's own `workDays` setting) → `non_working_day`; both beat event-derived statuses.
+- **An approved whole-day adjustment** (`mark_present`/`mark_absent`/`excuse_absence`) overrides the event-derived status for that date; a *pending* or *rejected* adjustment has zero effect, live-re-verified in W71.
+- **An approved `manual_clock_in`/`manual_clock_out` adjustment** overrides only the matching raw event's contribution to the pair, not the whole day.
+- **Pre-`hireDate` or on/after-`separationDate` → `null`** (no summary generated at all), per §3.7's own literal wording.
+- **No client ever computes a status, a rate, or a precedence decision** — every one of the 4 frontend surfaces (ESS, Register, Dashboard, Reports) renders server-computed DTOs only; confirmed by a repo-wide grep for any client-side date/status-computation logic in W71 (only the W38 Attendance Settings config-editing page references these field names at all, and only to edit the configuration values themselves, never to compute a status).
+
+### Reporting
+
+Four report keys (`attendance_daily_register`, `attendance_monthly_summary`, `attendance_late_arrivals`, `attendance_absenteeism`), registered in the shared Reporting Foundation registry (W17/ADR-016, `category: "attendance"`) for catalog discoverability via the existing `GET /reports`, but executed through a **dedicated, visibility-scoped route** (`GET .../attendance/reports/:reportKey`), never the generic `GET .../reports/:reportKey/run` — that route's own RUNNERS map has no entries for these keys and safely 404s, exactly mirroring how Recruitment's own 9 report keys (W61) are isolated from the generic runner. Own/team/organization-wide visibility is identical to the Register/Dashboard. Date ranges are always organization-local (never browser-local), reusing the Register's own 100-day-max/no-inverted-range validation, defaulting to organization-local "today" on both ends when omitted. CSV export reuses the exact `?format=csv` convention Recruitment's own reports already established — export scope is always identical to the JSON response's own already-authorized scope, with no separate export permission or code path; a cross-tenant export is structurally impossible (organizationId is resolved from the URL/membership, never the query string). No separate analytics store or second report registry was created anywhere.
+
+### Frontend Surfaces
+
+- **My Attendance (ESS tab)** — clock controls, 7-day recent summary, recent raw events, a correction-request form. Independent module-degradation (My Leave/Internal Vacancies precedent).
+- **Attendance Register** (`/attendance-register`) — paginated, filterable internal list, HR-capable-role-gated nav entry, own/team tier still reachable directly by URL.
+- **Attendance Dashboard** (`/attendance-dashboard`) — status tiles for a single organization-local date; the date input always displays the backend's own resolved date, never a browser-computed guess.
+- **Attendance Reports** (`/attendance-reports`) — report selector, date-range inputs, CSV download; mirrors `recruitment-reports.tsx`'s own established structure exactly.
+
+All four: `<ModuleGate moduleKey="attendance">` (or independent in-page checks for the ESS tab), standard loading/error/empty/`403`/`409` states, existing responsive table/card patterns (no HRMS shell redesign), no new charting dependency, zero direct Supabase client access anywhere in `artifacts/hrms/src` (repo-wide grep, zero matches).
+
+**Browser QA limitation, stated plainly and consistently across every one of W64–W71:** interactive browser automation (`chromium-cli`/Playwright) was never available on this Windows host, at any point in Phase 3B. Frontend correctness was verified via the passing React Testing Library component suite (real rendering, real user-event interaction, mocked network) plus live HTTP/API QA against the real development database confirming the exact endpoints/payloads each surface actually depends on, plus all three production builds succeeding. This is stated here explicitly, not glossed over — no interactive browser walkthrough is claimed for any Phase 3B workstream.
+
+### Verification Evidence (W71, re-confirmed for this report)
+
+- **Backend:** 905/905 passing.
+- **Frontend:** 274/274 passing.
+- **Typecheck:** clean, both `api-server` and `hrms`.
+- **Lint: NOT AVAILABLE** — pre-existing repository tooling gap (no `eslint.config.js`/`lint` script in this repo; first surfaced during W69, unchanged throughout W70–W72, never claimed as passing).
+- **Codegen:** `orval` deterministic across two consecutive runs, byte-identical to the already-checked-in generated clients.
+- **Migration drift:** none (`drizzle-kit generate` — "No schema changes, nothing to migrate").
+- **Builds:** `api-server`, `hrms`, `mockup-sandbox` all succeed.
+- **Live QA:** a comprehensive single-pass WWM lifecycle (clock-in → `partial` → clock-out → `present` → employee correction request → `pending`, no summary effect → HR approval → summary reflects it → re-approval `409` → a second request rejected, no summary effect → HR direct entry for a different employee, auto-approved → manager Register/Dashboard/Reports correctly scoped to self+direct-report → HR Register/Dashboard/Reports correctly organization-wide → CSV export with the correct row count) scored **35/35 real assertions passing** (one QA-harness-only scripting mistake — an HTTP method argument passed as `null` — produced a single spurious local failure, independently re-verified by a direct `curl` confirming genuine `401` unauthenticated denial; not an application defect). Acme cross-tenant checks (WWM→Acme and Acme→WWM denied on the Register/Dashboard; a cross-org adjustment ID and a cross-org employee ID both structurally unreachable through the other tenant's own org URL; a missing-timezone `409` independently confirmed on Acme) all passed. **Cleanup:** every disposable QA row deleted; both organizations' `organization_settings` and Attendance module-enablement restored to their exact confirmed prior state (empty/disabled) by direct re-query; zero stray organizations found.
+
+### Security Verification
+
+- **Tenant resolver fail-closed** — unchanged since the pre-Phase-3B tenant-domain work; no Attendance route weakens or bypasses it.
+- **Hostname consistency / organization-route hostname binding** — unchanged since the `773bdb5`/`4685832` fixes; no Attendance route implements a hostname check of its own, so none can regress independently of the shared guard.
+- **Membership checks** — `requireMembership("organizationId")` on all 9 routes; cross-org access denied `403`, re-confirmed live throughout W64–W71.
+- **Module gating never substitutes for permission checks** — every route pairs `requireModuleEnabled` with a specific `requirePermission`, confirmed by direct grep (not assumption) in W71.
+- **RLS:** all 70 public tables RLS-enabled, 0 disabled, 0 policies anywhere — deny-by-default has no exceptions.
+- **PostgREST:** a direct anon-key request against `attendance_events`/`attendance_adjustments` returns `200 []` — RLS silently denies, the same behavior the whole platform already relies on for every other table.
+- **Frontend data path:** zero direct Supabase client usage anywhere in `artifacts/hrms/src` — every request goes through the generated API client against the trusted server, which alone holds `BYPASSRLS`.
+- **Development session rotation:** completed once, immediately after `0036`'s RLS remediation (documented in this file's own tenant-security entry, `4685832`) — all pre-remediation sessions invalidated, fresh login/membership/tenant-resolution re-confirmed functional; no further rotation was needed or performed during Phase 3B itself.
+- **WWM/Acme isolation:** verified live, both directions, in every one of W64–W71's own QA passes — event capture, daily summary, adjustments, approval, ESS-related APIs, Register, Dashboard, Reports, CSV export, employee filters, holiday influence, and Leave influence all independently confirmed tenant-isolated at least once across the phase.
+- **Production security rollout remains separately gated** — nothing in Phase 3B assessed, touched, or altered production's security posture in any way; migrations `0036`/`0037` were applied to development only.
+
+**This is a code-level and automated-test-suite verification, plus disposable-account live QA against a real development database — not a penetration test or a production security certification.**
+
+### Integrations
+
+- **W38 (Organization Configuration):** `general.timezone` and the `attendance` namespace (`workStartTime`/`workEndTime`/`gracePeriodMinutes`/`workDays`) are reused unchanged, via the same `getNamespaceConfig`/`organization_settings` engine every other namespace already uses — no duplicate settings architecture was created.
+- **Leave:** approved requests only ever produce `on_leave`; pending/rejected requests have zero effect; Attendance never writes to `leave_requests` or any Leave table.
+- **Public Holidays:** organization/date-scoped, reused read-only via the existing holiday-occurrence resolution; no duplicated holiday model.
+- **Employees:** identity resolution reuses W33's `resolveOwnEmployeeId`/`employee_user_links` (never a second "which employee is me" mechanism); `reportingManagerId` is the sole "team" resolution mechanism; hire-date/separation-date/employment-status eligibility rules are enforced exactly per §3.7.
+- **ESS:** My Leave and Internal Vacancies/My Applications tabs are unaffected — confirmed by the full, unchanged frontend suite passing alongside the new Attendance tests throughout W68–W71.
+- **Reporting Framework (W17/ADR-016):** the shared `reports` registry is reused for catalog discoverability; no second report registry exists anywhere.
+- **Tenant Infrastructure:** shared-mode compatible by construction (every route scopes by `organizationId` resolved from membership); dedicated-mode deployments run the identical, unmodified Attendance code path — nothing in W64–W70 introduces a mode-specific branch.
+
+### Known Non-Blocking Items
+
+1. **No repository-local ESLint configuration/script** — tooling gap, pre-existing (predates Phase 3B, first surfaced and documented during W69), not fixed here per this workstream's own explicit instruction not to build lint infrastructure as a side effect of a documentation-only report.
+2. **No browser automation tooling (Playwright/`chromium-cli`) available on this host** — environment limitation, stated explicitly and consistently across every one of W64–W71 rather than glossed over; RTL + live HTTP QA substituted throughout.
+3. **W69's Register status filter applies after employee-level pagination** (`total` reflects the pre-status-filter employee-scope count) — implementation choice, documented at the time as a deliberate, transparent tradeoff for a first register cut; W70's own reports compute correct full-range totals independently rather than inheriting this tradeoff.
+4. **~10 lines of scope-resolution logic duplicated between `attendanceRegister.ts` (W69) and `attendanceReporting.ts` (W70)** — implementation choice, deliberately made to guarantee W70 could never risk altering W69's already-shipped, already-tested behavior.
+5. **No employee correction-request history/list UI or endpoint** — frozen-scope deferral; the frozen plan's own W67 API list never included one.
+6. **No biometric device integration** — frozen-scope deferral (§3.6/§9); `source: "biometric"` remains schema-valid and reserved-only.
+7. **No payroll integration, overtime pay, or performance-penalty logic** — frozen-scope deferral (§9), an explicit phase exclusion, not a gap.
+8. **No shift scheduling/rostering or cross-midnight/overnight-shift model** — frozen-scope deferral (§2/§9); the schema supports either without a breaking change if ever approved later.
+9. **No persisted daily-summary table** — deliberate architectural choice (§3.3's own explicit instruction), not a limitation to be "fixed."
+10. **No persisted reporting/analytics table or caching layer** — deliberate architectural choice, matching Recruitment's own W61 discipline exactly.
+11. **No Attendance-rate or lateness-rate metric** — frozen-scope gap (undefined denominator anywhere in the frozen document); a future enhancement if a product decision defines one, not built speculatively here.
+12. **No mobile app, offline sync, advanced timesheets, project time tracking, or GPS/geofencing** — frozen-scope deferral (§9).
+
+None of the above are classified as defects or blockers — items 1–2 are tooling/environment gaps outside this phase's control; items 3–4 are deliberate implementation choices, each documented at the time it was made; items 5–12 are explicit frozen-plan scope exclusions the document itself never assigned to Phase 3B.
+
+### Technical Debt
+
+None beyond the twelve known non-blocking items above, all of which are either pre-existing tooling/environment gaps or deliberate, already-approved scope exclusions — no workaround, shortcut, or quality compromise was introduced anywhere in W64–W72.
+
+### Production Status
+
+**PRODUCTION UNTOUCHED**, throughout the entirety of Phase 3B (W64–W72) and this report. No connection was made to any production environment; no migration (`0036` or `0037`) was applied there; Attendance was never enabled there; no Attendance data of any kind exists there; no production domain, session, or security configuration was changed. Production rollout — for the Supabase RLS remediation and for Attendance both — remains a separate, explicitly-gated decision requiring its own preflight, review, and approval, exactly as stated throughout this entire phase.
+
+### Phase Assessment
+
+- **Feature Complete:** Yes, for the full frozen Phase 3B scope (W64–W70), with every deliberate exclusion listed above already approved by the frozen document itself.
+- **Verification Complete:** Yes — W71's full repo-wide pass, re-confirmed for this report.
+- **Ready for Next Phase:** Yes.
+- **Development Database Ready:** Yes — migrations `0036`/`0037` are applied, live-verified, and stable.
+- **Production Database Ready:** No — by design; production rollout has not been assessed, scheduled, or approved, and is explicitly out of scope for Phase 3B.
+- **Live QA Verified:** Yes — every one of W64–W71 performed disposable-account live QA against the real development database (`vkvirwdxoiwsiftaarox`), each restoring exact prior `organization_settings`/module-enablement state afterward; no live browser walkthrough was possible on this host (stated explicitly), substituted with RTL + live HTTP/API verification throughout.
+
+**Verdict: Phase 3B is feature-complete, verified, and live-QA'd. Nothing in its own per-workstream Definition-of-Done lines remains outstanding.** Every explicitly-excluded item (§9) remains genuinely unbuilt, not silently attempted; every Open Decision (§11) was resolved using its own documented recommended default. Phase 3B Attendance status: **COMPLETE.**
+
+### Next Roadmap Step
+
+Per `ROADMAP.md`'s own Phase 3 ("Workforce Operations") ordering — Recruitment, Attendance, Leave, Performance, Learning, Assets, Employee Self Service, Manager Portal — a genuine, pre-existing numbering quirk applies here exactly like the Phase 3A W48/W49 numbering note already on record: **Leave and Employee Self Service, both nominally listed under Phase 3 in `ROADMAP.md`, were in fact already fully delivered in Phase 2B (W32–W42)**, ahead of Recruitment and Attendance. Recruitment (Phase 3A) and Attendance (Phase 3B) are now both complete. Skipping the two items already shipped, the next undelivered item in `ROADMAP.md`'s own documented Phase 3 order is **Performance**.
+
+**No frozen implementation plan exists yet for Performance** (`docs/` contains plans only for Phase 2A, Phase 2B, Phase 3A, and Phase 3B) — per this platform's own established discipline, a Performance module would need its own draft-then-frozen architecture/workstream plan authored and approved first, exactly as Phase 3B itself went through before W64 began. **No such plan is authored here, and no Performance implementation work has begun.**
+
+---
 
 ## Phase 3A Progress
 
