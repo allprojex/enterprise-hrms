@@ -9729,3 +9729,100 @@ export const AdvanceLearningEnrollmentProgressResponse = zod.object({
 })
 
 
+/**
+ * Requires learning.review.write (the session's own instructor of record, a live comparison against the session's instructorEmployeeId — never inferred from role or from holding the permission alone) or learning.manage (HR/L&D, organization-wide). Instructor-led only — a self-paced enrollment has no session to attend. Attendance is a separate fact from status (§10.3) and does not by itself transition it. Recorded once — an atomic conditional update guarded by both the enrollment's non-terminal status and attended still being null; a repeat or concurrent call, or a call against an already-terminal enrollment, returns a controlled 409.
+ * @summary Record attendance for an instructor-led enrollment
+ */
+export const MarkLearningEnrollmentAttendanceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const MarkLearningEnrollmentAttendanceBody = zod.object({
+  "attended": zod.boolean()
+})
+
+export const MarkLearningEnrollmentAttendanceResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "courseId": zod.number(),
+  "sessionId": zod.number().nullable(),
+  "employeeId": zod.number(),
+  "courseTitleSnapshot": zod.string(),
+  "categorySnapshot": zod.string(),
+  "deliveryModeSnapshot": zod.enum(['self_paced', 'instructor_led']),
+  "hasAssessmentSnapshot": zod.boolean(),
+  "issuesCertificateSnapshot": zod.boolean(),
+  "certificateValidityMonthsSnapshot": zod.number().nullable(),
+  "departmentIdSnapshot": zod.number().nullable(),
+  "positionIdSnapshot": zod.number().nullable(),
+  "managerEmployeeIdSnapshot": zod.number().nullable(),
+  "mandatoryAtAssignment": zod.boolean(),
+  "originType": zod.enum(['hr_assigned', 'manager_assigned', 'employee_requested']),
+  "assignedByMembershipId": zod.number().nullable(),
+  "dueDate": zod.coerce.date().nullable(),
+  "approvalStatus": zod.enum(['auto_approved', 'pending', 'approved', 'rejected']),
+  "approvalDecidedByMembershipId": zod.number().nullable(),
+  "approvalDecidedAt": zod.coerce.date().nullable(),
+  "status": zod.enum(['assigned', 'in_progress', 'completed', 'failed', 'cancelled']),
+  "attended": zod.boolean().nullable(),
+  "attendanceMarkedByMembershipId": zod.number().nullable(),
+  "attendanceMarkedAt": zod.coerce.date().nullable(),
+  "passed": zod.boolean().nullable(),
+  "score": zod.string().nullable(),
+  "completedAt": zod.coerce.date().nullable(),
+  "cancelReason": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Requires learning.review.write (the session's own instructor of record, instructor-led enrollments only) or learning.manage (HR/L&D, any enrollment organization-wide — the only path for a self-paced enrollment, since no instructor-of-record relationship exists without a session). When the enrollment's own hasAssessmentSnapshot is true, `passed` is required and determines the resulting status server-side (completed if true, failed if false — never accepted directly from the caller, §10.3); when false, `passed`/`score` must not be supplied at all. The employee can never complete an assessed enrollment through their own `.../progress` route — this is the only route that can. Atomic conditional update guarded by non-terminal status — a concurrent or repeat completion, or one against an already-terminal enrollment, returns a controlled 409. Certificate issuance is not performed by this route — W90 owns issuance exclusively, per this workstream's own frozen STOP boundary.
+ * @summary Complete an enrollment (instructor-led, or HR/L&D administrative completion of any enrollment)
+ */
+export const CompleteLearningEnrollmentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const CompleteLearningEnrollmentBody = zod.object({
+  "passed": zod.boolean().optional().describe('Required when the enrollment\'s own hasAssessmentSnapshot is true; must not be supplied otherwise. Determines completed (true) vs. failed (false) server-side.'),
+  "score": zod.number().optional().describe('Optional free-form numeric result, only meaningful alongside passed. Never a substitute for passed — there is no derived pass threshold.')
+})
+
+export const CompleteLearningEnrollmentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "courseId": zod.number(),
+  "sessionId": zod.number().nullable(),
+  "employeeId": zod.number(),
+  "courseTitleSnapshot": zod.string(),
+  "categorySnapshot": zod.string(),
+  "deliveryModeSnapshot": zod.enum(['self_paced', 'instructor_led']),
+  "hasAssessmentSnapshot": zod.boolean(),
+  "issuesCertificateSnapshot": zod.boolean(),
+  "certificateValidityMonthsSnapshot": zod.number().nullable(),
+  "departmentIdSnapshot": zod.number().nullable(),
+  "positionIdSnapshot": zod.number().nullable(),
+  "managerEmployeeIdSnapshot": zod.number().nullable(),
+  "mandatoryAtAssignment": zod.boolean(),
+  "originType": zod.enum(['hr_assigned', 'manager_assigned', 'employee_requested']),
+  "assignedByMembershipId": zod.number().nullable(),
+  "dueDate": zod.coerce.date().nullable(),
+  "approvalStatus": zod.enum(['auto_approved', 'pending', 'approved', 'rejected']),
+  "approvalDecidedByMembershipId": zod.number().nullable(),
+  "approvalDecidedAt": zod.coerce.date().nullable(),
+  "status": zod.enum(['assigned', 'in_progress', 'completed', 'failed', 'cancelled']),
+  "attended": zod.boolean().nullable(),
+  "attendanceMarkedByMembershipId": zod.number().nullable(),
+  "attendanceMarkedAt": zod.coerce.date().nullable(),
+  "passed": zod.boolean().nullable(),
+  "score": zod.string().nullable(),
+  "completedAt": zod.coerce.date().nullable(),
+  "cancelReason": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+

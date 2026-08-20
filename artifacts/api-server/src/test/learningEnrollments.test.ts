@@ -25,6 +25,7 @@ import request from "supertest";
 type Cond =
   | { __op: "eq"; field: string; val: unknown }
   | { __op: "ne"; field: string; val: unknown }
+  | { __op: "isNull"; field: string }
   | { __op: "and"; conds: Cond[] }
   | { __op: "in"; field: string; vals: unknown[] }
   | undefined;
@@ -33,6 +34,7 @@ function matches(row: Record<string, unknown>, cond: Cond): boolean {
   if (!cond) return true;
   if (cond.__op === "eq") return row[cond.field] === cond.val;
   if (cond.__op === "ne") return row[cond.field] !== cond.val;
+  if (cond.__op === "isNull") return row[cond.field] == null;
   if (cond.__op === "and") return cond.conds.every((c) => matches(row, c));
   if (cond.__op === "in") return cond.vals.includes(row[cond.field]);
   return true;
@@ -266,7 +268,7 @@ vi.mock("drizzle-orm", () => ({
   ne: (col: string, val: unknown) => ({ __op: "ne", field: typeof col === "string" ? col.split(".").pop() : col, val }),
   and: (...conds: Cond[]) => ({ __op: "and", conds: conds.filter(Boolean) }),
   or: () => undefined,
-  isNull: () => undefined,
+  isNull: (col: string) => ({ __op: "isNull", field: typeof col === "string" ? col.split(".").pop() : col }),
   gt: () => undefined,
   inArray: (col: string, vals: unknown[]) => ({ __op: "in", field: typeof col === "string" ? col.split(".").pop() : col, vals }),
   count: () => "count",
@@ -283,12 +285,14 @@ const MANAGER_USER_ID = 2;
 const EMPLOYEE_USER_ID = 3;
 const EMPLOYEE2_USER_ID = 4; // no manager — used for "not a direct report" cases
 const OTHER_ORG_USER_ID = 5;
+const INSTRUCTOR_USER_ID = 6; // instructor of record, distinct from MANAGER — never the enrollment's manager-of-record
 
 const HR_EMPLOYEE_ID = 900;
 const MANAGER_ID = 200;
 const EMPLOYEE_ID = 100; // reports to MANAGER_ID
 const EMPLOYEE2_ID = 101; // no manager
 const OTHER_ORG_EMPLOYEE_ID = 300;
+const INSTRUCTOR_ID = 201;
 
 function mockSession(userId: number) {
   state.sessionRows = [
@@ -342,6 +346,11 @@ function otherOrgHrHeaders() {
   mockPermissions(HR_TIER_PERMISSIONS);
   return { Authorization: `Bearer token-${OTHER_ORG_USER_ID}` };
 }
+function instructorHeaders() {
+  mockSession(INSTRUCTOR_USER_ID);
+  mockPermissions(EMPLOYEE_TIER_PERMISSIONS);
+  return { Authorization: `Bearer token-${INSTRUCTOR_USER_ID}` };
+}
 
 function mockLearningModuleEnabled(organizationId: number) {
   state.moduleRows = [{ id: 1, key: "learning", status: "active", defaultEnabled: false, requiredModuleKeys: [], optionalModuleKeys: [] }];
@@ -374,6 +383,7 @@ beforeEach(() => {
   mockMembership(EMPLOYEE_USER_ID, ORG_ID, 1002);
   mockMembership(EMPLOYEE2_USER_ID, ORG_ID, 1003);
   mockMembership(OTHER_ORG_USER_ID, OTHER_ORG_ID, 1004);
+  mockMembership(INSTRUCTOR_USER_ID, ORG_ID, 1005);
   mockLearningModuleEnabled(ORG_ID);
   mockLearningModuleEnabled(OTHER_ORG_ID);
 
@@ -383,6 +393,7 @@ beforeEach(() => {
     { id: 3, applicationUserId: EMPLOYEE_USER_ID, employeeId: EMPLOYEE_ID },
     { id: 4, applicationUserId: EMPLOYEE2_USER_ID, employeeId: EMPLOYEE2_ID },
     { id: 5, applicationUserId: OTHER_ORG_USER_ID, employeeId: OTHER_ORG_EMPLOYEE_ID },
+    { id: 6, applicationUserId: INSTRUCTOR_USER_ID, employeeId: INSTRUCTOR_ID },
   ];
   state.employeeRows = [
     { id: HR_EMPLOYEE_ID, organizationId: ORG_ID, departmentId: 1, positionId: 1, reportingManagerId: null, employmentStatus: "active" },
@@ -390,6 +401,7 @@ beforeEach(() => {
     { id: EMPLOYEE_ID, organizationId: ORG_ID, departmentId: 5, positionId: 7, reportingManagerId: MANAGER_ID, employmentStatus: "active" },
     { id: EMPLOYEE2_ID, organizationId: ORG_ID, departmentId: 6, positionId: 9, reportingManagerId: null, employmentStatus: "active" },
     { id: OTHER_ORG_EMPLOYEE_ID, organizationId: OTHER_ORG_ID, departmentId: null, positionId: null, reportingManagerId: null, employmentStatus: "active" },
+    { id: INSTRUCTOR_ID, organizationId: ORG_ID, departmentId: 5, positionId: 8, reportingManagerId: null, employmentStatus: "active" },
   ];
   state.masterDataItemRows = [{ id: 1, domain: "training_category", organizationId: null, code: "compliance", label: "Compliance Training", status: "active" }];
 });
@@ -850,5 +862,180 @@ describe("Self-paced progress (W88)", () => {
       .set(otherOrgHrHeaders())
       .send({ status: "in_progress" });
     expect(res.status).toBe(404);
+  });
+
+  it("W89 fix: an employee can never self-complete a self-paced enrollment with an assessment requirement — only HR/L&D's own /complete route can", async () => {
+    const courseId = await createCourse({ requiresApproval: false, hasAssessment: true });
+    const enroll = await request(app).post(`/api/organizations/${ORG_ID}/learning/courses/${courseId}/enroll`).set(employeeHeaders()).send({});
+    const start = await progress(enroll.body.id, "in_progress", employeeHeaders());
+    expect(start.status).toBe(200); // starting is still fine — only completing is gated
+    const complete = await progress(enroll.body.id, "completed", employeeHeaders());
+    expect(complete.status).toBe(403);
+  });
+});
+
+describe("Attendance marking (W89)", () => {
+  async function instructorLedEnrollment(overrides: Record<string, unknown> = {}) {
+    const courseId = await createCourse({ deliveryMode: "instructor_led", requiresApproval: false, ...overrides });
+    const sessionId = await createSession(courseId, { instructorEmployeeId: INSTRUCTOR_ID });
+    const enroll = await request(app).post(`/api/organizations/${ORG_ID}/learning/courses/${courseId}/enroll`).set(employeeHeaders()).send({ sessionId });
+    expect(enroll.status).toBe(201);
+    return enroll.body.id as number;
+  }
+
+  it("the session's own instructor of record marks attendance", async () => {
+    const enrollmentId = await instructorLedEnrollment();
+    const res = await request(app).post(`/api/organizations/${ORG_ID}/learning/enrollments/${enrollmentId}/attendance`).set(instructorHeaders()).send({ attended: true });
+    expect(res.status).toBe(200);
+    expect(res.body.attended).toBe(true);
+  });
+
+  it("repeat attendance marking -> 409", async () => {
+    const enrollmentId = await instructorLedEnrollment();
+    const first = await request(app).post(`/api/organizations/${ORG_ID}/learning/enrollments/${enrollmentId}/attendance`).set(instructorHeaders()).send({ attended: true });
+    expect(first.status).toBe(200);
+    const repeat = await request(app).post(`/api/organizations/${ORG_ID}/learning/enrollments/${enrollmentId}/attendance`).set(instructorHeaders()).send({ attended: false });
+    expect(repeat.status).toBe(409);
+  });
+
+  it("HR/L&D may also mark attendance, organization-wide", async () => {
+    const enrollmentId = await instructorLedEnrollment();
+    const res = await request(app).post(`/api/organizations/${ORG_ID}/learning/enrollments/${enrollmentId}/attendance`).set(hrHeaders()).send({ attended: true });
+    expect(res.status).toBe(200);
+  });
+
+  it("the manager of record — who is not this session's instructor — cannot mark attendance", async () => {
+    const enrollmentId = await instructorLedEnrollment();
+    const res = await request(app).post(`/api/organizations/${ORG_ID}/learning/enrollments/${enrollmentId}/attendance`).set(managerHeaders()).send({ attended: true });
+    expect(res.status).toBe(403);
+  });
+
+  it("an unrelated employee cannot mark attendance", async () => {
+    const enrollmentId = await instructorLedEnrollment();
+    const res = await request(app).post(`/api/organizations/${ORG_ID}/learning/enrollments/${enrollmentId}/attendance`).set(employee2Headers()).send({ attended: true });
+    expect(res.status).toBe(403);
+  });
+
+  it("a self-paced enrollment has no attendance to record -> 400", async () => {
+    const courseId = await createCourse({ deliveryMode: "self_paced", requiresApproval: false });
+    const enroll = await request(app).post(`/api/organizations/${ORG_ID}/learning/courses/${courseId}/enroll`).set(employeeHeaders()).send({});
+    const res = await request(app).post(`/api/organizations/${ORG_ID}/learning/enrollments/${enroll.body.id}/attendance`).set(hrHeaders()).send({ attended: true });
+    expect(res.status).toBe(400);
+  });
+
+  it("denies cross-org attendance marking", async () => {
+    const enrollmentId = await instructorLedEnrollment();
+    const res = await request(app).post(`/api/organizations/${OTHER_ORG_ID}/learning/enrollments/${enrollmentId}/attendance`).set(otherOrgHrHeaders()).send({ attended: true });
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("Completion (W89)", () => {
+  async function instructorLedEnrollment(courseOverrides: Record<string, unknown> = {}) {
+    const courseId = await createCourse({ deliveryMode: "instructor_led", requiresApproval: false, ...courseOverrides });
+    const sessionId = await createSession(courseId, { instructorEmployeeId: INSTRUCTOR_ID });
+    const enroll = await request(app).post(`/api/organizations/${ORG_ID}/learning/courses/${courseId}/enroll`).set(employeeHeaders()).send({ sessionId });
+    expect(enroll.status).toBe(201);
+    return enroll.body.id as number;
+  }
+  async function selfPacedEnrollment(courseOverrides: Record<string, unknown> = {}) {
+    const courseId = await createCourse({ deliveryMode: "self_paced", requiresApproval: false, ...courseOverrides });
+    const enroll = await request(app).post(`/api/organizations/${ORG_ID}/learning/courses/${courseId}/enroll`).set(employeeHeaders()).send({});
+    expect(enroll.status).toBe(201);
+    return enroll.body.id as number;
+  }
+
+  it("the instructor of record completes an instructor-led, non-assessed enrollment", async () => {
+    const enrollmentId = await instructorLedEnrollment({ hasAssessment: false });
+    const res = await request(app).post(`/api/organizations/${ORG_ID}/learning/enrollments/${enrollmentId}/complete`).set(instructorHeaders()).send({});
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("completed");
+    expect(res.body.completedAt).toBeTruthy();
+  });
+
+  it("HR/L&D may also complete an instructor-led enrollment, organization-wide", async () => {
+    const enrollmentId = await instructorLedEnrollment({ hasAssessment: false });
+    const res = await request(app).post(`/api/organizations/${ORG_ID}/learning/enrollments/${enrollmentId}/complete`).set(hrHeaders()).send({});
+    expect(res.status).toBe(200);
+  });
+
+  it("an assessed instructor-led enrollment: passed=true -> completed, passed=false -> failed", async () => {
+    const passedId = await instructorLedEnrollment({ hasAssessment: true });
+    const passedRes = await request(app).post(`/api/organizations/${ORG_ID}/learning/enrollments/${passedId}/complete`).set(instructorHeaders()).send({ passed: true, score: 92 });
+    expect(passedRes.status).toBe(200);
+    expect(passedRes.body.status).toBe("completed");
+    expect(passedRes.body.passed).toBe(true);
+
+    const failedId = await instructorLedEnrollment({ hasAssessment: true });
+    const failedRes = await request(app).post(`/api/organizations/${ORG_ID}/learning/enrollments/${failedId}/complete`).set(instructorHeaders()).send({ passed: false });
+    expect(failedRes.status).toBe(200);
+    expect(failedRes.body.status).toBe("failed");
+    expect(failedRes.body.passed).toBe(false);
+  });
+
+  it("an assessed course requires passed -> 400 if omitted", async () => {
+    const enrollmentId = await instructorLedEnrollment({ hasAssessment: true });
+    const res = await request(app).post(`/api/organizations/${ORG_ID}/learning/enrollments/${enrollmentId}/complete`).set(instructorHeaders()).send({});
+    expect(res.status).toBe(400);
+  });
+
+  it("a non-assessed course rejects a supplied passed/score -> 400", async () => {
+    const enrollmentId = await instructorLedEnrollment({ hasAssessment: false });
+    const res = await request(app).post(`/api/organizations/${ORG_ID}/learning/enrollments/${enrollmentId}/complete`).set(instructorHeaders()).send({ passed: true });
+    expect(res.status).toBe(400);
+  });
+
+  it("a self-paced course with an assessment routes to HR-only — the caller's own review.write alone is not enough", async () => {
+    const enrollmentId = await selfPacedEnrollment({ hasAssessment: true });
+    const deniedRes = await request(app).post(`/api/organizations/${ORG_ID}/learning/enrollments/${enrollmentId}/complete`).set(managerHeaders()).send({ passed: true });
+    expect(deniedRes.status).toBe(403);
+    const hrRes = await request(app).post(`/api/organizations/${ORG_ID}/learning/enrollments/${enrollmentId}/complete`).set(hrHeaders()).send({ passed: true, score: 88 });
+    expect(hrRes.status).toBe(200);
+    expect(hrRes.body.status).toBe("completed");
+  });
+
+  it("HR/L&D may complete any enrollment organization-wide, including a non-assessed self-paced one", async () => {
+    const enrollmentId = await selfPacedEnrollment({ hasAssessment: false });
+    const res = await request(app).post(`/api/organizations/${ORG_ID}/learning/enrollments/${enrollmentId}/complete`).set(hrHeaders()).send({});
+    expect(res.status).toBe(200);
+  });
+
+  it("repeat / terminal-state completion -> 409", async () => {
+    const enrollmentId = await instructorLedEnrollment({ hasAssessment: false });
+    const first = await request(app).post(`/api/organizations/${ORG_ID}/learning/enrollments/${enrollmentId}/complete`).set(instructorHeaders()).send({});
+    expect(first.status).toBe(200);
+    const repeat = await request(app).post(`/api/organizations/${ORG_ID}/learning/enrollments/${enrollmentId}/complete`).set(instructorHeaders()).send({});
+    expect(repeat.status).toBe(409);
+  });
+
+  it("the manager of record, who is not this session's instructor, cannot complete it", async () => {
+    const enrollmentId = await instructorLedEnrollment({ hasAssessment: false });
+    const res = await request(app).post(`/api/organizations/${ORG_ID}/learning/enrollments/${enrollmentId}/complete`).set(managerHeaders()).send({});
+    expect(res.status).toBe(403);
+  });
+
+  it("denies cross-org completion", async () => {
+    const enrollmentId = await instructorLedEnrollment({ hasAssessment: false });
+    const res = await request(app).post(`/api/organizations/${OTHER_ORG_ID}/learning/enrollments/${enrollmentId}/complete`).set(otherOrgHrHeaders()).send({});
+    expect(res.status).toBe(404);
+  });
+
+  it("manager-of-record and instructor-of-record are independent tiers — one employee holding both is authorized on each relationship separately", async () => {
+    // MANAGER is both the manager-of-record for EMPLOYEE's enrollment AND
+    // this specific session's own instructor.
+    const courseId = await createCourse({ deliveryMode: "instructor_led", requiresApproval: true, hasAssessment: false });
+    const sessionId = await createSession(courseId, { instructorEmployeeId: MANAGER_ID });
+    const enroll = await request(app).post(`/api/organizations/${ORG_ID}/learning/courses/${courseId}/enroll`).set(employeeHeaders()).send({ sessionId });
+    expect(enroll.body.approvalStatus).toBe("pending");
+
+    // Acting via the manager-of-record relationship (approval).
+    const approve = await request(app).post(`/api/organizations/${ORG_ID}/learning/enrollments/${enroll.body.id}/approve`).set(managerHeaders()).send();
+    expect(approve.status).toBe(200);
+
+    // Acting via the instructor-of-record relationship (attendance + completion) — the same permission key, a genuinely different authority check.
+    const attendance = await request(app).post(`/api/organizations/${ORG_ID}/learning/enrollments/${enroll.body.id}/attendance`).set(managerHeaders()).send({ attended: true });
+    expect(attendance.status).toBe(200);
+    const complete = await request(app).post(`/api/organizations/${ORG_ID}/learning/enrollments/${enroll.body.id}/complete`).set(managerHeaders()).send({});
+    expect(complete.status).toBe(200);
   });
 });

@@ -11,6 +11,8 @@ import {
   AssignLearningEnrollmentsBody,
   CancelLearningEnrollmentBody,
   AdvanceLearningEnrollmentProgressBody,
+  MarkLearningEnrollmentAttendanceBody,
+  CompleteLearningEnrollmentBody,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireMembership, type MembershipRequest } from "../middlewares/requireMembership";
@@ -38,6 +40,8 @@ import {
   decideEnrollmentApproval,
   cancelEnrollment,
   advanceEnrollmentProgress,
+  markAttendance,
+  completeEnrollment,
   LearningCourseNotEnrollableError,
   LearningCourseSessionNotEnrollableError,
   LearningSessionCapacityError,
@@ -438,6 +442,105 @@ router.patch(
         enrollmentId,
         targetStatus: parsed.data.status,
         callerEmployeeId,
+        actorApplicationUserId: req.userId!,
+        actorMembershipId: req.membership!.id,
+      });
+      res.json(updated);
+    } catch (err) {
+      handleEnrollmentError(err, res);
+    }
+  },
+);
+
+// POST /organizations/:organizationId/learning/enrollments/:id/attendance
+// W89 — instructor-of-record (live session.instructorEmployeeId check
+// inside markAttendance itself) or learning.manage. Coarse floor mirrors
+// approve/reject's own dual-floor shape exactly.
+router.post(
+  "/organizations/:organizationId/learning/enrollments/:id/attendance",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requireModuleEnabled(LEARNING_MODULE_KEY),
+  async (req: MembershipRequest, res, next): Promise<void> => {
+    const allowed = (await hasPermission(req.membership!.id, "learning.manage")) || (await hasPermission(req.membership!.id, "learning.review.write"));
+    if (!allowed) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    next();
+  },
+  async (req: MembershipRequest, res): Promise<void> => {
+    const enrollmentId = parseId(req.params.id);
+    if (isNaN(enrollmentId)) {
+      res.status(400).json({ error: "Invalid enrollment ID" });
+      return;
+    }
+    const parsed = MarkLearningEnrollmentAttendanceBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const organizationId = req.membership!.organizationId;
+    const isOrgWide = await hasOrgWideLearningAccess(req.membership!.id, "learning.manage");
+    const callerEmployeeId = await resolveLearningActorEmployeeId(organizationId, req.userId!);
+
+    try {
+      const updated = await markAttendance({
+        organizationId,
+        enrollmentId,
+        attended: parsed.data.attended,
+        callerEmployeeId,
+        isOrgWide,
+        actorApplicationUserId: req.userId!,
+        actorMembershipId: req.membership!.id,
+      });
+      res.json(updated);
+    } catch (err) {
+      handleEnrollmentError(err, res);
+    }
+  },
+);
+
+// POST /organizations/:organizationId/learning/enrollments/:id/complete
+// W89 — instructor-of-record (instructor-led only) or learning.manage
+// (any enrollment). Dual-floor at the middleware level; the fine-grained
+// instructor-led-vs-self-paced dispatch happens inside completeEnrollment.
+router.post(
+  "/organizations/:organizationId/learning/enrollments/:id/complete",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requireModuleEnabled(LEARNING_MODULE_KEY),
+  async (req: MembershipRequest, res, next): Promise<void> => {
+    const allowed = (await hasPermission(req.membership!.id, "learning.manage")) || (await hasPermission(req.membership!.id, "learning.review.write"));
+    if (!allowed) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    next();
+  },
+  async (req: MembershipRequest, res): Promise<void> => {
+    const enrollmentId = parseId(req.params.id);
+    if (isNaN(enrollmentId)) {
+      res.status(400).json({ error: "Invalid enrollment ID" });
+      return;
+    }
+    const parsed = CompleteLearningEnrollmentBody.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const organizationId = req.membership!.organizationId;
+    const isOrgWide = await hasOrgWideLearningAccess(req.membership!.id, "learning.manage");
+    const callerEmployeeId = await resolveLearningActorEmployeeId(organizationId, req.userId!);
+
+    try {
+      const updated = await completeEnrollment({
+        organizationId,
+        enrollmentId,
+        passed: parsed.data.passed,
+        score: parsed.data.score != null ? String(parsed.data.score) : undefined,
+        callerEmployeeId,
+        isOrgWide,
         actorApplicationUserId: req.userId!,
         actorMembershipId: req.membership!.id,
       });

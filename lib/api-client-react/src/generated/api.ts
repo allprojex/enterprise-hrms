@@ -59,6 +59,7 @@ import type {
   CandidateListResponse,
   CandidateNote,
   CandidateTag,
+  CompleteLearningEnrollmentInput,
   ConfirmEmployeeInput,
   ConversionResult,
   CopyRoleTemplateInput,
@@ -147,6 +148,7 @@ import type {
   ListPublicVacanciesParams,
   ListVacanciesParams,
   LoginInput,
+  MarkLearningEnrollmentAttendanceInput,
   MasterDataDomain,
   MasterDataItem,
   MembershipSummary,
@@ -22806,5 +22808,155 @@ export const useAdvanceLearningEnrollmentProgress = <TError = ErrorType<ApiError
         TContext
       > => {
       return useMutation(getAdvanceLearningEnrollmentProgressMutationOptions(options));
+    }
+
+export const getMarkLearningEnrollmentAttendanceUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/learning/enrollments/${id}/attendance`
+}
+
+/**
+ * Requires learning.review.write (the session's own instructor of record, a live comparison against the session's instructorEmployeeId — never inferred from role or from holding the permission alone) or learning.manage (HR/L&D, organization-wide). Instructor-led only — a self-paced enrollment has no session to attend. Attendance is a separate fact from status (§10.3) and does not by itself transition it. Recorded once — an atomic conditional update guarded by both the enrollment's non-terminal status and attended still being null; a repeat or concurrent call, or a call against an already-terminal enrollment, returns a controlled 409.
+ * @summary Record attendance for an instructor-led enrollment
+ */
+export const markLearningEnrollmentAttendance = async (organizationId: number,
+    id: number,
+    markLearningEnrollmentAttendanceInput: MarkLearningEnrollmentAttendanceInput, options?: RequestInit): Promise<LearningEnrollment> => {
+
+  return customFetch<LearningEnrollment>(getMarkLearningEnrollmentAttendanceUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(markLearningEnrollmentAttendanceInput)
+  }
+);}
+
+
+
+
+
+export const getMarkLearningEnrollmentAttendanceMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markLearningEnrollmentAttendance>>, TError,{organizationId: number;id: number;data: BodyType<MarkLearningEnrollmentAttendanceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markLearningEnrollmentAttendance>>, TError,{organizationId: number;id: number;data: BodyType<MarkLearningEnrollmentAttendanceInput>}, TContext> => {
+
+const mutationKey = ['markLearningEnrollmentAttendance'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markLearningEnrollmentAttendance>>, {organizationId: number;id: number;data: BodyType<MarkLearningEnrollmentAttendanceInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  markLearningEnrollmentAttendance(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkLearningEnrollmentAttendanceMutationResult = NonNullable<Awaited<ReturnType<typeof markLearningEnrollmentAttendance>>>
+    export type MarkLearningEnrollmentAttendanceMutationBody = BodyType<MarkLearningEnrollmentAttendanceInput>
+    export type MarkLearningEnrollmentAttendanceMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Record attendance for an instructor-led enrollment
+ */
+export const useMarkLearningEnrollmentAttendance = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markLearningEnrollmentAttendance>>, TError,{organizationId: number;id: number;data: BodyType<MarkLearningEnrollmentAttendanceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof markLearningEnrollmentAttendance>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<MarkLearningEnrollmentAttendanceInput>},
+        TContext
+      > => {
+      return useMutation(getMarkLearningEnrollmentAttendanceMutationOptions(options));
+    }
+
+export const getCompleteLearningEnrollmentUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/learning/enrollments/${id}/complete`
+}
+
+/**
+ * Requires learning.review.write (the session's own instructor of record, instructor-led enrollments only) or learning.manage (HR/L&D, any enrollment organization-wide — the only path for a self-paced enrollment, since no instructor-of-record relationship exists without a session). When the enrollment's own hasAssessmentSnapshot is true, `passed` is required and determines the resulting status server-side (completed if true, failed if false — never accepted directly from the caller, §10.3); when false, `passed`/`score` must not be supplied at all. The employee can never complete an assessed enrollment through their own `.../progress` route — this is the only route that can. Atomic conditional update guarded by non-terminal status — a concurrent or repeat completion, or one against an already-terminal enrollment, returns a controlled 409. Certificate issuance is not performed by this route — W90 owns issuance exclusively, per this workstream's own frozen STOP boundary.
+ * @summary Complete an enrollment (instructor-led, or HR/L&D administrative completion of any enrollment)
+ */
+export const completeLearningEnrollment = async (organizationId: number,
+    id: number,
+    completeLearningEnrollmentInput?: CompleteLearningEnrollmentInput, options?: RequestInit): Promise<LearningEnrollment> => {
+
+  return customFetch<LearningEnrollment>(getCompleteLearningEnrollmentUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(completeLearningEnrollmentInput)
+  }
+);}
+
+
+
+
+
+export const getCompleteLearningEnrollmentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeLearningEnrollment>>, TError,{organizationId: number;id: number;data?: BodyType<CompleteLearningEnrollmentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof completeLearningEnrollment>>, TError,{organizationId: number;id: number;data?: BodyType<CompleteLearningEnrollmentInput>}, TContext> => {
+
+const mutationKey = ['completeLearningEnrollment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof completeLearningEnrollment>>, {organizationId: number;id: number;data?: BodyType<CompleteLearningEnrollmentInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  completeLearningEnrollment(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CompleteLearningEnrollmentMutationResult = NonNullable<Awaited<ReturnType<typeof completeLearningEnrollment>>>
+    export type CompleteLearningEnrollmentMutationBody = BodyType<CompleteLearningEnrollmentInput> | undefined
+    export type CompleteLearningEnrollmentMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Complete an enrollment (instructor-led, or HR/L&D administrative completion of any enrollment)
+ */
+export const useCompleteLearningEnrollment = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeLearningEnrollment>>, TError,{organizationId: number;id: number;data?: BodyType<CompleteLearningEnrollmentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof completeLearningEnrollment>>,
+        TError,
+        {organizationId: number;id: number;data?: BodyType<CompleteLearningEnrollmentInput>},
+        TContext
+      > => {
+      return useMutation(getCompleteLearningEnrollmentMutationOptions(options));
     }
 

@@ -366,6 +366,11 @@ export function AppShell({ children }: AppShellProps) {
     // directly by URL for any learning.read.own holder, per
     // learningCourses.ts's/learningCourseSessions.ts's own route comments.
     ...(isHrCapable ? [{ href: '/learning-courses', label: 'Learning Courses', icon: GraduationCap } satisfies NavItem] : []),
+    // Phase 3D, W89 — same isHrCapable-only nav precedent as My Team
+    // Reviews above (/performance-team): the backend's own manager-of-
+    // record/instructor-of-record authorization is the real gate, so a
+    // non-HR manager who navigates directly is still correctly authorized.
+    ...(isHrCapable ? [{ href: '/learning-team-training', label: 'My Team Training', icon: Users } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisitions', label: 'Job Requisitions', icon: ClipboardList } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisition-approvals', label: 'Requisition Approvals', icon: Stamp } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/vacancies', label: 'Vacancies', icon: Megaphone } satisfies NavItem] : []),

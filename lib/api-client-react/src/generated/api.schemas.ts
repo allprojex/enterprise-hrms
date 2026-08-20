@@ -5353,6 +5353,17 @@ export interface AdvanceLearningEnrollmentProgressInput {
   status: AdvanceLearningEnrollmentProgressInputStatus;
 }
 
+export interface MarkLearningEnrollmentAttendanceInput {
+  attended: boolean;
+}
+
+export interface CompleteLearningEnrollmentInput {
+  /** Required when the enrollment's own hasAssessmentSnapshot is true; must not be supplied otherwise. Determines completed (true) vs. failed (false) server-side. */
+  passed?: boolean;
+  /** Optional free-form numeric result, only meaningful alongside passed. Never a substitute for passed — there is no derived pass threshold. */
+  score?: number;
+}
+
 export type ListEmployeesParams = {
 search?: string;
 departmentId?: number;

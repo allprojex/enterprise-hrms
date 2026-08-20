@@ -11416,6 +11416,142 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/learning/enrollments/{id}/attendance:
+    post:
+      operationId: markLearningEnrollmentAttendance
+      tags: [learning-enrollments]
+      summary: Record attendance for an instructor-led enrollment
+      description: >-
+        Requires learning.review.write (the session's own instructor of
+        record, a live comparison against the session's instructorEmployeeId
+        — never inferred from role or from holding the permission alone) or
+        learning.manage (HR/L&D, organization-wide). Instructor-led only —
+        a self-paced enrollment has no session to attend. Attendance is a
+        separate fact from status (§10.3) and does not by itself transition
+        it. Recorded once — an atomic conditional update guarded by both
+        the enrollment's non-terminal status and attended still being null;
+        a repeat or concurrent call, or a call against an already-terminal
+        enrollment, returns a controlled 409.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MarkLearningEnrollmentAttendanceInput"
+      responses:
+        "200":
+          description: Attendance recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningEnrollment"
+        "400":
+          description: This enrollment is self-paced — attendance does not apply
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Not this session's own instructor, and not learning.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Attendance already recorded, or the enrollment is no longer in a non-terminal state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/learning/enrollments/{id}/complete:
+    post:
+      operationId: completeLearningEnrollment
+      tags: [learning-enrollments]
+      summary: Complete an enrollment (instructor-led, or HR/L&D administrative completion of any enrollment)
+      description: >-
+        Requires learning.review.write (the session's own instructor of
+        record, instructor-led enrollments only) or learning.manage (HR/L&D,
+        any enrollment organization-wide — the only path for a self-paced
+        enrollment, since no instructor-of-record relationship exists
+        without a session). When the enrollment's own hasAssessmentSnapshot
+        is true, `passed` is required and determines the resulting status
+        server-side (completed if true, failed if false — never accepted
+        directly from the caller, §10.3); when false, `passed`/`score` must
+        not be supplied at all. The employee can never complete an assessed
+        enrollment through their own `.../progress` route — this is the
+        only route that can. Atomic conditional update guarded by
+        non-terminal status — a concurrent or repeat completion, or one
+        against an already-terminal enrollment, returns a controlled 409.
+        Certificate issuance is not performed by this route — W90 owns
+        issuance exclusively, per this workstream's own frozen STOP
+        boundary.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompleteLearningEnrollmentInput"
+      responses:
+        "200":
+          description: Completed (or failed, for an assessed course with passed=false)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningEnrollment"
+        "400":
+          description: passed missing for an assessed course, or passed/score supplied where no assessment applies
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Not this session's own instructor and not learning.manage, or a self-paced enrollment without learning.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: The enrollment is no longer in a non-terminal state (already completed/failed/cancelled, or a concurrent request already won)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -17397,3 +17533,20 @@ components:
           type: string
           enum: [in_progress, completed]
           description: The one-way target state — assigned→in_progress or in_progress→completed only. No other value is ever accepted here.
+
+    MarkLearningEnrollmentAttendanceInput:
+      type: object
+      required: [attended]
+      properties:
+        attended:
+          type: boolean
+
+    CompleteLearningEnrollmentInput:
+      type: object
+      properties:
+        passed:
+          type: boolean
+          description: Required when the enrollment's own hasAssessmentSnapshot is true; must not be supplied otherwise. Determines completed (true) vs. failed (false) server-side.
+        score:
+          type: number
+          description: Optional free-form numeric result, only meaningful alongside passed. Never a substitute for passed — there is no derived pass threshold.

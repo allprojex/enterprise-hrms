@@ -63,7 +63,7 @@
  * instructor-led completion, never attendance, never an assessment
  * result, all still W89/W90.
  */
-import { and, eq, ne, inArray, count, desc } from "drizzle-orm";
+import { and, eq, ne, inArray, count, desc, isNull } from "drizzle-orm";
 import {
   db,
   learningCoursesTable,
@@ -80,6 +80,7 @@ import {
 } from "@workspace/db";
 import { recordAuditEvent } from "./auditLog";
 import { assertBelongsToOrganization, CrossOrganizationReferenceError } from "./orgScopedRefs";
+import { isInstructorOfRecord } from "./learningAuthorization";
 
 export { CrossOrganizationReferenceError };
 
@@ -774,6 +775,26 @@ export async function advanceEnrollmentProgress(params: AdvanceEnrollmentProgres
   if (enrollment.approvalStatus !== "auto_approved" && enrollment.approvalStatus !== "approved") {
     throw new LearningProgressNotApprovedError();
   }
+  // W89 fix (§10.3/§10.3.1): the transition diagram shows in_progress
+  // branching to completed OR failed "only when hasAssessmentSnapshot =
+  // true and passed = false" — meaning for an assessed course, whatever
+  // leaves 'in_progress' must supply the assessment result in the same
+  // call, and §10.3.1 restricts that recording to the instructor of
+  // record or HR/L&D only ("only HR/L&D may record the passed/score
+  // result... the employee's own completion path never accepts an
+  // assessment result for their own row"). This route's own request
+  // schema has no passed/score fields, so it structurally cannot satisfy
+  // that requirement — an assessed self-paced enrollment must therefore
+  // never leave 'in_progress' via this employee-only route at all; only
+  // HR/L&D's own `completeEnrollment` (W89, POST .../complete) may
+  // complete or fail it. This gate was missing when W88 first shipped
+  // `advanceEnrollmentProgress` (it let an employee self-complete an
+  // assessed self-paced course with no assessment result ever recorded);
+  // corrected here as part of building the completion route this exact
+  // boundary depends on.
+  if (params.targetStatus === "completed" && enrollment.hasAssessmentSnapshot) {
+    throw new LearningEnrollmentForbiddenError("This course has an assessment — only HR/L&D can complete it and record the result");
+  }
 
   const expectedPriorStatus = params.targetStatus === "in_progress" ? "assigned" : "in_progress";
 
@@ -795,6 +816,212 @@ export async function advanceEnrollmentProgress(params: AdvanceEnrollmentProgres
     targetType: "learning_enrollment",
     targetId: String(params.enrollmentId),
     metadata: { employeeId: enrollment.employeeId, courseId: enrollment.courseId },
+  });
+
+  return updated;
+}
+
+// ---------------------------------------------------------------------------
+// Manager / Instructor Actions (W89, §10.3/§10.3.1/§11, §21 POST
+// .../enrollments/:id/attendance, POST .../enrollments/:id/complete)
+//
+// Manager-of-record and instructor-of-record are kept conceptually
+// separate here even though both share the `learning.review.write`
+// permission key (§13): manager-of-record is a *snapshotted* comparison
+// against managerEmployeeIdSnapshot (already used by decideEnrollmentApproval
+// above); instructor-of-record is a *live* comparison against the
+// enrollment's own session's current instructorEmployeeId, resolved fresh
+// on every call via resolveInstructorAuthority below — never inferred from
+// role, from holding learning.review.write alone, from course ownership,
+// or from any client-supplied identifier (master prompt §F).
+//
+// DISCLOSED CERTIFICATE-INVARIANT DEVIATION: §10.4 rule 4 describes
+// certificate issuance as "part of the same atomic action as the
+// completion transition itself." W89's own frozen STOP boundary (§29)
+// forbids certificate logic here, and W90 owns issuance exclusively —
+// `learning_certificates` is never written to by this function. Per
+// explicit product direction (this exact conflict was raised and
+// resolved before implementation), `completeEnrollment` performs only
+// the status/passed/score transition; certificate issuance for every
+// enrollment completed under W89 remains W90's own responsibility,
+// including a backfill pass for any enrollment that became
+// certificate-eligible here before W90 existed.
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolves whether the caller is the instructor of record for this
+ * enrollment's own session — a live lookup, never a snapshot (§13: "a
+ * session's own current instructor assignment is itself the live
+ * authorization boundary"). Returns false (never throws) for a self-paced
+ * enrollment, since no session/instructor relationship exists there.
+ */
+async function isCallerInstructorOfRecord(organizationId: number, enrollment: LearningEnrollment, callerEmployeeId: number | null): Promise<boolean> {
+  if (enrollment.sessionId == null) return false;
+  const [session] = await db
+    .select()
+    .from(learningCourseSessionsTable)
+    .where(and(eq(learningCourseSessionsTable.id, enrollment.sessionId), eq(learningCourseSessionsTable.organizationId, organizationId)))
+    .limit(1);
+  return isInstructorOfRecord(callerEmployeeId, session?.instructorEmployeeId ?? null);
+}
+
+export interface MarkAttendanceParams {
+  organizationId: number;
+  enrollmentId: number;
+  attended: boolean;
+  callerEmployeeId: number | null;
+  isOrgWide: boolean;
+  actorApplicationUserId: number;
+  actorMembershipId: number;
+}
+
+/**
+ * §10.3: "Attendance (attended) is recorded as a separate fact by the
+ * instructor of record or HR once a session occurs — it does not by
+ * itself transition status." Instructor-led only (a self-paced
+ * enrollment has no session to attend). Atomic conditional
+ * UPDATE ... WHERE status IN ('assigned','in_progress') AND
+ * attended IS NULL — recorded once; a repeat or concurrent call, or a
+ * call against an already-terminal enrollment, returns a controlled 409
+ * rather than silently overwriting or normalizing (§10.6, Definition of
+ * Done's own "atomic conditional update with a controlled 409 on
+ * repeat/concurrent attempts, tested under concurrency").
+ */
+export async function markAttendance(params: MarkAttendanceParams): Promise<LearningEnrollment> {
+  const enrollment = await getEnrollment(params.organizationId, params.enrollmentId);
+  if (!enrollment) throw new LearningEnrollmentNotFoundError();
+
+  if (enrollment.deliveryModeSnapshot !== "instructor_led" || enrollment.sessionId == null) {
+    throw new InvalidLearningEnrollmentError("Attendance only applies to instructor-led training");
+  }
+  if (!params.isOrgWide) {
+    const isInstructor = await isCallerInstructorOfRecord(params.organizationId, enrollment, params.callerEmployeeId);
+    if (!isInstructor) {
+      throw new LearningEnrollmentForbiddenError("Only this session's own instructor, or HR/L&D, may record attendance");
+    }
+  }
+
+  const [updated] = await db
+    .update(learningEnrollmentsTable)
+    .set({ attended: params.attended, attendanceMarkedByMembershipId: params.actorMembershipId, attendanceMarkedAt: new Date(), updatedAt: new Date() })
+    .where(
+      and(
+        eq(learningEnrollmentsTable.id, params.enrollmentId),
+        eq(learningEnrollmentsTable.organizationId, params.organizationId),
+        inArray(learningEnrollmentsTable.status, ["assigned", "in_progress"]),
+        isNull(learningEnrollmentsTable.attended),
+      ),
+    )
+    .returning();
+  if (!updated) throw new LearningProgressConflictError("Attendance has already been recorded for this enrollment, or it is no longer active");
+
+  await recordAuditEvent({
+    actorApplicationUserId: params.actorApplicationUserId,
+    actorMembershipId: params.actorMembershipId,
+    organizationId: params.organizationId,
+    eventType: "learning_enrollment.attendance_marked",
+    targetType: "learning_enrollment",
+    targetId: String(params.enrollmentId),
+    metadata: { employeeId: enrollment.employeeId, courseId: enrollment.courseId, attended: params.attended },
+  });
+
+  return updated;
+}
+
+export interface CompleteEnrollmentParams {
+  organizationId: number;
+  enrollmentId: number;
+  passed?: boolean;
+  score?: string;
+  callerEmployeeId: number | null;
+  isOrgWide: boolean;
+  actorApplicationUserId: number;
+  actorMembershipId: number;
+}
+
+/**
+ * §10.3.1: instructor-led completion is the instructor of record's or
+ * HR/L&D's own action; a self-paced enrollment with
+ * hasAssessmentSnapshot = true has no instructor of record (no session)
+ * so only HR/L&D may complete it (§11: the employee can never record
+ * their own passed/score — enforced structurally by
+ * advanceEnrollmentProgress's own gate above, not merely here). A
+ * self-paced enrollment with hasAssessmentSnapshot = false has no reason
+ * to reach this route at all under normal use (the employee's own
+ * `.../progress` route already handles it) but HR/L&D may still use this
+ * route as the "mark completion for any enrollment, organization-wide"
+ * administrative path §10.3.1 grants HR/L&D generally.
+ *
+ * §10.3's own transition diagram — `in_progress → completed ↘ failed
+ * (only when hasAssessmentSnapshot = true and passed = false)` — makes
+ * the assessment result and the terminal status a single, inseparable
+ * decision: when hasAssessmentSnapshot is true, `passed` is required and
+ * determines the target status server-side (never `failed` accepted
+ * directly from the caller); when false, `passed`/`score` must not be
+ * supplied at all (§11: no threshold, no derivation — recorded fresh,
+ * never accepted where it cannot apply). Atomic conditional
+ * UPDATE ... WHERE status IN ('assigned','in_progress') — a concurrent or
+ * repeat completion, or one against an already-terminal enrollment,
+ * returns a controlled 409.
+ */
+export async function completeEnrollment(params: CompleteEnrollmentParams): Promise<LearningEnrollment> {
+  const enrollment = await getEnrollment(params.organizationId, params.enrollmentId);
+  if (!enrollment) throw new LearningEnrollmentNotFoundError();
+
+  if (enrollment.deliveryModeSnapshot === "instructor_led") {
+    if (!params.isOrgWide) {
+      const isInstructor = await isCallerInstructorOfRecord(params.organizationId, enrollment, params.callerEmployeeId);
+      if (!isInstructor) {
+        throw new LearningEnrollmentForbiddenError("Only this session's own instructor, or HR/L&D, may complete this enrollment");
+      }
+    }
+  } else {
+    // self_paced — no instructor-of-record relationship exists; HR/L&D only.
+    if (!params.isOrgWide) {
+      throw new LearningEnrollmentForbiddenError("Only HR/L&D may complete a self-paced enrollment through this action");
+    }
+  }
+
+  let targetStatus: "completed" | "failed";
+  if (enrollment.hasAssessmentSnapshot) {
+    if (params.passed == null) {
+      throw new InvalidLearningEnrollmentError("passed is required to complete an enrollment with an assessment requirement");
+    }
+    targetStatus = params.passed ? "completed" : "failed";
+  } else {
+    if (params.passed != null || params.score != null) {
+      throw new InvalidLearningEnrollmentError("This course has no assessment requirement — passed/score must not be supplied");
+    }
+    targetStatus = "completed";
+  }
+
+  const [updated] = await db
+    .update(learningEnrollmentsTable)
+    .set({
+      status: targetStatus,
+      passed: enrollment.hasAssessmentSnapshot ? (params.passed ?? null) : null,
+      score: enrollment.hasAssessmentSnapshot ? (params.score ?? null) : null,
+      completedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(learningEnrollmentsTable.id, params.enrollmentId),
+        eq(learningEnrollmentsTable.organizationId, params.organizationId),
+        inArray(learningEnrollmentsTable.status, ["assigned", "in_progress"]),
+      ),
+    )
+    .returning();
+  if (!updated) throw new LearningProgressConflictError("This enrollment can no longer be completed");
+
+  await recordAuditEvent({
+    actorApplicationUserId: params.actorApplicationUserId,
+    actorMembershipId: params.actorMembershipId,
+    organizationId: params.organizationId,
+    eventType: targetStatus === "completed" ? "learning_enrollment.completed" : "learning_enrollment.failed",
+    targetType: "learning_enrollment",
+    targetId: String(params.enrollmentId),
+    metadata: { employeeId: enrollment.employeeId, courseId: enrollment.courseId, hasAssessmentSnapshot: enrollment.hasAssessmentSnapshot },
   });
 
   return updated;
