@@ -111,6 +111,8 @@ tags:
     description: Phase 3C, W75 — Performance cycle configuration and bulk review assignment. HR/admin only (performance.manage).
   - name: performance-reviews
     description: Phase 3C, W75 — read access to assigned Performance reviews. HR/admin only (performance.manage); self/manager visibility is a later workstream's concern.
+  - name: performance-reporting
+    description: Phase 3C, W81 — Performance dashboard and reports. Read-only, server-computed aggregation over existing Performance data, no stored analytics table. Scoped own/reviewer-of-record/organization-wide (performance.reports.read, org-wide reach signaled by performance.manage).
 
 paths:
   /healthz:
@@ -10288,6 +10290,124 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/performance/dashboard:
+    get:
+      operationId: getPerformanceDashboard
+      tags: [performance-reporting]
+      summary: Performance dashboard — zero-filled lifecycle tile breakdown
+      description: >-
+        Requires performance.reports.read. Scope resolved in the service
+        layer exactly like recruitment.reports.read/attendance.read.own:
+        performance.manage holders see the whole organization; everyone
+        else sees only reviews where they are the review's own employee or
+        its snapshotted reviewerEmployeeId. Optional ?cycleId= narrows
+        every review-scoped tile to one cycle; activeCycleCount is always
+        organization-wide (cycle existence isn't sensitive). Plain counts
+        only — no completion percentage or average-score tile, per the
+        frozen plan's own "no invented rate/KPI" scope. A reopened review
+        counts only under its current status.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: cycleId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Dashboard tile breakdown
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerformanceDashboard"
+
+  /organizations/{organizationId}/performance/reports/{reportKey}:
+    get:
+      operationId: runPerformanceReport
+      tags: [performance-reporting]
+      summary: Run a Performance report
+      description: >-
+        Computes a registered Performance report (see GET /reports,
+        category "performance": performance_review_status,
+        performance_scores, performance_goal_results) over the caller's
+        own/reviewer-of-record/organization-wide visibility tier (identical
+        to the dashboard). Filters mirror GET .../performance/reviews
+        (W80) — cycleId/status/departmentId/positionId/reviewerId/
+        employeeId, each filtering the review's own historical snapshot
+        columns, narrowing the authorized scope but never broadening it.
+        Pass ?format=csv for a CSV download instead of JSON.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: reportKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: cycleId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [draft, self_assessment, manager_review, hr_review, finalized, acknowledged]
+        - name: departmentId
+          in: query
+          required: false
+          description: Filters departmentIdSnapshot, not the employee's current department.
+          schema:
+            type: integer
+        - name: positionId
+          in: query
+          required: false
+          description: Filters positionIdSnapshot, not the employee's current position.
+          schema:
+            type: integer
+        - name: reviewerId
+          in: query
+          required: false
+          description: Filters the snapshotted reviewerEmployeeId.
+          schema:
+            type: integer
+        - name: employeeId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: format
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [json, csv]
+      responses:
+        "200":
+          description: Performance report result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportRunResult"
+            text/csv:
+              schema:
+                type: string
+        "404":
+          description: Unknown Performance report key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -15539,6 +15659,55 @@ components:
         page:
           type: integer
         pageSize:
+          type: integer
+
+    PerformanceDashboardStatusItem:
+      type: object
+      required: [status, count]
+      properties:
+        status:
+          type: string
+          enum: [draft, self_assessment, manager_review, hr_review, finalized, acknowledged]
+        count:
+          type: integer
+
+    PerformanceDashboard:
+      type: object
+      required:
+        [
+          cycleId, activeCycleCount, employeesAssignedCount, statusBreakdown,
+          selfAssessmentPendingCount, selfAssessmentSubmittedCount,
+          managerReviewPendingCount, managerReviewSubmittedCount,
+          proposedGoalsAwaitingDecisionCount, finalizedCount, acknowledgedCount,
+        ]
+      properties:
+        cycleId:
+          type: ["integer", "null"]
+          description: The cycle this dashboard is scoped to, if ?cycleId= was supplied; null when aggregating across all cycles in scope.
+        activeCycleCount:
+          type: integer
+          description: Organization-wide count of cycles with status = open, regardless of the caller's own review scope.
+        employeesAssignedCount:
+          type: integer
+          description: Distinct employees among the caller's authorized, optionally cycle-filtered review set.
+        statusBreakdown:
+          type: array
+          description: All 6 lifecycle statuses, zero-filled, fixed order. A reopened review counts only under its current status.
+          items:
+            $ref: "#/components/schemas/PerformanceDashboardStatusItem"
+        selfAssessmentPendingCount:
+          type: integer
+        selfAssessmentSubmittedCount:
+          type: integer
+        managerReviewPendingCount:
+          type: integer
+        managerReviewSubmittedCount:
+          type: integer
+        proposedGoalsAwaitingDecisionCount:
+          type: integer
+        finalizedCount:
+          type: integer
+        acknowledgedCount:
           type: integer
 
     PerformanceReviewCompetency:

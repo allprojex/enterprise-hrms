@@ -4713,6 +4713,44 @@ export interface PerformanceReviewListResponse {
   pageSize: number;
 }
 
+export type PerformanceDashboardStatusItemStatus = typeof PerformanceDashboardStatusItemStatus[keyof typeof PerformanceDashboardStatusItemStatus];
+
+
+export const PerformanceDashboardStatusItemStatus = {
+  draft: 'draft',
+  self_assessment: 'self_assessment',
+  manager_review: 'manager_review',
+  hr_review: 'hr_review',
+  finalized: 'finalized',
+  acknowledged: 'acknowledged',
+} as const;
+
+export interface PerformanceDashboardStatusItem {
+  status: PerformanceDashboardStatusItemStatus;
+  count: number;
+}
+
+export interface PerformanceDashboard {
+  /**
+     * The cycle this dashboard is scoped to, if ?cycleId= was supplied; null when aggregating across all cycles in scope.
+     * @nullable
+     */
+  cycleId: number | null;
+  /** Organization-wide count of cycles with status = open, regardless of the caller's own review scope. */
+  activeCycleCount: number;
+  /** Distinct employees among the caller's authorized, optionally cycle-filtered review set. */
+  employeesAssignedCount: number;
+  /** All 6 lifecycle statuses, zero-filled, fixed order. A reopened review counts only under its current status. */
+  statusBreakdown: PerformanceDashboardStatusItem[];
+  selfAssessmentPendingCount: number;
+  selfAssessmentSubmittedCount: number;
+  managerReviewPendingCount: number;
+  managerReviewSubmittedCount: number;
+  proposedGoalsAwaitingDecisionCount: number;
+  finalizedCount: number;
+  acknowledgedCount: number;
+}
+
 export interface PerformanceReviewCompetency {
   id: number;
   organizationId: number;
@@ -5262,5 +5300,48 @@ export const ListPerformanceReviewsStatus = {
   hr_review: 'hr_review',
   finalized: 'finalized',
   acknowledged: 'acknowledged',
+} as const;
+
+export type GetPerformanceDashboardParams = {
+cycleId?: number;
+};
+
+export type RunPerformanceReportParams = {
+cycleId?: number;
+status?: RunPerformanceReportStatus;
+/**
+ * Filters departmentIdSnapshot, not the employee's current department.
+ */
+departmentId?: number;
+/**
+ * Filters positionIdSnapshot, not the employee's current position.
+ */
+positionId?: number;
+/**
+ * Filters the snapshotted reviewerEmployeeId.
+ */
+reviewerId?: number;
+employeeId?: number;
+format?: RunPerformanceReportFormat;
+};
+
+export type RunPerformanceReportStatus = typeof RunPerformanceReportStatus[keyof typeof RunPerformanceReportStatus];
+
+
+export const RunPerformanceReportStatus = {
+  draft: 'draft',
+  self_assessment: 'self_assessment',
+  manager_review: 'manager_review',
+  hr_review: 'hr_review',
+  finalized: 'finalized',
+  acknowledged: 'acknowledged',
+} as const;
+
+export type RunPerformanceReportFormat = typeof RunPerformanceReportFormat[keyof typeof RunPerformanceReportFormat];
+
+
+export const RunPerformanceReportFormat = {
+  json: 'json',
+  csv: 'csv',
 } as const;
 

@@ -150,6 +150,43 @@ export const REPORT_DEFINITIONS: readonly ReportDefinition[] = [
     category: "attendance",
     requiredPermissionKey: "attendance.read.own",
   },
+  // Phase 3C, W81 — Performance Dashboard & Reporting (§20/§21 of the
+  // frozen plan). Registered here for catalog discoverability via the
+  // existing GET /reports (ADR-016), but — like the recruitment_*/
+  // attendance_* keys above — NOT executed through the generic
+  // GET .../reports/:reportKey/run route (lib/reporting.ts's RUNNERS map
+  // has no entries for these keys, so that route safely 404s "Unknown
+  // report" for any of them). Performance reports need the own/reviewer-
+  // of-record/organization-wide visibility tiers the generic runner cannot
+  // express — execution is a dedicated, scope-aware route instead
+  // (GET .../performance/reports/:reportKey,
+  // artifacts/api-server/src/routes/performanceReporting.ts), reusing the
+  // same {columns, rows}/CSV export shape and requiredPermissionKey
+  // convention this registry already established. A 4th frozen key,
+  // performance_rating_distribution, is deliberately NOT registered here —
+  // the frozen plan names no actual score-band/bin definition for it, and
+  // none was invented (see performanceReporting.ts's own file header).
+  {
+    key: "performance_review_status",
+    label: "Review Status",
+    description: "Every in-scope Performance review's current lifecycle status, reviewer, and historical department/position snapshot.",
+    category: "performance",
+    requiredPermissionKey: "performance.reports.read",
+  },
+  {
+    key: "performance_scores",
+    label: "Performance Scores",
+    description: "Manager score, HR override, and effective score for every in-scope Performance review.",
+    category: "performance",
+    requiredPermissionKey: "performance.reports.read",
+  },
+  {
+    key: "performance_goal_results",
+    label: "Goal Results",
+    description: "Every accepted, official goal across in-scope Performance reviews, with its measured result and computed score.",
+    category: "performance",
+    requiredPermissionKey: "performance.reports.read",
+  },
 ] as const;
 
 /** Throws on a duplicate key — the only integrity rule this registry has (no dependency graph, unlike modules). */

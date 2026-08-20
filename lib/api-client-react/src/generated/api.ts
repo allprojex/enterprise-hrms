@@ -99,6 +99,7 @@ import type {
   GeneratePerformanceReviewsResult,
   GetAttendanceDailySummaryParams,
   GetAttendanceDashboardParams,
+  GetPerformanceDashboardParams,
   GrantRolePermissionInput,
   HealthStatus,
   InternalVacanciesResponse,
@@ -155,6 +156,7 @@ import type {
   OrganizationRole,
   PasswordResetStatus,
   PerformanceCycle,
+  PerformanceDashboard,
   PerformanceGoal,
   PerformanceRatingScale,
   PerformanceRatingScaleLevel,
@@ -202,6 +204,7 @@ import type {
   RestructurePositionInput,
   Role,
   RunAttendanceReportParams,
+  RunPerformanceReportParams,
   RunRecruitmentReportParams,
   RunReportParams,
   SaveInterviewScorecardInput,
@@ -20876,4 +20879,189 @@ export const useReopenPerformanceReview = <TError = ErrorType<ApiError>,
       > => {
       return useMutation(getReopenPerformanceReviewMutationOptions(options));
     }
+
+export const getGetPerformanceDashboardUrl = (organizationId: number,
+    params?: GetPerformanceDashboardParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/performance/dashboard?${stringifiedParams}` : `/api/organizations/${organizationId}/performance/dashboard`
+}
+
+/**
+ * Requires performance.reports.read. Scope resolved in the service layer exactly like recruitment.reports.read/attendance.read.own: performance.manage holders see the whole organization; everyone else sees only reviews where they are the review's own employee or its snapshotted reviewerEmployeeId. Optional ?cycleId= narrows every review-scoped tile to one cycle; activeCycleCount is always organization-wide (cycle existence isn't sensitive). Plain counts only — no completion percentage or average-score tile, per the frozen plan's own "no invented rate/KPI" scope. A reopened review counts only under its current status.
+ * @summary Performance dashboard — zero-filled lifecycle tile breakdown
+ */
+export const getPerformanceDashboard = async (organizationId: number,
+    params?: GetPerformanceDashboardParams, options?: RequestInit): Promise<PerformanceDashboard> => {
+
+  return customFetch<PerformanceDashboard>(getGetPerformanceDashboardUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPerformanceDashboardQueryKey = (organizationId: number,
+    params?: GetPerformanceDashboardParams,) => {
+    return [
+    `/api/organizations/${organizationId}/performance/dashboard`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetPerformanceDashboardQueryOptions = <TData = Awaited<ReturnType<typeof getPerformanceDashboard>>, TError = ErrorType<unknown>>(organizationId: number,
+    params?: GetPerformanceDashboardParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPerformanceDashboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPerformanceDashboardQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPerformanceDashboard>>> = ({ signal }) => getPerformanceDashboard(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPerformanceDashboard>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPerformanceDashboardQueryResult = NonNullable<Awaited<ReturnType<typeof getPerformanceDashboard>>>
+export type GetPerformanceDashboardQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Performance dashboard — zero-filled lifecycle tile breakdown
+ */
+
+export function useGetPerformanceDashboard<TData = Awaited<ReturnType<typeof getPerformanceDashboard>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    params?: GetPerformanceDashboardParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPerformanceDashboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPerformanceDashboardQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRunPerformanceReportUrl = (organizationId: number,
+    reportKey: string,
+    params?: RunPerformanceReportParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/performance/reports/${reportKey}?${stringifiedParams}` : `/api/organizations/${organizationId}/performance/reports/${reportKey}`
+}
+
+/**
+ * Computes a registered Performance report (see GET /reports, category "performance": performance_review_status, performance_scores, performance_goal_results) over the caller's own/reviewer-of-record/organization-wide visibility tier (identical to the dashboard). Filters mirror GET .../performance/reviews (W80) — cycleId/status/departmentId/positionId/reviewerId/ employeeId, each filtering the review's own historical snapshot columns, narrowing the authorized scope but never broadening it. Pass ?format=csv for a CSV download instead of JSON.
+ * @summary Run a Performance report
+ */
+export const runPerformanceReport = async (organizationId: number,
+    reportKey: string,
+    params?: RunPerformanceReportParams, options?: RequestInit): Promise<ReportRunResult | string> => {
+
+  return customFetch<ReportRunResult | string>(getRunPerformanceReportUrl(organizationId,reportKey,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getRunPerformanceReportQueryKey = (organizationId: number,
+    reportKey: string,
+    params?: RunPerformanceReportParams,) => {
+    return [
+    `/api/organizations/${organizationId}/performance/reports/${reportKey}`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getRunPerformanceReportQueryOptions = <TData = Awaited<ReturnType<typeof runPerformanceReport>>, TError = ErrorType<ApiError>>(organizationId: number,
+    reportKey: string,
+    params?: RunPerformanceReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runPerformanceReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getRunPerformanceReportQueryKey(organizationId,reportKey,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof runPerformanceReport>>> = ({ signal }) => runPerformanceReport(organizationId,reportKey,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && reportKey !== null && reportKey !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof runPerformanceReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type RunPerformanceReportQueryResult = NonNullable<Awaited<ReturnType<typeof runPerformanceReport>>>
+export type RunPerformanceReportQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Run a Performance report
+ */
+
+export function useRunPerformanceReport<TData = Awaited<ReturnType<typeof runPerformanceReport>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    reportKey: string,
+    params?: RunPerformanceReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runPerformanceReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getRunPerformanceReportQueryOptions(organizationId,reportKey,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 

@@ -352,6 +352,13 @@ export function AppShell({ children }: AppShellProps) {
     // entry above; backend remains performance.manage-gated regardless of
     // nav visibility.
     ...(isHrCapable ? [{ href: '/performance-reviews', label: 'Performance Reviews', icon: ClipboardCheck } satisfies NavItem] : []),
+    // Phase 3C, W81 — §35's own frozen surfaces (/performance,
+    // /performance-reports), same isHrCapable-only nav precedent as every
+    // other Performance nav entry above; backend remains
+    // performance.reports.read-gated (own/reviewer/org-wide scope) so a
+    // non-HR reviewer who navigates directly is still correctly authorized.
+    ...(isHrCapable ? [{ href: '/performance', label: 'Performance Dashboard', icon: LayoutDashboard } satisfies NavItem] : []),
+    ...(isHrCapable ? [{ href: '/performance-reports', label: 'Performance Reports', icon: FileBarChart } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisitions', label: 'Job Requisitions', icon: ClipboardList } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisition-approvals', label: 'Requisition Approvals', icon: Stamp } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/vacancies', label: 'Vacancies', icon: Megaphone } satisfies NavItem] : []),

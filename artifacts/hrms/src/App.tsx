@@ -36,6 +36,8 @@ import PerformanceTemplates from '@/pages/performance-templates';
 import PerformanceCycles from '@/pages/performance-cycles';
 import PerformanceTeam from '@/pages/performance-team';
 import PerformanceReviews from '@/pages/performance-reviews';
+import PerformanceDashboard from '@/pages/performance-dashboard';
+import PerformanceReports from '@/pages/performance-reports';
 import EmployeeSelfService from '@/pages/employee-self-service';
 import RecruitmentSettings from '@/pages/recruitment-settings';
 import Requisitions from '@/pages/requisitions';
@@ -174,6 +176,12 @@ function Router() {
       </Route>
       <Route path="/performance-reviews">
         {() => <SecureRoute component={PerformanceReviews} moduleKey="performance" />}
+      </Route>
+      <Route path="/performance">
+        {() => <SecureRoute component={PerformanceDashboard} moduleKey="performance" />}
+      </Route>
+      <Route path="/performance-reports">
+        {() => <SecureRoute component={PerformanceReports} moduleKey="performance" />}
       </Route>
       <Route path="/self-service">
         {() => <SecureRoute component={EmployeeSelfService} moduleKey="employee_self_service" />}

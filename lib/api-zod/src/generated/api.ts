@@ -8802,3 +8802,65 @@ export const ReopenPerformanceReviewResponse = zod.object({
 })
 
 
+/**
+ * Requires performance.reports.read. Scope resolved in the service layer exactly like recruitment.reports.read/attendance.read.own: performance.manage holders see the whole organization; everyone else sees only reviews where they are the review's own employee or its snapshotted reviewerEmployeeId. Optional ?cycleId= narrows every review-scoped tile to one cycle; activeCycleCount is always organization-wide (cycle existence isn't sensitive). Plain counts only — no completion percentage or average-score tile, per the frozen plan's own "no invented rate/KPI" scope. A reopened review counts only under its current status.
+ * @summary Performance dashboard — zero-filled lifecycle tile breakdown
+ */
+export const GetPerformanceDashboardParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetPerformanceDashboardQueryParams = zod.object({
+  "cycleId": zod.coerce.number().optional()
+})
+
+export const GetPerformanceDashboardResponse = zod.object({
+  "cycleId": zod.number().nullable().describe('The cycle this dashboard is scoped to, if ?cycleId= was supplied; null when aggregating across all cycles in scope.'),
+  "activeCycleCount": zod.number().describe('Organization-wide count of cycles with status = open, regardless of the caller\'s own review scope.'),
+  "employeesAssignedCount": zod.number().describe('Distinct employees among the caller\'s authorized, optionally cycle-filtered review set.'),
+  "statusBreakdown": zod.array(zod.object({
+  "status": zod.enum(['draft', 'self_assessment', 'manager_review', 'hr_review', 'finalized', 'acknowledged']),
+  "count": zod.number()
+})).describe('All 6 lifecycle statuses, zero-filled, fixed order. A reopened review counts only under its current status.'),
+  "selfAssessmentPendingCount": zod.number(),
+  "selfAssessmentSubmittedCount": zod.number(),
+  "managerReviewPendingCount": zod.number(),
+  "managerReviewSubmittedCount": zod.number(),
+  "proposedGoalsAwaitingDecisionCount": zod.number(),
+  "finalizedCount": zod.number(),
+  "acknowledgedCount": zod.number()
+})
+
+
+/**
+ * Computes a registered Performance report (see GET /reports, category "performance": performance_review_status, performance_scores, performance_goal_results) over the caller's own/reviewer-of-record/organization-wide visibility tier (identical to the dashboard). Filters mirror GET .../performance/reviews (W80) — cycleId/status/departmentId/positionId/reviewerId/ employeeId, each filtering the review's own historical snapshot columns, narrowing the authorized scope but never broadening it. Pass ?format=csv for a CSV download instead of JSON.
+ * @summary Run a Performance report
+ */
+export const RunPerformanceReportParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "reportKey": zod.coerce.string()
+})
+
+export const RunPerformanceReportQueryParams = zod.object({
+  "cycleId": zod.coerce.number().optional(),
+  "status": zod.enum(['draft', 'self_assessment', 'manager_review', 'hr_review', 'finalized', 'acknowledged']).optional(),
+  "departmentId": zod.coerce.number().optional().describe('Filters departmentIdSnapshot, not the employee\'s current department.'),
+  "positionId": zod.coerce.number().optional().describe('Filters positionIdSnapshot, not the employee\'s current position.'),
+  "reviewerId": zod.coerce.number().optional().describe('Filters the snapshotted reviewerEmployeeId.'),
+  "employeeId": zod.coerce.number().optional(),
+  "format": zod.enum(['json', 'csv']).optional()
+})
+
+export const RunPerformanceReportResponse = zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "description": zod.string(),
+  "generatedAt": zod.coerce.date(),
+  "columns": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string()
+})),
+  "rows": zod.array(zod.record(zod.string(), zod.unknown()))
+})
+
+
