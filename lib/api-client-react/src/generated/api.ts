@@ -161,6 +161,7 @@ import type {
   PerformanceRatingScaleWithLevels,
   PerformanceReview,
   PerformanceReviewCompetency,
+  PerformanceReviewListResponse,
   PerformanceReviewTemplate,
   PerformanceReviewTemplateWithCompetencies,
   PerformanceReviewWithCompetencies,
@@ -19883,13 +19884,13 @@ export const getListPerformanceReviewsUrl = (organizationId: number,
 }
 
 /**
- * Requires performance.manage. Optional cycleId/employeeId/status query filters.
- * @summary List an organization's Performance reviews
+ * Requires performance.manage, organization-wide. Optional cycleId/ employeeId/status/departmentId/positionId/reviewerId query filters — department/position/reviewer filter the review's own historical SNAPSHOT columns, never live employee data, so a later transfer never changes which reviews a filter surfaces. Paginated (items/total/page/pageSize), matching listEmployees' own established convention. The manager's own scoped view remains GET .../team-reviews (W78) — deliberately not duplicated here.
+ * @summary List an organization's Performance reviews (W80 — internal HR workspace)
  */
 export const listPerformanceReviews = async (organizationId: number,
-    params?: ListPerformanceReviewsParams, options?: RequestInit): Promise<PerformanceReview[]> => {
+    params?: ListPerformanceReviewsParams, options?: RequestInit): Promise<PerformanceReviewListResponse> => {
 
-  return customFetch<PerformanceReview[]>(getListPerformanceReviewsUrl(organizationId,params),
+  return customFetch<PerformanceReviewListResponse>(getListPerformanceReviewsUrl(organizationId,params),
   {
     ...options,
     method: 'GET'
@@ -19934,7 +19935,7 @@ export type ListPerformanceReviewsQueryError = ErrorType<unknown>
 
 
 /**
- * @summary List an organization's Performance reviews
+ * @summary List an organization's Performance reviews (W80 — internal HR workspace)
  */
 
 export function useListPerformanceReviews<TData = Awaited<ReturnType<typeof listPerformanceReviews>>, TError = ErrorType<unknown>>(

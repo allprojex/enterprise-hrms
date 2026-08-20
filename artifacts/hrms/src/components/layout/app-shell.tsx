@@ -347,6 +347,11 @@ export function AppShell({ children }: AppShellProps) {
     // isn't HR-capable is still correctly authorized if they navigate
     // directly; only the nav *entry* follows this convention.
     ...(isHrCapable ? [{ href: '/performance-team', label: 'My Team Reviews', icon: Users } satisfies NavItem] : []),
+    // Phase 3C, W80 — §35's own frozen surface (/performance-reviews),
+    // same isHrCapable-only nav precedent as every other Performance nav
+    // entry above; backend remains performance.manage-gated regardless of
+    // nav visibility.
+    ...(isHrCapable ? [{ href: '/performance-reviews', label: 'Performance Reviews', icon: ClipboardCheck } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisitions', label: 'Job Requisitions', icon: ClipboardList } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisition-approvals', label: 'Requisition Approvals', icon: Stamp } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/vacancies', label: 'Vacancies', icon: Megaphone } satisfies NavItem] : []),

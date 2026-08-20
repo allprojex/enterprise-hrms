@@ -8204,20 +8204,29 @@ export const GeneratePerformanceReviewsResponse = zod.object({
 
 
 /**
- * Requires performance.manage. Optional cycleId/employeeId/status query filters.
- * @summary List an organization's Performance reviews
+ * Requires performance.manage, organization-wide. Optional cycleId/ employeeId/status/departmentId/positionId/reviewerId query filters — department/position/reviewer filter the review's own historical SNAPSHOT columns, never live employee data, so a later transfer never changes which reviews a filter surfaces. Paginated (items/total/page/pageSize), matching listEmployees' own established convention. The manager's own scoped view remains GET .../team-reviews (W78) — deliberately not duplicated here.
+ * @summary List an organization's Performance reviews (W80 — internal HR workspace)
  */
 export const ListPerformanceReviewsParams = zod.object({
   "organizationId": zod.coerce.number()
 })
 
+export const listPerformanceReviewsQueryPageDefault = 1;
+export const listPerformanceReviewsQueryPageSizeDefault = 20;
+
 export const ListPerformanceReviewsQueryParams = zod.object({
   "cycleId": zod.coerce.number().optional(),
   "employeeId": zod.coerce.number().optional(),
-  "status": zod.enum(['draft', 'self_assessment', 'manager_review', 'hr_review', 'finalized', 'acknowledged']).optional()
+  "status": zod.enum(['draft', 'self_assessment', 'manager_review', 'hr_review', 'finalized', 'acknowledged']).optional(),
+  "departmentId": zod.coerce.number().optional().describe('Filters departmentIdSnapshot, not the employee\'s current department.'),
+  "positionId": zod.coerce.number().optional().describe('Filters positionIdSnapshot, not the employee\'s current position.'),
+  "reviewerId": zod.coerce.number().optional().describe('Filters the snapshotted reviewerEmployeeId.'),
+  "page": zod.coerce.number().default(listPerformanceReviewsQueryPageDefault),
+  "pageSize": zod.coerce.number().default(listPerformanceReviewsQueryPageSizeDefault)
 })
 
-export const ListPerformanceReviewsResponseItem = zod.object({
+export const ListPerformanceReviewsResponse = zod.object({
+  "items": zod.array(zod.object({
   "id": zod.number(),
   "organizationId": zod.number(),
   "cycleId": zod.number(),
@@ -8243,8 +8252,11 @@ export const ListPerformanceReviewsResponseItem = zod.object({
   "revisionNumber": zod.number(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "pageSize": zod.number()
 })
-export const ListPerformanceReviewsResponse = zod.array(ListPerformanceReviewsResponseItem)
 
 
 /**

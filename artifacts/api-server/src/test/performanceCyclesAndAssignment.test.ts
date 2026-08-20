@@ -192,20 +192,26 @@ function makeQueryClient(): unknown {
           return passthrough;
         }
         const rows = rowsFor(table);
-        const builder = {
-          where(cond: Cond) {
-            const filtered = rows.filter((r) => matches(r, cond));
-            return {
-              limit: (n: number) => Promise.resolve(filtered.slice(0, n)),
-              orderBy: () => Promise.resolve(filtered),
-              then: (resolve: (v: unknown) => void, reject?: (e: unknown) => void) => Promise.resolve(filtered).then(resolve, reject),
-            };
-          },
-          limit: (n: number) => Promise.resolve(rows.slice(0, n)),
-          orderBy: () => Promise.resolve(rows),
-          then: (resolve: (v: unknown) => void, reject?: (e: unknown) => void) => Promise.resolve(rows).then(resolve, reject),
+        // Chainable stage: where/orderBy narrow+reorder eagerly; limit/offset
+        // are recorded (not applied) so they combine correctly (offset then
+        // limit, per SQL semantics) regardless of call order — needed
+        // because listReviews (W80) chains .where().orderBy().limit().offset().
+        const stage = (
+          current: Record<string, unknown>[],
+          off = 0,
+          lim: number | undefined = undefined,
+        ): Record<string, unknown> & PromiseLike<Record<string, unknown>[]> => {
+          const resolved = () => (lim === undefined ? current.slice(off) : current.slice(off, off + lim));
+          const promise = Promise.resolve(resolved());
+          return {
+            where: (cond: Cond) => stage(current.filter((r) => matches(r, cond)), off, lim),
+            orderBy: () => stage(current, off, lim),
+            limit: (n: number) => stage(current, off, n),
+            offset: (n: number) => stage(current, n, lim),
+            then: promise.then.bind(promise),
+          };
         };
-        return builder;
+        return stage(rows);
       },
     }),
     insert: (table: { __name: string }) => ({
@@ -286,6 +292,12 @@ vi.mock("drizzle-orm", () => ({
   isNull: () => undefined,
   gt: () => undefined,
   inArray: (col: string, vals: unknown[]) => ({ __op: "in", field: typeof col === "string" ? col.split(".").pop() : col, vals }),
+  // W80: count()/desc() are only used by listReviews' pagination query.
+  // The mock's select() ignores its projection argument entirely (see
+  // makeQueryClient below), so these are inert passthroughs — real
+  // count-aggregate behavior is exercised in live QA, not here.
+  count: () => "count",
+  desc: () => "desc",
 }));
 
 const { default: app } = await import("../app");
@@ -585,12 +597,18 @@ describe("Performance Cycles — generate-reviews (assignment)", () => {
 });
 
 describe("Performance Reviews — read, snapshot immutability, tenant isolation", () => {
-  it("lists reviews filtered by cycleId", async () => {
+  it("lists reviews filtered by cycleId, paginated (W80 — {items,total,page,pageSize})", async () => {
+    // .total isn't asserted here: this mock harness (like employees.test.ts's
+    // own established convention) doesn't simulate a real SQL count()
+    // aggregate — .items/.page/.pageSize are what the mock can faithfully
+    // represent; total is exercised for real in live QA instead.
     const create = await request(app).post(`/api/organizations/${ORG_ID}/performance/cycles`).set(auth(HR_USER_ID)).send(baseCyclePayload());
     await request(app).post(`/api/organizations/${ORG_ID}/performance/cycles/${create.body.id}/generate-reviews`).set(auth(HR_USER_ID)).send({});
     const res = await request(app).get(`/api/organizations/${ORG_ID}/performance/reviews?cycleId=${create.body.id}`).set(auth(HR_USER_ID));
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(2);
+    expect(res.body.items).toHaveLength(2);
+    expect(res.body.page).toBe(1);
+    expect(res.body.pageSize).toBe(20);
   });
 
   it("returns a review with its snapshotted competencies", async () => {

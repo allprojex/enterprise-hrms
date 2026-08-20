@@ -225,6 +225,12 @@ router.post(
 );
 
 // GET /organizations/:organizationId/performance/reviews
+// W80: org-wide HR review list — pagination and departmentId/positionId/
+// reviewerId filters added (filtering the review's own historical
+// snapshot columns, never live employee data). performance.manage
+// remains the sole gate — W78's own dedicated /team-reviews route
+// already serves the manager's own scoped view; this route is
+// deliberately not widened to also resolve that scope a second way.
 router.get(
   "/organizations/:organizationId/performance/reviews",
   requireAuth as any,
@@ -232,16 +238,34 @@ router.get(
   requireModuleEnabled(PERFORMANCE_MODULE_KEY),
   requirePermission("performance.manage"),
   async (req: MembershipRequest, res): Promise<void> => {
-    const cycleId = req.query.cycleId != null ? parseId(req.query.cycleId as string) : undefined;
-    const employeeId = req.query.employeeId != null ? parseId(req.query.employeeId as string) : undefined;
+    const optionalId = (raw: unknown): number | undefined => {
+      if (raw == null) return undefined;
+      const parsed = parseId(raw as string);
+      return isNaN(parsed) ? undefined : parsed;
+    };
+    const cycleId = optionalId(req.query.cycleId);
+    const employeeId = optionalId(req.query.employeeId);
+    const departmentId = optionalId(req.query.departmentId);
+    const positionId = optionalId(req.query.positionId);
+    const reviewerId = optionalId(req.query.reviewerId);
     const status = typeof req.query.status === "string" ? req.query.status : undefined;
-    const reviews = await listReviews({
+    const rawPage = optionalId(req.query.page);
+    const rawPageSize = optionalId(req.query.pageSize);
+    const page = rawPage != null && rawPage > 0 ? rawPage : 1;
+    const pageSize = rawPageSize != null && rawPageSize > 0 ? Math.min(rawPageSize, 100) : 20;
+
+    const result = await listReviews({
       organizationId: req.membership!.organizationId,
-      cycleId: cycleId != null && !isNaN(cycleId) ? cycleId : undefined,
-      employeeId: employeeId != null && !isNaN(employeeId) ? employeeId : undefined,
+      cycleId,
+      employeeId,
       status,
+      departmentId,
+      positionId,
+      reviewerId,
+      page,
+      pageSize,
     });
-    res.json(reviews);
+    res.json(result);
   },
 );
 

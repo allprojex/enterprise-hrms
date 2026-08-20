@@ -4706,6 +4706,13 @@ export interface GeneratePerformanceReviewsResult {
   reviews: PerformanceReview[];
 }
 
+export interface PerformanceReviewListResponse {
+  items: PerformanceReview[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 export interface PerformanceReviewCompetency {
   id: number;
   organizationId: number;
@@ -5229,6 +5236,20 @@ export type ListPerformanceReviewsParams = {
 cycleId?: number;
 employeeId?: number;
 status?: ListPerformanceReviewsStatus;
+/**
+ * Filters departmentIdSnapshot, not the employee's current department.
+ */
+departmentId?: number;
+/**
+ * Filters positionIdSnapshot, not the employee's current position.
+ */
+positionId?: number;
+/**
+ * Filters the snapshotted reviewerEmployeeId.
+ */
+reviewerId?: number;
+page?: number;
+pageSize?: number;
 };
 
 export type ListPerformanceReviewsStatus = typeof ListPerformanceReviewsStatus[keyof typeof ListPerformanceReviewsStatus];

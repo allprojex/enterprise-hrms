@@ -59,7 +59,7 @@
  * own tiers until a reviewer is otherwise established, a later
  * workstream's concern).
  */
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, count, desc } from "drizzle-orm";
 import {
   db,
   performanceCyclesTable,
@@ -563,14 +563,50 @@ export interface ListReviewsFilters {
   cycleId?: number;
   employeeId?: number;
   status?: string;
+  /**
+   * W80 additions — all three filter on the review's own SNAPSHOT columns
+   * (departmentIdSnapshot/positionIdSnapshot/reviewerEmployeeId), never a
+   * live department/position/manager lookup, per §9's own historical-
+   * integrity discipline: a transfer after assignment must not change
+   * which reviews a department/position/reviewer filter surfaces.
+   */
+  departmentId?: number;
+  positionId?: number;
+  reviewerId?: number;
+  page: number;
+  pageSize: number;
 }
 
-export async function listReviews(filters: ListReviewsFilters): Promise<PerformanceReview[]> {
+export interface ListReviewsResult {
+  items: PerformanceReview[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/** Org-wide, paginated, filterable list (§27's own "org-wide list, filterable" line) — matches employees.ts's own established {items,total,page,pageSize} pagination convention. */
+export async function listReviews(filters: ListReviewsFilters): Promise<ListReviewsResult> {
   const conditions = [eq(performanceReviewsTable.organizationId, filters.organizationId)];
   if (filters.cycleId != null) conditions.push(eq(performanceReviewsTable.cycleId, filters.cycleId));
   if (filters.employeeId != null) conditions.push(eq(performanceReviewsTable.employeeId, filters.employeeId));
   if (filters.status != null) conditions.push(eq(performanceReviewsTable.status, filters.status as never));
-  return db.select().from(performanceReviewsTable).where(and(...conditions));
+  if (filters.departmentId != null) conditions.push(eq(performanceReviewsTable.departmentIdSnapshot, filters.departmentId));
+  if (filters.positionId != null) conditions.push(eq(performanceReviewsTable.positionIdSnapshot, filters.positionId));
+  if (filters.reviewerId != null) conditions.push(eq(performanceReviewsTable.reviewerEmployeeId, filters.reviewerId));
+  const where = and(...conditions);
+
+  const [totalRow] = await db.select({ value: count() }).from(performanceReviewsTable).where(where);
+  const total = totalRow?.value ?? 0;
+
+  const items = await db
+    .select()
+    .from(performanceReviewsTable)
+    .where(where)
+    .orderBy(desc(performanceReviewsTable.createdAt))
+    .limit(filters.pageSize)
+    .offset((filters.page - 1) * filters.pageSize);
+
+  return { items, total, page: filters.page, pageSize: filters.pageSize };
 }
 
 export async function getReviewWithCompetencies(
