@@ -1,12 +1,28 @@
 # Phase 3C — Performance: Frozen Implementation Plan
 
-Status: **DRAFT — NOT FROZEN.** Becomes frozen only once reviewed and approved. No workstream may begin until this document is approved, exactly as `PHASE_3B_ATTENDANCE_IMPLEMENTATION_PLAN.md` was approved before W64 began.
+Status: **FROZEN — APPROVED FOR IMPLEMENTATION** (2026-08-20). No workstream may begin execution until this freeze date; W73 is the first implementation workstream, and does not begin merely because this document is frozen — it still requires its own separate go-ahead, exactly as W64 did after `PHASE_3B_ATTENDANCE_IMPLEMENTATION_PLAN.md` was frozen.
 
-This document is the product of a discovery-only session: no migrations, no routes, no frontend pages, no permission seeding, no module activation, and no production access were performed while producing it. Every claim about the existing codebase below was verified by direct inspection (file paths cited); every new-design element is explicitly labeled.
+This document was produced across two sessions: an initial discovery/draft pass (no migrations, no routes, no frontend pages, no permission seeding, no module activation, no production access), and this final-reconciliation pass (owner decisions recorded, lifecycle/scoring/historical-integrity/permissions/workstreams reconciled against those decisions — again with no migration, route, frontend, permission seed, module activation, or production access performed). Every claim about the existing codebase was verified by direct inspection (file paths cited); every new-design element is explicitly labeled.
 
 Two labels are used throughout:
 - **[ROADMAP REQUIREMENT]** — literally stated in `ROADMAP.md` / `PROJECT_STATUS.md`.
 - **[PROPOSED DESIGN DECISION]** — filled in by this document; not pre-existing.
+- **[OWNER DECISION — APPROVED 2026-08-20]** — a business-policy call made by the owner during final reconciliation, superseding the draft's own "recommendation" framing.
+
+---
+
+## 0. Owner Decisions — Approved (2026-08-20)
+
+The following six decisions were open in the draft and are now resolved. They are load-bearing on §10–§13, §37, and the workstream scope in §35 — every downstream section has been reconciled to them.
+
+| # | Decision | Approved answer |
+|---|---|---|
+| 1 | Does employee self-rating contribute numerically to the final score? | **No.** Retained for comparison/context only; excluded from the scoring formula (§11). |
+| 2 | Is employee acknowledgement of a finalized review required? | **Yes.** Acknowledgement means "I have seen this review," not "I agree with this review" (§14, §17). |
+| 3 | Does v1 include a formal appeal/dispute workflow? | **No.** Deferred. An optional final employee comment is allowed at acknowledgement (§17). |
+| 4 | Are goals employee-proposed, manager-assigned, or both? | **Both.** Employee-created goals are proposals; a proposed goal is not official review criteria merely because the employee created it — it becomes official only once the manager accepts it (§12). |
+| 5 | Do review templates support custom questions in v1? | **No.** V1 uses structured goals/KPIs and competencies only. |
+| 6 | Does v1 include Performance Improvement Plans (PIP)? | **No.** Explicitly deferred to a future Employee Relations module. |
 
 ---
 
@@ -14,7 +30,7 @@ Two labels are used throughout:
 
 Define the complete, frozen architecture and workstream sequence for the Performance module — the next undelivered item in `ROADMAP.md`'s Phase 3 ("Workforce Operations") ordering, per `PROJECT_STATUS.md`'s own "Next Roadmap Step" note (line 274): Recruitment and Attendance are complete; Leave and Employee Self Service were already delivered in Phase 2B; **Performance is next**. This plan exists so implementation (W73 onward) can proceed in small, controlled, independently-shippable workstreams without redesigning the module mid-build — the same discipline `PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md` and `PHASE_3B_ATTENDANCE_IMPLEMENTATION_PLAN.md` already established.
 
-**[ROADMAP REQUIREMENT]** `ROADMAP.md` names "Performance" as a Phase 3 item with no further elaboration — no scope description, no dependencies, no explicit deferrals. Everything beyond the bare name below is a **[PROPOSED DESIGN DECISION]**.
+**[ROADMAP REQUIREMENT]** `ROADMAP.md` names "Performance" as a Phase 3 item with no further elaboration — no scope description, no dependencies, no explicit deferrals. Everything beyond the bare name is a **[PROPOSED DESIGN DECISION]**, now finalized by the Owner Decisions in §0 and the reconciliation below.
 
 **Filename note:** the discovery brief suggested `docs/PERFORMANCE_IMPLEMENTATION_PLAN.md`; this repository's own established convention is `docs/PHASE_<N><letter>_<MODULE>_IMPLEMENTATION_PLAN.md` (`PHASE_3A_RECRUITMENT...`, `PHASE_3B_ATTENDANCE...`). Following that convention exactly, this document is `docs/PHASE_3C_PERFORMANCE_IMPLEMENTATION_PLAN.md`.
 
@@ -22,7 +38,7 @@ Define the complete, frozen architecture and workstream sequence for the Perform
 
 ## 2. Existing Architecture Reused
 
-Nothing below is proposed as new platform infrastructure — every one of these is an existing, working primitive Performance will consume unchanged:
+Unchanged from the draft — nothing here is new platform infrastructure; every one of these is an existing, working primitive Performance will consume unchanged:
 
 | Foundation | Reused as-is from |
 |---|---|
@@ -44,36 +60,37 @@ Nothing below is proposed as new platform infrastructure — every one of these 
 | OpenAPI hand-written spec + orval codegen (React Query hooks + Zod schemas) | `lib/api-spec/openapi.yaml`, `lib/api-spec/orval.config.ts` |
 | Frontend routing (`SecureRoute` + `ModuleGate`), nav gating (`isHrCapable`) | `artifacts/hrms/src/App.tsx`, `artifacts/hrms/src/components/layout/app-shell.tsx` |
 
-**No new platform primitive is required to build Performance.** This is itself a significant finding: Performance is purely a new module built entirely on existing foundations.
+**No new platform primitive is required to build Performance.**
 
 ---
 
-## 3. Scope (Recommended V1)
+## 3. Scope (Frozen V1)
 
 - Performance Cycles (org-configured periods with self-assessment / manager-review / HR-finalization windows)
-- Review Templates (reusable, versioned-by-snapshot competency sets + weighting + rating scale reference)
+- Review Templates (reusable, snapshot-preserved competency sets + weighting + rating scale reference)
 - Rating Scales (organization-configurable, not hardcoded 1–5)
-- Goals/Objectives (per-review, employee- or manager-created, five measurement types)
+- Goals/Objectives — **manager-created (official immediately) and employee-proposed (official only once manager-accepted)**, five measurement types
 - Competencies (per-review, snapshotted from a template at assignment time)
 - Self-Assessment (ESS)
 - Manager Review (direct-report scope, one level, server-derived)
 - HR Review & Finalization (with optional score override + mandatory reason)
-- Employee Acknowledgement ("seen," not "agree," with an optional final comment)
+- Employee Acknowledgement — **required**, "seen" not "agreed," optional final comment
 - Evidence/Attachments (reusing `employee_documents` — a lightweight join table only)
 - Performance Dashboard (own dedicated route, mirroring Attendance's W70 precedent)
 - 4 initial reports via a dedicated, visibility-scoped reporting route
-- Full audit trail on every state transition
+- Full audit trail on every state transition, reopen, and goal-acceptance decision
 
 ## 4. Non-Goals (Deferred)
 
-- Formal appeal/dispute/case-management workflow (only an optional acknowledgement comment ships in v1)
-- Performance Improvement Plans (PIP) — explicitly deferred to a future Employee Relations module
-- Custom questions on templates (only goals + competencies + ratings + comments in v1)
+- Formal appeal/dispute/case-management workflow — **[OWNER DECISION]** deferred; only an optional final employee comment ships in v1
+- Performance Improvement Plans (PIP) — **[OWNER DECISION]** explicitly deferred to a future Employee Relations module
+- Custom questions on templates — **[OWNER DECISION]** deferred; v1 uses structured goals/KPIs and competencies only
 - In-app/email notifications (no working notification delivery infra exists platform-wide today — see §23)
-- Numeric contribution of employee self-rating to the final score (self-rating is comment/reference-only by default — see Open Decision 2)
+- Numeric contribution of employee self-rating to the final score — **[OWNER DECISION]** self-rating is comment/reference-only (see §11)
 - Multi-level (recursive) manager hierarchy — matches the platform-wide one-level-only precedent
 - Overachievement scoring beyond 100% of a numeric/percentage/currency goal target
 - Template versioning as a first-class entity (achieved instead via snapshot-at-creation — see §9)
+- A dedicated review-revision-history table (achieved instead via a `revisionNumber` counter + the existing `audit_events` before/after state — see §10.4)
 - Cross-tenant/cross-organization anything (never in scope, per platform architecture)
 
 ---
@@ -97,13 +114,13 @@ Canonical, organization-neutral internal concepts (per CLAUDE.md's "one shared f
 
 ## 6. Roles / Personas
 
-Uses the platform's existing 4-role model (`super_admin`, `org_admin`, `hr_manager`, `employee`) — **no dedicated "manager" role exists anywhere on this platform** (confirmed: `seed-roles-permissions.ts`, and repeatedly documented in Attendance/Recruitment history). "Manager" is not a role; it is a *relationship* — any `employee`-role user who is another employee's `reportingManagerId` — resolved server-side, exactly like Attendance and Leave already do.
+Uses the platform's existing 4-role model (`super_admin`, `org_admin`, `hr_manager`, `employee`) — **no dedicated "manager" role exists anywhere on this platform** (confirmed: `seed-roles-permissions.ts`, and repeatedly documented in Attendance/Recruitment history). "Manager" is not a role; it is a *relationship*, resolved server-side from the review's own snapshotted `reviewerEmployeeId` (§9), exactly like Attendance and Leave already resolve `reportingManagerId`.
 
 | Persona | Platform role | Performance capability |
 |---|---|---|
-| Employee | `employee` | Own reviews, own self-assessment, own goals, acknowledgement |
-| Manager (relationship, not a role) | `employee` (+ `reportingManagerId` match) | Manager-review on direct reports' reviews only, one level |
-| HR | `hr_manager` | Cycles, templates, rating scales, assignment, org-wide read, finalize, override, reports |
+| Employee | `employee` | Own reviews, own self-assessment, propose goals, acknowledgement |
+| Manager (relationship, not a role) | `employee` (+ `reviewerEmployeeId` match on the specific review) | Manager-review, accept/edit/reject proposed goals, on reviews where they are reviewer of record only |
+| HR | `hr_manager` | Cycles, templates, rating scales, assignment, org-wide read, finalize, override, reopen, reports |
 | Org Admin | `org_admin` | Everything HR can do |
 | Super Admin | `super_admin` | Platform-wide (via existing seeding convention: all permissions) |
 
@@ -111,45 +128,47 @@ Uses the platform's existing 4-role model (`super_admin`, `org_admin`, `hr_manag
 
 ## 7. Permissions
 
-**[PROPOSED DESIGN DECISION]** Following the Attendance precedent exactly (§3 of research: "no explicit team permission — broad grant + service-layer narrowing via `reportingManagerId`/assignee-column comparison"), Performance uses **6 keys**, none of them a `.team` variant:
+**Revalidated against the corrected lifecycle (§10) and goal-authorship model (§12) — the original 6 keys remain sufficient; no new key is required.** Goal accept/edit/reject is a `manager_review`-stage action performed by the reviewer of record, so it is gated by the same `performance.review.write` key that already gates manager-review submission — adding a separate `performance.goal.approve` key would duplicate an already-narrowed scope for no additional control. Reopen remains exclusively `performance.manage`. Score override remains exclusively `performance.finalize`.
+
+**[PROPOSED DESIGN DECISION — reconfirmed]** Following the Attendance precedent (broad grant + service-layer narrowing via `reportingManagerId`/assignee-column comparison), Performance uses **6 keys**, none of them a `.team` variant:
 
 | Key | Purpose | Scope resolution |
 |---|---|---|
 | `performance.read.own` | View own reviews/goals/competencies, and (via service-layer comparison) reviews where caller is the snapshotted `reviewerEmployeeId` | own: employeeId match; manager: pure comparison against `performance_reviews.reviewerEmployeeId`, same shape as `isReportingManagerOf` |
-| `performance.write.own` | Submit/edit own self-assessment (goals results, self-ratings, comments), acknowledge finalized review | own only |
-| `performance.review.write` | Submit manager review (ratings, comments, goal verification) | narrowed to `reviewerEmployeeId` match on the specific review row — never broadened by the permission grant alone, mirrors `recruitmentAuthorization.ts`'s "assigned" tier |
-| `performance.manage` | Create/edit cycles, templates, rating scales; generate/assign reviews; reopen any review; org-wide read | organization-wide only |
+| `performance.write.own` | Submit/edit own self-assessment (goal results, self-ratings, comments, goal proposals), acknowledge finalized review | own only |
+| `performance.review.write` | Submit manager review (ratings, comments, goal verification); accept/edit/reject employee-proposed goals; mark goals/competencies not-applicable | narrowed to `reviewerEmployeeId` match on the specific review row — never broadened by the permission grant alone, mirrors `recruitmentAuthorization.ts`'s "assigned" tier |
+| `performance.manage` | Create/edit cycles, templates, rating scales; generate/assign reviews; **reopen** any review to an explicit valid stage; org-wide read | organization-wide only |
 | `performance.finalize` | HR finalize a review, optionally override score (requires reason) | organization-wide only |
 | `performance.reports.read` | Dashboard + reports | broad grant, scope resolved in service layer exactly like `recruitment.reports.read` (own/reviewer-of-record vs. org-wide signaled by holding `performance.manage`) |
 
-### Default role mapping
+### Final role matrix
 
-| Key | super_admin | org_admin | hr_manager | employee |
-|---|:---:|:---:|:---:|:---:|
-| `performance.read.own` | ✓ | ✓ | ✓ | ✓ |
-| `performance.write.own` | ✓ | ✓ | ✓ | ✓ |
-| `performance.review.write` | ✓ | ✓ | ✓ | ✓ |
-| `performance.manage` | ✓ | ✓ | ✓ | — |
-| `performance.finalize` | ✓ | ✓ | ✓ | — |
-| `performance.reports.read` | ✓ | ✓ | ✓ | ✓ |
+| Key | employee | manager (relationship) | hr_manager | org_admin | super_admin |
+|---|:---:|:---:|:---:|:---:|:---:|
+| `performance.read.own` | ✓ (own) | ✓ (own + reviewer-of-record, via same grant) | ✓ (org-wide via `performance.manage`) | ✓ | ✓ |
+| `performance.write.own` | ✓ | ✓ (own only — being a manager grants no extra write-own reach) | — (uses `performance.manage`/`.finalize` instead) | ✓ | ✓ |
+| `performance.review.write` | ✓ (grant present, but narrowed to zero effect unless reviewer of record on a specific review) | ✓ (effective on reviews where reviewer-of-record) | ✓ | ✓ | ✓ |
+| `performance.manage` | — | — | ✓ | ✓ | ✓ |
+| `performance.finalize` | — | — | ✓ | ✓ | ✓ |
+| `performance.reports.read` | ✓ (own/reviewer-of-record scope) | ✓ (same) | ✓ (org-wide via `performance.manage`) | ✓ | ✓ |
 
-`performance.review.write`/`performance.read.own`/`performance.reports.read` are seeded broadly to `employee` for the same reason `attendance.read.own` and `recruitment.reports.read` are — any employee could be someone's manager, and the real narrowing happens per-row in the service layer, never at the permission-grant level.
+"Manager" is not a separate row in the role-seeding table (it isn't a role) — the matrix above shows it as an `employee`-role holder whose grants become *effective* only on rows where the service layer's `reviewerEmployeeId` comparison matches. No over-granting: an `employee` with no direct reports and no proposed reviews has every one of these permissions but zero rows they can act on beyond their own.
 
 ---
 
 ## 8. Data Model
 
-**[PROPOSED DESIGN DECISION]** 9 new tables, all organization-owned, all RLS-enabled with zero policies in their own creation migration (mirrors migration `0037`'s pattern of enabling RLS inline rather than in a separate follow-on migration). All created in one schema-only workstream (W73), mirroring Attendance's W64 precedent exactly ("schema, permissions, module activation, authorization primitives only — no route, no frontend").
+**Final table count: 9 — unchanged from the draft.** Table names unchanged. Changes from the draft are additive columns only, driven directly by the Owner Decisions and lifecycle correction below (goal authorship/acceptance state, not-applicable handling, revision counter, and settings-snapshot columns for full historical determinism). All 9 tables remain organization-owned, RLS-enabled with zero policies in their own creation migration, created in one schema-only workstream (W73), mirroring Attendance's W64 precedent exactly.
 
-### 8.1 `performance_rating_scales` (definition, org-owned)
+### 8.1 `performance_rating_scales` (definition, org-owned) — unchanged
 | Column | Notes |
 |---|---|
 | id, organizationId | organizationId → `restrict` |
 | name, description | |
-| status | `active` \| `archived` — **immutable once any review references it** (enforced in service layer: editing levels is blocked once `usageCount > 0`; org must archive and create a new scale version instead) |
+| status | `active` \| `archived` — **immutable once any review references it** (editing levels is blocked once `usageCount > 0`; org must archive and create a new scale version instead) |
 | createdAt |
 
-### 8.2 `performance_rating_scale_levels` (child of 8.1)
+### 8.2 `performance_rating_scale_levels` (child of 8.1) — unchanged
 | Column | Notes |
 |---|---|
 | id, ratingScaleId (→ `restrict`) | |
@@ -158,7 +177,7 @@ Uses the platform's existing 4-role model (`super_admin`, `org_admin`, `hr_manag
 | sortOrder | |
 | Unique | `(ratingScaleId, value)` |
 
-### 8.3 `performance_review_templates` (definition, org-owned)
+### 8.3 `performance_review_templates` (definition, org-owned) — unchanged
 | Column | Notes |
 |---|---|
 | id, organizationId | |
@@ -166,236 +185,375 @@ Uses the platform's existing 4-role model (`super_admin`, `org_admin`, `hr_manag
 | ratingScaleId (→ `restrict`) | |
 | goalsWeight, competenciesWeight | integers, **must sum to 100**, validated at save time |
 | applicabilityScope | `all_active` \| `department` \| `position` \| `manual` |
-| applicabilityDepartmentIds, applicabilityPositionIds | jsonb integer arrays — filter config, not a relational entity (same spirit as Attendance's `workDays` array) |
+| applicabilityDepartmentIds, applicabilityPositionIds | jsonb integer arrays — filter config, not a relational entity |
 | status | `draft` \| `active` \| `archived` |
 | createdAt, updatedAt |
 
 Editing an `active` template only affects reviews created *after* the edit — existing reviews already snapshotted their competencies/weights (§9). No template-versioning table is needed.
 
-### 8.4 `performance_template_competencies` (child of 8.3 — the library set a template offers)
+### 8.4 `performance_template_competencies` (child of 8.3) — unchanged
 | Column | Notes |
 |---|---|
 | id, templateId (→ `cascade`) | |
-| label, description | free text by default; **[PROPOSED DESIGN DECISION]** organizations wanting a shared competency library may optionally define an organization-defined Master Data domain (e.g. `competency`) that the template-builder UI offers as typeahead suggestions — not FK-enforced, same "free-text code, unvalidated by design" precedent as `employee_documents.categoryCode` |
+| label, description | free text by default; an organization-defined Master Data domain (e.g. `competency`) may optionally supply typeahead suggestions — not FK-enforced |
 | weight, sortOrder | weights within a template must sum to 100 |
 
-### 8.5 `performance_cycles` (org-owned)
+### 8.5 `performance_cycles` (org-owned) — unchanged
 | Column | Notes |
 |---|---|
 | id, organizationId | |
 | name, cycleType | `annual` \| `semiannual` \| `quarterly` \| `monthly` \| `probation` \| `ad_hoc` |
 | startDate, endDate | |
 | selfAssessmentWindowStart/End, managerReviewWindowStart/End, hrFinalizationWindowStart/End | |
-| templateId (→ `restrict`), ratingScaleId (→ `restrict`) | default for this cycle's generated reviews (each review still stores its own copy — see 8.6) |
-| applicabilityScope, applicabilityDepartmentIds, applicabilityPositionIds | same shape as 8.3, cycle-level override of the template's own default |
-| status | `draft` → `open` → `closed` → `archived` (see §10) |
+| templateId (→ `restrict`), ratingScaleId (→ `restrict`) | default for this cycle's generated reviews |
+| applicabilityScope, applicabilityDepartmentIds, applicabilityPositionIds | same shape as 8.3, cycle-level override |
+| status | `draft` → `open` → `closed` → `archived` (§10.5) |
 | createdAt |
 
-### 8.6 `performance_reviews` (the instance — one per employee per cycle)
+### 8.6 `performance_reviews` (the instance — one per employee per cycle) — **amended**
 | Column | Notes |
 |---|---|
 | id, organizationId | |
-| cycleId (→ `restrict`), templateId (→ `restrict`), ratingScaleId (→ `restrict`) | |
+| cycleId (→ `restrict`), templateId (→ `restrict`), ratingScaleId (→ `restrict`) | `templateId`/`ratingScaleId` retained for traceability only — never re-consulted for content after creation (§9) |
 | employeeId (→ `restrict`) | |
 | reviewerEmployeeId | **snapshot** of `employees.reportingManagerId` at assignment time — fixed for this review even if the employee's manager later changes |
-| departmentIdSnapshot, positionIdSnapshot | snapshotted at assignment time, for historically-accurate reporting even after a later transfer/promotion |
+| departmentIdSnapshot, positionIdSnapshot | snapshotted at assignment time |
 | goalsWeight, competenciesWeight | copied from template at creation |
-| status | state machine — see §10 |
-| selfAssessmentSubmittedAt, managerReviewSubmittedAt, hrFinalizedAt, acknowledgedAt | |
+| **scoringPrecisionSnapshot** *(new)* | copied from the `performance` settings namespace at creation time — a later org-wide precision change never alters an existing review's displayed score |
+| **acknowledgementRequiredSnapshot** *(new)* | copied from the `performance` settings namespace at creation time — a later org-wide toggle never retroactively changes whether an in-flight review requires acknowledgement |
+| status | state machine — **authoritative field, see §10** |
+| selfAssessmentSubmittedAt, managerReviewSubmittedAt, hrFinalizedAt, acknowledgedAt | **informational metadata only** — never read by any authorization/business-logic check to infer stage; `status` alone is authoritative (§10.4) |
 | employeeFinalComment | optional, entered at acknowledgement |
 | computedOverallScore | always the formula's output — never overwritten |
-| hrOverrideScore, hrOverrideReason | nullable; reason required if score is set |
+| hrOverrideScore, hrOverrideReason | nullable; reason required if score is set; original `computedOverallScore` is preserved alongside, never replaced |
+| **revisionNumber** *(new, default 1)* | incremented by 1 on every HR reopen action (§10.4) — a lightweight, purely informational counter; full detail of what changed on each reopen lives in `audit_events`' `beforeState`/`afterState`, not a new table |
 | createdAt, updatedAt |
 | Unique | `(cycleId, employeeId)` — one review per employee per cycle |
 | Indexes | `(organizationId, employeeId)`, `(organizationId, reviewerEmployeeId)`, `(organizationId, cycleId, status)` |
 
-### 8.7 `performance_review_goals` (child of 8.6)
+### 8.7 `performance_review_goals` (child of 8.6) — **amended (goal-authorship state model)**
 | Column | Notes |
 |---|---|
 | id, reviewId (→ `cascade`) | |
 | title, description | |
 | measurementType | `numeric` \| `percentage` \| `currency` \| `boolean` \| `rating` \| `qualitative` |
-| target, actualResult, unit | nullable, per type |
-| weight | must be **0** for `qualitative` (informational only, no scoring impact — a deliberate simplification avoiding proportional-reweighting complexity); weights of scored goals must sum to 100 |
+| target, actualResult, unit | nullable, per type; `actualResult` is the **manager-verified official value** (settable only during `manager_review`) — the employee's own claim is captured in `employeeComment`, not a separate structured column (avoids duplicating structured data for no added scoring value) |
+| weight | must be **0** for `qualitative`; weights of scored, `accepted`, non-N/A goals must sum to 100 (§11) |
 | dueDate, status | `not_started` \| `in_progress` \| `completed` \| `missed` |
 | employeeComment, managerComment | |
-| computedScore | normalized 0–100, computed at manager-submit time (see §11) |
-| createdBy | `employee` \| `manager` \| `hr` — who proposed the goal (see Open Decision 4) |
+| computedScore | normalized 0–100, computed at manager-submit time (§11); `null` while `approvalStatus != 'accepted'` |
+| **originType** *(replaces the draft's `createdBy`)* | `manager` \| `employee_proposed` |
+| **approvalStatus** *(new)* | `accepted` \| `proposed` \| `rejected`. Manager-created goals are inserted with `approvalStatus = 'accepted'` immediately (official once saved, per Owner Decision 4). Employee-proposed goals are inserted with `approvalStatus = 'proposed'` and become official **only** when the manager accepts them during `manager_review` (§12). `rejected` goals are retained, never deleted, and excluded from weighting/scoring. |
+| **notApplicable, notApplicableReason** *(new)* | manager-only, settable during `manager_review`; reason required when `true`; excluded from weighting via proportional redistribution (§11) |
 
-### 8.8 `performance_review_competencies` (child of 8.6 — snapshotted from template at creation)
+### 8.8 `performance_review_competencies` (child of 8.6 — snapshotted from template at creation) — **amended**
 | Column | Notes |
 |---|---|
 | id, reviewId (→ `cascade`) | |
-| label, description | copied text, **not a live FK** to `performance_template_competencies` — a later template edit never changes an existing review |
-| weight, sortOrder | copied from template; must sum to 100 across a review's competencies |
-| employeeRatingValue, employeeComment | self-rating, reference-only (Open Decision 2) |
+| label, description | copied text, **not a live FK** to `performance_template_competencies` |
+| weight, sortOrder | copied from template; must sum to 100 across a review's applicable competencies |
+| employeeRatingValue, employeeComment | self-rating — **informational/comparative only, excluded from the scoring formula** (Owner Decision 1) |
 | managerRatingValue, managerComment | authoritative for scoring |
+| **notApplicable, notApplicableReason** *(new)* | manager-only, settable during `manager_review`; reason required when `true`; excluded from weighting via proportional redistribution (§11) |
 
-### 8.9 `performance_review_evidence` (lightweight join — reuses existing storage)
+### 8.9 `performance_review_evidence` (lightweight join — reuses existing storage) — unchanged
 | Column | Notes |
 |---|---|
 | id, reviewId (→ `cascade`), goalId (nullable, → `cascade`) | attaches at review level or a specific goal |
 | employeeDocumentId (→ `restrict`) | points into the **existing** `employee_documents` table — no new storage layer |
 | addedByMembershipId, addedAt | |
 
-No new file-storage code is written; a new `document_category` Master Data code (e.g. `performance_evidence`) is registered so uploads through the existing employee-documents route can be tagged for this purpose.
+No new file-storage code is written; a new `document_category` Master Data code (e.g. `performance_evidence`) is registered.
 
 ---
 
 ## 9. Historical Integrity
 
-This is the section CLAUDE.md's "preserve data integrity" principle bears on most directly for Performance. Mechanism: **snapshot-at-creation, not live-reference**, applied consistently:
+Mechanism: **snapshot-at-creation, not live-reference**. Per the reconciliation requirement, every field that could plausibly matter to explaining a review years later is now individually classified as **LIVE REFERENCE** or **SNAPSHOT**:
+
+| Field | Classification | Reasoning |
+|---|---|---|
+| Employee identity (`employeeId`) | **LIVE REFERENCE** (FK, never hard-deleted) | Identity itself doesn't need snapshotting — the row is permanent |
+| Employee display name / employee number | **LIVE REFERENCE** (resolved live via join, never stored on the review) | A later name/number correction is a data-quality fix, not a meaningful historical fact — unlike a department transfer, it should retroactively read correctly everywhere, including old reviews |
+| Department | **SNAPSHOT** (`departmentIdSnapshot`) | A transfer is a meaningful historical fact — the review must show where the employee was *at that time* |
+| Position/designation | **SNAPSHOT** (`positionIdSnapshot`) | Same reasoning — a promotion/transfer is meaningful history |
+| Manager/reviewer | **SNAPSHOT** (`reviewerEmployeeId`) | A later manager change must never reassign an in-flight or historical review |
+| Review template (which one was used) | **LIVE REFERENCE, traceability only** (`templateId`) | Kept for "which template generated this" auditability; never re-read for content after creation |
+| Review template content (competencies, weights) | **SNAPSHOT** (`performance_review_competencies` columns) | A later template edit must never rewrite existing review criteria |
+| Rating scale / rating levels | **LIVE REFERENCE, protected by immutability lock** (`ratingScaleId`) | Duplicating every level row into every review would be pure redundancy the platform's own "don't duplicate for identity/history concepts unnecessarily" discipline warns against; safe as a live reference *only* because editing is structurally blocked once any review uses the scale (§8.1) — so a live reference cannot alter historical meaning |
+| Competency name/description | **SNAPSHOT** (`performance_review_competencies.label`/`description`) | Copied plain text, not an FK |
+| Competency weight | **SNAPSHOT** (`performance_review_competencies.weight`) | |
+| Goal title/definition | **SNAPSHOT** (inherently — goal rows are review-owned from creation, no separate "goal library" to diverge from) | |
+| Goal target/unit | **SNAPSHOT** (`performance_review_goals.target`/`unit`) | |
+| Goal weight | **SNAPSHOT** (`performance_review_goals.weight`) | |
+| Scoring configuration (`goalsWeight`/`competenciesWeight`, `scoringPrecision`, `acknowledgementRequired`) | **SNAPSHOT** (`performance_reviews.goalsWeight`/`competenciesWeight`/`scoringPrecisionSnapshot`/`acknowledgementRequiredSnapshot`) | A later org-wide settings change (either the `performance` namespace or a template edit) must never alter a review already created |
+
+Full change-table (unchanged from the draft, now with the settings-snapshot gap closed):
 
 | Changes later... | Effect on existing finalized reviews |
 |---|---|
-| Employee's department/position/manager changes | **No effect** — `performance_reviews.departmentIdSnapshot`/`positionIdSnapshot`/`reviewerEmployeeId` are fixed at assignment time |
-| Template is edited or archived | **No effect** — `performance_review_competencies` copied the label/weight/description as plain columns, not an FK, at review-creation time |
-| Competency library entry renamed | **No effect** — same reason |
-| Rating scale levels edited | **Cannot happen** — service layer blocks editing a scale's levels once `usageCount > 0`; org must archive and create a new scale version |
-| Organization configuration (`performance` settings namespace) changes | **No effect on existing reviews** — `goalsWeight`/`competenciesWeight`/`scoringPrecision` are all copied onto the review/goal/competency rows at creation, not read live at display time |
-| Competency/rating-scale row is later "deleted" | Never hard-deleted — `status: archived` only, per the platform's established never-hard-delete convention (`separationReason`, `document_category`, etc.) |
+| Employee's department/position/manager changes | **No effect** — all three are snapshotted |
+| Template is edited or archived | **No effect** — competencies were copied at creation |
+| Competency library entry renamed | **No effect** |
+| Rating scale levels edited | **Cannot happen** — blocked once `usageCount > 0` |
+| `performance` settings namespace changes (precision, acknowledgement requirement) | **No effect** — both are now snapshotted onto the review row at creation |
+| Competency/rating-scale row is later archived | Status-only change, never a hard delete |
 
-**Finalized reviews are durable historical business records** — never mutated after `finalized`, except by an explicit, audited HR `reopen` action (§10), which is itself a rare, permissioned, fully-audited operation, not a routine edit path.
+**Finalized reviews are durable historical business records** — never mutated after `finalized`, except by an explicit, controlled, fully-audited HR **reopen** action (§10.4).
 
 ---
 
-## 10. Review Lifecycle (State Machine)
+## 10. Review Lifecycle (State Machine) — Corrected
 
-**[PROPOSED DESIGN DECISION]** One explicit state machine on `performance_reviews.status`:
+**`performance_reviews.status` is the sole authoritative field for workflow stage.** The `*SubmittedAt`/`*FinalizedAt`/`acknowledgedAt` timestamp columns and `revisionNumber` are informational metadata for display/reporting only — no authorization check, no route guard, and no business-logic branch anywhere is permitted to infer stage from a nullable timestamp instead of `status`. This is enforced at the service-layer function signature level: every transition function takes and validates against `status` explicitly, exactly like `leaveApprovals.ts`'s `WHERE status = 'pending'` pattern — never `WHERE approved_at IS NULL`.
 
 ```
 draft → self_assessment → manager_review → hr_review → finalized → acknowledged
 ```
 
-| Transition | Actor | Permission | Mechanism |
+### 10.1 Transition table
+
+| # | Transition | Actor | Permission | Prerequisites |
+|---|---|---|---|---|
+| 0 | (cycle `open` action) → rows created in `draft` | HR/org_admin | `performance.manage` | cycle status = `open`; one row per applicable employee; goals (manager-created only, if any pre-authored) and competencies snapshotted from template |
+| 1 | `draft` → `self_assessment` | HR/org_admin | `performance.manage` | cycle's self-assessment window has started (or HR opens manually) |
+| 2 | `self_assessment` → `manager_review` | Employee (submit, own review only) | `performance.write.own` | every non-qualitative, non-N/A `accepted`-goal has an employee comment/entry; every competency has `employeeRatingValue` set; no missing required field |
+| 3 | `manager_review` → `hr_review` | Manager (reviewer of record, submit) | `performance.review.write` | every `accepted` goal has `actualResult`/`computedScore` (or is marked `notApplicable`); every competency has `managerRatingValue` (or is marked `notApplicable`); every `proposed` goal has been explicitly `accepted` or `rejected` (none left pending) |
+| 4 | `hr_review` → `finalized` | HR/org_admin | `performance.finalize` | — (HR may finalize with or without an override); computes `computedOverallScore` at this transition |
+| 5 | `finalized` → `acknowledged` | Employee (own review only) | `performance.write.own` | review's own `acknowledgementRequiredSnapshot` — if `false`, acknowledgement is optional but still permitted |
+| 6 | reopen: `{manager_review, hr_review, finalized}` → an earlier explicit valid stage | HR/org_admin only | `performance.manage` | mandatory `reopenReason`; target stage must be one of `self_assessment`, `manager_review`, `hr_review` — never an arbitrary jump, never forward, never into `draft`/`acknowledged` |
+
+### 10.2 Field editability per state
+
+| State | Employee may edit | Manager may edit | HR may edit |
 |---|---|---|---|
-| (cycle `open` action) → `draft` rows created | HR/org_admin | `performance.manage` | bulk insert, one row per applicable employee, goals/competencies snapshotted from template |
-| `draft` → `self_assessment` | HR (cycle-level "open reviews" action, or automatic at the cycle's self-assessment window start) | `performance.manage` | — |
-| `self_assessment` → `manager_review` | Employee (submit) | `performance.write.own` | atomic `UPDATE ... WHERE status = 'self_assessment' AND employee_id = ?` — mirrors `leaveApprovals.ts`'s conditional-update pattern; blocked with a 400 listing missing fields unless every non-qualitative goal has a result and every competency has a self-rating |
-| `manager_review` → `hr_review` | Manager (reviewer of record, submit) | `performance.review.write` | same atomic-conditional pattern, keyed to `reviewerEmployeeId`; blocked unless every goal is scored and every competency has a manager rating |
-| `hr_review` → `finalized` | HR/org_admin | `performance.finalize` | atomic conditional update; computes `computedOverallScore`; optional `hrOverrideScore`+`hrOverrideReason` |
-| `finalized` → `acknowledged` | Employee | `performance.write.own` | optional `employeeFinalComment` |
-| any of `{manager_review, hr_review, finalized}` → an earlier stage | HR/org_admin only | `performance.manage` | explicit **reopen** action — clears only the downstream-only fields (e.g. reopening `finalized`→`hr_review` clears `hrFinalizedAt`/override but keeps manager scores intact); always audited |
+| `draft` | nothing (not yet visible to employee) | goals (create, `originType='manager'`, auto-`accepted`) | cycle/template/scale config (separate pages, not the review row) |
+| `self_assessment` | own `employeeComment`/`employeeRatingValue` fields; may propose new goals (`originType='employee_proposed'`, `approvalStatus='proposed'`) | nothing on this review | nothing routine |
+| `manager_review` | **locked** (self-assessment submission locks all employee-writable fields) | `actualResult`/`computedScore`/`managerComment` per goal; `managerRatingValue`/`managerComment` per competency; accept/edit/reject `proposed` goals; set `notApplicable`+reason on goals/competencies | nothing routine |
+| `hr_review` | locked | **locked** (manager submission locks all manager-writable fields) | `hrOverrideScore`/`hrOverrideReason`; finalize action |
+| `finalized` | locked | locked | locked (only reopen, §10.4, reverses this) |
+| `acknowledged` | `employeeFinalComment` (once, at acknowledgement) | locked | locked |
 
-Every transition is atomic (conditional `UPDATE ... WHERE status = 'expected_prior_status' AND organization_id = ?`), exactly like `leaveApprovals.ts`/`attendanceAdjustments.ts` — a concurrent second submit affects zero rows and returns `409`, never a silent double-transition or `500`.
+**What becomes locked after submission:** each submit action (self-assessment, manager review) is itself the lock — the target state's own field-editability row above defines what closes; there is no separate "lock" flag, since `status` alone already gates every write route's Zod-validated field set (an employee-facing route's schema simply does not accept manager-only fields, regardless of stage, satisfying defense-in-depth independently of the stage check).
 
-Cycle-level state machine (independent from review-level): `draft → open → closed → archived`. `open` is the only cycle action that mutates data (generates review rows); `closed` and `archived` are read-only historical states, set by HR once all reviews reach a terminal per-cycle status or the configured window ends — no automatic cron-based transition is proposed (no background-job infrastructure is assumed available; HR triggers this manually in v1).
+### 10.3 Atomic and concurrent-transition behavior
+
+Every transition (rows 1–6 above) is a single atomic conditional update:
+
+```sql
+UPDATE performance_reviews
+SET status = '<target>', ...
+WHERE id = ? AND organization_id = ? AND status = '<expected_prior_status>'
+```
+
+mirroring `leaveApprovals.ts`/`attendanceAdjustments.ts` exactly. Zero rows affected (a concurrent second submit, or a stale client retry) returns `409 Conflict`, never a silent double-transition and never `500`. Goal accept/reject actions (§12) use the identical pattern keyed to `(goalId, approvalStatus = 'proposed')`.
+
+### 10.4 Reopen — controlled rule (replaces the draft's "any earlier stage")
+
+Authorized HR (`performance.manage`) may reopen a review **only** when all of the following hold:
+
+1. The review's current `status` is one of `manager_review`, `hr_review`, or `finalized` (a review still in `draft`/`self_assessment` has nothing to reopen; `acknowledged` is also reopenable via the same rule, treated as equivalent to `finalized` for this purpose since acknowledgement makes no field changes).
+2. A **mandatory `reopenReason`** (non-empty text) is supplied in the request.
+3. The **target stage** is an explicit, valid earlier stage — one of `self_assessment`, `manager_review`, `hr_review` — never an arbitrary jump (e.g. `finalized` cannot reopen directly to `draft`), never forward, and never into a terminal `acknowledged` state.
+4. Actor (`actorMembershipId`) and timestamp (`occurredAt`) are recorded — via the existing `recordAuditEvent` call, not a duplicate column on `performance_reviews`.
+5. The action is audited: `performance_review.reopened`, `metadata: { targetStage, reason }`, `beforeState`/`afterState` capturing the full row before/after — the same shape every other audited mutation on this platform already uses.
+
+**What reopening does and does not do:**
+- Sets `status` to the target stage.
+- Clears only the timestamp(s) and decision fields strictly **downstream** of the target stage (e.g. reopening to `manager_review` clears `managerReviewSubmittedAt`, `hrFinalizedAt`, `acknowledgedAt`, `hrOverrideScore`, `hrOverrideReason`, `computedOverallScore`).
+- **Does not** blank the actual field values (self-assessment answers, manager ratings, HR override reason text, etc.) below the target stage — they remain in place as an editable starting point, since the point of a reopen is correction, not restarting from scratch.
+- **Does not** erase prior submission/decision history — the pre-reopen values of every cleared field are already permanently preserved in the `audit_events` row(s) recorded at the time they were originally submitted (each submission's own audit event already captures `beforeState`/`afterState`), so nothing is destroyed even though the live row is overwritten on the next submission.
+- Increments `revisionNumber` by 1 — a small, purely informational counter (e.g. "Revision 2") surfaced in the UI so HR/employee/manager can see at a glance that a review was corrected, without needing a full revision-row table.
+
+**Smallest robust approach, consistent with the existing audit architecture:** no new revision-snapshot table is introduced. `revisionNumber` (one integer column) plus the existing `audit_events.beforeState`/`afterState` on every transition together give both an at-a-glance signal ("this was revised") and full forensic detail ("exactly what changed, by whom, when, why") — the same two-tier pattern (a cheap denormalized counter + the append-only audit log as the source of truth) already implicit in how every other module on this platform handles history, without inventing new infrastructure.
+
+### 10.5 Cycle-level state machine (independent from review-level)
+
+`draft → open → closed → archived`. `open` is the only cycle action that mutates data (generates review rows). `closed`/`archived` are read-only historical states, set by HR manually (no background-job/cron infrastructure is assumed available in v1).
 
 ---
 
-## 11. Rating/Scoring
+## 11. Rating/Scoring — Frozen Rules
 
-**[PROPOSED DESIGN DECISION]**
+**Official score source: manager scores only.** Employee self-rating is informational/comparative and is structurally excluded from every formula below (Owner Decision 1).
 
-- **Goal score** (0–100, normalized): `numeric`/`percentage`/`currency` → `clamp(actual/target × 100, 0, 100)` (no overachievement bonus in v1); `boolean` → 100 if complete else 0; `rating` → `(chosen level value / max level value) × 100`; `qualitative` → no score, weight forced to 0.
-- **Competency score**: manager's `managerRatingValue` normalized the same way (`value / maxLevelValue × 100`). Employee's own rating never enters the formula (Open Decision 2).
-- **Goals weighted average** = `Σ(goalScore × goalWeight) / Σ(goalWeight)` over scored goals.
-- **Competencies weighted average** = `Σ(competencyScore × competencyWeight) / Σ(competencyWeight)`.
-- **Overall score** = `round(goalsAvg × goalsWeight/100 + competenciesAvg × competenciesWeight/100, scoringPrecision)`, `scoringPrecision` defaulting to 2 decimal places, org-configurable via the `performance` settings namespace.
-- **Weighting validation**: `goalsWeight + competenciesWeight` must equal exactly 100 at the template level; individual goal weights (excluding qualitative) must sum to 100; individual competency weights must sum to 100. Validated at template save time and again at review-submission time (defense in depth).
-- **Missing-score handling**: manager submission is blocked (400, listing exactly what's missing) until every non-qualitative goal has a result and every competency has a manager rating — no silent partial score, no proportional reweighting.
-- **Not-applicable handling**: not supported in v1 — deferred (a genuinely N/A goal should be given `weight: 0` at template/goal-authoring time instead).
-- **Self-rating's effect on the final score**: none, by default — see Open Decision 2.
-- **Manager score is authoritative**; HR may override the *displayed* `overallScore` via `hrOverrideScore`, which always requires `hrOverrideReason`. `computedOverallScore` is retained unedited alongside it for transparency.
+### 11.1 Per-item normalization (0–100)
+
+- `numeric`/`percentage`/`currency` goal: `clamp(actualResult / target × 100, 0, 100)` — no overachievement bonus in v1.
+- `boolean` goal: 100 if `actualResult` indicates complete, else 0.
+- `rating` goal: `(chosen level value / max level value in the review's rating scale) × 100`.
+- `qualitative` goal: no score; `weight` is structurally forced to 0 at goal-creation validation.
+- Competency: `(managerRatingValue / max level value) × 100`. `employeeRatingValue` is never used in this formula.
+
+### 11.2 Which items count
+
+An item (goal or competency) is **included** in its section's weighted average only if **all** of the following hold: it is a goal with `approvalStatus = 'accepted'` (competencies have no approval concept — always included unless N/A), it is not `qualitative` (goals only), and it is not `notApplicable`.
+
+### 11.3 Not-applicable handling — one deterministic rule
+
+A goal or competency may be marked `notApplicable = true` (manager-only, during `manager_review`, `notApplicableReason` required). This is the single explicit N/A rule, chosen over both "block submission" and "leave weight orphaned":
+
+- **Redistribution is proportional, within the same section, computed at calculation time — never by mutating stored weights.** For a section (goals or competencies) with N/A items removed, each remaining applicable item's *effective* weight is:
+
+  ```
+  effectiveWeight(item) = storedWeight(item) / (100 − Σ storedWeight(N/A items in this section)) × 100
+  ```
+
+  so the remaining applicable items' effective weights always sum to exactly 100, and the weighted-average formula (§11.4) is applied using effective, not stored, weights.
+- **If every item in a section is N/A** (or the section is `qualitative`-only/empty of accepted goals), that section's average is `null` and its weight contributes **0** to the overall score; the *other* section's weight is redistributed to 100% for that review's overall-score calculation.
+- **If both sections end up with a `null` average** (pathological — blocked before this can occur, see §11.6), the review cannot be submitted for manager review at all.
+
+### 11.4 Weighted averages and overall score
+
+```
+goalsAvg        = Σ(goalScore × effectiveGoalWeight) / 100   [over accepted, non-qualitative, non-N/A goals]
+competenciesAvg = Σ(competencyScore × effectiveCompetencyWeight) / 100
+
+effectiveGoalsWeight, effectiveCompetenciesWeight =
+  the review's stored goalsWeight/competenciesWeight, OR — if one section's average is null per §11.3 —
+  0 for the null section and 100 for the other
+
+overallScore = round(
+  goalsAvg × effectiveGoalsWeight/100 + competenciesAvg × effectiveCompetenciesWeight/100,
+  scoringPrecisionSnapshot
+)
+```
+
+Rounding: standard round-half-up, applied **once**, at the final `overallScore` only (intermediate averages are computed at full precision, never persisted separately — they can always be recomputed from the stored per-item scores if ever needed, avoiding derived-data duplication).
+
+### 11.5 Weighting validation
+
+- `goalsWeight + competenciesWeight` must equal exactly 100 — validated at template save time, and copied onto the review at creation.
+- Individual goal weights (excluding `qualitative`, which must be 0) among `accepted` goals must sum to 100 — validated at self-assessment submission and again at manager-review submission (defense in depth).
+- Individual competency weights must sum to 100 across a review's competencies — validated at review creation (snapshot time) and unaffected thereafter (competencies aren't user-addable per-review in v1, only goals are).
+
+### 11.6 Missing-score / undefined-denominator handling
+
+Manager submission (`manager_review → hr_review`) is **blocked** (400, listing exactly what's missing) unless:
+- every `accepted`, non-qualitative, non-N/A goal has `actualResult` set, **and**
+- every non-N/A competency has `managerRatingValue` set, **and**
+- at least one of the two sections (goals or competencies) has at least one scoreable (accepted, non-N/A, non-qualitative) item — i.e. **not both sections may be entirely empty/N/A/qualitative-only**, which is exactly the §11.3 pathological case; blocking it here means it can never reach the scoring formula.
+
+**No undefined denominator ever reaches the formula** — §11.3's redistribution guarantees a defined denominator whenever a section has ≥1 applicable item, and §11.6 guarantees at least one section does.
 
 ---
 
-## 12. Goals
+## 12. Goals — Authorship State Model
 
-Model: see §8.7. Created either by the employee or the manager (see Open Decision 4 — recommended: **both**, editable by either party until `self_assessment` is submitted). Not reusable across cycles as live objects — each cycle's reviews get their own goal rows (an org wanting a recurring goal simply re-enters it; no goal-templating engine in v1). Five measurement types, deliberately not more (no "custom formula" type).
+**Smallest state model that satisfies Owner Decision 4**, added directly to `performance_review_goals` (§8.7), no separate table:
+
+```
+originType:      manager | employee_proposed
+approvalStatus:  accepted | proposed | rejected
+```
+
+| Path | `originType` | Initial `approvalStatus` | Becomes official when |
+|---|---|---|---|
+| Manager creates a goal (in `draft` or `manager_review`) | `manager` | `accepted` | Immediately, on save — no separate approval step |
+| Employee proposes a goal (only during `self_assessment`, on their own review) | `employee_proposed` | `proposed` | Manager explicitly accepts it during `manager_review` (may edit title/target/weight/dueDate in the same action) |
+
+- A `proposed` goal is visible to the manager during `manager_review` alongside manager-created goals, but is **excluded from weighting/scoring** (§11.2) until `accepted`.
+- Manager may `accept` (optionally editing fields first), `edit`-then-`accept`, or `reject` (with `managerComment` explaining why — reuses the existing comment field, no new column) each `proposed` goal. **No `proposed` goal may remain unresolved** when the manager submits — §10.1 row 3's prerequisite blocks the `manager_review → hr_review` transition otherwise.
+- A `rejected` goal is retained (never deleted, per the platform's never-hard-delete convention) but permanently excluded from weighting/scoring for this review.
+- **Once a goal is `accepted` and the review has moved into `manager_review` or later, it is a review-owned snapshot** — there is no "source" goal-library row to later rewrite it (goals were never templated to begin with; each review's goals are first-class, review-scoped rows from creation), so no additional historical-integrity mechanism is needed beyond what §9 already establishes for the rest of the review.
+- Goals are not reusable across cycles as live objects — each cycle's reviews get their own rows (an org wanting a recurring goal simply re-enters it; no goal-templating engine in v1, per the draft's original non-goal).
+
+Five measurement types remain unchanged from the draft (§3): `numeric`, `percentage`, `currency`, `boolean`, `rating`, `qualitative` — deliberately not more.
 
 ## 13. Competencies
 
-Model: see §8.4 (template-level definition) and §8.8 (review-level snapshot). No Performance-specific "competency library" table beyond `performance_template_competencies` — an organization defining the same competency across many templates simply re-enters it (or types the same label, optionally suggested via an org-defined Master Data domain, §8.4). Position/department-specific competency sets are achieved via separate templates with different applicability filters, not a competency-to-position mapping table (kept out of v1 — a template *is* the position/department-specific set).
+Unchanged from the draft. Model: §8.4 (template-level definition) and §8.8 (review-level snapshot, now with `notApplicable`/`notApplicableReason`, §11.3). No dual-authorship/proposal concept for competencies — Owner Decision 4 named goals only; competencies remain purely template-snapshotted, with N/A as the only manager-side adjustment available in `manager_review`.
 
-## 14. Self-Assessment
+## 14. Self-Assessment — Corrected
 
-Employee, via `performance.write.own`: view assigned review (goals + snapshotted competencies + rating scale), enter goal results/self-rating where applicable, add comments, submit. Submission is a single atomic transition (§10) — no partial-save-then-separate-submit distinction beyond ordinary autosave-as-you-go PATCH calls prior to the submit action. Once submitted, the employee cannot edit until HR reopens it. The employee **can** see the rating scale and their own prior entries at any time; they **cannot** see the manager's rating until the manager submits (server-enforced — the review-read endpoint omits manager fields for the `self_assessment`-stage caller unless they hold `performance.manage`/`performance.finalize`).
+Employee, via `performance.write.own`, while `status = 'self_assessment'`: view assigned review (goals + snapshotted competencies + rating scale), enter self-ratings/comments on competencies, enter comments on goals, **propose new goals** (§12), submit. Submission is the single atomic `self_assessment → manager_review` transition (§10.1 row 2) — routine autosave-as-you-go PATCH calls are permitted before submit, but the transition itself is what locks the stage.
 
-## 15. Manager Review
+**After submission:** every employee-writable field is locked — the manager-review route's write surface simply does not expose these fields to an employee caller, and the employee's own write route rejects any call once `status != 'self_assessment'`, regardless of which fields are sent (defense in depth, not solely a stage check).
 
-Manager access is entirely server-derived from `reviewerEmployeeId` (snapshotted at review creation from `employees.reportingManagerId`, §8.6/§9) — never a client-supplied relationship, and never a live re-check of the current `reportingManagerId` (a manager change after assignment does not retroactively reassign an in-flight review, consistent with §9's historical-integrity principle). Manager: views employee's self-assessment, verifies/enters goal results, rates each competency, comments, submits. Reopen/return-to-employee is HR-only (§10) — a manager cannot unilaterally bounce a review back to the employee in v1 (kept out of scope to avoid inventing an unspecified secondary state).
+**If HR reopens specifically to `self_assessment`** (§10.4): employee editing resumes on exactly the same field set as originally, pre-filled with the prior values (not blanked); the reopen's reason and actor are audited on `performance_review.reopened`, independently of anything the employee subsequently edits.
 
-## 16. HR / Admin Review
+The employee **can** see the rating scale and their own prior entries at any time; they **cannot** see the manager's rating until the manager submits (server-enforced — the review-read DTO omits manager fields for a `self_assessment`-stage caller unless they hold `performance.manage`/`performance.finalize`).
 
-`performance.manage` covers: create/edit cycles, templates, rating scales; trigger "generate reviews" (bulk assignment); monitor completion (dashboard); reopen any review at any stage; view every organization-wide review. `performance.finalize` (separate key, same default role mapping) covers: finalize a review, optionally override score with a mandatory reason. Kept as two keys rather than one, mirroring Attendance's `attendance.manage` / `attendance.adjustment.approve` split — configuration/administration is a conceptually different action from the finalize/override decision, even though both are seeded to the same roles by default today.
+## 15. Manager Review — Corrected (Explicit Stage)
+
+Manager access is entirely server-derived from `reviewerEmployeeId` (snapshotted at review creation, §8.6/§9) — never a client-supplied relationship, never a live re-check of the *current* `reportingManagerId`. While `status = 'manager_review'`, the manager (reviewer of record):
+
+- views the employee's submitted self-assessment (per §14's visibility rule, now unlocked since self-assessment is submitted)
+- records `actualResult`/`computedScore`/`managerComment` per goal
+- records `managerRatingValue`/`managerComment` per competency
+- accepts, edits-then-accepts, or rejects each `proposed` (employee-authored) goal (§12)
+- marks goals/competencies `notApplicable` with a required reason (§11.3)
+- submits (§10.1 row 3), subject to the completeness prerequisites there
+
+**After manager submission:** all manager-writable fields lock, identically to how self-assessment locks after employee submission (§10.2). Manager score becomes the primary official scoring input feeding HR review; employee self-rating never contributes mathematically (Owner Decision 1). Reopen back to the manager remains HR-only (§10.4) — a manager cannot unilaterally bounce a review back to the employee or reopen their own submission.
+
+## 16. HR Review — Corrected (Explicit Stage)
+
+While `status = 'hr_review'`, authorized HR (`performance.finalize` for the finalize action itself; `performance.manage` for cycle/template/config administration and reopen):
+
+- reviews the completed manager assessment (all goal/competency scores, comments, N/A markings, resolved goal-acceptance decisions)
+- validates completeness (the same prerequisite set from §10.1 row 3 is re-displayed, not re-enforced a second time — enforcement already happened at the manager-submit transition)
+- optionally applies a score override: `hrOverrideScore` + **mandatory** `hrOverrideReason`. `computedOverallScore` (the formula's own output, computed at the `hr_review → finalized` transition) is **always preserved unedited** alongside the override — the override is a separate, additional column, never a destructive overwrite of what the manager/formula originally produced. Actor and timestamp are recorded via the existing `hrFinalizedAt` column plus the `performance_review.finalized`/`performance_review.score_overridden` audit events (actor via `actorMembershipId`).
+- finalizes (§10.1 row 4)
+
+`performance.manage` (cycles/templates/scales/assignment/reopen/org-wide read) and `performance.finalize` (finalize + override) remain two separate keys — configuration/administration is conceptually distinct from the finalize/override decision, mirroring Attendance's `attendance.manage`/`attendance.adjustment.approve` split, even though both default to the same roles today.
 
 ---
 
-## 17. ESS (Planned Surfaces)
+## 17. ESS (Planned Surfaces) — Corrected for Acknowledgement
 
-**[PROPOSED DESIGN DECISION]** A new "My Performance" tab on the existing `/self-service` page (`employee-self-service.tsx`), gated exactly like "My Attendance"/"My Leave" via `isModuleAccessible(modules, 'performance')` — **no separate employee portal**. Contents: current-cycle review card (status badge, key dates), self-assessment form (goals + competencies + comments, submit action), review history (prior finalized/acknowledged reviews, read-only), acknowledgement action + optional final comment on a `finalized` review.
+A new "My Performance" tab on the existing `/self-service` page, gated exactly like "My Attendance"/"My Leave" via `isModuleAccessible(modules, 'performance')`. Contents: current-cycle review card (status badge, key dates, `revisionNumber` shown only if > 1), self-assessment form (goals + competencies + comments + goal-proposal action, submit action), review history (prior finalized/acknowledged reviews, read-only), and — **required, per Owner Decision 2** — an acknowledgement action on a `finalized` review: a single confirmation ("I have seen this review") that is explicitly labeled as **not** agreement, plus an optional final comment field (captured in `employeeFinalComment`, no score mutation, per §10.1 row 5). An employee's disagreement, expressed only through that comment, never blocks or reverses finalization — formal appeal is deferred (Owner Decision 3).
 
 ## 18. Manager (Planned Surfaces)
 
-A dedicated route `/performance-team` (mirrors `/attendance-register`'s shape) gated by `ModuleGate moduleKey="performance"` at the route level, nav-entry-gated `isHrCapable`-only per the established pattern (own/team tier still directly URL-reachable by an ordinary manager, exactly like the Attendance Register). Contents: reviews awaiting manager action (pending self-assessments to review, submitted-but-not-yet-reviewed), team progress list, completed reviews.
+Unchanged from the draft. A dedicated route `/performance-team`, `ModuleGate`-wrapped, nav-entry-gated `isHrCapable`-only. Contents: reviews awaiting manager action — including, now explicitly, a distinct "Proposed goals awaiting your decision" list surfacing `proposed`-status goals across the manager's in-progress reviews — plus team progress list and completed reviews.
 
 ## 19. HR (Planned Surfaces)
 
-- `/performance` — Performance Dashboard (tiles; mirrors `/attendance` dashboard's shape)
+Unchanged from the draft:
+
+- `/performance` — Performance Dashboard
 - `/performance-cycles` — cycle CRUD + "generate reviews" action
 - `/performance-templates` — template + competency configuration
 - `/performance-rating-scales` — rating scale + level configuration
-- `/performance-reviews` — organization-wide review list/detail (filter by cycle/department/status), reopen/finalize actions
-- `/performance-reports` — report catalog + CSV export (mirrors `/attendance-reports`)
+- `/performance-reviews` — organization-wide review list/detail, **reopen action now requires a reason field in the UI** (§10.4), finalize/override actions
+- `/performance-reports` — report catalog + CSV export
 
-All `ModuleGate`-wrapped, nav-entry-gated `isHrCapable`. Kept to 6 pages — the smallest coherent navigation set, not one page per table.
+All `ModuleGate`-wrapped, nav-entry-gated `isHrCapable`. 6 pages, unchanged.
 
 ## 20. Dashboard (Planned Metrics)
 
-**[PROPOSED DESIGN DECISION]** Mirrors Attendance's W70 "raw tile breakdown, no invented rate/KPI" discipline exactly — every metric below is a plain count with a defined denominator, nothing fabricated:
-
-- Active cycle name + window dates
-- Employees assigned (count of `performance_reviews` rows in the active cycle, scoped)
-- Self-assessments pending / submitted (status breakdown, scoped)
-- Manager reviews pending / submitted (status breakdown, scoped)
-- Finalized / acknowledged counts (scoped)
-- Rating distribution (count of finalized reviews per `computedOverallScore` band, e.g. deciles — **no "average score" tile unless explicitly approved**, per the same "do not invent executive KPIs" discipline W70 was held to)
-
-All figures resolved through one batched context object per request (mirrors `attendanceReporting.ts`'s ~3-queries-total pattern, §21) — never a per-employee loop.
+Unchanged from the draft — plain tile breakdown, no invented rate/KPI: active cycle, employees assigned, self-assessments pending/submitted, manager reviews pending/submitted (now also surfacing "proposed goals awaiting manager decision" as its own count), finalized/acknowledged counts, rating distribution (score bands, no fabricated "average score" tile).
 
 ## 21. Reporting
 
-Reuses the Reporting Foundation registry (`reports` table, `report-definitions.ts`) for catalog discoverability, but — per the exact precedent documented for Attendance/Recruitment (visibility-scoped execution "cannot be expressed" by the generic organization-only `RUNNERS` map) — executed through a **new, dedicated route** `routes/performanceReporting.ts`, never the generic `GET .../reports/:reportKey/run`.
+Unchanged from the draft — dedicated route `routes/performanceReporting.ts`, same 4 report keys (`performance_review_status`, `performance_scores`, `performance_goal_results`, `performance_rating_distribution`), same CSV convention. `performance_goal_results` now additionally reports `originType`/`approvalStatus` per goal row, for HR visibility into how many goals were employee-proposed vs. manager-created and their acceptance outcome.
 
-**[PROPOSED DESIGN DECISION]** Initial report keys (category `"performance"`, `requiredPermissionKey: "performance.reports.read"`):
+## 22. Audit — Corrected Event List
 
-| Key | Contents |
-|---|---|
-| `performance_review_status` | one row per review: employee, cycle, status, key dates |
-| `performance_scores` | one row per finalized review: employee, cycle, goals avg, competencies avg, overall score, override (if any) |
-| `performance_goal_results` | one row per goal: employee, cycle, goal title, target/actual, score |
-| `performance_rating_distribution` | count of finalized reviews per score band |
-
-CSV export reuses the exact `?format=csv` convention (`text/csv`, `Content-Disposition: attachment`) — no new export code path.
-
-## 22. Audit
-
-Every state transition and configuration write is audited via the existing `recordAuditEvent`, `resource.action` naming convention:
-
-`performance_cycle.created` / `.opened` / `.closed` / `.archived`, `performance_review_template.created` / `.updated` / `.archived`, `performance_rating_scale.created` / `.archived`, `performance_review.assigned`, `.self_assessment_submitted`, `.manager_review_submitted`, `.reopened`, `.score_overridden`, `.finalized`, `.acknowledged`. Read-only surfaces (dashboard, reports, review detail GET) generate **zero** audit noise, exactly like Attendance's four read-only surfaces.
+`performance_cycle.created` / `.opened` / `.closed` / `.archived`, `performance_review_template.created` / `.updated` / `.archived`, `performance_rating_scale.created` / `.archived`, `performance_review.assigned`, `.self_assessment_submitted`, `.manager_review_submitted`, `.reopened` (metadata: `{targetStage, reason}`), `.score_overridden`, `.finalized`, `.acknowledged`, and — **new** — `performance_review_goal.proposed` / `.accepted` / `.rejected`. Read-only surfaces (dashboard, reports, review detail GET) generate **zero** audit noise.
 
 ## 23. Notifications
 
-**Confirmed: no working notification-delivery infrastructure exists anywhere on this platform today.** The `notifications` table (`lib/db/src/schema/notifications.ts`) supports only read/mark-read; nothing in the entire backend ever inserts a row into it. Every existing module (Leave, Attendance, Recruitment) marks its own transition points with a `// Notification extension point (Architecture Principle 8) — not implemented` comment and ships without it. **Performance follows the identical precedent: every state-transition function gets the same extension-point comment; notifications are formally DEFERRED, not built**, until a platform-wide notification-delivery workstream exists independently of Performance.
+Unchanged — confirmed no working notification-delivery infrastructure exists anywhere on this platform. Every state-transition function (including the newly-detailed reopen and goal-accept/reject actions) gets the same `// Notification extension point (Architecture Principle 8) — not implemented` comment. **Formally DEFERRED.**
 
 ## 24. Files / Evidence
 
-Reuses `employee_documents` + `fileStorage.ts` unchanged, via the new `performance_review_evidence` join table (§8.9) and a new `performance_evidence` `document_category` Master Data code. No new storage provider, no new upload route — the existing `POST /organizations/:organizationId/employees/:employeeId/documents` route is reused; Performance only adds the join-row linking an uploaded document to a specific review/goal.
+Unchanged from the draft.
 
 ---
 
 ## 25. Tenant Isolation
 
-Every one of the 9 new tables carries `organizationId` (→ `restrict`) and is queried exclusively through the same `requireMembership` → `requireModuleEnabled("performance")` → `requirePermission(...)` chain every other module uses — no route accepts a client-supplied `organizationId` without the existing membership-validation middleware. Cross-tenant IDs (a review ID, cycle ID, template ID, or rating-scale ID from another organization) never resolve — every lookup is always additionally filtered by `organizationId` from the authenticated membership, matching the pattern independently verified for Attendance/Recruitment in every prior phase's live QA (WWM cannot reach Acme's rows and vice versa, both directions).
+Unchanged from the draft — every one of the 9 tables carries `organizationId` (→ `restrict`), queried exclusively through `requireMembership` → `requireModuleEnabled("performance")` → `requirePermission(...)`.
 
 ## 26. RLS / Security
 
-All 9 tables get `ENABLE ROW LEVEL SECURITY` with **zero policies**, in their own creation migration (not a follow-on batch) — identical to migration `0037`'s pattern. This relies on the same platform-wide fact documented in `docs/SUPABASE_SECURITY_REMEDIATION.md`: the application connects as the Postgres `postgres` role (`BYPASSRLS`), so RLS-enabled-with-no-policy is a complete deny-by-default gate against the anon/authenticated PostgREST path while remaining a no-op for the trusted server connection. A matching hand-authored `.down.sql` ships with the same migration, per the established pairing convention.
+Unchanged from the draft — all 9 tables RLS-enabled with zero policies in their own creation migration.
 
-## 27. API Plan
+## 27. API Plan — Amended
 
-**[PROPOSED DESIGN DECISION]** All routes under `/organizations/:organizationId/performance/...`, new OpenAPI tag `performance`:
+All routes under `/organizations/:organizationId/performance/...`, tag `performance`. Additions since the draft are marked **new**:
 
 | Method & Path | Purpose | Permission |
 |---|---|---|
@@ -409,117 +567,85 @@ All 9 tables get `ENABLE ROW LEVEL SECURITY` with **zero policies**, in their ow
 | `GET /performance/reviews` | org-wide list, filterable | `performance.manage` (org-wide) or `performance.read.own` (scoped) |
 | `GET /performance/reviews/:id` | single review detail | `performance.read.own` (own/reviewer-of-record) or `performance.manage` |
 | `POST /performance/reviews/:id/self-assessment` | submit self-assessment | `performance.write.own` |
+| **new** `POST /performance/reviews/:id/goals` | employee proposes, or manager creates, a goal | `performance.write.own` (own, `self_assessment` only) or `performance.review.write` (reviewer of record, `draft`/`manager_review`) |
+| **new** `PATCH /performance/reviews/:id/goals/:goalId` | edit a goal (employee: own `proposed` goal, pre-acceptance; manager: any goal, `manager_review` only) | `performance.write.own` or `performance.review.write` |
+| **new** `POST /performance/reviews/:id/goals/:goalId/accept` | manager accepts a `proposed` goal | `performance.review.write` (reviewer of record) |
+| **new** `POST /performance/reviews/:id/goals/:goalId/reject` | manager rejects a `proposed` goal (comment required) | `performance.review.write` (reviewer of record) |
 | `POST /performance/reviews/:id/manager-review` | submit manager review | `performance.review.write` |
 | `POST /performance/reviews/:id/finalize` | finalize (+ optional override) | `performance.finalize` |
 | `POST /performance/reviews/:id/acknowledge` | employee acknowledgement | `performance.write.own` |
-| `POST /performance/reviews/:id/reopen` | HR reopen to an earlier stage | `performance.manage` |
+| **amended** `POST /performance/reviews/:id/reopen` | HR reopen — body requires `{ targetStage, reason }`; `targetStage` validated against §10.4's explicit allow-list | `performance.manage` |
 | `GET /performance/my-reviews` | ESS: caller's own reviews | `performance.read.own` |
 | `GET /performance/team-reviews` | manager: reviews where caller is `reviewerEmployeeId` | `performance.review.write` |
 | `GET /performance/dashboard` | tile metrics | `performance.reports.read` |
 | `GET /performance/reports/:reportKey` | dedicated reporting route (§21) | `performance.reports.read` |
 
-No unnecessary CRUD — e.g. no separate `DELETE` on any instance-level record (finalized reviews are durable; templates/scales are archived, never deleted).
+Still no unnecessary CRUD — no `DELETE` on any instance-level record.
 
 ## 28. Frontend Plan
 
-Summarized fully in §17–19. Every page: `ModuleGate moduleKey="performance"` at route level, standard loading/error/empty states matching the existing pattern (a real "Access denied" state for 403, distinct from a generic error state, per Recruitment's precedent), responsive table/card components reused from existing pages — no new visual system, no new charting library (plain `Card`/`Badge`/`Table`, matching Attendance/Recruitment dashboards' explicit "no new charting library unless genuinely required" precedent).
+Unchanged in shape from the draft; forms for self-assessment/manager-review now include the goal-proposal/accept/reject and not-applicable controls described above, and the HR reopen action's dialog requires a reason field.
 
 ## 29. Integration Matrix
 
-| Foundation | Classification |
-|---|---|
-| Employees (id, `reportingManagerId`, `employmentStatus`) | **REQUIRED NOW** |
-| Departments / Positions | **REQUIRED NOW** (applicability filters + historical snapshot) |
-| Organization hierarchy (one-level manager relationship) | **REQUIRED NOW** |
-| ESS | **REQUIRED NOW** |
-| Documents (`employee_documents` + `fileStorage.ts`) | **REQUIRED NOW** (evidence, via a thin join table only) |
-| Organization Settings (`performance` namespace) | **REQUIRED NOW** |
-| Master Data | **OPTIONAL** (competency-label typeahead only) |
-| Reporting Foundation | **REQUIRED NOW** (registry + dedicated route) |
-| Audit | **REQUIRED NOW** |
-| Attendance | **NO INTEGRATION** — per CLAUDE.md's explicit instruction not to couple Performance to Attendance merely because it now exists; a future deliberate integration (e.g. attendance data informing a review) would need its own separately-scoped approval |
-| Leave | **NO INTEGRATION** in v1 |
-| Recruitment | **NO INTEGRATION** |
-| Notifications | **FUTURE** (deferred — no working infra exists, §23) |
-| Payroll | **NO INTEGRATION** (doesn't exist yet) |
-| Learning/Training | **FUTURE** (a "development action" concept could later link to Learning once that module exists; not built now) |
+Unchanged from the draft.
 
----
+## 30. Security Threat Review — Amended
 
-## 30. Security Threat Review
+All rows from the draft remain valid, plus:
 
 | Threat | Control |
 |---|---|
-| Employee views another employee's review | every read route filters by `employeeId = resolveOwnEmployeeId(...)` unless caller holds `performance.manage`/`.finalize`/reviewer-of-record match |
-| Manager views a non-report's review | `reviewerEmployeeId` comparison against the review's own snapshotted column, never the employee's *current* `reportingManagerId` |
-| Employee edits manager rating | `managerRatingValue`/`managerComment` columns are only ever set by the manager-review route, gated `performance.review.write` + reviewer-of-record; the self-assessment route's Zod schema excludes these fields entirely |
-| Manager edits HR final score | `hrOverrideScore`/`hrOverrideReason` only settable by the finalize route, gated `performance.finalize` |
-| Client spoofs `employeeId`/`reviewerEmployeeId` | never accepted from the client on any write route — always server-derived |
-| Cross-tenant review/template/scale ID | every lookup additionally filtered by `organizationId` from the authenticated membership (§25) |
-| Hidden draft/final review exposure | review-read DTO omits manager/HR fields from a caller in `self_assessment` stage unless they hold `performance.manage`/`.finalize` |
-| CSV export scope leakage | export uses the exact same pre-authorized scope as the JSON response — no separate export permission/path |
-| Aggregate dashboard leakage | dashboard built from the same scoped context object as the detail routes — never a raw org-wide query for a non-`performance.manage` caller |
-| Stale transition/replay | atomic conditional `UPDATE ... WHERE status = 'expected'` on every transition — concurrent second attempt gets `409`, never a silent double-apply |
-| Score manipulation | `computedOverallScore` is server-computed only, never client-supplied; override requires a separate permission + mandatory reason |
-| Unauthorized reopen/finalize | both gated behind `performance.manage`/`.finalize` exclusively — no employee/manager path to either |
-| Attachment leakage | evidence reuses `employee_documents`' existing authenticated, permission-checked read route — never served by static middleware |
+| Employee's proposed goal silently becomes official/scored without manager action | `approvalStatus` defaults to `proposed` and is structurally excluded from weighting/scoring (§11.2) until a manager explicitly transitions it to `accepted`; enforced in the scoring function itself, not merely by UI convention |
+| Manager silently reopens their own submission to change a score after the fact | Reopen is exclusively `performance.manage` (HR/org_admin only) — no route grants a manager (via `performance.review.write` alone) any reopen capability |
+| HR reopen used to arbitrarily jump stages or erase history | `targetStage` validated server-side against the explicit `{self_assessment, manager_review, hr_review}` allow-list (§10.4); prior submitted values are never blanked, and the full pre-reopen state is preserved in `audit_events` regardless of what happens next |
+| N/A marking used to strip weight from an inconvenient goal without accountability | `notApplicableReason` is a required, non-empty field whenever `notApplicable = true`, captured in the manager-review submission's own audited `beforeState`/`afterState` |
 
 ## 31. Performance / Scalability
 
-**[PROPOSED DESIGN DECISION]** Mirrors `attendanceReporting.ts`'s exact batching shape (~3 queries total per dashboard/report call, regardless of employee count): resolve the caller's scope once (own/reviewer-of-record/org-wide), fetch all applicable `performance_reviews` (+ joined goals/competencies) in one `inArray`-batched query, aggregate in-memory via `Map`/`for` loops. No per-employee-per-goal query loop anywhere. No caching layer introduced (none exists elsewhere on this platform; not introduced prematurely here either, per CLAUDE.md's "avoid premature abstraction").
+Unchanged from the draft.
 
 ## 32. Backup / Restore / Portability
 
-No new infrastructure — Performance's 9 tables are ordinary additive Postgres tables, covered automatically by the existing platform-wide backup/restore/migration-portability model documented in `docs/DEPLOYMENT_AND_TENANT_ARCHITECTURE.md` (standard `pg_dump`/restore, portable across shared/dedicated/evaluation deployment modes, no customer-specific fork).
+Unchanged from the draft.
 
-## 33. Test Strategy (Future)
+## 33. Test Strategy (Future) — Amended
 
-Schema constraints (weight-sum validation, unique `(cycleId, employeeId)`); service-layer rules (scoring formula, rounding, missing-score blocking); every state transition (happy path + wrong-prior-status 409 + concurrent-double-submit race); permission checks (all 6 keys, each direction); own/reviewer-of-record/org-wide scope (a manager cannot see a non-report; an org-wide caller sees everyone); tenant isolation (WWM/Acme cross-org denial, both directions, mirroring every prior phase's live QA); module-disabled 403; rating/weighting edge cases (single goal, zero goals with `goalsWeight=0`, qualitative goals excluded); historical-integrity regression (template edited after a review was created → existing review unchanged); concurrency (`Promise.all` double-submit test, mirroring Leave/Attendance's own regression tests); ESS self-assessment flow; manager-review flow; HR finalize + override flow; dashboard scoped correctly; reports scoped correctly + CSV headers; RLS re-confirmed via Supabase advisors + a direct anon-key PostgREST request returning `200 []`.
+All items from the draft, plus: goal-authorship-and-acceptance state transitions (`proposed`→`accepted`/`rejected`, each direction's permission check, a `proposed` goal correctly excluded from a submitted manager-review's score, submission blocked while any `proposed` goal remains unresolved); not-applicable redistribution math (single N/A item, all-N/A-in-a-section, both-sections-empty rejection at submit time); reopen behavior (each of the three valid target stages, an invalid target stage rejected, prior values preserved not blanked, `revisionNumber` increments, `audit_events` captures reason/actor/timestamp); `status`-is-authoritative regression (a test asserting no route/service function branches on a nullable timestamp instead of `status`); settings-snapshot regression (changing the `performance` namespace's `scoringPrecision`/`acknowledgementRequired` after a review is created does not alter that review's stored/displayed values).
 
 ## 34. Live QA Strategy (Future)
 
-Identical discipline to every prior phase: disposable WWM/Acme accounts, `organization_settings`' exact prior state read and restored, module-enablement reverted after, all disposable business records deleted afterward, genuine audit history preserved. Cross-tenant denial tested both directions. Production untouched throughout — no connection, no deploy, no migration, no QA data, at any point until separately approved.
+Unchanged from the draft.
 
 ---
 
-## 35. Workstream Breakdown
+## 35. Workstream Breakdown — Reconciled
 
-Continuing from W72 (last complete workstream, Phase 3B Completion Report) — **next workstream is W73**. Continuing from migration `0037` — **next migration is `0038`**.
+Continuing from W72 (last complete workstream) — **next workstream is W73**. Continuing from migration `0037` — **next migration is `0038`**. Titles/IDs unchanged from the draft; scope lines enriched to reflect this reconciliation. No workstream was split or merged — the corrected lifecycle/scoring/goal-authorship model fits entirely within the original 12-workstream sequence's existing boundaries.
 
-| ID | Title | Objective | Migration |
-|---|---|---|---|
-| **W73** | Performance Foundation & Module Activation | All 9 tables (§8), RLS enabled inline, 6 permissions seeded (§7), module `performance` flipped `hidden`→`active` in `module-definitions.ts` (available, not enabled for any org — mirrors W64 exactly), `lib/performanceAuthorization.ts` (mirrors `attendanceAuthorization.ts`'s shape), `performance` `organization_settings` namespace registered. **No routes, no frontend** — schema/auth primitives only, per the W64 precedent. | `0038` |
-| **W74** | Rating Scales & Review Templates (HR Configuration) | CRUD API + `/performance-rating-scales` and `/performance-templates` pages; scale-immutability-once-used enforcement; weight-sum validation | none |
-| **W75** | Performance Cycles & Review Assignment | Cycle CRUD API + `/performance-cycles` page; "generate reviews" bulk-assignment action (creates `draft` `performance_reviews`+goals(empty)+competencies-snapshot rows per applicability) | none |
-| **W76** | Goals/Objectives Management | Goal CRUD within a review (employee- and manager-created per Open Decision 4), five measurement types, weight validation | none |
-| **W77** | Self-Assessment (ESS) | `self_assessment`→`manager_review` transition; ESS "My Performance" tab (self-assessment form + history) | none |
-| **W78** | Manager Review | `manager_review`→`hr_review` transition; `/performance-team` manager page | none |
-| **W79** | HR Finalization & Acknowledgement | `hr_review`→`finalized`→`acknowledged` transitions, score override, reopen action (any stage → earlier stage) | none |
-| **W80** | Internal HR/Manager Review List | `/performance-reviews` org-wide list/detail page | none |
-| **W81** | Performance Dashboard & Reporting | `/performance/dashboard`, dedicated `routes/performanceReporting.ts`, 4 report keys registered + `/performance-reports` page | none |
-| **W82** | Evidence/Attachments | `performance_review_evidence` wiring, `performance_evidence` Master Data code, UI attach/view on review & goal detail | none |
-| **W83** | Phase 3C Verification | Full repo-wide verification pass against this frozen plan (mirrors W71: regression suite, migration drift check, RLS/advisor re-check, live cross-tenant QA) | none |
-| **W84** | Phase 3C Completion Report | Formal closing record (mirrors W72) | none |
-
-Each workstream ships independently, with its own Definition of Done (below), and stops before the next begins — exactly the discipline W64–W72 followed.
+| ID | Title | Scope | Schema/API/Frontend impact | Migration | Stop boundary |
+|---|---|---|---|---|---|
+| **W73** | Performance Foundation & Module Activation | All 9 tables incl. the amended columns in §8.6–§8.8 (`revisionNumber`, `scoringPrecisionSnapshot`, `acknowledgementRequiredSnapshot`, `originType`/`approvalStatus`, `notApplicable`/`notApplicableReason`); RLS enabled inline; 6 permissions seeded (§7, unchanged count); module `performance` flipped `hidden`→`active` (available, not enabled for any org); `lib/performanceAuthorization.ts`; `performance` `organization_settings` namespace registered | Schema + auth primitives only. **No routes, no frontend.** | `0038` | DoD (§36) + explicit go-ahead before W74 |
+| **W74** | Rating Scales & Review Templates (HR Configuration) | CRUD API + `/performance-rating-scales` and `/performance-templates` pages; scale-immutability-once-used enforcement; weight-sum validation | Routes + lib + frontend, no schema change | none | before W75 |
+| **W75** | Performance Cycles & Review Assignment | Cycle CRUD API + `/performance-cycles` page; "generate reviews" bulk-assignment action (creates `draft` reviews with manager-authored goals (`accepted` immediately) + competency snapshot per applicability) | Routes + lib + frontend, no schema change | none | before W76 |
+| **W76** | Goals/Objectives Management | Goal CRUD within a review: manager-created (`accepted` immediately) and employee-proposed (`proposed`) authorship paths, accept/edit/reject actions, five measurement types, weight validation, `notApplicable` marking wiring | Routes + lib + frontend, no schema change | none | before W77 |
+| **W77** | Self-Assessment (ESS) | `self_assessment → manager_review` transition (§10.1 row 2); ESS "My Performance" tab (self-assessment form, goal-proposal UI, review history) | Routes + lib + frontend, no schema change | none | before W78 |
+| **W78** | Manager Review | `manager_review → hr_review` transition (§10.1 row 3), including the "resolve every proposed goal" prerequisite; `/performance-team` manager page with a proposed-goals decision queue | Routes + lib + frontend, no schema change | none | before W79 |
+| **W79** | HR Review, Finalization, Override & Reopen | `hr_review → finalized → acknowledged` transitions; score override with mandatory reason (original score preserved); **the full controlled reopen rule (§10.4)** — target-stage allow-list, mandatory reason, `revisionNumber` increment, audit | Routes + lib + frontend, no schema change | none | before W80 |
+| **W80** | Internal HR/Manager Review List | `/performance-reviews` org-wide list/detail page, reopen-with-reason dialog | Frontend + minor route additions, no schema change | none | before W81 |
+| **W81** | Performance Dashboard & Reporting | `/performance/dashboard`, dedicated `routes/performanceReporting.ts`, 4 report keys registered + `/performance-reports` page | Routes + lib + frontend, no schema change | none | before W82 |
+| **W82** | Evidence/Attachments | `performance_review_evidence` wiring, `performance_evidence` Master Data code, UI attach/view on review & goal detail | Routes + lib + frontend, no schema change | none | before W83 |
+| **W83** | Phase 3C Verification | Full repo-wide verification pass against this frozen plan (mirrors W71): regression suite, migration drift check, RLS/advisor re-check, live cross-tenant QA, explicit checks that `status` is never inferred from a timestamp anywhere in the shipped code | Verification only, zero source changes expected | none | before W84 |
+| **W84** | Phase 3C Completion Report | Formal closing record (mirrors W72) | Documentation only | none | Phase 3C closed |
 
 ## 36. Definitions of Done
 
-Per-workstream DoD, generically: (1) the workstream's own scope line above, fully built — nothing from a later workstream pulled forward; (2) full backend + frontend test suites pass, including new tests for this workstream; (3) typecheck clean on both packages; (4) OpenAPI/codegen byte-identical across two consecutive runs (once routes exist); (5) zero unexpected migration drift; (6) all three production builds succeed; (7) live QA against development per §34, with before/after `organization_settings` state confirmed identical; (8) audit events verified recorded exactly once per real transition, zero on read-only surfaces; (9) production untouched. W73's own DoD additionally requires: `organization_modules` confirmed to have zero rows for `performance` after the workstream (available, not enabled anywhere, mirroring W64's own explicit check).
+Unchanged generic DoD from the draft (per-workstream: own scope fully built, full test suites pass, typecheck clean, OpenAPI/codegen byte-identical, zero unexpected migration drift, all builds succeed, live QA with settings state restored, audit events verified, production untouched), **plus, platform-wide for every workstream from W76 onward:** a direct code-inspection check (not just a passing test) confirming no route/service function branches on a nullable timestamp column instead of `status` — the specific discipline called out in §10's opening paragraph. W73's own DoD additionally requires `organization_modules` confirmed to have zero rows for `performance` after the workstream, mirroring W64.
 
-## 37. Open Decisions
+## 37. Owner Decisions — Record
 
-Kept deliberately small — only genuine business-policy calls, not technical details resolvable from existing architecture:
-
-| # | Decision | Option A | Option B | Recommendation | Reason |
-|---|---|---|---|---|---|
-| 1 | Does employee self-rating contribute numerically to the final score? | No — comment/reference-only; manager score is authoritative | Yes — blended with manager score via a configurable weight | **A** | Avoids inventing a blend-weighting algorithm with no roadmap basis; matches "manager score authoritative" as the safer v1 default; can be revisited as an explicit future enhancement |
-| 2 | Is employee acknowledgement of a finalized review required? | Required by default (org-configurable via the `performance` settings namespace) | Optional entirely | **A** | Matches the "seen, not agreed" framing the discovery brief itself specifies; gives HR a completion signal without implying score sign-off |
-| 3 | Does v1 include a formal appeal/dispute workflow? | No — defer; only an optional acknowledgement comment | Yes — build a structured dispute/appeal state | **A** | The brief explicitly warns against accidentally building an employee-relations case-management system inside Performance |
-| 4 | Are goals employee-proposed, manager-assigned, or both? | Manager-only | Both (either party creates; either may edit until self-assessment is submitted) | **B** | Matches how most real organizations actually use goal-setting (collaborative), and needs no extra state beyond a `createdBy` column already in the schema |
-| 5 | Do review templates support custom questions in v1? | No — goals + competencies + ratings + comments only | Yes — a flexible Q&A engine | **A** | Custom-question engines are a meaningfully separate scope (dynamic form schema, response storage, reporting complexity) with no stated roadmap requirement; can be a clean v2 addition |
-| 6 | Does v1 include Performance Improvement Plans (PIP)? | No — explicitly deferred to a future Employee Relations module | Yes — build within Performance | **A** | The brief explicitly warns against casually adding disciplinary functionality into Performance |
+All six decisions that were open in the draft are now resolved and recorded in §0; this section is retained only as a pointer for anyone reading top-to-bottom expecting the original "Open Decisions" position. No decision remains open. Any future genuinely new business-policy question (e.g. whether to build formal appeals in a later phase) would be logged the same way, in a future document, not by reopening this one.
 
 ## 38. Production Rollout Boundary
 
-**Nothing in this plan authorizes touching production.** Every workstream (W73–W84) targets the development Supabase project (`vkvirwdxoiwsiftaarox`) only, exactly like every Attendance/Recruitment workstream before it. Production rollout is a separate, later, explicitly-approved action requiring its own migration-verification, environment-validation, and rollback-strategy review per CLAUDE.md's Deployment section — not addressed by this document and not implied by its approval.
+**Nothing in this plan authorizes touching production.** Every workstream (W73–W84) targets the development Supabase project (`vkvirwdxoiwsiftaarox`) only. Production rollout is a separate, later, explicitly-approved action requiring its own migration-verification, environment-validation, and rollback-strategy review per CLAUDE.md's Deployment section — not addressed by this document and not implied by its freeze.
