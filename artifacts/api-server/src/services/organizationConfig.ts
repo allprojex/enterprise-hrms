@@ -62,6 +62,20 @@ const attendanceConfigSchema = z
     path: ["workEndTime"],
   });
 
+// Phase 3C, W73 — Performance Foundation. Both fields are copied onto
+// performance_reviews as scoringPrecisionSnapshot/
+// acknowledgementRequiredSnapshot at review-creation time (a later
+// workstream) — a subsequent change to this namespace never alters an
+// already-created review (docs/PHASE_3C_PERFORMANCE_IMPLEMENTATION_PLAN.md
+// §9). No route/UI reads or writes this namespace in W73 — schema/config
+// registration only.
+const performanceConfigSchema = z
+  .object({
+    scoringPrecision: z.number().int().min(0).max(4).optional(),
+    acknowledgementRequired: z.boolean().optional(),
+  })
+  .passthrough();
+
 interface NamespaceDefinition {
   schemaVersion: number;
   schema: z.ZodType;
@@ -105,6 +119,20 @@ export const CONFIG_NAMESPACES: Record<string, NamespaceDefinition> = {
       workDays: ["monday", "tuesday", "wednesday", "thursday", "friday"],
     }),
     moduleKey: "attendance",
+  },
+  // Phase 3C, W73 — Performance Foundation. scoringPrecision defaults to 0
+  // decimal places (a whole-number 0-100 score); acknowledgementRequired
+  // defaults to true, per Owner Decision 2's approved answer ("Yes" —
+  // acknowledgement is required by default). An organization can override
+  // either once a later workstream builds the settings UI.
+  performance: {
+    schemaVersion: 1,
+    schema: performanceConfigSchema,
+    defaults: () => ({
+      scoringPrecision: 0,
+      acknowledgementRequired: true,
+    }),
+    moduleKey: "performance",
   },
 };
 

@@ -258,6 +258,19 @@ const PERMISSIONS = [
   { key: "attendance.clock.own", resource: "attendance", action: "clock.own" },
   { key: "attendance.manage", resource: "attendance", action: "manage" },
   { key: "attendance.adjustment.approve", resource: "attendance", action: "adjustment.approve" },
+  // Phase 3C, W73 — Performance Foundation. Exactly 6 keys, none of them a
+  // ".team" variant, per docs/PHASE_3C_PERFORMANCE_IMPLEMENTATION_PLAN.md
+  // §7 — the "manager" tier is a plain employee-role holder whose
+  // performance.review.write grant becomes *effective* only on review rows
+  // where the service layer's reviewerEmployeeId comparison matches (the
+  // same broad-grant-plus-service-layer-narrowing shape attendance.read.own
+  // already established), never a separate permission key.
+  { key: "performance.read.own", resource: "performance", action: "read.own" },
+  { key: "performance.write.own", resource: "performance", action: "write.own" },
+  { key: "performance.review.write", resource: "performance", action: "review.write" },
+  { key: "performance.manage", resource: "performance", action: "manage" },
+  { key: "performance.finalize", resource: "performance", action: "finalize" },
+  { key: "performance.reports.read", resource: "performance", action: "reports.read" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -328,6 +341,12 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "attendance.clock.own",
     "attendance.manage",
     "attendance.adjustment.approve",
+    "performance.read.own",
+    "performance.write.own",
+    "performance.review.write",
+    "performance.manage",
+    "performance.finalize",
+    "performance.reports.read",
   ],
   hr_manager: [
     "organization.read",
@@ -388,6 +407,12 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "attendance.clock.own",
     "attendance.manage",
     "attendance.adjustment.approve",
+    "performance.read.own",
+    "performance.write.own",
+    "performance.review.write",
+    "performance.manage",
+    "performance.finalize",
+    "performance.reports.read",
   ],
   employee: [
     "organization.read",
@@ -412,6 +437,10 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "recruitment.reports.read",
     "attendance.read.own",
     "attendance.clock.own",
+    "performance.read.own",
+    "performance.write.own",
+    "performance.review.write",
+    "performance.reports.read",
   ],
 };
 

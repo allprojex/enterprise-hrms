@@ -66,7 +66,12 @@ export const MODULE_DEFINITIONS: readonly ModuleDefinition[] = [
     description: "Performance reviews and goal tracking.",
     category: "hr-operations",
     version: "1.0.0",
-    status: "hidden",
+    // Phase 3C W73 foundation shipped (schema, permissions, authorization
+    // primitives) — flipped from "hidden" per this file's own documented
+    // convention. See status note on "recruitment"/"attendance" above. No
+    // route or frontend exists yet; module availability does not by itself
+    // grant any organization access (see organization_modules).
+    status: "active",
     defaultEnabled: false,
     requiredModuleKeys: [],
     optionalModuleKeys: [],
