@@ -10635,6 +10635,303 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/learning/courses:
+    get:
+      operationId: listLearningCourses
+      tags: [learning-courses]
+      summary: List an organization's Learning courses
+      description: Broad read — any authenticated organization member holding learning.read.own may list courses.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Courses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LearningCourse"
+    post:
+      operationId: createLearningCourse
+      tags: [learning-courses]
+      summary: Create a Learning course
+      description: >-
+        Requires learning.manage. categoryCode is a free-text code from the
+        training_category Master Data domain, not validated against the
+        domain's item list (§8.1). certificateValidityMonths may only be
+        supplied when issuesCertificate is true.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLearningCourseInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningCourse"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/learning/courses/{id}:
+    get:
+      operationId: getLearningCourse
+      tags: [learning-courses]
+      summary: Get a Learning course
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Course
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningCourse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    patch:
+      operationId: updateLearningCourse
+      tags: [learning-courses]
+      summary: Update a Learning course
+      description: >-
+        Requires learning.manage. Courses carry no usage lock (an
+        enrollment snapshots the course's own fields at creation time, so a
+        later course edit never rewrites enrollment history) — editing is
+        blocked only while the course's own status is already "archived".
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateLearningCourseInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningCourse"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: The course is archived and cannot be edited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/learning/courses/{id}/sessions:
+    get:
+      operationId: listLearningCourseSessions
+      tags: [learning-course-sessions]
+      summary: List a course's scheduled sessions
+      description: Broad read — any authenticated organization member holding learning.read.own may list sessions.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LearningCourseSession"
+        "404":
+          description: Course not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createLearningCourseSession
+      tags: [learning-course-sessions]
+      summary: Schedule a session for a course
+      description: >-
+        Requires learning.manage. instructorEmployeeId, if supplied, must
+        belong to the same organization.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLearningCourseSessionInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningCourseSession"
+        "400":
+          description: Invalid input, or instructorEmployeeId does not belong to this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Course not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/learning/sessions/{id}:
+    get:
+      operationId: getLearningCourseSession
+      tags: [learning-course-sessions]
+      summary: Get a Learning course session
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningCourseSession"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    patch:
+      operationId: updateLearningCourseSession
+      tags: [learning-course-sessions]
+      summary: Edit a session, or transition it to completed/cancelled
+      description: >-
+        Requires learning.manage. A single atomic conditional
+        UPDATE ... WHERE status = 'scheduled' performs both ordinary field
+        edits and, optionally in the same call, the one-way transition to
+        completed/cancelled (§10.2) — once a session leaves 'scheduled' it
+        is permanently locked, no further edit or transition of any kind
+        is ever permitted. A concurrent or repeat transition affects zero
+        rows and returns 409.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateLearningCourseSessionInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningCourseSession"
+        "400":
+          description: Invalid input, or instructorEmployeeId does not belong to this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: The session is no longer scheduled and can no longer be edited or transitioned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -16230,3 +16527,189 @@ components:
           type: integer
         uploadedBy:
           type: ["integer", "null"]
+
+    LearningCourse:
+      type: object
+      required:
+        [
+          id, organizationId, categoryCode, title, deliveryMode, mandatoryDefault,
+          requiresApproval, hasAssessment, issuesCertificate, status, createdAt, updatedAt,
+        ]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        categoryCode:
+          type: string
+          description: Free-text code from the training_category Master Data domain, not validated against the domain's item list.
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        deliveryMode:
+          type: string
+          enum: [self_paced, instructor_led]
+        mandatoryDefault:
+          type: boolean
+          description: Informational default only — snapshotted onto each enrollment, overridable per-assignment (a later workstream's job).
+        requiresApproval:
+          type: boolean
+        hasAssessment:
+          type: boolean
+        issuesCertificate:
+          type: boolean
+        certificateValidityMonths:
+          type: ["integer", "null"]
+          description: Null = certificate never expires. Only meaningful when issuesCertificate is true.
+        status:
+          type: string
+          enum: [draft, active, archived]
+        createdBy:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateLearningCourseInput:
+      type: object
+      required: [categoryCode, title, deliveryMode]
+      properties:
+        categoryCode:
+          type: string
+          minLength: 1
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        deliveryMode:
+          type: string
+          enum: [self_paced, instructor_led]
+        mandatoryDefault:
+          type: boolean
+        requiresApproval:
+          type: boolean
+        hasAssessment:
+          type: boolean
+        issuesCertificate:
+          type: boolean
+        certificateValidityMonths:
+          type: integer
+          minimum: 1
+        status:
+          type: string
+          enum: [draft, active, archived]
+
+    UpdateLearningCourseInput:
+      type: object
+      properties:
+        categoryCode:
+          type: string
+          minLength: 1
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        deliveryMode:
+          type: string
+          enum: [self_paced, instructor_led]
+        mandatoryDefault:
+          type: boolean
+        requiresApproval:
+          type: boolean
+        hasAssessment:
+          type: boolean
+        issuesCertificate:
+          type: boolean
+        certificateValidityMonths:
+          type: ["integer", "null"]
+          minimum: 1
+        status:
+          type: string
+          enum: [draft, active, archived]
+
+    LearningCourseSession:
+      type: object
+      required: [id, organizationId, courseId, scheduledAt, durationMinutes, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        courseId:
+          type: integer
+        scheduledAt:
+          type: string
+          format: date-time
+        durationMinutes:
+          type: integer
+        location:
+          type: ["string", "null"]
+        meetingLink:
+          type: ["string", "null"]
+        instructorEmployeeId:
+          type: ["integer", "null"]
+        capacity:
+          type: ["integer", "null"]
+          description: Null = uncapped. Configuration only — enforced against actual enrollments by a later workstream, never here.
+        status:
+          type: string
+          enum: [scheduled, completed, cancelled]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateLearningCourseSessionInput:
+      type: object
+      required: [scheduledAt, durationMinutes]
+      properties:
+        scheduledAt:
+          type: string
+          format: date-time
+        durationMinutes:
+          type: integer
+          minimum: 1
+        location:
+          type: string
+        meetingLink:
+          type: string
+        instructorEmployeeId:
+          type: integer
+        capacity:
+          type: integer
+          minimum: 1
+
+    UpdateLearningCourseSessionInput:
+      type: object
+      description: >-
+        Both ordinary field edits and an optional one-way status
+        transition (completed/cancelled) may be supplied in the same call
+        — only while the session is still 'scheduled'.
+      properties:
+        scheduledAt:
+          type: string
+          format: date-time
+        durationMinutes:
+          type: integer
+          minimum: 1
+        location:
+          type: string
+        meetingLink:
+          type: string
+        instructorEmployeeId:
+          type: ["integer", "null"]
+        capacity:
+          type: ["integer", "null"]
+          minimum: 1
+        status:
+          type: string
+          enum: [completed, cancelled]
+          description: One-way only — 'scheduled' is never a valid target value here.

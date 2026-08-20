@@ -37,6 +37,7 @@ import {
   ListChecks,
   Ruler,
   FileText,
+  GraduationCap,
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -359,6 +360,12 @@ export function AppShell({ children }: AppShellProps) {
     // non-HR reviewer who navigates directly is still correctly authorized.
     ...(isHrCapable ? [{ href: '/performance', label: 'Performance Dashboard', icon: LayoutDashboard } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/performance-reports', label: 'Performance Reports', icon: FileBarChart } satisfies NavItem] : []),
+    // Phase 3D, W86 — same isHrCapable-only nav precedent as every other HR
+    // configuration page above (Performance Rating Scales/Templates, ...);
+    // the backend's own "read broad" GET routes are still reachable
+    // directly by URL for any learning.read.own holder, per
+    // learningCourses.ts's/learningCourseSessions.ts's own route comments.
+    ...(isHrCapable ? [{ href: '/learning-courses', label: 'Learning Courses', icon: GraduationCap } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisitions', label: 'Job Requisitions', icon: ClipboardList } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisition-approvals', label: 'Requisition Approvals', icon: Stamp } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/vacancies', label: 'Vacancies', icon: Megaphone } satisfies NavItem] : []),

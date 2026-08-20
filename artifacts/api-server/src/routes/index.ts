@@ -63,6 +63,8 @@ import performanceHrReviewRouter from "./performanceHrReview";
 import performanceReportingRouter from "./performanceReporting";
 import performanceReviewEvidenceRouter from "./performanceReviewEvidence";
 import performanceAcknowledgementRouter from "./performanceAcknowledgement";
+import learningCoursesRouter from "./learningCourses";
+import learningCourseSessionsRouter from "./learningCourseSessions";
 
 const router: IRouter = Router();
 
@@ -130,5 +132,7 @@ router.use(performanceHrReviewRouter);
 router.use(performanceReportingRouter);
 router.use(performanceReviewEvidenceRouter);
 router.use(performanceAcknowledgementRouter);
+router.use(learningCoursesRouter);
+router.use(learningCourseSessionsRouter);
 
 export default router;

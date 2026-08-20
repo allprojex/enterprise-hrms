@@ -8973,3 +8973,276 @@ export const DownloadPerformanceReviewEvidenceParams = zod.object({
 export const DownloadPerformanceReviewEvidenceResponse = zod.unknown()
 
 
+/**
+ * Broad read — any authenticated organization member holding learning.read.own may list courses.
+ * @summary List an organization's Learning courses
+ */
+export const ListLearningCoursesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListLearningCoursesResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "categoryCode": zod.string().describe('Free-text code from the training_category Master Data domain, not validated against the domain\'s item list.'),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "deliveryMode": zod.enum(['self_paced', 'instructor_led']),
+  "mandatoryDefault": zod.boolean().describe('Informational default only — snapshotted onto each enrollment, overridable per-assignment (a later workstream\'s job).'),
+  "requiresApproval": zod.boolean(),
+  "hasAssessment": zod.boolean(),
+  "issuesCertificate": zod.boolean(),
+  "certificateValidityMonths": zod.number().nullish().describe('Null = certificate never expires. Only meaningful when issuesCertificate is true.'),
+  "status": zod.enum(['draft', 'active', 'archived']),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListLearningCoursesResponse = zod.array(ListLearningCoursesResponseItem)
+
+
+/**
+ * Requires learning.manage. categoryCode is a free-text code from the training_category Master Data domain, not validated against the domain's item list (§8.1). certificateValidityMonths may only be supplied when issuesCertificate is true.
+ * @summary Create a Learning course
+ */
+export const CreateLearningCourseParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+
+
+
+
+export const CreateLearningCourseBody = zod.object({
+  "categoryCode": zod.string().min(1),
+  "title": zod.string().min(1),
+  "description": zod.string().optional(),
+  "deliveryMode": zod.enum(['self_paced', 'instructor_led']),
+  "mandatoryDefault": zod.boolean().optional(),
+  "requiresApproval": zod.boolean().optional(),
+  "hasAssessment": zod.boolean().optional(),
+  "issuesCertificate": zod.boolean().optional(),
+  "certificateValidityMonths": zod.number().min(1).optional(),
+  "status": zod.enum(['draft', 'active', 'archived']).optional()
+})
+
+export const CreateLearningCourseResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "categoryCode": zod.string().describe('Free-text code from the training_category Master Data domain, not validated against the domain\'s item list.'),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "deliveryMode": zod.enum(['self_paced', 'instructor_led']),
+  "mandatoryDefault": zod.boolean().describe('Informational default only — snapshotted onto each enrollment, overridable per-assignment (a later workstream\'s job).'),
+  "requiresApproval": zod.boolean(),
+  "hasAssessment": zod.boolean(),
+  "issuesCertificate": zod.boolean(),
+  "certificateValidityMonths": zod.number().nullish().describe('Null = certificate never expires. Only meaningful when issuesCertificate is true.'),
+  "status": zod.enum(['draft', 'active', 'archived']),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get a Learning course
+ */
+export const GetLearningCourseParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const GetLearningCourseResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "categoryCode": zod.string().describe('Free-text code from the training_category Master Data domain, not validated against the domain\'s item list.'),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "deliveryMode": zod.enum(['self_paced', 'instructor_led']),
+  "mandatoryDefault": zod.boolean().describe('Informational default only — snapshotted onto each enrollment, overridable per-assignment (a later workstream\'s job).'),
+  "requiresApproval": zod.boolean(),
+  "hasAssessment": zod.boolean(),
+  "issuesCertificate": zod.boolean(),
+  "certificateValidityMonths": zod.number().nullish().describe('Null = certificate never expires. Only meaningful when issuesCertificate is true.'),
+  "status": zod.enum(['draft', 'active', 'archived']),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Requires learning.manage. Courses carry no usage lock (an enrollment snapshots the course's own fields at creation time, so a later course edit never rewrites enrollment history) — editing is blocked only while the course's own status is already "archived".
+ * @summary Update a Learning course
+ */
+export const UpdateLearningCourseParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+
+
+
+
+
+export const UpdateLearningCourseBody = zod.object({
+  "categoryCode": zod.string().min(1).optional(),
+  "title": zod.string().min(1).optional(),
+  "description": zod.string().optional(),
+  "deliveryMode": zod.enum(['self_paced', 'instructor_led']).optional(),
+  "mandatoryDefault": zod.boolean().optional(),
+  "requiresApproval": zod.boolean().optional(),
+  "hasAssessment": zod.boolean().optional(),
+  "issuesCertificate": zod.boolean().optional(),
+  "certificateValidityMonths": zod.number().min(1).nullish(),
+  "status": zod.enum(['draft', 'active', 'archived']).optional()
+})
+
+export const UpdateLearningCourseResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "categoryCode": zod.string().describe('Free-text code from the training_category Master Data domain, not validated against the domain\'s item list.'),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "deliveryMode": zod.enum(['self_paced', 'instructor_led']),
+  "mandatoryDefault": zod.boolean().describe('Informational default only — snapshotted onto each enrollment, overridable per-assignment (a later workstream\'s job).'),
+  "requiresApproval": zod.boolean(),
+  "hasAssessment": zod.boolean(),
+  "issuesCertificate": zod.boolean(),
+  "certificateValidityMonths": zod.number().nullish().describe('Null = certificate never expires. Only meaningful when issuesCertificate is true.'),
+  "status": zod.enum(['draft', 'active', 'archived']),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Broad read — any authenticated organization member holding learning.read.own may list sessions.
+ * @summary List a course's scheduled sessions
+ */
+export const ListLearningCourseSessionsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ListLearningCourseSessionsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "courseId": zod.number(),
+  "scheduledAt": zod.coerce.date(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullish(),
+  "meetingLink": zod.string().nullish(),
+  "instructorEmployeeId": zod.number().nullish(),
+  "capacity": zod.number().nullish().describe('Null = uncapped. Configuration only — enforced against actual enrollments by a later workstream, never here.'),
+  "status": zod.enum(['scheduled', 'completed', 'cancelled']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListLearningCourseSessionsResponse = zod.array(ListLearningCourseSessionsResponseItem)
+
+
+/**
+ * Requires learning.manage. instructorEmployeeId, if supplied, must belong to the same organization.
+ * @summary Schedule a session for a course
+ */
+export const CreateLearningCourseSessionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+
+
+
+
+export const CreateLearningCourseSessionBody = zod.object({
+  "scheduledAt": zod.coerce.date(),
+  "durationMinutes": zod.number().min(1),
+  "location": zod.string().optional(),
+  "meetingLink": zod.string().optional(),
+  "instructorEmployeeId": zod.number().optional(),
+  "capacity": zod.number().min(1).optional()
+})
+
+export const CreateLearningCourseSessionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "courseId": zod.number(),
+  "scheduledAt": zod.coerce.date(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullish(),
+  "meetingLink": zod.string().nullish(),
+  "instructorEmployeeId": zod.number().nullish(),
+  "capacity": zod.number().nullish().describe('Null = uncapped. Configuration only — enforced against actual enrollments by a later workstream, never here.'),
+  "status": zod.enum(['scheduled', 'completed', 'cancelled']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get a Learning course session
+ */
+export const GetLearningCourseSessionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const GetLearningCourseSessionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "courseId": zod.number(),
+  "scheduledAt": zod.coerce.date(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullish(),
+  "meetingLink": zod.string().nullish(),
+  "instructorEmployeeId": zod.number().nullish(),
+  "capacity": zod.number().nullish().describe('Null = uncapped. Configuration only — enforced against actual enrollments by a later workstream, never here.'),
+  "status": zod.enum(['scheduled', 'completed', 'cancelled']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Requires learning.manage. A single atomic conditional UPDATE ... WHERE status = 'scheduled' performs both ordinary field edits and, optionally in the same call, the one-way transition to completed/cancelled (§10.2) — once a session leaves 'scheduled' it is permanently locked, no further edit or transition of any kind is ever permitted. A concurrent or repeat transition affects zero rows and returns 409.
+ * @summary Edit a session, or transition it to completed/cancelled
+ */
+export const UpdateLearningCourseSessionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+
+
+
+
+export const UpdateLearningCourseSessionBody = zod.object({
+  "scheduledAt": zod.coerce.date().optional(),
+  "durationMinutes": zod.number().min(1).optional(),
+  "location": zod.string().optional(),
+  "meetingLink": zod.string().optional(),
+  "instructorEmployeeId": zod.number().nullish(),
+  "capacity": zod.number().min(1).nullish(),
+  "status": zod.enum(['completed', 'cancelled']).optional().describe('One-way only — \'scheduled\' is never a valid target value here.')
+}).describe('Both ordinary field edits and an optional one-way status transition (completed\/cancelled) may be supplied in the same call — only while the session is still \'scheduled\'.')
+
+export const UpdateLearningCourseSessionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "courseId": zod.number(),
+  "scheduledAt": zod.coerce.date(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullish(),
+  "meetingLink": zod.string().nullish(),
+  "instructorEmployeeId": zod.number().nullish(),
+  "capacity": zod.number().nullish().describe('Null = uncapped. Configuration only — enforced against actual enrollments by a later workstream, never here.'),
+  "status": zod.enum(['scheduled', 'completed', 'cancelled']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+

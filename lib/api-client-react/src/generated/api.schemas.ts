@@ -5008,6 +5008,191 @@ export interface PerformanceReviewEvidence {
   uploadedBy: number | null;
 }
 
+export type LearningCourseDeliveryMode = typeof LearningCourseDeliveryMode[keyof typeof LearningCourseDeliveryMode];
+
+
+export const LearningCourseDeliveryMode = {
+  self_paced: 'self_paced',
+  instructor_led: 'instructor_led',
+} as const;
+
+export type LearningCourseStatus = typeof LearningCourseStatus[keyof typeof LearningCourseStatus];
+
+
+export const LearningCourseStatus = {
+  draft: 'draft',
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface LearningCourse {
+  id: number;
+  organizationId: number;
+  /** Free-text code from the training_category Master Data domain, not validated against the domain's item list. */
+  categoryCode: string;
+  title: string;
+  /** @nullable */
+  description?: string | null;
+  deliveryMode: LearningCourseDeliveryMode;
+  /** Informational default only — snapshotted onto each enrollment, overridable per-assignment (a later workstream's job). */
+  mandatoryDefault: boolean;
+  requiresApproval: boolean;
+  hasAssessment: boolean;
+  issuesCertificate: boolean;
+  /**
+     * Null = certificate never expires. Only meaningful when issuesCertificate is true.
+     * @nullable
+     */
+  certificateValidityMonths?: number | null;
+  status: LearningCourseStatus;
+  /** @nullable */
+  createdBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CreateLearningCourseInputDeliveryMode = typeof CreateLearningCourseInputDeliveryMode[keyof typeof CreateLearningCourseInputDeliveryMode];
+
+
+export const CreateLearningCourseInputDeliveryMode = {
+  self_paced: 'self_paced',
+  instructor_led: 'instructor_led',
+} as const;
+
+export type CreateLearningCourseInputStatus = typeof CreateLearningCourseInputStatus[keyof typeof CreateLearningCourseInputStatus];
+
+
+export const CreateLearningCourseInputStatus = {
+  draft: 'draft',
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface CreateLearningCourseInput {
+  /** @minLength 1 */
+  categoryCode: string;
+  /** @minLength 1 */
+  title: string;
+  description?: string;
+  deliveryMode: CreateLearningCourseInputDeliveryMode;
+  mandatoryDefault?: boolean;
+  requiresApproval?: boolean;
+  hasAssessment?: boolean;
+  issuesCertificate?: boolean;
+  /** @minimum 1 */
+  certificateValidityMonths?: number;
+  status?: CreateLearningCourseInputStatus;
+}
+
+export type UpdateLearningCourseInputDeliveryMode = typeof UpdateLearningCourseInputDeliveryMode[keyof typeof UpdateLearningCourseInputDeliveryMode];
+
+
+export const UpdateLearningCourseInputDeliveryMode = {
+  self_paced: 'self_paced',
+  instructor_led: 'instructor_led',
+} as const;
+
+export type UpdateLearningCourseInputStatus = typeof UpdateLearningCourseInputStatus[keyof typeof UpdateLearningCourseInputStatus];
+
+
+export const UpdateLearningCourseInputStatus = {
+  draft: 'draft',
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface UpdateLearningCourseInput {
+  /** @minLength 1 */
+  categoryCode?: string;
+  /** @minLength 1 */
+  title?: string;
+  description?: string;
+  deliveryMode?: UpdateLearningCourseInputDeliveryMode;
+  mandatoryDefault?: boolean;
+  requiresApproval?: boolean;
+  hasAssessment?: boolean;
+  issuesCertificate?: boolean;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  certificateValidityMonths?: number | null;
+  status?: UpdateLearningCourseInputStatus;
+}
+
+export type LearningCourseSessionStatus = typeof LearningCourseSessionStatus[keyof typeof LearningCourseSessionStatus];
+
+
+export const LearningCourseSessionStatus = {
+  scheduled: 'scheduled',
+  completed: 'completed',
+  cancelled: 'cancelled',
+} as const;
+
+export interface LearningCourseSession {
+  id: number;
+  organizationId: number;
+  courseId: number;
+  scheduledAt: string;
+  durationMinutes: number;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  meetingLink?: string | null;
+  /** @nullable */
+  instructorEmployeeId?: number | null;
+  /**
+     * Null = uncapped. Configuration only — enforced against actual enrollments by a later workstream, never here.
+     * @nullable
+     */
+  capacity?: number | null;
+  status: LearningCourseSessionStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateLearningCourseSessionInput {
+  scheduledAt: string;
+  /** @minimum 1 */
+  durationMinutes: number;
+  location?: string;
+  meetingLink?: string;
+  instructorEmployeeId?: number;
+  /** @minimum 1 */
+  capacity?: number;
+}
+
+/**
+ * One-way only — 'scheduled' is never a valid target value here.
+ */
+export type UpdateLearningCourseSessionInputStatus = typeof UpdateLearningCourseSessionInputStatus[keyof typeof UpdateLearningCourseSessionInputStatus];
+
+
+export const UpdateLearningCourseSessionInputStatus = {
+  completed: 'completed',
+  cancelled: 'cancelled',
+} as const;
+
+/**
+ * Both ordinary field edits and an optional one-way status transition (completed/cancelled) may be supplied in the same call — only while the session is still 'scheduled'.
+ */
+export interface UpdateLearningCourseSessionInput {
+  scheduledAt?: string;
+  /** @minimum 1 */
+  durationMinutes?: number;
+  location?: string;
+  meetingLink?: string;
+  /** @nullable */
+  instructorEmployeeId?: number | null;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  capacity?: number | null;
+  /** One-way only — 'scheduled' is never a valid target value here. */
+  status?: UpdateLearningCourseSessionInputStatus;
+}
+
 export type ListEmployeesParams = {
 search?: string;
 departmentId?: number;

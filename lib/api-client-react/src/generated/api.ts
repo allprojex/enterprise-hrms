@@ -65,6 +65,8 @@ import type {
   CreateEmployeeInput,
   CreateInvitationInput,
   CreateJobRequisitionInput,
+  CreateLearningCourseInput,
+  CreateLearningCourseSessionInput,
   CreateLeavePolicyInput,
   CreateLeaveRequestInput,
   CreateLeaveTypeInput,
@@ -113,6 +115,8 @@ import type {
   InvitationPreview,
   JobRequisition,
   JobRequisitionListResponse,
+  LearningCourse,
+  LearningCourseSession,
   LeaveBalanceEntry,
   LeaveBalanceSummary,
   LeaveCalendarResponse,
@@ -232,6 +236,8 @@ import type {
   UpdateEmployeeSkillInput,
   UpdateInterviewInput,
   UpdateJobRequisitionInput,
+  UpdateLearningCourseInput,
+  UpdateLearningCourseSessionInput,
   UpdateLeavePolicyInput,
   UpdateLeaveTypeInput,
   UpdateOfferVersionInput,
@@ -21393,4 +21399,627 @@ export function useDownloadPerformanceReviewEvidence<TData = Awaited<ReturnType<
 
 
 
+
+export const getListLearningCoursesUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/learning/courses`
+}
+
+/**
+ * Broad read — any authenticated organization member holding learning.read.own may list courses.
+ * @summary List an organization's Learning courses
+ */
+export const listLearningCourses = async (organizationId: number, options?: RequestInit): Promise<LearningCourse[]> => {
+
+  return customFetch<LearningCourse[]>(getListLearningCoursesUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLearningCoursesQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/learning/courses`
+    ] as const;
+    }
+
+
+export const getListLearningCoursesQueryOptions = <TData = Awaited<ReturnType<typeof listLearningCourses>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLearningCourses>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLearningCoursesQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLearningCourses>>> = ({ signal }) => listLearningCourses(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLearningCourses>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLearningCoursesQueryResult = NonNullable<Awaited<ReturnType<typeof listLearningCourses>>>
+export type ListLearningCoursesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List an organization's Learning courses
+ */
+
+export function useListLearningCourses<TData = Awaited<ReturnType<typeof listLearningCourses>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLearningCourses>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLearningCoursesQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateLearningCourseUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/learning/courses`
+}
+
+/**
+ * Requires learning.manage. categoryCode is a free-text code from the training_category Master Data domain, not validated against the domain's item list (§8.1). certificateValidityMonths may only be supplied when issuesCertificate is true.
+ * @summary Create a Learning course
+ */
+export const createLearningCourse = async (organizationId: number,
+    createLearningCourseInput: CreateLearningCourseInput, options?: RequestInit): Promise<LearningCourse> => {
+
+  return customFetch<LearningCourse>(getCreateLearningCourseUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createLearningCourseInput)
+  }
+);}
+
+
+
+
+
+export const getCreateLearningCourseMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLearningCourse>>, TError,{organizationId: number;data: BodyType<CreateLearningCourseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createLearningCourse>>, TError,{organizationId: number;data: BodyType<CreateLearningCourseInput>}, TContext> => {
+
+const mutationKey = ['createLearningCourse'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createLearningCourse>>, {organizationId: number;data: BodyType<CreateLearningCourseInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createLearningCourse(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateLearningCourseMutationResult = NonNullable<Awaited<ReturnType<typeof createLearningCourse>>>
+    export type CreateLearningCourseMutationBody = BodyType<CreateLearningCourseInput>
+    export type CreateLearningCourseMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Create a Learning course
+ */
+export const useCreateLearningCourse = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLearningCourse>>, TError,{organizationId: number;data: BodyType<CreateLearningCourseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createLearningCourse>>,
+        TError,
+        {organizationId: number;data: BodyType<CreateLearningCourseInput>},
+        TContext
+      > => {
+      return useMutation(getCreateLearningCourseMutationOptions(options));
+    }
+
+export const getGetLearningCourseUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/learning/courses/${id}`
+}
+
+/**
+ * @summary Get a Learning course
+ */
+export const getLearningCourse = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<LearningCourse> => {
+
+  return customFetch<LearningCourse>(getGetLearningCourseUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLearningCourseQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/learning/courses/${id}`
+    ] as const;
+    }
+
+
+export const getGetLearningCourseQueryOptions = <TData = Awaited<ReturnType<typeof getLearningCourse>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLearningCourse>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLearningCourseQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLearningCourse>>> = ({ signal }) => getLearningCourse(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLearningCourse>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetLearningCourseQueryResult = NonNullable<Awaited<ReturnType<typeof getLearningCourse>>>
+export type GetLearningCourseQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get a Learning course
+ */
+
+export function useGetLearningCourse<TData = Awaited<ReturnType<typeof getLearningCourse>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLearningCourse>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetLearningCourseQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateLearningCourseUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/learning/courses/${id}`
+}
+
+/**
+ * Requires learning.manage. Courses carry no usage lock (an enrollment snapshots the course's own fields at creation time, so a later course edit never rewrites enrollment history) — editing is blocked only while the course's own status is already "archived".
+ * @summary Update a Learning course
+ */
+export const updateLearningCourse = async (organizationId: number,
+    id: number,
+    updateLearningCourseInput: UpdateLearningCourseInput, options?: RequestInit): Promise<LearningCourse> => {
+
+  return customFetch<LearningCourse>(getUpdateLearningCourseUrl(organizationId,id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateLearningCourseInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateLearningCourseMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLearningCourse>>, TError,{organizationId: number;id: number;data: BodyType<UpdateLearningCourseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateLearningCourse>>, TError,{organizationId: number;id: number;data: BodyType<UpdateLearningCourseInput>}, TContext> => {
+
+const mutationKey = ['updateLearningCourse'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateLearningCourse>>, {organizationId: number;id: number;data: BodyType<UpdateLearningCourseInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  updateLearningCourse(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateLearningCourseMutationResult = NonNullable<Awaited<ReturnType<typeof updateLearningCourse>>>
+    export type UpdateLearningCourseMutationBody = BodyType<UpdateLearningCourseInput>
+    export type UpdateLearningCourseMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update a Learning course
+ */
+export const useUpdateLearningCourse = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLearningCourse>>, TError,{organizationId: number;id: number;data: BodyType<UpdateLearningCourseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateLearningCourse>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<UpdateLearningCourseInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateLearningCourseMutationOptions(options));
+    }
+
+export const getListLearningCourseSessionsUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/learning/courses/${id}/sessions`
+}
+
+/**
+ * Broad read — any authenticated organization member holding learning.read.own may list sessions.
+ * @summary List a course's scheduled sessions
+ */
+export const listLearningCourseSessions = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<LearningCourseSession[]> => {
+
+  return customFetch<LearningCourseSession[]>(getListLearningCourseSessionsUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLearningCourseSessionsQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/learning/courses/${id}/sessions`
+    ] as const;
+    }
+
+
+export const getListLearningCourseSessionsQueryOptions = <TData = Awaited<ReturnType<typeof listLearningCourseSessions>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLearningCourseSessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLearningCourseSessionsQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLearningCourseSessions>>> = ({ signal }) => listLearningCourseSessions(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLearningCourseSessions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLearningCourseSessionsQueryResult = NonNullable<Awaited<ReturnType<typeof listLearningCourseSessions>>>
+export type ListLearningCourseSessionsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List a course's scheduled sessions
+ */
+
+export function useListLearningCourseSessions<TData = Awaited<ReturnType<typeof listLearningCourseSessions>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLearningCourseSessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLearningCourseSessionsQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateLearningCourseSessionUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/learning/courses/${id}/sessions`
+}
+
+/**
+ * Requires learning.manage. instructorEmployeeId, if supplied, must belong to the same organization.
+ * @summary Schedule a session for a course
+ */
+export const createLearningCourseSession = async (organizationId: number,
+    id: number,
+    createLearningCourseSessionInput: CreateLearningCourseSessionInput, options?: RequestInit): Promise<LearningCourseSession> => {
+
+  return customFetch<LearningCourseSession>(getCreateLearningCourseSessionUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createLearningCourseSessionInput)
+  }
+);}
+
+
+
+
+
+export const getCreateLearningCourseSessionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLearningCourseSession>>, TError,{organizationId: number;id: number;data: BodyType<CreateLearningCourseSessionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createLearningCourseSession>>, TError,{organizationId: number;id: number;data: BodyType<CreateLearningCourseSessionInput>}, TContext> => {
+
+const mutationKey = ['createLearningCourseSession'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createLearningCourseSession>>, {organizationId: number;id: number;data: BodyType<CreateLearningCourseSessionInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  createLearningCourseSession(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateLearningCourseSessionMutationResult = NonNullable<Awaited<ReturnType<typeof createLearningCourseSession>>>
+    export type CreateLearningCourseSessionMutationBody = BodyType<CreateLearningCourseSessionInput>
+    export type CreateLearningCourseSessionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Schedule a session for a course
+ */
+export const useCreateLearningCourseSession = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLearningCourseSession>>, TError,{organizationId: number;id: number;data: BodyType<CreateLearningCourseSessionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createLearningCourseSession>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<CreateLearningCourseSessionInput>},
+        TContext
+      > => {
+      return useMutation(getCreateLearningCourseSessionMutationOptions(options));
+    }
+
+export const getGetLearningCourseSessionUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/learning/sessions/${id}`
+}
+
+/**
+ * @summary Get a Learning course session
+ */
+export const getLearningCourseSession = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<LearningCourseSession> => {
+
+  return customFetch<LearningCourseSession>(getGetLearningCourseSessionUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLearningCourseSessionQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/learning/sessions/${id}`
+    ] as const;
+    }
+
+
+export const getGetLearningCourseSessionQueryOptions = <TData = Awaited<ReturnType<typeof getLearningCourseSession>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLearningCourseSession>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLearningCourseSessionQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLearningCourseSession>>> = ({ signal }) => getLearningCourseSession(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLearningCourseSession>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetLearningCourseSessionQueryResult = NonNullable<Awaited<ReturnType<typeof getLearningCourseSession>>>
+export type GetLearningCourseSessionQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get a Learning course session
+ */
+
+export function useGetLearningCourseSession<TData = Awaited<ReturnType<typeof getLearningCourseSession>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLearningCourseSession>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetLearningCourseSessionQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateLearningCourseSessionUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/learning/sessions/${id}`
+}
+
+/**
+ * Requires learning.manage. A single atomic conditional UPDATE ... WHERE status = 'scheduled' performs both ordinary field edits and, optionally in the same call, the one-way transition to completed/cancelled (§10.2) — once a session leaves 'scheduled' it is permanently locked, no further edit or transition of any kind is ever permitted. A concurrent or repeat transition affects zero rows and returns 409.
+ * @summary Edit a session, or transition it to completed/cancelled
+ */
+export const updateLearningCourseSession = async (organizationId: number,
+    id: number,
+    updateLearningCourseSessionInput: UpdateLearningCourseSessionInput, options?: RequestInit): Promise<LearningCourseSession> => {
+
+  return customFetch<LearningCourseSession>(getUpdateLearningCourseSessionUrl(organizationId,id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateLearningCourseSessionInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateLearningCourseSessionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLearningCourseSession>>, TError,{organizationId: number;id: number;data: BodyType<UpdateLearningCourseSessionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateLearningCourseSession>>, TError,{organizationId: number;id: number;data: BodyType<UpdateLearningCourseSessionInput>}, TContext> => {
+
+const mutationKey = ['updateLearningCourseSession'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateLearningCourseSession>>, {organizationId: number;id: number;data: BodyType<UpdateLearningCourseSessionInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  updateLearningCourseSession(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateLearningCourseSessionMutationResult = NonNullable<Awaited<ReturnType<typeof updateLearningCourseSession>>>
+    export type UpdateLearningCourseSessionMutationBody = BodyType<UpdateLearningCourseSessionInput>
+    export type UpdateLearningCourseSessionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Edit a session, or transition it to completed/cancelled
+ */
+export const useUpdateLearningCourseSession = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLearningCourseSession>>, TError,{organizationId: number;id: number;data: BodyType<UpdateLearningCourseSessionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateLearningCourseSession>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<UpdateLearningCourseSessionInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateLearningCourseSessionMutationOptions(options));
+    }
 
