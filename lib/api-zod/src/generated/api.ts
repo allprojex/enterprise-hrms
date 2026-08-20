@@ -9826,3 +9826,169 @@ export const CompleteLearningEnrollmentResponse = zod.object({
 })
 
 
+/**
+ * Requires learning.read.own. employeeId is always server-resolved from the caller's own employee_user_links row. "Expired" is never a stored status — compute it client-side from expiresAt < now(); status here is only ever active or revoked (§10.4 rule 9).
+ * @summary List the caller's own Learning certificates
+ */
+export const ListMyLearningCertificatesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListMyLearningCertificatesResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "enrollmentId": zod.number(),
+  "employeeId": zod.number(),
+  "courseTitleSnapshot": zod.string().describe('Copied from the enrollment\'s own courseTitleSnapshot at issuance — a chain of snapshots, never re-read from the live course.'),
+  "certificateNumber": zod.string().nullable(),
+  "issuedAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date().nullable().describe('Computed exactly once at issuance from the enrollment\'s own certificateValidityMonthsSnapshot. Null means never expires. Never recomputed.'),
+  "status": zod.enum(['active', 'revoked']).describe('\"Expired\" is never a stored value here (§10.4 rule 9) — always computed live from expiresAt < now().'),
+  "revokedByMembershipId": zod.number().nullable(),
+  "revokedAt": zod.coerce.date().nullable(),
+  "revokeReason": zod.string().nullable(),
+  "employeeDocumentId": zod.number().nullable().describe('Optional attached file. V1 never generates a certificate PDF — this field is only ever populated by a future HR-uploaded-file workstream, not W90.'),
+  "createdAt": zod.coerce.date()
+})
+export const ListMyLearningCertificatesResponse = zod.array(ListMyLearningCertificatesResponseItem)
+
+
+/**
+ * Requires learning.manage, organization-wide. No manager-of-record or instructor-of-record certificate visibility route exists — §21's own frozen table names only own (my-certificates) and org-wide (this route) for certificates; none other is built. Paginated (items/total/page/pageSize), mirroring LearningEnrollmentListResponse's own established shape.
+ * @summary List an organization's Learning certificates (org-wide)
+ */
+export const ListLearningCertificatesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const listLearningCertificatesQueryPageDefault = 1;
+export const listLearningCertificatesQueryPageSizeDefault = 20;
+
+export const ListLearningCertificatesQueryParams = zod.object({
+  "employeeId": zod.coerce.number().optional(),
+  "status": zod.enum(['active', 'revoked']).optional(),
+  "page": zod.coerce.number().default(listLearningCertificatesQueryPageDefault),
+  "pageSize": zod.coerce.number().default(listLearningCertificatesQueryPageSizeDefault)
+})
+
+export const ListLearningCertificatesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "enrollmentId": zod.number(),
+  "employeeId": zod.number(),
+  "courseTitleSnapshot": zod.string().describe('Copied from the enrollment\'s own courseTitleSnapshot at issuance — a chain of snapshots, never re-read from the live course.'),
+  "certificateNumber": zod.string().nullable(),
+  "issuedAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date().nullable().describe('Computed exactly once at issuance from the enrollment\'s own certificateValidityMonthsSnapshot. Null means never expires. Never recomputed.'),
+  "status": zod.enum(['active', 'revoked']).describe('\"Expired\" is never a stored value here (§10.4 rule 9) — always computed live from expiresAt < now().'),
+  "revokedByMembershipId": zod.number().nullable(),
+  "revokedAt": zod.coerce.date().nullable(),
+  "revokeReason": zod.string().nullable(),
+  "employeeDocumentId": zod.number().nullable().describe('Optional attached file. V1 never generates a certificate PDF — this field is only ever populated by a future HR-uploaded-file workstream, not W90.'),
+  "createdAt": zod.coerce.date()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "pageSize": zod.number()
+})
+
+
+/**
+ * Requires learning.manage. Mandatory revokeReason. Permanently terminal — active → revoked only, no restore/un-revoke/reopen path exists anywhere (§10.4 rule 8). Atomic conditional update guarded by status = 'active' — a repeat or concurrent revocation returns a controlled 409.
+ * @summary Revoke an active certificate
+ */
+export const RevokeLearningCertificateParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const RevokeLearningCertificateBody = zod.object({
+  "revokeReason": zod.string().min(1)
+})
+
+export const RevokeLearningCertificateResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "enrollmentId": zod.number(),
+  "employeeId": zod.number(),
+  "courseTitleSnapshot": zod.string().describe('Copied from the enrollment\'s own courseTitleSnapshot at issuance — a chain of snapshots, never re-read from the live course.'),
+  "certificateNumber": zod.string().nullable(),
+  "issuedAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date().nullable().describe('Computed exactly once at issuance from the enrollment\'s own certificateValidityMonthsSnapshot. Null means never expires. Never recomputed.'),
+  "status": zod.enum(['active', 'revoked']).describe('\"Expired\" is never a stored value here (§10.4 rule 9) — always computed live from expiresAt < now().'),
+  "revokedByMembershipId": zod.number().nullable(),
+  "revokedAt": zod.coerce.date().nullable(),
+  "revokeReason": zod.string().nullable(),
+  "employeeDocumentId": zod.number().nullable().describe('Optional attached file. V1 never generates a certificate PDF — this field is only ever populated by a future HR-uploaded-file workstream, not W90.'),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * Visible to the same own/manager-of-record/instructor-of-record/ organization-wide tier as the enrollment itself (§21's own frozen row) — no stage/status restriction, at any enrollment status, including terminal.
+ * @summary List an enrollment's evidence
+ */
+export const ListLearningEnrollmentEvidenceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ListLearningEnrollmentEvidenceResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "enrollmentId": zod.number(),
+  "employeeDocumentId": zod.number().describe('Points into the existing employee_documents table (§8.4) — no separate Learning storage layer.'),
+  "addedByMembershipId": zod.number().nullable(),
+  "addedAt": zod.coerce.date(),
+  "fileName": zod.string().describe('Original client-supplied filename, for display only — never used to build a storage path.'),
+  "mimeType": zod.string(),
+  "fileSize": zod.number(),
+  "uploadedBy": zod.number().nullable()
+})
+export const ListLearningEnrollmentEvidenceResponse = zod.array(ListLearningEnrollmentEvidenceResponseItem)
+
+
+/**
+ * multipart/form-data upload. Reuses the existing employee_documents storage layer verbatim (§18) — PDF, JPEG, PNG, DOCX, and XLSX only, validated by file signature, 10MB max, identical to every other document upload on this platform. Same own/manager-of- record/instructor-of-record/organization-wide tier as the enrollment itself, no stage/status restriction.
+ * @summary Attach evidence to an enrollment
+ */
+export const AddLearningEnrollmentEvidenceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const AddLearningEnrollmentEvidenceBody = zod.object({
+  "file": zod.instanceof(File)
+})
+
+export const AddLearningEnrollmentEvidenceResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "enrollmentId": zod.number(),
+  "employeeDocumentId": zod.number().describe('Points into the existing employee_documents table (§8.4) — no separate Learning storage layer.'),
+  "addedByMembershipId": zod.number().nullable(),
+  "addedAt": zod.coerce.date(),
+  "fileName": zod.string().describe('Original client-supplied filename, for display only — never used to build a storage path.'),
+  "mimeType": zod.string(),
+  "fileSize": zod.number(),
+  "uploadedBy": zod.number().nullable()
+})
+
+
+/**
+ * Authorization-checked before any storage read (same own/manager- of-record/instructor-of-record/organization-wide tier as the enrollment). No public or signed URL is ever generated — the file streams through this authenticated route on every request.
+ * @summary Download a single evidence file
+ */
+export const DownloadLearningEnrollmentEvidenceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number(),
+  "evidenceId": zod.coerce.number()
+})
+
+export const DownloadLearningEnrollmentEvidenceResponse = zod.unknown()
+
+

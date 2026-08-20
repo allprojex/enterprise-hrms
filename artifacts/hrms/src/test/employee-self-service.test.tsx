@@ -64,6 +64,12 @@ const { state } = vi.hoisted(() => ({
     advanceProgressPending: false,
     cancelEnrollmentMutate: vi.fn() as (...args: unknown[]) => void,
     cancelEnrollmentPending: false,
+    // My Certificates / Evidence (W90)
+    myCertificates: [] as unknown[],
+    myCertificatesLoading: false,
+    myCertificatesError: undefined as unknown,
+    learningEvidence: [] as unknown[],
+    addLearningEvidenceMutate: vi.fn() as (...args: unknown[]) => void,
   },
 }));
 
@@ -141,7 +147,16 @@ vi.mock('@workspace/api-client-react', () => ({
   useRequestLearningEnrollment: () => ({ mutate: state.requestEnrollmentMutate, isPending: state.requestEnrollmentPending }),
   useAdvanceLearningEnrollmentProgress: () => ({ mutate: state.advanceProgressMutate, isPending: state.advanceProgressPending }),
   useCancelLearningEnrollment: () => ({ mutate: state.cancelEnrollmentMutate, isPending: state.cancelEnrollmentPending }),
+  // My Certificates / Evidence (W90)
+  useListMyLearningCertificates: () => ({ data: state.myCertificates, isLoading: state.myCertificatesLoading, error: state.myCertificatesError, refetch: vi.fn() }),
+  getListMyLearningCertificatesQueryKey: () => ['myLearningCertificates'],
+  useListLearningEnrollmentEvidence: () => ({ data: state.learningEvidence, isLoading: false, error: undefined }),
+  getListLearningEnrollmentEvidenceQueryKey: () => ['learningEnrollmentEvidence'],
+  useAddLearningEnrollmentEvidence: () => ({ mutate: state.addLearningEvidenceMutate, isPending: false }),
+  getDownloadLearningEnrollmentEvidenceUrl: (orgId: number, enrollmentId: number, evidenceId: number) => `/api/organizations/${orgId}/learning/enrollments/${enrollmentId}/evidence/${evidenceId}/download`,
 }));
+
+vi.mock('@/lib/auth', () => ({ getStoredToken: () => 'test-token' }));
 
 function baseEmployee(overrides: Partial<SelfServiceEmployeeProfile> = {}): SelfServiceEmployeeProfile {
   return {
@@ -919,6 +934,20 @@ describe('Employee Self-Service page', () => {
       state.advanceProgressPending = false;
       state.cancelEnrollmentMutate = vi.fn();
       state.cancelEnrollmentPending = false;
+      state.myCertificates = [];
+      state.myCertificatesLoading = false;
+      state.myCertificatesError = undefined;
+      state.learningEvidence = [];
+      state.addLearningEvidenceMutate = vi.fn();
+    }
+    function certificate(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 1, organizationId: 10, enrollmentId: 1, employeeId: 42, courseTitleSnapshot: 'Fire Safety',
+        certificateNumber: null, issuedAt: new Date().toISOString(), expiresAt: null, status: 'active',
+        revokedByMembershipId: null, revokedAt: null, revokeReason: null, employeeDocumentId: null,
+        createdAt: new Date().toISOString(),
+        ...overrides,
+      };
     }
 
     it('handles a disabled Learning module cleanly, without affecting My Performance', async () => {
@@ -1120,6 +1149,110 @@ describe('Employee Self-Service page', () => {
       expect(screen.queryByRole('button', { name: /mark attendance/i })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /revoke/i })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /issue certificate/i })).not.toBeInTheDocument();
+    });
+
+    describe('My Certificates (W90)', () => {
+      it('shows an empty state when the employee has no certificates', async () => {
+        resetLearningState();
+        state.myEmployeeLoading = false;
+        state.myEmployeeError = undefined;
+        state.myEmployee = { linked: true, employee: baseEmployee() };
+        state.modules = [mod({ key: 'learning', enabled: true })];
+        renderEss();
+        await userEvent.click(screen.getByTestId('tab-my-learning'));
+        expect(screen.getByText(/you have no certificates yet/i)).toBeInTheDocument();
+      });
+
+      it('lists an active certificate with its issue date and validity', async () => {
+        resetLearningState();
+        state.myEmployeeLoading = false;
+        state.myEmployeeError = undefined;
+        state.myEmployee = { linked: true, employee: baseEmployee() };
+        state.modules = [mod({ key: 'learning', enabled: true })];
+        state.myCertificates = [certificate({ id: 1, expiresAt: '2099-01-01T00:00:00.000Z' })];
+        renderEss();
+        await userEvent.click(screen.getByTestId('tab-my-learning'));
+        const row = screen.getByTestId('row-certificate-1');
+        expect(row).toHaveTextContent('Fire Safety');
+        expect(screen.getByTestId('badge-certificate-status-1')).toHaveTextContent('Active');
+      });
+
+      it('shows a live-computed Expired badge for a past expiresAt, without the API ever saying so', async () => {
+        resetLearningState();
+        state.myEmployeeLoading = false;
+        state.myEmployeeError = undefined;
+        state.myEmployee = { linked: true, employee: baseEmployee() };
+        state.modules = [mod({ key: 'learning', enabled: true })];
+        state.myCertificates = [certificate({ id: 2, status: 'active', expiresAt: '2020-01-01T00:00:00.000Z' })];
+        renderEss();
+        await userEvent.click(screen.getByTestId('tab-my-learning'));
+        expect(screen.getByTestId('badge-certificate-status-2')).toHaveTextContent('Active');
+        expect(screen.getByTestId('badge-certificate-expired-2')).toHaveTextContent('Expired');
+      });
+
+      it('shows a Revoked certificate distinctly, with its reason, and no Expired badge', async () => {
+        resetLearningState();
+        state.myEmployeeLoading = false;
+        state.myEmployeeError = undefined;
+        state.myEmployee = { linked: true, employee: baseEmployee() };
+        state.modules = [mod({ key: 'learning', enabled: true })];
+        state.myCertificates = [certificate({ id: 3, status: 'revoked', revokeReason: 'Issued in error' })];
+        renderEss();
+        await userEvent.click(screen.getByTestId('tab-my-learning'));
+        expect(screen.getByTestId('badge-certificate-status-3')).toHaveTextContent('Revoked');
+        expect(screen.queryByTestId('badge-certificate-expired-3')).not.toBeInTheDocument();
+        expect(screen.getByTestId('row-certificate-3')).toHaveTextContent('Issued in error');
+      });
+
+      it('certificate state never collapses into the enrollment approval/status badges', async () => {
+        resetLearningState();
+        state.myEmployeeLoading = false;
+        state.myEmployeeError = undefined;
+        state.myEmployee = { linked: true, employee: baseEmployee() };
+        state.modules = [mod({ key: 'learning', enabled: true })];
+        state.myEnrollments = [enrollment({ id: 5, status: 'completed', approvalStatus: 'auto_approved' })];
+        state.myCertificates = [certificate({ id: 4, enrollmentId: 5 })];
+        renderEss();
+        await userEvent.click(screen.getByTestId('tab-my-learning'));
+        expect(screen.getByTestId('badge-enrollment-status-5')).toHaveTextContent('Completed');
+        expect(screen.getByTestId('row-certificate-4')).toBeInTheDocument();
+        expect(screen.getByTestId('badge-certificate-status-4')).toHaveTextContent('Active');
+      });
+    });
+
+    describe('Enrollment evidence (W90)', () => {
+      it('the evidence section is hidden until toggled, then shows the upload control', async () => {
+        resetLearningState();
+        state.myEmployeeLoading = false;
+        state.myEmployeeError = undefined;
+        state.myEmployee = { linked: true, employee: baseEmployee() };
+        state.modules = [mod({ key: 'learning', enabled: true })];
+        state.myEnrollments = [enrollment({ id: 6 })];
+        renderEss();
+        await userEvent.click(screen.getByTestId('tab-my-learning'));
+        expect(screen.queryByTestId('button-attach-learning-evidence-6')).not.toBeInTheDocument();
+        await userEvent.click(screen.getByTestId('button-toggle-evidence-6'));
+        expect(screen.getByTestId('button-attach-learning-evidence-6')).toBeInTheDocument();
+      });
+
+      it('uploads evidence for the own enrollment through the real route', async () => {
+        resetLearningState();
+        state.myEmployeeLoading = false;
+        state.myEmployeeError = undefined;
+        state.myEmployee = { linked: true, employee: baseEmployee() };
+        state.modules = [mod({ key: 'learning', enabled: true })];
+        state.myEnrollments = [enrollment({ id: 7 })];
+        renderEss();
+        await userEvent.click(screen.getByTestId('tab-my-learning'));
+        await userEvent.click(screen.getByTestId('button-toggle-evidence-7'));
+        const file = new File(['pdf-bytes'], 'proof.pdf', { type: 'application/pdf' });
+        const input = screen.getByTestId('input-learning-evidence-file-7') as HTMLInputElement;
+        await userEvent.upload(input, file);
+        expect(state.addLearningEvidenceMutate).toHaveBeenCalledWith(
+          expect.objectContaining({ organizationId: 10, id: 7, data: { file } }),
+          expect.anything(),
+        );
+      });
     });
   });
 });

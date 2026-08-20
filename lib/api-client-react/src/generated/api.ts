@@ -28,6 +28,7 @@ import type {
   AddEmployeeDisciplinaryRecordInput,
   AddEmployeeQualificationInput,
   AddEmployeeSkillInput,
+  AddLearningEnrollmentEvidenceBody,
   AddMemberInput,
   AddPerformanceReviewEvidenceBody,
   AddTalentPoolMemberInput,
@@ -120,9 +121,12 @@ import type {
   InvitationPreview,
   JobRequisition,
   JobRequisitionListResponse,
+  LearningCertificate,
+  LearningCertificateListResponse,
   LearningCourse,
   LearningCourseSession,
   LearningEnrollment,
+  LearningEnrollmentEvidence,
   LearningEnrollmentListResponse,
   LeaveBalanceEntry,
   LeaveBalanceSummary,
@@ -139,6 +143,7 @@ import type {
   ListEmployeesParams,
   ListInterviewsParams,
   ListJobRequisitionsParams,
+  ListLearningCertificatesParams,
   ListLearningEnrollmentsParams,
   ListLeaveBalanceLedgerParams,
   ListLeaveCalendarParams,
@@ -219,6 +224,7 @@ import type {
   ResetPasswordInput,
   RestructureDepartmentInput,
   RestructurePositionInput,
+  RevokeLearningCertificateInput,
   Role,
   RunAttendanceReportParams,
   RunPerformanceReportParams,
@@ -22959,4 +22965,495 @@ export const useCompleteLearningEnrollment = <TError = ErrorType<ApiError>,
       > => {
       return useMutation(getCompleteLearningEnrollmentMutationOptions(options));
     }
+
+export const getListMyLearningCertificatesUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/learning/my-certificates`
+}
+
+/**
+ * Requires learning.read.own. employeeId is always server-resolved from the caller's own employee_user_links row. "Expired" is never a stored status — compute it client-side from expiresAt < now(); status here is only ever active or revoked (§10.4 rule 9).
+ * @summary List the caller's own Learning certificates
+ */
+export const listMyLearningCertificates = async (organizationId: number, options?: RequestInit): Promise<LearningCertificate[]> => {
+
+  return customFetch<LearningCertificate[]>(getListMyLearningCertificatesUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyLearningCertificatesQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/learning/my-certificates`
+    ] as const;
+    }
+
+
+export const getListMyLearningCertificatesQueryOptions = <TData = Awaited<ReturnType<typeof listMyLearningCertificates>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyLearningCertificates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyLearningCertificatesQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyLearningCertificates>>> = ({ signal }) => listMyLearningCertificates(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyLearningCertificates>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMyLearningCertificatesQueryResult = NonNullable<Awaited<ReturnType<typeof listMyLearningCertificates>>>
+export type ListMyLearningCertificatesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List the caller's own Learning certificates
+ */
+
+export function useListMyLearningCertificates<TData = Awaited<ReturnType<typeof listMyLearningCertificates>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyLearningCertificates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMyLearningCertificatesQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListLearningCertificatesUrl = (organizationId: number,
+    params?: ListLearningCertificatesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/learning/certificates?${stringifiedParams}` : `/api/organizations/${organizationId}/learning/certificates`
+}
+
+/**
+ * Requires learning.manage, organization-wide. No manager-of-record or instructor-of-record certificate visibility route exists — §21's own frozen table names only own (my-certificates) and org-wide (this route) for certificates; none other is built. Paginated (items/total/page/pageSize), mirroring LearningEnrollmentListResponse's own established shape.
+ * @summary List an organization's Learning certificates (org-wide)
+ */
+export const listLearningCertificates = async (organizationId: number,
+    params?: ListLearningCertificatesParams, options?: RequestInit): Promise<LearningCertificateListResponse> => {
+
+  return customFetch<LearningCertificateListResponse>(getListLearningCertificatesUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLearningCertificatesQueryKey = (organizationId: number,
+    params?: ListLearningCertificatesParams,) => {
+    return [
+    `/api/organizations/${organizationId}/learning/certificates`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListLearningCertificatesQueryOptions = <TData = Awaited<ReturnType<typeof listLearningCertificates>>, TError = ErrorType<unknown>>(organizationId: number,
+    params?: ListLearningCertificatesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLearningCertificates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLearningCertificatesQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLearningCertificates>>> = ({ signal }) => listLearningCertificates(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLearningCertificates>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLearningCertificatesQueryResult = NonNullable<Awaited<ReturnType<typeof listLearningCertificates>>>
+export type ListLearningCertificatesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List an organization's Learning certificates (org-wide)
+ */
+
+export function useListLearningCertificates<TData = Awaited<ReturnType<typeof listLearningCertificates>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    params?: ListLearningCertificatesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLearningCertificates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLearningCertificatesQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRevokeLearningCertificateUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/learning/certificates/${id}/revoke`
+}
+
+/**
+ * Requires learning.manage. Mandatory revokeReason. Permanently terminal — active → revoked only, no restore/un-revoke/reopen path exists anywhere (§10.4 rule 8). Atomic conditional update guarded by status = 'active' — a repeat or concurrent revocation returns a controlled 409.
+ * @summary Revoke an active certificate
+ */
+export const revokeLearningCertificate = async (organizationId: number,
+    id: number,
+    revokeLearningCertificateInput: RevokeLearningCertificateInput, options?: RequestInit): Promise<LearningCertificate> => {
+
+  return customFetch<LearningCertificate>(getRevokeLearningCertificateUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(revokeLearningCertificateInput)
+  }
+);}
+
+
+
+
+
+export const getRevokeLearningCertificateMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeLearningCertificate>>, TError,{organizationId: number;id: number;data: BodyType<RevokeLearningCertificateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revokeLearningCertificate>>, TError,{organizationId: number;id: number;data: BodyType<RevokeLearningCertificateInput>}, TContext> => {
+
+const mutationKey = ['revokeLearningCertificate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeLearningCertificate>>, {organizationId: number;id: number;data: BodyType<RevokeLearningCertificateInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  revokeLearningCertificate(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokeLearningCertificateMutationResult = NonNullable<Awaited<ReturnType<typeof revokeLearningCertificate>>>
+    export type RevokeLearningCertificateMutationBody = BodyType<RevokeLearningCertificateInput>
+    export type RevokeLearningCertificateMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Revoke an active certificate
+ */
+export const useRevokeLearningCertificate = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeLearningCertificate>>, TError,{organizationId: number;id: number;data: BodyType<RevokeLearningCertificateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof revokeLearningCertificate>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<RevokeLearningCertificateInput>},
+        TContext
+      > => {
+      return useMutation(getRevokeLearningCertificateMutationOptions(options));
+    }
+
+export const getListLearningEnrollmentEvidenceUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/learning/enrollments/${id}/evidence`
+}
+
+/**
+ * Visible to the same own/manager-of-record/instructor-of-record/ organization-wide tier as the enrollment itself (§21's own frozen row) — no stage/status restriction, at any enrollment status, including terminal.
+ * @summary List an enrollment's evidence
+ */
+export const listLearningEnrollmentEvidence = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<LearningEnrollmentEvidence[]> => {
+
+  return customFetch<LearningEnrollmentEvidence[]>(getListLearningEnrollmentEvidenceUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLearningEnrollmentEvidenceQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/learning/enrollments/${id}/evidence`
+    ] as const;
+    }
+
+
+export const getListLearningEnrollmentEvidenceQueryOptions = <TData = Awaited<ReturnType<typeof listLearningEnrollmentEvidence>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLearningEnrollmentEvidence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLearningEnrollmentEvidenceQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLearningEnrollmentEvidence>>> = ({ signal }) => listLearningEnrollmentEvidence(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLearningEnrollmentEvidence>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLearningEnrollmentEvidenceQueryResult = NonNullable<Awaited<ReturnType<typeof listLearningEnrollmentEvidence>>>
+export type ListLearningEnrollmentEvidenceQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List an enrollment's evidence
+ */
+
+export function useListLearningEnrollmentEvidence<TData = Awaited<ReturnType<typeof listLearningEnrollmentEvidence>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLearningEnrollmentEvidence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLearningEnrollmentEvidenceQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAddLearningEnrollmentEvidenceUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/learning/enrollments/${id}/evidence`
+}
+
+/**
+ * multipart/form-data upload. Reuses the existing employee_documents storage layer verbatim (§18) — PDF, JPEG, PNG, DOCX, and XLSX only, validated by file signature, 10MB max, identical to every other document upload on this platform. Same own/manager-of- record/instructor-of-record/organization-wide tier as the enrollment itself, no stage/status restriction.
+ * @summary Attach evidence to an enrollment
+ */
+export const addLearningEnrollmentEvidence = async (organizationId: number,
+    id: number,
+    addLearningEnrollmentEvidenceBody: AddLearningEnrollmentEvidenceBody, options?: RequestInit): Promise<LearningEnrollmentEvidence> => {
+    const formData = new FormData();
+formData.append(`file`, addLearningEnrollmentEvidenceBody.file);
+
+  return customFetch<LearningEnrollmentEvidence>(getAddLearningEnrollmentEvidenceUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+    ,
+    body: formData
+  }
+);}
+
+
+
+
+
+export const getAddLearningEnrollmentEvidenceMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addLearningEnrollmentEvidence>>, TError,{organizationId: number;id: number;data: BodyType<AddLearningEnrollmentEvidenceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addLearningEnrollmentEvidence>>, TError,{organizationId: number;id: number;data: BodyType<AddLearningEnrollmentEvidenceBody>}, TContext> => {
+
+const mutationKey = ['addLearningEnrollmentEvidence'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addLearningEnrollmentEvidence>>, {organizationId: number;id: number;data: BodyType<AddLearningEnrollmentEvidenceBody>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  addLearningEnrollmentEvidence(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddLearningEnrollmentEvidenceMutationResult = NonNullable<Awaited<ReturnType<typeof addLearningEnrollmentEvidence>>>
+    export type AddLearningEnrollmentEvidenceMutationBody = BodyType<AddLearningEnrollmentEvidenceBody>
+    export type AddLearningEnrollmentEvidenceMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Attach evidence to an enrollment
+ */
+export const useAddLearningEnrollmentEvidence = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addLearningEnrollmentEvidence>>, TError,{organizationId: number;id: number;data: BodyType<AddLearningEnrollmentEvidenceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addLearningEnrollmentEvidence>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<AddLearningEnrollmentEvidenceBody>},
+        TContext
+      > => {
+      return useMutation(getAddLearningEnrollmentEvidenceMutationOptions(options));
+    }
+
+export const getDownloadLearningEnrollmentEvidenceUrl = (organizationId: number,
+    id: number,
+    evidenceId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/learning/enrollments/${id}/evidence/${evidenceId}/download`
+}
+
+/**
+ * Authorization-checked before any storage read (same own/manager- of-record/instructor-of-record/organization-wide tier as the enrollment). No public or signed URL is ever generated — the file streams through this authenticated route on every request.
+ * @summary Download a single evidence file
+ */
+export const downloadLearningEnrollmentEvidence = async (organizationId: number,
+    id: number,
+    evidenceId: number, options?: RequestInit): Promise<Blob> => {
+
+  return customFetch<Blob>(getDownloadLearningEnrollmentEvidenceUrl(organizationId,id,evidenceId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadLearningEnrollmentEvidenceQueryKey = (organizationId: number,
+    id: number,
+    evidenceId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/learning/enrollments/${id}/evidence/${evidenceId}/download`
+    ] as const;
+    }
+
+
+export const getDownloadLearningEnrollmentEvidenceQueryOptions = <TData = Awaited<ReturnType<typeof downloadLearningEnrollmentEvidence>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number,
+    evidenceId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadLearningEnrollmentEvidence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadLearningEnrollmentEvidenceQueryKey(organizationId,id,evidenceId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadLearningEnrollmentEvidence>>> = ({ signal }) => downloadLearningEnrollmentEvidence(organizationId,id,evidenceId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined && evidenceId !== null && evidenceId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadLearningEnrollmentEvidence>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DownloadLearningEnrollmentEvidenceQueryResult = NonNullable<Awaited<ReturnType<typeof downloadLearningEnrollmentEvidence>>>
+export type DownloadLearningEnrollmentEvidenceQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Download a single evidence file
+ */
+
+export function useDownloadLearningEnrollmentEvidence<TData = Awaited<ReturnType<typeof downloadLearningEnrollmentEvidence>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number,
+    evidenceId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadLearningEnrollmentEvidence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDownloadLearningEnrollmentEvidenceQueryOptions(organizationId,id,evidenceId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 

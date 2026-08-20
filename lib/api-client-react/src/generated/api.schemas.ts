@@ -5364,6 +5364,76 @@ export interface CompleteLearningEnrollmentInput {
   score?: number;
 }
 
+/**
+ * "Expired" is never a stored value here (§10.4 rule 9) — always computed live from expiresAt < now().
+ */
+export type LearningCertificateStatus = typeof LearningCertificateStatus[keyof typeof LearningCertificateStatus];
+
+
+export const LearningCertificateStatus = {
+  active: 'active',
+  revoked: 'revoked',
+} as const;
+
+export interface LearningCertificate {
+  id: number;
+  organizationId: number;
+  enrollmentId: number;
+  employeeId: number;
+  /** Copied from the enrollment's own courseTitleSnapshot at issuance — a chain of snapshots, never re-read from the live course. */
+  courseTitleSnapshot: string;
+  /** @nullable */
+  certificateNumber: string | null;
+  issuedAt: string;
+  /**
+     * Computed exactly once at issuance from the enrollment's own certificateValidityMonthsSnapshot. Null means never expires. Never recomputed.
+     * @nullable
+     */
+  expiresAt: string | null;
+  status: LearningCertificateStatus;
+  /** @nullable */
+  revokedByMembershipId: number | null;
+  /** @nullable */
+  revokedAt: string | null;
+  /** @nullable */
+  revokeReason: string | null;
+  /**
+     * Optional attached file. V1 never generates a certificate PDF — this field is only ever populated by a future HR-uploaded-file workstream, not W90.
+     * @nullable
+     */
+  employeeDocumentId: number | null;
+  createdAt: string;
+}
+
+export interface LearningCertificateListResponse {
+  items: LearningCertificate[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface RevokeLearningCertificateInput {
+  /** @minLength 1 */
+  revokeReason: string;
+}
+
+export interface LearningEnrollmentEvidence {
+  id: number;
+  organizationId: number;
+  enrollmentId: number;
+  /** Points into the existing employee_documents table (§8.4) — no separate Learning storage layer. */
+  employeeDocumentId: number;
+  /** @nullable */
+  addedByMembershipId: number | null;
+  addedAt: string;
+  /** Original client-supplied filename, for display only — never used to build a storage path. */
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  /** @nullable */
+  uploadedBy: number | null;
+}
+
 export type ListEmployeesParams = {
 search?: string;
 departmentId?: number;
@@ -5763,4 +5833,23 @@ export const ListLearningEnrollmentsApprovalStatus = {
   approved: 'approved',
   rejected: 'rejected',
 } as const;
+
+export type ListLearningCertificatesParams = {
+employeeId?: number;
+status?: ListLearningCertificatesStatus;
+page?: number;
+pageSize?: number;
+};
+
+export type ListLearningCertificatesStatus = typeof ListLearningCertificatesStatus[keyof typeof ListLearningCertificatesStatus];
+
+
+export const ListLearningCertificatesStatus = {
+  active: 'active',
+  revoked: 'revoked',
+} as const;
+
+export type AddLearningEnrollmentEvidenceBody = {
+  file: Blob;
+};
 

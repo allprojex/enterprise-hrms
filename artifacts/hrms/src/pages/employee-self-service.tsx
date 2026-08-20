@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { PerformanceEvidenceSection } from '@/components/performance-evidence';
+import { LearningEvidenceSection } from '@/components/learning-evidence';
 import {
   useGetMe,
   getGetMeQueryKey,
@@ -55,6 +56,8 @@ import {
   useRequestLearningEnrollment,
   useAdvanceLearningEnrollmentProgress,
   useCancelLearningEnrollment,
+  useListMyLearningCertificates,
+  getListMyLearningCertificatesQueryKey,
   type SelfServiceEmployeeProfile,
   type InternalVacancySummary,
   type DailyAttendanceSummary,
@@ -64,6 +67,7 @@ import {
   type PerformanceReview,
   type LearningCourse,
   type LearningEnrollment,
+  type LearningCertificate,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { QueryError } from '@/components/query-error';
@@ -1361,6 +1365,7 @@ function EnrollmentCard({
   onCancel: () => void;
   isMutating: boolean;
 }) {
+  const [showEvidence, setShowEvidence] = useState(false);
   const canStart = enrollment.deliveryModeSnapshot === 'self_paced' && enrollment.status === 'assigned' && (enrollment.approvalStatus === 'auto_approved' || enrollment.approvalStatus === 'approved');
   const canComplete = enrollment.deliveryModeSnapshot === 'self_paced' && enrollment.status === 'in_progress' && (enrollment.approvalStatus === 'auto_approved' || enrollment.approvalStatus === 'approved');
   const canCancel = enrollment.status === 'assigned' && !enrollment.mandatoryAtAssignment;
@@ -1428,6 +1433,11 @@ function EnrollmentCard({
           )}
         </div>
       )}
+
+      <Button size="sm" variant="ghost" onClick={() => setShowEvidence((v) => !v)} data-testid={`button-toggle-evidence-${enrollment.id}`}>
+        {showEvidence ? 'Hide Evidence' : 'Evidence'}
+      </Button>
+      {showEvidence && <LearningEvidenceSection organizationId={organizationId} enrollmentId={enrollment.id} canUpload />}
     </div>
   );
 }
@@ -1497,13 +1507,62 @@ function RequestTrainingDialog({
   );
 }
 
+const CERTIFICATE_STATUS_VARIANT: Record<string, 'secondary' | 'outline' | 'destructive'> = {
+  active: 'secondary',
+  revoked: 'destructive',
+};
+
 /**
- * ESS "My Learning" (§15, W88): catalog browse (active courses only, §29),
- * self-enroll/request, own enrollment list with the two-axis approval/
- * status state, own self-paced progress-marking. No manager/HR/instructor
- * controls of any kind live here — those are W89/W91's own surfaces. No
- * certificate issuance/list — only the eligibility badge above, since the
- * `.../my-certificates` route does not exist until W90.
+ * "Expired" is never a stored status (§10.4 rule 9) — the only two real
+ * status values are active/revoked. This is a pure, live client-side
+ * computation on top of expiresAt, recomputed on every render, never
+ * cached or sent to the backend — matching the same discipline the API
+ * itself enforces server-side.
+ */
+function isCertificateExpired(cert: LearningCertificate): boolean {
+  return cert.status === 'active' && cert.expiresAt != null && new Date(cert.expiresAt) < new Date();
+}
+
+function CertificateRow({ certificate }: { certificate: LearningCertificate }) {
+  const expired = isCertificateExpired(certificate);
+  return (
+    <div className="border rounded-md p-4 space-y-2" data-testid={`row-certificate-${certificate.id}`}>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+        <div>
+          <p className="font-medium text-sm text-foreground">{certificate.courseTitleSnapshot}</p>
+          <p className="text-xs text-muted-foreground">
+            Issued {new Date(certificate.issuedAt).toLocaleDateString()}
+            {certificate.expiresAt ? ` · Valid until ${new Date(certificate.expiresAt).toLocaleDateString()}` : ' · Never expires'}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 sm:justify-end">
+          <Badge variant={CERTIFICATE_STATUS_VARIANT[certificate.status] ?? 'outline'} data-testid={`badge-certificate-status-${certificate.id}`}>
+            {certificate.status === 'revoked' ? 'Revoked' : 'Active'}
+          </Badge>
+          {expired && (
+            <Badge variant="outline" data-testid={`badge-certificate-expired-${certificate.id}`}>
+              Expired
+            </Badge>
+          )}
+        </div>
+      </div>
+      {certificate.status === 'revoked' && certificate.revokeReason && (
+        <p className="text-xs text-muted-foreground">Revocation reason: {certificate.revokeReason}</p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * ESS "My Learning" (§15, W88/W90): catalog browse (active courses only,
+ * §29), self-enroll/request, own enrollment list with the two-axis
+ * approval/status state, own self-paced progress-marking, own
+ * certificates, own evidence upload/list. No manager/HR/instructor
+ * controls of any kind live here — those are W89/W91's own surfaces.
+ * Certificate state is a genuinely third, distinct concept from
+ * approvalStatus/status — its own card, its own badges, never collapsed
+ * into the enrollment badges above. "Expired" is always computed live
+ * here from expiresAt, never a value the API itself returns as status.
  */
 function MyLearningTab({ organizationId }: { organizationId: number }) {
   const queryClient = useQueryClient();
@@ -1515,6 +1574,9 @@ function MyLearningTab({ organizationId }: { organizationId: number }) {
   });
   const enrollmentsQuery = useListMyLearningEnrollments(organizationId, {
     query: { queryKey: getListMyLearningEnrollmentsQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+  const certificatesQuery = useListMyLearningCertificates(organizationId, {
+    query: { queryKey: getListMyLearningCertificatesQueryKey(organizationId), enabled: organizationId > 0 },
   });
 
   const requestMutation = useRequestLearningEnrollment();
@@ -1661,6 +1723,28 @@ function MyLearningTab({ organizationId }: { organizationId: number }) {
                   onComplete={() => handleComplete(enrollment)}
                   onCancel={() => handleCancel(enrollment)}
                 />
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">My Certificates</CardTitle>
+          <CardDescription>Certificates issued automatically when eligible training is completed.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {certificatesQuery.error ? (
+            <QueryError title="Could not load your certificates" onRetry={() => certificatesQuery.refetch()} />
+          ) : certificatesQuery.isLoading ? (
+            <Skeleton className="h-32 w-full" />
+          ) : (certificatesQuery.data ?? []).length === 0 ? (
+            <p className="text-sm text-muted-foreground">You have no certificates yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {(certificatesQuery.data ?? []).map((certificate) => (
+                <CertificateRow key={certificate.id} certificate={certificate} />
               ))}
             </div>
           )}

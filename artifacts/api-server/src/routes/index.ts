@@ -66,6 +66,8 @@ import performanceAcknowledgementRouter from "./performanceAcknowledgement";
 import learningCoursesRouter from "./learningCourses";
 import learningCourseSessionsRouter from "./learningCourseSessions";
 import learningEnrollmentsRouter from "./learningEnrollments";
+import learningCertificatesRouter from "./learningCertificates";
+import learningEnrollmentEvidenceRouter from "./learningEnrollmentEvidence";
 
 const router: IRouter = Router();
 
@@ -136,5 +138,7 @@ router.use(performanceAcknowledgementRouter);
 router.use(learningCoursesRouter);
 router.use(learningCourseSessionsRouter);
 router.use(learningEnrollmentsRouter);
+router.use(learningCertificatesRouter);
+router.use(learningEnrollmentEvidenceRouter);
 
 export default router;

@@ -11552,6 +11552,279 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/learning/my-certificates:
+    get:
+      operationId: listMyLearningCertificates
+      tags: [learning-certificates]
+      summary: List the caller's own Learning certificates
+      description: Requires learning.read.own. employeeId is always server-resolved from the caller's own employee_user_links row. "Expired" is never a stored status — compute it client-side from expiresAt < now(); status here is only ever active or revoked (§10.4 rule 9).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The caller's own certificates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LearningCertificate"
+
+  /organizations/{organizationId}/learning/certificates:
+    get:
+      operationId: listLearningCertificates
+      tags: [learning-certificates]
+      summary: List an organization's Learning certificates (org-wide)
+      description: >-
+        Requires learning.manage, organization-wide. No manager-of-record
+        or instructor-of-record certificate visibility route exists —
+        §21's own frozen table names only own (my-certificates) and
+        org-wide (this route) for certificates; none other is built.
+        Paginated (items/total/page/pageSize), mirroring
+        LearningEnrollmentListResponse's own established shape.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [active, revoked]
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Paginated Learning certificates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningCertificateListResponse"
+
+  /organizations/{organizationId}/learning/certificates/{id}/revoke:
+    post:
+      operationId: revokeLearningCertificate
+      tags: [learning-certificates]
+      summary: Revoke an active certificate
+      description: >-
+        Requires learning.manage. Mandatory revokeReason. Permanently
+        terminal — active → revoked only, no restore/un-revoke/reopen path
+        exists anywhere (§10.4 rule 8). Atomic conditional update guarded
+        by status = 'active' — a repeat or concurrent revocation returns a
+        controlled 409.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RevokeLearningCertificateInput"
+      responses:
+        "200":
+          description: Revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningCertificate"
+        "400":
+          description: revokeReason missing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Certificate not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Already revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/learning/enrollments/{id}/evidence:
+    get:
+      operationId: listLearningEnrollmentEvidence
+      tags: [learning-evidence]
+      summary: List an enrollment's evidence
+      description: >-
+        Visible to the same own/manager-of-record/instructor-of-record/
+        organization-wide tier as the enrollment itself (§21's own frozen
+        row) — no stage/status restriction, at any enrollment status,
+        including terminal.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Evidence attached to this enrollment
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LearningEnrollmentEvidence"
+        "403":
+          description: Not authorized to view this enrollment's evidence
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Enrollment not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: addLearningEnrollmentEvidence
+      tags: [learning-evidence]
+      summary: Attach evidence to an enrollment
+      description: >-
+        multipart/form-data upload. Reuses the existing employee_documents
+        storage layer verbatim (§18) — PDF, JPEG, PNG, DOCX, and XLSX
+        only, validated by file signature, 10MB max, identical to every
+        other document upload on this platform. Same own/manager-of-
+        record/instructor-of-record/organization-wide tier as the
+        enrollment itself, no stage/status restriction.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          description: Evidence attached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningEnrollmentEvidence"
+        "400":
+          description: Invalid file
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Not authorized to add evidence to this enrollment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Enrollment not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/learning/enrollments/{id}/evidence/{evidenceId}/download:
+    get:
+      operationId: downloadLearningEnrollmentEvidence
+      tags: [learning-evidence]
+      summary: Download a single evidence file
+      description: >-
+        Authorization-checked before any storage read (same own/manager-
+        of-record/instructor-of-record/organization-wide tier as the
+        enrollment). No public or signed URL is ever generated — the file
+        streams through this authenticated route on every request.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: evidenceId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The file
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "403":
+          description: Not authorized to access this enrollment's evidence
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Enrollment or evidence not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -17550,3 +17823,115 @@ components:
         score:
           type: number
           description: Optional free-form numeric result, only meaningful alongside passed. Never a substitute for passed — there is no derived pass threshold.
+
+    LearningCertificateStatus:
+      type: string
+      enum: [active, revoked]
+      description: '"Expired" is never a stored value here (§10.4 rule 9) — always computed live from expiresAt < now().'
+
+    LearningCertificate:
+      type: object
+      required:
+        [
+          id,
+          organizationId,
+          enrollmentId,
+          employeeId,
+          courseTitleSnapshot,
+          certificateNumber,
+          issuedAt,
+          expiresAt,
+          status,
+          revokedByMembershipId,
+          revokedAt,
+          revokeReason,
+          employeeDocumentId,
+          createdAt,
+        ]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        enrollmentId:
+          type: integer
+        employeeId:
+          type: integer
+        courseTitleSnapshot:
+          type: string
+          description: Copied from the enrollment's own courseTitleSnapshot at issuance — a chain of snapshots, never re-read from the live course.
+        certificateNumber:
+          type: ["string", "null"]
+        issuedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: ["string", "null"]
+          format: date-time
+          description: Computed exactly once at issuance from the enrollment's own certificateValidityMonthsSnapshot. Null means never expires. Never recomputed.
+        status:
+          $ref: "#/components/schemas/LearningCertificateStatus"
+        revokedByMembershipId:
+          type: ["integer", "null"]
+        revokedAt:
+          type: ["string", "null"]
+          format: date-time
+        revokeReason:
+          type: ["string", "null"]
+        employeeDocumentId:
+          type: ["integer", "null"]
+          description: Optional attached file. V1 never generates a certificate PDF — this field is only ever populated by a future HR-uploaded-file workstream, not W90.
+        createdAt:
+          type: string
+          format: date-time
+
+    LearningCertificateListResponse:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/LearningCertificate"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+
+    RevokeLearningCertificateInput:
+      type: object
+      required: [revokeReason]
+      properties:
+        revokeReason:
+          type: string
+          minLength: 1
+
+    LearningEnrollmentEvidence:
+      type: object
+      required: [id, organizationId, enrollmentId, employeeDocumentId, addedByMembershipId, addedAt, fileName, mimeType, fileSize, uploadedBy]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        enrollmentId:
+          type: integer
+        employeeDocumentId:
+          type: integer
+          description: Points into the existing employee_documents table (§8.4) — no separate Learning storage layer.
+        addedByMembershipId:
+          type: ["integer", "null"]
+        addedAt:
+          type: string
+          format: date-time
+        fileName:
+          type: string
+          description: Original client-supplied filename, for display only — never used to build a storage path.
+        mimeType:
+          type: string
+        fileSize:
+          type: integer
+        uploadedBy:
+          type: ["integer", "null"]

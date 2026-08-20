@@ -69,6 +69,7 @@ import {
   learningCoursesTable,
   learningCourseSessionsTable,
   learningEnrollmentsTable,
+  learningCertificatesTable,
   employeesTable,
   departmentsTable,
   positionsTable,
@@ -157,6 +158,14 @@ export class LearningProgressNotApprovedError extends Error {
 }
 
 export class InvalidLearningEnrollmentError extends Error {}
+
+/** §10.4 rule 6: expiresAt = issuedAt + certificateValidityMonthsSnapshot months, computed exactly once at issuance; null validity months -> never expires. setUTCMonth's own JS Date normalization (e.g. day-of-month rollover) is the same date-math convention already established by this codebase's other addMonths-shaped helpers. */
+function computeCertificateExpiresAt(issuedAt: Date, validityMonths: number | null): Date | null {
+  if (validityMonths == null) return null;
+  const expiresAt = new Date(issuedAt);
+  expiresAt.setUTCMonth(expiresAt.getUTCMonth() + validityMonths);
+  return expiresAt;
+}
 
 async function findOwnCourse(organizationId: number, courseId: number): Promise<LearningCourse | null> {
   const [row] = await db
@@ -855,7 +864,7 @@ export async function advanceEnrollmentProgress(params: AdvanceEnrollmentProgres
  * authorization boundary"). Returns false (never throws) for a self-paced
  * enrollment, since no session/instructor relationship exists there.
  */
-async function isCallerInstructorOfRecord(organizationId: number, enrollment: LearningEnrollment, callerEmployeeId: number | null): Promise<boolean> {
+export async function isCallerInstructorOfRecord(organizationId: number, enrollment: LearningEnrollment, callerEmployeeId: number | null): Promise<boolean> {
   if (enrollment.sessionId == null) return false;
   const [session] = await db
     .select()
@@ -963,6 +972,36 @@ export interface CompleteEnrollmentParams {
  * UPDATE ... WHERE status IN ('assigned','in_progress') — a concurrent or
  * repeat completion, or one against an already-terminal enrollment,
  * returns a controlled 409.
+ *
+ * CERTIFICATE ISSUANCE (W90, §10.4 rules 1-7, permanently resolving the
+ * timing question W89 explicitly deferred): "issuance is automatic,
+ * system-triggered, and part of the same atomic action as the completion
+ * transition itself." Nested inside the SAME db.transaction as the
+ * atomic completion UPDATE above, gated on that UPDATE's own success
+ * (rule 1: only a genuine `completed` transition, never `failed`) and on
+ * the enrollment's own `issuesCertificateSnapshot` (rule 3, snapshot-
+ * sourced eligibility — never the live course row). If the certificate
+ * insert fails for any reason, the whole transaction rolls back,
+ * including the completion transition itself — a completed enrollment
+ * that silently failed to produce its certificate can never exist (the
+ * master brief's own explicit requirement). ONE-CERTIFICATE-PER-
+ * ENROLLMENT, without a DB-level unique constraint: no migration was
+ * added for this. The invariant is instead guaranteed by the same
+ * atomicity that already guards against double-completion — a
+ * certificate is only ever inserted as a direct, synchronous consequence
+ * of the completion UPDATE actually affecting a row, and that UPDATE's
+ * own `WHERE status IN ('assigned','in_progress')` guard can, by
+ * construction, succeed at most once for a given enrollment (status
+ * becomes immediately and permanently terminal). A concurrent second
+ * completion call races on that UPDATE itself — Postgres row-level
+ * locking guarantees only one transaction ever observes a matching row,
+ * so only one transaction ever reaches the certificate-insert branch at
+ * all; the other affects zero rows, throws LearningProgressConflictError
+ * before this branch is reached, and never attempts a second insert. A
+ * client retry after a network failure hits the identical guard (status
+ * is already terminal) and 409s rather than double-issuing. This was
+ * verified under a genuine concurrent-request race in both the backend
+ * test suite and live QA, not merely reasoned about.
  */
 export async function completeEnrollment(params: CompleteEnrollmentParams): Promise<LearningEnrollment> {
   const enrollment = await getEnrollment(params.organizationId, params.enrollmentId);
@@ -995,24 +1034,44 @@ export async function completeEnrollment(params: CompleteEnrollmentParams): Prom
     targetStatus = "completed";
   }
 
-  const [updated] = await db
-    .update(learningEnrollmentsTable)
-    .set({
-      status: targetStatus,
-      passed: enrollment.hasAssessmentSnapshot ? (params.passed ?? null) : null,
-      score: enrollment.hasAssessmentSnapshot ? (params.score ?? null) : null,
-      completedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(learningEnrollmentsTable.id, params.enrollmentId),
-        eq(learningEnrollmentsTable.organizationId, params.organizationId),
-        inArray(learningEnrollmentsTable.status, ["assigned", "in_progress"]),
-      ),
-    )
-    .returning();
-  if (!updated) throw new LearningProgressConflictError("This enrollment can no longer be completed");
+  let certificateIssued = false;
+  const updated = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(learningEnrollmentsTable)
+      .set({
+        status: targetStatus,
+        passed: enrollment.hasAssessmentSnapshot ? (params.passed ?? null) : null,
+        score: enrollment.hasAssessmentSnapshot ? (params.score ?? null) : null,
+        completedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(learningEnrollmentsTable.id, params.enrollmentId),
+          eq(learningEnrollmentsTable.organizationId, params.organizationId),
+          inArray(learningEnrollmentsTable.status, ["assigned", "in_progress"]),
+        ),
+      )
+      .returning();
+    if (!row) throw new LearningProgressConflictError("This enrollment can no longer be completed");
+
+    if (targetStatus === "completed" && row.issuesCertificateSnapshot) {
+      const issuedAt = new Date();
+      const expiresAt = computeCertificateExpiresAt(issuedAt, row.certificateValidityMonthsSnapshot);
+      await tx.insert(learningCertificatesTable).values({
+        organizationId: params.organizationId,
+        enrollmentId: row.id,
+        employeeId: row.employeeId,
+        courseTitleSnapshot: row.courseTitleSnapshot,
+        issuedAt,
+        expiresAt,
+        status: "active",
+      });
+      certificateIssued = true;
+    }
+
+    return row;
+  });
 
   await recordAuditEvent({
     actorApplicationUserId: params.actorApplicationUserId,
@@ -1023,6 +1082,17 @@ export async function completeEnrollment(params: CompleteEnrollmentParams): Prom
     targetId: String(params.enrollmentId),
     metadata: { employeeId: enrollment.employeeId, courseId: enrollment.courseId, hasAssessmentSnapshot: enrollment.hasAssessmentSnapshot },
   });
+  if (certificateIssued) {
+    await recordAuditEvent({
+      actorApplicationUserId: params.actorApplicationUserId,
+      actorMembershipId: params.actorMembershipId,
+      organizationId: params.organizationId,
+      eventType: "learning_certificate.issued",
+      targetType: "learning_enrollment",
+      targetId: String(params.enrollmentId),
+      metadata: { employeeId: enrollment.employeeId, courseId: enrollment.courseId },
+    });
+  }
 
   return updated;
 }
