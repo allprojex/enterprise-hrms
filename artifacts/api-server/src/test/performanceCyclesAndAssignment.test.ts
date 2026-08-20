@@ -41,12 +41,14 @@ const {
   permissionsTable,
   modulesTable,
   organizationModulesTable,
+  employeeUserLinksTable,
   performanceRatingScalesTable,
   performanceReviewTemplatesTable,
   performanceTemplateCompetenciesTable,
   performanceCyclesTable,
   performanceReviewsTable,
   performanceReviewCompetenciesTable,
+  performanceReviewGoalsTable,
   employeesTable,
   departmentsTable,
   positionsTable,
@@ -68,6 +70,18 @@ const {
     permissionsTable: mockTable("permissions", ["id", "key"]),
     modulesTable: mockTable("modules", ["id", "key", "status", "defaultEnabled", "requiredModuleKeys"]),
     organizationModulesTable: mockTable("organization_modules", ["id", "organizationId", "moduleId", "enabled"]),
+    // W76 widened GET .../reviews/:id to resolve the caller's own employee
+    // via resolveOwnEmployeeId (employee_user_links) — no test row is
+    // seeded (this file's HR_USER_ID has no employee link), so the
+    // fallback empty-array path (rowsFor's default for an unlisted table)
+    // is exercised: resolveOwnEmployeeId correctly returns null, and every
+    // existing test here still passes via performance.manage's org-wide
+    // grant, unaffected by this addition.
+    employeeUserLinksTable: mockTable("employee_user_links", ["id", "applicationUserId", "employeeId"]),
+    // Same widened-route reason as employeeUserLinksTable above: GET
+    // .../reviews/:id now also returns `goals` (empty for every review
+    // this file creates, since W75 never creates goals).
+    performanceReviewGoalsTable: mockTable("performance_review_goals", ["id", "organizationId", "reviewId", "approvalStatus"]),
     performanceRatingScalesTable: mockTable("performance_rating_scales", ["id", "organizationId", "name", "status"]),
     performanceReviewTemplatesTable: mockTable("performance_review_templates", [
       "id", "organizationId", "name", "ratingScaleId", "goalsWeight", "competenciesWeight", "applicabilityScope", "status",
@@ -249,12 +263,14 @@ vi.mock("@workspace/db", () => ({
   permissionsTable,
   modulesTable,
   organizationModulesTable,
+  employeeUserLinksTable,
   performanceRatingScalesTable,
   performanceReviewTemplatesTable,
   performanceTemplateCompetenciesTable,
   performanceCyclesTable,
   performanceReviewsTable,
   performanceReviewCompetenciesTable,
+  performanceReviewGoalsTable,
   employeesTable,
   departmentsTable,
   positionsTable,

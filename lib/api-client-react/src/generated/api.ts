@@ -21,6 +21,7 @@ import type {
 
 import type {
   AcceptInvitationInput,
+  AcceptPerformanceReviewGoalInput,
   AddCandidateTagInput,
   AddEmployeeCertificationInput,
   AddEmployeeDisciplinaryRecordInput,
@@ -71,6 +72,7 @@ import type {
   CreateOrganizationInput,
   CreatePerformanceCycleInput,
   CreatePerformanceRatingScaleInput,
+  CreatePerformanceReviewGoalInput,
   CreatePerformanceReviewTemplateInput,
   CreatePositionInput,
   CreatePreEmploymentRequirementInput,
@@ -152,6 +154,7 @@ import type {
   OrganizationRole,
   PasswordResetStatus,
   PerformanceCycle,
+  PerformanceGoal,
   PerformanceRatingScale,
   PerformanceRatingScaleLevel,
   PerformanceRatingScaleWithLevels,
@@ -182,6 +185,7 @@ import type {
   RejectApplicationInput,
   RejectJobRequisitionInput,
   RejectLeaveRequestInput,
+  RejectPerformanceReviewGoalInput,
   ReopenApplicationInput,
   ReplacePerformanceRatingScaleLevelsInput,
   ReplacePerformanceTemplateCompetenciesInput,
@@ -224,6 +228,7 @@ import type {
   UpdateOrganizationModuleInput,
   UpdatePerformanceCycleInput,
   UpdatePerformanceRatingScaleInput,
+  UpdatePerformanceReviewGoalInput,
   UpdatePerformanceReviewTemplateInput,
   UpdatePositionInput,
   UpdatePreEmploymentRequirementStatusInput,
@@ -19956,8 +19961,8 @@ export const getGetPerformanceReviewUrl = (organizationId: number,
 }
 
 /**
- * Requires performance.manage. No goal data is returned — W76 owns goal management.
- * @summary Get a Performance review with its snapshotted competencies
+ * Requires performance.read.own (own review, or reviewer-of-record via the review's own snapshotted reviewerEmployeeId) or performance.manage (organization-wide).
+ * @summary Get a Performance review with its snapshotted competencies and goals
  */
 export const getPerformanceReview = async (organizationId: number,
     id: number, options?: RequestInit): Promise<PerformanceReviewWithCompetencies> => {
@@ -20007,7 +20012,7 @@ export type GetPerformanceReviewQueryError = ErrorType<ApiError>
 
 
 /**
- * @summary Get a Performance review with its snapshotted competencies
+ * @summary Get a Performance review with its snapshotted competencies and goals
  */
 
 export function useGetPerformanceReview<TData = Awaited<ReturnType<typeof getPerformanceReview>>, TError = ErrorType<ApiError>>(
@@ -20028,4 +20033,310 @@ export function useGetPerformanceReview<TData = Awaited<ReturnType<typeof getPer
 
 
 
+
+export const getCreatePerformanceReviewGoalUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/reviews/${id}/goals`
+}
+
+/**
+ * Requires performance.write.own (own review, self_assessment only — inserted approvalStatus 'proposed', not yet official) or performance.review.write (reviewer of record, draft or manager_review only — inserted approvalStatus 'accepted' immediately, no separate approval step). Which path applies is resolved entirely from the caller's own server-derived relationship to the review, never a client-supplied flag.
+ * @summary Propose (own review, self_assessment) or create an official goal (reviewer of record, draft/manager_review)
+ */
+export const createPerformanceReviewGoal = async (organizationId: number,
+    id: number,
+    createPerformanceReviewGoalInput: CreatePerformanceReviewGoalInput, options?: RequestInit): Promise<PerformanceGoal> => {
+
+  return customFetch<PerformanceGoal>(getCreatePerformanceReviewGoalUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createPerformanceReviewGoalInput)
+  }
+);}
+
+
+
+
+
+export const getCreatePerformanceReviewGoalMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPerformanceReviewGoal>>, TError,{organizationId: number;id: number;data: BodyType<CreatePerformanceReviewGoalInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPerformanceReviewGoal>>, TError,{organizationId: number;id: number;data: BodyType<CreatePerformanceReviewGoalInput>}, TContext> => {
+
+const mutationKey = ['createPerformanceReviewGoal'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPerformanceReviewGoal>>, {organizationId: number;id: number;data: BodyType<CreatePerformanceReviewGoalInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  createPerformanceReviewGoal(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePerformanceReviewGoalMutationResult = NonNullable<Awaited<ReturnType<typeof createPerformanceReviewGoal>>>
+    export type CreatePerformanceReviewGoalMutationBody = BodyType<CreatePerformanceReviewGoalInput>
+    export type CreatePerformanceReviewGoalMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Propose (own review, self_assessment) or create an official goal (reviewer of record, draft/manager_review)
+ */
+export const useCreatePerformanceReviewGoal = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPerformanceReviewGoal>>, TError,{organizationId: number;id: number;data: BodyType<CreatePerformanceReviewGoalInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createPerformanceReviewGoal>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<CreatePerformanceReviewGoalInput>},
+        TContext
+      > => {
+      return useMutation(getCreatePerformanceReviewGoalMutationOptions(options));
+    }
+
+export const getUpdatePerformanceReviewGoalUrl = (organizationId: number,
+    id: number,
+    goalId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/reviews/${id}/goals/${goalId}`
+}
+
+/**
+ * Two disjoint paths: the employee may edit only their own still-proposed goal, only while self_assessment (performance.write.own); the reviewer of record may edit any goal on the review, only while manager_review (performance.review.write).
+ * @summary Edit a goal
+ */
+export const updatePerformanceReviewGoal = async (organizationId: number,
+    id: number,
+    goalId: number,
+    updatePerformanceReviewGoalInput: UpdatePerformanceReviewGoalInput, options?: RequestInit): Promise<PerformanceGoal> => {
+
+  return customFetch<PerformanceGoal>(getUpdatePerformanceReviewGoalUrl(organizationId,id,goalId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updatePerformanceReviewGoalInput)
+  }
+);}
+
+
+
+
+
+export const getUpdatePerformanceReviewGoalMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePerformanceReviewGoal>>, TError,{organizationId: number;id: number;goalId: number;data: BodyType<UpdatePerformanceReviewGoalInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updatePerformanceReviewGoal>>, TError,{organizationId: number;id: number;goalId: number;data: BodyType<UpdatePerformanceReviewGoalInput>}, TContext> => {
+
+const mutationKey = ['updatePerformanceReviewGoal'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePerformanceReviewGoal>>, {organizationId: number;id: number;goalId: number;data: BodyType<UpdatePerformanceReviewGoalInput>}> = (props) => {
+          const {organizationId,id,goalId,data} = props ?? {};
+
+          return  updatePerformanceReviewGoal(organizationId,id,goalId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdatePerformanceReviewGoalMutationResult = NonNullable<Awaited<ReturnType<typeof updatePerformanceReviewGoal>>>
+    export type UpdatePerformanceReviewGoalMutationBody = BodyType<UpdatePerformanceReviewGoalInput>
+    export type UpdatePerformanceReviewGoalMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Edit a goal
+ */
+export const useUpdatePerformanceReviewGoal = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePerformanceReviewGoal>>, TError,{organizationId: number;id: number;goalId: number;data: BodyType<UpdatePerformanceReviewGoalInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updatePerformanceReviewGoal>>,
+        TError,
+        {organizationId: number;id: number;goalId: number;data: BodyType<UpdatePerformanceReviewGoalInput>},
+        TContext
+      > => {
+      return useMutation(getUpdatePerformanceReviewGoalMutationOptions(options));
+    }
+
+export const getAcceptPerformanceReviewGoalUrl = (organizationId: number,
+    id: number,
+    goalId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/reviews/${id}/goals/${goalId}/accept`
+}
+
+/**
+ * Requires performance.review.write (reviewer of record), review status manager_review. Optionally edits title/description/target/ unit/weight/dueDate in the same atomic action. An atomic conditional update guards against a concurrent double-decision or a repeat/terminal-state redecision (409).
+ * @summary Reviewer of record accepts a proposed goal
+ */
+export const acceptPerformanceReviewGoal = async (organizationId: number,
+    id: number,
+    goalId: number,
+    acceptPerformanceReviewGoalInput?: AcceptPerformanceReviewGoalInput, options?: RequestInit): Promise<PerformanceGoal> => {
+
+  return customFetch<PerformanceGoal>(getAcceptPerformanceReviewGoalUrl(organizationId,id,goalId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(acceptPerformanceReviewGoalInput)
+  }
+);}
+
+
+
+
+
+export const getAcceptPerformanceReviewGoalMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptPerformanceReviewGoal>>, TError,{organizationId: number;id: number;goalId: number;data?: BodyType<AcceptPerformanceReviewGoalInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof acceptPerformanceReviewGoal>>, TError,{organizationId: number;id: number;goalId: number;data?: BodyType<AcceptPerformanceReviewGoalInput>}, TContext> => {
+
+const mutationKey = ['acceptPerformanceReviewGoal'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof acceptPerformanceReviewGoal>>, {organizationId: number;id: number;goalId: number;data?: BodyType<AcceptPerformanceReviewGoalInput>}> = (props) => {
+          const {organizationId,id,goalId,data} = props ?? {};
+
+          return  acceptPerformanceReviewGoal(organizationId,id,goalId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AcceptPerformanceReviewGoalMutationResult = NonNullable<Awaited<ReturnType<typeof acceptPerformanceReviewGoal>>>
+    export type AcceptPerformanceReviewGoalMutationBody = BodyType<AcceptPerformanceReviewGoalInput> | undefined
+    export type AcceptPerformanceReviewGoalMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Reviewer of record accepts a proposed goal
+ */
+export const useAcceptPerformanceReviewGoal = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptPerformanceReviewGoal>>, TError,{organizationId: number;id: number;goalId: number;data?: BodyType<AcceptPerformanceReviewGoalInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof acceptPerformanceReviewGoal>>,
+        TError,
+        {organizationId: number;id: number;goalId: number;data?: BodyType<AcceptPerformanceReviewGoalInput>},
+        TContext
+      > => {
+      return useMutation(getAcceptPerformanceReviewGoalMutationOptions(options));
+    }
+
+export const getRejectPerformanceReviewGoalUrl = (organizationId: number,
+    id: number,
+    goalId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/reviews/${id}/goals/${goalId}/reject`
+}
+
+/**
+ * Requires performance.review.write (reviewer of record), review status manager_review. A reason is required (stored as managerComment). The goal is retained, never deleted, and permanently excluded from weighting/scoring. Same atomic conditional-update guard as accept.
+ * @summary Reviewer of record rejects a proposed goal
+ */
+export const rejectPerformanceReviewGoal = async (organizationId: number,
+    id: number,
+    goalId: number,
+    rejectPerformanceReviewGoalInput: RejectPerformanceReviewGoalInput, options?: RequestInit): Promise<PerformanceGoal> => {
+
+  return customFetch<PerformanceGoal>(getRejectPerformanceReviewGoalUrl(organizationId,id,goalId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(rejectPerformanceReviewGoalInput)
+  }
+);}
+
+
+
+
+
+export const getRejectPerformanceReviewGoalMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectPerformanceReviewGoal>>, TError,{organizationId: number;id: number;goalId: number;data: BodyType<RejectPerformanceReviewGoalInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectPerformanceReviewGoal>>, TError,{organizationId: number;id: number;goalId: number;data: BodyType<RejectPerformanceReviewGoalInput>}, TContext> => {
+
+const mutationKey = ['rejectPerformanceReviewGoal'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectPerformanceReviewGoal>>, {organizationId: number;id: number;goalId: number;data: BodyType<RejectPerformanceReviewGoalInput>}> = (props) => {
+          const {organizationId,id,goalId,data} = props ?? {};
+
+          return  rejectPerformanceReviewGoal(organizationId,id,goalId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectPerformanceReviewGoalMutationResult = NonNullable<Awaited<ReturnType<typeof rejectPerformanceReviewGoal>>>
+    export type RejectPerformanceReviewGoalMutationBody = BodyType<RejectPerformanceReviewGoalInput>
+    export type RejectPerformanceReviewGoalMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Reviewer of record rejects a proposed goal
+ */
+export const useRejectPerformanceReviewGoal = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectPerformanceReviewGoal>>, TError,{organizationId: number;id: number;goalId: number;data: BodyType<RejectPerformanceReviewGoalInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rejectPerformanceReviewGoal>>,
+        TError,
+        {organizationId: number;id: number;goalId: number;data: BodyType<RejectPerformanceReviewGoalInput>},
+        TContext
+      > => {
+      return useMutation(getRejectPerformanceReviewGoalMutationOptions(options));
+    }
 

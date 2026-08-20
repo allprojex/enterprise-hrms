@@ -9605,8 +9605,11 @@ paths:
     get:
       operationId: getPerformanceReview
       tags: [performance-reviews]
-      summary: Get a Performance review with its snapshotted competencies
-      description: Requires performance.manage. No goal data is returned — W76 owns goal management.
+      summary: Get a Performance review with its snapshotted competencies and goals
+      description: >-
+        Requires performance.read.own (own review, or reviewer-of-record
+        via the review's own snapshotted reviewerEmployeeId) or
+        performance.manage (organization-wide).
       parameters:
         - name: organizationId
           in: path
@@ -9620,13 +9623,275 @@ paths:
             type: integer
       responses:
         "200":
-          description: Review with competencies
+          description: Review with competencies and goals
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/PerformanceReviewWithCompetencies"
+        "403":
+          description: Not authorized to view this review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "404":
           description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/performance/reviews/{id}/goals:
+    post:
+      operationId: createPerformanceReviewGoal
+      tags: [performance-reviews]
+      summary: Propose (own review, self_assessment) or create an official goal (reviewer of record, draft/manager_review)
+      description: >-
+        Requires performance.write.own (own review, self_assessment only —
+        inserted approvalStatus 'proposed', not yet official) or
+        performance.review.write (reviewer of record, draft or
+        manager_review only — inserted approvalStatus 'accepted'
+        immediately, no separate approval step). Which path applies is
+        resolved entirely from the caller's own server-derived
+        relationship to the review, never a client-supplied flag.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePerformanceReviewGoalInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerformanceGoal"
+        "400":
+          description: Invalid input for the goal's measurementType
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Not this review's own employee or reviewer of record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: The review is not in a status that permits this action
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/performance/reviews/{id}/goals/{goalId}:
+    patch:
+      operationId: updatePerformanceReviewGoal
+      tags: [performance-reviews]
+      summary: Edit a goal
+      description: >-
+        Two disjoint paths: the employee may edit only their own
+        still-proposed goal, only while self_assessment
+        (performance.write.own); the reviewer of record may edit any goal
+        on the review, only while manager_review (performance.review.write).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: goalId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePerformanceReviewGoalInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerformanceGoal"
+        "400":
+          description: Invalid input for the goal's measurementType
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Not authorized to edit this goal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: The review or goal is not in a status that permits this edit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/performance/reviews/{id}/goals/{goalId}/accept:
+    post:
+      operationId: acceptPerformanceReviewGoal
+      tags: [performance-reviews]
+      summary: Reviewer of record accepts a proposed goal
+      description: >-
+        Requires performance.review.write (reviewer of record), review
+        status manager_review. Optionally edits title/description/target/
+        unit/weight/dueDate in the same atomic action. An atomic
+        conditional update guards against a concurrent double-decision or
+        a repeat/terminal-state redecision (409).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: goalId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AcceptPerformanceReviewGoalInput"
+      responses:
+        "200":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerformanceGoal"
+        "400":
+          description: Invalid input, or not an employee-proposed goal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Not this review's reviewer of record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: The review is not manager_review, or the goal was already decided
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/performance/reviews/{id}/goals/{goalId}/reject:
+    post:
+      operationId: rejectPerformanceReviewGoal
+      tags: [performance-reviews]
+      summary: Reviewer of record rejects a proposed goal
+      description: >-
+        Requires performance.review.write (reviewer of record), review
+        status manager_review. A reason is required (stored as
+        managerComment). The goal is retained, never deleted, and
+        permanently excluded from weighting/scoring. Same atomic
+        conditional-update guard as accept.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: goalId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RejectPerformanceReviewGoalInput"
+      responses:
+        "200":
+          description: Rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerformanceGoal"
+        "400":
+          description: Missing reason, or not an employee-proposed goal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Not this review's reviewer of record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: The review is not manager_review, or the goal was already decided
           content:
             application/json:
               schema:
@@ -14901,9 +15166,132 @@ components:
         notApplicableReason:
           type: ["string", "null"]
 
+    PerformanceGoal:
+      type: object
+      required: [id, organizationId, reviewId, title, measurementType, weight, status, originType, approvalStatus, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        reviewId:
+          type: integer
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        measurementType:
+          type: string
+          enum: [numeric, percentage, currency, boolean, rating, qualitative]
+        target:
+          type: ["string", "null"]
+        actualResult:
+          type: ["string", "null"]
+        unit:
+          type: ["string", "null"]
+        weight:
+          type: integer
+        dueDate:
+          type: ["string", "null"]
+          format: date
+        status:
+          type: string
+          enum: [not_started, in_progress, completed, missed]
+        employeeComment:
+          type: ["string", "null"]
+        managerComment:
+          type: ["string", "null"]
+        computedScore:
+          type: ["string", "null"]
+        originType:
+          type: string
+          enum: [manager, employee_proposed]
+        approvalStatus:
+          type: string
+          enum: [accepted, proposed, rejected]
+        notApplicable:
+          type: boolean
+        notApplicableReason:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreatePerformanceReviewGoalInput:
+      type: object
+      required: [title, measurementType]
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        measurementType:
+          type: string
+          enum: [numeric, percentage, currency, boolean, rating, qualitative]
+        target:
+          type: number
+        unit:
+          type: string
+        weight:
+          type: integer
+          description: Must be 0 for a qualitative goal.
+        dueDate:
+          type: string
+          format: date
+
+    UpdatePerformanceReviewGoalInput:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        target:
+          type: ["number", "null"]
+        unit:
+          type: ["string", "null"]
+        weight:
+          type: integer
+        dueDate:
+          type: ["string", "null"]
+          format: date
+
+    AcceptPerformanceReviewGoalInput:
+      type: object
+      description: All fields optional — accept-as-is, or edit-then-accept in the same action (§12).
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        target:
+          type: ["number", "null"]
+        unit:
+          type: ["string", "null"]
+        weight:
+          type: integer
+        dueDate:
+          type: ["string", "null"]
+          format: date
+
+    RejectPerformanceReviewGoalInput:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          description: Stored as the goal's managerComment.
+
     PerformanceReviewWithCompetencies:
       type: object
-      required: [review, competencies]
+      required: [review, competencies, goals]
       properties:
         review:
           $ref: "#/components/schemas/PerformanceReview"
@@ -14911,3 +15299,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PerformanceReviewCompetency"
+        goals:
+          type: array
+          items:
+            $ref: "#/components/schemas/PerformanceGoal"

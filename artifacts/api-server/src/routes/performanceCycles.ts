@@ -1,14 +1,21 @@
 /**
- * Performance Cycles & Review Assignment (Phase 3C, W75):
+ * Performance Cycles & Review Assignment (Phase 3C, W75, amended W76):
  * docs/PHASE_3C_PERFORMANCE_IMPLEMENTATION_PLAN.md §27 (as reconciled by
  * this workstream — see lib/performanceCycles.ts's own file header for the
- * row-0/row-1 and goal-snapshot reconciliation notes). Every route here is
- * HR/admin configuration-and-assignment territory per this workstream's
- * own brief ("W75 is HR/admin configuration and assignment... Expected
- * primary permission: performance.manage") — unlike W74's rating-scales/
- * templates routes, nothing here is opened to the broader
- * performance.read.own grant; every route, including reads, requires
- * performance.manage.
+ * row-0/row-1 and goal-snapshot reconciliation notes). Cycle/assignment
+ * configuration routes are HR/admin-only territory per W75's own brief
+ * ("Expected primary permission: performance.manage") and remain
+ * performance.manage-only, unchanged. The single-review detail route
+ * (`GET .../reviews/:id`) is widened by W76 to match §27's own literal
+ * permission line — "performance.read.own (own/reviewer-of-record) or
+ * performance.manage" — since W76's goal routes need an employee/reviewer
+ * to be able to see their own review (and its goals) without org-wide
+ * access; this is "the smallest W76-owned route/access adjustment
+ * required by the frozen plan" (W76's own master brief), not a general
+ * widening — the list route (`GET .../reviews`) stays performance.manage-
+ * only, since no W76 surface needs it. Response now also carries `goals`
+ * (empty for any review W75 alone created; populated once W76 routes act
+ * on it).
  */
 import { Router } from "express";
 import {
@@ -20,9 +27,10 @@ import { requireAuth } from "../middlewares/requireAuth";
 import { requireMembership, type MembershipRequest } from "../middlewares/requireMembership";
 import { requirePermission } from "../middlewares/requirePermission";
 import { requireModuleEnabled } from "../middlewares/requireModuleEnabled";
-import { PERFORMANCE_MODULE_KEY } from "../lib/performanceAuthorization";
+import { PERFORMANCE_MODULE_KEY, resolvePerformanceActorEmployeeId, hasOrgWidePerformanceAccess, isOwnPerformanceRecord, isReviewerOfRecord } from "../lib/performanceAuthorization";
 import { CrossOrganizationReferenceError } from "../lib/orgScopedRefs";
 import { toIsoDate } from "../lib/leaveRequests";
+import { listGoalsForReview } from "../lib/performanceReviewGoals";
 import {
   listCycles,
   getCycleById,
@@ -238,24 +246,41 @@ router.get(
 );
 
 // GET /organizations/:organizationId/performance/reviews/:id
+// Widened by W76 (see file header): performance.read.own is the coarse
+// floor (broadest of the two relevant keys, seeded to every role);
+// fine-grained scope (own/reviewer-of-record/org-wide) is resolved below,
+// mirroring leaveRequests.ts's own established coarse-gate-plus-
+// fine-grained-check precedent rather than a single blanket permission.
 router.get(
   "/organizations/:organizationId/performance/reviews/:id",
   requireAuth as any,
   requireMembership("organizationId"),
   requireModuleEnabled(PERFORMANCE_MODULE_KEY),
-  requirePermission("performance.manage"),
+  requirePermission("performance.read.own"),
   async (req: MembershipRequest, res): Promise<void> => {
     const reviewId = parseId(req.params.id);
     if (isNaN(reviewId)) {
       res.status(400).json({ error: "Invalid review ID" });
       return;
     }
-    const result = await getReviewWithCompetencies(req.membership!.organizationId, reviewId);
+    const organizationId = req.membership!.organizationId;
+    const result = await getReviewWithCompetencies(organizationId, reviewId);
     if (!result) {
       res.status(404).json({ error: "Performance review not found" });
       return;
     }
-    res.json(result);
+
+    const ownEmployeeId = await resolvePerformanceActorEmployeeId(organizationId, req.userId!);
+    const isOrgWide = await hasOrgWidePerformanceAccess(req.membership!.id, "performance.manage");
+    const isOwn = isOwnPerformanceRecord(ownEmployeeId, result.review.employeeId);
+    const isReviewer = isReviewerOfRecord(ownEmployeeId, result.review.reviewerEmployeeId);
+    if (!isOrgWide && !isOwn && !isReviewer) {
+      res.status(403).json({ error: "Not authorized to view this review" });
+      return;
+    }
+
+    const goals = await listGoalsForReview(organizationId, reviewId);
+    res.json({ ...result, goals });
   },
 );
 

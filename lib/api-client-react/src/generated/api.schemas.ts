@@ -4728,9 +4728,143 @@ export interface PerformanceReviewCompetency {
   notApplicableReason?: string | null;
 }
 
+export type PerformanceGoalMeasurementType = typeof PerformanceGoalMeasurementType[keyof typeof PerformanceGoalMeasurementType];
+
+
+export const PerformanceGoalMeasurementType = {
+  numeric: 'numeric',
+  percentage: 'percentage',
+  currency: 'currency',
+  boolean: 'boolean',
+  rating: 'rating',
+  qualitative: 'qualitative',
+} as const;
+
+export type PerformanceGoalStatus = typeof PerformanceGoalStatus[keyof typeof PerformanceGoalStatus];
+
+
+export const PerformanceGoalStatus = {
+  not_started: 'not_started',
+  in_progress: 'in_progress',
+  completed: 'completed',
+  missed: 'missed',
+} as const;
+
+export type PerformanceGoalOriginType = typeof PerformanceGoalOriginType[keyof typeof PerformanceGoalOriginType];
+
+
+export const PerformanceGoalOriginType = {
+  manager: 'manager',
+  employee_proposed: 'employee_proposed',
+} as const;
+
+export type PerformanceGoalApprovalStatus = typeof PerformanceGoalApprovalStatus[keyof typeof PerformanceGoalApprovalStatus];
+
+
+export const PerformanceGoalApprovalStatus = {
+  accepted: 'accepted',
+  proposed: 'proposed',
+  rejected: 'rejected',
+} as const;
+
+export interface PerformanceGoal {
+  id: number;
+  organizationId: number;
+  reviewId: number;
+  title: string;
+  /** @nullable */
+  description?: string | null;
+  measurementType: PerformanceGoalMeasurementType;
+  /** @nullable */
+  target?: string | null;
+  /** @nullable */
+  actualResult?: string | null;
+  /** @nullable */
+  unit?: string | null;
+  weight: number;
+  /** @nullable */
+  dueDate?: string | null;
+  status: PerformanceGoalStatus;
+  /** @nullable */
+  employeeComment?: string | null;
+  /** @nullable */
+  managerComment?: string | null;
+  /** @nullable */
+  computedScore?: string | null;
+  originType: PerformanceGoalOriginType;
+  approvalStatus: PerformanceGoalApprovalStatus;
+  notApplicable?: boolean;
+  /** @nullable */
+  notApplicableReason?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CreatePerformanceReviewGoalInputMeasurementType = typeof CreatePerformanceReviewGoalInputMeasurementType[keyof typeof CreatePerformanceReviewGoalInputMeasurementType];
+
+
+export const CreatePerformanceReviewGoalInputMeasurementType = {
+  numeric: 'numeric',
+  percentage: 'percentage',
+  currency: 'currency',
+  boolean: 'boolean',
+  rating: 'rating',
+  qualitative: 'qualitative',
+} as const;
+
+export interface CreatePerformanceReviewGoalInput {
+  /** @minLength 1 */
+  title: string;
+  description?: string;
+  measurementType: CreatePerformanceReviewGoalInputMeasurementType;
+  target?: number;
+  unit?: string;
+  /** Must be 0 for a qualitative goal. */
+  weight?: number;
+  dueDate?: string;
+}
+
+export interface UpdatePerformanceReviewGoalInput {
+  /** @minLength 1 */
+  title?: string;
+  description?: string;
+  /** @nullable */
+  target?: number | null;
+  /** @nullable */
+  unit?: string | null;
+  weight?: number;
+  /** @nullable */
+  dueDate?: string | null;
+}
+
+/**
+ * All fields optional — accept-as-is, or edit-then-accept in the same action (§12).
+ */
+export interface AcceptPerformanceReviewGoalInput {
+  /** @minLength 1 */
+  title?: string;
+  description?: string;
+  /** @nullable */
+  target?: number | null;
+  /** @nullable */
+  unit?: string | null;
+  weight?: number;
+  /** @nullable */
+  dueDate?: string | null;
+}
+
+export interface RejectPerformanceReviewGoalInput {
+  /**
+     * Stored as the goal's managerComment.
+     * @minLength 1
+     */
+  reason: string;
+}
+
 export interface PerformanceReviewWithCompetencies {
   review: PerformanceReview;
   competencies: PerformanceReviewCompetency[];
+  goals: PerformanceGoal[];
 }
 
 export type ListEmployeesParams = {

@@ -56,6 +56,7 @@ import attendanceReportingRouter from "./attendanceReporting";
 import performanceRatingScalesRouter from "./performanceRatingScales";
 import performanceReviewTemplatesRouter from "./performanceReviewTemplates";
 import performanceCyclesRouter from "./performanceCycles";
+import performanceReviewGoalsRouter from "./performanceReviewGoals";
 
 const router: IRouter = Router();
 
@@ -116,5 +117,6 @@ router.use(attendanceReportingRouter);
 router.use(performanceRatingScalesRouter);
 router.use(performanceReviewTemplatesRouter);
 router.use(performanceCyclesRouter);
+router.use(performanceReviewGoalsRouter);
 
 export default router;

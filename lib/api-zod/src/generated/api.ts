@@ -8248,8 +8248,8 @@ export const ListPerformanceReviewsResponse = zod.array(ListPerformanceReviewsRe
 
 
 /**
- * Requires performance.manage. No goal data is returned — W76 owns goal management.
- * @summary Get a Performance review with its snapshotted competencies
+ * Requires performance.read.own (own review, or reviewer-of-record via the review's own snapshotted reviewerEmployeeId) or performance.manage (organization-wide).
+ * @summary Get a Performance review with its snapshotted competencies and goals
  */
 export const GetPerformanceReviewParams = zod.object({
   "organizationId": zod.coerce.number(),
@@ -8298,7 +8298,213 @@ export const GetPerformanceReviewResponse = zod.object({
   "managerComment": zod.string().nullish(),
   "notApplicable": zod.boolean().optional(),
   "notApplicableReason": zod.string().nullish()
+})),
+  "goals": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "reviewId": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "measurementType": zod.enum(['numeric', 'percentage', 'currency', 'boolean', 'rating', 'qualitative']),
+  "target": zod.string().nullish(),
+  "actualResult": zod.string().nullish(),
+  "unit": zod.string().nullish(),
+  "weight": zod.number(),
+  "dueDate": zod.coerce.date().nullish(),
+  "status": zod.enum(['not_started', 'in_progress', 'completed', 'missed']),
+  "employeeComment": zod.string().nullish(),
+  "managerComment": zod.string().nullish(),
+  "computedScore": zod.string().nullish(),
+  "originType": zod.enum(['manager', 'employee_proposed']),
+  "approvalStatus": zod.enum(['accepted', 'proposed', 'rejected']),
+  "notApplicable": zod.boolean().optional(),
+  "notApplicableReason": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
 }))
+})
+
+
+/**
+ * Requires performance.write.own (own review, self_assessment only — inserted approvalStatus 'proposed', not yet official) or performance.review.write (reviewer of record, draft or manager_review only — inserted approvalStatus 'accepted' immediately, no separate approval step). Which path applies is resolved entirely from the caller's own server-derived relationship to the review, never a client-supplied flag.
+ * @summary Propose (own review, self_assessment) or create an official goal (reviewer of record, draft/manager_review)
+ */
+export const CreatePerformanceReviewGoalParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const CreatePerformanceReviewGoalBody = zod.object({
+  "title": zod.string().min(1),
+  "description": zod.string().optional(),
+  "measurementType": zod.enum(['numeric', 'percentage', 'currency', 'boolean', 'rating', 'qualitative']),
+  "target": zod.number().optional(),
+  "unit": zod.string().optional(),
+  "weight": zod.number().optional().describe('Must be 0 for a qualitative goal.'),
+  "dueDate": zod.coerce.date().optional()
+})
+
+export const CreatePerformanceReviewGoalResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "reviewId": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "measurementType": zod.enum(['numeric', 'percentage', 'currency', 'boolean', 'rating', 'qualitative']),
+  "target": zod.string().nullish(),
+  "actualResult": zod.string().nullish(),
+  "unit": zod.string().nullish(),
+  "weight": zod.number(),
+  "dueDate": zod.coerce.date().nullish(),
+  "status": zod.enum(['not_started', 'in_progress', 'completed', 'missed']),
+  "employeeComment": zod.string().nullish(),
+  "managerComment": zod.string().nullish(),
+  "computedScore": zod.string().nullish(),
+  "originType": zod.enum(['manager', 'employee_proposed']),
+  "approvalStatus": zod.enum(['accepted', 'proposed', 'rejected']),
+  "notApplicable": zod.boolean().optional(),
+  "notApplicableReason": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Two disjoint paths: the employee may edit only their own still-proposed goal, only while self_assessment (performance.write.own); the reviewer of record may edit any goal on the review, only while manager_review (performance.review.write).
+ * @summary Edit a goal
+ */
+export const UpdatePerformanceReviewGoalParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number(),
+  "goalId": zod.coerce.number()
+})
+
+
+
+
+export const UpdatePerformanceReviewGoalBody = zod.object({
+  "title": zod.string().min(1).optional(),
+  "description": zod.string().optional(),
+  "target": zod.number().nullish(),
+  "unit": zod.string().nullish(),
+  "weight": zod.number().optional(),
+  "dueDate": zod.coerce.date().nullish()
+})
+
+export const UpdatePerformanceReviewGoalResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "reviewId": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "measurementType": zod.enum(['numeric', 'percentage', 'currency', 'boolean', 'rating', 'qualitative']),
+  "target": zod.string().nullish(),
+  "actualResult": zod.string().nullish(),
+  "unit": zod.string().nullish(),
+  "weight": zod.number(),
+  "dueDate": zod.coerce.date().nullish(),
+  "status": zod.enum(['not_started', 'in_progress', 'completed', 'missed']),
+  "employeeComment": zod.string().nullish(),
+  "managerComment": zod.string().nullish(),
+  "computedScore": zod.string().nullish(),
+  "originType": zod.enum(['manager', 'employee_proposed']),
+  "approvalStatus": zod.enum(['accepted', 'proposed', 'rejected']),
+  "notApplicable": zod.boolean().optional(),
+  "notApplicableReason": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Requires performance.review.write (reviewer of record), review status manager_review. Optionally edits title/description/target/ unit/weight/dueDate in the same atomic action. An atomic conditional update guards against a concurrent double-decision or a repeat/terminal-state redecision (409).
+ * @summary Reviewer of record accepts a proposed goal
+ */
+export const AcceptPerformanceReviewGoalParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number(),
+  "goalId": zod.coerce.number()
+})
+
+
+
+
+export const AcceptPerformanceReviewGoalBody = zod.object({
+  "title": zod.string().min(1).optional(),
+  "description": zod.string().optional(),
+  "target": zod.number().nullish(),
+  "unit": zod.string().nullish(),
+  "weight": zod.number().optional(),
+  "dueDate": zod.coerce.date().nullish()
+}).describe('All fields optional — accept-as-is, or edit-then-accept in the same action (§12).')
+
+export const AcceptPerformanceReviewGoalResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "reviewId": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "measurementType": zod.enum(['numeric', 'percentage', 'currency', 'boolean', 'rating', 'qualitative']),
+  "target": zod.string().nullish(),
+  "actualResult": zod.string().nullish(),
+  "unit": zod.string().nullish(),
+  "weight": zod.number(),
+  "dueDate": zod.coerce.date().nullish(),
+  "status": zod.enum(['not_started', 'in_progress', 'completed', 'missed']),
+  "employeeComment": zod.string().nullish(),
+  "managerComment": zod.string().nullish(),
+  "computedScore": zod.string().nullish(),
+  "originType": zod.enum(['manager', 'employee_proposed']),
+  "approvalStatus": zod.enum(['accepted', 'proposed', 'rejected']),
+  "notApplicable": zod.boolean().optional(),
+  "notApplicableReason": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Requires performance.review.write (reviewer of record), review status manager_review. A reason is required (stored as managerComment). The goal is retained, never deleted, and permanently excluded from weighting/scoring. Same atomic conditional-update guard as accept.
+ * @summary Reviewer of record rejects a proposed goal
+ */
+export const RejectPerformanceReviewGoalParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number(),
+  "goalId": zod.coerce.number()
+})
+
+
+
+
+export const RejectPerformanceReviewGoalBody = zod.object({
+  "reason": zod.string().min(1).describe('Stored as the goal\'s managerComment.')
+})
+
+export const RejectPerformanceReviewGoalResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "reviewId": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "measurementType": zod.enum(['numeric', 'percentage', 'currency', 'boolean', 'rating', 'qualitative']),
+  "target": zod.string().nullish(),
+  "actualResult": zod.string().nullish(),
+  "unit": zod.string().nullish(),
+  "weight": zod.number(),
+  "dueDate": zod.coerce.date().nullish(),
+  "status": zod.enum(['not_started', 'in_progress', 'completed', 'missed']),
+  "employeeComment": zod.string().nullish(),
+  "managerComment": zod.string().nullish(),
+  "computedScore": zod.string().nullish(),
+  "originType": zod.enum(['manager', 'employee_proposed']),
+  "approvalStatus": zod.enum(['accepted', 'proposed', 'rejected']),
+  "notApplicable": zod.boolean().optional(),
+  "notApplicableReason": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
 })
 
 
