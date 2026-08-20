@@ -448,7 +448,8 @@ export default function PerformanceReviews() {
                   {' · '}
                   Position (at assignment): {review.positionIdSnapshot != null ? (positionById.get(review.positionIdSnapshot)?.title ?? `#${review.positionIdSnapshot}`) : '—'}
                 </p>
-                <p className="text-sm text-muted-foreground">Acknowledgement: {review.acknowledgedAt ? `Acknowledged on ${new Date(review.acknowledgedAt).toLocaleDateString()}` : 'Not yet acknowledged'}</p>
+                {/* status is the authoritative lifecycle signal (W83 DoD: never infer state from a nullable timestamp) — acknowledgedAt is read only for its own date value once status confirms the review really is acknowledged. */}
+                <p className="text-sm text-muted-foreground">Acknowledgement: {review.status === 'acknowledged' && review.acknowledgedAt ? `Acknowledged on ${new Date(review.acknowledgedAt).toLocaleDateString()}` : 'Not yet acknowledged'}</p>
               </div>
 
               {review.status === 'manager_review' && (

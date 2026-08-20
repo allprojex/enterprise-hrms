@@ -297,10 +297,24 @@ describe('Performance Reviews (internal HR workspace) page', () => {
 
   it('shows acknowledgement as read-only', async () => {
     resetState();
+    state.list = { items: [review({ status: 'acknowledged', acknowledgedAt: '2026-02-01T00:00:00.000Z' })], total: 1, page: 1, pageSize: 20 };
+    state.detail = { review: review({ status: 'acknowledged', acknowledgedAt: '2026-02-01T00:00:00.000Z' }), competencies: [], goals: [] };
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-view-review-1'));
+    expect(screen.getByText(/Acknowledged on/)).toBeInTheDocument();
+  });
+
+  // W83 DoD: status must be the authoritative lifecycle signal — never a
+  // nullable timestamp. A review that is NOT status 'acknowledged' must
+  // never read as acknowledged, even if acknowledgedAt happens to carry a
+  // (stale/inconsistent) value — status alone decides what's displayed.
+  it('never infers acknowledgement from acknowledgedAt alone — status is authoritative', async () => {
+    resetState();
     state.list = { items: [review({ status: 'finalized', acknowledgedAt: '2026-02-01T00:00:00.000Z' })], total: 1, page: 1, pageSize: 20 };
     state.detail = { review: review({ status: 'finalized', acknowledgedAt: '2026-02-01T00:00:00.000Z' }), competencies: [], goals: [] };
     renderPage();
     await userEvent.click(screen.getByTestId('button-view-review-1'));
-    expect(screen.getByText(/Acknowledged on/)).toBeInTheDocument();
+    expect(screen.getByText(/Not yet acknowledged/)).toBeInTheDocument();
+    expect(screen.queryByText(/Acknowledged on/)).not.toBeInTheDocument();
   });
 });
