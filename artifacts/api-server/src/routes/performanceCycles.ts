@@ -280,7 +280,21 @@ router.get(
     }
 
     const goals = await listGoalsForReview(organizationId, reviewId);
-    res.json({ ...result, goals });
+
+    // §14: "they cannot see the manager's rating until the manager
+    // submits" — the employee-as-reviewee, before hr_review, never sees
+    // competency managerRatingValue/managerComment (the "rating" the
+    // sentence names). Goal-level managerComment is deliberately NOT
+    // redacted — it frequently carries a reject-reason the employee needs
+    // to see immediately (§12), a different concept from a scoring
+    // "rating." The reviewer and any org-wide (performance.manage)
+    // caller always see everything.
+    const redactManagerCompetencyFields = isOwn && !isReviewer && !isOrgWide && (result.review.status === "self_assessment" || result.review.status === "manager_review");
+    const competencies = redactManagerCompetencyFields
+      ? result.competencies.map((c) => ({ ...c, managerRatingValue: null, managerComment: null }))
+      : result.competencies;
+
+    res.json({ ...result, competencies, goals });
   },
 );
 

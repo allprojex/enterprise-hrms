@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { UserCircle, FileText, CalendarClock, Briefcase, Send, Clock, LogIn, LogOut, Plus } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { UserCircle, FileText, CalendarClock, Briefcase, Send, Clock, LogIn, LogOut, Plus, Target } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -31,9 +31,23 @@ import {
   getGetAttendanceDailySummaryQueryKey,
   useRecordAttendanceAdjustment,
   RecordAttendanceAdjustmentInputAdjustmentType,
+  useListMyPerformanceReviews,
+  getListMyPerformanceReviewsQueryKey,
+  useGetPerformanceReview,
+  getGetPerformanceReviewQueryKey,
+  useGetPerformanceRatingScale,
+  getGetPerformanceRatingScaleQueryKey,
+  useRateCompetency,
+  useCreatePerformanceReviewGoal,
+  useUpdatePerformanceReviewGoal,
+  useSubmitSelfAssessment,
+  CreatePerformanceReviewGoalInputMeasurementType,
   type SelfServiceEmployeeProfile,
   type InternalVacancySummary,
   type DailyAttendanceSummary,
+  type PerformanceReviewCompetency,
+  type PerformanceRatingScaleLevel,
+  type PerformanceGoal,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { QueryError } from '@/components/query-error';
@@ -516,6 +530,463 @@ function MyAttendanceTab({ organizationId, employeeId }: { organizationId: numbe
   );
 }
 
+const REVIEW_STATUS_LABEL: Record<string, string> = {
+  draft: 'Draft',
+  self_assessment: 'Self-Assessment',
+  manager_review: 'Manager Review',
+  hr_review: 'HR Review',
+  finalized: 'Finalized',
+  acknowledged: 'Acknowledged',
+};
+
+const GOAL_APPROVAL_LABEL: Record<string, string> = {
+  accepted: 'Official',
+  proposed: 'Proposed — awaiting your manager',
+  rejected: 'Not accepted',
+};
+
+const GOAL_APPROVAL_VARIANT: Record<string, 'secondary' | 'outline' | 'destructive'> = {
+  accepted: 'secondary',
+  proposed: 'outline',
+  rejected: 'destructive',
+};
+
+function CompetencySelfRateRow({
+  competency,
+  levels,
+  locked,
+  onSave,
+  isSaving,
+}: {
+  competency: PerformanceReviewCompetency;
+  levels: PerformanceRatingScaleLevel[];
+  locked: boolean;
+  onSave: (value: number, comment: string) => void;
+  isSaving: boolean;
+}) {
+  const [value, setValue] = useState<string>(competency.employeeRatingValue != null ? String(competency.employeeRatingValue) : '');
+  const [comment, setComment] = useState(competency.employeeComment ?? '');
+
+  return (
+    <div className="border rounded-md p-4 space-y-3" data-testid={`row-competency-${competency.id}`}>
+      <div>
+        <p className="font-medium text-sm text-foreground">{competency.label}</p>
+        {competency.description && <p className="text-xs text-muted-foreground">{competency.description}</p>}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-[200px_1fr] gap-3">
+        <div className="space-y-1">
+          <Label htmlFor={`competency-rating-${competency.id}`}>Your Rating</Label>
+          <Select value={value} onValueChange={setValue} disabled={locked}>
+            <SelectTrigger id={`competency-rating-${competency.id}`} data-testid={`select-competency-rating-${competency.id}`}>
+              <SelectValue placeholder="Choose a rating" />
+            </SelectTrigger>
+            <SelectContent>
+              {levels.map((l) => (
+                <SelectItem key={l.id} value={String(l.value)}>{l.label} ({l.value})</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor={`competency-comment-${competency.id}`}>Comment</Label>
+          <Textarea
+            id={`competency-comment-${competency.id}`}
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            disabled={locked}
+            data-testid={`textarea-competency-comment-${competency.id}`}
+          />
+        </div>
+      </div>
+      {!locked && (
+        <Button
+          size="sm"
+          disabled={!value || isSaving}
+          onClick={() => onSave(Number(value), comment)}
+          data-testid={`button-save-competency-${competency.id}`}
+        >
+          {isSaving ? 'Saving…' : 'Save Rating'}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function GoalCard({
+  goal,
+  locked,
+  onSaveComment,
+  onEditProposal,
+  isSaving,
+}: {
+  goal: PerformanceGoal;
+  locked: boolean;
+  onSaveComment: (comment: string) => void;
+  onEditProposal: (fields: { title: string; target?: number; weight: number }) => void;
+  isSaving: boolean;
+}) {
+  const [comment, setComment] = useState(goal.employeeComment ?? '');
+  const [editing, setEditing] = useState(false);
+  const [title, setTitle] = useState(goal.title);
+  const [target, setTarget] = useState(goal.target ?? '');
+  const [weight, setWeight] = useState(String(goal.weight));
+
+  const isOwnProposal = goal.originType === 'employee_proposed';
+  const canEditProposal = isOwnProposal && goal.approvalStatus === 'proposed' && !locked;
+
+  return (
+    <div className="border rounded-md p-4 space-y-3" data-testid={`row-goal-${goal.id}`}>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+        <div>
+          <p className="font-medium text-sm text-foreground">{goal.title}</p>
+          <p className="text-xs text-muted-foreground capitalize">{goal.measurementType} · weight {goal.weight}{goal.originType === 'employee_proposed' ? ' · your proposal' : ' · set by your manager'}</p>
+        </div>
+        <Badge variant={GOAL_APPROVAL_VARIANT[goal.approvalStatus]} data-testid={`badge-goal-status-${goal.id}`}>
+          {GOAL_APPROVAL_LABEL[goal.approvalStatus]}
+        </Badge>
+      </div>
+
+      {goal.approvalStatus === 'rejected' && goal.managerComment && (
+        <p className="text-xs text-muted-foreground">Reason: {goal.managerComment}</p>
+      )}
+
+      {canEditProposal && (
+        <div className="space-y-2">
+          {editing ? (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} data-testid={`input-goal-title-${goal.id}`} />
+              {goal.measurementType !== 'qualitative' && goal.measurementType !== 'boolean' && goal.measurementType !== 'rating' && (
+                <Input type="number" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Target" data-testid={`input-goal-target-${goal.id}`} />
+              )}
+              <Input type="number" value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="Weight" data-testid={`input-goal-weight-${goal.id}`} />
+              <div className="sm:col-span-3 flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => { onEditProposal({ title, target: target === '' ? undefined : Number(target), weight: Number(weight) }); setEditing(false); }}
+                  disabled={isSaving}
+                  data-testid={`button-save-goal-edit-${goal.id}`}
+                >
+                  Save
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
+              </div>
+            </div>
+          ) : (
+            <Button size="sm" variant="outline" onClick={() => setEditing(true)} data-testid={`button-edit-goal-${goal.id}`}>Edit Proposal</Button>
+          )}
+        </div>
+      )}
+
+      {goal.approvalStatus === 'accepted' && (
+        <div className="space-y-2">
+          <Label htmlFor={`goal-comment-${goal.id}`}>Your Comment / Progress</Label>
+          <Textarea id={`goal-comment-${goal.id}`} value={comment} onChange={(e) => setComment(e.target.value)} disabled={locked} data-testid={`textarea-goal-comment-${goal.id}`} />
+          {!locked && (
+            <Button size="sm" onClick={() => onSaveComment(comment)} disabled={isSaving} data-testid={`button-save-goal-comment-${goal.id}`}>
+              {isSaving ? 'Saving…' : 'Save Comment'}
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// My Performance (W77): reuses this ESS page's own independent per-module
+// gating pattern (attendanceAccessible/leaveAccessible above) — Performance
+// is checked separately from employee_self_service, so a disabled
+// Performance module degrades only this tab, never the rest of ESS.
+function MyPerformanceTab({ organizationId, employeeId }: { organizationId: number; employeeId: number }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [selectedReviewId, setSelectedReviewId] = useState<number | null>(null);
+  const [proposeOpen, setProposeOpen] = useState(false);
+  const [goalTitle, setGoalTitle] = useState('');
+  const [goalMeasurementType, setGoalMeasurementType] = useState<CreatePerformanceReviewGoalInputMeasurementType | ''>('');
+  const [goalTarget, setGoalTarget] = useState('');
+  const [goalUnit, setGoalUnit] = useState('');
+  const [goalWeight, setGoalWeight] = useState('0');
+
+  const reviewsQuery = useListMyPerformanceReviews(organizationId, {
+    query: { queryKey: getListMyPerformanceReviewsQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+  const reviews = reviewsQuery.data ?? [];
+
+  useEffect(() => {
+    if (selectedReviewId == null && reviews.length > 0) {
+      const inProgress = reviews.find((r) => r.status === 'self_assessment');
+      setSelectedReviewId((inProgress ?? reviews[reviews.length - 1]).id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviews.length]);
+
+  const detailQuery = useGetPerformanceReview(organizationId, selectedReviewId ?? 0, {
+    query: { queryKey: getGetPerformanceReviewQueryKey(organizationId, selectedReviewId ?? 0), enabled: organizationId > 0 && !!selectedReviewId },
+  });
+  const detail = detailQuery.data;
+  const review = detail?.review;
+  const scaleId = review?.ratingScaleId;
+
+  const scaleQuery = useGetPerformanceRatingScale(organizationId, scaleId ?? 0, {
+    query: { queryKey: getGetPerformanceRatingScaleQueryKey(organizationId, scaleId ?? 0), enabled: organizationId > 0 && !!scaleId },
+  });
+  const levels = scaleQuery.data?.levels ?? [];
+
+  const rateMutation = useRateCompetency();
+  const createGoalMutation = useCreatePerformanceReviewGoal();
+  const updateGoalMutation = useUpdatePerformanceReviewGoal();
+  const submitMutation = useSubmitSelfAssessment();
+
+  const invalidateDetail = () => {
+    if (selectedReviewId) queryClient.invalidateQueries({ queryKey: getGetPerformanceReviewQueryKey(organizationId, selectedReviewId) });
+    queryClient.invalidateQueries({ queryKey: getListMyPerformanceReviewsQueryKey(organizationId) });
+  };
+
+  const resetProposeForm = () => {
+    setGoalTitle('');
+    setGoalMeasurementType('');
+    setGoalTarget('');
+    setGoalUnit('');
+    setGoalWeight('0');
+  };
+
+  const handlePropose = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedReviewId || !goalTitle.trim() || !goalMeasurementType) return;
+    createGoalMutation.mutate(
+      {
+        organizationId,
+        id: selectedReviewId,
+        data: {
+          title: goalTitle.trim(),
+          measurementType: goalMeasurementType,
+          target: goalTarget === '' ? undefined : Number(goalTarget),
+          unit: goalUnit || undefined,
+          weight: Number(goalWeight),
+        },
+      },
+      {
+        onSuccess: () => {
+          setProposeOpen(false);
+          resetProposeForm();
+          invalidateDetail();
+          toast({ title: 'Goal proposed', description: 'Your manager will review this proposal.' });
+        },
+        onError: (err) => toast({ title: 'Could not propose goal', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  const isLocked = review ? review.status !== 'self_assessment' : true;
+
+  if (reviewsQuery.isLoading) {
+    return <Skeleton className="h-64 w-full" />;
+  }
+  if (reviewsQuery.error) {
+    return <QueryError title="Could not load your performance reviews" onRetry={() => reviewsQuery.refetch()} />;
+  }
+  if (reviews.length === 0) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+          <Target className="h-8 w-8 text-muted-foreground mb-4" aria-hidden="true" />
+          <h3 className="text-lg font-semibold text-foreground mb-2">No performance reviews yet</h3>
+          <p className="text-sm text-muted-foreground max-w-sm">You don't have any assigned reviews right now. Check back once your organisation opens a review cycle.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {reviews.length > 1 && (
+        <Select value={selectedReviewId ? String(selectedReviewId) : ''} onValueChange={(v) => setSelectedReviewId(Number(v))}>
+          <SelectTrigger className="w-full sm:w-64" data-testid="select-my-review">
+            <SelectValue placeholder="Choose a review" />
+          </SelectTrigger>
+          <SelectContent>
+            {reviews.map((r) => (
+              <SelectItem key={r.id} value={String(r.id)}>Review #{r.id} — {REVIEW_STATUS_LABEL[r.status] ?? r.status}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+
+      {detailQuery.isLoading ? (
+        <Skeleton className="h-64 w-full" />
+      ) : detailQuery.error ? (
+        <QueryError title="Could not load this review" onRetry={() => detailQuery.refetch()} />
+      ) : detail && review ? (
+        <>
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <CardTitle className="text-base">Review #{review.id}</CardTitle>
+                <Badge variant={review.status === 'self_assessment' ? 'outline' : 'secondary'} data-testid="badge-review-status">
+                  {REVIEW_STATUS_LABEL[review.status] ?? review.status}
+                </Badge>
+              </div>
+              <CardDescription>
+                {isLocked
+                  ? 'Your self-assessment has been submitted and can no longer be edited.'
+                  : 'Complete your self-assessment below, then submit it for your manager to review.'}
+              </CardDescription>
+            </CardHeader>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">Goals</CardTitle>
+                {!isLocked && (
+                  <Dialog open={proposeOpen} onOpenChange={(open) => { setProposeOpen(open); if (!open) resetProposeForm(); }}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" variant="secondary" data-testid="button-propose-goal">
+                        <Plus className="h-4 w-4" aria-hidden="true" />
+                        Propose a Goal
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <form onSubmit={handlePropose}>
+                        <DialogHeader>
+                          <DialogTitle>Propose a Goal</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="propose-goal-title">Title *</Label>
+                            <Input id="propose-goal-title" value={goalTitle} onChange={(e) => setGoalTitle(e.target.value)} required data-testid="input-propose-goal-title" />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="propose-goal-type">Measurement Type *</Label>
+                            <Select value={goalMeasurementType} onValueChange={(v) => setGoalMeasurementType(v as CreatePerformanceReviewGoalInputMeasurementType)}>
+                              <SelectTrigger id="propose-goal-type" data-testid="select-propose-goal-type">
+                                <SelectValue placeholder="Choose a type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="numeric">Numeric</SelectItem>
+                                <SelectItem value="percentage">Percentage</SelectItem>
+                                <SelectItem value="currency">Currency</SelectItem>
+                                <SelectItem value="boolean">Yes/No</SelectItem>
+                                <SelectItem value="rating">Rating</SelectItem>
+                                <SelectItem value="qualitative">Qualitative</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          {(goalMeasurementType === 'numeric' || goalMeasurementType === 'percentage' || goalMeasurementType === 'currency') && (
+                            <div className="space-y-2">
+                              <Label htmlFor="propose-goal-target">Target *</Label>
+                              <Input id="propose-goal-target" type="number" value={goalTarget} onChange={(e) => setGoalTarget(e.target.value)} data-testid="input-propose-goal-target" />
+                            </div>
+                          )}
+                          <div className="space-y-2">
+                            <Label htmlFor="propose-goal-weight">Weight</Label>
+                            <Input
+                              id="propose-goal-weight"
+                              type="number"
+                              value={goalWeight}
+                              onChange={(e) => setGoalWeight(e.target.value)}
+                              disabled={goalMeasurementType === 'qualitative'}
+                              data-testid="input-propose-goal-weight"
+                            />
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button type="submit" disabled={createGoalMutation.isPending} data-testid="button-submit-propose-goal">
+                            {createGoalMutation.isPending ? 'Proposing…' : 'Propose'}
+                          </Button>
+                        </DialogFooter>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {detail.goals.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No goals yet.</p>
+              ) : (
+                detail.goals.map((goal) => (
+                  <GoalCard
+                    key={goal.id}
+                    goal={goal}
+                    locked={isLocked}
+                    isSaving={updateGoalMutation.isPending}
+                    onSaveComment={(comment) =>
+                      updateGoalMutation.mutate(
+                        { organizationId, id: review.id, goalId: goal.id, data: { employeeComment: comment } },
+                        { onSuccess: () => { invalidateDetail(); toast({ title: 'Comment saved' }); }, onError: (err) => toast({ title: 'Could not save comment', description: errorMessage(err), variant: 'destructive' }) },
+                      )
+                    }
+                    onEditProposal={(fields) =>
+                      updateGoalMutation.mutate(
+                        { organizationId, id: review.id, goalId: goal.id, data: fields },
+                        { onSuccess: () => { invalidateDetail(); toast({ title: 'Proposal updated' }); }, onError: (err) => toast({ title: 'Could not update proposal', description: errorMessage(err), variant: 'destructive' }) },
+                      )
+                    }
+                  />
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Competencies</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {detail.competencies.map((competency) => (
+                <CompetencySelfRateRow
+                  key={competency.id}
+                  competency={competency}
+                  levels={levels}
+                  locked={isLocked}
+                  isSaving={rateMutation.isPending}
+                  onSave={(value, comment) =>
+                    rateMutation.mutate(
+                      { organizationId, id: review.id, competencyId: competency.id, data: { employeeRatingValue: value, employeeComment: comment || undefined } },
+                      { onSuccess: () => { invalidateDetail(); toast({ title: 'Rating saved' }); }, onError: (err) => toast({ title: 'Could not save rating', description: errorMessage(err), variant: 'destructive' }) },
+                    )
+                  }
+                />
+              ))}
+            </CardContent>
+          </Card>
+
+          {!isLocked && (
+            <Card>
+              <CardContent className="py-6 space-y-3">
+                {submitMutation.isError && (
+                  <div className="text-sm text-destructive space-y-1" data-testid="text-submission-problems">
+                    <p className="font-medium">Your self-assessment isn't ready to submit:</p>
+                    <ul className="list-disc list-inside">
+                      {(((submitMutation.error as { problems?: string[] })?.problems) ?? [errorMessage(submitMutation.error) ?? 'Please review your entries.']).map((p, i) => (
+                        <li key={i}>{p}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <Button
+                  onClick={() =>
+                    submitMutation.mutate(
+                      { organizationId, id: review.id },
+                      { onSuccess: () => { invalidateDetail(); toast({ title: 'Self-assessment submitted', description: 'Your manager can now review it.' }); }, onError: () => {} },
+                    )
+                  }
+                  disabled={submitMutation.isPending}
+                  data-testid="button-submit-self-assessment"
+                >
+                  <Send className="h-4 w-4" aria-hidden="true" />
+                  {submitMutation.isPending ? 'Submitting…' : 'Submit Self-Assessment'}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 const STAGE_VARIANT: Record<string, 'secondary' | 'outline' | 'destructive'> = {
   applied: 'outline',
   screening: 'secondary',
@@ -748,6 +1219,10 @@ export default function EmployeeSelfService() {
   // pattern as My Leave/Internal Vacancies (§5); employee_self_service
   // stays this page's own outer gate, unaffected by Attendance's own state.
   const attendanceAccessible = !!modules && isModuleAccessible(modules, 'attendance');
+  // Performance (W77) is checked independently within this page too —
+  // employee_self_service stays this page's own outer gate, unaffected by
+  // Performance's own state, exactly mirroring Attendance/Leave above.
+  const performanceAccessible = !!modules && isModuleAccessible(modules, 'performance');
 
   if (error) {
     return (
@@ -800,6 +1275,7 @@ export default function EmployeeSelfService() {
         <TabsList>
           <TabsTrigger value="profile" data-testid="tab-my-profile">My Profile</TabsTrigger>
           <TabsTrigger value="attendance" data-testid="tab-my-attendance">My Attendance</TabsTrigger>
+          <TabsTrigger value="performance" data-testid="tab-my-performance">My Performance</TabsTrigger>
           <TabsTrigger value="leave" data-testid="tab-my-leave">My Leave</TabsTrigger>
           <TabsTrigger value="documents" data-testid="tab-my-documents">My Documents</TabsTrigger>
           <TabsTrigger value="internal-vacancies" data-testid="tab-internal-vacancies">Internal Vacancies</TabsTrigger>
@@ -818,6 +1294,21 @@ export default function EmployeeSelfService() {
                 <h3 className="text-lg font-semibold text-foreground mb-2">Attendance isn't enabled</h3>
                 <p className="text-sm text-muted-foreground max-w-sm">
                   Your organisation hasn't enabled the Attendance module, so clocking and attendance history aren't available here.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+        <TabsContent value="performance">
+          {performanceAccessible ? (
+            <MyPerformanceTab organizationId={organizationId} employeeId={employee.id} />
+          ) : (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+                <Target className="h-8 w-8 text-muted-foreground mb-4" aria-hidden="true" />
+                <h3 className="text-lg font-semibold text-foreground mb-2">Performance isn't enabled</h3>
+                <p className="text-sm text-muted-foreground max-w-sm">
+                  Your organisation hasn't enabled the Performance module, so reviews and self-assessment aren't available here.
                 </p>
               </CardContent>
             </Card>

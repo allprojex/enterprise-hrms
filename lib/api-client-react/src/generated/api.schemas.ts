@@ -4835,6 +4835,11 @@ export interface UpdatePerformanceReviewGoalInput {
   weight?: number;
   /** @nullable */
   dueDate?: string | null;
+  /**
+     * W77 addition — the only field the goal's own employee may set on an already-`accepted` official goal, self_assessment only (§14's "enter comments on goals"). Structural fields above remain reviewer-only on an accepted goal.
+     * @nullable
+     */
+  employeeComment?: string | null;
 }
 
 /**
@@ -4859,6 +4864,18 @@ export interface RejectPerformanceReviewGoalInput {
      * @minLength 1
      */
   reason: string;
+}
+
+export interface RateCompetencyInput {
+  /** Must match one of this review's own configured rating-scale level values. */
+  employeeRatingValue: number;
+  employeeComment?: string;
+}
+
+export interface SelfAssessmentNotReadyError {
+  error: string;
+  /** Every readiness problem found, listed at once — not just the first. */
+  problems: string[];
 }
 
 export interface PerformanceReviewWithCompetencies {

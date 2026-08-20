@@ -33,6 +33,19 @@ const { state } = vi.hoisted(() => ({
     clockPending: false,
     requestMutate: vi.fn() as (...args: unknown[]) => void,
     requestPending: false,
+    myReviews: [] as unknown[],
+    myReviewsLoading: false,
+    myReviewsError: undefined as unknown,
+    reviewDetail: undefined as unknown,
+    reviewDetailLoading: false,
+    reviewDetailError: undefined as unknown,
+    ratingScale: undefined as unknown,
+    rateMutate: vi.fn() as (...args: unknown[]) => void,
+    createGoalMutate: vi.fn() as (...args: unknown[]) => void,
+    updateGoalMutate: vi.fn() as (...args: unknown[]) => void,
+    submitMutate: vi.fn() as (...args: unknown[]) => void,
+    submitPending: false,
+    submitError: undefined as unknown,
   },
 }));
 
@@ -78,6 +91,20 @@ vi.mock('@workspace/api-client-react', () => ({
     mark_present: 'mark_present',
     mark_absent: 'mark_absent',
     excuse_absence: 'excuse_absence',
+  },
+  // My Performance (W77)
+  useListMyPerformanceReviews: () => ({ data: state.myReviews, isLoading: state.myReviewsLoading, error: state.myReviewsError, refetch: vi.fn() }),
+  getListMyPerformanceReviewsQueryKey: () => ['myPerformanceReviews'],
+  useGetPerformanceReview: () => ({ data: state.reviewDetail, isLoading: state.reviewDetailLoading, error: state.reviewDetailError, refetch: vi.fn() }),
+  getGetPerformanceReviewQueryKey: () => ['performanceReview'],
+  useGetPerformanceRatingScale: () => ({ data: state.ratingScale }),
+  getGetPerformanceRatingScaleQueryKey: () => ['performanceRatingScale'],
+  useRateCompetency: () => ({ mutate: state.rateMutate, isPending: false }),
+  useCreatePerformanceReviewGoal: () => ({ mutate: state.createGoalMutate, isPending: false }),
+  useUpdatePerformanceReviewGoal: () => ({ mutate: state.updateGoalMutate, isPending: false }),
+  useSubmitSelfAssessment: () => ({ mutate: state.submitMutate, isPending: state.submitPending, isError: !!state.submitError, error: state.submitError }),
+  CreatePerformanceReviewGoalInputMeasurementType: {
+    numeric: 'numeric', percentage: 'percentage', currency: 'currency', boolean: 'boolean', rating: 'rating', qualitative: 'qualitative',
   },
 }));
 
@@ -516,6 +543,191 @@ describe('Employee Self-Service page', () => {
         }),
         expect.anything(),
       );
+    });
+  });
+
+  describe('My Performance tab (W77)', () => {
+    function performanceReview(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 1, organizationId: 10, cycleId: 1, templateId: 1, ratingScaleId: 1, employeeId: 42,
+        reviewerEmployeeId: 7, goalsWeight: 60, competenciesWeight: 40, scoringPrecisionSnapshot: 0,
+        acknowledgementRequiredSnapshot: true, status: 'self_assessment', revisionNumber: 1,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+        ...overrides,
+      };
+    }
+    function competency(overrides: Record<string, unknown> = {}) {
+      return { id: 1, organizationId: 10, reviewId: 1, label: 'Delivery', weight: 100, sortOrder: 0, notApplicable: false, ...overrides };
+    }
+    function goal(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 1, organizationId: 10, reviewId: 1, title: 'Ship X', measurementType: 'numeric', weight: 100,
+        status: 'not_started', originType: 'manager', approvalStatus: 'accepted', notApplicable: false,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+        ...overrides,
+      };
+    }
+
+    function resetPerformanceState() {
+      state.myReviews = [];
+      state.myReviewsLoading = false;
+      state.myReviewsError = undefined;
+      state.reviewDetail = undefined;
+      state.reviewDetailLoading = false;
+      state.reviewDetailError = undefined;
+      state.ratingScale = { scale: { id: 1, name: 'Standard' }, levels: [{ id: 1, ratingScaleId: 1, value: '1', label: 'Low', sortOrder: 0 }, { id: 2, ratingScaleId: 1, value: '5', label: 'High', sortOrder: 1 }] };
+      state.rateMutate = vi.fn();
+      state.createGoalMutate = vi.fn();
+      state.updateGoalMutate = vi.fn();
+      state.submitMutate = vi.fn();
+      state.submitPending = false;
+      state.submitError = undefined;
+    }
+
+    it('handles a disabled Performance module cleanly, without affecting My Attendance', async () => {
+      resetPerformanceState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'attendance', enabled: true }), mod({ key: 'performance', enabled: false })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-performance'));
+      expect(screen.getByText(/performance isn't enabled/i)).toBeInTheDocument();
+
+      await userEvent.click(screen.getByTestId('tab-my-attendance'));
+      expect(screen.getByTestId('button-clock-in')).toBeInTheDocument();
+    });
+
+    it('shows an empty state when the employee has no assigned reviews', async () => {
+      resetPerformanceState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'performance', enabled: true })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-performance'));
+      expect(screen.getByText(/no performance reviews yet/i)).toBeInTheDocument();
+    });
+
+    it('renders goals and competencies for the assigned review, with the propose-goal control visible while self_assessment', async () => {
+      resetPerformanceState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'performance', enabled: true })];
+      state.myReviews = [performanceReview()];
+      state.reviewDetail = { review: performanceReview(), competencies: [competency()], goals: [goal()] };
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-performance'));
+      expect(screen.getByTestId('row-goal-1')).toHaveTextContent('Ship X');
+      expect(screen.getByTestId('row-competency-1')).toHaveTextContent('Delivery');
+      expect(screen.getByTestId('button-propose-goal')).toBeInTheDocument();
+      expect(screen.getByTestId('button-submit-self-assessment')).toBeInTheDocument();
+    });
+
+    it('saves a competency self-rating', async () => {
+      resetPerformanceState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'performance', enabled: true })];
+      state.myReviews = [performanceReview()];
+      state.reviewDetail = { review: performanceReview(), competencies: [competency()], goals: [] };
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-performance'));
+      await userEvent.click(screen.getByTestId('select-competency-rating-1'));
+      await userEvent.click(screen.getByRole('option', { name: /High/i }));
+      await userEvent.click(screen.getByTestId('button-save-competency-1'));
+      expect(state.rateMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ organizationId: 10, id: 1, competencyId: 1, data: expect.objectContaining({ employeeRatingValue: 5 }) }),
+        expect.anything(),
+      );
+    });
+
+    it('saves a self-assessment comment on an accepted goal', async () => {
+      resetPerformanceState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'performance', enabled: true })];
+      state.myReviews = [performanceReview()];
+      state.reviewDetail = { review: performanceReview(), competencies: [], goals: [goal()] };
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-performance'));
+      await userEvent.type(screen.getByTestId('textarea-goal-comment-1'), 'Going well');
+      await userEvent.click(screen.getByTestId('button-save-goal-comment-1'));
+      expect(state.updateGoalMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ organizationId: 10, id: 1, goalId: 1, data: { employeeComment: 'Going well' } }),
+        expect.anything(),
+      );
+    });
+
+    it('submits a goal proposal through the create-goal API', async () => {
+      resetPerformanceState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'performance', enabled: true })];
+      state.myReviews = [performanceReview()];
+      state.reviewDetail = { review: performanceReview(), competencies: [], goals: [] };
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-performance'));
+      await userEvent.click(screen.getByTestId('button-propose-goal'));
+      await userEvent.type(screen.getByTestId('input-propose-goal-title'), 'Learn TypeScript');
+      await userEvent.click(screen.getByTestId('select-propose-goal-type'));
+      await userEvent.click(screen.getByRole('option', { name: 'Qualitative' }));
+      await userEvent.click(screen.getByTestId('button-submit-propose-goal'));
+      expect(state.createGoalMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ organizationId: 10, id: 1, data: expect.objectContaining({ title: 'Learn TypeScript', measurementType: 'qualitative' }) }),
+        expect.anything(),
+      );
+    });
+
+    it('shows every readiness problem on a blocked submission, not just the first', async () => {
+      resetPerformanceState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'performance', enabled: true })];
+      state.myReviews = [performanceReview()];
+      state.reviewDetail = { review: performanceReview(), competencies: [competency()], goals: [] };
+      state.submitError = { error: 'not ready', problems: ['Competency "Delivery" is missing your self-rating', 'Something else is missing'] };
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-performance'));
+      const problems = screen.getByTestId('text-submission-problems');
+      expect(problems).toHaveTextContent('Delivery');
+      expect(problems).toHaveTextContent('Something else is missing');
+    });
+
+    it('locks all self-assessment controls once the review has moved to manager_review', async () => {
+      resetPerformanceState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'performance', enabled: true })];
+      state.myReviews = [performanceReview({ status: 'manager_review' })];
+      state.reviewDetail = { review: performanceReview({ status: 'manager_review' }), competencies: [competency({ employeeRatingValue: '5' })], goals: [goal()] };
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-performance'));
+      expect(screen.queryByTestId('button-propose-goal')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-submit-self-assessment')).not.toBeInTheDocument();
+      expect(screen.getByTestId('select-competency-rating-1')).toBeDisabled();
+    });
+
+    it('does not expose manager scoring or finalize controls to the employee', async () => {
+      resetPerformanceState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'performance', enabled: true })];
+      state.myReviews = [performanceReview()];
+      state.reviewDetail = { review: performanceReview(), competencies: [competency()], goals: [goal()] };
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-performance'));
+      expect(screen.queryByRole('button', { name: /finalize/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /accept proposal/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /reject proposal/i })).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(/manager rating/i)).not.toBeInTheDocument();
     });
   });
 });

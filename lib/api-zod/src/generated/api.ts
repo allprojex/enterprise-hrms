@@ -8391,7 +8391,8 @@ export const UpdatePerformanceReviewGoalBody = zod.object({
   "target": zod.number().nullish(),
   "unit": zod.string().nullish(),
   "weight": zod.number().optional(),
-  "dueDate": zod.coerce.date().nullish()
+  "dueDate": zod.coerce.date().nullish(),
+  "employeeComment": zod.string().nullish().describe('W77 addition — the only field the goal\'s own employee may set on an already-`accepted` official goal, self_assessment only (§14\'s \"enter comments on goals\"). Structural fields above remain reviewer-only on an accepted goal.')
 })
 
 export const UpdatePerformanceReviewGoalResponse = zod.object({
@@ -8503,6 +8504,114 @@ export const RejectPerformanceReviewGoalResponse = zod.object({
   "approvalStatus": zod.enum(['accepted', 'proposed', 'rejected']),
   "notApplicable": zod.boolean().optional(),
   "notApplicableReason": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Requires performance.read.own. employeeId is always server-resolved from the caller's own employee_user_links row, never client-supplied. Returns an empty array if the caller has no linked employee record.
+ * @summary ESS — the caller's own Performance reviews
+ */
+export const ListMyPerformanceReviewsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListMyPerformanceReviewsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "cycleId": zod.number(),
+  "templateId": zod.number(),
+  "ratingScaleId": zod.number(),
+  "employeeId": zod.number(),
+  "reviewerEmployeeId": zod.number().nullish(),
+  "departmentIdSnapshot": zod.number().nullish(),
+  "positionIdSnapshot": zod.number().nullish(),
+  "goalsWeight": zod.number(),
+  "competenciesWeight": zod.number(),
+  "scoringPrecisionSnapshot": zod.number(),
+  "acknowledgementRequiredSnapshot": zod.boolean(),
+  "status": zod.enum(['draft', 'self_assessment', 'manager_review', 'hr_review', 'finalized', 'acknowledged']),
+  "selfAssessmentSubmittedAt": zod.coerce.date().nullish(),
+  "managerReviewSubmittedAt": zod.coerce.date().nullish(),
+  "hrFinalizedAt": zod.coerce.date().nullish(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "employeeFinalComment": zod.string().nullish(),
+  "computedOverallScore": zod.string().nullish(),
+  "hrOverrideScore": zod.string().nullish(),
+  "hrOverrideReason": zod.string().nullish(),
+  "revisionNumber": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListMyPerformanceReviewsResponse = zod.array(ListMyPerformanceReviewsResponseItem)
+
+
+/**
+ * Requires performance.write.own, own review only, self_assessment status only. employeeRatingValue must match one of the review's own configured rating-scale levels. Never touches managerRatingValue/managerComment.
+ * @summary Employee self-rates a snapshotted competency
+ */
+export const RateCompetencyParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number(),
+  "competencyId": zod.coerce.number()
+})
+
+export const RateCompetencyBody = zod.object({
+  "employeeRatingValue": zod.number().describe('Must match one of this review\'s own configured rating-scale level values.'),
+  "employeeComment": zod.string().optional()
+})
+
+export const RateCompetencyResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "reviewId": zod.number(),
+  "label": zod.string(),
+  "description": zod.string().nullish(),
+  "weight": zod.number(),
+  "sortOrder": zod.number(),
+  "employeeRatingValue": zod.string().nullish(),
+  "employeeComment": zod.string().nullish(),
+  "managerRatingValue": zod.string().nullish(),
+  "managerComment": zod.string().nullish(),
+  "notApplicable": zod.boolean().optional(),
+  "notApplicableReason": zod.string().nullish()
+})
+
+
+/**
+ * Requires performance.write.own, own review only. Readiness is validated first (400, listing every problem): every competency has an employeeRatingValue; every accepted, non-qualitative, non-N/A goal has a non-empty employeeComment; if any such goals exist, their weights sum to exactly 100. An atomic conditional UPDATE ... WHERE status = 'self_assessment' then performs the transition, setting selfAssessmentSubmittedAt — a concurrent or repeat submission affects zero rows and returns 409.
+ * @summary Employee submits their self-assessment — the authoritative self_assessment -> manager_review transition
+ */
+export const SubmitSelfAssessmentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const SubmitSelfAssessmentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "cycleId": zod.number(),
+  "templateId": zod.number(),
+  "ratingScaleId": zod.number(),
+  "employeeId": zod.number(),
+  "reviewerEmployeeId": zod.number().nullish(),
+  "departmentIdSnapshot": zod.number().nullish(),
+  "positionIdSnapshot": zod.number().nullish(),
+  "goalsWeight": zod.number(),
+  "competenciesWeight": zod.number(),
+  "scoringPrecisionSnapshot": zod.number(),
+  "acknowledgementRequiredSnapshot": zod.boolean(),
+  "status": zod.enum(['draft', 'self_assessment', 'manager_review', 'hr_review', 'finalized', 'acknowledged']),
+  "selfAssessmentSubmittedAt": zod.coerce.date().nullish(),
+  "managerReviewSubmittedAt": zod.coerce.date().nullish(),
+  "hrFinalizedAt": zod.coerce.date().nullish(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "employeeFinalComment": zod.string().nullish(),
+  "computedOverallScore": zod.string().nullish(),
+  "hrOverrideScore": zod.string().nullish(),
+  "hrOverrideReason": zod.string().nullish(),
+  "revisionNumber": zod.number(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })

@@ -9897,6 +9897,149 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/performance/my-reviews:
+    get:
+      operationId: listMyPerformanceReviews
+      tags: [performance-reviews]
+      summary: ESS — the caller's own Performance reviews
+      description: Requires performance.read.own. employeeId is always server-resolved from the caller's own employee_user_links row, never client-supplied. Returns an empty array if the caller has no linked employee record.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The caller's own reviews
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PerformanceReview"
+
+  /organizations/{organizationId}/performance/reviews/{id}/competencies/{competencyId}:
+    patch:
+      operationId: rateCompetency
+      tags: [performance-reviews]
+      summary: Employee self-rates a snapshotted competency
+      description: >-
+        Requires performance.write.own, own review only, self_assessment
+        status only. employeeRatingValue must match one of the review's
+        own configured rating-scale levels. Never touches
+        managerRatingValue/managerComment.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: competencyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RateCompetencyInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerformanceReviewCompetency"
+        "400":
+          description: employeeRatingValue does not match a configured rating-scale level
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Not this review's own employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: The review is not in self_assessment status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/performance/reviews/{id}/self-assessment:
+    post:
+      operationId: submitSelfAssessment
+      tags: [performance-reviews]
+      summary: Employee submits their self-assessment — the authoritative self_assessment -> manager_review transition
+      description: >-
+        Requires performance.write.own, own review only. Readiness is
+        validated first (400, listing every problem): every competency
+        has an employeeRatingValue; every accepted, non-qualitative,
+        non-N/A goal has a non-empty employeeComment; if any such goals
+        exist, their weights sum to exactly 100. An atomic conditional
+        UPDATE ... WHERE status = 'self_assessment' then performs the
+        transition, setting selfAssessmentSubmittedAt — a concurrent or
+        repeat submission affects zero rows and returns 409.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Submitted — review is now in manager_review status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerformanceReview"
+        "400":
+          description: Self-assessment is not ready to submit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SelfAssessmentNotReadyError"
+        "403":
+          description: Not this review's own employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: The review is not (or is no longer) in self_assessment status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -15260,6 +15403,13 @@ components:
         dueDate:
           type: ["string", "null"]
           format: date
+        employeeComment:
+          type: ["string", "null"]
+          description: >-
+            W77 addition — the only field the goal's own employee may set
+            on an already-`accepted` official goal, self_assessment only
+            (§14's "enter comments on goals"). Structural fields above
+            remain reviewer-only on an accepted goal.
 
     AcceptPerformanceReviewGoalInput:
       type: object
@@ -15288,6 +15438,28 @@ components:
           type: string
           minLength: 1
           description: Stored as the goal's managerComment.
+
+    RateCompetencyInput:
+      type: object
+      required: [employeeRatingValue]
+      properties:
+        employeeRatingValue:
+          type: number
+          description: Must match one of this review's own configured rating-scale level values.
+        employeeComment:
+          type: string
+
+    SelfAssessmentNotReadyError:
+      type: object
+      required: [error, problems]
+      properties:
+        error:
+          type: string
+        problems:
+          type: array
+          items:
+            type: string
+          description: Every readiness problem found, listed at once — not just the first.
 
     PerformanceReviewWithCompetencies:
       type: object

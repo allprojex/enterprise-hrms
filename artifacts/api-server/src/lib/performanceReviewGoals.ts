@@ -336,13 +336,29 @@ export interface UpdateGoalParams {
   unit?: string | null;
   weight?: number;
   dueDate?: string | null;
+  /** W77 addition — see the third path below. */
+  employeeComment?: string | null;
 }
 
 /**
- * Edits a goal — two disjoint, mutually exclusive paths (§27):
- * employee may edit only their OWN still-`proposed` goal, only while
- * `self_assessment`; the reviewer of record may edit ANY goal on the
- * review, only while `manager_review`. No audit event (see file header).
+ * Edits a goal — three disjoint, mutually exclusive paths:
+ *
+ * 1. Employee edits their OWN still-`proposed` goal (any field above),
+ *    only while `self_assessment` (§27's own frozen line for this route).
+ * 2. The reviewer of record edits ANY goal (any field above), only while
+ *    `manager_review`.
+ * 3. **W77 addition**: the employee records their self-assessment
+ *    `employeeComment` on an ACCEPTED official goal (manager-created, or
+ *    their own proposal once accepted) while `self_assessment` — §14's
+ *    "enter comments on goals". §27's own frozen route table never named
+ *    a separate route for this (only the pre-acceptance proposal-edit
+ *    path above), so this is the smallest reconciling extension: same
+ *    route, a third path, gated to `approvalStatus = 'accepted'` and
+ *    restricted to `employeeComment` alone — the employee still cannot
+ *    touch title/target/weight/dueDate on an official goal (that stays
+ *    manager/reviewer-only, path 2 above).
+ *
+ * No audit event for any path (see file header).
  */
 export async function updateGoal(params: UpdateGoalParams): Promise<PerformanceReviewGoal> {
   const review = await findOwnReview(params.organizationId, params.reviewId);
@@ -350,22 +366,42 @@ export async function updateGoal(params: UpdateGoalParams): Promise<PerformanceR
   const goal = await findOwnGoal(params.organizationId, params.reviewId, params.goalId);
   if (!goal) throw new PerformanceGoalNotFoundError();
 
-  const isOwnProposal = params.callerEmployeeId != null && review.employeeId === params.callerEmployeeId;
+  const isOwn = params.callerEmployeeId != null && review.employeeId === params.callerEmployeeId;
   const isReviewer = params.callerEmployeeId != null && review.reviewerEmployeeId === params.callerEmployeeId;
+  const editingStructuralFields =
+    params.title !== undefined || params.description !== undefined || params.target !== undefined || params.unit !== undefined || params.weight !== undefined || params.dueDate !== undefined;
 
-  if (isOwnProposal) {
-    if (goal.originType !== "employee_proposed" || goal.approvalStatus !== "proposed") {
-      throw new PerformanceGoalForbiddenError("You may only edit your own goal proposal before it has been decided");
-    }
+  let allowEmployeeCommentOnly = false;
+  if (isOwn && goal.originType === "employee_proposed" && goal.approvalStatus === "proposed") {
+    // Path 1: pre-acceptance proposal edit.
     if (review.status !== "self_assessment") {
       throw new PerformanceGoalStageError("Your goal proposal can only be edited while the review is in self_assessment status");
     }
   } else if (isReviewer) {
+    // Path 2: reviewer edits any goal.
     if (review.status !== "manager_review") {
       throw new PerformanceGoalStageError("Goals can only be edited by the reviewer while the review is in manager_review status");
     }
+  } else if (isOwn && goal.approvalStatus === "accepted") {
+    // Path 3 (W77): self-assessment comment on an official goal.
+    if (editingStructuralFields) {
+      throw new PerformanceGoalForbiddenError("You may only record your own comment on an official goal — its definition is set by your reviewer");
+    }
+    if (review.status !== "self_assessment") {
+      throw new PerformanceGoalStageError("Self-assessment comments can only be recorded while the review is in self_assessment status");
+    }
+    allowEmployeeCommentOnly = true;
   } else {
     throw new PerformanceGoalForbiddenError();
+  }
+
+  if (allowEmployeeCommentOnly) {
+    const [updated] = await db
+      .update(performanceReviewGoalsTable)
+      .set({ employeeComment: params.employeeComment ?? null, updatedAt: new Date() })
+      .where(eq(performanceReviewGoalsTable.id, params.goalId))
+      .returning();
+    return updated;
   }
 
   validateGoalFields({
@@ -383,6 +419,7 @@ export async function updateGoal(params: UpdateGoalParams): Promise<PerformanceR
   if (params.unit !== undefined) patch.unit = params.unit;
   if (params.weight !== undefined) patch.weight = params.weight;
   if (params.dueDate !== undefined) patch.dueDate = params.dueDate;
+  if (params.employeeComment !== undefined) patch.employeeComment = params.employeeComment;
 
   const [updated] = await db.update(performanceReviewGoalsTable).set(patch).where(eq(performanceReviewGoalsTable.id, params.goalId)).returning();
   return updated;

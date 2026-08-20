@@ -159,6 +159,7 @@ import type {
   PerformanceRatingScaleLevel,
   PerformanceRatingScaleWithLevels,
   PerformanceReview,
+  PerformanceReviewCompetency,
   PerformanceReviewTemplate,
   PerformanceReviewTemplateWithCompetencies,
   PerformanceReviewWithCompetencies,
@@ -174,6 +175,7 @@ import type {
   PublicOrganization,
   PublicVacancyDetail,
   PublicVacancyListResponse,
+  RateCompetencyInput,
   ReadinessStatus,
   RecordAttendanceAdjustmentInput,
   RecordAttendanceEventInput,
@@ -201,6 +203,7 @@ import type {
   RunReportParams,
   SaveInterviewScorecardInput,
   ScheduleInterviewInput,
+  SelfAssessmentNotReadyError,
   SeparateEmployeeInput,
   SetPrimaryHrInput,
   SubmitApplicationScoreInput,
@@ -20338,5 +20341,234 @@ export const useRejectPerformanceReviewGoal = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getRejectPerformanceReviewGoalMutationOptions(options));
+    }
+
+export const getListMyPerformanceReviewsUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/my-reviews`
+}
+
+/**
+ * Requires performance.read.own. employeeId is always server-resolved from the caller's own employee_user_links row, never client-supplied. Returns an empty array if the caller has no linked employee record.
+ * @summary ESS — the caller's own Performance reviews
+ */
+export const listMyPerformanceReviews = async (organizationId: number, options?: RequestInit): Promise<PerformanceReview[]> => {
+
+  return customFetch<PerformanceReview[]>(getListMyPerformanceReviewsUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyPerformanceReviewsQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/performance/my-reviews`
+    ] as const;
+    }
+
+
+export const getListMyPerformanceReviewsQueryOptions = <TData = Awaited<ReturnType<typeof listMyPerformanceReviews>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyPerformanceReviews>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyPerformanceReviewsQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyPerformanceReviews>>> = ({ signal }) => listMyPerformanceReviews(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyPerformanceReviews>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMyPerformanceReviewsQueryResult = NonNullable<Awaited<ReturnType<typeof listMyPerformanceReviews>>>
+export type ListMyPerformanceReviewsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary ESS — the caller's own Performance reviews
+ */
+
+export function useListMyPerformanceReviews<TData = Awaited<ReturnType<typeof listMyPerformanceReviews>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyPerformanceReviews>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMyPerformanceReviewsQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRateCompetencyUrl = (organizationId: number,
+    id: number,
+    competencyId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/reviews/${id}/competencies/${competencyId}`
+}
+
+/**
+ * Requires performance.write.own, own review only, self_assessment status only. employeeRatingValue must match one of the review's own configured rating-scale levels. Never touches managerRatingValue/managerComment.
+ * @summary Employee self-rates a snapshotted competency
+ */
+export const rateCompetency = async (organizationId: number,
+    id: number,
+    competencyId: number,
+    rateCompetencyInput: RateCompetencyInput, options?: RequestInit): Promise<PerformanceReviewCompetency> => {
+
+  return customFetch<PerformanceReviewCompetency>(getRateCompetencyUrl(organizationId,id,competencyId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(rateCompetencyInput)
+  }
+);}
+
+
+
+
+
+export const getRateCompetencyMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rateCompetency>>, TError,{organizationId: number;id: number;competencyId: number;data: BodyType<RateCompetencyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rateCompetency>>, TError,{organizationId: number;id: number;competencyId: number;data: BodyType<RateCompetencyInput>}, TContext> => {
+
+const mutationKey = ['rateCompetency'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rateCompetency>>, {organizationId: number;id: number;competencyId: number;data: BodyType<RateCompetencyInput>}> = (props) => {
+          const {organizationId,id,competencyId,data} = props ?? {};
+
+          return  rateCompetency(organizationId,id,competencyId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RateCompetencyMutationResult = NonNullable<Awaited<ReturnType<typeof rateCompetency>>>
+    export type RateCompetencyMutationBody = BodyType<RateCompetencyInput>
+    export type RateCompetencyMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Employee self-rates a snapshotted competency
+ */
+export const useRateCompetency = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rateCompetency>>, TError,{organizationId: number;id: number;competencyId: number;data: BodyType<RateCompetencyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rateCompetency>>,
+        TError,
+        {organizationId: number;id: number;competencyId: number;data: BodyType<RateCompetencyInput>},
+        TContext
+      > => {
+      return useMutation(getRateCompetencyMutationOptions(options));
+    }
+
+export const getSubmitSelfAssessmentUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/reviews/${id}/self-assessment`
+}
+
+/**
+ * Requires performance.write.own, own review only. Readiness is validated first (400, listing every problem): every competency has an employeeRatingValue; every accepted, non-qualitative, non-N/A goal has a non-empty employeeComment; if any such goals exist, their weights sum to exactly 100. An atomic conditional UPDATE ... WHERE status = 'self_assessment' then performs the transition, setting selfAssessmentSubmittedAt — a concurrent or repeat submission affects zero rows and returns 409.
+ * @summary Employee submits their self-assessment — the authoritative self_assessment -> manager_review transition
+ */
+export const submitSelfAssessment = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<PerformanceReview> => {
+
+  return customFetch<PerformanceReview>(getSubmitSelfAssessmentUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getSubmitSelfAssessmentMutationOptions = <TError = ErrorType<SelfAssessmentNotReadyError | ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitSelfAssessment>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitSelfAssessment>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['submitSelfAssessment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitSelfAssessment>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  submitSelfAssessment(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitSelfAssessmentMutationResult = NonNullable<Awaited<ReturnType<typeof submitSelfAssessment>>>
+
+    export type SubmitSelfAssessmentMutationError = ErrorType<SelfAssessmentNotReadyError | ApiError>
+
+    /**
+ * @summary Employee submits their self-assessment — the authoritative self_assessment -> manager_review transition
+ */
+export const useSubmitSelfAssessment = <TError = ErrorType<SelfAssessmentNotReadyError | ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitSelfAssessment>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitSelfAssessment>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getSubmitSelfAssessmentMutationOptions(options));
     }
 

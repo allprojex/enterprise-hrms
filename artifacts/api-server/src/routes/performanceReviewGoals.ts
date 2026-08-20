@@ -172,6 +172,7 @@ router.patch(
         unit: parsed.data.unit,
         weight: parsed.data.weight,
         dueDate: iso(parsed.data.dueDate),
+        employeeComment: parsed.data.employeeComment,
       });
       res.json(updated);
     } catch (err) {
