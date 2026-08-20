@@ -5193,6 +5193,150 @@ export interface UpdateLearningCourseSessionInput {
   status?: UpdateLearningCourseSessionInputStatus;
 }
 
+export type LearningEnrollmentDeliveryModeSnapshot = typeof LearningEnrollmentDeliveryModeSnapshot[keyof typeof LearningEnrollmentDeliveryModeSnapshot];
+
+
+export const LearningEnrollmentDeliveryModeSnapshot = {
+  self_paced: 'self_paced',
+  instructor_led: 'instructor_led',
+} as const;
+
+export type LearningEnrollmentOriginType = typeof LearningEnrollmentOriginType[keyof typeof LearningEnrollmentOriginType];
+
+
+export const LearningEnrollmentOriginType = {
+  hr_assigned: 'hr_assigned',
+  manager_assigned: 'manager_assigned',
+  employee_requested: 'employee_requested',
+} as const;
+
+export type LearningEnrollmentApprovalStatus = typeof LearningEnrollmentApprovalStatus[keyof typeof LearningEnrollmentApprovalStatus];
+
+
+export const LearningEnrollmentApprovalStatus = {
+  auto_approved: 'auto_approved',
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export type LearningEnrollmentStatus = typeof LearningEnrollmentStatus[keyof typeof LearningEnrollmentStatus];
+
+
+export const LearningEnrollmentStatus = {
+  assigned: 'assigned',
+  in_progress: 'in_progress',
+  completed: 'completed',
+  failed: 'failed',
+  cancelled: 'cancelled',
+} as const;
+
+export interface LearningEnrollment {
+  id: number;
+  organizationId: number;
+  courseId: number;
+  /** @nullable */
+  sessionId: number | null;
+  employeeId: number;
+  courseTitleSnapshot: string;
+  categorySnapshot: string;
+  deliveryModeSnapshot: LearningEnrollmentDeliveryModeSnapshot;
+  hasAssessmentSnapshot: boolean;
+  issuesCertificateSnapshot: boolean;
+  /** @nullable */
+  certificateValidityMonthsSnapshot: number | null;
+  /** @nullable */
+  departmentIdSnapshot: number | null;
+  /** @nullable */
+  positionIdSnapshot: number | null;
+  /** @nullable */
+  managerEmployeeIdSnapshot: number | null;
+  mandatoryAtAssignment: boolean;
+  originType: LearningEnrollmentOriginType;
+  /** @nullable */
+  assignedByMembershipId: number | null;
+  /** @nullable */
+  dueDate: string | null;
+  approvalStatus: LearningEnrollmentApprovalStatus;
+  /** @nullable */
+  approvalDecidedByMembershipId: number | null;
+  /** @nullable */
+  approvalDecidedAt: string | null;
+  status: LearningEnrollmentStatus;
+  /** @nullable */
+  attended: boolean | null;
+  /** @nullable */
+  attendanceMarkedByMembershipId: number | null;
+  /** @nullable */
+  attendanceMarkedAt: string | null;
+  /** @nullable */
+  passed: boolean | null;
+  /** @nullable */
+  score: string | null;
+  /** @nullable */
+  completedAt: string | null;
+  /** @nullable */
+  cancelReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * employeeId is never accepted here — always server-derived from the caller's own linked employee record.
+ */
+export interface RequestLearningEnrollmentInput {
+  /** Required for an instructor-led course, forbidden for a self-paced one. */
+  sessionId?: number;
+}
+
+export type AssignLearningEnrollmentsInputScope = typeof AssignLearningEnrollmentsInputScope[keyof typeof AssignLearningEnrollmentsInputScope];
+
+
+export const AssignLearningEnrollmentsInputScope = {
+  all_active: 'all_active',
+  department: 'department',
+  position: 'position',
+  manual: 'manual',
+} as const;
+
+/**
+ * A caller holding only learning.review.write (manager of record) is restricted server-side to scope = 'manual' with every employeeId validated as their own current direct report — audience-targeting scopes are learning.manage only.
+ */
+export interface AssignLearningEnrollmentsInput {
+  /** Required for an instructor-led course, forbidden for a self-paced one. */
+  sessionId?: number;
+  scope: AssignLearningEnrollmentsInputScope;
+  /** Required and used only when scope = department. */
+  departmentId?: number;
+  /** Required and used only when scope = position. */
+  positionId?: number;
+  /** Required and used only when scope = manual. */
+  employeeIds?: number[];
+  /** Overrides the course's own mandatoryDefault for these enrollments. Defaults to the course's mandatoryDefault when omitted. */
+  mandatory?: boolean;
+  dueDate?: string;
+}
+
+export interface AssignLearningEnrollmentsResult {
+  assignedCount: number;
+  /** Eligible employees skipped because they already held a non-terminal enrollment for this course/session — not treated as a batch failure. */
+  skippedCount: number;
+  enrollments: LearningEnrollment[];
+  skippedEmployeeIds: number[];
+}
+
+export interface CancelLearningEnrollmentInput {
+  /** Required when the caller is not the enrollment's own employee, or when the enrollment is mandatory. Optional for an employee self-cancelling their own non-mandatory, not-yet-started enrollment. */
+  cancelReason?: string;
+}
+
+export interface LearningEnrollmentListResponse {
+  items: LearningEnrollment[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 export type ListEmployeesParams = {
 search?: string;
 departmentId?: number;
@@ -5562,4 +5706,34 @@ export type AddPerformanceReviewEvidenceBody = {
   /** Must belong to this same review. */
   goalId?: number;
 };
+
+export type ListLearningEnrollmentsParams = {
+courseId?: number;
+employeeId?: number;
+status?: ListLearningEnrollmentsStatus;
+approvalStatus?: ListLearningEnrollmentsApprovalStatus;
+page?: number;
+pageSize?: number;
+};
+
+export type ListLearningEnrollmentsStatus = typeof ListLearningEnrollmentsStatus[keyof typeof ListLearningEnrollmentsStatus];
+
+
+export const ListLearningEnrollmentsStatus = {
+  assigned: 'assigned',
+  in_progress: 'in_progress',
+  completed: 'completed',
+  failed: 'failed',
+  cancelled: 'cancelled',
+} as const;
+
+export type ListLearningEnrollmentsApprovalStatus = typeof ListLearningEnrollmentsApprovalStatus[keyof typeof ListLearningEnrollmentsApprovalStatus];
+
+
+export const ListLearningEnrollmentsApprovalStatus = {
+  auto_approved: 'auto_approved',
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
 

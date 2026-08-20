@@ -40,6 +40,8 @@ import type {
   ApplyToPublicVacancyBody,
   ApproveJobRequisitionInput,
   ApproveOfferVersionInput,
+  AssignLearningEnrollmentsInput,
+  AssignLearningEnrollmentsResult,
   AssignRoleInput,
   AttachBackgroundCheckEvidenceBody,
   AttendanceAdjustment,
@@ -51,6 +53,7 @@ import type {
   BackgroundCheck,
   Branch,
   CancelJobRequisitionInput,
+  CancelLearningEnrollmentInput,
   Candidate,
   CandidateListResponse,
   CandidateNote,
@@ -117,6 +120,8 @@ import type {
   JobRequisitionListResponse,
   LearningCourse,
   LearningCourseSession,
+  LearningEnrollment,
+  LearningEnrollmentListResponse,
   LeaveBalanceEntry,
   LeaveBalanceSummary,
   LeaveCalendarResponse,
@@ -132,6 +137,7 @@ import type {
   ListEmployeesParams,
   ListInterviewsParams,
   ListJobRequisitionsParams,
+  ListLearningEnrollmentsParams,
   ListLeaveBalanceLedgerParams,
   ListLeaveCalendarParams,
   ListOffersParams,
@@ -205,6 +211,7 @@ import type {
   ReplacePerformanceTemplateCompetenciesInput,
   Report,
   ReportRunResult,
+  RequestLearningEnrollmentInput,
   RequisitionApproval,
   ResetPasswordInput,
   RestructureDepartmentInput,
@@ -22021,5 +22028,707 @@ export const useUpdateLearningCourseSession = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getUpdateLearningCourseSessionMutationOptions(options));
+    }
+
+export const getRequestLearningEnrollmentUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/learning/courses/${id}/enroll`
+}
+
+/**
+ * Requires learning.write.own. Employee identity is always server-derived — never a client-supplied employeeId. sessionId is required for an instructor-led course, forbidden for a self-paced one. approvalStatus starts 'pending' if the course requires approval, else 'auto_approved'; status is always 'assigned' regardless (§10.3). A duplicate non-terminal enrollment for the same course/session is rejected 409.
+ * @summary Employee self-enrolls or requests enrollment in a course
+ */
+export const requestLearningEnrollment = async (organizationId: number,
+    id: number,
+    requestLearningEnrollmentInput?: RequestLearningEnrollmentInput, options?: RequestInit): Promise<LearningEnrollment> => {
+
+  return customFetch<LearningEnrollment>(getRequestLearningEnrollmentUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(requestLearningEnrollmentInput)
+  }
+);}
+
+
+
+
+
+export const getRequestLearningEnrollmentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestLearningEnrollment>>, TError,{organizationId: number;id: number;data?: BodyType<RequestLearningEnrollmentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestLearningEnrollment>>, TError,{organizationId: number;id: number;data?: BodyType<RequestLearningEnrollmentInput>}, TContext> => {
+
+const mutationKey = ['requestLearningEnrollment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestLearningEnrollment>>, {organizationId: number;id: number;data?: BodyType<RequestLearningEnrollmentInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  requestLearningEnrollment(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestLearningEnrollmentMutationResult = NonNullable<Awaited<ReturnType<typeof requestLearningEnrollment>>>
+    export type RequestLearningEnrollmentMutationBody = BodyType<RequestLearningEnrollmentInput> | undefined
+    export type RequestLearningEnrollmentMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Employee self-enrolls or requests enrollment in a course
+ */
+export const useRequestLearningEnrollment = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestLearningEnrollment>>, TError,{organizationId: number;id: number;data?: BodyType<RequestLearningEnrollmentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestLearningEnrollment>>,
+        TError,
+        {organizationId: number;id: number;data?: BodyType<RequestLearningEnrollmentInput>},
+        TContext
+      > => {
+      return useMutation(getRequestLearningEnrollmentMutationOptions(options));
+    }
+
+export const getAssignLearningEnrollmentsUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/learning/courses/${id}/assign`
+}
+
+/**
+ * Requires learning.manage (full audience targeting — all_active/ department/position/manual, any employee in the organization) or learning.review.write (manager of record — scope must be 'manual', and every employeeId must be the caller's own direct report, server-verified). Both paths bypass approval entirely (approvalStatus = auto_approved) — the assigner's own authority is the approval. An eligible employee who already holds a non-terminal enrollment for the target course/session is skipped, not treated as a whole-batch failure; the result reports both counts.
+ * @summary Assign a course to one or more employees (HR/L&D bulk-assign, or a manager assigning direct reports)
+ */
+export const assignLearningEnrollments = async (organizationId: number,
+    id: number,
+    assignLearningEnrollmentsInput: AssignLearningEnrollmentsInput, options?: RequestInit): Promise<AssignLearningEnrollmentsResult> => {
+
+  return customFetch<AssignLearningEnrollmentsResult>(getAssignLearningEnrollmentsUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(assignLearningEnrollmentsInput)
+  }
+);}
+
+
+
+
+
+export const getAssignLearningEnrollmentsMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof assignLearningEnrollments>>, TError,{organizationId: number;id: number;data: BodyType<AssignLearningEnrollmentsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof assignLearningEnrollments>>, TError,{organizationId: number;id: number;data: BodyType<AssignLearningEnrollmentsInput>}, TContext> => {
+
+const mutationKey = ['assignLearningEnrollments'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof assignLearningEnrollments>>, {organizationId: number;id: number;data: BodyType<AssignLearningEnrollmentsInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  assignLearningEnrollments(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AssignLearningEnrollmentsMutationResult = NonNullable<Awaited<ReturnType<typeof assignLearningEnrollments>>>
+    export type AssignLearningEnrollmentsMutationBody = BodyType<AssignLearningEnrollmentsInput>
+    export type AssignLearningEnrollmentsMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Assign a course to one or more employees (HR/L&D bulk-assign, or a manager assigning direct reports)
+ */
+export const useAssignLearningEnrollments = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof assignLearningEnrollments>>, TError,{organizationId: number;id: number;data: BodyType<AssignLearningEnrollmentsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof assignLearningEnrollments>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<AssignLearningEnrollmentsInput>},
+        TContext
+      > => {
+      return useMutation(getAssignLearningEnrollmentsMutationOptions(options));
+    }
+
+export const getListMyLearningEnrollmentsUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/learning/my-enrollments`
+}
+
+/**
+ * Requires learning.read.own. employeeId is always server-resolved from the caller's own employee_user_links row, never client-supplied. Returns an empty array if the caller has no linked employee record.
+ * @summary List the caller's own Learning enrollments
+ */
+export const listMyLearningEnrollments = async (organizationId: number, options?: RequestInit): Promise<LearningEnrollment[]> => {
+
+  return customFetch<LearningEnrollment[]>(getListMyLearningEnrollmentsUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyLearningEnrollmentsQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/learning/my-enrollments`
+    ] as const;
+    }
+
+
+export const getListMyLearningEnrollmentsQueryOptions = <TData = Awaited<ReturnType<typeof listMyLearningEnrollments>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyLearningEnrollments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyLearningEnrollmentsQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyLearningEnrollments>>> = ({ signal }) => listMyLearningEnrollments(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyLearningEnrollments>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMyLearningEnrollmentsQueryResult = NonNullable<Awaited<ReturnType<typeof listMyLearningEnrollments>>>
+export type ListMyLearningEnrollmentsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List the caller's own Learning enrollments
+ */
+
+export function useListMyLearningEnrollments<TData = Awaited<ReturnType<typeof listMyLearningEnrollments>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyLearningEnrollments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMyLearningEnrollmentsQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListTeamLearningEnrollmentsUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/learning/team-enrollments`
+}
+
+/**
+ * Requires learning.review.write. managerEmployeeIdSnapshot is always server-resolved, never client-supplied. Returns an empty array if the caller has no linked employee record.
+ * @summary Manager — enrollments where the caller is the manager of record
+ */
+export const listTeamLearningEnrollments = async (organizationId: number, options?: RequestInit): Promise<LearningEnrollment[]> => {
+
+  return customFetch<LearningEnrollment[]>(getListTeamLearningEnrollmentsUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListTeamLearningEnrollmentsQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/learning/team-enrollments`
+    ] as const;
+    }
+
+
+export const getListTeamLearningEnrollmentsQueryOptions = <TData = Awaited<ReturnType<typeof listTeamLearningEnrollments>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTeamLearningEnrollments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListTeamLearningEnrollmentsQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listTeamLearningEnrollments>>> = ({ signal }) => listTeamLearningEnrollments(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listTeamLearningEnrollments>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListTeamLearningEnrollmentsQueryResult = NonNullable<Awaited<ReturnType<typeof listTeamLearningEnrollments>>>
+export type ListTeamLearningEnrollmentsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Manager — enrollments where the caller is the manager of record
+ */
+
+export function useListTeamLearningEnrollments<TData = Awaited<ReturnType<typeof listTeamLearningEnrollments>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTeamLearningEnrollments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListTeamLearningEnrollmentsQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListLearningEnrollmentsUrl = (organizationId: number,
+    params?: ListLearningEnrollmentsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/learning/enrollments?${stringifiedParams}` : `/api/organizations/${organizationId}/learning/enrollments`
+}
+
+/**
+ * Requires learning.manage, organization-wide. Optional courseId/ employeeId/status/approvalStatus query filters. Paginated (items/total/page/pageSize). The manager's own scoped view remains GET .../team-enrollments — deliberately not duplicated here.
+ * @summary List an organization's Learning enrollments (internal HR/L&D workspace)
+ */
+export const listLearningEnrollments = async (organizationId: number,
+    params?: ListLearningEnrollmentsParams, options?: RequestInit): Promise<LearningEnrollmentListResponse> => {
+
+  return customFetch<LearningEnrollmentListResponse>(getListLearningEnrollmentsUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLearningEnrollmentsQueryKey = (organizationId: number,
+    params?: ListLearningEnrollmentsParams,) => {
+    return [
+    `/api/organizations/${organizationId}/learning/enrollments`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListLearningEnrollmentsQueryOptions = <TData = Awaited<ReturnType<typeof listLearningEnrollments>>, TError = ErrorType<unknown>>(organizationId: number,
+    params?: ListLearningEnrollmentsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLearningEnrollments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLearningEnrollmentsQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLearningEnrollments>>> = ({ signal }) => listLearningEnrollments(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLearningEnrollments>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLearningEnrollmentsQueryResult = NonNullable<Awaited<ReturnType<typeof listLearningEnrollments>>>
+export type ListLearningEnrollmentsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List an organization's Learning enrollments (internal HR/L&D workspace)
+ */
+
+export function useListLearningEnrollments<TData = Awaited<ReturnType<typeof listLearningEnrollments>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    params?: ListLearningEnrollmentsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLearningEnrollments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLearningEnrollmentsQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetLearningEnrollmentUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/learning/enrollments/${id}`
+}
+
+/**
+ * Requires learning.read.own (own, manager-of-record, or instructor-of-record) or learning.manage (organization-wide).
+ * @summary Get a Learning enrollment
+ */
+export const getLearningEnrollment = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<LearningEnrollment> => {
+
+  return customFetch<LearningEnrollment>(getGetLearningEnrollmentUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLearningEnrollmentQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/learning/enrollments/${id}`
+    ] as const;
+    }
+
+
+export const getGetLearningEnrollmentQueryOptions = <TData = Awaited<ReturnType<typeof getLearningEnrollment>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLearningEnrollment>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLearningEnrollmentQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLearningEnrollment>>> = ({ signal }) => getLearningEnrollment(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLearningEnrollment>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetLearningEnrollmentQueryResult = NonNullable<Awaited<ReturnType<typeof getLearningEnrollment>>>
+export type GetLearningEnrollmentQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get a Learning enrollment
+ */
+
+export function useGetLearningEnrollment<TData = Awaited<ReturnType<typeof getLearningEnrollment>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLearningEnrollment>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetLearningEnrollmentQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getApproveLearningEnrollmentUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/learning/enrollments/${id}/approve`
+}
+
+/**
+ * Requires learning.review.write (manager of record only) or learning.manage (organization-wide). The enrollment's own employee may never decide their own request. Atomic conditional UPDATE ... WHERE approvalStatus = 'pending' — a repeat or already-decided request returns 409, never a silent overwrite.
+ * @summary Approve a pending employee-requested enrollment
+ */
+export const approveLearningEnrollment = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<LearningEnrollment> => {
+
+  return customFetch<LearningEnrollment>(getApproveLearningEnrollmentUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getApproveLearningEnrollmentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveLearningEnrollment>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveLearningEnrollment>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['approveLearningEnrollment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveLearningEnrollment>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  approveLearningEnrollment(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveLearningEnrollmentMutationResult = NonNullable<Awaited<ReturnType<typeof approveLearningEnrollment>>>
+
+    export type ApproveLearningEnrollmentMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Approve a pending employee-requested enrollment
+ */
+export const useApproveLearningEnrollment = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveLearningEnrollment>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveLearningEnrollment>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getApproveLearningEnrollmentMutationOptions(options));
+    }
+
+export const getRejectLearningEnrollmentUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/learning/enrollments/${id}/reject`
+}
+
+/**
+ * Identical authorization/atomicity to the approve route. A rejected enrollment is permanently inert (status remains 'assigned' but can never progress) — never physically deleted, never silently converted into a cancellation.
+ * @summary Reject a pending employee-requested enrollment
+ */
+export const rejectLearningEnrollment = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<LearningEnrollment> => {
+
+  return customFetch<LearningEnrollment>(getRejectLearningEnrollmentUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRejectLearningEnrollmentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectLearningEnrollment>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectLearningEnrollment>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['rejectLearningEnrollment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectLearningEnrollment>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  rejectLearningEnrollment(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectLearningEnrollmentMutationResult = NonNullable<Awaited<ReturnType<typeof rejectLearningEnrollment>>>
+
+    export type RejectLearningEnrollmentMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Reject a pending employee-requested enrollment
+ */
+export const useRejectLearningEnrollment = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectLearningEnrollment>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rejectLearningEnrollment>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getRejectLearningEnrollmentMutationOptions(options));
+    }
+
+export const getCancelLearningEnrollmentUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/learning/enrollments/${id}/cancel`
+}
+
+/**
+ * Requires learning.write.own (the enrollment's own employee, non-mandatory, only while still 'assigned', no reason required) or learning.manage (any non-terminal enrollment, reason always required — §10.5). Atomic conditional UPDATE ... WHERE status IN ('assigned','in_progress').
+ * @summary Cancel an enrollment
+ */
+export const cancelLearningEnrollment = async (organizationId: number,
+    id: number,
+    cancelLearningEnrollmentInput?: CancelLearningEnrollmentInput, options?: RequestInit): Promise<LearningEnrollment> => {
+
+  return customFetch<LearningEnrollment>(getCancelLearningEnrollmentUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(cancelLearningEnrollmentInput)
+  }
+);}
+
+
+
+
+
+export const getCancelLearningEnrollmentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelLearningEnrollment>>, TError,{organizationId: number;id: number;data?: BodyType<CancelLearningEnrollmentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelLearningEnrollment>>, TError,{organizationId: number;id: number;data?: BodyType<CancelLearningEnrollmentInput>}, TContext> => {
+
+const mutationKey = ['cancelLearningEnrollment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelLearningEnrollment>>, {organizationId: number;id: number;data?: BodyType<CancelLearningEnrollmentInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  cancelLearningEnrollment(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelLearningEnrollmentMutationResult = NonNullable<Awaited<ReturnType<typeof cancelLearningEnrollment>>>
+    export type CancelLearningEnrollmentMutationBody = BodyType<CancelLearningEnrollmentInput> | undefined
+    export type CancelLearningEnrollmentMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Cancel an enrollment
+ */
+export const useCancelLearningEnrollment = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelLearningEnrollment>>, TError,{organizationId: number;id: number;data?: BodyType<CancelLearningEnrollmentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelLearningEnrollment>>,
+        TError,
+        {organizationId: number;id: number;data?: BodyType<CancelLearningEnrollmentInput>},
+        TContext
+      > => {
+      return useMutation(getCancelLearningEnrollmentMutationOptions(options));
     }
 

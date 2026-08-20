@@ -9246,3 +9246,438 @@ export const UpdateLearningCourseSessionResponse = zod.object({
 })
 
 
+/**
+ * Requires learning.write.own. Employee identity is always server-derived — never a client-supplied employeeId. sessionId is required for an instructor-led course, forbidden for a self-paced one. approvalStatus starts 'pending' if the course requires approval, else 'auto_approved'; status is always 'assigned' regardless (§10.3). A duplicate non-terminal enrollment for the same course/session is rejected 409.
+ * @summary Employee self-enrolls or requests enrollment in a course
+ */
+export const RequestLearningEnrollmentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const RequestLearningEnrollmentBody = zod.object({
+  "sessionId": zod.number().optional().describe('Required for an instructor-led course, forbidden for a self-paced one.')
+}).describe('employeeId is never accepted here — always server-derived from the caller\'s own linked employee record.')
+
+export const RequestLearningEnrollmentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "courseId": zod.number(),
+  "sessionId": zod.number().nullable(),
+  "employeeId": zod.number(),
+  "courseTitleSnapshot": zod.string(),
+  "categorySnapshot": zod.string(),
+  "deliveryModeSnapshot": zod.enum(['self_paced', 'instructor_led']),
+  "hasAssessmentSnapshot": zod.boolean(),
+  "issuesCertificateSnapshot": zod.boolean(),
+  "certificateValidityMonthsSnapshot": zod.number().nullable(),
+  "departmentIdSnapshot": zod.number().nullable(),
+  "positionIdSnapshot": zod.number().nullable(),
+  "managerEmployeeIdSnapshot": zod.number().nullable(),
+  "mandatoryAtAssignment": zod.boolean(),
+  "originType": zod.enum(['hr_assigned', 'manager_assigned', 'employee_requested']),
+  "assignedByMembershipId": zod.number().nullable(),
+  "dueDate": zod.coerce.date().nullable(),
+  "approvalStatus": zod.enum(['auto_approved', 'pending', 'approved', 'rejected']),
+  "approvalDecidedByMembershipId": zod.number().nullable(),
+  "approvalDecidedAt": zod.coerce.date().nullable(),
+  "status": zod.enum(['assigned', 'in_progress', 'completed', 'failed', 'cancelled']),
+  "attended": zod.boolean().nullable(),
+  "attendanceMarkedByMembershipId": zod.number().nullable(),
+  "attendanceMarkedAt": zod.coerce.date().nullable(),
+  "passed": zod.boolean().nullable(),
+  "score": zod.string().nullable(),
+  "completedAt": zod.coerce.date().nullable(),
+  "cancelReason": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Requires learning.manage (full audience targeting — all_active/ department/position/manual, any employee in the organization) or learning.review.write (manager of record — scope must be 'manual', and every employeeId must be the caller's own direct report, server-verified). Both paths bypass approval entirely (approvalStatus = auto_approved) — the assigner's own authority is the approval. An eligible employee who already holds a non-terminal enrollment for the target course/session is skipped, not treated as a whole-batch failure; the result reports both counts.
+ * @summary Assign a course to one or more employees (HR/L&D bulk-assign, or a manager assigning direct reports)
+ */
+export const AssignLearningEnrollmentsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const AssignLearningEnrollmentsBody = zod.object({
+  "sessionId": zod.number().optional().describe('Required for an instructor-led course, forbidden for a self-paced one.'),
+  "scope": zod.enum(['all_active', 'department', 'position', 'manual']),
+  "departmentId": zod.number().optional().describe('Required and used only when scope = department.'),
+  "positionId": zod.number().optional().describe('Required and used only when scope = position.'),
+  "employeeIds": zod.array(zod.number()).optional().describe('Required and used only when scope = manual.'),
+  "mandatory": zod.boolean().optional().describe('Overrides the course\'s own mandatoryDefault for these enrollments. Defaults to the course\'s mandatoryDefault when omitted.'),
+  "dueDate": zod.coerce.date().optional()
+}).describe('A caller holding only learning.review.write (manager of record) is restricted server-side to scope = \'manual\' with every employeeId validated as their own current direct report — audience-targeting scopes are learning.manage only.')
+
+export const AssignLearningEnrollmentsResponse = zod.object({
+  "assignedCount": zod.number(),
+  "skippedCount": zod.number().describe('Eligible employees skipped because they already held a non-terminal enrollment for this course\/session — not treated as a batch failure.'),
+  "enrollments": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "courseId": zod.number(),
+  "sessionId": zod.number().nullable(),
+  "employeeId": zod.number(),
+  "courseTitleSnapshot": zod.string(),
+  "categorySnapshot": zod.string(),
+  "deliveryModeSnapshot": zod.enum(['self_paced', 'instructor_led']),
+  "hasAssessmentSnapshot": zod.boolean(),
+  "issuesCertificateSnapshot": zod.boolean(),
+  "certificateValidityMonthsSnapshot": zod.number().nullable(),
+  "departmentIdSnapshot": zod.number().nullable(),
+  "positionIdSnapshot": zod.number().nullable(),
+  "managerEmployeeIdSnapshot": zod.number().nullable(),
+  "mandatoryAtAssignment": zod.boolean(),
+  "originType": zod.enum(['hr_assigned', 'manager_assigned', 'employee_requested']),
+  "assignedByMembershipId": zod.number().nullable(),
+  "dueDate": zod.coerce.date().nullable(),
+  "approvalStatus": zod.enum(['auto_approved', 'pending', 'approved', 'rejected']),
+  "approvalDecidedByMembershipId": zod.number().nullable(),
+  "approvalDecidedAt": zod.coerce.date().nullable(),
+  "status": zod.enum(['assigned', 'in_progress', 'completed', 'failed', 'cancelled']),
+  "attended": zod.boolean().nullable(),
+  "attendanceMarkedByMembershipId": zod.number().nullable(),
+  "attendanceMarkedAt": zod.coerce.date().nullable(),
+  "passed": zod.boolean().nullable(),
+  "score": zod.string().nullable(),
+  "completedAt": zod.coerce.date().nullable(),
+  "cancelReason": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})),
+  "skippedEmployeeIds": zod.array(zod.number())
+})
+
+
+/**
+ * Requires learning.read.own. employeeId is always server-resolved from the caller's own employee_user_links row, never client-supplied. Returns an empty array if the caller has no linked employee record.
+ * @summary List the caller's own Learning enrollments
+ */
+export const ListMyLearningEnrollmentsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListMyLearningEnrollmentsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "courseId": zod.number(),
+  "sessionId": zod.number().nullable(),
+  "employeeId": zod.number(),
+  "courseTitleSnapshot": zod.string(),
+  "categorySnapshot": zod.string(),
+  "deliveryModeSnapshot": zod.enum(['self_paced', 'instructor_led']),
+  "hasAssessmentSnapshot": zod.boolean(),
+  "issuesCertificateSnapshot": zod.boolean(),
+  "certificateValidityMonthsSnapshot": zod.number().nullable(),
+  "departmentIdSnapshot": zod.number().nullable(),
+  "positionIdSnapshot": zod.number().nullable(),
+  "managerEmployeeIdSnapshot": zod.number().nullable(),
+  "mandatoryAtAssignment": zod.boolean(),
+  "originType": zod.enum(['hr_assigned', 'manager_assigned', 'employee_requested']),
+  "assignedByMembershipId": zod.number().nullable(),
+  "dueDate": zod.coerce.date().nullable(),
+  "approvalStatus": zod.enum(['auto_approved', 'pending', 'approved', 'rejected']),
+  "approvalDecidedByMembershipId": zod.number().nullable(),
+  "approvalDecidedAt": zod.coerce.date().nullable(),
+  "status": zod.enum(['assigned', 'in_progress', 'completed', 'failed', 'cancelled']),
+  "attended": zod.boolean().nullable(),
+  "attendanceMarkedByMembershipId": zod.number().nullable(),
+  "attendanceMarkedAt": zod.coerce.date().nullable(),
+  "passed": zod.boolean().nullable(),
+  "score": zod.string().nullable(),
+  "completedAt": zod.coerce.date().nullable(),
+  "cancelReason": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListMyLearningEnrollmentsResponse = zod.array(ListMyLearningEnrollmentsResponseItem)
+
+
+/**
+ * Requires learning.review.write. managerEmployeeIdSnapshot is always server-resolved, never client-supplied. Returns an empty array if the caller has no linked employee record.
+ * @summary Manager — enrollments where the caller is the manager of record
+ */
+export const ListTeamLearningEnrollmentsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListTeamLearningEnrollmentsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "courseId": zod.number(),
+  "sessionId": zod.number().nullable(),
+  "employeeId": zod.number(),
+  "courseTitleSnapshot": zod.string(),
+  "categorySnapshot": zod.string(),
+  "deliveryModeSnapshot": zod.enum(['self_paced', 'instructor_led']),
+  "hasAssessmentSnapshot": zod.boolean(),
+  "issuesCertificateSnapshot": zod.boolean(),
+  "certificateValidityMonthsSnapshot": zod.number().nullable(),
+  "departmentIdSnapshot": zod.number().nullable(),
+  "positionIdSnapshot": zod.number().nullable(),
+  "managerEmployeeIdSnapshot": zod.number().nullable(),
+  "mandatoryAtAssignment": zod.boolean(),
+  "originType": zod.enum(['hr_assigned', 'manager_assigned', 'employee_requested']),
+  "assignedByMembershipId": zod.number().nullable(),
+  "dueDate": zod.coerce.date().nullable(),
+  "approvalStatus": zod.enum(['auto_approved', 'pending', 'approved', 'rejected']),
+  "approvalDecidedByMembershipId": zod.number().nullable(),
+  "approvalDecidedAt": zod.coerce.date().nullable(),
+  "status": zod.enum(['assigned', 'in_progress', 'completed', 'failed', 'cancelled']),
+  "attended": zod.boolean().nullable(),
+  "attendanceMarkedByMembershipId": zod.number().nullable(),
+  "attendanceMarkedAt": zod.coerce.date().nullable(),
+  "passed": zod.boolean().nullable(),
+  "score": zod.string().nullable(),
+  "completedAt": zod.coerce.date().nullable(),
+  "cancelReason": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListTeamLearningEnrollmentsResponse = zod.array(ListTeamLearningEnrollmentsResponseItem)
+
+
+/**
+ * Requires learning.manage, organization-wide. Optional courseId/ employeeId/status/approvalStatus query filters. Paginated (items/total/page/pageSize). The manager's own scoped view remains GET .../team-enrollments — deliberately not duplicated here.
+ * @summary List an organization's Learning enrollments (internal HR/L&D workspace)
+ */
+export const ListLearningEnrollmentsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const listLearningEnrollmentsQueryPageDefault = 1;
+export const listLearningEnrollmentsQueryPageSizeDefault = 20;
+
+export const ListLearningEnrollmentsQueryParams = zod.object({
+  "courseId": zod.coerce.number().optional(),
+  "employeeId": zod.coerce.number().optional(),
+  "status": zod.enum(['assigned', 'in_progress', 'completed', 'failed', 'cancelled']).optional(),
+  "approvalStatus": zod.enum(['auto_approved', 'pending', 'approved', 'rejected']).optional(),
+  "page": zod.coerce.number().default(listLearningEnrollmentsQueryPageDefault),
+  "pageSize": zod.coerce.number().default(listLearningEnrollmentsQueryPageSizeDefault)
+})
+
+export const ListLearningEnrollmentsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "courseId": zod.number(),
+  "sessionId": zod.number().nullable(),
+  "employeeId": zod.number(),
+  "courseTitleSnapshot": zod.string(),
+  "categorySnapshot": zod.string(),
+  "deliveryModeSnapshot": zod.enum(['self_paced', 'instructor_led']),
+  "hasAssessmentSnapshot": zod.boolean(),
+  "issuesCertificateSnapshot": zod.boolean(),
+  "certificateValidityMonthsSnapshot": zod.number().nullable(),
+  "departmentIdSnapshot": zod.number().nullable(),
+  "positionIdSnapshot": zod.number().nullable(),
+  "managerEmployeeIdSnapshot": zod.number().nullable(),
+  "mandatoryAtAssignment": zod.boolean(),
+  "originType": zod.enum(['hr_assigned', 'manager_assigned', 'employee_requested']),
+  "assignedByMembershipId": zod.number().nullable(),
+  "dueDate": zod.coerce.date().nullable(),
+  "approvalStatus": zod.enum(['auto_approved', 'pending', 'approved', 'rejected']),
+  "approvalDecidedByMembershipId": zod.number().nullable(),
+  "approvalDecidedAt": zod.coerce.date().nullable(),
+  "status": zod.enum(['assigned', 'in_progress', 'completed', 'failed', 'cancelled']),
+  "attended": zod.boolean().nullable(),
+  "attendanceMarkedByMembershipId": zod.number().nullable(),
+  "attendanceMarkedAt": zod.coerce.date().nullable(),
+  "passed": zod.boolean().nullable(),
+  "score": zod.string().nullable(),
+  "completedAt": zod.coerce.date().nullable(),
+  "cancelReason": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "pageSize": zod.number()
+})
+
+
+/**
+ * Requires learning.read.own (own, manager-of-record, or instructor-of-record) or learning.manage (organization-wide).
+ * @summary Get a Learning enrollment
+ */
+export const GetLearningEnrollmentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const GetLearningEnrollmentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "courseId": zod.number(),
+  "sessionId": zod.number().nullable(),
+  "employeeId": zod.number(),
+  "courseTitleSnapshot": zod.string(),
+  "categorySnapshot": zod.string(),
+  "deliveryModeSnapshot": zod.enum(['self_paced', 'instructor_led']),
+  "hasAssessmentSnapshot": zod.boolean(),
+  "issuesCertificateSnapshot": zod.boolean(),
+  "certificateValidityMonthsSnapshot": zod.number().nullable(),
+  "departmentIdSnapshot": zod.number().nullable(),
+  "positionIdSnapshot": zod.number().nullable(),
+  "managerEmployeeIdSnapshot": zod.number().nullable(),
+  "mandatoryAtAssignment": zod.boolean(),
+  "originType": zod.enum(['hr_assigned', 'manager_assigned', 'employee_requested']),
+  "assignedByMembershipId": zod.number().nullable(),
+  "dueDate": zod.coerce.date().nullable(),
+  "approvalStatus": zod.enum(['auto_approved', 'pending', 'approved', 'rejected']),
+  "approvalDecidedByMembershipId": zod.number().nullable(),
+  "approvalDecidedAt": zod.coerce.date().nullable(),
+  "status": zod.enum(['assigned', 'in_progress', 'completed', 'failed', 'cancelled']),
+  "attended": zod.boolean().nullable(),
+  "attendanceMarkedByMembershipId": zod.number().nullable(),
+  "attendanceMarkedAt": zod.coerce.date().nullable(),
+  "passed": zod.boolean().nullable(),
+  "score": zod.string().nullable(),
+  "completedAt": zod.coerce.date().nullable(),
+  "cancelReason": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Requires learning.review.write (manager of record only) or learning.manage (organization-wide). The enrollment's own employee may never decide their own request. Atomic conditional UPDATE ... WHERE approvalStatus = 'pending' — a repeat or already-decided request returns 409, never a silent overwrite.
+ * @summary Approve a pending employee-requested enrollment
+ */
+export const ApproveLearningEnrollmentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ApproveLearningEnrollmentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "courseId": zod.number(),
+  "sessionId": zod.number().nullable(),
+  "employeeId": zod.number(),
+  "courseTitleSnapshot": zod.string(),
+  "categorySnapshot": zod.string(),
+  "deliveryModeSnapshot": zod.enum(['self_paced', 'instructor_led']),
+  "hasAssessmentSnapshot": zod.boolean(),
+  "issuesCertificateSnapshot": zod.boolean(),
+  "certificateValidityMonthsSnapshot": zod.number().nullable(),
+  "departmentIdSnapshot": zod.number().nullable(),
+  "positionIdSnapshot": zod.number().nullable(),
+  "managerEmployeeIdSnapshot": zod.number().nullable(),
+  "mandatoryAtAssignment": zod.boolean(),
+  "originType": zod.enum(['hr_assigned', 'manager_assigned', 'employee_requested']),
+  "assignedByMembershipId": zod.number().nullable(),
+  "dueDate": zod.coerce.date().nullable(),
+  "approvalStatus": zod.enum(['auto_approved', 'pending', 'approved', 'rejected']),
+  "approvalDecidedByMembershipId": zod.number().nullable(),
+  "approvalDecidedAt": zod.coerce.date().nullable(),
+  "status": zod.enum(['assigned', 'in_progress', 'completed', 'failed', 'cancelled']),
+  "attended": zod.boolean().nullable(),
+  "attendanceMarkedByMembershipId": zod.number().nullable(),
+  "attendanceMarkedAt": zod.coerce.date().nullable(),
+  "passed": zod.boolean().nullable(),
+  "score": zod.string().nullable(),
+  "completedAt": zod.coerce.date().nullable(),
+  "cancelReason": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Identical authorization/atomicity to the approve route. A rejected enrollment is permanently inert (status remains 'assigned' but can never progress) — never physically deleted, never silently converted into a cancellation.
+ * @summary Reject a pending employee-requested enrollment
+ */
+export const RejectLearningEnrollmentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const RejectLearningEnrollmentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "courseId": zod.number(),
+  "sessionId": zod.number().nullable(),
+  "employeeId": zod.number(),
+  "courseTitleSnapshot": zod.string(),
+  "categorySnapshot": zod.string(),
+  "deliveryModeSnapshot": zod.enum(['self_paced', 'instructor_led']),
+  "hasAssessmentSnapshot": zod.boolean(),
+  "issuesCertificateSnapshot": zod.boolean(),
+  "certificateValidityMonthsSnapshot": zod.number().nullable(),
+  "departmentIdSnapshot": zod.number().nullable(),
+  "positionIdSnapshot": zod.number().nullable(),
+  "managerEmployeeIdSnapshot": zod.number().nullable(),
+  "mandatoryAtAssignment": zod.boolean(),
+  "originType": zod.enum(['hr_assigned', 'manager_assigned', 'employee_requested']),
+  "assignedByMembershipId": zod.number().nullable(),
+  "dueDate": zod.coerce.date().nullable(),
+  "approvalStatus": zod.enum(['auto_approved', 'pending', 'approved', 'rejected']),
+  "approvalDecidedByMembershipId": zod.number().nullable(),
+  "approvalDecidedAt": zod.coerce.date().nullable(),
+  "status": zod.enum(['assigned', 'in_progress', 'completed', 'failed', 'cancelled']),
+  "attended": zod.boolean().nullable(),
+  "attendanceMarkedByMembershipId": zod.number().nullable(),
+  "attendanceMarkedAt": zod.coerce.date().nullable(),
+  "passed": zod.boolean().nullable(),
+  "score": zod.string().nullable(),
+  "completedAt": zod.coerce.date().nullable(),
+  "cancelReason": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Requires learning.write.own (the enrollment's own employee, non-mandatory, only while still 'assigned', no reason required) or learning.manage (any non-terminal enrollment, reason always required — §10.5). Atomic conditional UPDATE ... WHERE status IN ('assigned','in_progress').
+ * @summary Cancel an enrollment
+ */
+export const CancelLearningEnrollmentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const CancelLearningEnrollmentBody = zod.object({
+  "cancelReason": zod.string().optional().describe('Required when the caller is not the enrollment\'s own employee, or when the enrollment is mandatory. Optional for an employee self-cancelling their own non-mandatory, not-yet-started enrollment.')
+})
+
+export const CancelLearningEnrollmentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "courseId": zod.number(),
+  "sessionId": zod.number().nullable(),
+  "employeeId": zod.number(),
+  "courseTitleSnapshot": zod.string(),
+  "categorySnapshot": zod.string(),
+  "deliveryModeSnapshot": zod.enum(['self_paced', 'instructor_led']),
+  "hasAssessmentSnapshot": zod.boolean(),
+  "issuesCertificateSnapshot": zod.boolean(),
+  "certificateValidityMonthsSnapshot": zod.number().nullable(),
+  "departmentIdSnapshot": zod.number().nullable(),
+  "positionIdSnapshot": zod.number().nullable(),
+  "managerEmployeeIdSnapshot": zod.number().nullable(),
+  "mandatoryAtAssignment": zod.boolean(),
+  "originType": zod.enum(['hr_assigned', 'manager_assigned', 'employee_requested']),
+  "assignedByMembershipId": zod.number().nullable(),
+  "dueDate": zod.coerce.date().nullable(),
+  "approvalStatus": zod.enum(['auto_approved', 'pending', 'approved', 'rejected']),
+  "approvalDecidedByMembershipId": zod.number().nullable(),
+  "approvalDecidedAt": zod.coerce.date().nullable(),
+  "status": zod.enum(['assigned', 'in_progress', 'completed', 'failed', 'cancelled']),
+  "attended": zod.boolean().nullable(),
+  "attendanceMarkedByMembershipId": zod.number().nullable(),
+  "attendanceMarkedAt": zod.coerce.date().nullable(),
+  "passed": zod.boolean().nullable(),
+  "score": zod.string().nullable(),
+  "completedAt": zod.coerce.date().nullable(),
+  "cancelReason": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+

@@ -10932,6 +10932,421 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/learning/courses/{id}/enroll:
+    post:
+      operationId: requestLearningEnrollment
+      tags: [learning-enrollments]
+      summary: Employee self-enrolls or requests enrollment in a course
+      description: >-
+        Requires learning.write.own. Employee identity is always
+        server-derived — never a client-supplied employeeId. sessionId is
+        required for an instructor-led course, forbidden for a self-paced
+        one. approvalStatus starts 'pending' if the course requires
+        approval, else 'auto_approved'; status is always 'assigned'
+        regardless (§10.3). A duplicate non-terminal enrollment for the
+        same course/session is rejected 409.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestLearningEnrollmentInput"
+      responses:
+        "201":
+          description: Enrollment created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningEnrollment"
+        "400":
+          description: Invalid input (e.g. missing/unexpected sessionId for this course's delivery mode)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Course not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Course/session not open for enrollment, session at capacity, or a duplicate non-terminal enrollment already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/learning/courses/{id}/assign:
+    post:
+      operationId: assignLearningEnrollments
+      tags: [learning-enrollments]
+      summary: Assign a course to one or more employees (HR/L&D bulk-assign, or a manager assigning direct reports)
+      description: >-
+        Requires learning.manage (full audience targeting — all_active/
+        department/position/manual, any employee in the organization) or
+        learning.review.write (manager of record — scope must be 'manual',
+        and every employeeId must be the caller's own direct report,
+        server-verified). Both paths bypass approval entirely
+        (approvalStatus = auto_approved) — the assigner's own authority is
+        the approval. An eligible employee who already holds a
+        non-terminal enrollment for the target course/session is skipped,
+        not treated as a whole-batch failure; the result reports both
+        counts.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignLearningEnrollmentsInput"
+      responses:
+        "201":
+          description: Assignment result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssignLearningEnrollmentsResult"
+        "400":
+          description: Invalid input, a manager attempting audience-targeting scope, or a cross-organization employee/department/position reference
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: A manager attempting to assign an employee who is not their direct report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Course not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Course/session not open for enrollment, or session at capacity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/learning/my-enrollments:
+    get:
+      operationId: listMyLearningEnrollments
+      tags: [learning-enrollments]
+      summary: List the caller's own Learning enrollments
+      description: Requires learning.read.own. employeeId is always server-resolved from the caller's own employee_user_links row, never client-supplied. Returns an empty array if the caller has no linked employee record.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The caller's own enrollments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LearningEnrollment"
+
+  /organizations/{organizationId}/learning/team-enrollments:
+    get:
+      operationId: listTeamLearningEnrollments
+      tags: [learning-enrollments]
+      summary: Manager — enrollments where the caller is the manager of record
+      description: Requires learning.review.write. managerEmployeeIdSnapshot is always server-resolved, never client-supplied. Returns an empty array if the caller has no linked employee record.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Enrollments where the caller is the manager of record
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LearningEnrollment"
+
+  /organizations/{organizationId}/learning/enrollments:
+    get:
+      operationId: listLearningEnrollments
+      tags: [learning-enrollments]
+      summary: List an organization's Learning enrollments (internal HR/L&D workspace)
+      description: >-
+        Requires learning.manage, organization-wide. Optional courseId/
+        employeeId/status/approvalStatus query filters. Paginated
+        (items/total/page/pageSize). The manager's own scoped view remains
+        GET .../team-enrollments — deliberately not duplicated here.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: courseId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: employeeId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [assigned, in_progress, completed, failed, cancelled]
+        - name: approvalStatus
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [auto_approved, pending, approved, rejected]
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Paginated Learning enrollments
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningEnrollmentListResponse"
+
+  /organizations/{organizationId}/learning/enrollments/{id}:
+    get:
+      operationId: getLearningEnrollment
+      tags: [learning-enrollments]
+      summary: Get a Learning enrollment
+      description: Requires learning.read.own (own, manager-of-record, or instructor-of-record) or learning.manage (organization-wide).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Enrollment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningEnrollment"
+        "403":
+          description: Not authorized to view this enrollment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/learning/enrollments/{id}/approve:
+    post:
+      operationId: approveLearningEnrollment
+      tags: [learning-enrollments]
+      summary: Approve a pending employee-requested enrollment
+      description: >-
+        Requires learning.review.write (manager of record only) or
+        learning.manage (organization-wide). The enrollment's own employee
+        may never decide their own request. Atomic conditional
+        UPDATE ... WHERE approvalStatus = 'pending' — a repeat or
+        already-decided request returns 409, never a silent overwrite.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningEnrollment"
+        "403":
+          description: Not this enrollment's manager of record, or an attempt to decide one's own request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: This enrollment is not awaiting approval
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/learning/enrollments/{id}/reject:
+    post:
+      operationId: rejectLearningEnrollment
+      tags: [learning-enrollments]
+      summary: Reject a pending employee-requested enrollment
+      description: >-
+        Identical authorization/atomicity to the approve route. A rejected
+        enrollment is permanently inert (status remains 'assigned' but can
+        never progress) — never physically deleted, never silently
+        converted into a cancellation.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningEnrollment"
+        "403":
+          description: Not this enrollment's manager of record, or an attempt to decide one's own request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: This enrollment is not awaiting approval
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/learning/enrollments/{id}/cancel:
+    post:
+      operationId: cancelLearningEnrollment
+      tags: [learning-enrollments]
+      summary: Cancel an enrollment
+      description: >-
+        Requires learning.write.own (the enrollment's own employee,
+        non-mandatory, only while still 'assigned', no reason required) or
+        learning.manage (any non-terminal enrollment, reason always
+        required — §10.5). Atomic conditional
+        UPDATE ... WHERE status IN ('assigned','in_progress').
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancelLearningEnrollmentInput"
+      responses:
+        "200":
+          description: Cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningEnrollment"
+        "400":
+          description: cancelReason missing where required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Not this enrollment's own employee (without learning.manage), or a mandatory enrollment being self-cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: This enrollment can no longer be cancelled (already terminal, or already in_progress for an employee's own non-mandatory cancel attempt)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -16713,3 +17128,194 @@ components:
           type: string
           enum: [completed, cancelled]
           description: One-way only — 'scheduled' is never a valid target value here.
+
+    LearningEnrollment:
+      type: object
+      required:
+        [
+          id,
+          organizationId,
+          courseId,
+          sessionId,
+          employeeId,
+          courseTitleSnapshot,
+          categorySnapshot,
+          deliveryModeSnapshot,
+          hasAssessmentSnapshot,
+          issuesCertificateSnapshot,
+          certificateValidityMonthsSnapshot,
+          departmentIdSnapshot,
+          positionIdSnapshot,
+          managerEmployeeIdSnapshot,
+          mandatoryAtAssignment,
+          originType,
+          assignedByMembershipId,
+          dueDate,
+          approvalStatus,
+          approvalDecidedByMembershipId,
+          approvalDecidedAt,
+          status,
+          attended,
+          attendanceMarkedByMembershipId,
+          attendanceMarkedAt,
+          passed,
+          score,
+          completedAt,
+          cancelReason,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        courseId:
+          type: integer
+        sessionId:
+          type: ["integer", "null"]
+        employeeId:
+          type: integer
+        courseTitleSnapshot:
+          type: string
+        categorySnapshot:
+          type: string
+        deliveryModeSnapshot:
+          type: string
+          enum: [self_paced, instructor_led]
+        hasAssessmentSnapshot:
+          type: boolean
+        issuesCertificateSnapshot:
+          type: boolean
+        certificateValidityMonthsSnapshot:
+          type: ["integer", "null"]
+        departmentIdSnapshot:
+          type: ["integer", "null"]
+        positionIdSnapshot:
+          type: ["integer", "null"]
+        managerEmployeeIdSnapshot:
+          type: ["integer", "null"]
+        mandatoryAtAssignment:
+          type: boolean
+        originType:
+          type: string
+          enum: [hr_assigned, manager_assigned, employee_requested]
+        assignedByMembershipId:
+          type: ["integer", "null"]
+        dueDate:
+          type: ["string", "null"]
+          format: date-time
+        approvalStatus:
+          type: string
+          enum: [auto_approved, pending, approved, rejected]
+        approvalDecidedByMembershipId:
+          type: ["integer", "null"]
+        approvalDecidedAt:
+          type: ["string", "null"]
+          format: date-time
+        status:
+          type: string
+          enum: [assigned, in_progress, completed, failed, cancelled]
+        attended:
+          type: ["boolean", "null"]
+        attendanceMarkedByMembershipId:
+          type: ["integer", "null"]
+        attendanceMarkedAt:
+          type: ["string", "null"]
+          format: date-time
+        passed:
+          type: ["boolean", "null"]
+        score:
+          type: ["string", "null"]
+        completedAt:
+          type: ["string", "null"]
+          format: date-time
+        cancelReason:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    RequestLearningEnrollmentInput:
+      type: object
+      description: employeeId is never accepted here — always server-derived from the caller's own linked employee record.
+      properties:
+        sessionId:
+          type: integer
+          description: Required for an instructor-led course, forbidden for a self-paced one.
+
+    AssignLearningEnrollmentsInput:
+      type: object
+      required: [scope]
+      description: >-
+        A caller holding only learning.review.write (manager of record) is
+        restricted server-side to scope = 'manual' with every employeeId
+        validated as their own current direct report — audience-targeting
+        scopes are learning.manage only.
+      properties:
+        sessionId:
+          type: integer
+          description: Required for an instructor-led course, forbidden for a self-paced one.
+        scope:
+          type: string
+          enum: [all_active, department, position, manual]
+        departmentId:
+          type: integer
+          description: Required and used only when scope = department.
+        positionId:
+          type: integer
+          description: Required and used only when scope = position.
+        employeeIds:
+          type: array
+          items:
+            type: integer
+          description: Required and used only when scope = manual.
+        mandatory:
+          type: boolean
+          description: Overrides the course's own mandatoryDefault for these enrollments. Defaults to the course's mandatoryDefault when omitted.
+        dueDate:
+          type: string
+          format: date-time
+
+    AssignLearningEnrollmentsResult:
+      type: object
+      required: [assignedCount, skippedCount, enrollments, skippedEmployeeIds]
+      properties:
+        assignedCount:
+          type: integer
+        skippedCount:
+          type: integer
+          description: Eligible employees skipped because they already held a non-terminal enrollment for this course/session — not treated as a batch failure.
+        enrollments:
+          type: array
+          items:
+            $ref: "#/components/schemas/LearningEnrollment"
+        skippedEmployeeIds:
+          type: array
+          items:
+            type: integer
+
+    CancelLearningEnrollmentInput:
+      type: object
+      properties:
+        cancelReason:
+          type: string
+          description: Required when the caller is not the enrollment's own employee, or when the enrollment is mandatory. Optional for an employee self-cancelling their own non-mandatory, not-yet-started enrollment.
+
+    LearningEnrollmentListResponse:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/LearningEnrollment"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
