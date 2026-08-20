@@ -1,25 +1,31 @@
-# Phase 3D — Learning & Development: Draft Implementation Plan
+# Phase 3D — Learning & Development: Frozen Implementation Plan
 
-Status: **DRAFT — NOT FROZEN.** No workstream may begin execution until this document is reviewed, its Owner Decisions answered, and it is explicitly frozen — exactly the same discipline `PHASE_3B_ATTENDANCE_IMPLEMENTATION_PLAN.md` and `PHASE_3C_PERFORMANCE_IMPLEMENTATION_PLAN.md` went through before their own W64/W73 began.
+Status: **FROZEN — APPROVED FOR IMPLEMENTATION** (2026-08-20). No workstream may begin execution merely because this document is frozen — **W85 still requires its own separate go-ahead**, exactly as W64 and W73 did after their own frozen documents were approved. This document was produced across two passes: an initial discovery/draft pass (no migrations, no routes, no frontend pages, no permission seeding, no module activation, no production access), and this final-reconciliation pass (owner decisions approved, historical-integrity/lifecycle/certificate/assessment/permission/workstream detail reconciled against those decisions — again with no migration, route, frontend, permission seed, module activation, or production access performed).
 
-This document was produced by inspecting the current repository directly — no migration, no route, no frontend page, no permission seed, no module activation, and no production access were performed while writing it. Every claim about existing code is based on direct file inspection (paths cited); every new-design element is explicitly labeled **[PROPOSED DESIGN DECISION]**, and every genuine business-policy call this document cannot safely default on its own is labeled **[OWNER DECISION — NEEDS APPROVAL]**.
+This document was produced by inspecting the current repository directly. Every claim about existing code is based on direct file inspection (paths cited); every design element not already forced by existing architecture is a considered design decision now folded into the frozen sections below; every genuine business-policy call is recorded and approved in §0.
 
 ---
 
-## 0. Owner Decisions — Needs Approval
+## 0. Owner Decisions — Approved (2026-08-20)
 
-The following are genuine business-policy calls, not implementation details. Each carries a recommended default; none are approved yet.
+The following eight decisions were open in the draft and are now resolved, exactly as recommended. They are load-bearing on §8–§13 and the workstream breakdown (§29) — every downstream section below has been reconciled to them.
 
-| # | Decision | Recommended default |
+| # | Decision | Approved answer |
 |---|---|---|
-| 1 | Who approves an employee-requested enrollment when the course requires approval — the employee's own manager, or HR/L&D? | **The employee's own manager** (mirrors Performance's goal-proposal approval pattern, §12 of the frozen Performance plan) — resolved server-side via `reportingManagerId`, never a client-supplied relationship. HR/L&D (`learning.manage`) always retains override/org-wide decision authority regardless. |
-| 2 | Is "mandatory" a course-level-only flag, or can an individual assignment override the course's own default? | **Course-level default + per-assignment override.** A course carries a `mandatoryDefault` flag; the assigner (HR/L&D or manager) may mark any individual assignment mandatory or optional regardless of that default, snapshotted onto the enrollment at creation. |
-| 3 | Do Learning-issued certificates write into the existing `employee_certifications` table (Phase 2A, W24), or stay in a separate Learning-owned table? | **Stay separate — no automatic cross-write.** `employee_certifications` is a free-text, manually-maintained record of externally-earned credentials (issuing organization, credential ID); a Learning-issued certificate is a structured, course-linked, system-generated artifact. Overloading the existing table with Learning provenance risks confusing "who entered this" (employee/HR vs. the system) and complicates that table's existing simple shape. A future, explicitly-scoped "add to my certifications" bridging action could link them later if wanted — not built here. |
-| 4 | Does completing a Learning course automatically create or update an `employee_skills` row (a "skill grant")? | **No, not in V1.** Skills remain the existing, separate, manually-maintained Phase 2A record. Coupling Learning completions to skill grants is a genuine future enhancement, not required for a useful V1, and would coupling Learning to a concept (skill proficiency inference) this plan has no frozen definition for. |
-| 5 | Should V1 include any automatic recurring-assignment/renewal scheduler (e.g., an annual mandatory course auto-reassigns itself as a certificate nears expiry)? | **No.** No background-job/cron infrastructure is assumed available on this platform (the same boundary already documented in `docs/DEPLOYMENT_AND_TENANT_ARCHITECTURE.md`'s own "no in-app job queue" exclusion, and Attendance's own cycle model, which is HR-manually-opened, never auto-opened). Renewal is HR-manually-triggered by re-running the bulk-assign action; a dashboard/report tile surfaces certificates expiring soon so this stays actionable without automation. |
-| 6 | When an instructor-led session's `capacity` is reached, is a new enrollment hard-blocked, or does a waitlist exist? | **Hard-blocked (`409`), no waitlist.** A waitlist queue is an added-complexity LMS feature not clearly justified by anything in the roadmap; HR can always raise capacity or schedule another session. |
-| 7 | Should course categories be a new Master Data domain (organization-defined, like `document_category`), or a dedicated owned entity (like Performance's rating scales)? | **A new Master Data domain, `training_category`.** Course categories are simple, flat, organization-customizable labels with no internal structure (no levels, no weights) — unlike rating scales/templates, which genuinely needed dedicated tables because they carry structured configuration. Reusing Master Data avoids a redundant categorization mechanism. |
-| 8 | Should a completed-but-incorrectly-marked enrollment be correctable via a formal "reopen" state machine (mirroring Performance's W79 reopen), or should HR simply edit/cancel-and-reassign? | **No formal reopen in V1.** HR (`learning.manage`) may directly edit a mutable field or cancel and create a fresh enrollment; every such action is fully audited. A dedicated reopen state machine is more machinery than a training-record correction has so far demonstrated it needs; Performance's reopen exists because HR override/reason/revision tracking was frozen requirements there — nothing in Learning's own roadmap line demands the same. |
+| 1 | Who approves an employee-requested enrollment when the course requires approval? | **The employee's own manager (manager-of-record), server-derived via `reportingManagerId` — never a client-supplied relationship.** HR/L&D (`learning.manage`) may additionally approve, reject, assign directly, or override any decision, organization-wide. **The employee can never approve their own request** — no route accepts a caller acting on their own `employeeId` for an approve/reject action; the server-side identity check structurally excludes it. |
+| 2 | Is "mandatory" a course-level-only flag, or can an individual assignment override it? | **Course-level default (`mandatoryDefault`) + per-assignment override**, snapshotted onto the enrollment at creation (`mandatoryAtAssignment` — renamed from the draft's `isMandatory` for clarity, see §8.3). **A mandatory enrollment cannot be cancelled by the employee.** HR/L&D may cancel or waive it, but only with a required reason, fully audited (§10.5). A later course edit to `mandatoryDefault` never changes an already-created enrollment's own snapshotted value. |
+| 3 | Do Learning-issued certificates write into `employee_certifications`, or stay separate? | **Stay separate — confirmed, no automatic cross-write.** `learning_certificates` remains a distinct, Learning-owned model; `employee_certifications` remains the sole source for external/manually-tracked credentials. The two may be **surfaced together** in a future UI/report (a read-only join at display time), but their underlying data models remain structurally independent — no FK, no shared table, no automatic sync. |
+| 4 | Does course completion automatically write to `employee_skills`? | **No — confirmed.** Any Learning-to-skills integration is deferred past V1 in its entirety. |
+| 5 | Automatic renewal/recurring-assignment scheduling? | **No — confirmed.** No background-job infrastructure exists on this platform. Expiry/expiring-soon status is always computed live from stored dates, never a stored transition. A future renewal workflow creates a **new** enrollment row (and, on completion, a new certificate) — it never rewrites or reopens the old one, preserving §10.6's own immutable-outcome guarantee. |
+| 6 | Session capacity — hard block or waitlist? | **Hard-blocked (`409`), no waitlist — confirmed.** |
+| 7 | Course categories — Master Data or a dedicated table? | **Master Data (`training_category`, organization-defined) — confirmed.** No separate Learning category table exists. |
+| 8 | Formal reopen of completed/failed enrollments? | **No — confirmed.** No enrollment in a terminal state (`completed`, `failed`, `cancelled`) may ever be reopened or mutated. Retraining always creates a **new** enrollment row. Every historical enrollment's own outcome (`status`, `passed`, `score`, `attended`) is permanently immutable once terminal — enforced at the service-layer function-signature level, identical in spirit to Performance's own "status is authoritative" discipline, but stricter here: Performance allows a controlled HR reopen; Learning V1 deliberately does not. |
+
+**Three additional workflow clarifications, resolved during this reconciliation pass** (not independent Owner Decisions — direct, mechanical consequences of Decision 1 applied consistently):
+
+- **HR-direct assignment bypasses approval entirely.** An `hr_assigned` enrollment is created with `approvalStatus = 'auto_approved'` at the same instant it's created — HR/L&D is itself the assigning authority under `learning.manage`, so there is nothing left to approve. This is not a shortcut; it is the same "the assigner's own authority is the approval" principle Performance already established for manager-created goals (§12 of the frozen Performance plan: "manager-created goal: accepted immediately").
+- **Manager-assigned enrollment likewise bypasses approval — no manager-approves-their-own-assignment loop.** A `manager_assigned` enrollment is created with `approvalStatus = 'auto_approved'` at creation. Requiring the same manager to then "approve" their own assignment would be a redundant, pointless loop; approval exists specifically to gate an *employee's own request* against someone else's decision, not to gate an authority's own action against itself.
+- **Employee-requested enrollment's exact request→assigned mechanics** (§10.3): the `learning_enrollments` row is created **immediately** at request time, in every case — there is no separate "pending request" entity. `status` is set to `assigned` at creation regardless of `approvalStatus`. What differs is *actionability*, not row existence: every subsequent write route (progress-marking, attendance, completion) additionally requires `approvalStatus ∈ {auto_approved, approved}` before it will act on the row. A manager/HR decision on a `pending` row changes only `approvalStatus` (`pending → approved` or `pending → rejected`); it never itself advances `status`. This means "moving from request into assigned" is not a status transition at all — the row was always `status = 'assigned'`; approval simply unlocks it. A `rejected` row stays at `status = 'assigned'` forever, permanently inert, kept only for audit.
 
 ---
 
@@ -55,7 +61,7 @@ Verified by direct inspection before any design decision below was made:
 
 ---
 
-## 3. Scope (Proposed V1)
+## 3. Scope (Frozen V1)
 
 - Organization-owned course catalog, with categories from a new Master Data domain.
 - Two delivery modes: self-paced (no scheduled session) and instructor-led (one or more scheduled sessions per course).
@@ -113,25 +119,27 @@ Explicitly out of V1 scope — per this document's own instruction not to assume
 
 ---
 
-## 7. Permissions
+## 7. Permissions — Frozen
 
-**5 proposed keys — deliberately no `.read.team` and no acknowledgement-shaped separate key**, following the platform's own established discipline that "team"/relationship-scoped visibility is resolved server-side, never granted as its own permission:
+**Exactly 5 keys, revalidated and confirmed final in this reconciliation pass — deliberately no `.read.team` and no acknowledgement-shaped separate key**, following the platform's own established discipline that "team"/relationship-scoped visibility is resolved server-side, never granted as its own permission (identical to Attendance's and Performance's own §7 precedent):
 
 | Key | Grants |
 |---|---|
 | `learning.read.own` | Own enrollments, own certificates, own training history; the coarse gate for `my-enrollments`/`my-certificates`/enrollment-detail read. |
-| `learning.write.own` | Self-enroll/request, mark own self-paced progress/completion, cancel own not-yet-started request, upload own enrollment evidence. |
-| `learning.review.write` | Relationship-scoped: **manager of record** (assign to own reports, decide own reports' pending requests) *or* **instructor of record** (mark attendance/completion for their own session's enrollments) — dispatched server-side by comparing the caller's own employee identity against the enrollment's `managerEmployeeIdSnapshot` or the session's `instructorEmployeeId`, exactly mirroring Performance's `resolveReviewRelationship`/dual-tier dispatch (W78). No separate "instructor" permission key. |
-| `learning.manage` | Course/session CRUD, bulk-assign, org-wide approval/decision authority, administrative completion/attendance correction, certificate revocation, org-wide enrollment list. |
+| `learning.write.own` | Self-enroll/request, mark own self-paced progress/completion (never one's own assessment result, §11), cancel own not-yet-started **non-mandatory** request (§10.5), upload own enrollment evidence. |
+| `learning.review.write` | Relationship-scoped: **manager of record** (assign to own reports, decide own reports' pending requests) *or* **instructor of record** (mark attendance/completion, including assessment results, for their own session's enrollments) — dispatched server-side by comparing the caller's own employee identity against the enrollment's `managerEmployeeIdSnapshot` or the session's `instructorEmployeeId`, exactly mirroring Performance's `resolveReviewRelationship`/dual-tier dispatch (W78). No separate "instructor" permission key. |
+| `learning.manage` | Course/session CRUD, bulk-assign, org-wide approval/decision authority (including any pending `employee_requested` enrollment, not just those under a specific manager), administrative completion/attendance correction, mandatory-enrollment cancel/waive (§10.5), certificate revocation, org-wide enrollment list. |
 | `learning.reports.read` | Dashboard + reports. |
 
-**Proposed role mapping** (mirrors Performance's own §7 exactly): `employee` holds `read.own`/`write.own`/`review.write`/`reports.read` (every employee can potentially be a manager or instructor); `hr_manager`/`org_admin`/`super_admin` hold all 5.
+**Final default role mapping** (mirrors Performance's own §7 exactly, confirmed unchanged by this reconciliation): `employee` holds `read.own`/`write.own`/`review.write`/`reports.read` (every employee can potentially be a manager or instructor of someone); `hr_manager`/`org_admin`/`super_admin` hold all 5. No role holds `learning.manage` except `hr_manager`/`org_admin`/`super_admin` — a plain `employee` (even one who happens to manage or instruct others) never gains organization-wide reach through `learning.review.write` alone.
 
-**No organization-settings namespace is proposed for V1** — every course-level configuration (assessment requirement, certificate validity period, mandatory default, approval requirement) lives on the course row itself, snapshotted onto each enrollment at assignment time (§9), matching Performance's own `scoringPrecisionSnapshot`/`acknowledgementRequiredSnapshot` precedent rather than inventing an organization-wide default that would need its own snapshot discipline.
+**No organization-settings namespace exists for Learning** — confirmed in this reconciliation pass. Every course-level configuration (assessment requirement, certificate validity period, mandatory default, approval requirement) lives on the course row itself, snapshotted onto each enrollment at assignment time (§9), matching Performance's own `scoringPrecisionSnapshot`/`acknowledgementRequiredSnapshot` precedent rather than inventing an organization-wide default that would need its own snapshot discipline.
 
 ---
 
-## 8. Data Model (Proposed)
+## 8. Data Model — Frozen (five tables, reconciled)
+
+**Five tables remain sufficient after applying all eight Owner Decisions — verified explicitly in this reconciliation pass, no table was added or removed.** No decision required a new entity: course categories reuse Master Data (Owner Decision 7, no `learning_categories` table); certificates stay in their own table but gain no new relations (Owner Decision 3 — no bridge table to `employee_certifications`); skills gain no integration table (Owner Decision 4); no reopen/revision-history table exists (Owner Decision 8 — immutability is enforced by the absence of any reopen path, not by a new audit-shadow table, since `audit_events` already captures every transition). The only schema-level consequence of this reconciliation pass is **additional columns on the existing `learning_enrollments` table** (§8.3) to satisfy the fuller historical-snapshot requirement — described below, not created as a migration.
 
 All tables: `organizationId` (restrict, never cascade — matches every other business table on this platform), RLS enabled at migration time with zero policies (deny-by-default), standard `createdAt`/`updatedAt`.
 
@@ -176,6 +184,10 @@ One scheduled instance of an instructor-led course. Mirrors `interviews` almost 
 
 Index: `(organizationId, courseId)`, `(organizationId, instructorEmployeeId)`.
 
+**Frozen, same as every other cross-table reference on this platform:** a session's `courseId` must belong to the same `organizationId` as the session itself — validated in the service layer at creation, the identical discipline Performance uses to keep a template's `ratingScaleId` same-organization. `scheduledAt` is `timestamptz`, inherently timezone-aware and organization-timezone-displayed on read (no separate `timezone` column, mirroring `interviews.scheduledAt` exactly); an end time is always derived as `scheduledAt + durationMinutes`, never stored separately. `instructorEmployeeId` and `capacity` are both optional — a session may exist with neither (e.g., a placeholder scheduled before an instructor is confirmed), but `learning.review.write`'s instructor-of-record dispatch and capacity enforcement (Owner Decision 6) simply have nothing to grant/enforce until they're set.
+
+**Attendance/completion relationship — explicitly not the Attendance module:** `attended` lives on the **enrollment** (§8.3), not the session, and is a single binary "did this employee attend this specific training session" fact, instructor/HR-marked after the session occurs. This is deliberately unconnected to the Attendance module's `attendance_events`/`attendance_adjustments`/daily-summary machinery, which tracks daily *work* attendance (clock-in/out, computed daily status) — a structurally different domain operating on civil dates, not scheduled events. Learning session participation is never written to, read from, or reconciled against any Attendance table, and vice versa; the two modules remain fully independent, each usable with the other disabled.
+
 ### 8.3 `learning_enrollments`
 
 The core record — one employee's assignment to a course (optionally a specific session).
@@ -187,24 +199,28 @@ The core record — one employee's assignment to a course (optionally a specific
 | `courseId` | FK → learning_courses, restrict | |
 | `sessionId` | FK → learning_course_sessions, restrict, nullable | Null for self-paced; required for instructor-led (validated at creation). |
 | `employeeId` | FK → employees, restrict | Historical business record — restrict, never cascade, matching `performance_reviews.employeeId` exactly. |
-| `courseTitleSnapshot`, `categorySnapshot` | text, not null | Snapshotted at creation (§9). |
+| `courseTitleSnapshot`, `categorySnapshot` | text, not null | Snapshotted at creation (§9) — `categorySnapshot` is the category's own **display label** at assignment time (not merely the Master Data code), so a later label rename never rewrites what the employee was actually shown. |
+| `deliveryModeSnapshot` | enum: `self_paced`, `instructor_led`, not null | **[New in this reconciliation pass — historical integrity]** Snapshotted from `course.deliveryMode` at creation. A course's delivery mode is not expected to change after any enrollment exists against it, but nothing here relies on that assumption — write routes always branch on the enrollment's own snapshot, never the live course row. |
+| `hasAssessmentSnapshot` | boolean, not null | **[New in this reconciliation pass]** Snapshotted from `course.hasAssessment` at creation — a later course edit toggling this never changes whether an already-created enrollment requires a pass/fail result. |
+| `issuesCertificateSnapshot` | boolean, not null | **[New in this reconciliation pass]** Snapshotted from `course.issuesCertificate` at creation — certificate issuance at completion time (§10.4) reads this column, never the live course row. |
+| `certificateValidityMonthsSnapshot` | integer, nullable | **[New in this reconciliation pass]** Snapshotted from `course.certificateValidityMonths` at creation (only meaningful when `issuesCertificateSnapshot = true`). A later change to the course's own validity period never alters an already-issued or yet-to-be-issued certificate for an existing enrollment. |
 | `departmentIdSnapshot`, `positionIdSnapshot` | FK → departments/positions, restrict, nullable | Snapshotted at creation, matching `performance_reviews`. |
-| `managerEmployeeIdSnapshot` | FK → employees, restrict, nullable | Snapshot of `employees.reportingManagerId` at creation — the "manager of record" for `learning.review.write` dispatch and approval authority; a later manager change never reassigns an in-flight or historical enrollment (identical rationale to Performance's `reviewerEmployeeId`). |
+| `managerEmployeeIdSnapshot` | FK → employees, restrict, nullable | Snapshot of `employees.reportingManagerId` at creation — the "manager of record" for `learning.review.write` dispatch and approval authority (Owner Decision 1); a later manager change never reassigns an in-flight or historical enrollment (identical rationale to Performance's `reviewerEmployeeId`). |
 | `originType` | enum: `hr_assigned`, `manager_assigned`, `employee_requested` | |
 | `assignedByMembershipId` | FK → organization_memberships, set null, nullable | Null for `employee_requested`. |
-| `isMandatory` | boolean, not null | Snapshotted from `course.mandatoryDefault`, overridable by the assigner at creation (Owner Decision 2). |
+| `mandatoryAtAssignment` | boolean, not null | Snapshotted from `course.mandatoryDefault`, overridable by the assigner at creation (Owner Decision 2). Renamed from the draft's `isMandatory` for clarity — the column name itself now states that it is a snapshot, not a live-read flag. |
 | `dueDate` | timestamptz, nullable | Optional compliance deadline; informational, drives an "overdue" dashboard/report signal only — never a lifecycle gate. |
-| `approvalStatus` | enum: `auto_approved`, `pending`, `approved`, `rejected` | `hr_assigned`/`manager_assigned` are always `auto_approved` at creation (the assigner already held the authority). `employee_requested` starts `pending` if `course.requiresApproval`, else `auto_approved`. |
-| `approvalDecidedByMembershipId`, `approvalDecidedAt` | nullable | Informational only — never read to infer lifecycle stage instead of `approvalStatus`/`status` (§10.4). |
-| `status` | enum: `assigned`, `in_progress`, `completed`, `failed`, `cancelled` | **The sole authoritative field for training progress** (§10.2). A `rejected` `approvalStatus` enrollment is terminal regardless of `status` — enforced in the service layer, never physically deleted (audit-trail integrity). |
-| `attended` | boolean, nullable | Instructor-led only; set by the instructor of record or HR after the session occurs. |
+| `approvalStatus` | enum: `auto_approved`, `pending`, `approved`, `rejected` | `hr_assigned`/`manager_assigned` are **always** `auto_approved` at creation — the assigner already held the authority (§0's own workflow clarifications). `employee_requested` starts `pending` if `course.requiresApproval`, else `auto_approved`. |
+| `approvalDecidedByMembershipId`, `approvalDecidedAt` | nullable | Informational only — never read to infer lifecycle stage instead of `approvalStatus`/`status` (§10.3). |
+| `status` | enum: `assigned`, `in_progress`, `completed`, `failed`, `cancelled` | **The sole authoritative field for training progress** (§10.3). Set to `assigned` at creation in every case, regardless of `approvalStatus` — approval gates *actionability*, not row existence (§0). A `rejected` `approvalStatus` enrollment is permanently inert at `status = 'assigned'` — enforced in the service layer, never physically deleted (audit-trail integrity). Once `completed`/`failed`/`cancelled`, **no further transition is ever permitted** (Owner Decision 8) — no reopen exists in V1. |
+| `attended` | boolean, nullable | Instructor-led only; set by the instructor of record or HR after the session occurs. A fact, not a status — recording it never by itself transitions `status` (§10.3). |
 | `attendanceMarkedByMembershipId`, `attendanceMarkedAt` | nullable | Informational. |
-| `passed` | boolean, nullable | Only meaningful when `course.hasAssessment`. |
-| `score` | numeric, nullable | Free-form, instructor/HR-entered — no question-bank scoring exists. |
-| `completedAt` | timestamptz, nullable | Informational only (§10.4). |
-| `cancelReason` | text, nullable | Required when `status` is set to `cancelled` by anyone other than the enrolled employee themself. |
+| `passed` | boolean, nullable | Only meaningful when `hasAssessmentSnapshot = true`. Recorded directly and independently by the instructor of record or HR/L&D — **never auto-derived from `score` against a threshold** (§11). |
+| `score` | numeric, nullable | Free-form, instructor/HR-entered — no question-bank scoring exists, no pass threshold is stored or computed anywhere (§11). |
+| `completedAt` | timestamptz, nullable | Informational only, never read to infer stage instead of `status` (§10.3). |
+| `cancelReason` | text, nullable | **Required** whenever `status` is set to `cancelled` by anyone other than the enrolled employee cancelling their own not-yet-started, non-mandatory request. **Always required, with no exception, when the enrollment being cancelled is mandatory** (`mandatoryAtAssignment = true`) — a mandatory enrollment can only ever be cancelled by HR/L&D (`learning.manage`), never by the employee, and always with a reason (§10.5). |
 
-Uniqueness (partial, application/DB-enforced): at most one **non-terminal** (`assigned`/`in_progress`) enrollment per `(employeeId, courseId)` for self-paced courses, and per `(employeeId, sessionId)` for instructor-led — allowing legitimate re-enrollment (e.g., annual mandatory retraining) once a prior enrollment reaches a terminal state (`completed`/`failed`/`cancelled`). Exact constraint shape (partial unique index vs. service-layer check) is an implementation detail for the owning workstream, not fixed here.
+Uniqueness (partial, application/DB-enforced): at most one **non-terminal** (`assigned`/`in_progress`) enrollment per `(employeeId, courseId)` for self-paced courses, and per `(employeeId, sessionId)` for instructor-led — allowing legitimate re-enrollment (e.g., annual mandatory retraining) once a prior enrollment reaches a terminal state (`completed`/`failed`/`cancelled`), each retraining always a **new row**, never a reopened old one (Owner Decision 8). Exact constraint shape (partial unique index vs. service-layer check) is an implementation detail for the owning workstream (W87), not fixed here.
 
 Indexes: `(organizationId, employeeId)`, `(organizationId, managerEmployeeIdSnapshot)`, `(organizationId, courseId, status)`, `(organizationId, sessionId)`.
 
@@ -245,7 +261,7 @@ Index: `(organizationId, employeeId)`, `(organizationId, expiresAt)` (for the ex
 
 New domain in `MASTER_DATA_DOMAINS`: `{ key: "training_category", label: "Training Category", classification: "organization-defined" }` — additive, code-only change to the fixed registry (Owner Decision 7), no migration by itself (Master Data domains are code-owned, not a table per domain).
 
-### 8.7 Migration & RLS impact (proposed, not created)
+### 8.7 Migration & RLS impact (frozen design, not yet created)
 
 **5 new tables** (`learning_courses`, `learning_course_sessions`, `learning_enrollments`, `learning_enrollment_evidence`, `learning_certificates`), each RLS-enabled inline with zero policies at creation, each with a hand-authored `.down.sql`, following every prior migration's own convention. **Expected next migration: `0039`** — not created in this planning session. Public table count would move from the current 79 to **84** (79 + 5), all RLS-enabled, 0 disabled, 0 policies, preserving the deny-by-default baseline with no exceptions.
 
@@ -253,16 +269,16 @@ New domain in `MASTER_DATA_DOMAINS`: `{ key: "training_category", label: "Traini
 
 ## 9. Historical Integrity
 
-Every enrollment permanently snapshots, at creation: `courseTitleSnapshot`/`categorySnapshot` (a later course rename/recategorization never rewrites what the employee was actually assigned), `departmentIdSnapshot`/`positionIdSnapshot`/`managerEmployeeIdSnapshot` (a later employee move/manager change never reassigns an in-flight or historical enrollment), and `isMandatory` (a later change to the course's own `mandatoryDefault` never retroactively alters an already-created enrollment). Every certificate permanently snapshots `courseTitleSnapshot` at issuance. `courseId`/`sessionId` are retained as live references for traceability only, never re-read for display content after creation — the same "live reference, protected by the fact history is snapshotted elsewhere" pattern Performance uses for `templateId`/`ratingScaleId`.
+Every enrollment permanently snapshots, at creation, the complete set of historical fields needed to understand it later without re-reading the live course: `courseTitleSnapshot` (title), `categorySnapshot` (category display label), `deliveryModeSnapshot` (delivery type), `mandatoryAtAssignment` (the mandatory flag applicable to this exact enrollment), `hasAssessmentSnapshot` (completion/pass requirement), `issuesCertificateSnapshot`/`certificateValidityMonthsSnapshot` (certificate eligibility and rule applicable at assignment), `departmentIdSnapshot`/`positionIdSnapshot` (targeting context), and `managerEmployeeIdSnapshot` (approver/manager-of-record reference). Every certificate permanently snapshots `courseTitleSnapshot` at issuance. `courseId`/`sessionId` are retained as live references for traceability only, never re-read for display content or business-rule evaluation after creation — the same "live reference, protected by the fact history is snapshotted elsewhere" pattern Performance uses for `templateId`/`ratingScaleId`. **A later course edit never changes an existing enrollment's own historical meaning, for any field** — every rule that could vary by course configuration is evaluated once, at enrollment creation (or, for certificate expiry, at issuance), and never re-evaluated against the live course row again.
 
 **Change-table (mirrors Performance's own §9 table):**
 
 | Changes later... | Effect on existing enrollments/certificates |
 |---|---|
 | Employee's department/position/manager changes | No effect — all three are snapshotted |
-| Course is edited or archived | No effect — title/category were copied at enrollment creation |
-| Course category renamed | No effect |
-| Course's `mandatoryDefault`/`requiresApproval`/`hasAssessment`/`issuesCertificate`/`certificateValidityMonths` changes | No effect on already-created enrollments/already-issued certificates — all relevant values are snapshotted or computed once at their own creation/issuance time |
+| Course is edited or archived | No effect — title/category/delivery-mode were copied at enrollment creation |
+| Course category renamed | No effect — the enrollment's own `categorySnapshot` is the label as it stood at creation |
+| Course's `mandatoryDefault`/`requiresApproval`/`hasAssessment`/`issuesCertificate`/`certificateValidityMonths` changes | **No effect whatsoever** on already-created enrollments or already-issued certificates — every one of these is snapshotted onto the enrollment at creation (or computed once at certificate issuance) and never re-read live again |
 | Session is edited or cancelled | Enrollment's own snapshot fields are unaffected; only the session's own `status` changes |
 
 ---
@@ -289,39 +305,70 @@ Mirrors `interviews.status` exactly. Enrollment against a session is only permit
 
 ### 10.3 Enrollment lifecycle — two independent axes
 
-**`approvalStatus`** (only meaningful for `employee_requested` originType):
+**`approvalStatus`** (only meaningful for `employee_requested` originType — §0's own workflow clarifications, frozen):
 
 ```
 pending → approved | rejected
 ```
 
-`hr_assigned`/`manager_assigned` enrollments are created directly at `auto_approved` — the assigner already held the authority to assign. A `rejected` enrollment is terminal; its own `status` never advances further (enforced in the service layer).
+`hr_assigned`/`manager_assigned` enrollments are created directly at `auto_approved` — the assigner already held the authority to assign, and requiring a manager to approve their own assignment would be a redundant loop (§0). `pending → approved`/`pending → rejected` is decided by the enrollment's own `managerEmployeeIdSnapshot` (manager-of-record) or by any `learning.manage` holder (HR/L&D), organization-wide — **never by the enrolled employee themselves**, structurally excluded by the route's own server-derived-identity check (Owner Decision 1). A `rejected` enrollment is permanently terminal; its own `status` never advances (enforced in the service layer, atomic conditional check on every subsequent write).
 
-**`status`** (the authoritative progress field, gated by `approvalStatus` being `auto_approved`/`approved`):
+**`status`** (the authoritative progress field for the row itself, present from creation, gated for *actionability* by `approvalStatus` being `auto_approved`/`approved` — see §0's "request→assigned mechanics" for why this is not itself a transition):
 
 ```
 assigned → in_progress → completed
-                       ↘ failed   (only when course.hasAssessment and passed = false)
-assigned/in_progress → cancelled (employee's own not-yet-started request, or HR/manager override with a reason)
+                       ↘ failed   (only when hasAssessmentSnapshot = true and passed = false)
+assigned/in_progress → cancelled (§10.5 — subject to the mandatory-enrollment restriction)
 ```
 
-Attendance (`attended`) is recorded as a separate fact by the instructor of record or HR once a session occurs — it does not by itself transition `status`; a completion action (§10.3.1) is always an explicit, separate step, consistent with the "no timestamp/flag substituting for an authoritative status transition" rule applied to every boolean fact here, not just timestamps.
+Attendance (`attended`) is recorded as a separate fact by the instructor of record or HR once a session occurs — it does not by itself transition `status`; a completion action (§10.3.1) is always an explicit, separate step, consistent with the "no timestamp/flag substituting for an authoritative status transition" rule applied to every boolean fact here, not just timestamps. **Once `status` reaches `completed`, `failed`, or `cancelled`, it is permanently terminal — no further transition of any kind is permitted** (Owner Decision 8; §10.6).
 
-**10.3.1 Completion action:** for self-paced courses, the employee (`learning.write.own`) marks their own `in_progress`/`completed`; for instructor-led courses, the instructor of record or HR (`learning.review.write`/`learning.manage`) marks completion after the session, supplying `passed`/`score` when `course.hasAssessment`. Every transition is an atomic conditional update (`WHERE status = '<expected>'`), mirroring `leaveApprovals.ts`/every Performance transition — a concurrent or repeat completion affects zero rows and returns a controlled `409`.
+**10.3.1 Completion action:** for self-paced courses, the employee (`learning.write.own`) marks their own `in_progress`/`completed`. For instructor-led courses, the instructor of record marks completion after the session (`learning.review.write`); HR/L&D (`learning.manage`) may also mark completion for any enrollment, organization-wide. **For a self-paced course with `hasAssessmentSnapshot = true`** — no instructor of record exists (no session) — only HR/L&D (`learning.manage`) may record the `passed`/`score` result; the employee's own `learning.write.own` completion path never accepts an assessment result for their own row (an employee cannot grade themselves). Every transition is an atomic conditional update (`WHERE status = '<expected>'`), mirroring `leaveApprovals.ts`/every Performance transition — a concurrent or repeat completion affects zero rows and returns a controlled `409`.
 
-### 10.4 Certificate lifecycle
+### 10.4 Certificate lifecycle — frozen issuance rules
 
 ```
 active → revoked
 ```
 
-Issued automatically (system action, audited) the instant a qualifying enrollment reaches `completed` on a course with `issuesCertificate = true` (and, if `hasAssessment`, only when `passed = true`). `expiresAt` is computed once at issuance from `course.certificateValidityMonths` and never recomputed. **"Expired" is never a stored `status` value** — every read path computes it live from `expiresAt < now()` (organization-local "now," per §16), avoiding any background job. Revocation (`learning.manage` only) requires a reason and is fully audited; a revoked certificate's history (who issued it, when, from which enrollment) is never erased.
+**Issuance is automatic, system-triggered, and part of the same atomic action as the completion transition itself** — not a separate manual "issue certificate" step. Exact frozen rule:
+
+1. **Required completion state:** the enrollment's `status` transition to `completed` (never `failed` — a failed assessment never issues a certificate).
+2. **Assessment gate:** when `hasAssessmentSnapshot = true`, a certificate issues **only if `passed = true`** in the same completion call; a `completed` (self-paced, no assessment) or `completed` + `passed = true` (assessed) enrollment both qualify; `failed` never qualifies by definition (it is a different terminal `status` value, not a `completed` + `passed = false` combination — a course requiring an assessment routes a non-pass to `status = 'failed'` directly, per §10.3).
+3. **Certificate eligibility source:** read from the enrollment's own `issuesCertificateSnapshot`/`certificateValidityMonthsSnapshot` — **never** the live `learning_courses` row (§9).
+4. **Who/what issues it:** the system itself, as an automatic consequence of the completion service function, in the same transaction — audited as its own distinct event (§19), attributed to the actor who performed the completion action (there is no separate "certificate issuer" identity).
+5. **Issue date:** `issuedAt` = the server timestamp of the completion transaction — never client-supplied, never backdated.
+6. **Expiry date:** `expiresAt` = `issuedAt + certificateValidityMonthsSnapshot` months, computed exactly once at issuance and never recomputed; null `certificateValidityMonthsSnapshot` → `expiresAt` stays null (never expires).
+7. **Certificate title:** `courseTitleSnapshot` copied from the enrollment's own `courseTitleSnapshot` at issuance (a chain of snapshots — course → enrollment → certificate — each layer frozen at its own creation moment, never re-reading the live course).
+8. **Revoked state:** `learning.manage` only, mandatory `revokeReason`, fully audited; **permanently terminal** — a revoked certificate is never reactivated; a corrected/reissued credential requires a wholly new enrollment (Owner Decision 8) producing a wholly new certificate.
+9. **"Expired" is never a stored `status` value** — every read path computes it live from `expiresAt < now()` (organization-local "now," per §25), avoiding any background job (Owner Decision 5).
+10. **Relationship to file storage:** an optional single `employeeDocumentId` reference into the existing `employee_documents` table (§18) — not a join table, since a certificate has at most one attached file. V1 never generates a certificate PDF; the field exists only for an optionally HR-uploaded file.
+
+### 10.5 Mandatory Enrollment Rules
+
+Frozen, per Owner Decision 2:
+
+- **A mandatory enrollment (`mandatoryAtAssignment = true`) can never be cancelled by the enrolled employee.** The employee's own `learning.write.own` cancel path structurally rejects it (`403`), regardless of `status`.
+- **Only HR/L&D (`learning.manage`) may cancel or waive a mandatory enrollment**, and **only with a required, non-empty `cancelReason`** — enforced at the schema/validation level, not merely a UI convention (defense in depth, matching the platform's own established discipline for every other mandatory-reason field, e.g. Performance's `hrOverrideReason`).
+- **An optional (non-mandatory) enrollment may be cancelled by the enrolled employee themselves**, but only while it is still `assigned` (not yet `in_progress`) — once training has genuinely started, cancellation becomes an HR/L&D action requiring a reason, identical to the mandatory case.
+- **No historical completion or failure record is ever deleted, for a mandatory or optional enrollment.** Cancellation, waiver, and rejection are all status transitions on the existing row — never a `DELETE`. No `DELETE` route exists on `learning_enrollments` at all (§21).
+
+### 10.6 Immutable Terminal Outcomes
+
+Once an enrollment reaches `completed`, `failed`, or `cancelled`, its own outcome fields (`status`, `passed`, `score`, `attended`, `completedAt`) are permanently immutable — enforced at the service-layer function-signature level (every mutating function's own atomic `WHERE status = '<expected>'` clause structurally cannot match a row already in a terminal state). There is no reopen path anywhere in V1 (Owner Decision 8). A correction, or genuine retraining, always creates a **new** `learning_enrollments` row — the old row, and any certificate it produced, remain permanently, exactly as they were.
 
 ---
 
-## 11. Goals / Assessment Model
+## 11. Goals / Assessment Model — Frozen
 
-No dedicated "goals" concept exists in Learning (unlike Performance) — training assignment itself is the unit of tracking. Where a course is configured `hasAssessment = true`, completion requires an explicit `passed` boolean plus an optional free-form `score`, entered by the instructor of record or HR — there is no question bank, no auto-grading, and no partial-credit model. This is a deliberate, minimal design matching "assessments... if justified" without building a quiz engine no roadmap item requires.
+No dedicated "goals" concept exists in Learning (unlike Performance) — training assignment itself is the unit of tracking. Where a course is configured `hasAssessment` (`hasAssessmentSnapshot` on the enrollment, §9), completion requires an explicit result, frozen exactly as follows:
+
+- **Result model:** a `passed` boolean, plus an optional free-form numeric `score` — not a letter grade, not a rubric, not multiple question-level scores.
+- **Pass threshold: none exists.** `passed` is recorded **directly and independently** by the instructor of record or HR/L&D at completion time — it is never auto-derived from `score` against any stored or configured threshold. No `passThreshold`/`passingScore` field exists anywhere in this schema. This is a deliberate simplification: a numeric auto-threshold would require defining what `score` is even measured against (points out of what maximum? a percentage?) — a concept this plan has no frozen definition for, and inventing one would be exactly the kind of unjustified LMS machinery this document's own instructions warn against.
+- **Snapshotting:** because no threshold exists, there is nothing to snapshot onto the enrollment beyond `hasAssessmentSnapshot` itself (already covered in §8.3/§9) — the assessment *requirement* is snapshotted; the assessment *result* is, by definition, always recorded fresh at completion time and was never a course-level property to begin with.
+- **Who records it:** the instructor of record (a session's own `instructorEmployeeId`, `learning.review.write`) for instructor-led courses; HR/L&D (`learning.manage`) for self-paced courses with an assessment requirement, since no instructor-of-record relationship exists without a session (§10.3.1). **The employee never records their own `passed`/`score`**, even for their own self-paced enrollment — self-grading is structurally excluded from the employee's own `learning.write.own` completion path.
+
+There is no question bank, no auto-grading, no partial credit, and no quiz/assessment-delivery infrastructure of any kind — this is a deliberate, minimal design matching "assessments... if justified" without building a quiz engine no roadmap item requires (§4).
 
 ---
 
@@ -400,7 +447,7 @@ All 5 new tables RLS-enabled inline at migration time, zero policies — deny-by
 
 ---
 
-## 21. API Plan (Proposed)
+## 21. API Plan — Frozen
 
 Mirrors the established `requireAuth → requireMembership → requireModuleEnabled("learning") → requirePermission(...)` chain on every route.
 
@@ -433,7 +480,7 @@ No `DELETE` route on any instance-level record — matches the platform's own es
 
 ---
 
-## 22. Frontend Plan (Proposed)
+## 22. Frontend Plan
 
 New routes: `/learning-courses`, `/learning-sessions` (or folded into the course detail view), `/learning-enrollments` (internal HR/L&D workspace), `/learning` (dashboard), `/learning-reports`; a new "My Learning" tab on the existing ESS page; a new "My Team Training" surface (either its own route or folded into an existing manager-facing page, an implementation detail for the owning workstream). All module-gated via `<ModuleGate moduleKey="learning">` (or the ESS tab's own independent in-page check, matching every prior ESS tab). No new charting dependency; standard loading/error/empty/`403`/`409` states; zero client-side scoring/status computation (every surface renders server-computed DTOs only, matching the platform-wide discipline re-verified as a Definition-of-Done item in both Attendance and Performance).
 
@@ -493,24 +540,96 @@ Mirrors Performance's own §34/W83 discipline: a real, disposable-account lifecy
 
 ---
 
-## 29. Workstream Breakdown (Proposed)
+## 29. Workstream Breakdown — Reconciled
 
-Continuing numbering directly from W84 (Phase 3C's own completion report), per this document's own instruction:
+Continuing numbering directly from W84 (Phase 3C's own completion report). Ten workstreams, matching Performance's own W73–W84 cadence and discipline exactly, including a dedicated final verification workstream (W93) and completion-report workstream (W94). **W85 remains the first implementation workstream and requires its own separate go-ahead even now that this document is frozen** — freezing this plan is not itself authorization to begin.
 
-| # | Workstream | Scope | Mirrors |
-|---|---|---|---|
-| **W85** | Learning Foundation & Module Activation | All 5 tables, RLS enabled inline, 5 permissions seeded, module `learning` flipped `hidden`→`active` (available, not enabled for any org), `lib/learningAuthorization.ts`, new `training_category` Master Data domain. Schema + auth primitives only — no routes, no frontend. | W73 |
-| **W86** | Course Catalog & Sessions | Course CRUD (`draft`/`active`/`archived`), session scheduling CRUD, HR/L&D administration. | W74 |
-| **W87** | Enrollment, Assignment & Approval | Bulk-assign (audience targeting), employee self-enroll/request, manager-assign, approval/decision flow, capacity enforcement. | W75 (+ Performance's own goal-approval pattern, W76) |
-| **W88** | Employee Self-Service Learning | "My Learning" ESS tab — catalog browse, self-enroll, own progress-marking, own history/certificates. | W77 |
-| **W89** | Manager & Instructor Actions | "My Team Training," attendance marking, completion/assessment marking, manager approval decisions. | W78 |
-| **W90** | Certificates & Evidence | Certificate issuance on qualifying completion, expiry computation, revoke action, enrollment evidence attachments (reusing `employee_documents`). | W79 + W82 combined |
-| **W91** | Internal HR/L&D Workspace | Org-wide enrollment list, paginated/filterable, course/session admin frontend. | W80 |
-| **W92** | Dashboard & Reporting | Tile breakdown, 3 report keys, CSV export. | W81 |
-| **W93** | Phase 3D Verification | Full repo-wide verification pass against this frozen plan — functional, authorization, tenant isolation, historical integrity, security, database, live QA. Verification-only, no casual feature additions. | W83 |
-| **W94** | Phase 3D Completion Report | Formal closure — reconciliation, shipped-capability record, known non-blocking items, next roadmap step. | W84 |
+### W85 — Learning Foundation & Module Activation
 
-Ten workstreams, matching Performance's own W73–W84 cadence and discipline exactly (including a dedicated final verification workstream and a dedicated completion-report workstream, per this document's own explicit instruction).
+- **Scope:** all 5 tables (§8) created via migration `0039`, RLS enabled inline with zero policies; 5 permissions seeded (§7) exactly onto `employee`/`hr_manager`/`org_admin`/`super_admin` per the frozen role mapping; module `learning` flipped `hidden`→`active` in the registry (available, not enabled for any organization); `lib/learningAuthorization.ts` (identity/relationship-resolution primitives, mirroring `lib/performanceAuthorization.ts`); new `training_category` Master Data domain (code-only registry addition, §8.6).
+- **Schema impact:** all 5 tables created for the first time this workstream.
+- **API impact:** none — no route exists yet.
+- **Frontend impact:** none.
+- **Definition of Done:** migration applied to development and verified live; exactly 5 permissions exist and match the frozen role matrix cell-for-cell; module status flip confirmed; `training_category` domain resolvable via the existing Master Data read path; foundation-level tests green; RLS re-confirmed (public table count moves from 79 to 84, all enabled, 0 disabled, 0 policies).
+- **STOP boundary:** schema + auth primitives only. No route, no frontend. Do not begin W86 without its own separate go-ahead.
+
+### W86 — Course Catalog & Sessions
+
+- **Scope:** course CRUD (`draft`/`active`/`archived`, §10.1); session scheduling CRUD (§8.2, `scheduled`/`completed`/`cancelled`); HR/L&D administration only — no enrollment exists yet.
+- **Schema impact:** none (tables already exist from W85).
+- **API impact:** `GET/POST .../learning/courses`, `GET/PATCH .../learning/courses/:id`, `GET/POST .../learning/courses/:id/sessions`, `GET/PATCH .../learning/sessions/:id` (§21).
+- **Frontend impact:** none yet (internal admin UI for these lands with W91, mirroring how Performance's W74 shipped scales/templates with no frontend, and W80 shipped the internal workspace later) — **or**, if the owning workstream judges a minimal admin CRUD UI belongs here instead, that is an implementation-time call within this workstream's own scope, not a deviation from this plan.
+- **Definition of Done:** full CRUD tested (authorization, same-org validation for `courseId` on sessions, status-transition guards); OpenAPI + codegen regenerated, byte-identical across two runs; typecheck/build clean.
+- **STOP boundary:** no enrollment logic of any kind. Do not begin W87 without its own separate go-ahead.
+
+### W87 — Enrollment, Assignment & Approval
+
+- **Scope:** bulk-assign (audience targeting via `all_active`/`department`/`position`/`manual`, reusing `resolveEligibleEmployees`'s exact logic, one atomic transaction per action, §14); employee self-enroll/request (§0's request→assigned mechanics); manager-assign; the full `approvalStatus` state machine (§10.3) including the frozen "HR-direct and manager-assigned bypass approval" and "employee can never approve their own request" rules (Owner Decision 1); session capacity enforcement (Owner Decision 6, atomic, `409` on a race); the mandatory-cancellation rules (§10.5).
+- **Schema impact:** none (table exists from W85) — this workstream is the first to actually write `learning_enrollments` rows.
+- **API impact:** `.../learning/courses/:id/assign`, `.../learning/courses/:id/enroll`, `.../learning/my-enrollments`, `.../learning/team-enrollments`, `.../learning/enrollments`, `.../learning/enrollments/:id`, `.../learning/enrollments/:id/approve`, `/reject`, `.../learning/enrollments/:id/cancel` (§21).
+- **Frontend impact:** none yet.
+- **Definition of Done:** every origin path (`hr_assigned`/`manager_assigned`/`employee_requested`) tested end to end including the approval bypass rules; the employee-cannot-approve-own-request guard tested explicitly; mandatory-vs-optional cancellation rules tested explicitly (including the reason-required path); capacity race tested under concurrency; all snapshot columns (§8.3/§9) verified populated correctly and immutable to later course edits.
+- **STOP boundary:** no progress-marking, no attendance, no completion, no certificates. Do not begin W88 without its own separate go-ahead.
+
+### W88 — Employee Self-Service Learning
+
+- **Scope:** "My Learning" ESS tab (§15) — catalog browse (active courses only), self-enroll/request action, own enrollment list with status, own self-paced progress-marking (§10.3.1, `assigned`→`in_progress`→`completed`, never an assessment result), own certificates, own training history.
+- **Schema impact:** none.
+- **API impact:** `.../learning/enrollments/:id/progress` (PATCH, `learning.write.own`) added; every other route consumed here already exists from W87.
+- **Frontend impact:** new "My Learning" ESS tab, module-gated independently within the existing ESS page (mirroring My Attendance/My Leave/My Performance).
+- **Definition of Done:** RTL component tests plus live HTTP QA of the exact endpoints/payloads the tab sends; self-paced completion never accepts an assessment result from the employee's own path (tested explicitly); a disabled `learning` module degrades only this tab, confirmed by test.
+- **STOP boundary:** employee-facing surface only. No manager/instructor UI, no HR administration UI. Do not begin W89 without its own separate go-ahead.
+
+### W89 — Manager & Instructor Actions
+
+- **Scope:** "My Team Training" (manager-of-record scope); attendance marking (§10.3, instructor-of-record or HR); completion/assessment-result marking for instructor-led courses (§10.3.1/§11, instructor-of-record or HR); manager approval decisions on direct reports' pending requests (Owner Decision 1).
+- **Schema impact:** none.
+- **API impact:** `.../learning/enrollments/:id/attendance`, `.../learning/enrollments/:id/complete` (§21); the approve/reject routes from W87 gain their manager-of-record dispatch path (employee-only access existed from W87; this workstream is the natural place the manager/instructor side is exercised live, though the routes themselves were already built).
+- **Frontend impact:** "My Team Training" surface (new route or folded into an existing manager-facing page, an implementation-time call).
+- **Definition of Done:** instructor-of-record vs. manager-of-record dual-tier dispatch tested explicitly (an employee who is both, tested independently on each relationship); self-paced-with-assessment routed correctly to HR-only (§11); every completion/attendance write is an atomic conditional update with a controlled `409` on repeat/concurrent attempts, tested under concurrency (mirroring W83A's own acknowledgement-race test precedent).
+- **STOP boundary:** no certificate logic. Do not begin W90 without its own separate go-ahead.
+
+### W90 — Certificates & Evidence
+
+- **Scope:** certificate issuance exactly per §10.4's ten frozen rules (automatic, same-transaction-as-completion, snapshot-sourced eligibility, computed expiry, title snapshot); revoke action (`learning.manage`, mandatory reason); enrollment evidence attachments reusing `employee_documents`/`fileStorage` verbatim (§18), mirroring Performance's own W82.
+- **Schema impact:** none (tables exist from W85).
+- **API impact:** `.../learning/my-certificates`, `.../learning/certificates`, `.../learning/certificates/:id/revoke`, `.../learning/enrollments/:id/evidence` (GET/POST), `.../learning/enrollments/:id/evidence/:evidenceId/download` (§21).
+- **Frontend impact:** certificate display on the ESS "My Learning" tab (from W88) and the internal workspace (landing with W91); evidence upload/list embedded in enrollment detail surfaces.
+- **Definition of Done:** certificate issuance tested against every combination in §10.4's rule 2 (self-paced no-assessment, assessed+passed, assessed+failed-never-issues); expiry computed correctly and re-confirmed live-computed (never a stored `expired` value, no background job introduced); revoke tested as permanently terminal; evidence upload reuses the identical file-type/size/signature validation as Performance's own W82, confirmed by test, not merely assumed.
+- **STOP boundary:** no dashboard, no reports. Do not begin W91 without its own separate go-ahead.
+
+### W91 — Internal HR/L&D Workspace
+
+- **Scope:** org-wide, paginated, filterable enrollment list (mirrors W80); course/session administration frontend (the UI counterpart to W86's own backend, if not already built there); org-wide approval queue and administrative correction actions surfaced in the UI.
+- **Schema impact:** none.
+- **API impact:** none new — consumes `.../learning/enrollments` (org-wide scope) already built in W87.
+- **Frontend impact:** new `/learning-courses`, `/learning-sessions`/course-detail session management, `/learning-enrollments` routes.
+- **Definition of Done:** pagination/filtering tested against the established `{items, total, page, pageSize}` convention; module-gated; no N+1 in the list query (batched, mirroring W80's own verified discipline).
+- **STOP boundary:** no dashboard, no reports. Do not begin W92 without its own separate go-ahead.
+
+### W92 — Dashboard & Reporting
+
+- **Scope:** dashboard tile breakdown exactly per §16 (no invented rate/KPI tile); 3 report keys exactly per §17 (`learning_enrollment_status`, `learning_completion_summary`, `learning_certificate_expiry`) registered in the shared Reporting Foundation registry, executed through Learning's own dedicated visibility-scoped route; CSV export.
+- **Schema impact:** none.
+- **API impact:** `.../learning/dashboard`, `.../learning/reports/:reportKey` (§21).
+- **Frontend impact:** `/learning` dashboard, `/learning-reports`.
+- **Definition of Done:** every dashboard tile and report field cross-checked against §16/§17 with no undocumented addition; single-batched-query aggregation confirmed (no per-row loop); CSV export scope confirmed identical to the already-authorized JSON scope in every case.
+- **STOP boundary:** this is the last feature-delivery workstream. Do not begin W93 without its own separate go-ahead.
+
+### W93 — Phase 3D Verification
+
+- **Scope:** full repo-wide verification pass against this frozen plan — functional, authorization, tenant isolation, historical integrity (every snapshot column re-verified immutable to a later course edit), scoring/assessment rules, security (RLS baseline re-confirmed), database (migration ledger, zero drift), data integrity, performance/N+1, API contract, frontend, live QA against the real development database. **Verification-only — no casual feature additions, no refactor of working code merely because another design may look cleaner**, identical to W71's and W83's own charter.
+- **Schema impact:** none expected; any genuine, small, reproducible defect found is fixed with a permanent regression test (Category A, per the discipline established in W83); a substantial architectural defect is reported, not silently fixed (Category B).
+- **API/Frontend impact:** none expected beyond a defect fix, if any.
+- **Definition of Done:** matches W83's own template exactly — full regression suite, live E2E QA with disposable accounts (real routes only, no SQL-staged lifecycle statuses), tenant isolation matrix, security re-confirmation, exact state restoration after QA.
+- **STOP boundary:** report PASS / PASS WITH FIXES / BLOCKED. Do not begin W94 without its own separate go-ahead, and do not silently turn this workstream into implementation.
+
+### W94 — Phase 3D Completion Report
+
+- **Scope:** formal closure — reconciliation of every workstream against this frozen plan, the shipped-capability record, database/permission/security/reporting state, known non-blocking items, production status, and the next undelivered roadmap item, mirroring the Phase 3A/3B/3C completion-report structure exactly (folded into `PROJECT_STATUS.md`, per established repository precedent).
+- **Schema/API/Frontend impact:** none — documentation only, unless W93 left a small approved fix still pending, which W94 would then also record.
+- **Definition of Done:** `PROJECT_STATUS.md` updated, Phase 3D marked complete only if every frozen requirement in this document is genuinely delivered; if a genuine gap is found at this stage, it is reported, not silently patched (mirroring W83/W83A's own precedent for Performance's acknowledgement gap).
+- **STOP boundary:** this is the final Learning workstream. Do not begin the next roadmap module without its own separate planning/freeze cycle.
 
 ---
 
