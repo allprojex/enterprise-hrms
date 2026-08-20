@@ -113,6 +113,8 @@ tags:
     description: Phase 3C, W75 — read access to assigned Performance reviews. HR/admin only (performance.manage); self/manager visibility is a later workstream's concern.
   - name: performance-reporting
     description: Phase 3C, W81 — Performance dashboard and reports. Read-only, server-computed aggregation over existing Performance data, no stored analytics table. Scoped own/reviewer-of-record/organization-wide (performance.reports.read, org-wide reach signaled by performance.manage).
+  - name: performance-evidence
+    description: Phase 3C, W82 — Evidence/attachments on Performance reviews. A lightweight join over the existing employee_documents storage layer (§8.9) — no new file-storage code. No new permission key; upload is stage-gated by the caller's own relationship to the review, view/download are not.
 
 paths:
   /healthz:
@@ -10408,6 +10410,168 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/performance/reviews/{id}/evidence:
+    get:
+      operationId: listPerformanceReviewEvidence
+      tags: [performance-evidence]
+      summary: List a review's evidence
+      description: >-
+        Visible to the same own/reviewer-of-record/organization-wide tier as
+        the review itself (§27 line 142's own scope model) — not stage-
+        gated, since evidence remains part of the review's durable
+        historical record after finalization.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Evidence attached to this review
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PerformanceReviewEvidence"
+        "403":
+          description: Not authorized to view this review's evidence
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Review not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: addPerformanceReviewEvidence
+      tags: [performance-evidence]
+      summary: Attach evidence to a review (or one of its goals)
+      description: >-
+        multipart/form-data upload. Reuses the existing employee_documents
+        storage layer verbatim (§8.9 — "a lightweight join table only, no
+        new storage layer") — PDF, JPEG, PNG, DOCX, and XLSX only, validated
+        by file signature, 10MB max, identical to the existing employee
+        document upload. Server-derived actor identity decides which path
+        applies, never a client-supplied flag: the review's own employee
+        (performance.write.own) may attach evidence only while the review is
+        self_assessment; the reviewer of record (performance.review.write)
+        only while manager_review; HR (performance.manage) only while
+        hr_review. Optional goalId attaches at a specific goal instead of
+        the review as a whole; it must belong to this same review.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                goalId:
+                  type: integer
+                  description: Must belong to this same review.
+      responses:
+        "201":
+          description: Evidence attached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerformanceReviewEvidence"
+        "400":
+          description: Invalid file, or a goalId that isn't this review's own
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Not authorized to add evidence to this review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Review or goal not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: The review is not in a stage that allows this caller to add evidence
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/performance/reviews/{id}/evidence/{evidenceId}/download:
+    get:
+      operationId: downloadPerformanceReviewEvidence
+      tags: [performance-evidence]
+      summary: Download a single evidence file
+      description: >-
+        Authorization-checked before any storage read (same own/reviewer-
+        of-record/organization-wide tier as the review). No public or
+        signed URL is ever generated — the file streams through this
+        authenticated route on every request.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: evidenceId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The file
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "403":
+          description: Not authorized to access this review's evidence
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Review or evidence not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -15962,3 +16126,33 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PerformanceGoal"
+
+    PerformanceReviewEvidence:
+      type: object
+      required: [id, organizationId, reviewId, goalId, employeeDocumentId, addedByMembershipId, addedAt, fileName, mimeType, fileSize, uploadedBy]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        reviewId:
+          type: integer
+        goalId:
+          type: ["integer", "null"]
+        employeeDocumentId:
+          type: integer
+          description: Points into the existing employee_documents table (§8.9) — no separate Performance storage layer.
+        addedByMembershipId:
+          type: ["integer", "null"]
+        addedAt:
+          type: string
+          format: date-time
+        fileName:
+          type: string
+          description: Original client-supplied filename, for display only — never used to build a storage path.
+        mimeType:
+          type: string
+        fileSize:
+          type: integer
+        uploadedBy:
+          type: ["integer", "null"]

@@ -4981,6 +4981,25 @@ export interface PerformanceReviewWithCompetencies {
   goals: PerformanceGoal[];
 }
 
+export interface PerformanceReviewEvidence {
+  id: number;
+  organizationId: number;
+  reviewId: number;
+  /** @nullable */
+  goalId: number | null;
+  /** Points into the existing employee_documents table (§8.9) — no separate Performance storage layer. */
+  employeeDocumentId: number;
+  /** @nullable */
+  addedByMembershipId: number | null;
+  addedAt: string;
+  /** Original client-supplied filename, for display only — never used to build a storage path. */
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  /** @nullable */
+  uploadedBy: number | null;
+}
+
 export type ListEmployeesParams = {
 search?: string;
 departmentId?: number;
@@ -5344,4 +5363,10 @@ export const RunPerformanceReportFormat = {
   json: 'json',
   csv: 'csv',
 } as const;
+
+export type AddPerformanceReviewEvidenceBody = {
+  file: Blob;
+  /** Must belong to this same review. */
+  goalId?: number;
+};
 

@@ -25,6 +25,11 @@ const SYSTEM_ITEMS: Record<string, { code: string; label: string; sortOrder: num
     { code: "en", label: "English", sortOrder: 1 },
     { code: "fr", label: "French", sortOrder: 2 },
   ],
+  // Phase 3C, W82 — Performance Evidence/Attachments (§8.9/§35 of the
+  // frozen plan): "a new document_category Master Data code registered."
+  // A system-wide default item, visible to every organization, matching
+  // this file's own established organizationId: null convention.
+  document_category: [{ code: "performance_evidence", label: "Performance Evidence", sortOrder: 1 }],
 };
 
 async function main() {

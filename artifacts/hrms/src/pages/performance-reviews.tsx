@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
+import { PerformanceEvidenceSection } from '@/components/performance-evidence';
 import {
   useGetMe,
   getGetMeQueryKey,
@@ -514,6 +515,8 @@ export default function PerformanceReviews() {
                   )}
                 </CardContent>
               </Card>
+
+              <PerformanceEvidenceSection organizationId={organizationId} reviewId={review.id} canUpload={isHrCapable && review.status === 'hr_review'} />
 
               {(canFinalize || canReopen) && isHrCapable && (
                 <Card>

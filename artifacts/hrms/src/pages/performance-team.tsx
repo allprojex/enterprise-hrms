@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
+import { PerformanceEvidenceSection } from '@/components/performance-evidence';
 import {
   useGetMe,
   getGetMeQueryKey,
@@ -524,6 +525,8 @@ export default function PerformanceTeam() {
                 ))}
               </CardContent>
             </Card>
+
+            <PerformanceEvidenceSection organizationId={organizationId} reviewId={review.id} canUpload={!isLocked} />
 
             {!isLocked && (
               <Card>

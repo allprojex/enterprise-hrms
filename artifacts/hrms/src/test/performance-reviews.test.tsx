@@ -55,6 +55,10 @@ vi.mock('@workspace/api-client-react', () => ({
   getListPositionsQueryKey: () => ['positions'],
   useFinalizePerformanceReview: () => ({ mutate: state.finalizeMutate, isPending: false }),
   useReopenPerformanceReview: () => ({ mutate: state.reopenMutate, isPending: false }),
+  // Evidence/Attachments (W82) — embedded via PerformanceEvidenceSection, not under test on this page's own suite.
+  useListPerformanceReviewEvidence: () => ({ data: [], isLoading: false, error: undefined }),
+  getListPerformanceReviewEvidenceQueryKey: () => ['performanceReviewEvidence'],
+  useAddPerformanceReviewEvidence: () => ({ mutate: vi.fn(), isPending: false }),
   getListTeamPerformanceReviewsQueryKey: () => ['teamReviews'],
   ListPerformanceReviewsStatus: {
     draft: 'draft', self_assessment: 'self_assessment', manager_review: 'manager_review',

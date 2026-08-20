@@ -28,6 +28,7 @@ import type {
   AddEmployeeQualificationInput,
   AddEmployeeSkillInput,
   AddMemberInput,
+  AddPerformanceReviewEvidenceBody,
   AddTalentPoolMemberInput,
   AdjustLeaveBalanceInput,
   ApiError,
@@ -163,6 +164,7 @@ import type {
   PerformanceRatingScaleWithLevels,
   PerformanceReview,
   PerformanceReviewCompetency,
+  PerformanceReviewEvidence,
   PerformanceReviewListResponse,
   PerformanceReviewTemplate,
   PerformanceReviewTemplateWithCompetencies,
@@ -21053,6 +21055,257 @@ export function useRunPerformanceReport<TData = Awaited<ReturnType<typeof runPer
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getRunPerformanceReportQueryOptions(organizationId,reportKey,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListPerformanceReviewEvidenceUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/reviews/${id}/evidence`
+}
+
+/**
+ * Visible to the same own/reviewer-of-record/organization-wide tier as the review itself (§27 line 142's own scope model) — not stage- gated, since evidence remains part of the review's durable historical record after finalization.
+ * @summary List a review's evidence
+ */
+export const listPerformanceReviewEvidence = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<PerformanceReviewEvidence[]> => {
+
+  return customFetch<PerformanceReviewEvidence[]>(getListPerformanceReviewEvidenceUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPerformanceReviewEvidenceQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/performance/reviews/${id}/evidence`
+    ] as const;
+    }
+
+
+export const getListPerformanceReviewEvidenceQueryOptions = <TData = Awaited<ReturnType<typeof listPerformanceReviewEvidence>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPerformanceReviewEvidence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPerformanceReviewEvidenceQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPerformanceReviewEvidence>>> = ({ signal }) => listPerformanceReviewEvidence(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPerformanceReviewEvidence>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPerformanceReviewEvidenceQueryResult = NonNullable<Awaited<ReturnType<typeof listPerformanceReviewEvidence>>>
+export type ListPerformanceReviewEvidenceQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List a review's evidence
+ */
+
+export function useListPerformanceReviewEvidence<TData = Awaited<ReturnType<typeof listPerformanceReviewEvidence>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPerformanceReviewEvidence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPerformanceReviewEvidenceQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAddPerformanceReviewEvidenceUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/reviews/${id}/evidence`
+}
+
+/**
+ * multipart/form-data upload. Reuses the existing employee_documents storage layer verbatim (§8.9 — "a lightweight join table only, no new storage layer") — PDF, JPEG, PNG, DOCX, and XLSX only, validated by file signature, 10MB max, identical to the existing employee document upload. Server-derived actor identity decides which path applies, never a client-supplied flag: the review's own employee (performance.write.own) may attach evidence only while the review is self_assessment; the reviewer of record (performance.review.write) only while manager_review; HR (performance.manage) only while hr_review. Optional goalId attaches at a specific goal instead of the review as a whole; it must belong to this same review.
+ * @summary Attach evidence to a review (or one of its goals)
+ */
+export const addPerformanceReviewEvidence = async (organizationId: number,
+    id: number,
+    addPerformanceReviewEvidenceBody: AddPerformanceReviewEvidenceBody, options?: RequestInit): Promise<PerformanceReviewEvidence> => {
+    const formData = new FormData();
+formData.append(`file`, addPerformanceReviewEvidenceBody.file);
+if(addPerformanceReviewEvidenceBody.goalId !== undefined) {
+ formData.append(`goalId`, addPerformanceReviewEvidenceBody.goalId.toString())
+ }
+
+  return customFetch<PerformanceReviewEvidence>(getAddPerformanceReviewEvidenceUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+    ,
+    body: formData
+  }
+);}
+
+
+
+
+
+export const getAddPerformanceReviewEvidenceMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addPerformanceReviewEvidence>>, TError,{organizationId: number;id: number;data: BodyType<AddPerformanceReviewEvidenceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addPerformanceReviewEvidence>>, TError,{organizationId: number;id: number;data: BodyType<AddPerformanceReviewEvidenceBody>}, TContext> => {
+
+const mutationKey = ['addPerformanceReviewEvidence'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addPerformanceReviewEvidence>>, {organizationId: number;id: number;data: BodyType<AddPerformanceReviewEvidenceBody>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  addPerformanceReviewEvidence(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddPerformanceReviewEvidenceMutationResult = NonNullable<Awaited<ReturnType<typeof addPerformanceReviewEvidence>>>
+    export type AddPerformanceReviewEvidenceMutationBody = BodyType<AddPerformanceReviewEvidenceBody>
+    export type AddPerformanceReviewEvidenceMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Attach evidence to a review (or one of its goals)
+ */
+export const useAddPerformanceReviewEvidence = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addPerformanceReviewEvidence>>, TError,{organizationId: number;id: number;data: BodyType<AddPerformanceReviewEvidenceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addPerformanceReviewEvidence>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<AddPerformanceReviewEvidenceBody>},
+        TContext
+      > => {
+      return useMutation(getAddPerformanceReviewEvidenceMutationOptions(options));
+    }
+
+export const getDownloadPerformanceReviewEvidenceUrl = (organizationId: number,
+    id: number,
+    evidenceId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/reviews/${id}/evidence/${evidenceId}/download`
+}
+
+/**
+ * Authorization-checked before any storage read (same own/reviewer- of-record/organization-wide tier as the review). No public or signed URL is ever generated — the file streams through this authenticated route on every request.
+ * @summary Download a single evidence file
+ */
+export const downloadPerformanceReviewEvidence = async (organizationId: number,
+    id: number,
+    evidenceId: number, options?: RequestInit): Promise<Blob> => {
+
+  return customFetch<Blob>(getDownloadPerformanceReviewEvidenceUrl(organizationId,id,evidenceId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadPerformanceReviewEvidenceQueryKey = (organizationId: number,
+    id: number,
+    evidenceId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/performance/reviews/${id}/evidence/${evidenceId}/download`
+    ] as const;
+    }
+
+
+export const getDownloadPerformanceReviewEvidenceQueryOptions = <TData = Awaited<ReturnType<typeof downloadPerformanceReviewEvidence>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number,
+    evidenceId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadPerformanceReviewEvidence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadPerformanceReviewEvidenceQueryKey(organizationId,id,evidenceId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadPerformanceReviewEvidence>>> = ({ signal }) => downloadPerformanceReviewEvidence(organizationId,id,evidenceId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined && evidenceId !== null && evidenceId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadPerformanceReviewEvidence>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DownloadPerformanceReviewEvidenceQueryResult = NonNullable<Awaited<ReturnType<typeof downloadPerformanceReviewEvidence>>>
+export type DownloadPerformanceReviewEvidenceQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Download a single evidence file
+ */
+
+export function useDownloadPerformanceReviewEvidence<TData = Awaited<ReturnType<typeof downloadPerformanceReviewEvidence>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number,
+    evidenceId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadPerformanceReviewEvidence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDownloadPerformanceReviewEvidenceQueryOptions(organizationId,id,evidenceId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

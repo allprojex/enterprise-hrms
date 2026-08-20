@@ -103,6 +103,10 @@ vi.mock('@workspace/api-client-react', () => ({
   useCreatePerformanceReviewGoal: () => ({ mutate: state.createGoalMutate, isPending: false }),
   useUpdatePerformanceReviewGoal: () => ({ mutate: state.updateGoalMutate, isPending: false }),
   useSubmitSelfAssessment: () => ({ mutate: state.submitMutate, isPending: state.submitPending, isError: !!state.submitError, error: state.submitError }),
+  // Evidence/Attachments (W82) — embedded via PerformanceEvidenceSection, not under test on this page's own suite.
+  useListPerformanceReviewEvidence: () => ({ data: [], isLoading: false, error: undefined }),
+  getListPerformanceReviewEvidenceQueryKey: () => ['performanceReviewEvidence'],
+  useAddPerformanceReviewEvidence: () => ({ mutate: vi.fn(), isPending: false }),
   CreatePerformanceReviewGoalInputMeasurementType: {
     numeric: 'numeric', percentage: 'percentage', currency: 'currency', boolean: 'boolean', rating: 'rating', qualitative: 'qualitative',
   },

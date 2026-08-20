@@ -8864,3 +8864,70 @@ export const RunPerformanceReportResponse = zod.object({
 })
 
 
+/**
+ * Visible to the same own/reviewer-of-record/organization-wide tier as the review itself (§27 line 142's own scope model) — not stage- gated, since evidence remains part of the review's durable historical record after finalization.
+ * @summary List a review's evidence
+ */
+export const ListPerformanceReviewEvidenceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ListPerformanceReviewEvidenceResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "reviewId": zod.number(),
+  "goalId": zod.number().nullable(),
+  "employeeDocumentId": zod.number().describe('Points into the existing employee_documents table (§8.9) — no separate Performance storage layer.'),
+  "addedByMembershipId": zod.number().nullable(),
+  "addedAt": zod.coerce.date(),
+  "fileName": zod.string().describe('Original client-supplied filename, for display only — never used to build a storage path.'),
+  "mimeType": zod.string(),
+  "fileSize": zod.number(),
+  "uploadedBy": zod.number().nullable()
+})
+export const ListPerformanceReviewEvidenceResponse = zod.array(ListPerformanceReviewEvidenceResponseItem)
+
+
+/**
+ * multipart/form-data upload. Reuses the existing employee_documents storage layer verbatim (§8.9 — "a lightweight join table only, no new storage layer") — PDF, JPEG, PNG, DOCX, and XLSX only, validated by file signature, 10MB max, identical to the existing employee document upload. Server-derived actor identity decides which path applies, never a client-supplied flag: the review's own employee (performance.write.own) may attach evidence only while the review is self_assessment; the reviewer of record (performance.review.write) only while manager_review; HR (performance.manage) only while hr_review. Optional goalId attaches at a specific goal instead of the review as a whole; it must belong to this same review.
+ * @summary Attach evidence to a review (or one of its goals)
+ */
+export const AddPerformanceReviewEvidenceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const AddPerformanceReviewEvidenceBody = zod.object({
+  "file": zod.instanceof(File),
+  "goalId": zod.number().optional().describe('Must belong to this same review.')
+})
+
+export const AddPerformanceReviewEvidenceResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "reviewId": zod.number(),
+  "goalId": zod.number().nullable(),
+  "employeeDocumentId": zod.number().describe('Points into the existing employee_documents table (§8.9) — no separate Performance storage layer.'),
+  "addedByMembershipId": zod.number().nullable(),
+  "addedAt": zod.coerce.date(),
+  "fileName": zod.string().describe('Original client-supplied filename, for display only — never used to build a storage path.'),
+  "mimeType": zod.string(),
+  "fileSize": zod.number(),
+  "uploadedBy": zod.number().nullable()
+})
+
+
+/**
+ * Authorization-checked before any storage read (same own/reviewer- of-record/organization-wide tier as the review). No public or signed URL is ever generated — the file streams through this authenticated route on every request.
+ * @summary Download a single evidence file
+ */
+export const DownloadPerformanceReviewEvidenceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number(),
+  "evidenceId": zod.coerce.number()
+})
+
+export const DownloadPerformanceReviewEvidenceResponse = zod.unknown()
+
+
