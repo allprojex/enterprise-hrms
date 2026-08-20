@@ -9,6 +9,7 @@ import {
   recruitmentWorkflowsTable,
   jobRequisitionsTable,
   organizationMembershipsTable,
+  performanceRatingScalesTable,
 } from "@workspace/db";
 
 export class CrossOrganizationReferenceError extends Error {
@@ -26,7 +27,8 @@ type ScopedTable =
   | typeof leaveTypesTable
   | typeof recruitmentWorkflowsTable
   | typeof jobRequisitionsTable
-  | typeof organizationMembershipsTable;
+  | typeof organizationMembershipsTable
+  | typeof performanceRatingScalesTable;
 
 /**
  * Verifies a foreign key (department/branch/position/employee id) actually

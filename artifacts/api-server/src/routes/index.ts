@@ -53,6 +53,8 @@ import attendanceAdjustmentsRouter from "./attendanceAdjustments";
 import attendanceDailySummaryRouter from "./attendanceDailySummary";
 import attendanceRegisterRouter from "./attendanceRegister";
 import attendanceReportingRouter from "./attendanceReporting";
+import performanceRatingScalesRouter from "./performanceRatingScales";
+import performanceReviewTemplatesRouter from "./performanceReviewTemplates";
 
 const router: IRouter = Router();
 
@@ -110,5 +112,7 @@ router.use(attendanceAdjustmentsRouter);
 router.use(attendanceDailySummaryRouter);
 router.use(attendanceRegisterRouter);
 router.use(attendanceReportingRouter);
+router.use(performanceRatingScalesRouter);
+router.use(performanceReviewTemplatesRouter);
 
 export default router;

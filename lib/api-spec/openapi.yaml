@@ -9007,6 +9007,366 @@ paths:
               schema:
                 type: string
 
+  /organizations/{organizationId}/performance/rating-scales:
+    get:
+      operationId: listPerformanceRatingScales
+      tags: [performance-rating-scales]
+      summary: List an organization's Performance rating scales
+      description: Broad read — any authenticated organization member holding performance.read.own may list rating scales.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Rating scales
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PerformanceRatingScale"
+    post:
+      operationId: createPerformanceRatingScale
+      tags: [performance-rating-scales]
+      summary: Create a Performance rating scale
+      description: Requires performance.manage.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePerformanceRatingScaleInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerformanceRatingScale"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/performance/rating-scales/{id}:
+    get:
+      operationId: getPerformanceRatingScale
+      tags: [performance-rating-scales]
+      summary: Get a Performance rating scale with its levels
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Rating scale with levels
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerformanceRatingScaleWithLevels"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    patch:
+      operationId: updatePerformanceRatingScale
+      tags: [performance-rating-scales]
+      summary: Update a Performance rating scale's name, description, or status
+      description: Requires performance.manage. name/description/status are always editable — the level set itself is protected separately (see the /levels endpoint).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePerformanceRatingScaleInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerformanceRatingScale"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/performance/rating-scales/{id}/levels:
+    patch:
+      operationId: replacePerformanceRatingScaleLevels
+      tags: [performance-rating-scales]
+      summary: Replace a rating scale's full level set
+      description: >-
+        Requires performance.manage. Replace-all semantics — the submitted
+        array becomes the scale's complete level set. Structurally blocked
+        (409) once any Performance review has used this scale; archive it
+        and create a new scale instead.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReplacePerformanceRatingScaleLevelsInput"
+      responses:
+        "200":
+          description: The scale's new level set
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PerformanceRatingScaleLevel"
+        "400":
+          description: Invalid levels
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: The scale's levels are locked because it has already been used by a review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/performance/templates:
+    get:
+      operationId: listPerformanceReviewTemplates
+      tags: [performance-templates]
+      summary: List an organization's Performance review templates
+      description: Broad read — any authenticated organization member holding performance.read.own may list templates.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Review templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PerformanceReviewTemplate"
+    post:
+      operationId: createPerformanceReviewTemplate
+      tags: [performance-templates]
+      summary: Create a Performance review template
+      description: Requires performance.manage. ratingScaleId must belong to the same organization. goalsWeight + competenciesWeight must sum to exactly 100.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePerformanceReviewTemplateInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerformanceReviewTemplate"
+        "400":
+          description: Invalid input, or ratingScaleId does not belong to this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/performance/templates/{id}:
+    get:
+      operationId: getPerformanceReviewTemplate
+      tags: [performance-templates]
+      summary: Get a Performance review template with its competencies
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Template with competencies
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerformanceReviewTemplateWithCompetencies"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    patch:
+      operationId: updatePerformanceReviewTemplate
+      tags: [performance-templates]
+      summary: Update a Performance review template
+      description: >-
+        Requires performance.manage. Templates carry no usage lock (a
+        review snapshots competencies at creation time, so a later
+        template edit never rewrites review history) — editing is blocked
+        only while the template's own status is already "archived".
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePerformanceReviewTemplateInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerformanceReviewTemplate"
+        "400":
+          description: Invalid input, or ratingScaleId does not belong to this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: The template is archived and cannot be edited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/performance/templates/{id}/competencies:
+    patch:
+      operationId: replacePerformanceTemplateCompetencies
+      tags: [performance-templates]
+      summary: Replace a template's full competency set
+      description: >-
+        Requires performance.manage. Replace-all semantics. Competency
+        weights must sum to exactly 100 when the template's
+        competenciesWeight is greater than 0, and the set must be empty
+        when it is 0. Blocked (409) while the template is archived.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReplacePerformanceTemplateCompetenciesInput"
+      responses:
+        "200":
+          description: The template's new competency set
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PerformanceTemplateCompetency"
+        "400":
+          description: Invalid competencies
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: The template is archived and cannot be edited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -13735,3 +14095,260 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/RecruitmentWorkloadItem"
+
+    PerformanceRatingScale:
+      type: object
+      required: [id, organizationId, name, status, createdAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, archived]
+        createdAt:
+          type: string
+          format: date-time
+
+    PerformanceRatingScaleLevel:
+      type: object
+      required: [id, ratingScaleId, value, label, sortOrder]
+      properties:
+        id:
+          type: integer
+        ratingScaleId:
+          type: integer
+        value:
+          type: number
+        label:
+          type: string
+        description:
+          type: ["string", "null"]
+        sortOrder:
+          type: integer
+
+    PerformanceRatingScaleWithLevels:
+      type: object
+      required: [scale, levels, levelsLocked]
+      properties:
+        scale:
+          $ref: "#/components/schemas/PerformanceRatingScale"
+        levels:
+          type: array
+          items:
+            $ref: "#/components/schemas/PerformanceRatingScaleLevel"
+        levelsLocked:
+          type: boolean
+          description: True once any Performance review has used this scale — the level set can no longer be edited (archive and create a new scale instead).
+
+    CreatePerformanceRatingScaleInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+
+    UpdatePerformanceRatingScaleInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        status:
+          type: string
+          enum: [active, archived]
+
+    PerformanceRatingScaleLevelInput:
+      type: object
+      required: [value, label, sortOrder]
+      properties:
+        value:
+          type: number
+        label:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        sortOrder:
+          type: integer
+          minimum: 0
+
+    ReplacePerformanceRatingScaleLevelsInput:
+      type: object
+      required: [levels]
+      properties:
+        levels:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/PerformanceRatingScaleLevelInput"
+
+    PerformanceReviewTemplate:
+      type: object
+      required: [id, organizationId, name, ratingScaleId, goalsWeight, competenciesWeight, applicabilityScope, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        ratingScaleId:
+          type: integer
+        goalsWeight:
+          type: integer
+        competenciesWeight:
+          type: integer
+        applicabilityScope:
+          type: string
+          enum: [all_active, department, position, manual]
+        applicabilityDepartmentIds:
+          type: ["array", "null"]
+          items:
+            type: integer
+        applicabilityPositionIds:
+          type: ["array", "null"]
+          items:
+            type: integer
+        status:
+          type: string
+          enum: [draft, active, archived]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PerformanceTemplateCompetency:
+      type: object
+      required: [id, templateId, label, weight, sortOrder]
+      properties:
+        id:
+          type: integer
+        templateId:
+          type: integer
+        label:
+          type: string
+        description:
+          type: ["string", "null"]
+        weight:
+          type: integer
+        sortOrder:
+          type: integer
+
+    PerformanceReviewTemplateWithCompetencies:
+      type: object
+      required: [template, competencies]
+      properties:
+        template:
+          $ref: "#/components/schemas/PerformanceReviewTemplate"
+        competencies:
+          type: array
+          items:
+            $ref: "#/components/schemas/PerformanceTemplateCompetency"
+
+    CreatePerformanceReviewTemplateInput:
+      type: object
+      required: [name, ratingScaleId, goalsWeight, competenciesWeight, applicabilityScope]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        ratingScaleId:
+          type: integer
+        goalsWeight:
+          type: integer
+          minimum: 0
+          maximum: 100
+        competenciesWeight:
+          type: integer
+          minimum: 0
+          maximum: 100
+        applicabilityScope:
+          type: string
+          enum: [all_active, department, position, manual]
+        applicabilityDepartmentIds:
+          type: array
+          items:
+            type: integer
+        applicabilityPositionIds:
+          type: array
+          items:
+            type: integer
+        status:
+          type: string
+          enum: [draft, active, archived]
+
+    UpdatePerformanceReviewTemplateInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        ratingScaleId:
+          type: integer
+        goalsWeight:
+          type: integer
+          minimum: 0
+          maximum: 100
+        competenciesWeight:
+          type: integer
+          minimum: 0
+          maximum: 100
+        applicabilityScope:
+          type: string
+          enum: [all_active, department, position, manual]
+        applicabilityDepartmentIds:
+          type: array
+          items:
+            type: integer
+        applicabilityPositionIds:
+          type: array
+          items:
+            type: integer
+        status:
+          type: string
+          enum: [draft, active, archived]
+
+    PerformanceTemplateCompetencyInput:
+      type: object
+      required: [label, weight, sortOrder]
+      properties:
+        label:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        weight:
+          type: integer
+          minimum: 0
+          maximum: 100
+        sortOrder:
+          type: integer
+          minimum: 0
+
+    ReplacePerformanceTemplateCompetenciesInput:
+      type: object
+      required: [competencies]
+      properties:
+        competencies:
+          type: array
+          items:
+            $ref: "#/components/schemas/PerformanceTemplateCompetencyInput"

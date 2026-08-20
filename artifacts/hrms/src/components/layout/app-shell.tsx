@@ -35,6 +35,8 @@ import {
   FileSignature,
   FileBarChart,
   ListChecks,
+  Ruler,
+  FileText,
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -324,6 +326,13 @@ export function AppShell({ children }: AppShellProps) {
     // holding attendance.read.own, per attendanceReporting.ts's scope rules.
     ...(isHrCapable ? [{ href: '/attendance-dashboard', label: 'Attendance Dashboard', icon: LayoutDashboard } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/attendance-reports', label: 'Attendance Reports', icon: FileBarChart } satisfies NavItem] : []),
+    // Phase 3C, W74 — same isHrCapable-only nav precedent as every other HR
+    // configuration page (Leave Types, Attendance Settings, ...); the
+    // backend's own "read broad" GET routes are still reachable directly by
+    // URL for any performance.read.own holder, per performanceRatingScales.ts
+    // / performanceReviewTemplates.ts's own route comments.
+    ...(isHrCapable ? [{ href: '/performance-rating-scales', label: 'Performance Rating Scales', icon: Ruler } satisfies NavItem] : []),
+    ...(isHrCapable ? [{ href: '/performance-templates', label: 'Performance Templates', icon: FileText } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisitions', label: 'Job Requisitions', icon: ClipboardList } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisition-approvals', label: 'Requisition Approvals', icon: Stamp } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/vacancies', label: 'Vacancies', icon: Megaphone } satisfies NavItem] : []),

@@ -4267,6 +4267,226 @@ export interface RecruitmentDashboard {
   hiringManagerWorkload: RecruitmentWorkloadItem[];
 }
 
+export type PerformanceRatingScaleStatus = typeof PerformanceRatingScaleStatus[keyof typeof PerformanceRatingScaleStatus];
+
+
+export const PerformanceRatingScaleStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface PerformanceRatingScale {
+  id: number;
+  organizationId: number;
+  name: string;
+  /** @nullable */
+  description?: string | null;
+  status: PerformanceRatingScaleStatus;
+  createdAt: string;
+}
+
+export interface PerformanceRatingScaleLevel {
+  id: number;
+  ratingScaleId: number;
+  value: number;
+  label: string;
+  /** @nullable */
+  description?: string | null;
+  sortOrder: number;
+}
+
+export interface PerformanceRatingScaleWithLevels {
+  scale: PerformanceRatingScale;
+  levels: PerformanceRatingScaleLevel[];
+  /** True once any Performance review has used this scale — the level set can no longer be edited (archive and create a new scale instead). */
+  levelsLocked: boolean;
+}
+
+export interface CreatePerformanceRatingScaleInput {
+  /** @minLength 1 */
+  name: string;
+  description?: string;
+}
+
+export type UpdatePerformanceRatingScaleInputStatus = typeof UpdatePerformanceRatingScaleInputStatus[keyof typeof UpdatePerformanceRatingScaleInputStatus];
+
+
+export const UpdatePerformanceRatingScaleInputStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface UpdatePerformanceRatingScaleInput {
+  /** @minLength 1 */
+  name?: string;
+  description?: string;
+  status?: UpdatePerformanceRatingScaleInputStatus;
+}
+
+export interface PerformanceRatingScaleLevelInput {
+  value: number;
+  /** @minLength 1 */
+  label: string;
+  description?: string;
+  /** @minimum 0 */
+  sortOrder: number;
+}
+
+export interface ReplacePerformanceRatingScaleLevelsInput {
+  /** @minItems 1 */
+  levels: PerformanceRatingScaleLevelInput[];
+}
+
+export type PerformanceReviewTemplateApplicabilityScope = typeof PerformanceReviewTemplateApplicabilityScope[keyof typeof PerformanceReviewTemplateApplicabilityScope];
+
+
+export const PerformanceReviewTemplateApplicabilityScope = {
+  all_active: 'all_active',
+  department: 'department',
+  position: 'position',
+  manual: 'manual',
+} as const;
+
+export type PerformanceReviewTemplateStatus = typeof PerformanceReviewTemplateStatus[keyof typeof PerformanceReviewTemplateStatus];
+
+
+export const PerformanceReviewTemplateStatus = {
+  draft: 'draft',
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface PerformanceReviewTemplate {
+  id: number;
+  organizationId: number;
+  name: string;
+  /** @nullable */
+  description?: string | null;
+  ratingScaleId: number;
+  goalsWeight: number;
+  competenciesWeight: number;
+  applicabilityScope: PerformanceReviewTemplateApplicabilityScope;
+  /** @nullable */
+  applicabilityDepartmentIds?: number[] | null;
+  /** @nullable */
+  applicabilityPositionIds?: number[] | null;
+  status: PerformanceReviewTemplateStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PerformanceTemplateCompetency {
+  id: number;
+  templateId: number;
+  label: string;
+  /** @nullable */
+  description?: string | null;
+  weight: number;
+  sortOrder: number;
+}
+
+export interface PerformanceReviewTemplateWithCompetencies {
+  template: PerformanceReviewTemplate;
+  competencies: PerformanceTemplateCompetency[];
+}
+
+export type CreatePerformanceReviewTemplateInputApplicabilityScope = typeof CreatePerformanceReviewTemplateInputApplicabilityScope[keyof typeof CreatePerformanceReviewTemplateInputApplicabilityScope];
+
+
+export const CreatePerformanceReviewTemplateInputApplicabilityScope = {
+  all_active: 'all_active',
+  department: 'department',
+  position: 'position',
+  manual: 'manual',
+} as const;
+
+export type CreatePerformanceReviewTemplateInputStatus = typeof CreatePerformanceReviewTemplateInputStatus[keyof typeof CreatePerformanceReviewTemplateInputStatus];
+
+
+export const CreatePerformanceReviewTemplateInputStatus = {
+  draft: 'draft',
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface CreatePerformanceReviewTemplateInput {
+  /** @minLength 1 */
+  name: string;
+  description?: string;
+  ratingScaleId: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  goalsWeight: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  competenciesWeight: number;
+  applicabilityScope: CreatePerformanceReviewTemplateInputApplicabilityScope;
+  applicabilityDepartmentIds?: number[];
+  applicabilityPositionIds?: number[];
+  status?: CreatePerformanceReviewTemplateInputStatus;
+}
+
+export type UpdatePerformanceReviewTemplateInputApplicabilityScope = typeof UpdatePerformanceReviewTemplateInputApplicabilityScope[keyof typeof UpdatePerformanceReviewTemplateInputApplicabilityScope];
+
+
+export const UpdatePerformanceReviewTemplateInputApplicabilityScope = {
+  all_active: 'all_active',
+  department: 'department',
+  position: 'position',
+  manual: 'manual',
+} as const;
+
+export type UpdatePerformanceReviewTemplateInputStatus = typeof UpdatePerformanceReviewTemplateInputStatus[keyof typeof UpdatePerformanceReviewTemplateInputStatus];
+
+
+export const UpdatePerformanceReviewTemplateInputStatus = {
+  draft: 'draft',
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface UpdatePerformanceReviewTemplateInput {
+  /** @minLength 1 */
+  name?: string;
+  description?: string;
+  ratingScaleId?: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  goalsWeight?: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  competenciesWeight?: number;
+  applicabilityScope?: UpdatePerformanceReviewTemplateInputApplicabilityScope;
+  applicabilityDepartmentIds?: number[];
+  applicabilityPositionIds?: number[];
+  status?: UpdatePerformanceReviewTemplateInputStatus;
+}
+
+export interface PerformanceTemplateCompetencyInput {
+  /** @minLength 1 */
+  label: string;
+  description?: string;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  weight: number;
+  /** @minimum 0 */
+  sortOrder: number;
+}
+
+export interface ReplacePerformanceTemplateCompetenciesInput {
+  competencies: PerformanceTemplateCompetencyInput[];
+}
+
 export type ListEmployeesParams = {
 search?: string;
 departmentId?: number;

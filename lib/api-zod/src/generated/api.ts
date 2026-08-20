@@ -7640,3 +7640,331 @@ export const RunRecruitmentReportResponse = zod.object({
 })
 
 
+/**
+ * Broad read — any authenticated organization member holding performance.read.own may list rating scales.
+ * @summary List an organization's Performance rating scales
+ */
+export const ListPerformanceRatingScalesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListPerformanceRatingScalesResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['active', 'archived']),
+  "createdAt": zod.coerce.date()
+})
+export const ListPerformanceRatingScalesResponse = zod.array(ListPerformanceRatingScalesResponseItem)
+
+
+/**
+ * Requires performance.manage.
+ * @summary Create a Performance rating scale
+ */
+export const CreatePerformanceRatingScaleParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+
+
+export const CreatePerformanceRatingScaleBody = zod.object({
+  "name": zod.string().min(1),
+  "description": zod.string().optional()
+})
+
+export const CreatePerformanceRatingScaleResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['active', 'archived']),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get a Performance rating scale with its levels
+ */
+export const GetPerformanceRatingScaleParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const GetPerformanceRatingScaleResponse = zod.object({
+  "scale": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['active', 'archived']),
+  "createdAt": zod.coerce.date()
+}),
+  "levels": zod.array(zod.object({
+  "id": zod.number(),
+  "ratingScaleId": zod.number(),
+  "value": zod.number(),
+  "label": zod.string(),
+  "description": zod.string().nullish(),
+  "sortOrder": zod.number()
+})),
+  "levelsLocked": zod.boolean().describe('True once any Performance review has used this scale — the level set can no longer be edited (archive and create a new scale instead).')
+})
+
+
+/**
+ * Requires performance.manage. name/description/status are always editable — the level set itself is protected separately (see the /levels endpoint).
+ * @summary Update a Performance rating scale's name, description, or status
+ */
+export const UpdatePerformanceRatingScaleParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const UpdatePerformanceRatingScaleBody = zod.object({
+  "name": zod.string().min(1).optional(),
+  "description": zod.string().optional(),
+  "status": zod.enum(['active', 'archived']).optional()
+})
+
+export const UpdatePerformanceRatingScaleResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['active', 'archived']),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * Requires performance.manage. Replace-all semantics — the submitted array becomes the scale's complete level set. Structurally blocked (409) once any Performance review has used this scale; archive it and create a new scale instead.
+ * @summary Replace a rating scale's full level set
+ */
+export const ReplacePerformanceRatingScaleLevelsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+
+export const replacePerformanceRatingScaleLevelsBodyLevelsItemSortOrderMin = 0;
+
+
+
+
+export const ReplacePerformanceRatingScaleLevelsBody = zod.object({
+  "levels": zod.array(zod.object({
+  "value": zod.number(),
+  "label": zod.string().min(1),
+  "description": zod.string().optional(),
+  "sortOrder": zod.number().min(replacePerformanceRatingScaleLevelsBodyLevelsItemSortOrderMin)
+})).min(1)
+})
+
+export const ReplacePerformanceRatingScaleLevelsResponseItem = zod.object({
+  "id": zod.number(),
+  "ratingScaleId": zod.number(),
+  "value": zod.number(),
+  "label": zod.string(),
+  "description": zod.string().nullish(),
+  "sortOrder": zod.number()
+})
+export const ReplacePerformanceRatingScaleLevelsResponse = zod.array(ReplacePerformanceRatingScaleLevelsResponseItem)
+
+
+/**
+ * Broad read — any authenticated organization member holding performance.read.own may list templates.
+ * @summary List an organization's Performance review templates
+ */
+export const ListPerformanceReviewTemplatesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListPerformanceReviewTemplatesResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "ratingScaleId": zod.number(),
+  "goalsWeight": zod.number(),
+  "competenciesWeight": zod.number(),
+  "applicabilityScope": zod.enum(['all_active', 'department', 'position', 'manual']),
+  "applicabilityDepartmentIds": zod.array(zod.number()).nullish(),
+  "applicabilityPositionIds": zod.array(zod.number()).nullish(),
+  "status": zod.enum(['draft', 'active', 'archived']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListPerformanceReviewTemplatesResponse = zod.array(ListPerformanceReviewTemplatesResponseItem)
+
+
+/**
+ * Requires performance.manage. ratingScaleId must belong to the same organization. goalsWeight + competenciesWeight must sum to exactly 100.
+ * @summary Create a Performance review template
+ */
+export const CreatePerformanceReviewTemplateParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+export const createPerformanceReviewTemplateBodyGoalsWeightMin = 0;
+export const createPerformanceReviewTemplateBodyGoalsWeightMax = 100;
+
+export const createPerformanceReviewTemplateBodyCompetenciesWeightMin = 0;
+export const createPerformanceReviewTemplateBodyCompetenciesWeightMax = 100;
+
+
+
+export const CreatePerformanceReviewTemplateBody = zod.object({
+  "name": zod.string().min(1),
+  "description": zod.string().optional(),
+  "ratingScaleId": zod.number(),
+  "goalsWeight": zod.number().min(createPerformanceReviewTemplateBodyGoalsWeightMin).max(createPerformanceReviewTemplateBodyGoalsWeightMax),
+  "competenciesWeight": zod.number().min(createPerformanceReviewTemplateBodyCompetenciesWeightMin).max(createPerformanceReviewTemplateBodyCompetenciesWeightMax),
+  "applicabilityScope": zod.enum(['all_active', 'department', 'position', 'manual']),
+  "applicabilityDepartmentIds": zod.array(zod.number()).optional(),
+  "applicabilityPositionIds": zod.array(zod.number()).optional(),
+  "status": zod.enum(['draft', 'active', 'archived']).optional()
+})
+
+export const CreatePerformanceReviewTemplateResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "ratingScaleId": zod.number(),
+  "goalsWeight": zod.number(),
+  "competenciesWeight": zod.number(),
+  "applicabilityScope": zod.enum(['all_active', 'department', 'position', 'manual']),
+  "applicabilityDepartmentIds": zod.array(zod.number()).nullish(),
+  "applicabilityPositionIds": zod.array(zod.number()).nullish(),
+  "status": zod.enum(['draft', 'active', 'archived']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get a Performance review template with its competencies
+ */
+export const GetPerformanceReviewTemplateParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const GetPerformanceReviewTemplateResponse = zod.object({
+  "template": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "ratingScaleId": zod.number(),
+  "goalsWeight": zod.number(),
+  "competenciesWeight": zod.number(),
+  "applicabilityScope": zod.enum(['all_active', 'department', 'position', 'manual']),
+  "applicabilityDepartmentIds": zod.array(zod.number()).nullish(),
+  "applicabilityPositionIds": zod.array(zod.number()).nullish(),
+  "status": zod.enum(['draft', 'active', 'archived']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "competencies": zod.array(zod.object({
+  "id": zod.number(),
+  "templateId": zod.number(),
+  "label": zod.string(),
+  "description": zod.string().nullish(),
+  "weight": zod.number(),
+  "sortOrder": zod.number()
+}))
+})
+
+
+/**
+ * Requires performance.manage. Templates carry no usage lock (a review snapshots competencies at creation time, so a later template edit never rewrites review history) — editing is blocked only while the template's own status is already "archived".
+ * @summary Update a Performance review template
+ */
+export const UpdatePerformanceReviewTemplateParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+
+export const updatePerformanceReviewTemplateBodyGoalsWeightMin = 0;
+export const updatePerformanceReviewTemplateBodyGoalsWeightMax = 100;
+
+export const updatePerformanceReviewTemplateBodyCompetenciesWeightMin = 0;
+export const updatePerformanceReviewTemplateBodyCompetenciesWeightMax = 100;
+
+
+
+export const UpdatePerformanceReviewTemplateBody = zod.object({
+  "name": zod.string().min(1).optional(),
+  "description": zod.string().optional(),
+  "ratingScaleId": zod.number().optional(),
+  "goalsWeight": zod.number().min(updatePerformanceReviewTemplateBodyGoalsWeightMin).max(updatePerformanceReviewTemplateBodyGoalsWeightMax).optional(),
+  "competenciesWeight": zod.number().min(updatePerformanceReviewTemplateBodyCompetenciesWeightMin).max(updatePerformanceReviewTemplateBodyCompetenciesWeightMax).optional(),
+  "applicabilityScope": zod.enum(['all_active', 'department', 'position', 'manual']).optional(),
+  "applicabilityDepartmentIds": zod.array(zod.number()).optional(),
+  "applicabilityPositionIds": zod.array(zod.number()).optional(),
+  "status": zod.enum(['draft', 'active', 'archived']).optional()
+})
+
+export const UpdatePerformanceReviewTemplateResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "ratingScaleId": zod.number(),
+  "goalsWeight": zod.number(),
+  "competenciesWeight": zod.number(),
+  "applicabilityScope": zod.enum(['all_active', 'department', 'position', 'manual']),
+  "applicabilityDepartmentIds": zod.array(zod.number()).nullish(),
+  "applicabilityPositionIds": zod.array(zod.number()).nullish(),
+  "status": zod.enum(['draft', 'active', 'archived']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Requires performance.manage. Replace-all semantics. Competency weights must sum to exactly 100 when the template's competenciesWeight is greater than 0, and the set must be empty when it is 0. Blocked (409) while the template is archived.
+ * @summary Replace a template's full competency set
+ */
+export const ReplacePerformanceTemplateCompetenciesParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+
+export const replacePerformanceTemplateCompetenciesBodyCompetenciesItemWeightMin = 0;
+export const replacePerformanceTemplateCompetenciesBodyCompetenciesItemWeightMax = 100;
+
+export const replacePerformanceTemplateCompetenciesBodyCompetenciesItemSortOrderMin = 0;
+
+
+
+export const ReplacePerformanceTemplateCompetenciesBody = zod.object({
+  "competencies": zod.array(zod.object({
+  "label": zod.string().min(1),
+  "description": zod.string().optional(),
+  "weight": zod.number().min(replacePerformanceTemplateCompetenciesBodyCompetenciesItemWeightMin).max(replacePerformanceTemplateCompetenciesBodyCompetenciesItemWeightMax),
+  "sortOrder": zod.number().min(replacePerformanceTemplateCompetenciesBodyCompetenciesItemSortOrderMin)
+}))
+})
+
+export const ReplacePerformanceTemplateCompetenciesResponseItem = zod.object({
+  "id": zod.number(),
+  "templateId": zod.number(),
+  "label": zod.string(),
+  "description": zod.string().nullish(),
+  "weight": zod.number(),
+  "sortOrder": zod.number()
+})
+export const ReplacePerformanceTemplateCompetenciesResponse = zod.array(ReplacePerformanceTemplateCompetenciesResponseItem)
+
+

@@ -69,6 +69,8 @@ import type {
   CreateOfferInput,
   CreateOrganizationDomainInput,
   CreateOrganizationInput,
+  CreatePerformanceRatingScaleInput,
+  CreatePerformanceReviewTemplateInput,
   CreatePositionInput,
   CreatePreEmploymentRequirementInput,
   CreatePublicHolidayInput,
@@ -145,6 +147,12 @@ import type {
   OrganizationModule,
   OrganizationRole,
   PasswordResetStatus,
+  PerformanceRatingScale,
+  PerformanceRatingScaleLevel,
+  PerformanceRatingScaleWithLevels,
+  PerformanceReviewTemplate,
+  PerformanceReviewTemplateWithCompetencies,
+  PerformanceTemplateCompetency,
   Permission,
   Position,
   PreEmploymentRequirement,
@@ -168,6 +176,8 @@ import type {
   RejectJobRequisitionInput,
   RejectLeaveRequestInput,
   ReopenApplicationInput,
+  ReplacePerformanceRatingScaleLevelsInput,
+  ReplacePerformanceTemplateCompetenciesInput,
   Report,
   ReportRunResult,
   RequisitionApproval,
@@ -205,6 +215,8 @@ import type {
   UpdateOrganizationConfigInput,
   UpdateOrganizationInput,
   UpdateOrganizationModuleInput,
+  UpdatePerformanceRatingScaleInput,
+  UpdatePerformanceReviewTemplateInput,
   UpdatePositionInput,
   UpdatePreEmploymentRequirementStatusInput,
   UpdatePublicHolidayInput,
@@ -18686,4 +18698,770 @@ export function useRunRecruitmentReport<TData = Awaited<ReturnType<typeof runRec
 
 
 
+
+export const getListPerformanceRatingScalesUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/rating-scales`
+}
+
+/**
+ * Broad read — any authenticated organization member holding performance.read.own may list rating scales.
+ * @summary List an organization's Performance rating scales
+ */
+export const listPerformanceRatingScales = async (organizationId: number, options?: RequestInit): Promise<PerformanceRatingScale[]> => {
+
+  return customFetch<PerformanceRatingScale[]>(getListPerformanceRatingScalesUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPerformanceRatingScalesQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/performance/rating-scales`
+    ] as const;
+    }
+
+
+export const getListPerformanceRatingScalesQueryOptions = <TData = Awaited<ReturnType<typeof listPerformanceRatingScales>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPerformanceRatingScales>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPerformanceRatingScalesQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPerformanceRatingScales>>> = ({ signal }) => listPerformanceRatingScales(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPerformanceRatingScales>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPerformanceRatingScalesQueryResult = NonNullable<Awaited<ReturnType<typeof listPerformanceRatingScales>>>
+export type ListPerformanceRatingScalesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List an organization's Performance rating scales
+ */
+
+export function useListPerformanceRatingScales<TData = Awaited<ReturnType<typeof listPerformanceRatingScales>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPerformanceRatingScales>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPerformanceRatingScalesQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreatePerformanceRatingScaleUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/rating-scales`
+}
+
+/**
+ * Requires performance.manage.
+ * @summary Create a Performance rating scale
+ */
+export const createPerformanceRatingScale = async (organizationId: number,
+    createPerformanceRatingScaleInput: CreatePerformanceRatingScaleInput, options?: RequestInit): Promise<PerformanceRatingScale> => {
+
+  return customFetch<PerformanceRatingScale>(getCreatePerformanceRatingScaleUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createPerformanceRatingScaleInput)
+  }
+);}
+
+
+
+
+
+export const getCreatePerformanceRatingScaleMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPerformanceRatingScale>>, TError,{organizationId: number;data: BodyType<CreatePerformanceRatingScaleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPerformanceRatingScale>>, TError,{organizationId: number;data: BodyType<CreatePerformanceRatingScaleInput>}, TContext> => {
+
+const mutationKey = ['createPerformanceRatingScale'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPerformanceRatingScale>>, {organizationId: number;data: BodyType<CreatePerformanceRatingScaleInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createPerformanceRatingScale(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePerformanceRatingScaleMutationResult = NonNullable<Awaited<ReturnType<typeof createPerformanceRatingScale>>>
+    export type CreatePerformanceRatingScaleMutationBody = BodyType<CreatePerformanceRatingScaleInput>
+    export type CreatePerformanceRatingScaleMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Create a Performance rating scale
+ */
+export const useCreatePerformanceRatingScale = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPerformanceRatingScale>>, TError,{organizationId: number;data: BodyType<CreatePerformanceRatingScaleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createPerformanceRatingScale>>,
+        TError,
+        {organizationId: number;data: BodyType<CreatePerformanceRatingScaleInput>},
+        TContext
+      > => {
+      return useMutation(getCreatePerformanceRatingScaleMutationOptions(options));
+    }
+
+export const getGetPerformanceRatingScaleUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/rating-scales/${id}`
+}
+
+/**
+ * @summary Get a Performance rating scale with its levels
+ */
+export const getPerformanceRatingScale = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<PerformanceRatingScaleWithLevels> => {
+
+  return customFetch<PerformanceRatingScaleWithLevels>(getGetPerformanceRatingScaleUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPerformanceRatingScaleQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/performance/rating-scales/${id}`
+    ] as const;
+    }
+
+
+export const getGetPerformanceRatingScaleQueryOptions = <TData = Awaited<ReturnType<typeof getPerformanceRatingScale>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPerformanceRatingScale>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPerformanceRatingScaleQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPerformanceRatingScale>>> = ({ signal }) => getPerformanceRatingScale(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPerformanceRatingScale>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPerformanceRatingScaleQueryResult = NonNullable<Awaited<ReturnType<typeof getPerformanceRatingScale>>>
+export type GetPerformanceRatingScaleQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get a Performance rating scale with its levels
+ */
+
+export function useGetPerformanceRatingScale<TData = Awaited<ReturnType<typeof getPerformanceRatingScale>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPerformanceRatingScale>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPerformanceRatingScaleQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdatePerformanceRatingScaleUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/rating-scales/${id}`
+}
+
+/**
+ * Requires performance.manage. name/description/status are always editable — the level set itself is protected separately (see the /levels endpoint).
+ * @summary Update a Performance rating scale's name, description, or status
+ */
+export const updatePerformanceRatingScale = async (organizationId: number,
+    id: number,
+    updatePerformanceRatingScaleInput: UpdatePerformanceRatingScaleInput, options?: RequestInit): Promise<PerformanceRatingScale> => {
+
+  return customFetch<PerformanceRatingScale>(getUpdatePerformanceRatingScaleUrl(organizationId,id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updatePerformanceRatingScaleInput)
+  }
+);}
+
+
+
+
+
+export const getUpdatePerformanceRatingScaleMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePerformanceRatingScale>>, TError,{organizationId: number;id: number;data: BodyType<UpdatePerformanceRatingScaleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updatePerformanceRatingScale>>, TError,{organizationId: number;id: number;data: BodyType<UpdatePerformanceRatingScaleInput>}, TContext> => {
+
+const mutationKey = ['updatePerformanceRatingScale'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePerformanceRatingScale>>, {organizationId: number;id: number;data: BodyType<UpdatePerformanceRatingScaleInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  updatePerformanceRatingScale(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdatePerformanceRatingScaleMutationResult = NonNullable<Awaited<ReturnType<typeof updatePerformanceRatingScale>>>
+    export type UpdatePerformanceRatingScaleMutationBody = BodyType<UpdatePerformanceRatingScaleInput>
+    export type UpdatePerformanceRatingScaleMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update a Performance rating scale's name, description, or status
+ */
+export const useUpdatePerformanceRatingScale = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePerformanceRatingScale>>, TError,{organizationId: number;id: number;data: BodyType<UpdatePerformanceRatingScaleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updatePerformanceRatingScale>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<UpdatePerformanceRatingScaleInput>},
+        TContext
+      > => {
+      return useMutation(getUpdatePerformanceRatingScaleMutationOptions(options));
+    }
+
+export const getReplacePerformanceRatingScaleLevelsUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/rating-scales/${id}/levels`
+}
+
+/**
+ * Requires performance.manage. Replace-all semantics — the submitted array becomes the scale's complete level set. Structurally blocked (409) once any Performance review has used this scale; archive it and create a new scale instead.
+ * @summary Replace a rating scale's full level set
+ */
+export const replacePerformanceRatingScaleLevels = async (organizationId: number,
+    id: number,
+    replacePerformanceRatingScaleLevelsInput: ReplacePerformanceRatingScaleLevelsInput, options?: RequestInit): Promise<PerformanceRatingScaleLevel[]> => {
+
+  return customFetch<PerformanceRatingScaleLevel[]>(getReplacePerformanceRatingScaleLevelsUrl(organizationId,id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(replacePerformanceRatingScaleLevelsInput)
+  }
+);}
+
+
+
+
+
+export const getReplacePerformanceRatingScaleLevelsMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof replacePerformanceRatingScaleLevels>>, TError,{organizationId: number;id: number;data: BodyType<ReplacePerformanceRatingScaleLevelsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof replacePerformanceRatingScaleLevels>>, TError,{organizationId: number;id: number;data: BodyType<ReplacePerformanceRatingScaleLevelsInput>}, TContext> => {
+
+const mutationKey = ['replacePerformanceRatingScaleLevels'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof replacePerformanceRatingScaleLevels>>, {organizationId: number;id: number;data: BodyType<ReplacePerformanceRatingScaleLevelsInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  replacePerformanceRatingScaleLevels(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReplacePerformanceRatingScaleLevelsMutationResult = NonNullable<Awaited<ReturnType<typeof replacePerformanceRatingScaleLevels>>>
+    export type ReplacePerformanceRatingScaleLevelsMutationBody = BodyType<ReplacePerformanceRatingScaleLevelsInput>
+    export type ReplacePerformanceRatingScaleLevelsMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Replace a rating scale's full level set
+ */
+export const useReplacePerformanceRatingScaleLevels = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof replacePerformanceRatingScaleLevels>>, TError,{organizationId: number;id: number;data: BodyType<ReplacePerformanceRatingScaleLevelsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof replacePerformanceRatingScaleLevels>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<ReplacePerformanceRatingScaleLevelsInput>},
+        TContext
+      > => {
+      return useMutation(getReplacePerformanceRatingScaleLevelsMutationOptions(options));
+    }
+
+export const getListPerformanceReviewTemplatesUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/templates`
+}
+
+/**
+ * Broad read — any authenticated organization member holding performance.read.own may list templates.
+ * @summary List an organization's Performance review templates
+ */
+export const listPerformanceReviewTemplates = async (organizationId: number, options?: RequestInit): Promise<PerformanceReviewTemplate[]> => {
+
+  return customFetch<PerformanceReviewTemplate[]>(getListPerformanceReviewTemplatesUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPerformanceReviewTemplatesQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/performance/templates`
+    ] as const;
+    }
+
+
+export const getListPerformanceReviewTemplatesQueryOptions = <TData = Awaited<ReturnType<typeof listPerformanceReviewTemplates>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPerformanceReviewTemplates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPerformanceReviewTemplatesQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPerformanceReviewTemplates>>> = ({ signal }) => listPerformanceReviewTemplates(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPerformanceReviewTemplates>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPerformanceReviewTemplatesQueryResult = NonNullable<Awaited<ReturnType<typeof listPerformanceReviewTemplates>>>
+export type ListPerformanceReviewTemplatesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List an organization's Performance review templates
+ */
+
+export function useListPerformanceReviewTemplates<TData = Awaited<ReturnType<typeof listPerformanceReviewTemplates>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPerformanceReviewTemplates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPerformanceReviewTemplatesQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreatePerformanceReviewTemplateUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/templates`
+}
+
+/**
+ * Requires performance.manage. ratingScaleId must belong to the same organization. goalsWeight + competenciesWeight must sum to exactly 100.
+ * @summary Create a Performance review template
+ */
+export const createPerformanceReviewTemplate = async (organizationId: number,
+    createPerformanceReviewTemplateInput: CreatePerformanceReviewTemplateInput, options?: RequestInit): Promise<PerformanceReviewTemplate> => {
+
+  return customFetch<PerformanceReviewTemplate>(getCreatePerformanceReviewTemplateUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createPerformanceReviewTemplateInput)
+  }
+);}
+
+
+
+
+
+export const getCreatePerformanceReviewTemplateMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPerformanceReviewTemplate>>, TError,{organizationId: number;data: BodyType<CreatePerformanceReviewTemplateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPerformanceReviewTemplate>>, TError,{organizationId: number;data: BodyType<CreatePerformanceReviewTemplateInput>}, TContext> => {
+
+const mutationKey = ['createPerformanceReviewTemplate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPerformanceReviewTemplate>>, {organizationId: number;data: BodyType<CreatePerformanceReviewTemplateInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createPerformanceReviewTemplate(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePerformanceReviewTemplateMutationResult = NonNullable<Awaited<ReturnType<typeof createPerformanceReviewTemplate>>>
+    export type CreatePerformanceReviewTemplateMutationBody = BodyType<CreatePerformanceReviewTemplateInput>
+    export type CreatePerformanceReviewTemplateMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Create a Performance review template
+ */
+export const useCreatePerformanceReviewTemplate = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPerformanceReviewTemplate>>, TError,{organizationId: number;data: BodyType<CreatePerformanceReviewTemplateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createPerformanceReviewTemplate>>,
+        TError,
+        {organizationId: number;data: BodyType<CreatePerformanceReviewTemplateInput>},
+        TContext
+      > => {
+      return useMutation(getCreatePerformanceReviewTemplateMutationOptions(options));
+    }
+
+export const getGetPerformanceReviewTemplateUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/templates/${id}`
+}
+
+/**
+ * @summary Get a Performance review template with its competencies
+ */
+export const getPerformanceReviewTemplate = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<PerformanceReviewTemplateWithCompetencies> => {
+
+  return customFetch<PerformanceReviewTemplateWithCompetencies>(getGetPerformanceReviewTemplateUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPerformanceReviewTemplateQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/performance/templates/${id}`
+    ] as const;
+    }
+
+
+export const getGetPerformanceReviewTemplateQueryOptions = <TData = Awaited<ReturnType<typeof getPerformanceReviewTemplate>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPerformanceReviewTemplate>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPerformanceReviewTemplateQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPerformanceReviewTemplate>>> = ({ signal }) => getPerformanceReviewTemplate(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPerformanceReviewTemplate>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPerformanceReviewTemplateQueryResult = NonNullable<Awaited<ReturnType<typeof getPerformanceReviewTemplate>>>
+export type GetPerformanceReviewTemplateQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get a Performance review template with its competencies
+ */
+
+export function useGetPerformanceReviewTemplate<TData = Awaited<ReturnType<typeof getPerformanceReviewTemplate>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPerformanceReviewTemplate>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPerformanceReviewTemplateQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdatePerformanceReviewTemplateUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/templates/${id}`
+}
+
+/**
+ * Requires performance.manage. Templates carry no usage lock (a review snapshots competencies at creation time, so a later template edit never rewrites review history) — editing is blocked only while the template's own status is already "archived".
+ * @summary Update a Performance review template
+ */
+export const updatePerformanceReviewTemplate = async (organizationId: number,
+    id: number,
+    updatePerformanceReviewTemplateInput: UpdatePerformanceReviewTemplateInput, options?: RequestInit): Promise<PerformanceReviewTemplate> => {
+
+  return customFetch<PerformanceReviewTemplate>(getUpdatePerformanceReviewTemplateUrl(organizationId,id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updatePerformanceReviewTemplateInput)
+  }
+);}
+
+
+
+
+
+export const getUpdatePerformanceReviewTemplateMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePerformanceReviewTemplate>>, TError,{organizationId: number;id: number;data: BodyType<UpdatePerformanceReviewTemplateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updatePerformanceReviewTemplate>>, TError,{organizationId: number;id: number;data: BodyType<UpdatePerformanceReviewTemplateInput>}, TContext> => {
+
+const mutationKey = ['updatePerformanceReviewTemplate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePerformanceReviewTemplate>>, {organizationId: number;id: number;data: BodyType<UpdatePerformanceReviewTemplateInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  updatePerformanceReviewTemplate(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdatePerformanceReviewTemplateMutationResult = NonNullable<Awaited<ReturnType<typeof updatePerformanceReviewTemplate>>>
+    export type UpdatePerformanceReviewTemplateMutationBody = BodyType<UpdatePerformanceReviewTemplateInput>
+    export type UpdatePerformanceReviewTemplateMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update a Performance review template
+ */
+export const useUpdatePerformanceReviewTemplate = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePerformanceReviewTemplate>>, TError,{organizationId: number;id: number;data: BodyType<UpdatePerformanceReviewTemplateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updatePerformanceReviewTemplate>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<UpdatePerformanceReviewTemplateInput>},
+        TContext
+      > => {
+      return useMutation(getUpdatePerformanceReviewTemplateMutationOptions(options));
+    }
+
+export const getReplacePerformanceTemplateCompetenciesUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/templates/${id}/competencies`
+}
+
+/**
+ * Requires performance.manage. Replace-all semantics. Competency weights must sum to exactly 100 when the template's competenciesWeight is greater than 0, and the set must be empty when it is 0. Blocked (409) while the template is archived.
+ * @summary Replace a template's full competency set
+ */
+export const replacePerformanceTemplateCompetencies = async (organizationId: number,
+    id: number,
+    replacePerformanceTemplateCompetenciesInput: ReplacePerformanceTemplateCompetenciesInput, options?: RequestInit): Promise<PerformanceTemplateCompetency[]> => {
+
+  return customFetch<PerformanceTemplateCompetency[]>(getReplacePerformanceTemplateCompetenciesUrl(organizationId,id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(replacePerformanceTemplateCompetenciesInput)
+  }
+);}
+
+
+
+
+
+export const getReplacePerformanceTemplateCompetenciesMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof replacePerformanceTemplateCompetencies>>, TError,{organizationId: number;id: number;data: BodyType<ReplacePerformanceTemplateCompetenciesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof replacePerformanceTemplateCompetencies>>, TError,{organizationId: number;id: number;data: BodyType<ReplacePerformanceTemplateCompetenciesInput>}, TContext> => {
+
+const mutationKey = ['replacePerformanceTemplateCompetencies'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof replacePerformanceTemplateCompetencies>>, {organizationId: number;id: number;data: BodyType<ReplacePerformanceTemplateCompetenciesInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  replacePerformanceTemplateCompetencies(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReplacePerformanceTemplateCompetenciesMutationResult = NonNullable<Awaited<ReturnType<typeof replacePerformanceTemplateCompetencies>>>
+    export type ReplacePerformanceTemplateCompetenciesMutationBody = BodyType<ReplacePerformanceTemplateCompetenciesInput>
+    export type ReplacePerformanceTemplateCompetenciesMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Replace a template's full competency set
+ */
+export const useReplacePerformanceTemplateCompetencies = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof replacePerformanceTemplateCompetencies>>, TError,{organizationId: number;id: number;data: BodyType<ReplacePerformanceTemplateCompetenciesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof replacePerformanceTemplateCompetencies>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<ReplacePerformanceTemplateCompetenciesInput>},
+        TContext
+      > => {
+      return useMutation(getReplacePerformanceTemplateCompetenciesMutationOptions(options));
+    }
 
