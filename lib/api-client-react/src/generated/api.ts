@@ -69,6 +69,7 @@ import type {
   CreateOfferInput,
   CreateOrganizationDomainInput,
   CreateOrganizationInput,
+  CreatePerformanceCycleInput,
   CreatePerformanceRatingScaleInput,
   CreatePerformanceReviewTemplateInput,
   CreatePositionInput,
@@ -91,6 +92,8 @@ import type {
   EmployeeQualification,
   EmployeeSkill,
   ForgotPasswordInput,
+  GeneratePerformanceReviewsInput,
+  GeneratePerformanceReviewsResult,
   GetAttendanceDailySummaryParams,
   GetAttendanceDashboardParams,
   GrantRolePermissionInput,
@@ -122,6 +125,7 @@ import type {
   ListLeaveBalanceLedgerParams,
   ListLeaveCalendarParams,
   ListOffersParams,
+  ListPerformanceReviewsParams,
   ListPublicHolidaysParams,
   ListPublicVacanciesParams,
   ListVacanciesParams,
@@ -147,11 +151,14 @@ import type {
   OrganizationModule,
   OrganizationRole,
   PasswordResetStatus,
+  PerformanceCycle,
   PerformanceRatingScale,
   PerformanceRatingScaleLevel,
   PerformanceRatingScaleWithLevels,
+  PerformanceReview,
   PerformanceReviewTemplate,
   PerformanceReviewTemplateWithCompetencies,
+  PerformanceReviewWithCompetencies,
   PerformanceTemplateCompetency,
   Permission,
   Position,
@@ -215,6 +222,7 @@ import type {
   UpdateOrganizationConfigInput,
   UpdateOrganizationInput,
   UpdateOrganizationModuleInput,
+  UpdatePerformanceCycleInput,
   UpdatePerformanceRatingScaleInput,
   UpdatePerformanceReviewTemplateInput,
   UpdatePositionInput,
@@ -19464,4 +19472,560 @@ export const useReplacePerformanceTemplateCompetencies = <TError = ErrorType<Api
       > => {
       return useMutation(getReplacePerformanceTemplateCompetenciesMutationOptions(options));
     }
+
+export const getListPerformanceCyclesUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/cycles`
+}
+
+/**
+ * Requires performance.manage — cycle/assignment configuration is HR/admin territory (W75), unlike the broader read grant W74's rating-scales/templates routes use.
+ * @summary List an organization's Performance cycles
+ */
+export const listPerformanceCycles = async (organizationId: number, options?: RequestInit): Promise<PerformanceCycle[]> => {
+
+  return customFetch<PerformanceCycle[]>(getListPerformanceCyclesUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPerformanceCyclesQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/performance/cycles`
+    ] as const;
+    }
+
+
+export const getListPerformanceCyclesQueryOptions = <TData = Awaited<ReturnType<typeof listPerformanceCycles>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPerformanceCycles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPerformanceCyclesQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPerformanceCycles>>> = ({ signal }) => listPerformanceCycles(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPerformanceCycles>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPerformanceCyclesQueryResult = NonNullable<Awaited<ReturnType<typeof listPerformanceCycles>>>
+export type ListPerformanceCyclesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List an organization's Performance cycles
+ */
+
+export function useListPerformanceCycles<TData = Awaited<ReturnType<typeof listPerformanceCycles>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPerformanceCycles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPerformanceCyclesQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreatePerformanceCycleUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/cycles`
+}
+
+/**
+ * Requires performance.manage. templateId/ratingScaleId must belong to the same organization and be 'active'. Created in 'draft' status.
+ * @summary Create a Performance cycle
+ */
+export const createPerformanceCycle = async (organizationId: number,
+    createPerformanceCycleInput: CreatePerformanceCycleInput, options?: RequestInit): Promise<PerformanceCycle> => {
+
+  return customFetch<PerformanceCycle>(getCreatePerformanceCycleUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createPerformanceCycleInput)
+  }
+);}
+
+
+
+
+
+export const getCreatePerformanceCycleMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPerformanceCycle>>, TError,{organizationId: number;data: BodyType<CreatePerformanceCycleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPerformanceCycle>>, TError,{organizationId: number;data: BodyType<CreatePerformanceCycleInput>}, TContext> => {
+
+const mutationKey = ['createPerformanceCycle'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPerformanceCycle>>, {organizationId: number;data: BodyType<CreatePerformanceCycleInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createPerformanceCycle(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePerformanceCycleMutationResult = NonNullable<Awaited<ReturnType<typeof createPerformanceCycle>>>
+    export type CreatePerformanceCycleMutationBody = BodyType<CreatePerformanceCycleInput>
+    export type CreatePerformanceCycleMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Create a Performance cycle
+ */
+export const useCreatePerformanceCycle = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPerformanceCycle>>, TError,{organizationId: number;data: BodyType<CreatePerformanceCycleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createPerformanceCycle>>,
+        TError,
+        {organizationId: number;data: BodyType<CreatePerformanceCycleInput>},
+        TContext
+      > => {
+      return useMutation(getCreatePerformanceCycleMutationOptions(options));
+    }
+
+export const getGetPerformanceCycleUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/cycles/${id}`
+}
+
+/**
+ * @summary Get a Performance cycle
+ */
+export const getPerformanceCycle = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<PerformanceCycle> => {
+
+  return customFetch<PerformanceCycle>(getGetPerformanceCycleUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPerformanceCycleQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/performance/cycles/${id}`
+    ] as const;
+    }
+
+
+export const getGetPerformanceCycleQueryOptions = <TData = Awaited<ReturnType<typeof getPerformanceCycle>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPerformanceCycle>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPerformanceCycleQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPerformanceCycle>>> = ({ signal }) => getPerformanceCycle(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPerformanceCycle>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPerformanceCycleQueryResult = NonNullable<Awaited<ReturnType<typeof getPerformanceCycle>>>
+export type GetPerformanceCycleQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get a Performance cycle
+ */
+
+export function useGetPerformanceCycle<TData = Awaited<ReturnType<typeof getPerformanceCycle>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPerformanceCycle>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPerformanceCycleQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdatePerformanceCycleUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/cycles/${id}`
+}
+
+/**
+ * Requires performance.manage. Configuration fields are only editable while the cycle is 'draft' (409 otherwise). status may only move draft->archived, open->closed, or closed->archived — 'open' can never be set directly, only via generate-reviews.
+ * @summary Update a Performance cycle, or transition its status
+ */
+export const updatePerformanceCycle = async (organizationId: number,
+    id: number,
+    updatePerformanceCycleInput: UpdatePerformanceCycleInput, options?: RequestInit): Promise<PerformanceCycle> => {
+
+  return customFetch<PerformanceCycle>(getUpdatePerformanceCycleUrl(organizationId,id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updatePerformanceCycleInput)
+  }
+);}
+
+
+
+
+
+export const getUpdatePerformanceCycleMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePerformanceCycle>>, TError,{organizationId: number;id: number;data: BodyType<UpdatePerformanceCycleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updatePerformanceCycle>>, TError,{organizationId: number;id: number;data: BodyType<UpdatePerformanceCycleInput>}, TContext> => {
+
+const mutationKey = ['updatePerformanceCycle'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePerformanceCycle>>, {organizationId: number;id: number;data: BodyType<UpdatePerformanceCycleInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  updatePerformanceCycle(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdatePerformanceCycleMutationResult = NonNullable<Awaited<ReturnType<typeof updatePerformanceCycle>>>
+    export type UpdatePerformanceCycleMutationBody = BodyType<UpdatePerformanceCycleInput>
+    export type UpdatePerformanceCycleMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update a Performance cycle, or transition its status
+ */
+export const useUpdatePerformanceCycle = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePerformanceCycle>>, TError,{organizationId: number;id: number;data: BodyType<UpdatePerformanceCycleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updatePerformanceCycle>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<UpdatePerformanceCycleInput>},
+        TContext
+      > => {
+      return useMutation(getUpdatePerformanceCycleMutationOptions(options));
+    }
+
+export const getGeneratePerformanceReviewsUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/cycles/${id}/generate-reviews`
+}
+
+/**
+ * Requires performance.manage. The cycle must be 'draft' (409 otherwise — this action runs exactly once per cycle). Resolves eligible employees per the cycle's own applicabilityScope (all_active/department/position use active employmentStatus automatically; manual requires an explicit employeeIds list, each validated to belong to this organization and be active). Creates one performance_reviews row per eligible employee directly in self_assessment status, with competencies snapshotted from the cycle's template — never goals, which W76 owns entirely. Flips the cycle to 'open' in the same atomic transaction.
+ * @summary Open a draft cycle and bulk-assign Performance reviews to its eligible employees
+ */
+export const generatePerformanceReviews = async (organizationId: number,
+    id: number,
+    generatePerformanceReviewsInput?: GeneratePerformanceReviewsInput, options?: RequestInit): Promise<GeneratePerformanceReviewsResult> => {
+
+  return customFetch<GeneratePerformanceReviewsResult>(getGeneratePerformanceReviewsUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(generatePerformanceReviewsInput)
+  }
+);}
+
+
+
+
+
+export const getGeneratePerformanceReviewsMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generatePerformanceReviews>>, TError,{organizationId: number;id: number;data?: BodyType<GeneratePerformanceReviewsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof generatePerformanceReviews>>, TError,{organizationId: number;id: number;data?: BodyType<GeneratePerformanceReviewsInput>}, TContext> => {
+
+const mutationKey = ['generatePerformanceReviews'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof generatePerformanceReviews>>, {organizationId: number;id: number;data?: BodyType<GeneratePerformanceReviewsInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  generatePerformanceReviews(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GeneratePerformanceReviewsMutationResult = NonNullable<Awaited<ReturnType<typeof generatePerformanceReviews>>>
+    export type GeneratePerformanceReviewsMutationBody = BodyType<GeneratePerformanceReviewsInput> | undefined
+    export type GeneratePerformanceReviewsMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Open a draft cycle and bulk-assign Performance reviews to its eligible employees
+ */
+export const useGeneratePerformanceReviews = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generatePerformanceReviews>>, TError,{organizationId: number;id: number;data?: BodyType<GeneratePerformanceReviewsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof generatePerformanceReviews>>,
+        TError,
+        {organizationId: number;id: number;data?: BodyType<GeneratePerformanceReviewsInput>},
+        TContext
+      > => {
+      return useMutation(getGeneratePerformanceReviewsMutationOptions(options));
+    }
+
+export const getListPerformanceReviewsUrl = (organizationId: number,
+    params?: ListPerformanceReviewsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/performance/reviews?${stringifiedParams}` : `/api/organizations/${organizationId}/performance/reviews`
+}
+
+/**
+ * Requires performance.manage. Optional cycleId/employeeId/status query filters.
+ * @summary List an organization's Performance reviews
+ */
+export const listPerformanceReviews = async (organizationId: number,
+    params?: ListPerformanceReviewsParams, options?: RequestInit): Promise<PerformanceReview[]> => {
+
+  return customFetch<PerformanceReview[]>(getListPerformanceReviewsUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPerformanceReviewsQueryKey = (organizationId: number,
+    params?: ListPerformanceReviewsParams,) => {
+    return [
+    `/api/organizations/${organizationId}/performance/reviews`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListPerformanceReviewsQueryOptions = <TData = Awaited<ReturnType<typeof listPerformanceReviews>>, TError = ErrorType<unknown>>(organizationId: number,
+    params?: ListPerformanceReviewsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPerformanceReviews>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPerformanceReviewsQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPerformanceReviews>>> = ({ signal }) => listPerformanceReviews(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPerformanceReviews>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPerformanceReviewsQueryResult = NonNullable<Awaited<ReturnType<typeof listPerformanceReviews>>>
+export type ListPerformanceReviewsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List an organization's Performance reviews
+ */
+
+export function useListPerformanceReviews<TData = Awaited<ReturnType<typeof listPerformanceReviews>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    params?: ListPerformanceReviewsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPerformanceReviews>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPerformanceReviewsQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPerformanceReviewUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/reviews/${id}`
+}
+
+/**
+ * Requires performance.manage. No goal data is returned — W76 owns goal management.
+ * @summary Get a Performance review with its snapshotted competencies
+ */
+export const getPerformanceReview = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<PerformanceReviewWithCompetencies> => {
+
+  return customFetch<PerformanceReviewWithCompetencies>(getGetPerformanceReviewUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPerformanceReviewQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/performance/reviews/${id}`
+    ] as const;
+    }
+
+
+export const getGetPerformanceReviewQueryOptions = <TData = Awaited<ReturnType<typeof getPerformanceReview>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPerformanceReview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPerformanceReviewQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPerformanceReview>>> = ({ signal }) => getPerformanceReview(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPerformanceReview>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPerformanceReviewQueryResult = NonNullable<Awaited<ReturnType<typeof getPerformanceReview>>>
+export type GetPerformanceReviewQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get a Performance review with its snapshotted competencies
+ */
+
+export function useGetPerformanceReview<TData = Awaited<ReturnType<typeof getPerformanceReview>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPerformanceReview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPerformanceReviewQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 

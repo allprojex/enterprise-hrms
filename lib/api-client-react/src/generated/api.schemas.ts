@@ -4487,6 +4487,252 @@ export interface ReplacePerformanceTemplateCompetenciesInput {
   competencies: PerformanceTemplateCompetencyInput[];
 }
 
+export type PerformanceCycleCycleType = typeof PerformanceCycleCycleType[keyof typeof PerformanceCycleCycleType];
+
+
+export const PerformanceCycleCycleType = {
+  annual: 'annual',
+  semiannual: 'semiannual',
+  quarterly: 'quarterly',
+  monthly: 'monthly',
+  probation: 'probation',
+  ad_hoc: 'ad_hoc',
+} as const;
+
+export type PerformanceCycleApplicabilityScope = typeof PerformanceCycleApplicabilityScope[keyof typeof PerformanceCycleApplicabilityScope];
+
+
+export const PerformanceCycleApplicabilityScope = {
+  all_active: 'all_active',
+  department: 'department',
+  position: 'position',
+  manual: 'manual',
+} as const;
+
+export type PerformanceCycleStatus = typeof PerformanceCycleStatus[keyof typeof PerformanceCycleStatus];
+
+
+export const PerformanceCycleStatus = {
+  draft: 'draft',
+  open: 'open',
+  closed: 'closed',
+  archived: 'archived',
+} as const;
+
+export interface PerformanceCycle {
+  id: number;
+  organizationId: number;
+  name: string;
+  cycleType: PerformanceCycleCycleType;
+  startDate: string;
+  endDate: string;
+  /** @nullable */
+  selfAssessmentWindowStart?: string | null;
+  /** @nullable */
+  selfAssessmentWindowEnd?: string | null;
+  /** @nullable */
+  managerReviewWindowStart?: string | null;
+  /** @nullable */
+  managerReviewWindowEnd?: string | null;
+  /** @nullable */
+  hrFinalizationWindowStart?: string | null;
+  /** @nullable */
+  hrFinalizationWindowEnd?: string | null;
+  templateId: number;
+  ratingScaleId: number;
+  applicabilityScope: PerformanceCycleApplicabilityScope;
+  /** @nullable */
+  applicabilityDepartmentIds?: number[] | null;
+  /** @nullable */
+  applicabilityPositionIds?: number[] | null;
+  status: PerformanceCycleStatus;
+  createdAt: string;
+}
+
+export type CreatePerformanceCycleInputCycleType = typeof CreatePerformanceCycleInputCycleType[keyof typeof CreatePerformanceCycleInputCycleType];
+
+
+export const CreatePerformanceCycleInputCycleType = {
+  annual: 'annual',
+  semiannual: 'semiannual',
+  quarterly: 'quarterly',
+  monthly: 'monthly',
+  probation: 'probation',
+  ad_hoc: 'ad_hoc',
+} as const;
+
+export type CreatePerformanceCycleInputApplicabilityScope = typeof CreatePerformanceCycleInputApplicabilityScope[keyof typeof CreatePerformanceCycleInputApplicabilityScope];
+
+
+export const CreatePerformanceCycleInputApplicabilityScope = {
+  all_active: 'all_active',
+  department: 'department',
+  position: 'position',
+  manual: 'manual',
+} as const;
+
+export interface CreatePerformanceCycleInput {
+  /** @minLength 1 */
+  name: string;
+  cycleType: CreatePerformanceCycleInputCycleType;
+  startDate: string;
+  endDate: string;
+  selfAssessmentWindowStart?: string;
+  selfAssessmentWindowEnd?: string;
+  managerReviewWindowStart?: string;
+  managerReviewWindowEnd?: string;
+  hrFinalizationWindowStart?: string;
+  hrFinalizationWindowEnd?: string;
+  templateId: number;
+  ratingScaleId: number;
+  applicabilityScope: CreatePerformanceCycleInputApplicabilityScope;
+  applicabilityDepartmentIds?: number[];
+  applicabilityPositionIds?: number[];
+}
+
+export type UpdatePerformanceCycleInputCycleType = typeof UpdatePerformanceCycleInputCycleType[keyof typeof UpdatePerformanceCycleInputCycleType];
+
+
+export const UpdatePerformanceCycleInputCycleType = {
+  annual: 'annual',
+  semiannual: 'semiannual',
+  quarterly: 'quarterly',
+  monthly: 'monthly',
+  probation: 'probation',
+  ad_hoc: 'ad_hoc',
+} as const;
+
+export type UpdatePerformanceCycleInputApplicabilityScope = typeof UpdatePerformanceCycleInputApplicabilityScope[keyof typeof UpdatePerformanceCycleInputApplicabilityScope];
+
+
+export const UpdatePerformanceCycleInputApplicabilityScope = {
+  all_active: 'all_active',
+  department: 'department',
+  position: 'position',
+  manual: 'manual',
+} as const;
+
+/**
+ * Only draft->archived, open->closed, or closed->archived are valid — 'open' can never be set directly.
+ */
+export type UpdatePerformanceCycleInputStatus = typeof UpdatePerformanceCycleInputStatus[keyof typeof UpdatePerformanceCycleInputStatus];
+
+
+export const UpdatePerformanceCycleInputStatus = {
+  closed: 'closed',
+  archived: 'archived',
+} as const;
+
+export interface UpdatePerformanceCycleInput {
+  /** @minLength 1 */
+  name?: string;
+  cycleType?: UpdatePerformanceCycleInputCycleType;
+  startDate?: string;
+  endDate?: string;
+  selfAssessmentWindowStart?: string;
+  selfAssessmentWindowEnd?: string;
+  managerReviewWindowStart?: string;
+  managerReviewWindowEnd?: string;
+  hrFinalizationWindowStart?: string;
+  hrFinalizationWindowEnd?: string;
+  templateId?: number;
+  ratingScaleId?: number;
+  applicabilityScope?: UpdatePerformanceCycleInputApplicabilityScope;
+  applicabilityDepartmentIds?: number[];
+  applicabilityPositionIds?: number[];
+  /** Only draft->archived, open->closed, or closed->archived are valid — 'open' can never be set directly. */
+  status?: UpdatePerformanceCycleInputStatus;
+}
+
+export interface GeneratePerformanceReviewsInput {
+  /** Required and non-empty only when the cycle's applicabilityScope is 'manual'; ignored otherwise (eligibility is auto-resolved). */
+  employeeIds?: number[];
+}
+
+export type PerformanceReviewStatus = typeof PerformanceReviewStatus[keyof typeof PerformanceReviewStatus];
+
+
+export const PerformanceReviewStatus = {
+  draft: 'draft',
+  self_assessment: 'self_assessment',
+  manager_review: 'manager_review',
+  hr_review: 'hr_review',
+  finalized: 'finalized',
+  acknowledged: 'acknowledged',
+} as const;
+
+export interface PerformanceReview {
+  id: number;
+  organizationId: number;
+  cycleId: number;
+  templateId: number;
+  ratingScaleId: number;
+  employeeId: number;
+  /** @nullable */
+  reviewerEmployeeId?: number | null;
+  /** @nullable */
+  departmentIdSnapshot?: number | null;
+  /** @nullable */
+  positionIdSnapshot?: number | null;
+  goalsWeight: number;
+  competenciesWeight: number;
+  scoringPrecisionSnapshot: number;
+  acknowledgementRequiredSnapshot: boolean;
+  status: PerformanceReviewStatus;
+  /** @nullable */
+  selfAssessmentSubmittedAt?: string | null;
+  /** @nullable */
+  managerReviewSubmittedAt?: string | null;
+  /** @nullable */
+  hrFinalizedAt?: string | null;
+  /** @nullable */
+  acknowledgedAt?: string | null;
+  /** @nullable */
+  employeeFinalComment?: string | null;
+  /** @nullable */
+  computedOverallScore?: string | null;
+  /** @nullable */
+  hrOverrideScore?: string | null;
+  /** @nullable */
+  hrOverrideReason?: string | null;
+  revisionNumber: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GeneratePerformanceReviewsResult {
+  cycle: PerformanceCycle;
+  reviewsCreated: number;
+  reviews: PerformanceReview[];
+}
+
+export interface PerformanceReviewCompetency {
+  id: number;
+  organizationId: number;
+  reviewId: number;
+  label: string;
+  /** @nullable */
+  description?: string | null;
+  weight: number;
+  sortOrder: number;
+  /** @nullable */
+  employeeRatingValue?: string | null;
+  /** @nullable */
+  employeeComment?: string | null;
+  /** @nullable */
+  managerRatingValue?: string | null;
+  /** @nullable */
+  managerComment?: string | null;
+  notApplicable?: boolean;
+  /** @nullable */
+  notApplicableReason?: string | null;
+}
+
+export interface PerformanceReviewWithCompetencies {
+  review: PerformanceReview;
+  competencies: PerformanceReviewCompetency[];
+}
+
 export type ListEmployeesParams = {
 search?: string;
 departmentId?: number;
@@ -4774,5 +5020,23 @@ export type RunRecruitmentReportFormat = typeof RunRecruitmentReportFormat[keyof
 export const RunRecruitmentReportFormat = {
   json: 'json',
   csv: 'csv',
+} as const;
+
+export type ListPerformanceReviewsParams = {
+cycleId?: number;
+employeeId?: number;
+status?: ListPerformanceReviewsStatus;
+};
+
+export type ListPerformanceReviewsStatus = typeof ListPerformanceReviewsStatus[keyof typeof ListPerformanceReviewsStatus];
+
+
+export const ListPerformanceReviewsStatus = {
+  draft: 'draft',
+  self_assessment: 'self_assessment',
+  manager_review: 'manager_review',
+  hr_review: 'hr_review',
+  finalized: 'finalized',
+  acknowledged: 'acknowledged',
 } as const;
 

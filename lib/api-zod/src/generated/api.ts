@@ -7968,3 +7968,337 @@ export const ReplacePerformanceTemplateCompetenciesResponseItem = zod.object({
 export const ReplacePerformanceTemplateCompetenciesResponse = zod.array(ReplacePerformanceTemplateCompetenciesResponseItem)
 
 
+/**
+ * Requires performance.manage — cycle/assignment configuration is HR/admin territory (W75), unlike the broader read grant W74's rating-scales/templates routes use.
+ * @summary List an organization's Performance cycles
+ */
+export const ListPerformanceCyclesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListPerformanceCyclesResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "cycleType": zod.enum(['annual', 'semiannual', 'quarterly', 'monthly', 'probation', 'ad_hoc']),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date(),
+  "selfAssessmentWindowStart": zod.coerce.date().nullish(),
+  "selfAssessmentWindowEnd": zod.coerce.date().nullish(),
+  "managerReviewWindowStart": zod.coerce.date().nullish(),
+  "managerReviewWindowEnd": zod.coerce.date().nullish(),
+  "hrFinalizationWindowStart": zod.coerce.date().nullish(),
+  "hrFinalizationWindowEnd": zod.coerce.date().nullish(),
+  "templateId": zod.number(),
+  "ratingScaleId": zod.number(),
+  "applicabilityScope": zod.enum(['all_active', 'department', 'position', 'manual']),
+  "applicabilityDepartmentIds": zod.array(zod.number()).nullish(),
+  "applicabilityPositionIds": zod.array(zod.number()).nullish(),
+  "status": zod.enum(['draft', 'open', 'closed', 'archived']),
+  "createdAt": zod.coerce.date()
+})
+export const ListPerformanceCyclesResponse = zod.array(ListPerformanceCyclesResponseItem)
+
+
+/**
+ * Requires performance.manage. templateId/ratingScaleId must belong to the same organization and be 'active'. Created in 'draft' status.
+ * @summary Create a Performance cycle
+ */
+export const CreatePerformanceCycleParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+
+
+export const CreatePerformanceCycleBody = zod.object({
+  "name": zod.string().min(1),
+  "cycleType": zod.enum(['annual', 'semiannual', 'quarterly', 'monthly', 'probation', 'ad_hoc']),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date(),
+  "selfAssessmentWindowStart": zod.coerce.date().optional(),
+  "selfAssessmentWindowEnd": zod.coerce.date().optional(),
+  "managerReviewWindowStart": zod.coerce.date().optional(),
+  "managerReviewWindowEnd": zod.coerce.date().optional(),
+  "hrFinalizationWindowStart": zod.coerce.date().optional(),
+  "hrFinalizationWindowEnd": zod.coerce.date().optional(),
+  "templateId": zod.number(),
+  "ratingScaleId": zod.number(),
+  "applicabilityScope": zod.enum(['all_active', 'department', 'position', 'manual']),
+  "applicabilityDepartmentIds": zod.array(zod.number()).optional(),
+  "applicabilityPositionIds": zod.array(zod.number()).optional()
+})
+
+export const CreatePerformanceCycleResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "cycleType": zod.enum(['annual', 'semiannual', 'quarterly', 'monthly', 'probation', 'ad_hoc']),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date(),
+  "selfAssessmentWindowStart": zod.coerce.date().nullish(),
+  "selfAssessmentWindowEnd": zod.coerce.date().nullish(),
+  "managerReviewWindowStart": zod.coerce.date().nullish(),
+  "managerReviewWindowEnd": zod.coerce.date().nullish(),
+  "hrFinalizationWindowStart": zod.coerce.date().nullish(),
+  "hrFinalizationWindowEnd": zod.coerce.date().nullish(),
+  "templateId": zod.number(),
+  "ratingScaleId": zod.number(),
+  "applicabilityScope": zod.enum(['all_active', 'department', 'position', 'manual']),
+  "applicabilityDepartmentIds": zod.array(zod.number()).nullish(),
+  "applicabilityPositionIds": zod.array(zod.number()).nullish(),
+  "status": zod.enum(['draft', 'open', 'closed', 'archived']),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get a Performance cycle
+ */
+export const GetPerformanceCycleParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const GetPerformanceCycleResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "cycleType": zod.enum(['annual', 'semiannual', 'quarterly', 'monthly', 'probation', 'ad_hoc']),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date(),
+  "selfAssessmentWindowStart": zod.coerce.date().nullish(),
+  "selfAssessmentWindowEnd": zod.coerce.date().nullish(),
+  "managerReviewWindowStart": zod.coerce.date().nullish(),
+  "managerReviewWindowEnd": zod.coerce.date().nullish(),
+  "hrFinalizationWindowStart": zod.coerce.date().nullish(),
+  "hrFinalizationWindowEnd": zod.coerce.date().nullish(),
+  "templateId": zod.number(),
+  "ratingScaleId": zod.number(),
+  "applicabilityScope": zod.enum(['all_active', 'department', 'position', 'manual']),
+  "applicabilityDepartmentIds": zod.array(zod.number()).nullish(),
+  "applicabilityPositionIds": zod.array(zod.number()).nullish(),
+  "status": zod.enum(['draft', 'open', 'closed', 'archived']),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * Requires performance.manage. Configuration fields are only editable while the cycle is 'draft' (409 otherwise). status may only move draft->archived, open->closed, or closed->archived — 'open' can never be set directly, only via generate-reviews.
+ * @summary Update a Performance cycle, or transition its status
+ */
+export const UpdatePerformanceCycleParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const UpdatePerformanceCycleBody = zod.object({
+  "name": zod.string().min(1).optional(),
+  "cycleType": zod.enum(['annual', 'semiannual', 'quarterly', 'monthly', 'probation', 'ad_hoc']).optional(),
+  "startDate": zod.coerce.date().optional(),
+  "endDate": zod.coerce.date().optional(),
+  "selfAssessmentWindowStart": zod.coerce.date().optional(),
+  "selfAssessmentWindowEnd": zod.coerce.date().optional(),
+  "managerReviewWindowStart": zod.coerce.date().optional(),
+  "managerReviewWindowEnd": zod.coerce.date().optional(),
+  "hrFinalizationWindowStart": zod.coerce.date().optional(),
+  "hrFinalizationWindowEnd": zod.coerce.date().optional(),
+  "templateId": zod.number().optional(),
+  "ratingScaleId": zod.number().optional(),
+  "applicabilityScope": zod.enum(['all_active', 'department', 'position', 'manual']).optional(),
+  "applicabilityDepartmentIds": zod.array(zod.number()).optional(),
+  "applicabilityPositionIds": zod.array(zod.number()).optional(),
+  "status": zod.enum(['closed', 'archived']).optional().describe('Only draft->archived, open->closed, or closed->archived are valid — \'open\' can never be set directly.')
+})
+
+export const UpdatePerformanceCycleResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "cycleType": zod.enum(['annual', 'semiannual', 'quarterly', 'monthly', 'probation', 'ad_hoc']),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date(),
+  "selfAssessmentWindowStart": zod.coerce.date().nullish(),
+  "selfAssessmentWindowEnd": zod.coerce.date().nullish(),
+  "managerReviewWindowStart": zod.coerce.date().nullish(),
+  "managerReviewWindowEnd": zod.coerce.date().nullish(),
+  "hrFinalizationWindowStart": zod.coerce.date().nullish(),
+  "hrFinalizationWindowEnd": zod.coerce.date().nullish(),
+  "templateId": zod.number(),
+  "ratingScaleId": zod.number(),
+  "applicabilityScope": zod.enum(['all_active', 'department', 'position', 'manual']),
+  "applicabilityDepartmentIds": zod.array(zod.number()).nullish(),
+  "applicabilityPositionIds": zod.array(zod.number()).nullish(),
+  "status": zod.enum(['draft', 'open', 'closed', 'archived']),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * Requires performance.manage. The cycle must be 'draft' (409 otherwise — this action runs exactly once per cycle). Resolves eligible employees per the cycle's own applicabilityScope (all_active/department/position use active employmentStatus automatically; manual requires an explicit employeeIds list, each validated to belong to this organization and be active). Creates one performance_reviews row per eligible employee directly in self_assessment status, with competencies snapshotted from the cycle's template — never goals, which W76 owns entirely. Flips the cycle to 'open' in the same atomic transaction.
+ * @summary Open a draft cycle and bulk-assign Performance reviews to its eligible employees
+ */
+export const GeneratePerformanceReviewsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const GeneratePerformanceReviewsBody = zod.object({
+  "employeeIds": zod.array(zod.number()).optional().describe('Required and non-empty only when the cycle\'s applicabilityScope is \'manual\'; ignored otherwise (eligibility is auto-resolved).')
+})
+
+export const GeneratePerformanceReviewsResponse = zod.object({
+  "cycle": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "cycleType": zod.enum(['annual', 'semiannual', 'quarterly', 'monthly', 'probation', 'ad_hoc']),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date(),
+  "selfAssessmentWindowStart": zod.coerce.date().nullish(),
+  "selfAssessmentWindowEnd": zod.coerce.date().nullish(),
+  "managerReviewWindowStart": zod.coerce.date().nullish(),
+  "managerReviewWindowEnd": zod.coerce.date().nullish(),
+  "hrFinalizationWindowStart": zod.coerce.date().nullish(),
+  "hrFinalizationWindowEnd": zod.coerce.date().nullish(),
+  "templateId": zod.number(),
+  "ratingScaleId": zod.number(),
+  "applicabilityScope": zod.enum(['all_active', 'department', 'position', 'manual']),
+  "applicabilityDepartmentIds": zod.array(zod.number()).nullish(),
+  "applicabilityPositionIds": zod.array(zod.number()).nullish(),
+  "status": zod.enum(['draft', 'open', 'closed', 'archived']),
+  "createdAt": zod.coerce.date()
+}),
+  "reviewsCreated": zod.number(),
+  "reviews": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "cycleId": zod.number(),
+  "templateId": zod.number(),
+  "ratingScaleId": zod.number(),
+  "employeeId": zod.number(),
+  "reviewerEmployeeId": zod.number().nullish(),
+  "departmentIdSnapshot": zod.number().nullish(),
+  "positionIdSnapshot": zod.number().nullish(),
+  "goalsWeight": zod.number(),
+  "competenciesWeight": zod.number(),
+  "scoringPrecisionSnapshot": zod.number(),
+  "acknowledgementRequiredSnapshot": zod.boolean(),
+  "status": zod.enum(['draft', 'self_assessment', 'manager_review', 'hr_review', 'finalized', 'acknowledged']),
+  "selfAssessmentSubmittedAt": zod.coerce.date().nullish(),
+  "managerReviewSubmittedAt": zod.coerce.date().nullish(),
+  "hrFinalizedAt": zod.coerce.date().nullish(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "employeeFinalComment": zod.string().nullish(),
+  "computedOverallScore": zod.string().nullish(),
+  "hrOverrideScore": zod.string().nullish(),
+  "hrOverrideReason": zod.string().nullish(),
+  "revisionNumber": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * Requires performance.manage. Optional cycleId/employeeId/status query filters.
+ * @summary List an organization's Performance reviews
+ */
+export const ListPerformanceReviewsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListPerformanceReviewsQueryParams = zod.object({
+  "cycleId": zod.coerce.number().optional(),
+  "employeeId": zod.coerce.number().optional(),
+  "status": zod.enum(['draft', 'self_assessment', 'manager_review', 'hr_review', 'finalized', 'acknowledged']).optional()
+})
+
+export const ListPerformanceReviewsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "cycleId": zod.number(),
+  "templateId": zod.number(),
+  "ratingScaleId": zod.number(),
+  "employeeId": zod.number(),
+  "reviewerEmployeeId": zod.number().nullish(),
+  "departmentIdSnapshot": zod.number().nullish(),
+  "positionIdSnapshot": zod.number().nullish(),
+  "goalsWeight": zod.number(),
+  "competenciesWeight": zod.number(),
+  "scoringPrecisionSnapshot": zod.number(),
+  "acknowledgementRequiredSnapshot": zod.boolean(),
+  "status": zod.enum(['draft', 'self_assessment', 'manager_review', 'hr_review', 'finalized', 'acknowledged']),
+  "selfAssessmentSubmittedAt": zod.coerce.date().nullish(),
+  "managerReviewSubmittedAt": zod.coerce.date().nullish(),
+  "hrFinalizedAt": zod.coerce.date().nullish(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "employeeFinalComment": zod.string().nullish(),
+  "computedOverallScore": zod.string().nullish(),
+  "hrOverrideScore": zod.string().nullish(),
+  "hrOverrideReason": zod.string().nullish(),
+  "revisionNumber": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListPerformanceReviewsResponse = zod.array(ListPerformanceReviewsResponseItem)
+
+
+/**
+ * Requires performance.manage. No goal data is returned — W76 owns goal management.
+ * @summary Get a Performance review with its snapshotted competencies
+ */
+export const GetPerformanceReviewParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const GetPerformanceReviewResponse = zod.object({
+  "review": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "cycleId": zod.number(),
+  "templateId": zod.number(),
+  "ratingScaleId": zod.number(),
+  "employeeId": zod.number(),
+  "reviewerEmployeeId": zod.number().nullish(),
+  "departmentIdSnapshot": zod.number().nullish(),
+  "positionIdSnapshot": zod.number().nullish(),
+  "goalsWeight": zod.number(),
+  "competenciesWeight": zod.number(),
+  "scoringPrecisionSnapshot": zod.number(),
+  "acknowledgementRequiredSnapshot": zod.boolean(),
+  "status": zod.enum(['draft', 'self_assessment', 'manager_review', 'hr_review', 'finalized', 'acknowledged']),
+  "selfAssessmentSubmittedAt": zod.coerce.date().nullish(),
+  "managerReviewSubmittedAt": zod.coerce.date().nullish(),
+  "hrFinalizedAt": zod.coerce.date().nullish(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "employeeFinalComment": zod.string().nullish(),
+  "computedOverallScore": zod.string().nullish(),
+  "hrOverrideScore": zod.string().nullish(),
+  "hrOverrideReason": zod.string().nullish(),
+  "revisionNumber": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "competencies": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "reviewId": zod.number(),
+  "label": zod.string(),
+  "description": zod.string().nullish(),
+  "weight": zod.number(),
+  "sortOrder": zod.number(),
+  "employeeRatingValue": zod.string().nullish(),
+  "employeeComment": zod.string().nullish(),
+  "managerRatingValue": zod.string().nullish(),
+  "managerComment": zod.string().nullish(),
+  "notApplicable": zod.boolean().optional(),
+  "notApplicableReason": zod.string().nullish()
+}))
+})
+
+

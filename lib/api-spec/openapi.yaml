@@ -107,6 +107,10 @@ tags:
       experience — resolved only from the caller's own request hostname,
       never from a client-supplied hostname parameter (not a tenant
       directory).
+  - name: performance-cycles
+    description: Phase 3C, W75 — Performance cycle configuration and bulk review assignment. HR/admin only (performance.manage).
+  - name: performance-reviews
+    description: Phase 3C, W75 — read access to assigned Performance reviews. HR/admin only (performance.manage); self/manager visibility is a later workstream's concern.
 
 paths:
   /healthz:
@@ -9367,6 +9371,267 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/performance/cycles:
+    get:
+      operationId: listPerformanceCycles
+      tags: [performance-cycles]
+      summary: List an organization's Performance cycles
+      description: Requires performance.manage — cycle/assignment configuration is HR/admin territory (W75), unlike the broader read grant W74's rating-scales/templates routes use.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Performance cycles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PerformanceCycle"
+    post:
+      operationId: createPerformanceCycle
+      tags: [performance-cycles]
+      summary: Create a Performance cycle
+      description: Requires performance.manage. templateId/ratingScaleId must belong to the same organization and be 'active'. Created in 'draft' status.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePerformanceCycleInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerformanceCycle"
+        "400":
+          description: Invalid input, or template/rating scale not usable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/performance/cycles/{id}:
+    get:
+      operationId: getPerformanceCycle
+      tags: [performance-cycles]
+      summary: Get a Performance cycle
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Performance cycle
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerformanceCycle"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    patch:
+      operationId: updatePerformanceCycle
+      tags: [performance-cycles]
+      summary: Update a Performance cycle, or transition its status
+      description: >-
+        Requires performance.manage. Configuration fields are only
+        editable while the cycle is 'draft' (409 otherwise). status may
+        only move draft->archived, open->closed, or closed->archived —
+        'open' can never be set directly, only via generate-reviews.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePerformanceCycleInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerformanceCycle"
+        "400":
+          description: Invalid input, or template/rating scale not usable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: The cycle is not editable in its current status, or the requested status transition is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/performance/cycles/{id}/generate-reviews:
+    post:
+      operationId: generatePerformanceReviews
+      tags: [performance-cycles]
+      summary: Open a draft cycle and bulk-assign Performance reviews to its eligible employees
+      description: >-
+        Requires performance.manage. The cycle must be 'draft' (409
+        otherwise — this action runs exactly once per cycle). Resolves
+        eligible employees per the cycle's own applicabilityScope
+        (all_active/department/position use active employmentStatus
+        automatically; manual requires an explicit employeeIds list, each
+        validated to belong to this organization and be active). Creates
+        one performance_reviews row per eligible employee directly in
+        self_assessment status, with competencies snapshotted from the
+        cycle's template — never goals, which W76 owns entirely. Flips the
+        cycle to 'open' in the same atomic transaction.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GeneratePerformanceReviewsInput"
+      responses:
+        "201":
+          description: Reviews generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeneratePerformanceReviewsResult"
+        "400":
+          description: Invalid employeeIds, or an ineligible/cross-organization employee was named
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: The cycle is not in draft status — reviews were already generated, or the cycle is closed/archived
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/performance/reviews:
+    get:
+      operationId: listPerformanceReviews
+      tags: [performance-reviews]
+      summary: List an organization's Performance reviews
+      description: Requires performance.manage. Optional cycleId/employeeId/status query filters.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: cycleId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: employeeId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [draft, self_assessment, manager_review, hr_review, finalized, acknowledged]
+      responses:
+        "200":
+          description: Performance reviews
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PerformanceReview"
+
+  /organizations/{organizationId}/performance/reviews/{id}:
+    get:
+      operationId: getPerformanceReview
+      tags: [performance-reviews]
+      summary: Get a Performance review with its snapshotted competencies
+      description: Requires performance.manage. No goal data is returned — W76 owns goal management.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Review with competencies
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerformanceReviewWithCompetencies"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -14352,3 +14617,297 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PerformanceTemplateCompetencyInput"
+
+    PerformanceCycle:
+      type: object
+      required:
+        [id, organizationId, name, cycleType, startDate, endDate, templateId, ratingScaleId, applicabilityScope, status, createdAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        name:
+          type: string
+        cycleType:
+          type: string
+          enum: [annual, semiannual, quarterly, monthly, probation, ad_hoc]
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        selfAssessmentWindowStart:
+          type: ["string", "null"]
+          format: date
+        selfAssessmentWindowEnd:
+          type: ["string", "null"]
+          format: date
+        managerReviewWindowStart:
+          type: ["string", "null"]
+          format: date
+        managerReviewWindowEnd:
+          type: ["string", "null"]
+          format: date
+        hrFinalizationWindowStart:
+          type: ["string", "null"]
+          format: date
+        hrFinalizationWindowEnd:
+          type: ["string", "null"]
+          format: date
+        templateId:
+          type: integer
+        ratingScaleId:
+          type: integer
+        applicabilityScope:
+          type: string
+          enum: [all_active, department, position, manual]
+        applicabilityDepartmentIds:
+          type: ["array", "null"]
+          items:
+            type: integer
+        applicabilityPositionIds:
+          type: ["array", "null"]
+          items:
+            type: integer
+        status:
+          type: string
+          enum: [draft, open, closed, archived]
+        createdAt:
+          type: string
+          format: date-time
+
+    CreatePerformanceCycleInput:
+      type: object
+      required: [name, cycleType, startDate, endDate, templateId, ratingScaleId, applicabilityScope]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        cycleType:
+          type: string
+          enum: [annual, semiannual, quarterly, monthly, probation, ad_hoc]
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        selfAssessmentWindowStart:
+          type: string
+          format: date
+        selfAssessmentWindowEnd:
+          type: string
+          format: date
+        managerReviewWindowStart:
+          type: string
+          format: date
+        managerReviewWindowEnd:
+          type: string
+          format: date
+        hrFinalizationWindowStart:
+          type: string
+          format: date
+        hrFinalizationWindowEnd:
+          type: string
+          format: date
+        templateId:
+          type: integer
+        ratingScaleId:
+          type: integer
+        applicabilityScope:
+          type: string
+          enum: [all_active, department, position, manual]
+        applicabilityDepartmentIds:
+          type: array
+          items:
+            type: integer
+        applicabilityPositionIds:
+          type: array
+          items:
+            type: integer
+
+    UpdatePerformanceCycleInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        cycleType:
+          type: string
+          enum: [annual, semiannual, quarterly, monthly, probation, ad_hoc]
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        selfAssessmentWindowStart:
+          type: string
+          format: date
+        selfAssessmentWindowEnd:
+          type: string
+          format: date
+        managerReviewWindowStart:
+          type: string
+          format: date
+        managerReviewWindowEnd:
+          type: string
+          format: date
+        hrFinalizationWindowStart:
+          type: string
+          format: date
+        hrFinalizationWindowEnd:
+          type: string
+          format: date
+        templateId:
+          type: integer
+        ratingScaleId:
+          type: integer
+        applicabilityScope:
+          type: string
+          enum: [all_active, department, position, manual]
+        applicabilityDepartmentIds:
+          type: array
+          items:
+            type: integer
+        applicabilityPositionIds:
+          type: array
+          items:
+            type: integer
+        status:
+          type: string
+          description: Only draft->archived, open->closed, or closed->archived are valid — 'open' can never be set directly.
+          enum: [closed, archived]
+
+    GeneratePerformanceReviewsInput:
+      type: object
+      properties:
+        employeeIds:
+          type: array
+          description: Required and non-empty only when the cycle's applicabilityScope is 'manual'; ignored otherwise (eligibility is auto-resolved).
+          items:
+            type: integer
+
+    PerformanceReview:
+      type: object
+      required:
+        [
+          id, organizationId, cycleId, templateId, ratingScaleId, employeeId,
+          goalsWeight, competenciesWeight, scoringPrecisionSnapshot,
+          acknowledgementRequiredSnapshot, status, revisionNumber, createdAt, updatedAt,
+        ]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        cycleId:
+          type: integer
+        templateId:
+          type: integer
+        ratingScaleId:
+          type: integer
+        employeeId:
+          type: integer
+        reviewerEmployeeId:
+          type: ["integer", "null"]
+        departmentIdSnapshot:
+          type: ["integer", "null"]
+        positionIdSnapshot:
+          type: ["integer", "null"]
+        goalsWeight:
+          type: integer
+        competenciesWeight:
+          type: integer
+        scoringPrecisionSnapshot:
+          type: integer
+        acknowledgementRequiredSnapshot:
+          type: boolean
+        status:
+          type: string
+          enum: [draft, self_assessment, manager_review, hr_review, finalized, acknowledged]
+        selfAssessmentSubmittedAt:
+          type: ["string", "null"]
+          format: date-time
+        managerReviewSubmittedAt:
+          type: ["string", "null"]
+          format: date-time
+        hrFinalizedAt:
+          type: ["string", "null"]
+          format: date-time
+        acknowledgedAt:
+          type: ["string", "null"]
+          format: date-time
+        employeeFinalComment:
+          type: ["string", "null"]
+        computedOverallScore:
+          type: ["string", "null"]
+        hrOverrideScore:
+          type: ["string", "null"]
+        hrOverrideReason:
+          type: ["string", "null"]
+        revisionNumber:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    GeneratePerformanceReviewsResult:
+      type: object
+      required: [cycle, reviewsCreated, reviews]
+      properties:
+        cycle:
+          $ref: "#/components/schemas/PerformanceCycle"
+        reviewsCreated:
+          type: integer
+        reviews:
+          type: array
+          items:
+            $ref: "#/components/schemas/PerformanceReview"
+
+    PerformanceReviewCompetency:
+      type: object
+      required: [id, organizationId, reviewId, label, weight, sortOrder]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        reviewId:
+          type: integer
+        label:
+          type: string
+        description:
+          type: ["string", "null"]
+        weight:
+          type: integer
+        sortOrder:
+          type: integer
+        employeeRatingValue:
+          type: ["string", "null"]
+        employeeComment:
+          type: ["string", "null"]
+        managerRatingValue:
+          type: ["string", "null"]
+        managerComment:
+          type: ["string", "null"]
+        notApplicable:
+          type: boolean
+        notApplicableReason:
+          type: ["string", "null"]
+
+    PerformanceReviewWithCompetencies:
+      type: object
+      required: [review, competencies]
+      properties:
+        review:
+          $ref: "#/components/schemas/PerformanceReview"
+        competencies:
+          type: array
+          items:
+            $ref: "#/components/schemas/PerformanceReviewCompetency"

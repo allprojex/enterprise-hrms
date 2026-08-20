@@ -333,6 +333,12 @@ export function AppShell({ children }: AppShellProps) {
     // / performanceReviewTemplates.ts's own route comments.
     ...(isHrCapable ? [{ href: '/performance-rating-scales', label: 'Performance Rating Scales', icon: Ruler } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/performance-templates', label: 'Performance Templates', icon: FileText } satisfies NavItem] : []),
+    // Phase 3C, W75 — same isHrCapable-only precedent as W74's own two
+    // Performance nav entries above; own/team tier is still reachable
+    // directly by URL, though W75's own routes require performance.manage
+    // uniformly (HR/admin configuration-and-assignment territory, unlike
+    // W74's broader read grant — see routes/performanceCycles.ts).
+    ...(isHrCapable ? [{ href: '/performance-cycles', label: 'Performance Cycles', icon: CalendarRange } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisitions', label: 'Job Requisitions', icon: ClipboardList } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisition-approvals', label: 'Requisition Approvals', icon: Stamp } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/vacancies', label: 'Vacancies', icon: Megaphone } satisfies NavItem] : []),
