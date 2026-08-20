@@ -34,6 +34,7 @@ import AttendanceReports from '@/pages/attendance-reports';
 import PerformanceRatingScales from '@/pages/performance-rating-scales';
 import PerformanceTemplates from '@/pages/performance-templates';
 import PerformanceCycles from '@/pages/performance-cycles';
+import PerformanceTeam from '@/pages/performance-team';
 import EmployeeSelfService from '@/pages/employee-self-service';
 import RecruitmentSettings from '@/pages/recruitment-settings';
 import Requisitions from '@/pages/requisitions';
@@ -166,6 +167,9 @@ function Router() {
       </Route>
       <Route path="/performance-cycles">
         {() => <SecureRoute component={PerformanceCycles} moduleKey="performance" />}
+      </Route>
+      <Route path="/performance-team">
+        {() => <SecureRoute component={PerformanceTeam} moduleKey="performance" />}
       </Route>
       <Route path="/self-service">
         {() => <SecureRoute component={EmployeeSelfService} moduleKey="employee_self_service" />}

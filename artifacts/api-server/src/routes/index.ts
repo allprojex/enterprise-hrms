@@ -58,6 +58,7 @@ import performanceReviewTemplatesRouter from "./performanceReviewTemplates";
 import performanceCyclesRouter from "./performanceCycles";
 import performanceReviewGoalsRouter from "./performanceReviewGoals";
 import performanceSelfAssessmentRouter from "./performanceSelfAssessment";
+import performanceManagerReviewRouter from "./performanceManagerReview";
 
 const router: IRouter = Router();
 
@@ -120,5 +121,6 @@ router.use(performanceReviewTemplatesRouter);
 router.use(performanceCyclesRouter);
 router.use(performanceReviewGoalsRouter);
 router.use(performanceSelfAssessmentRouter);
+router.use(performanceManagerReviewRouter);
 
 export default router;

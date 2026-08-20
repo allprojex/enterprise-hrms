@@ -4840,6 +4840,20 @@ export interface UpdatePerformanceReviewGoalInput {
      * @nullable
      */
   employeeComment?: string | null;
+  /**
+     * W78 addition, reviewer-of-record only, manager_review only. Validated against the goal's own measurementType — rejected for qualitative, must be 0/1 for boolean, must match a configured rating-scale level for rating.
+     * @nullable
+     */
+  actualResult?: number | null;
+  /**
+     * W78 addition, reviewer-of-record only, manager_review only.
+     * @nullable
+     */
+  managerComment?: string | null;
+  /** W78 addition, reviewer-of-record only, manager_review only. Requires notApplicableReason. */
+  notApplicable?: boolean;
+  /** @nullable */
+  notApplicableReason?: string | null;
 }
 
 /**
@@ -4866,10 +4880,19 @@ export interface RejectPerformanceReviewGoalInput {
   reason: string;
 }
 
+/**
+ * Dual-purpose (W77 employee self-rating / W78 manager rating) — which fields apply is resolved server-side from the caller's relationship to the review, never a client-supplied flag. The review's own employee must supply employeeRatingValue (self_assessment only); the reviewer of record may supply any of managerRatingValue/managerComment/notApplicable/ notApplicableReason (manager_review only).
+ */
 export interface RateCompetencyInput {
-  /** Must match one of this review's own configured rating-scale level values. */
-  employeeRatingValue: number;
+  /** Required for the employee path. Must match one of this review's own configured rating-scale level values. */
+  employeeRatingValue?: number;
   employeeComment?: string;
+  /** W78 addition, reviewer-of-record only. Must match one of this review's own configured rating-scale level values. */
+  managerRatingValue?: number;
+  managerComment?: string;
+  /** W78 addition, reviewer-of-record only. Requires notApplicableReason. */
+  notApplicable?: boolean;
+  notApplicableReason?: string;
 }
 
 export interface SelfAssessmentNotReadyError {

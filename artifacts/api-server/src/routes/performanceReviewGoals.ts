@@ -173,6 +173,10 @@ router.patch(
         weight: parsed.data.weight,
         dueDate: iso(parsed.data.dueDate),
         employeeComment: parsed.data.employeeComment,
+        actualResult: parsed.data.actualResult,
+        managerComment: parsed.data.managerComment,
+        notApplicable: parsed.data.notApplicable,
+        notApplicableReason: parsed.data.notApplicableReason,
       });
       res.json(updated);
     } catch (err) {

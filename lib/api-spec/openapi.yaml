@@ -10040,6 +10040,88 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/performance/team-reviews:
+    get:
+      operationId: listTeamPerformanceReviews
+      tags: [performance-reviews]
+      summary: Manager — reviews where the caller is the reviewer of record
+      description: Requires performance.review.write. reviewerEmployeeId is always server-resolved from the caller's own employee_user_links row, never client-supplied. Returns an empty array if the caller has no linked employee record.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Reviews where the caller is reviewerEmployeeId
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PerformanceReview"
+
+  /organizations/{organizationId}/performance/reviews/{id}/manager-review:
+    post:
+      operationId: submitManagerReview
+      tags: [performance-reviews]
+      summary: Reviewer of record submits the manager review — the authoritative manager_review -> hr_review transition
+      description: >-
+        Requires performance.review.write, reviewer of record only.
+        Readiness is validated first (400, listing every problem): every
+        proposed goal resolved (accepted or rejected); every accepted,
+        non-qualitative, non-N/A goal has actualResult; every non-N/A
+        competency has managerRatingValue; accepted, non-qualitative goal
+        weights sum to 100; at least one section has a scoreable item. The
+        official computedOverallScore is then computed deterministically
+        (employee self-ratings never contribute) and an atomic conditional
+        UPDATE ... WHERE status = 'manager_review' performs the
+        transition, setting managerReviewSubmittedAt — a concurrent or
+        repeat submission affects zero rows and returns 409.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Submitted — review is now in hr_review status, computedOverallScore set
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerformanceReview"
+        "400":
+          description: Manager review is not ready to submit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SelfAssessmentNotReadyError"
+        "403":
+          description: Not this review's reviewer of record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: The review is not (or is no longer) in manager_review status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -15410,6 +15492,21 @@ components:
             on an already-`accepted` official goal, self_assessment only
             (§14's "enter comments on goals"). Structural fields above
             remain reviewer-only on an accepted goal.
+        actualResult:
+          type: ["number", "null"]
+          description: >-
+            W78 addition, reviewer-of-record only, manager_review only.
+            Validated against the goal's own measurementType — rejected
+            for qualitative, must be 0/1 for boolean, must match a
+            configured rating-scale level for rating.
+        managerComment:
+          type: ["string", "null"]
+          description: W78 addition, reviewer-of-record only, manager_review only.
+        notApplicable:
+          type: boolean
+          description: W78 addition, reviewer-of-record only, manager_review only. Requires notApplicableReason.
+        notApplicableReason:
+          type: ["string", "null"]
 
     AcceptPerformanceReviewGoalInput:
       type: object
@@ -15441,12 +15538,29 @@ components:
 
     RateCompetencyInput:
       type: object
-      required: [employeeRatingValue]
+      description: >-
+        Dual-purpose (W77 employee self-rating / W78 manager rating) —
+        which fields apply is resolved server-side from the caller's
+        relationship to the review, never a client-supplied flag. The
+        review's own employee must supply employeeRatingValue
+        (self_assessment only); the reviewer of record may supply any of
+        managerRatingValue/managerComment/notApplicable/
+        notApplicableReason (manager_review only).
       properties:
         employeeRatingValue:
           type: number
-          description: Must match one of this review's own configured rating-scale level values.
+          description: Required for the employee path. Must match one of this review's own configured rating-scale level values.
         employeeComment:
+          type: string
+        managerRatingValue:
+          type: number
+          description: W78 addition, reviewer-of-record only. Must match one of this review's own configured rating-scale level values.
+        managerComment:
+          type: string
+        notApplicable:
+          type: boolean
+          description: W78 addition, reviewer-of-record only. Requires notApplicableReason.
+        notApplicableReason:
           type: string
 
     SelfAssessmentNotReadyError:

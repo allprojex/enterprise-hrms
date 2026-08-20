@@ -339,6 +339,14 @@ export function AppShell({ children }: AppShellProps) {
     // uniformly (HR/admin configuration-and-assignment territory, unlike
     // W74's broader read grant — see routes/performanceCycles.ts).
     ...(isHrCapable ? [{ href: '/performance-cycles', label: 'Performance Cycles', icon: CalendarRange } satisfies NavItem] : []),
+    // Phase 3C, W78 — §18's own frozen surface (/performance-team),
+    // nav-gated isHrCapable-only per its own literal text (unchanged from
+    // the draft) — same precedent as every other Performance nav entry
+    // above. Backend authorization is reviewer-of-record via
+    // reviewerEmployeeId regardless of nav visibility, so a manager who
+    // isn't HR-capable is still correctly authorized if they navigate
+    // directly; only the nav *entry* follows this convention.
+    ...(isHrCapable ? [{ href: '/performance-team', label: 'My Team Reviews', icon: Users } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisitions', label: 'Job Requisitions', icon: ClipboardList } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisition-approvals', label: 'Requisition Approvals', icon: Stamp } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/vacancies', label: 'Vacancies', icon: Megaphone } satisfies NavItem] : []),

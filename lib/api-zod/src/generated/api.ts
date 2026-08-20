@@ -8392,7 +8392,11 @@ export const UpdatePerformanceReviewGoalBody = zod.object({
   "unit": zod.string().nullish(),
   "weight": zod.number().optional(),
   "dueDate": zod.coerce.date().nullish(),
-  "employeeComment": zod.string().nullish().describe('W77 addition — the only field the goal\'s own employee may set on an already-`accepted` official goal, self_assessment only (§14\'s \"enter comments on goals\"). Structural fields above remain reviewer-only on an accepted goal.')
+  "employeeComment": zod.string().nullish().describe('W77 addition — the only field the goal\'s own employee may set on an already-`accepted` official goal, self_assessment only (§14\'s \"enter comments on goals\"). Structural fields above remain reviewer-only on an accepted goal.'),
+  "actualResult": zod.number().nullish().describe('W78 addition, reviewer-of-record only, manager_review only. Validated against the goal\'s own measurementType — rejected for qualitative, must be 0\/1 for boolean, must match a configured rating-scale level for rating.'),
+  "managerComment": zod.string().nullish().describe('W78 addition, reviewer-of-record only, manager_review only.'),
+  "notApplicable": zod.boolean().optional().describe('W78 addition, reviewer-of-record only, manager_review only. Requires notApplicableReason.'),
+  "notApplicableReason": zod.string().nullish()
 })
 
 export const UpdatePerformanceReviewGoalResponse = zod.object({
@@ -8558,9 +8562,13 @@ export const RateCompetencyParams = zod.object({
 })
 
 export const RateCompetencyBody = zod.object({
-  "employeeRatingValue": zod.number().describe('Must match one of this review\'s own configured rating-scale level values.'),
-  "employeeComment": zod.string().optional()
-})
+  "employeeRatingValue": zod.number().optional().describe('Required for the employee path. Must match one of this review\'s own configured rating-scale level values.'),
+  "employeeComment": zod.string().optional(),
+  "managerRatingValue": zod.number().optional().describe('W78 addition, reviewer-of-record only. Must match one of this review\'s own configured rating-scale level values.'),
+  "managerComment": zod.string().optional(),
+  "notApplicable": zod.boolean().optional().describe('W78 addition, reviewer-of-record only. Requires notApplicableReason.'),
+  "notApplicableReason": zod.string().optional()
+}).describe('Dual-purpose (W77 employee self-rating \/ W78 manager rating) — which fields apply is resolved server-side from the caller\'s relationship to the review, never a client-supplied flag. The review\'s own employee must supply employeeRatingValue (self_assessment only); the reviewer of record may supply any of managerRatingValue\/managerComment\/notApplicable\/ notApplicableReason (manager_review only).')
 
 export const RateCompetencyResponse = zod.object({
   "id": zod.number(),
@@ -8589,6 +8597,82 @@ export const SubmitSelfAssessmentParams = zod.object({
 })
 
 export const SubmitSelfAssessmentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "cycleId": zod.number(),
+  "templateId": zod.number(),
+  "ratingScaleId": zod.number(),
+  "employeeId": zod.number(),
+  "reviewerEmployeeId": zod.number().nullish(),
+  "departmentIdSnapshot": zod.number().nullish(),
+  "positionIdSnapshot": zod.number().nullish(),
+  "goalsWeight": zod.number(),
+  "competenciesWeight": zod.number(),
+  "scoringPrecisionSnapshot": zod.number(),
+  "acknowledgementRequiredSnapshot": zod.boolean(),
+  "status": zod.enum(['draft', 'self_assessment', 'manager_review', 'hr_review', 'finalized', 'acknowledged']),
+  "selfAssessmentSubmittedAt": zod.coerce.date().nullish(),
+  "managerReviewSubmittedAt": zod.coerce.date().nullish(),
+  "hrFinalizedAt": zod.coerce.date().nullish(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "employeeFinalComment": zod.string().nullish(),
+  "computedOverallScore": zod.string().nullish(),
+  "hrOverrideScore": zod.string().nullish(),
+  "hrOverrideReason": zod.string().nullish(),
+  "revisionNumber": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Requires performance.review.write. reviewerEmployeeId is always server-resolved from the caller's own employee_user_links row, never client-supplied. Returns an empty array if the caller has no linked employee record.
+ * @summary Manager — reviews where the caller is the reviewer of record
+ */
+export const ListTeamPerformanceReviewsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListTeamPerformanceReviewsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "cycleId": zod.number(),
+  "templateId": zod.number(),
+  "ratingScaleId": zod.number(),
+  "employeeId": zod.number(),
+  "reviewerEmployeeId": zod.number().nullish(),
+  "departmentIdSnapshot": zod.number().nullish(),
+  "positionIdSnapshot": zod.number().nullish(),
+  "goalsWeight": zod.number(),
+  "competenciesWeight": zod.number(),
+  "scoringPrecisionSnapshot": zod.number(),
+  "acknowledgementRequiredSnapshot": zod.boolean(),
+  "status": zod.enum(['draft', 'self_assessment', 'manager_review', 'hr_review', 'finalized', 'acknowledged']),
+  "selfAssessmentSubmittedAt": zod.coerce.date().nullish(),
+  "managerReviewSubmittedAt": zod.coerce.date().nullish(),
+  "hrFinalizedAt": zod.coerce.date().nullish(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "employeeFinalComment": zod.string().nullish(),
+  "computedOverallScore": zod.string().nullish(),
+  "hrOverrideScore": zod.string().nullish(),
+  "hrOverrideReason": zod.string().nullish(),
+  "revisionNumber": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListTeamPerformanceReviewsResponse = zod.array(ListTeamPerformanceReviewsResponseItem)
+
+
+/**
+ * Requires performance.review.write, reviewer of record only. Readiness is validated first (400, listing every problem): every proposed goal resolved (accepted or rejected); every accepted, non-qualitative, non-N/A goal has actualResult; every non-N/A competency has managerRatingValue; accepted, non-qualitative goal weights sum to 100; at least one section has a scoreable item. The official computedOverallScore is then computed deterministically (employee self-ratings never contribute) and an atomic conditional UPDATE ... WHERE status = 'manager_review' performs the transition, setting managerReviewSubmittedAt — a concurrent or repeat submission affects zero rows and returns 409.
+ * @summary Reviewer of record submits the manager review — the authoritative manager_review -> hr_review transition
+ */
+export const SubmitManagerReviewParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const SubmitManagerReviewResponse = zod.object({
   "id": zod.number(),
   "organizationId": zod.number(),
   "cycleId": zod.number(),

@@ -80,6 +80,7 @@ import { and, eq } from "drizzle-orm";
 import { db, performanceReviewsTable, performanceReviewGoalsTable, type PerformanceReview, type PerformanceReviewGoal } from "@workspace/db";
 import { recordAuditEvent } from "./auditLog";
 import { PerformanceReviewNotFoundError } from "./performanceCycles";
+import { getRatingScaleWithLevels } from "./performanceRatingScales";
 
 export { PerformanceReviewNotFoundError };
 
@@ -211,6 +212,46 @@ function toTargetColumn(target: number | undefined): string | null {
   return target != null ? target.toString() : null;
 }
 
+/**
+ * W78 addition — validates a manager-recorded actualResult against the
+ * goal's own measurementType (§11.1): qualitative goals have no score and
+ * accept no actualResult; boolean accepts only 0/1 ("indicates
+ * complete"); rating must match one of the review's own configured
+ * rating-scale level values (never an arbitrary number, same discipline
+ * as competency self/manager-rating); numeric/percentage/currency accept
+ * any non-negative value (the scoring formula's own clamp(0,100) handles
+ * over/under-achievement, so no upper bound is enforced here).
+ */
+async function validateActualResult(organizationId: number, review: PerformanceReview, measurementType: MeasurementType, actualResult: number | null | undefined): Promise<void> {
+  if (actualResult === undefined) return;
+  switch (measurementType) {
+    case "qualitative":
+      if (actualResult != null) throw new InvalidPerformanceGoalError("qualitative goals do not use an actualResult");
+      return;
+    case "boolean":
+      if (actualResult != null && actualResult !== 0 && actualResult !== 1) {
+        throw new InvalidPerformanceGoalError("boolean goals' actualResult must be 0 (not complete) or 1 (complete)");
+      }
+      return;
+    case "rating": {
+      if (actualResult == null) return;
+      const scaleResult = await getRatingScaleWithLevels(organizationId, review.ratingScaleId);
+      const validValues = new Set((scaleResult?.levels ?? []).map((l) => Number(l.value)));
+      if (!validValues.has(actualResult)) {
+        throw new InvalidPerformanceGoalError("actualResult must match one of this review's configured rating-scale levels");
+      }
+      return;
+    }
+    case "numeric":
+    case "percentage":
+    case "currency":
+      if (actualResult != null && actualResult < 0) {
+        throw new InvalidPerformanceGoalError("actualResult must not be negative");
+      }
+      return;
+  }
+}
+
 export interface CreateGoalFields {
   title: string;
   description?: string;
@@ -338,6 +379,11 @@ export interface UpdateGoalParams {
   dueDate?: string | null;
   /** W77 addition — see the third path below. */
   employeeComment?: string | null;
+  /** W78 additions — reviewer-only (path 2), manager_review only. See validateActualResult and the file header. */
+  actualResult?: number | null;
+  managerComment?: string | null;
+  notApplicable?: boolean;
+  notApplicableReason?: string | null;
 }
 
 /**
@@ -345,8 +391,16 @@ export interface UpdateGoalParams {
  *
  * 1. Employee edits their OWN still-`proposed` goal (any field above),
  *    only while `self_assessment` (§27's own frozen line for this route).
- * 2. The reviewer of record edits ANY goal (any field above), only while
- *    `manager_review`.
+ * 2. The reviewer of record edits ANY goal, only while `manager_review` —
+ *    both the original structural fields (title/target/weight/dueDate)
+ *    AND, **W78 addition**, the manager-review scoring fields
+ *    (`actualResult`/`managerComment`/`notApplicable`/
+ *    `notApplicableReason`, §10.2's own "Manager may edit: actualResult/
+ *    computedScore/managerComment per goal ... set notApplicable+reason"
+ *    for this exact stage). `actualResult` is validated against the
+ *    goal's own `measurementType` (§11.1) — never accepted for
+ *    `qualitative`, must be 0/1 for `boolean`, must match a configured
+ *    rating-scale level for `rating`.
  * 3. **W77 addition**: the employee records their self-assessment
  *    `employeeComment` on an ACCEPTED official goal (manager-created, or
  *    their own proposal once accepted) while `self_assessment` — §14's
@@ -370,22 +424,27 @@ export async function updateGoal(params: UpdateGoalParams): Promise<PerformanceR
   const isReviewer = params.callerEmployeeId != null && review.reviewerEmployeeId === params.callerEmployeeId;
   const editingStructuralFields =
     params.title !== undefined || params.description !== undefined || params.target !== undefined || params.unit !== undefined || params.weight !== undefined || params.dueDate !== undefined;
+  const editingManagerReviewFields =
+    params.actualResult !== undefined || params.managerComment !== undefined || params.notApplicable !== undefined || params.notApplicableReason !== undefined;
 
   let allowEmployeeCommentOnly = false;
   if (isOwn && goal.originType === "employee_proposed" && goal.approvalStatus === "proposed") {
     // Path 1: pre-acceptance proposal edit.
+    if (editingManagerReviewFields) {
+      throw new PerformanceGoalForbiddenError("Only the reviewer of record may record actualResult/managerComment/notApplicable");
+    }
     if (review.status !== "self_assessment") {
       throw new PerformanceGoalStageError("Your goal proposal can only be edited while the review is in self_assessment status");
     }
   } else if (isReviewer) {
-    // Path 2: reviewer edits any goal.
+    // Path 2: reviewer edits any goal, including the W78 manager-review scoring fields.
     if (review.status !== "manager_review") {
       throw new PerformanceGoalStageError("Goals can only be edited by the reviewer while the review is in manager_review status");
     }
   } else if (isOwn && goal.approvalStatus === "accepted") {
     // Path 3 (W77): self-assessment comment on an official goal.
-    if (editingStructuralFields) {
-      throw new PerformanceGoalForbiddenError("You may only record your own comment on an official goal — its definition is set by your reviewer");
+    if (editingStructuralFields || editingManagerReviewFields) {
+      throw new PerformanceGoalForbiddenError("You may only record your own comment on an official goal — its definition and scoring are set by your reviewer");
     }
     if (review.status !== "self_assessment") {
       throw new PerformanceGoalStageError("Self-assessment comments can only be recorded while the review is in self_assessment status");
@@ -404,13 +463,21 @@ export async function updateGoal(params: UpdateGoalParams): Promise<PerformanceR
     return updated;
   }
 
-  validateGoalFields({
-    title: params.title ?? goal.title,
-    measurementType: goal.measurementType as MeasurementType,
-    target: params.target !== undefined ? (params.target ?? undefined) : goal.target != null ? Number(goal.target) : undefined,
-    unit: params.unit !== undefined ? (params.unit ?? undefined) : (goal.unit ?? undefined),
-    weight: params.weight ?? goal.weight,
-  });
+  if (editingStructuralFields) {
+    validateGoalFields({
+      title: params.title ?? goal.title,
+      measurementType: goal.measurementType as MeasurementType,
+      target: params.target !== undefined ? (params.target ?? undefined) : goal.target != null ? Number(goal.target) : undefined,
+      unit: params.unit !== undefined ? (params.unit ?? undefined) : (goal.unit ?? undefined),
+      weight: params.weight ?? goal.weight,
+    });
+  }
+  if (params.actualResult !== undefined) {
+    await validateActualResult(params.organizationId, review, goal.measurementType as MeasurementType, params.actualResult);
+  }
+  if (params.notApplicable === true && !(params.notApplicableReason ?? goal.notApplicableReason)?.trim()) {
+    throw new InvalidPerformanceGoalError("notApplicableReason is required when marking a goal not applicable");
+  }
 
   const patch: Record<string, unknown> = { updatedAt: new Date() };
   if (params.title !== undefined) patch.title = params.title;
@@ -420,6 +487,11 @@ export async function updateGoal(params: UpdateGoalParams): Promise<PerformanceR
   if (params.weight !== undefined) patch.weight = params.weight;
   if (params.dueDate !== undefined) patch.dueDate = params.dueDate;
   if (params.employeeComment !== undefined) patch.employeeComment = params.employeeComment;
+  if (params.actualResult !== undefined) patch.actualResult = toTargetColumn(params.actualResult ?? undefined);
+  if (params.managerComment !== undefined) patch.managerComment = params.managerComment;
+  if (params.notApplicable !== undefined) patch.notApplicable = params.notApplicable;
+  if (params.notApplicableReason !== undefined) patch.notApplicableReason = params.notApplicableReason;
+  else if (params.notApplicable === false) patch.notApplicableReason = null;
 
   const [updated] = await db.update(performanceReviewGoalsTable).set(patch).where(eq(performanceReviewGoalsTable.id, params.goalId)).returning();
   return updated;

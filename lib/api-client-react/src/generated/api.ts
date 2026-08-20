@@ -20572,3 +20572,155 @@ export const useSubmitSelfAssessment = <TError = ErrorType<SelfAssessmentNotRead
       return useMutation(getSubmitSelfAssessmentMutationOptions(options));
     }
 
+export const getListTeamPerformanceReviewsUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/team-reviews`
+}
+
+/**
+ * Requires performance.review.write. reviewerEmployeeId is always server-resolved from the caller's own employee_user_links row, never client-supplied. Returns an empty array if the caller has no linked employee record.
+ * @summary Manager — reviews where the caller is the reviewer of record
+ */
+export const listTeamPerformanceReviews = async (organizationId: number, options?: RequestInit): Promise<PerformanceReview[]> => {
+
+  return customFetch<PerformanceReview[]>(getListTeamPerformanceReviewsUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListTeamPerformanceReviewsQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/performance/team-reviews`
+    ] as const;
+    }
+
+
+export const getListTeamPerformanceReviewsQueryOptions = <TData = Awaited<ReturnType<typeof listTeamPerformanceReviews>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTeamPerformanceReviews>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListTeamPerformanceReviewsQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listTeamPerformanceReviews>>> = ({ signal }) => listTeamPerformanceReviews(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listTeamPerformanceReviews>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListTeamPerformanceReviewsQueryResult = NonNullable<Awaited<ReturnType<typeof listTeamPerformanceReviews>>>
+export type ListTeamPerformanceReviewsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Manager — reviews where the caller is the reviewer of record
+ */
+
+export function useListTeamPerformanceReviews<TData = Awaited<ReturnType<typeof listTeamPerformanceReviews>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTeamPerformanceReviews>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListTeamPerformanceReviewsQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSubmitManagerReviewUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/reviews/${id}/manager-review`
+}
+
+/**
+ * Requires performance.review.write, reviewer of record only. Readiness is validated first (400, listing every problem): every proposed goal resolved (accepted or rejected); every accepted, non-qualitative, non-N/A goal has actualResult; every non-N/A competency has managerRatingValue; accepted, non-qualitative goal weights sum to 100; at least one section has a scoreable item. The official computedOverallScore is then computed deterministically (employee self-ratings never contribute) and an atomic conditional UPDATE ... WHERE status = 'manager_review' performs the transition, setting managerReviewSubmittedAt — a concurrent or repeat submission affects zero rows and returns 409.
+ * @summary Reviewer of record submits the manager review — the authoritative manager_review -> hr_review transition
+ */
+export const submitManagerReview = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<PerformanceReview> => {
+
+  return customFetch<PerformanceReview>(getSubmitManagerReviewUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getSubmitManagerReviewMutationOptions = <TError = ErrorType<SelfAssessmentNotReadyError | ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitManagerReview>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitManagerReview>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['submitManagerReview'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitManagerReview>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  submitManagerReview(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitManagerReviewMutationResult = NonNullable<Awaited<ReturnType<typeof submitManagerReview>>>
+
+    export type SubmitManagerReviewMutationError = ErrorType<SelfAssessmentNotReadyError | ApiError>
+
+    /**
+ * @summary Reviewer of record submits the manager review — the authoritative manager_review -> hr_review transition
+ */
+export const useSubmitManagerReview = <TError = ErrorType<SelfAssessmentNotReadyError | ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitManagerReview>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitManagerReview>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getSubmitManagerReviewMutationOptions(options));
+    }
+
