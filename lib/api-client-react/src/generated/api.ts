@@ -22,6 +22,7 @@ import type {
 import type {
   AcceptInvitationInput,
   AcceptPerformanceReviewGoalInput,
+  AcknowledgePerformanceReviewInput,
   AddCandidateTagInput,
   AddEmployeeCertificationInput,
   AddEmployeeDisciplinaryRecordInput,
@@ -20880,6 +20881,81 @@ export const useReopenPerformanceReview = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getReopenPerformanceReviewMutationOptions(options));
+    }
+
+export const getAcknowledgePerformanceReviewUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/reviews/${id}/acknowledge`
+}
+
+/**
+ * Requires performance.write.own, own review only (§10.1 row 5). "Seen," not "agreed" — never mutates computedOverallScore, hrOverrideScore, hrOverrideReason, or any manager/HR field. acknowledgementRequiredSnapshot does not gate this route: when false, acknowledgement is optional but still permitted (the snapshot is a display-only signal for the ESS UI, per §10.1 row 5's own parenthetical), so any own review in finalized status may be acknowledged. An optional employeeFinalComment may be recorded in the same call — informational only, never a formal appeal (Owner Decision 3, deferred) and never validated as a precondition for acknowledging. acknowledgedAt is always server-generated, never client-supplied. An atomic conditional UPDATE ... WHERE status = 'finalized' AND employee_id = <server-resolved> performs the transition — a concurrent or repeat acknowledgement affects zero rows and returns 409, never a silent double-transition.
+ * @summary Employee acknowledges a finalized review — the authoritative finalized -> acknowledged transition
+ */
+export const acknowledgePerformanceReview = async (organizationId: number,
+    id: number,
+    acknowledgePerformanceReviewInput?: AcknowledgePerformanceReviewInput, options?: RequestInit): Promise<PerformanceReview> => {
+
+  return customFetch<PerformanceReview>(getAcknowledgePerformanceReviewUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(acknowledgePerformanceReviewInput)
+  }
+);}
+
+
+
+
+
+export const getAcknowledgePerformanceReviewMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acknowledgePerformanceReview>>, TError,{organizationId: number;id: number;data?: BodyType<AcknowledgePerformanceReviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof acknowledgePerformanceReview>>, TError,{organizationId: number;id: number;data?: BodyType<AcknowledgePerformanceReviewInput>}, TContext> => {
+
+const mutationKey = ['acknowledgePerformanceReview'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof acknowledgePerformanceReview>>, {organizationId: number;id: number;data?: BodyType<AcknowledgePerformanceReviewInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  acknowledgePerformanceReview(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AcknowledgePerformanceReviewMutationResult = NonNullable<Awaited<ReturnType<typeof acknowledgePerformanceReview>>>
+    export type AcknowledgePerformanceReviewMutationBody = BodyType<AcknowledgePerformanceReviewInput> | undefined
+    export type AcknowledgePerformanceReviewMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Employee acknowledges a finalized review — the authoritative finalized -> acknowledged transition
+ */
+export const useAcknowledgePerformanceReview = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acknowledgePerformanceReview>>, TError,{organizationId: number;id: number;data?: BodyType<AcknowledgePerformanceReviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof acknowledgePerformanceReview>>,
+        TError,
+        {organizationId: number;id: number;data?: BodyType<AcknowledgePerformanceReviewInput>},
+        TContext
+      > => {
+      return useMutation(getAcknowledgePerformanceReviewMutationOptions(options));
     }
 
 export const getGetPerformanceDashboardUrl = (organizationId: number,

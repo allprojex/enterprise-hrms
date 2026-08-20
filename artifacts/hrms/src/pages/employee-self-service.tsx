@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { UserCircle, FileText, CalendarClock, Briefcase, Send, Clock, LogIn, LogOut, Plus, Target } from 'lucide-react';
+import { UserCircle, FileText, CalendarClock, Briefcase, Send, Clock, LogIn, LogOut, Plus, Target, CheckCircle2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -42,6 +42,7 @@ import {
   useCreatePerformanceReviewGoal,
   useUpdatePerformanceReviewGoal,
   useSubmitSelfAssessment,
+  useAcknowledgePerformanceReview,
   CreatePerformanceReviewGoalInputMeasurementType,
   type SelfServiceEmployeeProfile,
   type InternalVacancySummary,
@@ -49,6 +50,7 @@ import {
   type PerformanceReviewCompetency,
   type PerformanceRatingScaleLevel,
   type PerformanceGoal,
+  type PerformanceReview,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { QueryError } from '@/components/query-error';
@@ -540,6 +542,21 @@ const REVIEW_STATUS_LABEL: Record<string, string> = {
   acknowledged: 'Acknowledged',
 };
 
+// Matches performance-reviews.tsx's own formatScoreLine exactly (an
+// override is never displayed as if it were the manager's own result) —
+// duplicated locally rather than shared, mirroring this file's existing
+// REVIEW_STATUS_LABEL duplication precedent.
+function formatScoreLine(review: PerformanceReview): string {
+  if (review.computedOverallScore == null) return 'No score yet';
+  const precision = review.scoringPrecisionSnapshot ?? 2;
+  const managerScore = Number(review.computedOverallScore).toFixed(precision);
+  if (review.hrOverrideScore != null) {
+    const overrideScore = Number(review.hrOverrideScore).toFixed(precision);
+    return `Manager score: ${managerScore} / HR override: ${overrideScore} / Final score: ${overrideScore}`;
+  }
+  return `Manager score: ${managerScore} / Final score: ${managerScore}`;
+}
+
 const GOAL_APPROVAL_LABEL: Record<string, string> = {
   accepted: 'Official',
   proposed: 'Proposed — awaiting your manager',
@@ -707,6 +724,7 @@ function MyPerformanceTab({ organizationId, employeeId }: { organizationId: numb
   const [goalTarget, setGoalTarget] = useState('');
   const [goalUnit, setGoalUnit] = useState('');
   const [goalWeight, setGoalWeight] = useState('0');
+  const [finalComment, setFinalComment] = useState('');
 
   const reviewsQuery = useListMyPerformanceReviews(organizationId, {
     query: { queryKey: getListMyPerformanceReviewsQueryKey(organizationId), enabled: organizationId > 0 },
@@ -720,6 +738,10 @@ function MyPerformanceTab({ organizationId, employeeId }: { organizationId: numb
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reviews.length]);
+
+  useEffect(() => {
+    setFinalComment('');
+  }, [selectedReviewId]);
 
   const detailQuery = useGetPerformanceReview(organizationId, selectedReviewId ?? 0, {
     query: { queryKey: getGetPerformanceReviewQueryKey(organizationId, selectedReviewId ?? 0), enabled: organizationId > 0 && !!selectedReviewId },
@@ -737,10 +759,26 @@ function MyPerformanceTab({ organizationId, employeeId }: { organizationId: numb
   const createGoalMutation = useCreatePerformanceReviewGoal();
   const updateGoalMutation = useUpdatePerformanceReviewGoal();
   const submitMutation = useSubmitSelfAssessment();
+  const acknowledgeMutation = useAcknowledgePerformanceReview();
 
   const invalidateDetail = () => {
     if (selectedReviewId) queryClient.invalidateQueries({ queryKey: getGetPerformanceReviewQueryKey(organizationId, selectedReviewId) });
     queryClient.invalidateQueries({ queryKey: getListMyPerformanceReviewsQueryKey(organizationId) });
+  };
+
+  const handleAcknowledge = () => {
+    if (!selectedReviewId) return;
+    acknowledgeMutation.mutate(
+      { organizationId, id: selectedReviewId, data: finalComment.trim() ? { employeeFinalComment: finalComment.trim() } : undefined },
+      {
+        onSuccess: () => {
+          setFinalComment('');
+          invalidateDetail();
+          toast({ title: 'Review acknowledged', description: 'Your manager and HR can see that you have seen this review.' });
+        },
+        onError: (err) => toast({ title: 'Could not acknowledge review', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
   };
 
   const resetProposeForm = () => {
@@ -834,6 +872,50 @@ function MyPerformanceTab({ organizationId, employeeId }: { organizationId: numb
               </CardDescription>
             </CardHeader>
           </Card>
+
+          {(review.status === 'finalized' || review.status === 'acknowledged') && (
+            <Card data-testid="card-acknowledgement">
+              <CardHeader>
+                <CardTitle className="text-base">Your Finalized Result</CardTitle>
+                <CardDescription>{formatScoreLine(review)}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {review.status === 'acknowledged' ? (
+                  <div className="flex items-start gap-2 text-sm" data-testid="text-acknowledged-state">
+                    <CheckCircle2 className="h-4 w-4 text-primary mt-0.5" aria-hidden="true" />
+                    <div>
+                      <p className="font-medium text-foreground">
+                        Acknowledged{review.acknowledgedAt ? ` on ${new Date(review.acknowledgedAt).toLocaleDateString()}` : ''}
+                      </p>
+                      {review.employeeFinalComment && (
+                        <p className="text-muted-foreground mt-1" data-testid="text-final-comment">Your comment: {review.employeeFinalComment}</p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-sm text-muted-foreground">
+                      This review has been finalized. Acknowledging it confirms only that <strong>you have seen this review</strong> — it does not mean you agree with it. If you disagree, you may record a final comment below; it will not change the outcome or reopen the review.
+                    </p>
+                    <div className="space-y-2">
+                      <Label htmlFor="acknowledge-comment">Final comment (optional)</Label>
+                      <Textarea
+                        id="acknowledge-comment"
+                        value={finalComment}
+                        onChange={(e) => setFinalComment(e.target.value)}
+                        placeholder="Optional — anything you'd like on record, not a formal appeal"
+                        data-testid="input-final-comment"
+                      />
+                    </div>
+                    <Button onClick={handleAcknowledge} disabled={acknowledgeMutation.isPending} data-testid="button-acknowledge-review">
+                      <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                      {acknowledgeMutation.isPending ? 'Acknowledging…' : 'I Have Seen This Review'}
+                    </Button>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>

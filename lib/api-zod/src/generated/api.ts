@@ -8803,6 +8803,48 @@ export const ReopenPerformanceReviewResponse = zod.object({
 
 
 /**
+ * Requires performance.write.own, own review only (§10.1 row 5). "Seen," not "agreed" — never mutates computedOverallScore, hrOverrideScore, hrOverrideReason, or any manager/HR field. acknowledgementRequiredSnapshot does not gate this route: when false, acknowledgement is optional but still permitted (the snapshot is a display-only signal for the ESS UI, per §10.1 row 5's own parenthetical), so any own review in finalized status may be acknowledged. An optional employeeFinalComment may be recorded in the same call — informational only, never a formal appeal (Owner Decision 3, deferred) and never validated as a precondition for acknowledging. acknowledgedAt is always server-generated, never client-supplied. An atomic conditional UPDATE ... WHERE status = 'finalized' AND employee_id = <server-resolved> performs the transition — a concurrent or repeat acknowledgement affects zero rows and returns 409, never a silent double-transition.
+ * @summary Employee acknowledges a finalized review — the authoritative finalized -> acknowledged transition
+ */
+export const AcknowledgePerformanceReviewParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const AcknowledgePerformanceReviewBody = zod.object({
+  "employeeFinalComment": zod.string().optional().describe('Optional final response, captured verbatim in employeeFinalComment. \"I have seen this review,\" not agreement — never changes any score or review field, never constitutes a formal appeal.')
+}).describe('Both fields optional — acknowledgement never requires a comment.')
+
+export const AcknowledgePerformanceReviewResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "cycleId": zod.number(),
+  "templateId": zod.number(),
+  "ratingScaleId": zod.number(),
+  "employeeId": zod.number(),
+  "reviewerEmployeeId": zod.number().nullish(),
+  "departmentIdSnapshot": zod.number().nullish(),
+  "positionIdSnapshot": zod.number().nullish(),
+  "goalsWeight": zod.number(),
+  "competenciesWeight": zod.number(),
+  "scoringPrecisionSnapshot": zod.number(),
+  "acknowledgementRequiredSnapshot": zod.boolean(),
+  "status": zod.enum(['draft', 'self_assessment', 'manager_review', 'hr_review', 'finalized', 'acknowledged']),
+  "selfAssessmentSubmittedAt": zod.coerce.date().nullish(),
+  "managerReviewSubmittedAt": zod.coerce.date().nullish(),
+  "hrFinalizedAt": zod.coerce.date().nullish(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "employeeFinalComment": zod.string().nullish(),
+  "computedOverallScore": zod.string().nullish(),
+  "hrOverrideScore": zod.string().nullish(),
+  "hrOverrideReason": zod.string().nullish(),
+  "revisionNumber": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
  * Requires performance.reports.read. Scope resolved in the service layer exactly like recruitment.reports.read/attendance.read.own: performance.manage holders see the whole organization; everyone else sees only reviews where they are the review's own employee or its snapshotted reviewerEmployeeId. Optional ?cycleId= narrows every review-scoped tile to one cycle; activeCycleCount is always organization-wide (cycle existence isn't sensitive). Plain counts only — no completion percentage or average-score tile, per the frozen plan's own "no invented rate/KPI" scope. A reopened review counts only under its current status.
  * @summary Performance dashboard — zero-filled lifecycle tile breakdown
  */

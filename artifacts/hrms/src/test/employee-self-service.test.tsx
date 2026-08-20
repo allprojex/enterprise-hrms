@@ -46,6 +46,8 @@ const { state } = vi.hoisted(() => ({
     submitMutate: vi.fn() as (...args: unknown[]) => void,
     submitPending: false,
     submitError: undefined as unknown,
+    acknowledgeMutate: vi.fn() as (...args: unknown[]) => void,
+    acknowledgePending: false,
   },
 }));
 
@@ -103,6 +105,7 @@ vi.mock('@workspace/api-client-react', () => ({
   useCreatePerformanceReviewGoal: () => ({ mutate: state.createGoalMutate, isPending: false }),
   useUpdatePerformanceReviewGoal: () => ({ mutate: state.updateGoalMutate, isPending: false }),
   useSubmitSelfAssessment: () => ({ mutate: state.submitMutate, isPending: state.submitPending, isError: !!state.submitError, error: state.submitError }),
+  useAcknowledgePerformanceReview: () => ({ mutate: state.acknowledgeMutate, isPending: state.acknowledgePending }),
   // Evidence/Attachments (W82) — embedded via PerformanceEvidenceSection, not under test on this page's own suite.
   useListPerformanceReviewEvidence: () => ({ data: [], isLoading: false, error: undefined }),
   getListPerformanceReviewEvidenceQueryKey: () => ['performanceReviewEvidence'],
@@ -586,6 +589,8 @@ describe('Employee Self-Service page', () => {
       state.submitMutate = vi.fn();
       state.submitPending = false;
       state.submitError = undefined;
+      state.acknowledgeMutate = vi.fn();
+      state.acknowledgePending = false;
     }
 
     it('handles a disabled Performance module cleanly, without affecting My Attendance', async () => {
@@ -732,6 +737,116 @@ describe('Employee Self-Service page', () => {
       expect(screen.queryByRole('button', { name: /accept proposal/i })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /reject proposal/i })).not.toBeInTheDocument();
       expect(screen.queryByLabelText(/manager rating/i)).not.toBeInTheDocument();
+    });
+
+    describe('Acknowledgement (W83A)', () => {
+      it('shows the acknowledgement control on a finalized review requiring acknowledgement, with score and non-agreement wording', async () => {
+        resetPerformanceState();
+        state.myEmployeeLoading = false;
+        state.myEmployeeError = undefined;
+        state.myEmployee = { linked: true, employee: baseEmployee() };
+        state.modules = [mod({ key: 'performance', enabled: true })];
+        const finalized = performanceReview({ status: 'finalized', scoringPrecisionSnapshot: 2, computedOverallScore: '88.00', hrOverrideScore: '92.50', hrFinalizedAt: new Date().toISOString() });
+        state.myReviews = [finalized];
+        state.reviewDetail = { review: finalized, competencies: [], goals: [] };
+        renderEss();
+        await userEvent.click(screen.getByTestId('tab-my-performance'));
+        expect(screen.getByTestId('card-acknowledgement')).toHaveTextContent('Final score: 92.50');
+        expect(screen.getByTestId('button-acknowledge-review')).toBeInTheDocument();
+        expect(screen.getByText(/you have seen this review/i)).toBeInTheDocument();
+        expect(screen.getByText(/does not mean you agree/i)).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /^i agree$/i })).not.toBeInTheDocument();
+      });
+
+      it('does not show the acknowledgement control before finalized (e.g. hr_review)', async () => {
+        resetPerformanceState();
+        state.myEmployeeLoading = false;
+        state.myEmployeeError = undefined;
+        state.myEmployee = { linked: true, employee: baseEmployee() };
+        state.modules = [mod({ key: 'performance', enabled: true })];
+        const inReview = performanceReview({ status: 'hr_review' });
+        state.myReviews = [inReview];
+        state.reviewDetail = { review: inReview, competencies: [], goals: [] };
+        renderEss();
+        await userEvent.click(screen.getByTestId('tab-my-performance'));
+        expect(screen.queryByTestId('card-acknowledgement')).not.toBeInTheDocument();
+      });
+
+      it('acknowledges through the real mutation, with an optional final comment', async () => {
+        resetPerformanceState();
+        state.myEmployeeLoading = false;
+        state.myEmployeeError = undefined;
+        state.myEmployee = { linked: true, employee: baseEmployee() };
+        state.modules = [mod({ key: 'performance', enabled: true })];
+        const finalized = performanceReview({ status: 'finalized', computedOverallScore: '88.00' });
+        state.myReviews = [finalized];
+        state.reviewDetail = { review: finalized, competencies: [], goals: [] };
+        renderEss();
+        await userEvent.click(screen.getByTestId('tab-my-performance'));
+        await userEvent.type(screen.getByTestId('input-final-comment'), 'Noted, thanks');
+        await userEvent.click(screen.getByTestId('button-acknowledge-review'));
+        expect(state.acknowledgeMutate).toHaveBeenCalledWith(
+          expect.objectContaining({ organizationId: 10, id: 1, data: { employeeFinalComment: 'Noted, thanks' } }),
+          expect.anything(),
+        );
+      });
+
+      it('acknowledges cleanly with no comment (data is undefined, not an empty string)', async () => {
+        resetPerformanceState();
+        state.myEmployeeLoading = false;
+        state.myEmployeeError = undefined;
+        state.myEmployee = { linked: true, employee: baseEmployee() };
+        state.modules = [mod({ key: 'performance', enabled: true })];
+        const finalized = performanceReview({ status: 'finalized', computedOverallScore: '88.00' });
+        state.myReviews = [finalized];
+        state.reviewDetail = { review: finalized, competencies: [], goals: [] };
+        renderEss();
+        await userEvent.click(screen.getByTestId('tab-my-performance'));
+        await userEvent.click(screen.getByTestId('button-acknowledge-review'));
+        expect(state.acknowledgeMutate).toHaveBeenCalledWith(
+          expect.objectContaining({ organizationId: 10, id: 1, data: undefined }),
+          expect.anything(),
+        );
+      });
+
+      it('shows the acknowledged state (button gone, comment shown, scores unchanged) using status, never acknowledgedAt alone', async () => {
+        resetPerformanceState();
+        state.myEmployeeLoading = false;
+        state.myEmployeeError = undefined;
+        state.myEmployee = { linked: true, employee: baseEmployee() };
+        state.modules = [mod({ key: 'performance', enabled: true })];
+        const acknowledged = performanceReview({
+          status: 'acknowledged',
+          scoringPrecisionSnapshot: 2,
+          computedOverallScore: '88.00',
+          hrOverrideScore: '92.50',
+          acknowledgedAt: '2026-02-01T00:00:00.000Z',
+          employeeFinalComment: 'All good',
+        });
+        state.myReviews = [acknowledged];
+        state.reviewDetail = { review: acknowledged, competencies: [], goals: [] };
+        renderEss();
+        await userEvent.click(screen.getByTestId('tab-my-performance'));
+        expect(screen.getByTestId('text-acknowledged-state')).toHaveTextContent('Acknowledged on');
+        expect(screen.getByTestId('text-final-comment')).toHaveTextContent('All good');
+        expect(screen.queryByTestId('button-acknowledge-review')).not.toBeInTheDocument();
+        expect(screen.getByTestId('card-acknowledgement')).toHaveTextContent('Final score: 92.50');
+      });
+
+      it('never infers the acknowledged state from acknowledgedAt alone — a finalized review with a stray acknowledgedAt still shows the acknowledge control', async () => {
+        resetPerformanceState();
+        state.myEmployeeLoading = false;
+        state.myEmployeeError = undefined;
+        state.myEmployee = { linked: true, employee: baseEmployee() };
+        state.modules = [mod({ key: 'performance', enabled: true })];
+        const finalized = performanceReview({ status: 'finalized', computedOverallScore: '88.00', acknowledgedAt: '2026-02-01T00:00:00.000Z' });
+        state.myReviews = [finalized];
+        state.reviewDetail = { review: finalized, competencies: [], goals: [] };
+        renderEss();
+        await userEvent.click(screen.getByTestId('tab-my-performance'));
+        expect(screen.getByTestId('button-acknowledge-review')).toBeInTheDocument();
+        expect(screen.queryByTestId('text-acknowledged-state')).not.toBeInTheDocument();
+      });
     });
   });
 });

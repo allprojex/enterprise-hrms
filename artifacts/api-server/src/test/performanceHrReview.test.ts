@@ -501,6 +501,24 @@ describe("Performance HR Review — reopen", () => {
     expect(res.body.revisionNumber).toBe(2);
   });
 
+  it("valid reopen acknowledged -> hr_review (W83A: acknowledged is now reachable, treated identically to finalized per §10.4)", async () => {
+    state.reviewRows[0].status = "acknowledged";
+    state.reviewRows[0].acknowledgedAt = new Date();
+    state.reviewRows[0].hrOverrideScore = "92.50";
+    state.reviewRows[0].hrOverrideReason = "prior override";
+    grantHr();
+    const res = await request(app).post(`/api/organizations/${ORG_ID}/performance/reviews/${reviewId()}/reopen`).set(auth(HR_USER_ID)).send({ targetStage: "hr_review", reason: "Employee flagged a factual error after acknowledging" });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("hr_review");
+    expect(res.body.acknowledgedAt).toBeNull();
+    expect(res.body.hrOverrideScore).toBeNull();
+    expect(res.body.hrOverrideReason).toBeNull();
+    expect(res.body.computedOverallScore).toBe("88.00"); // preserved — manager's work not redone
+    expect(res.body.revisionNumber).toBe(2);
+    const row = state.auditRows.find((r) => r.eventType === "performance_review.reopened");
+    expect((row!.beforeState as { status?: string }).status).toBe("acknowledged");
+  });
+
   it("valid reopen hr_review -> self_assessment: clears everything downstream including selfAssessmentSubmittedAt", async () => {
     grantHr();
     const res = await request(app).post(`/api/organizations/${ORG_ID}/performance/reviews/${reviewId()}/reopen`).set(auth(HR_USER_ID)).send({ targetStage: "self_assessment", reason: "Employee disputes the whole review" });
@@ -572,6 +590,18 @@ describe("Performance HR Review — post-reopen lifecycle continues normally", (
     // No competency row exists in this fixture set (only review-level tests here) — expect 404, not 409/403,
     // proving the STAGE gate itself no longer blocks the manager (it reached the not-found check).
     expect(res.status).toBe(404);
+  });
+
+  it("W83A: lifecycle resumes normally after reopening a real acknowledged review back to hr_review — HR can finalize again", async () => {
+    state.reviewRows[0].status = "acknowledged";
+    state.reviewRows[0].acknowledgedAt = new Date();
+    grantHr();
+    const reopened = await request(app).post(`/api/organizations/${ORG_ID}/performance/reviews/${reviewId()}/reopen`).set(auth(HR_USER_ID)).send({ targetStage: "hr_review", reason: "Correction needed" });
+    expect(reopened.body.status).toBe("hr_review");
+    const refinalized = await request(app).post(`/api/organizations/${ORG_ID}/performance/reviews/${reviewId()}/finalize`).set(auth(HR_USER_ID)).send();
+    expect(refinalized.status).toBe(200);
+    expect(refinalized.body.status).toBe("finalized");
+    expect(refinalized.body.revisionNumber).toBe(2); // reopen incremented it; re-finalize itself does not increment further
   });
 });
 

@@ -4975,6 +4975,14 @@ export interface ReopenPerformanceReviewInput {
   reason: string;
 }
 
+/**
+ * Both fields optional — acknowledgement never requires a comment.
+ */
+export interface AcknowledgePerformanceReviewInput {
+  /** Optional final response, captured verbatim in employeeFinalComment. "I have seen this review," not agreement — never changes any score or review field, never constitutes a formal appeal. */
+  employeeFinalComment?: string;
+}
+
 export interface PerformanceReviewWithCompetencies {
   review: PerformanceReview;
   competencies: PerformanceReviewCompetency[];

@@ -10292,6 +10292,69 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/performance/reviews/{id}/acknowledge:
+    post:
+      operationId: acknowledgePerformanceReview
+      tags: [performance-reviews]
+      summary: Employee acknowledges a finalized review — the authoritative finalized -> acknowledged transition
+      description: >-
+        Requires performance.write.own, own review only (§10.1 row 5). "Seen,"
+        not "agreed" — never mutates computedOverallScore, hrOverrideScore,
+        hrOverrideReason, or any manager/HR field. acknowledgementRequiredSnapshot
+        does not gate this route: when false, acknowledgement is optional but
+        still permitted (the snapshot is a display-only signal for the ESS UI,
+        per §10.1 row 5's own parenthetical), so any own review in finalized
+        status may be acknowledged. An optional employeeFinalComment may be
+        recorded in the same call — informational only, never a formal appeal
+        (Owner Decision 3, deferred) and never validated as a precondition for
+        acknowledging. acknowledgedAt is always server-generated, never
+        client-supplied. An atomic conditional
+        UPDATE ... WHERE status = 'finalized' AND employee_id = <server-resolved>
+        performs the transition — a concurrent or repeat acknowledgement
+        affects zero rows and returns 409, never a silent double-transition.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AcknowledgePerformanceReviewInput"
+      responses:
+        "200":
+          description: Acknowledged — review is now in acknowledged status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerformanceReview"
+        "403":
+          description: Not this review's own employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: The review is not (or is no longer) in finalized status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /organizations/{organizationId}/performance/dashboard:
     get:
       operationId: getPerformanceDashboard
@@ -16111,6 +16174,17 @@ components:
         reason:
           type: string
           minLength: 1
+
+    AcknowledgePerformanceReviewInput:
+      type: object
+      description: Both fields optional — acknowledgement never requires a comment.
+      properties:
+        employeeFinalComment:
+          type: string
+          description: >-
+            Optional final response, captured verbatim in employeeFinalComment.
+            "I have seen this review," not agreement — never changes any score
+            or review field, never constitutes a formal appeal.
 
     PerformanceReviewWithCompetencies:
       type: object
