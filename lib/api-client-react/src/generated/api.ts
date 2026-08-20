@@ -93,6 +93,7 @@ import type {
   EmployeeListResponse,
   EmployeeQualification,
   EmployeeSkill,
+  FinalizePerformanceReviewInput,
   ForgotPasswordInput,
   GeneratePerformanceReviewsInput,
   GeneratePerformanceReviewsResult,
@@ -189,6 +190,7 @@ import type {
   RejectLeaveRequestInput,
   RejectPerformanceReviewGoalInput,
   ReopenApplicationInput,
+  ReopenPerformanceReviewInput,
   ReplacePerformanceRatingScaleLevelsInput,
   ReplacePerformanceTemplateCompetenciesInput,
   Report,
@@ -20722,5 +20724,155 @@ export const useSubmitManagerReview = <TError = ErrorType<SelfAssessmentNotReady
         TContext
       > => {
       return useMutation(getSubmitManagerReviewMutationOptions(options));
+    }
+
+export const getFinalizePerformanceReviewUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/reviews/${id}/finalize`
+}
+
+/**
+ * Requires performance.finalize, organization-wide. computedOverallScore (set by the manager's own W78 submission) is read-only historical input here and is never recomputed or overwritten. hrOverrideScore and hrOverrideReason must both be supplied together, or neither — finalize with or without an override in the same call (§27 names no separate override-only route). An atomic conditional UPDATE ... WHERE status = 'hr_review' performs the transition, setting hrFinalizedAt — a concurrent or repeat finalization affects zero rows and returns 409.
+ * @summary HR finalizes the review, optionally overriding the score — the authoritative hr_review -> finalized transition
+ */
+export const finalizePerformanceReview = async (organizationId: number,
+    id: number,
+    finalizePerformanceReviewInput?: FinalizePerformanceReviewInput, options?: RequestInit): Promise<PerformanceReview> => {
+
+  return customFetch<PerformanceReview>(getFinalizePerformanceReviewUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(finalizePerformanceReviewInput)
+  }
+);}
+
+
+
+
+
+export const getFinalizePerformanceReviewMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof finalizePerformanceReview>>, TError,{organizationId: number;id: number;data?: BodyType<FinalizePerformanceReviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof finalizePerformanceReview>>, TError,{organizationId: number;id: number;data?: BodyType<FinalizePerformanceReviewInput>}, TContext> => {
+
+const mutationKey = ['finalizePerformanceReview'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof finalizePerformanceReview>>, {organizationId: number;id: number;data?: BodyType<FinalizePerformanceReviewInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  finalizePerformanceReview(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type FinalizePerformanceReviewMutationResult = NonNullable<Awaited<ReturnType<typeof finalizePerformanceReview>>>
+    export type FinalizePerformanceReviewMutationBody = BodyType<FinalizePerformanceReviewInput> | undefined
+    export type FinalizePerformanceReviewMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary HR finalizes the review, optionally overriding the score — the authoritative hr_review -> finalized transition
+ */
+export const useFinalizePerformanceReview = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof finalizePerformanceReview>>, TError,{organizationId: number;id: number;data?: BodyType<FinalizePerformanceReviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof finalizePerformanceReview>>,
+        TError,
+        {organizationId: number;id: number;data?: BodyType<FinalizePerformanceReviewInput>},
+        TContext
+      > => {
+      return useMutation(getFinalizePerformanceReviewMutationOptions(options));
+    }
+
+export const getReopenPerformanceReviewUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/performance/reviews/${id}/reopen`
+}
+
+/**
+ * Requires performance.manage, organization-wide (not performance.finalize — §10.1 row 6 / §16 both explicitly assign reopen to performance.manage). Valid only from manager_review, hr_review, or finalized; targetStage must be one of self_assessment/manager_review/hr_review and strictly earlier than the review's current status; reason is mandatory. Clears only the review-row timestamp/decision fields downstream of the target stage (§10.4) — goal/competency/self-assessment content is never blanked. revisionNumber increments by 1 in the same atomic UPDATE ... WHERE status = '<current>' — a concurrent reopen affects zero rows and returns 409.
+ * @summary HR reopens a review to an earlier explicit stage
+ */
+export const reopenPerformanceReview = async (organizationId: number,
+    id: number,
+    reopenPerformanceReviewInput: ReopenPerformanceReviewInput, options?: RequestInit): Promise<PerformanceReview> => {
+
+  return customFetch<PerformanceReview>(getReopenPerformanceReviewUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reopenPerformanceReviewInput)
+  }
+);}
+
+
+
+
+
+export const getReopenPerformanceReviewMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reopenPerformanceReview>>, TError,{organizationId: number;id: number;data: BodyType<ReopenPerformanceReviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reopenPerformanceReview>>, TError,{organizationId: number;id: number;data: BodyType<ReopenPerformanceReviewInput>}, TContext> => {
+
+const mutationKey = ['reopenPerformanceReview'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reopenPerformanceReview>>, {organizationId: number;id: number;data: BodyType<ReopenPerformanceReviewInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  reopenPerformanceReview(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReopenPerformanceReviewMutationResult = NonNullable<Awaited<ReturnType<typeof reopenPerformanceReview>>>
+    export type ReopenPerformanceReviewMutationBody = BodyType<ReopenPerformanceReviewInput>
+    export type ReopenPerformanceReviewMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary HR reopens a review to an earlier explicit stage
+ */
+export const useReopenPerformanceReview = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reopenPerformanceReview>>, TError,{organizationId: number;id: number;data: BodyType<ReopenPerformanceReviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reopenPerformanceReview>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<ReopenPerformanceReviewInput>},
+        TContext
+      > => {
+      return useMutation(getReopenPerformanceReviewMutationOptions(options));
     }
 

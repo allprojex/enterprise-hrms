@@ -8701,3 +8701,92 @@ export const SubmitManagerReviewResponse = zod.object({
 })
 
 
+/**
+ * Requires performance.finalize, organization-wide. computedOverallScore (set by the manager's own W78 submission) is read-only historical input here and is never recomputed or overwritten. hrOverrideScore and hrOverrideReason must both be supplied together, or neither — finalize with or without an override in the same call (§27 names no separate override-only route). An atomic conditional UPDATE ... WHERE status = 'hr_review' performs the transition, setting hrFinalizedAt — a concurrent or repeat finalization affects zero rows and returns 409.
+ * @summary HR finalizes the review, optionally overriding the score — the authoritative hr_review -> finalized transition
+ */
+export const FinalizePerformanceReviewParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const FinalizePerformanceReviewBody = zod.object({
+  "hrOverrideScore": zod.number().optional().describe('0-100. computedOverallScore (the manager\'s own score) is preserved unedited alongside this.'),
+  "hrOverrideReason": zod.string().optional().describe('Mandatory whenever hrOverrideScore is supplied.')
+}).describe('Both fields optional, but must be supplied together (or neither) — finalize with or without an override in the same call.')
+
+export const FinalizePerformanceReviewResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "cycleId": zod.number(),
+  "templateId": zod.number(),
+  "ratingScaleId": zod.number(),
+  "employeeId": zod.number(),
+  "reviewerEmployeeId": zod.number().nullish(),
+  "departmentIdSnapshot": zod.number().nullish(),
+  "positionIdSnapshot": zod.number().nullish(),
+  "goalsWeight": zod.number(),
+  "competenciesWeight": zod.number(),
+  "scoringPrecisionSnapshot": zod.number(),
+  "acknowledgementRequiredSnapshot": zod.boolean(),
+  "status": zod.enum(['draft', 'self_assessment', 'manager_review', 'hr_review', 'finalized', 'acknowledged']),
+  "selfAssessmentSubmittedAt": zod.coerce.date().nullish(),
+  "managerReviewSubmittedAt": zod.coerce.date().nullish(),
+  "hrFinalizedAt": zod.coerce.date().nullish(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "employeeFinalComment": zod.string().nullish(),
+  "computedOverallScore": zod.string().nullish(),
+  "hrOverrideScore": zod.string().nullish(),
+  "hrOverrideReason": zod.string().nullish(),
+  "revisionNumber": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Requires performance.manage, organization-wide (not performance.finalize — §10.1 row 6 / §16 both explicitly assign reopen to performance.manage). Valid only from manager_review, hr_review, or finalized; targetStage must be one of self_assessment/manager_review/hr_review and strictly earlier than the review's current status; reason is mandatory. Clears only the review-row timestamp/decision fields downstream of the target stage (§10.4) — goal/competency/self-assessment content is never blanked. revisionNumber increments by 1 in the same atomic UPDATE ... WHERE status = '<current>' — a concurrent reopen affects zero rows and returns 409.
+ * @summary HR reopens a review to an earlier explicit stage
+ */
+export const ReopenPerformanceReviewParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const ReopenPerformanceReviewBody = zod.object({
+  "targetStage": zod.enum(['self_assessment', 'manager_review', 'hr_review']).describe('Must be strictly earlier than the review\'s current status.'),
+  "reason": zod.string().min(1)
+})
+
+export const ReopenPerformanceReviewResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "cycleId": zod.number(),
+  "templateId": zod.number(),
+  "ratingScaleId": zod.number(),
+  "employeeId": zod.number(),
+  "reviewerEmployeeId": zod.number().nullish(),
+  "departmentIdSnapshot": zod.number().nullish(),
+  "positionIdSnapshot": zod.number().nullish(),
+  "goalsWeight": zod.number(),
+  "competenciesWeight": zod.number(),
+  "scoringPrecisionSnapshot": zod.number(),
+  "acknowledgementRequiredSnapshot": zod.boolean(),
+  "status": zod.enum(['draft', 'self_assessment', 'manager_review', 'hr_review', 'finalized', 'acknowledged']),
+  "selfAssessmentSubmittedAt": zod.coerce.date().nullish(),
+  "managerReviewSubmittedAt": zod.coerce.date().nullish(),
+  "hrFinalizedAt": zod.coerce.date().nullish(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "employeeFinalComment": zod.string().nullish(),
+  "computedOverallScore": zod.string().nullish(),
+  "hrOverrideScore": zod.string().nullish(),
+  "hrOverrideReason": zod.string().nullish(),
+  "revisionNumber": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+

@@ -10122,6 +10122,136 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/performance/reviews/{id}/finalize:
+    post:
+      operationId: finalizePerformanceReview
+      tags: [performance-reviews]
+      summary: HR finalizes the review, optionally overriding the score — the authoritative hr_review -> finalized transition
+      description: >-
+        Requires performance.finalize, organization-wide. computedOverallScore
+        (set by the manager's own W78 submission) is read-only historical
+        input here and is never recomputed or overwritten. hrOverrideScore
+        and hrOverrideReason must both be supplied together, or neither —
+        finalize with or without an override in the same call (§27 names no
+        separate override-only route). An atomic conditional
+        UPDATE ... WHERE status = 'hr_review' performs the transition,
+        setting hrFinalizedAt — a concurrent or repeat finalization affects
+        zero rows and returns 409.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FinalizePerformanceReviewInput"
+      responses:
+        "200":
+          description: Finalized — review is now in finalized status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerformanceReview"
+        "400":
+          description: hrOverrideScore/hrOverrideReason not supplied together, or the score is out of range
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Not authorized to finalize this review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: The review is not (or is no longer) in hr_review status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/performance/reviews/{id}/reopen:
+    post:
+      operationId: reopenPerformanceReview
+      tags: [performance-reviews]
+      summary: HR reopens a review to an earlier explicit stage
+      description: >-
+        Requires performance.manage, organization-wide (not
+        performance.finalize — §10.1 row 6 / §16 both explicitly assign
+        reopen to performance.manage). Valid only from manager_review,
+        hr_review, or finalized; targetStage must be one of
+        self_assessment/manager_review/hr_review and strictly earlier than
+        the review's current status; reason is mandatory. Clears only the
+        review-row timestamp/decision fields downstream of the target stage
+        (§10.4) — goal/competency/self-assessment content is never blanked.
+        revisionNumber increments by 1 in the same atomic
+        UPDATE ... WHERE status = '<current>' — a concurrent reopen affects
+        zero rows and returns 409.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReopenPerformanceReviewInput"
+      responses:
+        "200":
+          description: Reopened — review is now in the target status, revisionNumber incremented
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerformanceReview"
+        "400":
+          description: Missing reason, or an invalid/non-earlier targetStage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Not authorized to reopen this review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: The review's current status cannot be reopened
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -15574,6 +15704,29 @@ components:
           items:
             type: string
           description: Every readiness problem found, listed at once — not just the first.
+
+    FinalizePerformanceReviewInput:
+      type: object
+      description: Both fields optional, but must be supplied together (or neither) — finalize with or without an override in the same call.
+      properties:
+        hrOverrideScore:
+          type: number
+          description: 0-100. computedOverallScore (the manager's own score) is preserved unedited alongside this.
+        hrOverrideReason:
+          type: string
+          description: Mandatory whenever hrOverrideScore is supplied.
+
+    ReopenPerformanceReviewInput:
+      type: object
+      required: [targetStage, reason]
+      properties:
+        targetStage:
+          type: string
+          enum: [self_assessment, manager_review, hr_review]
+          description: Must be strictly earlier than the review's current status.
+        reason:
+          type: string
+          minLength: 1
 
     PerformanceReviewWithCompetencies:
       type: object

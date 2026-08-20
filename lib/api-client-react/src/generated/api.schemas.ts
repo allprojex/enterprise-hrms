@@ -4901,6 +4901,35 @@ export interface SelfAssessmentNotReadyError {
   problems: string[];
 }
 
+/**
+ * Both fields optional, but must be supplied together (or neither) — finalize with or without an override in the same call.
+ */
+export interface FinalizePerformanceReviewInput {
+  /** 0-100. computedOverallScore (the manager's own score) is preserved unedited alongside this. */
+  hrOverrideScore?: number;
+  /** Mandatory whenever hrOverrideScore is supplied. */
+  hrOverrideReason?: string;
+}
+
+/**
+ * Must be strictly earlier than the review's current status.
+ */
+export type ReopenPerformanceReviewInputTargetStage = typeof ReopenPerformanceReviewInputTargetStage[keyof typeof ReopenPerformanceReviewInputTargetStage];
+
+
+export const ReopenPerformanceReviewInputTargetStage = {
+  self_assessment: 'self_assessment',
+  manager_review: 'manager_review',
+  hr_review: 'hr_review',
+} as const;
+
+export interface ReopenPerformanceReviewInput {
+  /** Must be strictly earlier than the review's current status. */
+  targetStage: ReopenPerformanceReviewInputTargetStage;
+  /** @minLength 1 */
+  reason: string;
+}
+
 export interface PerformanceReviewWithCompetencies {
   review: PerformanceReview;
   competencies: PerformanceReviewCompetency[];
