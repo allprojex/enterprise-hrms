@@ -57,7 +57,11 @@
  *
  * BOUNDARIES held exactly as frozen: no certificate issuance, no
  * employee_certifications write, no employee_skills write, no assessment
- * result/attempt, no completion/attendance marking — all W88/W89/W90.
+ * result/attempt — all W89/W90. W88 added exactly one narrow addition to
+ * this file, `advanceEnrollmentProgress` — the employee's own self-paced
+ * assigned→in_progress→completed transitions (§10.3.1) — never
+ * instructor-led completion, never attendance, never an assessment
+ * result, all still W89/W90.
  */
 import { and, eq, ne, inArray, count, desc } from "drizzle-orm";
 import {
@@ -134,6 +138,20 @@ export class LearningCancelConflictError extends Error {
   constructor(message = "This enrollment can no longer be cancelled") {
     super(message);
     this.name = "LearningCancelConflictError";
+  }
+}
+
+export class LearningProgressConflictError extends Error {
+  constructor(message = "This enrollment cannot be advanced from its current state") {
+    super(message);
+    this.name = "LearningProgressConflictError";
+  }
+}
+
+export class LearningProgressNotApprovedError extends Error {
+  constructor() {
+    super("This enrollment is not yet approved");
+    this.name = "LearningProgressNotApprovedError";
   }
 }
 
@@ -706,6 +724,77 @@ export async function cancelEnrollment(params: CancelEnrollmentParams): Promise<
     targetType: "learning_enrollment",
     targetId: String(params.enrollmentId),
     metadata: { employeeId: enrollment.employeeId, courseId: enrollment.courseId, byEmployee: isOwn && !params.isOrgWide },
+  });
+
+  return updated;
+}
+
+// ---------------------------------------------------------------------------
+// Employee self-paced progress (W88, §10.3.1, §21 PATCH .../enrollments/:id/progress)
+// ---------------------------------------------------------------------------
+
+export interface AdvanceEnrollmentProgressParams {
+  organizationId: number;
+  enrollmentId: number;
+  targetStatus: "in_progress" | "completed";
+  callerEmployeeId: number | null;
+  actorApplicationUserId: number;
+  actorMembershipId: number;
+}
+
+/**
+ * §10.3.1, frozen exactly: "for self-paced courses, the employee
+ * (learning.write.own) marks their own in_progress/completed." Restricted
+ * to the enrollment's own employee and to self-paced delivery only —
+ * instructor-led completion belongs to the instructor of record or HR/L&D
+ * (a later workstream, never this route). Gated by approvalStatus being
+ * auto_approved/approved — approval gates actionability, not row
+ * existence (§0) — a still-pending or rejected request 409s here rather
+ * than silently starting. Never accepts/records passed/score: an employee
+ * cannot grade themselves, even for a self-paced course with
+ * hasAssessmentSnapshot = true (§10.3.1, §11) — this route's own request
+ * schema has no such fields at all, not merely an omission enforced by
+ * convention. Each of the two one-way transitions is an atomic
+ * conditional UPDATE ... WHERE status = '<expected prior state>' — a
+ * concurrent or repeat call against the same prior state affects zero
+ * rows and returns a controlled 409, mirroring every other transition in
+ * this file and `leaveApprovals.ts`/every Performance transition (§10.3.1
+ * itself).
+ */
+export async function advanceEnrollmentProgress(params: AdvanceEnrollmentProgressParams): Promise<LearningEnrollment> {
+  const enrollment = await getEnrollment(params.organizationId, params.enrollmentId);
+  if (!enrollment) throw new LearningEnrollmentNotFoundError();
+
+  if (params.callerEmployeeId == null || params.callerEmployeeId !== enrollment.employeeId) {
+    throw new LearningEnrollmentForbiddenError("You may only advance your own enrollment");
+  }
+  if (enrollment.deliveryModeSnapshot !== "self_paced") {
+    throw new LearningEnrollmentForbiddenError("This action is only available for self-paced training");
+  }
+  if (enrollment.approvalStatus !== "auto_approved" && enrollment.approvalStatus !== "approved") {
+    throw new LearningProgressNotApprovedError();
+  }
+
+  const expectedPriorStatus = params.targetStatus === "in_progress" ? "assigned" : "in_progress";
+
+  const patch: Partial<typeof learningEnrollmentsTable.$inferInsert> = { status: params.targetStatus, updatedAt: new Date() };
+  if (params.targetStatus === "completed") patch.completedAt = new Date();
+
+  const [updated] = await db
+    .update(learningEnrollmentsTable)
+    .set(patch)
+    .where(and(eq(learningEnrollmentsTable.id, params.enrollmentId), eq(learningEnrollmentsTable.organizationId, params.organizationId), eq(learningEnrollmentsTable.status, expectedPriorStatus)))
+    .returning();
+  if (!updated) throw new LearningProgressConflictError();
+
+  await recordAuditEvent({
+    actorApplicationUserId: params.actorApplicationUserId,
+    actorMembershipId: params.actorMembershipId,
+    organizationId: params.organizationId,
+    eventType: params.targetStatus === "in_progress" ? "learning_enrollment.started" : "learning_enrollment.completed",
+    targetType: "learning_enrollment",
+    targetId: String(params.enrollmentId),
+    metadata: { employeeId: enrollment.employeeId, courseId: enrollment.courseId },
   });
 
   return updated;

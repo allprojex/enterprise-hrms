@@ -755,3 +755,100 @@ describe("Authorization and tenant isolation", () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe("Self-paced progress (W88)", () => {
+  async function progress(enrollmentId: number, status: string, headers: Record<string, string>) {
+    return request(app).patch(`/api/organizations/${ORG_ID}/learning/enrollments/${enrollmentId}/progress`).set(headers).send({ status });
+  }
+
+  it("advances assigned -> in_progress -> completed for an auto-approved self-paced enrollment", async () => {
+    const courseId = await createCourse({ requiresApproval: false });
+    const enroll = await request(app).post(`/api/organizations/${ORG_ID}/learning/courses/${courseId}/enroll`).set(employeeHeaders()).send({});
+    expect(enroll.body.approvalStatus).toBe("auto_approved");
+
+    const start = await progress(enroll.body.id, "in_progress", employeeHeaders());
+    expect(start.status).toBe(200);
+    expect(start.body.status).toBe("in_progress");
+
+    const complete = await progress(enroll.body.id, "completed", employeeHeaders());
+    expect(complete.status).toBe(200);
+    expect(complete.body.status).toBe("completed");
+    expect(complete.body.completedAt).toBeTruthy();
+  });
+
+  it("repeat/out-of-order transitions 409 (atomic conflict guard)", async () => {
+    const courseId = await createCourse({ requiresApproval: false });
+    const enroll = await request(app).post(`/api/organizations/${ORG_ID}/learning/courses/${courseId}/enroll`).set(employeeHeaders()).send({});
+
+    const completeTooEarly = await progress(enroll.body.id, "completed", employeeHeaders());
+    expect(completeTooEarly.status).toBe(409);
+
+    const start = await progress(enroll.body.id, "in_progress", employeeHeaders());
+    expect(start.status).toBe(200);
+    const repeatStart = await progress(enroll.body.id, "in_progress", employeeHeaders());
+    expect(repeatStart.status).toBe(409);
+
+    const complete = await progress(enroll.body.id, "completed", employeeHeaders());
+    expect(complete.status).toBe(200);
+    const repeatComplete = await progress(enroll.body.id, "completed", employeeHeaders());
+    expect(repeatComplete.status).toBe(409);
+  });
+
+  it("a still-pending request cannot start", async () => {
+    const courseId = await createCourse({ requiresApproval: true });
+    const enroll = await request(app).post(`/api/organizations/${ORG_ID}/learning/courses/${courseId}/enroll`).set(employeeHeaders()).send({});
+    expect(enroll.body.approvalStatus).toBe("pending");
+    const res = await progress(enroll.body.id, "in_progress", employeeHeaders());
+    expect(res.status).toBe(409);
+  });
+
+  it("a rejected request can never start", async () => {
+    const courseId = await createCourse({ requiresApproval: true });
+    const enroll = await request(app).post(`/api/organizations/${ORG_ID}/learning/courses/${courseId}/enroll`).set(employeeHeaders()).send({});
+    const reject = await request(app).post(`/api/organizations/${ORG_ID}/learning/enrollments/${enroll.body.id}/reject`).set(managerHeaders()).send();
+    expect(reject.status).toBe(200);
+    const res = await progress(enroll.body.id, "in_progress", employeeHeaders());
+    expect(res.status).toBe(409);
+  });
+
+  it("an approved (previously-pending) request may start", async () => {
+    const courseId = await createCourse({ requiresApproval: true });
+    const enroll = await request(app).post(`/api/organizations/${ORG_ID}/learning/courses/${courseId}/enroll`).set(employeeHeaders()).send({});
+    const approve = await request(app).post(`/api/organizations/${ORG_ID}/learning/enrollments/${enroll.body.id}/approve`).set(managerHeaders()).send();
+    expect(approve.status).toBe(200);
+    const res = await progress(enroll.body.id, "in_progress", employeeHeaders());
+    expect(res.status).toBe(200);
+  });
+
+  it("instructor-led enrollments cannot use this route", async () => {
+    const courseId = await createCourse({ deliveryMode: "instructor_led" });
+    const sessionId = await createSession(courseId);
+    const enroll = await request(app).post(`/api/organizations/${ORG_ID}/learning/courses/${courseId}/enroll`).set(employeeHeaders()).send({ sessionId });
+    const res = await progress(enroll.body.id, "in_progress", employeeHeaders());
+    expect(res.status).toBe(403);
+  });
+
+  it("an unrelated employee may not advance another employee's enrollment", async () => {
+    const courseId = await createCourse({ requiresApproval: false });
+    const enroll = await request(app).post(`/api/organizations/${ORG_ID}/learning/courses/${courseId}/enroll`).set(employeeHeaders()).send({});
+    const res = await progress(enroll.body.id, "in_progress", employee2Headers());
+    expect(res.status).toBe(403);
+  });
+
+  it("rejects an invalid target status value", async () => {
+    const courseId = await createCourse({ requiresApproval: false });
+    const enroll = await request(app).post(`/api/organizations/${ORG_ID}/learning/courses/${courseId}/enroll`).set(employeeHeaders()).send({});
+    const res = await progress(enroll.body.id, "cancelled", employeeHeaders());
+    expect(res.status).toBe(400);
+  });
+
+  it("denies cross-org progress advancement", async () => {
+    const courseId = await createCourse({ requiresApproval: false });
+    const enroll = await request(app).post(`/api/organizations/${ORG_ID}/learning/courses/${courseId}/enroll`).set(employeeHeaders()).send({});
+    const res = await request(app)
+      .patch(`/api/organizations/${OTHER_ORG_ID}/learning/enrollments/${enroll.body.id}/progress`)
+      .set(otherOrgHrHeaders())
+      .send({ status: "in_progress" });
+    expect(res.status).toBe(404);
+  });
+});

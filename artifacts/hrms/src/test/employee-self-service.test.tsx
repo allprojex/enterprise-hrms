@@ -48,6 +48,22 @@ const { state } = vi.hoisted(() => ({
     submitError: undefined as unknown,
     acknowledgeMutate: vi.fn() as (...args: unknown[]) => void,
     acknowledgePending: false,
+    // My Learning (W88)
+    learningCourses: [] as unknown[],
+    learningCoursesLoading: false,
+    learningCoursesError: undefined as unknown,
+    myEnrollments: [] as unknown[],
+    myEnrollmentsLoading: false,
+    myEnrollmentsError: undefined as unknown,
+    courseSessions: [] as unknown[],
+    courseSessionsLoading: false,
+    enrollmentSession: undefined as unknown,
+    requestEnrollmentMutate: vi.fn() as (...args: unknown[]) => void,
+    requestEnrollmentPending: false,
+    advanceProgressMutate: vi.fn() as (...args: unknown[]) => void,
+    advanceProgressPending: false,
+    cancelEnrollmentMutate: vi.fn() as (...args: unknown[]) => void,
+    cancelEnrollmentPending: false,
   },
 }));
 
@@ -113,6 +129,18 @@ vi.mock('@workspace/api-client-react', () => ({
   CreatePerformanceReviewGoalInputMeasurementType: {
     numeric: 'numeric', percentage: 'percentage', currency: 'currency', boolean: 'boolean', rating: 'rating', qualitative: 'qualitative',
   },
+  // My Learning (W88)
+  useListLearningCourses: () => ({ data: state.learningCourses, isLoading: state.learningCoursesLoading, error: state.learningCoursesError, refetch: vi.fn() }),
+  getListLearningCoursesQueryKey: () => ['learningCourses'],
+  useListLearningCourseSessions: () => ({ data: state.courseSessions, isLoading: state.courseSessionsLoading }),
+  getListLearningCourseSessionsQueryKey: () => ['learningCourseSessions'],
+  useGetLearningCourseSession: () => ({ data: state.enrollmentSession, isLoading: false }),
+  getGetLearningCourseSessionQueryKey: () => ['learningCourseSession'],
+  useListMyLearningEnrollments: () => ({ data: state.myEnrollments, isLoading: state.myEnrollmentsLoading, error: state.myEnrollmentsError, refetch: vi.fn() }),
+  getListMyLearningEnrollmentsQueryKey: () => ['myLearningEnrollments'],
+  useRequestLearningEnrollment: () => ({ mutate: state.requestEnrollmentMutate, isPending: state.requestEnrollmentPending }),
+  useAdvanceLearningEnrollmentProgress: () => ({ mutate: state.advanceProgressMutate, isPending: state.advanceProgressPending }),
+  useCancelLearningEnrollment: () => ({ mutate: state.cancelEnrollmentMutate, isPending: state.cancelEnrollmentPending }),
 }));
 
 function baseEmployee(overrides: Partial<SelfServiceEmployeeProfile> = {}): SelfServiceEmployeeProfile {
@@ -847,6 +875,251 @@ describe('Employee Self-Service page', () => {
         expect(screen.getByTestId('button-acknowledge-review')).toBeInTheDocument();
         expect(screen.queryByTestId('text-acknowledged-state')).not.toBeInTheDocument();
       });
+    });
+  });
+
+  describe('My Learning tab (W88)', () => {
+    function course(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 1, organizationId: 10, categoryCode: 'compliance', title: 'Fire Safety', description: null,
+        deliveryMode: 'self_paced', mandatoryDefault: false, requiresApproval: false, hasAssessment: false,
+        issuesCertificate: false, certificateValidityMonths: null, status: 'active', createdBy: null,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+        ...overrides,
+      };
+    }
+    function enrollment(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 1, organizationId: 10, courseId: 1, sessionId: null, employeeId: 42,
+        courseTitleSnapshot: 'Fire Safety', categorySnapshot: 'Compliance', deliveryModeSnapshot: 'self_paced',
+        hasAssessmentSnapshot: false, issuesCertificateSnapshot: false, certificateValidityMonthsSnapshot: null,
+        departmentIdSnapshot: null, positionIdSnapshot: null, managerEmployeeIdSnapshot: null,
+        mandatoryAtAssignment: false, originType: 'employee_requested', assignedByMembershipId: null, dueDate: null,
+        approvalStatus: 'auto_approved', approvalDecidedByMembershipId: null, approvalDecidedAt: null,
+        status: 'assigned', attended: null, attendanceMarkedByMembershipId: null, attendanceMarkedAt: null,
+        passed: null, score: null, completedAt: null, cancelReason: null,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+        ...overrides,
+      };
+    }
+
+    function resetLearningState() {
+      state.learningCourses = [];
+      state.learningCoursesLoading = false;
+      state.learningCoursesError = undefined;
+      state.myEnrollments = [];
+      state.myEnrollmentsLoading = false;
+      state.myEnrollmentsError = undefined;
+      state.courseSessions = [];
+      state.courseSessionsLoading = false;
+      state.enrollmentSession = undefined;
+      state.requestEnrollmentMutate = vi.fn();
+      state.requestEnrollmentPending = false;
+      state.advanceProgressMutate = vi.fn();
+      state.advanceProgressPending = false;
+      state.cancelEnrollmentMutate = vi.fn();
+      state.cancelEnrollmentPending = false;
+    }
+
+    it('handles a disabled Learning module cleanly, without affecting My Performance', async () => {
+      resetLearningState();
+      state.myReviews = [];
+      state.reviewDetail = undefined;
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'performance', enabled: true }), mod({ key: 'learning', enabled: false })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-learning'));
+      expect(screen.getByText(/learning isn't enabled/i)).toBeInTheDocument();
+
+      await userEvent.click(screen.getByTestId('tab-my-performance'));
+      expect(screen.getByText(/no performance reviews yet/i)).toBeInTheDocument();
+    });
+
+    it('shows empty states for both catalog and enrollments', async () => {
+      resetLearningState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'learning', enabled: true })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-learning'));
+      expect(screen.getByText(/no courses are open for enrollment right now/i)).toBeInTheDocument();
+      expect(screen.getByText(/you have no training enrollments yet/i)).toBeInTheDocument();
+    });
+
+    it('only shows active courses in the catalog, never draft or archived', async () => {
+      resetLearningState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'learning', enabled: true })];
+      state.learningCourses = [course({ id: 1, title: 'Active Course', status: 'active' }), course({ id: 2, title: 'Draft Course', status: 'draft' }), course({ id: 3, title: 'Archived Course', status: 'archived' })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-learning'));
+      expect(screen.getByText('Active Course')).toBeInTheDocument();
+      expect(screen.queryByText('Draft Course')).not.toBeInTheDocument();
+      expect(screen.queryByText('Archived Course')).not.toBeInTheDocument();
+    });
+
+    it('requests a self-paced course immediately, with no sessionId and no employeeId sent from the browser', async () => {
+      resetLearningState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'learning', enabled: true })];
+      state.learningCourses = [course({ id: 5, title: 'Self-Paced Course', deliveryMode: 'self_paced' })];
+      const requestMutate = vi.fn((_vars, opts) => opts.onSuccess({ id: 9, approvalStatus: 'auto_approved' }));
+      state.requestEnrollmentMutate = requestMutate;
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-learning'));
+      await userEvent.click(screen.getByTestId('button-request-course-5'));
+      expect(requestMutate).toHaveBeenCalledWith(
+        { organizationId: 10, id: 5, data: undefined },
+        expect.anything(),
+      );
+    });
+
+    it('opens a session-selection dialog for an instructor-led course, offering only scheduled sessions', async () => {
+      resetLearningState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'learning', enabled: true })];
+      state.learningCourses = [course({ id: 7, title: 'Instructor Course', deliveryMode: 'instructor_led' })];
+      state.courseSessions = [
+        { id: 100, organizationId: 10, courseId: 7, scheduledAt: '2030-01-01T09:00:00.000Z', durationMinutes: 60, location: 'Room A', meetingLink: null, instructorEmployeeId: null, capacity: null, status: 'scheduled', createdAt: '', updatedAt: '' },
+        { id: 101, organizationId: 10, courseId: 7, scheduledAt: '2029-01-01T09:00:00.000Z', durationMinutes: 60, location: 'Room B', meetingLink: null, instructorEmployeeId: null, capacity: null, status: 'completed', createdAt: '', updatedAt: '' },
+      ];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-learning'));
+      await userEvent.click(screen.getByTestId('button-request-course-7'));
+      expect(screen.getByTestId('select-learning-session')).toBeInTheDocument();
+      await userEvent.click(screen.getByTestId('select-learning-session'));
+      expect(screen.getByText(/Room A/)).toBeInTheDocument();
+      expect(screen.queryByText(/Room B/)).not.toBeInTheDocument();
+    });
+
+    it('displays the two-axis approval/status state independently — a pending request never looks startable', async () => {
+      resetLearningState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'learning', enabled: true })];
+      state.myEnrollments = [enrollment({ id: 1, status: 'assigned', approvalStatus: 'pending' })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-learning'));
+      expect(screen.getByTestId('badge-enrollment-status-1')).toHaveTextContent('Not Started');
+      expect(screen.getByTestId('badge-enrollment-approval-1')).toHaveTextContent('Pending Approval');
+      expect(screen.queryByTestId('button-start-enrollment-1')).not.toBeInTheDocument();
+      expect(screen.getByText(/waiting on your manager/i)).toBeInTheDocument();
+    });
+
+    it('starts an approved self-paced enrollment via the progress route', async () => {
+      resetLearningState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'learning', enabled: true })];
+      state.myEnrollments = [enrollment({ id: 2, status: 'assigned', approvalStatus: 'auto_approved' })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-learning'));
+      await userEvent.click(screen.getByTestId('button-start-enrollment-2'));
+      expect(state.advanceProgressMutate).toHaveBeenCalledWith(
+        { organizationId: 10, id: 2, data: { status: 'in_progress' } },
+        expect.anything(),
+      );
+    });
+
+    it('marks an in-progress self-paced enrollment complete', async () => {
+      resetLearningState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'learning', enabled: true })];
+      state.myEnrollments = [enrollment({ id: 3, status: 'in_progress', approvalStatus: 'auto_approved' })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-learning'));
+      await userEvent.click(screen.getByTestId('button-complete-enrollment-3'));
+      expect(state.advanceProgressMutate).toHaveBeenCalledWith(
+        { organizationId: 10, id: 3, data: { status: 'completed' } },
+        expect.anything(),
+      );
+    });
+
+    it('never shows a start/complete action for an instructor-led enrollment', async () => {
+      resetLearningState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'learning', enabled: true })];
+      state.myEnrollments = [enrollment({ id: 4, status: 'assigned', approvalStatus: 'auto_approved', deliveryModeSnapshot: 'instructor_led', sessionId: 200 })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-learning'));
+      expect(screen.queryByTestId('button-start-enrollment-4')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-complete-enrollment-4')).not.toBeInTheDocument();
+    });
+
+    it('allows cancelling a non-mandatory, not-yet-started enrollment', async () => {
+      resetLearningState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'learning', enabled: true })];
+      state.myEnrollments = [enrollment({ id: 6, status: 'assigned', mandatoryAtAssignment: false })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-learning'));
+      await userEvent.click(screen.getByTestId('button-cancel-enrollment-6'));
+      expect(state.cancelEnrollmentMutate).toHaveBeenCalledWith(
+        { organizationId: 10, id: 6 },
+        expect.anything(),
+      );
+    });
+
+    it('never shows a cancel action for a mandatory enrollment', async () => {
+      resetLearningState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'learning', enabled: true })];
+      state.myEnrollments = [enrollment({ id: 7, status: 'assigned', mandatoryAtAssignment: true })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-learning'));
+      expect(screen.getByTestId('badge-enrollment-status-7').closest('[data-testid="row-enrollment-7"]')).toHaveTextContent('Mandatory');
+      expect(screen.queryByTestId('button-cancel-enrollment-7')).not.toBeInTheDocument();
+    });
+
+    it('shows the enrollment historical snapshot, never the live course fields', async () => {
+      resetLearningState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'learning', enabled: true })];
+      // Live course has since been renamed — the enrollment's own snapshot must win.
+      state.learningCourses = [course({ id: 1, title: 'Renamed Live Course' })];
+      state.myEnrollments = [enrollment({ id: 8, courseId: 1, courseTitleSnapshot: 'Original Course Title' })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-learning'));
+      expect(screen.getByTestId('row-enrollment-8')).toHaveTextContent('Original Course Title');
+      expect(screen.queryByTestId('row-enrollment-8')?.textContent).not.toContain('Renamed Live Course');
+    });
+
+    it('exposes no manager, HR, or instructor controls on My Learning', async () => {
+      resetLearningState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'learning', enabled: true })];
+      state.myEnrollments = [enrollment({ id: 9, status: 'assigned', approvalStatus: 'pending' })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-learning'));
+      expect(screen.queryByRole('button', { name: /approve/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /reject/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /assign/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /mark attendance/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /revoke/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /issue certificate/i })).not.toBeInTheDocument();
     });
   });
 });

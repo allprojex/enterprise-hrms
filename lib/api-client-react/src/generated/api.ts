@@ -32,6 +32,7 @@ import type {
   AddPerformanceReviewEvidenceBody,
   AddTalentPoolMemberInput,
   AdjustLeaveBalanceInput,
+  AdvanceLearningEnrollmentProgressInput,
   ApiError,
   ApplicationDetail,
   ApplicationListResponse,
@@ -22730,5 +22731,80 @@ export const useCancelLearningEnrollment = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getCancelLearningEnrollmentMutationOptions(options));
+    }
+
+export const getAdvanceLearningEnrollmentProgressUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/learning/enrollments/${id}/progress`
+}
+
+/**
+ * Requires learning.write.own, own enrollment, self-paced delivery mode only (instructor-led completion belongs to the instructor of record or HR/L&D, a later workstream). There is no numeric "percentage complete" — only the two one-way transitions assigned→in_progress and in_progress→completed, each an atomic conditional update guarded by the enrollment's current `status` (§10.3.1) — a concurrent or repeat call against the same prior state returns a controlled 409, never a silent double-transition. The enrollment must also have `approvalStatus` of `auto_approved` or `approved` — approval gates actionability, not row existence (§0, §10.3) — a still-`pending` or `rejected` request 409s. This route never accepts or records an assessment result (`passed`/`score`) — an employee can never grade themselves, regardless of `hasAssessmentSnapshot` (§10.3.1, §11).
+ * @summary Employee advances their own self-paced enrollment (assigned → in_progress → completed)
+ */
+export const advanceLearningEnrollmentProgress = async (organizationId: number,
+    id: number,
+    advanceLearningEnrollmentProgressInput: AdvanceLearningEnrollmentProgressInput, options?: RequestInit): Promise<LearningEnrollment> => {
+
+  return customFetch<LearningEnrollment>(getAdvanceLearningEnrollmentProgressUrl(organizationId,id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(advanceLearningEnrollmentProgressInput)
+  }
+);}
+
+
+
+
+
+export const getAdvanceLearningEnrollmentProgressMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof advanceLearningEnrollmentProgress>>, TError,{organizationId: number;id: number;data: BodyType<AdvanceLearningEnrollmentProgressInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof advanceLearningEnrollmentProgress>>, TError,{organizationId: number;id: number;data: BodyType<AdvanceLearningEnrollmentProgressInput>}, TContext> => {
+
+const mutationKey = ['advanceLearningEnrollmentProgress'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof advanceLearningEnrollmentProgress>>, {organizationId: number;id: number;data: BodyType<AdvanceLearningEnrollmentProgressInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  advanceLearningEnrollmentProgress(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdvanceLearningEnrollmentProgressMutationResult = NonNullable<Awaited<ReturnType<typeof advanceLearningEnrollmentProgress>>>
+    export type AdvanceLearningEnrollmentProgressMutationBody = BodyType<AdvanceLearningEnrollmentProgressInput>
+    export type AdvanceLearningEnrollmentProgressMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Employee advances their own self-paced enrollment (assigned → in_progress → completed)
+ */
+export const useAdvanceLearningEnrollmentProgress = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof advanceLearningEnrollmentProgress>>, TError,{organizationId: number;id: number;data: BodyType<AdvanceLearningEnrollmentProgressInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof advanceLearningEnrollmentProgress>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<AdvanceLearningEnrollmentProgressInput>},
+        TContext
+      > => {
+      return useMutation(getAdvanceLearningEnrollmentProgressMutationOptions(options));
     }
 

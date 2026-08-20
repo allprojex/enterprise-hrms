@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { UserCircle, FileText, CalendarClock, Briefcase, Send, Clock, LogIn, LogOut, Plus, Target, CheckCircle2 } from 'lucide-react';
+import { UserCircle, FileText, CalendarClock, Briefcase, Send, Clock, LogIn, LogOut, Plus, Target, CheckCircle2, GraduationCap, PlayCircle, XCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -44,6 +44,17 @@ import {
   useSubmitSelfAssessment,
   useAcknowledgePerformanceReview,
   CreatePerformanceReviewGoalInputMeasurementType,
+  useListLearningCourses,
+  getListLearningCoursesQueryKey,
+  useListLearningCourseSessions,
+  getListLearningCourseSessionsQueryKey,
+  useGetLearningCourseSession,
+  getGetLearningCourseSessionQueryKey,
+  useListMyLearningEnrollments,
+  getListMyLearningEnrollmentsQueryKey,
+  useRequestLearningEnrollment,
+  useAdvanceLearningEnrollmentProgress,
+  useCancelLearningEnrollment,
   type SelfServiceEmployeeProfile,
   type InternalVacancySummary,
   type DailyAttendanceSummary,
@@ -51,6 +62,8 @@ import {
   type PerformanceRatingScaleLevel,
   type PerformanceGoal,
   type PerformanceReview,
+  type LearningCourse,
+  type LearningEnrollment,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { QueryError } from '@/components/query-error';
@@ -1276,6 +1289,398 @@ function MyInternalApplicationsTab({ organizationId }: { organizationId: number 
   );
 }
 
+const LEARNING_STATUS_LABEL: Record<string, string> = {
+  assigned: 'Not Started',
+  in_progress: 'In Progress',
+  completed: 'Completed',
+  failed: 'Failed',
+  cancelled: 'Cancelled',
+};
+
+const LEARNING_STATUS_VARIANT: Record<string, 'secondary' | 'outline' | 'destructive'> = {
+  assigned: 'outline',
+  in_progress: 'secondary',
+  completed: 'secondary',
+  failed: 'destructive',
+  cancelled: 'outline',
+};
+
+const LEARNING_APPROVAL_LABEL: Record<string, string> = {
+  auto_approved: 'Approved',
+  pending: 'Pending Approval',
+  approved: 'Approved',
+  rejected: 'Rejected',
+};
+
+const LEARNING_APPROVAL_VARIANT: Record<string, 'secondary' | 'outline' | 'destructive'> = {
+  auto_approved: 'secondary',
+  pending: 'outline',
+  approved: 'secondary',
+  rejected: 'destructive',
+};
+
+/**
+ * Own session details for an instructor-led enrollment — a single
+ * on-demand fetch per enrollment row (no session list is ever
+ * pre-fetched for every enrollment; there is no dedicated "enrollment +
+ * session" combined read, so this is the only honest way to show it
+ * without inventing an endpoint).
+ */
+function EnrollmentSessionInfo({ organizationId, sessionId }: { organizationId: number; sessionId: number }) {
+  const { data: session, isLoading } = useGetLearningCourseSession(organizationId, sessionId, {
+    query: { queryKey: getGetLearningCourseSessionQueryKey(organizationId, sessionId), enabled: organizationId > 0 },
+  });
+  if (isLoading) return <Skeleton className="h-4 w-40" />;
+  if (!session) return null;
+  return (
+    <p className="text-xs text-muted-foreground">
+      Session: {new Date(session.scheduledAt).toLocaleString()}
+      {session.location ? ` · ${session.location}` : ''}
+    </p>
+  );
+}
+
+/**
+ * §8.3/§9: every field below reads the enrollment's own historical
+ * *snapshot* columns, never a live join to the current course row — a
+ * later course edit must never rewrite what this employee was actually
+ * enrolled into (verified explicitly in this workstream's own live QA).
+ */
+function EnrollmentCard({
+  organizationId,
+  enrollment,
+  onStart,
+  onComplete,
+  onCancel,
+  isMutating,
+}: {
+  organizationId: number;
+  enrollment: LearningEnrollment;
+  onStart: () => void;
+  onComplete: () => void;
+  onCancel: () => void;
+  isMutating: boolean;
+}) {
+  const canStart = enrollment.deliveryModeSnapshot === 'self_paced' && enrollment.status === 'assigned' && (enrollment.approvalStatus === 'auto_approved' || enrollment.approvalStatus === 'approved');
+  const canComplete = enrollment.deliveryModeSnapshot === 'self_paced' && enrollment.status === 'in_progress' && (enrollment.approvalStatus === 'auto_approved' || enrollment.approvalStatus === 'approved');
+  const canCancel = enrollment.status === 'assigned' && !enrollment.mandatoryAtAssignment;
+  const awaitingApproval = enrollment.approvalStatus === 'pending';
+
+  return (
+    <div className="border rounded-md p-4 space-y-3" data-testid={`row-enrollment-${enrollment.id}`}>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+        <div>
+          <p className="font-medium text-sm text-foreground">{enrollment.courseTitleSnapshot}</p>
+          <p className="text-xs text-muted-foreground capitalize">
+            {enrollment.categorySnapshot} · {enrollment.deliveryModeSnapshot.replace('_', ' ')}
+          </p>
+          {enrollment.sessionId != null && <EnrollmentSessionInfo organizationId={organizationId} sessionId={enrollment.sessionId} />}
+        </div>
+        <div className="flex flex-wrap gap-2 sm:justify-end">
+          <Badge variant={LEARNING_STATUS_VARIANT[enrollment.status]} data-testid={`badge-enrollment-status-${enrollment.id}`}>
+            {LEARNING_STATUS_LABEL[enrollment.status] ?? enrollment.status}
+          </Badge>
+          <Badge variant={LEARNING_APPROVAL_VARIANT[enrollment.approvalStatus]} data-testid={`badge-enrollment-approval-${enrollment.id}`}>
+            {LEARNING_APPROVAL_LABEL[enrollment.approvalStatus] ?? enrollment.approvalStatus}
+          </Badge>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {enrollment.mandatoryAtAssignment && <Badge variant="outline">Mandatory</Badge>}
+        {enrollment.hasAssessmentSnapshot && <Badge variant="outline">Assessment Required</Badge>}
+        {enrollment.issuesCertificateSnapshot && (
+          <Badge variant="outline">
+            Certificate Eligible{enrollment.certificateValidityMonthsSnapshot ? ` (valid ${enrollment.certificateValidityMonthsSnapshot}mo)` : ''}
+          </Badge>
+        )}
+      </div>
+
+      {awaitingApproval && (
+        <p className="text-xs text-muted-foreground">Waiting on your manager's or HR's approval before you can begin.</p>
+      )}
+      {enrollment.approvalStatus === 'rejected' && (
+        <p className="text-xs text-muted-foreground">This request was not approved. It remains on your record for reference.</p>
+      )}
+      {enrollment.status === 'cancelled' && enrollment.cancelReason && (
+        <p className="text-xs text-muted-foreground">Cancellation reason: {enrollment.cancelReason}</p>
+      )}
+
+      {(canStart || canComplete || canCancel) && (
+        <div className="flex flex-wrap gap-2">
+          {canStart && (
+            <Button size="sm" onClick={onStart} disabled={isMutating} data-testid={`button-start-enrollment-${enrollment.id}`}>
+              <PlayCircle className="h-4 w-4" aria-hidden="true" />
+              Start Training
+            </Button>
+          )}
+          {canComplete && (
+            <Button size="sm" onClick={onComplete} disabled={isMutating} data-testid={`button-complete-enrollment-${enrollment.id}`}>
+              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+              Mark Complete
+            </Button>
+          )}
+          {canCancel && (
+            <Button size="sm" variant="outline" onClick={onCancel} disabled={isMutating} data-testid={`button-cancel-enrollment-${enrollment.id}`}>
+              <XCircle className="h-4 w-4" aria-hidden="true" />
+              Cancel
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Instructor-led courses only — self-paced courses skip this dialog entirely and request immediately. Only 'scheduled' sessions are ever offered; a completed or cancelled session is never enrollable (§10.2). */
+function RequestTrainingDialog({
+  organizationId,
+  course,
+  open,
+  onOpenChange,
+  onRequest,
+  isPending,
+}: {
+  organizationId: number;
+  course: LearningCourse;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onRequest: (sessionId?: number) => void;
+  isPending: boolean;
+}) {
+  const [sessionId, setSessionId] = useState<string>('');
+  const sessionsQuery = useListLearningCourseSessions(organizationId, course.id, {
+    query: { queryKey: getListLearningCourseSessionsQueryKey(organizationId, course.id), enabled: open && organizationId > 0 },
+  });
+  const scheduledSessions = (sessionsQuery.data ?? []).filter((s) => s.status === 'scheduled');
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => { onOpenChange(next); if (!next) setSessionId(''); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Request: {course.title}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          {sessionsQuery.isLoading ? (
+            <Skeleton className="h-24 w-full" />
+          ) : scheduledSessions.length === 0 ? (
+            <p className="text-sm text-muted-foreground">There are no open sessions for this course right now.</p>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="learning-session-select">Choose a Session *</Label>
+              <Select value={sessionId} onValueChange={setSessionId}>
+                <SelectTrigger id="learning-session-select" data-testid="select-learning-session">
+                  <SelectValue placeholder="Choose a session" />
+                </SelectTrigger>
+                <SelectContent>
+                  {scheduledSessions.map((s) => (
+                    <SelectItem key={s.id} value={String(s.id)}>
+                      {new Date(s.scheduledAt).toLocaleString()}{s.location ? ` · ${s.location}` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button
+            onClick={() => onRequest(sessionId ? Number(sessionId) : undefined)}
+            disabled={isPending || !sessionId}
+            data-testid="button-submit-request-training"
+          >
+            {isPending ? 'Requesting…' : 'Request Training'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * ESS "My Learning" (§15, W88): catalog browse (active courses only, §29),
+ * self-enroll/request, own enrollment list with the two-axis approval/
+ * status state, own self-paced progress-marking. No manager/HR/instructor
+ * controls of any kind live here — those are W89/W91's own surfaces. No
+ * certificate issuance/list — only the eligibility badge above, since the
+ * `.../my-certificates` route does not exist until W90.
+ */
+function MyLearningTab({ organizationId }: { organizationId: number }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [requestDialogCourse, setRequestDialogCourse] = useState<LearningCourse | null>(null);
+
+  const coursesQuery = useListLearningCourses(organizationId, {
+    query: { queryKey: getListLearningCoursesQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+  const enrollmentsQuery = useListMyLearningEnrollments(organizationId, {
+    query: { queryKey: getListMyLearningEnrollmentsQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+
+  const requestMutation = useRequestLearningEnrollment();
+  const progressMutation = useAdvanceLearningEnrollmentProgress();
+  const cancelMutation = useCancelLearningEnrollment();
+
+  const invalidateEnrollments = () => queryClient.invalidateQueries({ queryKey: getListMyLearningEnrollmentsQueryKey(organizationId) });
+
+  const activeCourses = (coursesQuery.data ?? []).filter((c) => c.status === 'active');
+  const enrollments = enrollmentsQuery.data ?? [];
+  // Proactive UI hint only — never a security control. The backend's own
+  // duplicate-enrollment check (§8.3, W87) remains authoritative; this
+  // merely avoids sending a request the employee can already see will 409.
+  const nonTerminalCourseIds = new Set(
+    enrollments.filter((e) => e.status !== 'completed' && e.status !== 'failed' && e.status !== 'cancelled').map((e) => e.courseId),
+  );
+
+  const handleRequest = (course: LearningCourse, sessionId?: number) => {
+    requestMutation.mutate(
+      { organizationId, id: course.id, data: sessionId ? { sessionId } : undefined },
+      {
+        onSuccess: (enrollment) => {
+          setRequestDialogCourse(null);
+          invalidateEnrollments();
+          toast({
+            title: enrollment.approvalStatus === 'pending' ? 'Request submitted' : 'Enrolled',
+            description: enrollment.approvalStatus === 'pending' ? 'Your request is awaiting approval.' : 'You are now enrolled in this course.',
+          });
+        },
+        onError: (err) => toast({ title: 'Could not request this training', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  const handleStart = (enrollment: LearningEnrollment) => {
+    progressMutation.mutate(
+      { organizationId, id: enrollment.id, data: { status: 'in_progress' } },
+      {
+        onSuccess: () => { invalidateEnrollments(); toast({ title: 'Training started' }); },
+        onError: (err) => toast({ title: 'Could not start this training', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  const handleComplete = (enrollment: LearningEnrollment) => {
+    progressMutation.mutate(
+      { organizationId, id: enrollment.id, data: { status: 'completed' } },
+      {
+        onSuccess: () => { invalidateEnrollments(); toast({ title: 'Training marked complete' }); },
+        onError: (err) => toast({ title: 'Could not mark this training complete', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  const handleCancel = (enrollment: LearningEnrollment) => {
+    cancelMutation.mutate(
+      { organizationId, id: enrollment.id },
+      {
+        onSuccess: () => { invalidateEnrollments(); toast({ title: 'Enrollment cancelled' }); },
+        onError: (err) => toast({ title: 'Could not cancel this enrollment', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  const isMutating = progressMutation.isPending || cancelMutation.isPending;
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Course Catalog</CardTitle>
+          <CardDescription>Browse available training and request enrollment.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {coursesQuery.error ? (
+            <QueryError title="Could not load the course catalog" onRetry={() => coursesQuery.refetch()} />
+          ) : coursesQuery.isLoading ? (
+            <Skeleton className="h-32 w-full" />
+          ) : activeCourses.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No courses are open for enrollment right now.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {activeCourses.map((course) => {
+                const alreadyEnrolled = nonTerminalCourseIds.has(course.id);
+                return (
+                  <div key={course.id} className="border rounded-md p-4 space-y-2" data-testid={`card-catalog-course-${course.id}`}>
+                    <div>
+                      <p className="font-medium text-sm text-foreground">{course.title}</p>
+                      <p className="text-xs text-muted-foreground capitalize">
+                        {course.categoryCode} · {course.deliveryMode.replace('_', ' ')}
+                      </p>
+                    </div>
+                    {course.description && <p className="text-xs text-muted-foreground">{course.description}</p>}
+                    <div className="flex flex-wrap gap-2">
+                      {course.mandatoryDefault && <Badge variant="outline">Usually Mandatory</Badge>}
+                      {course.requiresApproval && <Badge variant="outline">Requires Approval</Badge>}
+                      {course.hasAssessment && <Badge variant="outline">Assessment</Badge>}
+                      {course.issuesCertificate && <Badge variant="outline">Certificate</Badge>}
+                    </div>
+                    <Button
+                      size="sm"
+                      disabled={alreadyEnrolled}
+                      onClick={() => {
+                        if (course.deliveryMode === 'instructor_led') {
+                          setRequestDialogCourse(course);
+                        } else {
+                          handleRequest(course);
+                        }
+                      }}
+                      data-testid={`button-request-course-${course.id}`}
+                    >
+                      <GraduationCap className="h-4 w-4" aria-hidden="true" />
+                      {alreadyEnrolled ? 'Already Enrolled' : 'Request Training'}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">My Enrollments</CardTitle>
+          <CardDescription>Your current and past training, including requests awaiting approval.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {enrollmentsQuery.error ? (
+            <QueryError title="Could not load your enrollments" onRetry={() => enrollmentsQuery.refetch()} />
+          ) : enrollmentsQuery.isLoading ? (
+            <Skeleton className="h-48 w-full" />
+          ) : enrollments.length === 0 ? (
+            <p className="text-sm text-muted-foreground">You have no training enrollments yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {enrollments.map((enrollment) => (
+                <EnrollmentCard
+                  key={enrollment.id}
+                  organizationId={organizationId}
+                  enrollment={enrollment}
+                  isMutating={isMutating}
+                  onStart={() => handleStart(enrollment)}
+                  onComplete={() => handleComplete(enrollment)}
+                  onCancel={() => handleCancel(enrollment)}
+                />
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {requestDialogCourse && (
+        <RequestTrainingDialog
+          organizationId={organizationId}
+          course={requestDialogCourse}
+          open={!!requestDialogCourse}
+          onOpenChange={(open) => !open && setRequestDialogCourse(null)}
+          onRequest={(sessionId) => handleRequest(requestDialogCourse, sessionId)}
+          isPending={requestMutation.isPending}
+        />
+      )}
+    </div>
+  );
+}
+
 export default function EmployeeSelfService() {
   const { data: user } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const organizationId = user?.activeOrganizationId ?? user?.organizationId ?? 0;
@@ -1308,6 +1713,10 @@ export default function EmployeeSelfService() {
   // employee_self_service stays this page's own outer gate, unaffected by
   // Performance's own state, exactly mirroring Attendance/Leave above.
   const performanceAccessible = !!modules && isModuleAccessible(modules, 'performance');
+  // Learning (W85) is checked independently within this page too — a
+  // disabled Learning module degrades only this tab, exactly mirroring
+  // Attendance/Performance/Leave above (Architecture Principle 1).
+  const learningAccessible = !!modules && isModuleAccessible(modules, 'learning');
 
   if (error) {
     return (
@@ -1361,6 +1770,7 @@ export default function EmployeeSelfService() {
           <TabsTrigger value="profile" data-testid="tab-my-profile">My Profile</TabsTrigger>
           <TabsTrigger value="attendance" data-testid="tab-my-attendance">My Attendance</TabsTrigger>
           <TabsTrigger value="performance" data-testid="tab-my-performance">My Performance</TabsTrigger>
+          <TabsTrigger value="learning" data-testid="tab-my-learning">My Learning</TabsTrigger>
           <TabsTrigger value="leave" data-testid="tab-my-leave">My Leave</TabsTrigger>
           <TabsTrigger value="documents" data-testid="tab-my-documents">My Documents</TabsTrigger>
           <TabsTrigger value="internal-vacancies" data-testid="tab-internal-vacancies">Internal Vacancies</TabsTrigger>
@@ -1394,6 +1804,21 @@ export default function EmployeeSelfService() {
                 <h3 className="text-lg font-semibold text-foreground mb-2">Performance isn't enabled</h3>
                 <p className="text-sm text-muted-foreground max-w-sm">
                   Your organisation hasn't enabled the Performance module, so reviews and self-assessment aren't available here.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+        <TabsContent value="learning">
+          {learningAccessible ? (
+            <MyLearningTab organizationId={organizationId} />
+          ) : (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+                <GraduationCap className="h-8 w-8 text-muted-foreground mb-4" aria-hidden="true" />
+                <h3 className="text-lg font-semibold text-foreground mb-2">Learning isn't enabled</h3>
+                <p className="text-sm text-muted-foreground max-w-sm">
+                  Your organisation hasn't enabled the Learning module, so courses and enrollments aren't available here.
                 </p>
               </CardContent>
             </Card>

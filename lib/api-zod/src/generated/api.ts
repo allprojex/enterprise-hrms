@@ -9681,3 +9681,51 @@ export const CancelLearningEnrollmentResponse = zod.object({
 })
 
 
+/**
+ * Requires learning.write.own, own enrollment, self-paced delivery mode only (instructor-led completion belongs to the instructor of record or HR/L&D, a later workstream). There is no numeric "percentage complete" — only the two one-way transitions assigned→in_progress and in_progress→completed, each an atomic conditional update guarded by the enrollment's current `status` (§10.3.1) — a concurrent or repeat call against the same prior state returns a controlled 409, never a silent double-transition. The enrollment must also have `approvalStatus` of `auto_approved` or `approved` — approval gates actionability, not row existence (§0, §10.3) — a still-`pending` or `rejected` request 409s. This route never accepts or records an assessment result (`passed`/`score`) — an employee can never grade themselves, regardless of `hasAssessmentSnapshot` (§10.3.1, §11).
+ * @summary Employee advances their own self-paced enrollment (assigned → in_progress → completed)
+ */
+export const AdvanceLearningEnrollmentProgressParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const AdvanceLearningEnrollmentProgressBody = zod.object({
+  "status": zod.enum(['in_progress', 'completed']).describe('The one-way target state — assigned→in_progress or in_progress→completed only. No other value is ever accepted here.')
+})
+
+export const AdvanceLearningEnrollmentProgressResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "courseId": zod.number(),
+  "sessionId": zod.number().nullable(),
+  "employeeId": zod.number(),
+  "courseTitleSnapshot": zod.string(),
+  "categorySnapshot": zod.string(),
+  "deliveryModeSnapshot": zod.enum(['self_paced', 'instructor_led']),
+  "hasAssessmentSnapshot": zod.boolean(),
+  "issuesCertificateSnapshot": zod.boolean(),
+  "certificateValidityMonthsSnapshot": zod.number().nullable(),
+  "departmentIdSnapshot": zod.number().nullable(),
+  "positionIdSnapshot": zod.number().nullable(),
+  "managerEmployeeIdSnapshot": zod.number().nullable(),
+  "mandatoryAtAssignment": zod.boolean(),
+  "originType": zod.enum(['hr_assigned', 'manager_assigned', 'employee_requested']),
+  "assignedByMembershipId": zod.number().nullable(),
+  "dueDate": zod.coerce.date().nullable(),
+  "approvalStatus": zod.enum(['auto_approved', 'pending', 'approved', 'rejected']),
+  "approvalDecidedByMembershipId": zod.number().nullable(),
+  "approvalDecidedAt": zod.coerce.date().nullable(),
+  "status": zod.enum(['assigned', 'in_progress', 'completed', 'failed', 'cancelled']),
+  "attended": zod.boolean().nullable(),
+  "attendanceMarkedByMembershipId": zod.number().nullable(),
+  "attendanceMarkedAt": zod.coerce.date().nullable(),
+  "passed": zod.boolean().nullable(),
+  "score": zod.string().nullable(),
+  "completedAt": zod.coerce.date().nullable(),
+  "cancelReason": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+

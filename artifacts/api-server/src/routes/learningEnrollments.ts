@@ -1,5 +1,6 @@
 /**
- * Learning Enrollments (Phase 3D, W87 — Enrollment, Assignment & Approval):
+ * Learning Enrollments (Phase 3D, W87 — Enrollment, Assignment & Approval;
+ * W88 added the single PATCH .../progress route):
  * docs/PHASE_3D_LEARNING_IMPLEMENTATION_PLAN.md §21's own frozen route
  * list. Server-derived identity throughout — no client-supplied
  * employeeId/managerEmployeeId/approverId is ever trusted as authority.
@@ -9,6 +10,7 @@ import {
   RequestLearningEnrollmentBody,
   AssignLearningEnrollmentsBody,
   CancelLearningEnrollmentBody,
+  AdvanceLearningEnrollmentProgressBody,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireMembership, type MembershipRequest } from "../middlewares/requireMembership";
@@ -35,6 +37,7 @@ import {
   getEnrollment,
   decideEnrollmentApproval,
   cancelEnrollment,
+  advanceEnrollmentProgress,
   LearningCourseNotEnrollableError,
   LearningCourseSessionNotEnrollableError,
   LearningSessionCapacityError,
@@ -43,6 +46,8 @@ import {
   LearningEnrollmentForbiddenError,
   LearningApprovalConflictError,
   LearningCancelConflictError,
+  LearningProgressConflictError,
+  LearningProgressNotApprovedError,
   InvalidLearningEnrollmentError,
   CrossOrganizationReferenceError,
 } from "../lib/learningEnrollments";
@@ -83,7 +88,9 @@ function handleEnrollmentError(err: unknown, res: Response): void {
     err instanceof LearningSessionCapacityError ||
     err instanceof LearningDuplicateEnrollmentError ||
     err instanceof LearningApprovalConflictError ||
-    err instanceof LearningCancelConflictError
+    err instanceof LearningCancelConflictError ||
+    err instanceof LearningProgressConflictError ||
+    err instanceof LearningProgressNotApprovedError
   ) {
     res.status(409).json({ error: err.message });
     return;
@@ -392,6 +399,45 @@ router.post(
         callerEmployeeId,
         isOrgWide,
         reason: parsed.data.cancelReason,
+        actorApplicationUserId: req.userId!,
+        actorMembershipId: req.membership!.id,
+      });
+      res.json(updated);
+    } catch (err) {
+      handleEnrollmentError(err, res);
+    }
+  },
+);
+
+// PATCH /organizations/:organizationId/learning/enrollments/:id/progress
+// W88 — own, self-paced only (§10.3.1). Never instructor-led completion,
+// never attendance, never an assessment result.
+router.patch(
+  "/organizations/:organizationId/learning/enrollments/:id/progress",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requireModuleEnabled(LEARNING_MODULE_KEY),
+  requirePermission("learning.write.own"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const enrollmentId = parseId(req.params.id);
+    if (isNaN(enrollmentId)) {
+      res.status(400).json({ error: "Invalid enrollment ID" });
+      return;
+    }
+    const parsed = AdvanceLearningEnrollmentProgressBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const organizationId = req.membership!.organizationId;
+    const callerEmployeeId = await resolveLearningActorEmployeeId(organizationId, req.userId!);
+
+    try {
+      const updated = await advanceEnrollmentProgress({
+        organizationId,
+        enrollmentId,
+        targetStatus: parsed.data.status,
+        callerEmployeeId,
         actorApplicationUserId: req.userId!,
         actorMembershipId: req.membership!.id,
       });

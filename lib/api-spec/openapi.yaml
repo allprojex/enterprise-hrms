@@ -11347,6 +11347,75 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/learning/enrollments/{id}/progress:
+    patch:
+      operationId: advanceLearningEnrollmentProgress
+      tags: [learning-enrollments]
+      summary: Employee advances their own self-paced enrollment (assigned → in_progress → completed)
+      description: >-
+        Requires learning.write.own, own enrollment, self-paced delivery
+        mode only (instructor-led completion belongs to the instructor of
+        record or HR/L&D, a later workstream). There is no numeric
+        "percentage complete" — only the two one-way transitions
+        assigned→in_progress and in_progress→completed, each an atomic
+        conditional update guarded by the enrollment's current `status`
+        (§10.3.1) — a concurrent or repeat call against the same prior
+        state returns a controlled 409, never a silent double-transition.
+        The enrollment must also have `approvalStatus` of `auto_approved`
+        or `approved` — approval gates actionability, not row existence
+        (§0, §10.3) — a still-`pending` or `rejected` request 409s. This
+        route never accepts or records an assessment result
+        (`passed`/`score`) — an employee can never grade themselves,
+        regardless of `hasAssessmentSnapshot` (§10.3.1, §11).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdvanceLearningEnrollmentProgressInput"
+      responses:
+        "200":
+          description: Advanced
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningEnrollment"
+        "400":
+          description: Invalid target status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Not this enrollment's own employee, or the enrollment is not self-paced
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Not yet approved, or the enrollment is not in the expected prior state for this transition (already advanced, already terminal, or a concurrent request already won)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -17319,3 +17388,12 @@ components:
           type: integer
         pageSize:
           type: integer
+
+    AdvanceLearningEnrollmentProgressInput:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [in_progress, completed]
+          description: The one-way target state — assigned→in_progress or in_progress→completed only. No other value is ever accepted here.

@@ -5337,6 +5337,22 @@ export interface LearningEnrollmentListResponse {
   pageSize: number;
 }
 
+/**
+ * The one-way target state — assigned→in_progress or in_progress→completed only. No other value is ever accepted here.
+ */
+export type AdvanceLearningEnrollmentProgressInputStatus = typeof AdvanceLearningEnrollmentProgressInputStatus[keyof typeof AdvanceLearningEnrollmentProgressInputStatus];
+
+
+export const AdvanceLearningEnrollmentProgressInputStatus = {
+  in_progress: 'in_progress',
+  completed: 'completed',
+} as const;
+
+export interface AdvanceLearningEnrollmentProgressInput {
+  /** The one-way target state — assigned→in_progress or in_progress→completed only. No other value is ever accepted here. */
+  status: AdvanceLearningEnrollmentProgressInputStatus;
+}
+
 export type ListEmployeesParams = {
 search?: string;
 departmentId?: number;
