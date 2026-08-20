@@ -1,0 +1,12 @@
+DROP TABLE IF EXISTS "learning_certificates";
+DROP TABLE IF EXISTS "learning_enrollment_evidence";
+DROP TABLE IF EXISTS "learning_enrollments";
+DROP TABLE IF EXISTS "learning_course_sessions";
+DROP TABLE IF EXISTS "learning_courses";
+DROP TYPE IF EXISTS "public"."learning_certificate_status";
+DROP TYPE IF EXISTS "public"."learning_enrollment_status";
+DROP TYPE IF EXISTS "public"."learning_enrollment_origin_type";
+DROP TYPE IF EXISTS "public"."learning_enrollment_approval_status";
+DROP TYPE IF EXISTS "public"."learning_session_status";
+DROP TYPE IF EXISTS "public"."learning_course_status";
+DROP TYPE IF EXISTS "public"."learning_course_delivery_mode";

@@ -36,6 +36,12 @@ export const MASTER_DATA_DOMAINS: readonly MasterDataDomainDefinition[] = [
   { key: "asset_category", label: "Asset Category", classification: "organization-defined" },
   { key: "request_type", label: "Request Type", classification: "organization-defined" },
   { key: "separation_reason", label: "Separation Reason", classification: "organization-overridable" },
+  // Phase 3D, W85 — Learning Foundation. Course categories reuse this
+  // existing mechanism rather than a dedicated learning_categories table
+  // (docs/PHASE_3D_LEARNING_IMPLEMENTATION_PLAN.md §8.6, Owner Decision 7) —
+  // same shape/precedent as document_category. No default items are frozen
+  // for this domain; only the domain itself is registered here.
+  { key: "training_category", label: "Training Category", classification: "organization-defined" },
 ] as const;
 
 /** Throws on: duplicate domain keys. Called before every seed insert. */

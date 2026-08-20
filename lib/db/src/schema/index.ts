@@ -77,3 +77,8 @@ export * from "./performance-reviews";
 export * from "./performance-review-goals";
 export * from "./performance-review-competencies";
 export * from "./performance-review-evidence";
+export * from "./learning-courses";
+export * from "./learning-course-sessions";
+export * from "./learning-enrollments";
+export * from "./learning-enrollment-evidence";
+export * from "./learning-certificates";

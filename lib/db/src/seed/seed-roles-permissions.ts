@@ -271,6 +271,18 @@ const PERMISSIONS = [
   { key: "performance.manage", resource: "performance", action: "manage" },
   { key: "performance.finalize", resource: "performance", action: "finalize" },
   { key: "performance.reports.read", resource: "performance", action: "reports.read" },
+  // Phase 3D, W85 — Learning Foundation. Exactly 5 keys, no ".team" variant,
+  // per docs/PHASE_3D_LEARNING_IMPLEMENTATION_PLAN.md §7 — manager-of-record
+  // and instructor-of-record scope are both resolved server-side via
+  // learning.review.write's relationship dispatch (managerEmployeeIdSnapshot
+  // / a session's instructorEmployeeId), never a separate permission key,
+  // mirroring performance.review.write's own broad-grant-plus-service-layer-
+  // narrowing shape exactly.
+  { key: "learning.read.own", resource: "learning", action: "read.own" },
+  { key: "learning.write.own", resource: "learning", action: "write.own" },
+  { key: "learning.review.write", resource: "learning", action: "review.write" },
+  { key: "learning.manage", resource: "learning", action: "manage" },
+  { key: "learning.reports.read", resource: "learning", action: "reports.read" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -347,6 +359,11 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "performance.manage",
     "performance.finalize",
     "performance.reports.read",
+    "learning.read.own",
+    "learning.write.own",
+    "learning.review.write",
+    "learning.manage",
+    "learning.reports.read",
   ],
   hr_manager: [
     "organization.read",
@@ -413,6 +430,11 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "performance.manage",
     "performance.finalize",
     "performance.reports.read",
+    "learning.read.own",
+    "learning.write.own",
+    "learning.review.write",
+    "learning.manage",
+    "learning.reports.read",
   ],
   employee: [
     "organization.read",
@@ -441,6 +463,10 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "performance.write.own",
     "performance.review.write",
     "performance.reports.read",
+    "learning.read.own",
+    "learning.write.own",
+    "learning.review.write",
+    "learning.reports.read",
   ],
 };
 
