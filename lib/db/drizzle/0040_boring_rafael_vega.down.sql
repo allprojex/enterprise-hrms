@@ -1,0 +1,12 @@
+DROP TABLE IF EXISTS "asset_incidents";
+DROP TABLE IF EXISTS "asset_evidence";
+DROP TABLE IF EXISTS "asset_maintenance";
+DROP TABLE IF EXISTS "asset_assignments";
+DROP TABLE IF EXISTS "assets";
+ALTER TABLE "employee_documents" ALTER COLUMN "employee_id" SET NOT NULL;
+DROP TYPE IF EXISTS "public"."asset_incident_type";
+DROP TYPE IF EXISTS "public"."asset_incident_status";
+DROP TYPE IF EXISTS "public"."asset_maintenance_status";
+DROP TYPE IF EXISTS "public"."asset_assignment_end_reason";
+DROP TYPE IF EXISTS "public"."asset_status";
+DROP TYPE IF EXISTS "public"."asset_condition";

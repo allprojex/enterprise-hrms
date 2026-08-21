@@ -82,3 +82,8 @@ export * from "./learning-course-sessions";
 export * from "./learning-enrollments";
 export * from "./learning-enrollment-evidence";
 export * from "./learning-certificates";
+export * from "./assets";
+export * from "./asset-assignments";
+export * from "./asset-maintenance";
+export * from "./asset-evidence";
+export * from "./asset-incidents";

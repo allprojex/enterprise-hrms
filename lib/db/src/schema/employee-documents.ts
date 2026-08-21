@@ -15,6 +15,18 @@ import { usersTable } from "./users";
 // either. `storageKey` is the opaque key from writeOrgFile, never derived
 // from `fileName` (which is display-only, client-supplied, and never used to
 // build a filesystem path).
+//
+// `employeeId` is nullable as of Phase 3E W95 (Asset Management) — an
+// organization-owned document (e.g. an asset's purchase receipt/warranty)
+// has no natural single-employee owner the way every pre-existing consumer
+// of this table (Core HR's own employee documents, Performance's review
+// evidence, Learning's enrollment evidence) does. Every existing consumer
+// continues to always supply a real employeeId unchanged; this relaxation
+// only newly permits `asset_evidence` (see learning-enrollment-evidence.ts's
+// own sibling, asset-evidence.ts) to attach an organization-scoped,
+// no-employee document. Approved explicitly during W95 rather than
+// improvised — see docs/PHASE_3E_ASSETS_IMPLEMENTATION_PLAN.md's own
+// document-ownership reconciliation.
 export const employeeDocumentsTable = pgTable(
   "employee_documents",
   {
@@ -22,9 +34,7 @@ export const employeeDocumentsTable = pgTable(
     organizationId: integer("organization_id")
       .notNull()
       .references(() => organizationsTable.id, { onDelete: "restrict" }),
-    employeeId: integer("employee_id")
-      .notNull()
-      .references(() => employeesTable.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").references(() => employeesTable.id, { onDelete: "cascade" }),
     categoryCode: text("category_code").notNull(),
     fileName: text("file_name").notNull(),
     storageKey: text("storage_key").notNull(),

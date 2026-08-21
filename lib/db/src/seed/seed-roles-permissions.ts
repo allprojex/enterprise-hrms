@@ -283,6 +283,24 @@ const PERMISSIONS = [
   { key: "learning.review.write", resource: "learning", action: "review.write" },
   { key: "learning.manage", resource: "learning", action: "manage" },
   { key: "learning.reports.read", resource: "learning", action: "reports.read" },
+  // Phase 3E, W95 — Asset Management Foundation. Exactly 4 keys, no
+  // ".team"/".assign"/".maintenance"/".incidents"/".acknowledge" variant, per
+  // docs/PHASE_3E_ASSETS_IMPLEMENTATION_PLAN.md §15 — the permission
+  // namespace matches the module's own registry key (`asset_management`)
+  // exactly, mirroring Learning's/Performance's/Attendance's own
+  // flat-namespace-matches-module-key convention (not Leave's/Recruitment's
+  // entity-level namespacing, since Assets is a single cohesive module).
+  // Manager-of-record current-direct-report visibility is resolved
+  // server-side via .read.own's/.reports.read's own relationship dispatch,
+  // never a separate .read.team key. .write.own authorizes exactly two
+  // later-workstream own-scoped actions (acknowledge own current
+  // assignment, report own loss/damage incident) — never any authoritative
+  // custody/status/condition/maintenance/retirement change, which remain
+  // .manage-only.
+  { key: "asset_management.read.own", resource: "asset_management", action: "read.own" },
+  { key: "asset_management.write.own", resource: "asset_management", action: "write.own" },
+  { key: "asset_management.manage", resource: "asset_management", action: "manage" },
+  { key: "asset_management.reports.read", resource: "asset_management", action: "reports.read" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -364,6 +382,10 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "learning.review.write",
     "learning.manage",
     "learning.reports.read",
+    "asset_management.read.own",
+    "asset_management.write.own",
+    "asset_management.manage",
+    "asset_management.reports.read",
   ],
   hr_manager: [
     "organization.read",
@@ -435,6 +457,10 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "learning.review.write",
     "learning.manage",
     "learning.reports.read",
+    "asset_management.read.own",
+    "asset_management.write.own",
+    "asset_management.manage",
+    "asset_management.reports.read",
   ],
   employee: [
     "organization.read",
@@ -467,6 +493,9 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "learning.write.own",
     "learning.review.write",
     "learning.reports.read",
+    "asset_management.read.own",
+    "asset_management.write.own",
+    "asset_management.reports.read",
   ],
 };
 
