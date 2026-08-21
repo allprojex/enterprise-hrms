@@ -19,6 +19,7 @@ import {
   AssignAssetBody,
   ReturnAssetBody,
   AcknowledgeAssetAssignmentBody,
+  ReportAssetIssueBody,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireMembership, type MembershipRequest } from "../middlewares/requireMembership";
@@ -40,6 +41,9 @@ import {
   returnAsset,
   acknowledgeAssetAssignment,
   listAssetAssignments,
+  reportAssetIssue,
+  listMyAssetAssignments,
+  listTeamAssetAssignments,
   AssetNotFoundError,
   InvalidAssetError,
   DuplicateAssetTagError,
@@ -47,6 +51,7 @@ import {
   AssetLifecycleConflictError,
   AssetAssignmentNotFoundError,
   AssetAssignmentConflictError,
+  AssetNotCurrentlyAssignedToCallerError,
   CrossOrganizationReferenceError,
 } from "../lib/assets";
 
@@ -85,6 +90,10 @@ function handleAssetError(err: unknown, res: Response): void {
   }
   if (err instanceof InvalidAssetError || err instanceof CrossOrganizationReferenceError) {
     res.status(400).json({ error: err.message });
+    return;
+  }
+  if (err instanceof AssetNotCurrentlyAssignedToCallerError) {
+    res.status(403).json({ error: err.message });
     return;
   }
   throw err;
@@ -159,6 +168,44 @@ router.post(
     } catch (err) {
       handleAssetError(err, res);
     }
+  },
+);
+
+// GET /organizations/:organizationId/assets/my-assets (Phase 3E, W98)
+// Registered BEFORE the dynamic :id route below — Express matches route
+// patterns in registration order, and "my-assets"/"team-assets" would
+// otherwise be swallowed by the :id param route (and rejected there as an
+// invalid numeric ID) if registered after it.
+router.get(
+  "/organizations/:organizationId/assets/my-assets",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requireModuleEnabled(ASSET_MANAGEMENT_MODULE_KEY),
+  requirePermission("asset_management.read.own"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const organizationId = req.membership!.organizationId;
+    const callerEmployeeId = await resolveAssetActorEmployeeId(organizationId, req.userId!);
+    const assignments = await listMyAssetAssignments(organizationId, callerEmployeeId);
+    res.json(assignments);
+  },
+);
+
+// GET /organizations/:organizationId/assets/team-assets (Phase 3E, W98,
+// Decision 3): current custody only, for current direct reports only — the
+// live reportingManagerId relationship, never a snapshot, never an
+// organization-wide fallback. Read-only; no manager mutation route exists
+// anywhere in this file.
+router.get(
+  "/organizations/:organizationId/assets/team-assets",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requireModuleEnabled(ASSET_MANAGEMENT_MODULE_KEY),
+  requirePermission("asset_management.read.own"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const organizationId = req.membership!.organizationId;
+    const callerEmployeeId = await resolveAssetActorEmployeeId(organizationId, req.userId!);
+    const assignments = await listTeamAssetAssignments(organizationId, callerEmployeeId);
+    res.json(assignments);
   },
 );
 
@@ -524,6 +571,51 @@ router.post(
         actorMembershipId: req.membership!.id,
       });
       res.json(updated);
+    } catch (err) {
+      handleAssetError(err, res);
+    }
+  },
+);
+
+// POST /organizations/:organizationId/assets/:id/report-issue (Phase 3E,
+// W98, Decision 2): report-only — never mutates asset/custody state. Only
+// on an asset with an active assignment belonging to the caller. Identity
+// is always server-resolved, never client-supplied.
+router.post(
+  "/organizations/:organizationId/assets/:id/report-issue",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requireModuleEnabled(ASSET_MANAGEMENT_MODULE_KEY),
+  requirePermission("asset_management.write.own"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const assetId = parseId(req.params.id);
+    if (isNaN(assetId)) {
+      res.status(400).json({ error: "Invalid asset ID" });
+      return;
+    }
+    const parsed = ReportAssetIssueBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const organizationId = req.membership!.organizationId;
+    const callerEmployeeId = await resolveAssetActorEmployeeId(organizationId, req.userId!);
+    if (callerEmployeeId == null) {
+      res.status(403).json({ error: "You may only report an issue on an asset currently assigned to you" });
+      return;
+    }
+
+    try {
+      const incident = await reportAssetIssue({
+        organizationId,
+        assetId,
+        employeeId: callerEmployeeId,
+        incidentType: parsed.data.incidentType,
+        description: parsed.data.description,
+        actorApplicationUserId: req.userId!,
+        actorMembershipId: req.membership!.id,
+      });
+      res.status(201).json(incident);
     } catch (err) {
       handleAssetError(err, res);
     }

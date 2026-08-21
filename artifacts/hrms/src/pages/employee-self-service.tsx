@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { UserCircle, FileText, CalendarClock, Briefcase, Send, Clock, LogIn, LogOut, Plus, Target, CheckCircle2, GraduationCap, PlayCircle, XCircle } from 'lucide-react';
+import { UserCircle, FileText, CalendarClock, Briefcase, Send, Clock, LogIn, LogOut, Plus, Target, CheckCircle2, GraduationCap, PlayCircle, XCircle, Boxes, ShieldAlert } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -58,6 +58,10 @@ import {
   useCancelLearningEnrollment,
   useListMyLearningCertificates,
   getListMyLearningCertificatesQueryKey,
+  useListMyAssetAssignments,
+  getListMyAssetAssignmentsQueryKey,
+  useAcknowledgeAssetAssignment,
+  useReportAssetIssue,
   type SelfServiceEmployeeProfile,
   type InternalVacancySummary,
   type DailyAttendanceSummary,
@@ -68,6 +72,7 @@ import {
   type LearningCourse,
   type LearningEnrollment,
   type LearningCertificate,
+  type AssetAssignment,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { QueryError } from '@/components/query-error';
@@ -1765,6 +1770,222 @@ function MyLearningTab({ organizationId }: { organizationId: number }) {
   );
 }
 
+// --- My Assets (Phase 3E, W98) ---
+// Reuses W97's own acknowledge route verbatim (no second acknowledgement
+// engine). Acknowledgement wording is deliberately literal — "I confirm I
+// received this item" — never framed as approval, agreement to liability,
+// acceptance of damage, or acceptance of financial responsibility (Decision
+// 1). Incident reporting is report-only: submitting one never changes this
+// tab's own display of the asset's status/condition/custody, since the
+// backend itself never mutates any of those on report (Decision 2) — HR
+// review of a submitted report is a separate, later workstream.
+
+function AcknowledgeAssetDialog({ organizationId, assignment, onAcknowledged }: { organizationId: number; assignment: AssetAssignment; onAcknowledged: () => void }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState('');
+  const mutation = useAcknowledgeAssetAssignment();
+
+  const handle = () => {
+    mutation.mutate(
+      { organizationId, id: assignment.id, data: { acknowledgementNote: note.trim() || undefined } },
+      {
+        onSuccess: () => {
+          setOpen(false);
+          setNote('');
+          onAcknowledged();
+          toast({ title: 'Receipt acknowledged' });
+        },
+        onError: (err) => toast({ title: 'Could not record acknowledgement', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setNote(''); }}>
+      <DialogTrigger asChild>
+        <Button size="sm" data-testid={`button-open-acknowledge-${assignment.id}`}>
+          <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+          Acknowledge Receipt
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Acknowledge Receipt</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          This confirms you received this item into your custody. It is not an approval, an agreement to liability, an acceptance of damage, or an acceptance of financial responsibility.
+        </p>
+        <div className="space-y-2 py-2">
+          <Label htmlFor={`ack-note-${assignment.id}`}>Note (optional)</Label>
+          <Textarea id={`ack-note-${assignment.id}`} value={note} onChange={(e) => setNote(e.target.value)} data-testid={`textarea-ack-note-${assignment.id}`} />
+        </div>
+        <DialogFooter>
+          <Button onClick={handle} disabled={mutation.isPending} data-testid={`button-confirm-acknowledge-${assignment.id}`}>
+            {mutation.isPending ? 'Confirming…' : 'I confirm I received this item'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ReportAssetIssueDialog({ organizationId, assignment, onReported }: { organizationId: number; assignment: AssetAssignment; onReported: () => void }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [incidentType, setIncidentType] = useState<'damage' | 'loss' | ''>('');
+  const [description, setDescription] = useState('');
+  const mutation = useReportAssetIssue();
+
+  const reset = () => {
+    setIncidentType('');
+    setDescription('');
+  };
+
+  const handle = () => {
+    if (!incidentType || !description.trim()) return;
+    mutation.mutate(
+      { organizationId, id: assignment.assetId, data: { incidentType, description: description.trim() } },
+      {
+        onSuccess: () => {
+          setOpen(false);
+          reset();
+          onReported();
+          toast({ title: 'Issue reported', description: 'Your report has been submitted for review.' });
+        },
+        onError: (err) => toast({ title: 'Could not submit this report', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" data-testid={`button-open-report-issue-${assignment.assetId}`}>
+          <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />
+          Report an Issue
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Report a Loss or Damage Issue</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor={`incident-type-${assignment.assetId}`}>Issue Type</Label>
+            <Select value={incidentType} onValueChange={(v) => setIncidentType(v as 'damage' | 'loss')}>
+              <SelectTrigger id={`incident-type-${assignment.assetId}`} data-testid={`select-incident-type-${assignment.assetId}`}>
+                <SelectValue placeholder="Choose an issue type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="damage">Damage</SelectItem>
+                <SelectItem value="loss">Loss</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`incident-description-${assignment.assetId}`}>Description</Label>
+            <Textarea id={`incident-description-${assignment.assetId}`} value={description} onChange={(e) => setDescription(e.target.value)} data-testid={`textarea-incident-description-${assignment.assetId}`} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={handle} disabled={mutation.isPending || !incidentType || !description.trim()} data-testid={`button-confirm-report-issue-${assignment.assetId}`}>
+            {mutation.isPending ? 'Submitting…' : 'Submit Report'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function MyAssetsTab({ organizationId }: { organizationId: number }) {
+  const queryClient = useQueryClient();
+  const assignmentsQuery = useListMyAssetAssignments(organizationId, {
+    query: { queryKey: getListMyAssetAssignmentsQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: getListMyAssetAssignmentsQueryKey(organizationId) });
+
+  const assignments = assignmentsQuery.data ?? [];
+  const current = assignments.filter((a) => a.custodyEndedAt == null);
+  const history = assignments.filter((a) => a.custodyEndedAt != null);
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Currently Assigned to Me</CardTitle>
+          <CardDescription>Assets currently in your custody.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {assignmentsQuery.error ? (
+            <QueryError title="Could not load your assets" onRetry={() => assignmentsQuery.refetch()} />
+          ) : assignmentsQuery.isLoading ? (
+            <Skeleton className="h-32 w-full" />
+          ) : current.length === 0 ? (
+            <p className="text-sm text-muted-foreground">You have no assets currently assigned to you.</p>
+          ) : (
+            <div className="space-y-3">
+              {current.map((a) => (
+                <div key={a.id} className="border rounded-md p-4 space-y-2" data-testid={`card-my-asset-${a.id}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-medium text-sm text-foreground">{a.assetNameSnapshot}</p>
+                      <p className="text-xs text-muted-foreground">{a.assetTagSnapshot} · {a.categorySnapshot}</p>
+                    </div>
+                    <Badge variant={a.acknowledgedAt ? 'secondary' : 'outline'} data-testid={`badge-ack-status-${a.id}`}>
+                      {a.acknowledgedAt ? 'Acknowledged' : 'Not Yet Acknowledged'}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Issued {new Date(a.issuedAt).toLocaleDateString()}
+                    {a.expectedReturnDate ? ` · expected back ${new Date(a.expectedReturnDate).toLocaleDateString()}` : ''}
+                  </p>
+                  {a.acknowledgedAt && (
+                    <p className="text-xs text-muted-foreground">Acknowledged {new Date(a.acknowledgedAt).toLocaleDateString()}</p>
+                  )}
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {!a.acknowledgedAt && <AcknowledgeAssetDialog organizationId={organizationId} assignment={a} onAcknowledged={invalidate} />}
+                    <ReportAssetIssueDialog organizationId={organizationId} assignment={a} onReported={invalidate} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Asset History</CardTitle>
+          <CardDescription>Assets you have previously held.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {assignmentsQuery.isLoading ? (
+            <Skeleton className="h-24 w-full" />
+          ) : history.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No past asset history yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {history.map((a) => (
+                <div key={a.id} className="flex items-center justify-between rounded-md border border-border p-3 text-sm" data-testid={`row-my-asset-history-${a.id}`}>
+                  <div>
+                    <p className="font-medium text-foreground">{a.assetNameSnapshot}</p>
+                    <p className="text-muted-foreground text-xs">
+                      {a.assetTagSnapshot} · {new Date(a.issuedAt).toLocaleDateString()} – {a.custodyEndedAt ? new Date(a.custodyEndedAt).toLocaleDateString() : ''}
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="capitalize" data-testid={`badge-history-end-reason-${a.id}`}>{a.endReason ?? 'closed'}</Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function EmployeeSelfService() {
   const { data: user } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const organizationId = user?.activeOrganizationId ?? user?.organizationId ?? 0;
@@ -1801,6 +2022,10 @@ export default function EmployeeSelfService() {
   // disabled Learning module degrades only this tab, exactly mirroring
   // Attendance/Performance/Leave above (Architecture Principle 1).
   const learningAccessible = !!modules && isModuleAccessible(modules, 'learning');
+  // Asset Management (Phase 3E, W95-W98) is checked independently within
+  // this page too — a disabled asset_management module degrades only My
+  // Assets, exactly mirroring Attendance/Performance/Learning/Leave above.
+  const assetManagementAccessible = !!modules && isModuleAccessible(modules, 'asset_management');
 
   if (error) {
     return (
@@ -1855,6 +2080,7 @@ export default function EmployeeSelfService() {
           <TabsTrigger value="attendance" data-testid="tab-my-attendance">My Attendance</TabsTrigger>
           <TabsTrigger value="performance" data-testid="tab-my-performance">My Performance</TabsTrigger>
           <TabsTrigger value="learning" data-testid="tab-my-learning">My Learning</TabsTrigger>
+          <TabsTrigger value="assets" data-testid="tab-my-assets">My Assets</TabsTrigger>
           <TabsTrigger value="leave" data-testid="tab-my-leave">My Leave</TabsTrigger>
           <TabsTrigger value="documents" data-testid="tab-my-documents">My Documents</TabsTrigger>
           <TabsTrigger value="internal-vacancies" data-testid="tab-internal-vacancies">Internal Vacancies</TabsTrigger>
@@ -1903,6 +2129,21 @@ export default function EmployeeSelfService() {
                 <h3 className="text-lg font-semibold text-foreground mb-2">Learning isn't enabled</h3>
                 <p className="text-sm text-muted-foreground max-w-sm">
                   Your organisation hasn't enabled the Learning module, so courses and enrollments aren't available here.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+        <TabsContent value="assets">
+          {assetManagementAccessible ? (
+            <MyAssetsTab organizationId={organizationId} />
+          ) : (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+                <Boxes className="h-8 w-8 text-muted-foreground mb-4" aria-hidden="true" />
+                <h3 className="text-lg font-semibold text-foreground mb-2">Asset Management isn't enabled</h3>
+                <p className="text-sm text-muted-foreground max-w-sm">
+                  Your organisation hasn't enabled the Asset Management module, so your assigned assets aren't available here.
                 </p>
               </CardContent>
             </Card>

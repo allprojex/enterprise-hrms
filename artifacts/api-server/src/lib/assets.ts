@@ -59,8 +59,18 @@
  * prior status — a concurrent or wrong-state attempt affects zero rows and
  * throws a controlled 409, never a silent double-transition.
  */
-import { and, eq, or, ilike, isNull, count, desc } from "drizzle-orm";
-import { db, assetsTable, assetAssignmentsTable, branchesTable, employeesTable, type Asset, type AssetAssignment } from "@workspace/db";
+import { and, eq, or, ilike, isNull, count, desc, inArray } from "drizzle-orm";
+import {
+  db,
+  assetsTable,
+  assetAssignmentsTable,
+  assetIncidentsTable,
+  branchesTable,
+  employeesTable,
+  type Asset,
+  type AssetAssignment,
+  type AssetIncident,
+} from "@workspace/db";
 import { recordAuditEvent } from "./auditLog";
 import { assertBelongsToOrganization, CrossOrganizationReferenceError } from "./orgScopedRefs";
 import { isUniqueViolation } from "./dbErrors";
@@ -94,6 +104,12 @@ export class AssetAssignmentNotFoundError extends Error {
   }
 }
 export class AssetAssignmentConflictError extends Error {}
+export class AssetNotCurrentlyAssignedToCallerError extends Error {
+  constructor() {
+    super("You may only report an issue on an asset currently assigned to you");
+    this.name = "AssetNotCurrentlyAssignedToCallerError";
+  }
+}
 
 type AssetCondition = "new" | "good" | "fair" | "poor" | "damaged";
 
@@ -918,5 +934,165 @@ export async function listAssetAssignments(params: ListAssetAssignmentsParams): 
     .select()
     .from(assetAssignmentsTable)
     .where(and(...conditions))
+    .orderBy(desc(assetAssignmentsTable.issuedAt));
+}
+
+/**
+ * ============================================================================
+ * Asset Management (Phase 3E, W98 — Employee & Manager Asset Views, Incident
+ * Reporting): docs/PHASE_3E_ASSETS_IMPLEMENTATION_PLAN.md §9/§20/§24's own
+ * frozen W98 scope — the "Employee own assets / manager team view" route
+ * group: `my-assets`, `team-assets`, `report-issue`. No HR-side incident
+ * review/dismiss (W99, `asset_incident.reviewed`/`.dismissed` are not
+ * emitted anywhere in this file), no maintenance, no evidence.
+ *
+ * OWN INCIDENT VISIBILITY — DISCLOSED, NOT BUILT: the frozen §20 contract
+ * has exactly one incident-related route in this workstream's own API-impact
+ * line ("POST .../assets/:id/report-issue"). The only incident LIST route
+ * anywhere in §20 is `GET .../asset-incidents`, which lives under the
+ * separate "Incident handling (HR/Asset-Officer)" group, gated
+ * `asset_management.manage` — not this workstream's own group, and not
+ * `asset_management.read.own`-reachable at all. No own-scoped incident list/
+ * detail route is built here; this is the frozen contract's own literal
+ * shape, not an oversight.
+ *
+ * REPORT-ONLY INVARIANT (Owner Decision 2, permanent): `reportAssetIssue`
+ * below inserts exactly one `asset_incidents` row and touches nothing else —
+ * no write to `assetsTable` (status/condition), no write to
+ * `assetAssignmentsTable` (custodyEndedAt/endReason), anywhere in this
+ * function. An incident always starts `status='open'`; the `reviewed`/
+ * `dismissed` transitions belong exclusively to W99's own HR-side routes,
+ * which do not exist in this codebase yet.
+ *
+ * `asset_management.write.own` PERMANENT INVARIANT (§15): authorizes exactly
+ * two own-scoped actions across this entire module — W97's own acknowledge
+ * (already shipped) and this workstream's own report-issue. It is never
+ * checked anywhere else, and neither function it gates ever mutates asset or
+ * custody state.
+ *
+ * MANAGER SCOPE IS LIVE, NEVER SNAPSHOTTED (Owner Decision 3): `listTeamAssetAssignments`
+ * below joins `asset_assignments` against `employees.reportingManagerId` at
+ * query time — the *current* relationship, re-evaluated on every call, never
+ * a stored/cached value. Current-custody only (`custodyEndedAt IS NULL`) —
+ * no historical reach through this function, matching the frozen plan's own
+ * explicit "no organization-wide fallback, no manager snapshot" text. The
+ * permission floor is the same uniform `asset_management.read.own` every
+ * role already holds (§15's own text: "the single coarse-floor read
+ * permission... fine-grained scope... resolved server-side from... live
+ * relationships") — manager authority here comes from the relationship
+ * query itself, never from a separate permission tier.
+ * ============================================================================
+ */
+
+export interface ReportAssetIssueParams {
+  organizationId: number;
+  assetId: number;
+  employeeId: number;
+  incidentType: "damage" | "loss";
+  description: string;
+  actorApplicationUserId: number;
+  actorMembershipId: number;
+}
+
+/**
+ * Decision 2: only on an asset with an active assignment belonging to the
+ * caller. Creates exactly one asset_incidents row (status='open',
+ * server-derived reportedByEmployeeId/reportedAt) — never mutates the asset
+ * or the assignment. Free-text description is never placed in audit
+ * metadata.
+ */
+export async function reportAssetIssue(params: ReportAssetIssueParams): Promise<AssetIncident> {
+  const asset = await findOwnAsset(params.organizationId, params.assetId);
+  if (!asset) throw new AssetNotFoundError();
+
+  const [activeAssignment] = await db
+    .select()
+    .from(assetAssignmentsTable)
+    .where(
+      and(
+        eq(assetAssignmentsTable.organizationId, params.organizationId),
+        eq(assetAssignmentsTable.assetId, params.assetId),
+        eq(assetAssignmentsTable.employeeId, params.employeeId),
+        isNull(assetAssignmentsTable.custodyEndedAt),
+      ),
+    )
+    .limit(1);
+  if (!activeAssignment) throw new AssetNotCurrentlyAssignedToCallerError();
+
+  const [incident] = await db
+    .insert(assetIncidentsTable)
+    .values({
+      organizationId: params.organizationId,
+      assetId: params.assetId,
+      assignmentId: activeAssignment.id,
+      reportedByEmployeeId: params.employeeId,
+      incidentType: params.incidentType,
+      description: params.description,
+      status: "open",
+      reviewedByMembershipId: null,
+      reviewedAt: null,
+      resolutionNotes: null,
+    })
+    .returning();
+
+  await recordAuditEvent({
+    actorApplicationUserId: params.actorApplicationUserId,
+    actorMembershipId: params.actorMembershipId,
+    organizationId: params.organizationId,
+    eventType: "asset_incident.reported",
+    targetType: "asset_incident",
+    targetId: String(incident.id),
+    metadata: { assetId: params.assetId, assignmentId: activeAssignment.id, incidentType: params.incidentType },
+  });
+
+  return incident;
+}
+
+/**
+ * GET .../assets/my-assets: the caller's own current + full historical
+ * assignments across every asset, newest first. A caller with no linked
+ * employee record gets an empty list, never an error.
+ */
+export async function listMyAssetAssignments(organizationId: number, employeeId: number | null): Promise<AssetAssignment[]> {
+  if (employeeId == null) return [];
+  return db
+    .select()
+    .from(assetAssignmentsTable)
+    .where(and(eq(assetAssignmentsTable.organizationId, organizationId), eq(assetAssignmentsTable.employeeId, employeeId)))
+    .orderBy(desc(assetAssignmentsTable.issuedAt));
+}
+
+/**
+ * GET .../assets/team-assets (Decision 3): current custody only, for
+ * current direct reports only — the reportingManagerId join is evaluated
+ * live on every call. A caller with no linked employee record, or with zero
+ * current direct reports, gets an empty list, never an error and never an
+ * organization-wide fallback.
+ */
+export async function listTeamAssetAssignments(organizationId: number, managerEmployeeId: number | null): Promise<AssetAssignment[]> {
+  if (managerEmployeeId == null) return [];
+
+  // Two simple queries rather than a join: first resolve the caller's
+  // CURRENT direct reports (a live query against employees.reportingManagerId,
+  // never cached/snapshotted — re-evaluated fresh on every call), then fetch
+  // only THEIR currently-active assignments. A direct-report set that has
+  // shrunk since a previous call is reflected immediately, by construction.
+  const directReports = await db
+    .select({ id: employeesTable.id })
+    .from(employeesTable)
+    .where(and(eq(employeesTable.organizationId, organizationId), eq(employeesTable.reportingManagerId, managerEmployeeId)));
+  if (directReports.length === 0) return [];
+  const directReportIds = directReports.map((e) => e.id);
+
+  return db
+    .select()
+    .from(assetAssignmentsTable)
+    .where(
+      and(
+        eq(assetAssignmentsTable.organizationId, organizationId),
+        isNull(assetAssignmentsTable.custodyEndedAt),
+        inArray(assetAssignmentsTable.employeeId, directReportIds),
+      ),
+    )
     .orderBy(desc(assetAssignmentsTable.issuedAt));
 }

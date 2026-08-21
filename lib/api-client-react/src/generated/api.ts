@@ -45,6 +45,7 @@ import type {
   ApproveOfferVersionInput,
   Asset,
   AssetAssignment,
+  AssetIncident,
   AssetListResponse,
   AssignAssetInput,
   AssignLearningEnrollmentsInput,
@@ -228,6 +229,7 @@ import type {
   ReplacePerformanceRatingScaleLevelsInput,
   ReplacePerformanceTemplateCompetenciesInput,
   Report,
+  ReportAssetIssueInput,
   ReportRunResult,
   RequestLearningEnrollmentInput,
   RequisitionApproval,
@@ -24572,5 +24574,236 @@ export const useAcknowledgeAssetAssignment = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getAcknowledgeAssetAssignmentMutationOptions(options));
+    }
+
+export const getListMyAssetAssignmentsUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/assets/my-assets`
+}
+
+/**
+ * Requires asset_management.read.own. Identity is server-resolved from the caller's own linked employee record — never client-supplied. Returns the caller's own current + full historical assignments across every asset, newest first. A caller with no linked employee record gets an empty list, never an error.
+ * @summary List my own current and historical asset custody
+ */
+export const listMyAssetAssignments = async (organizationId: number, options?: RequestInit): Promise<AssetAssignment[]> => {
+
+  return customFetch<AssetAssignment[]>(getListMyAssetAssignmentsUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyAssetAssignmentsQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/assets/my-assets`
+    ] as const;
+    }
+
+
+export const getListMyAssetAssignmentsQueryOptions = <TData = Awaited<ReturnType<typeof listMyAssetAssignments>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyAssetAssignments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyAssetAssignmentsQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyAssetAssignments>>> = ({ signal }) => listMyAssetAssignments(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyAssetAssignments>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMyAssetAssignmentsQueryResult = NonNullable<Awaited<ReturnType<typeof listMyAssetAssignments>>>
+export type ListMyAssetAssignmentsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List my own current and historical asset custody
+ */
+
+export function useListMyAssetAssignments<TData = Awaited<ReturnType<typeof listMyAssetAssignments>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyAssetAssignments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMyAssetAssignmentsQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListTeamAssetAssignmentsUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/assets/team-assets`
+}
+
+/**
+ * Requires asset_management.read.own. Current custody only, for current direct reports only — the reportingManagerId relationship is resolved live on every call, never snapshotted, never falling back to organization-wide reach. No closed/historical assignment is ever returned through this route. A caller with no linked employee record, or with zero current direct reports, gets an empty list.
+ * @summary List current custody for my current direct reports (Decision 3)
+ */
+export const listTeamAssetAssignments = async (organizationId: number, options?: RequestInit): Promise<AssetAssignment[]> => {
+
+  return customFetch<AssetAssignment[]>(getListTeamAssetAssignmentsUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListTeamAssetAssignmentsQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/assets/team-assets`
+    ] as const;
+    }
+
+
+export const getListTeamAssetAssignmentsQueryOptions = <TData = Awaited<ReturnType<typeof listTeamAssetAssignments>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTeamAssetAssignments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListTeamAssetAssignmentsQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listTeamAssetAssignments>>> = ({ signal }) => listTeamAssetAssignments(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listTeamAssetAssignments>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListTeamAssetAssignmentsQueryResult = NonNullable<Awaited<ReturnType<typeof listTeamAssetAssignments>>>
+export type ListTeamAssetAssignmentsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List current custody for my current direct reports (Decision 3)
+ */
+
+export function useListTeamAssetAssignments<TData = Awaited<ReturnType<typeof listTeamAssetAssignments>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTeamAssetAssignments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListTeamAssetAssignmentsQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getReportAssetIssueUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/assets/${id}/report-issue`
+}
+
+/**
+ * Requires asset_management.write.own. Decision 2 — report-only. Identity is server-resolved, never client-supplied. Only on an asset with an active assignment belonging to the caller. Creates exactly one asset_incidents row (status=open) — never mutates asset status, condition, or custody state. HR/Asset-Officer review (reviewed/ dismissed) is a separate, later workstream's own routes.
+ * @summary Report a loss/damage issue on an asset currently assigned to me
+ */
+export const reportAssetIssue = async (organizationId: number,
+    id: number,
+    reportAssetIssueInput: ReportAssetIssueInput, options?: RequestInit): Promise<AssetIncident> => {
+
+  return customFetch<AssetIncident>(getReportAssetIssueUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reportAssetIssueInput)
+  }
+);}
+
+
+
+
+
+export const getReportAssetIssueMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reportAssetIssue>>, TError,{organizationId: number;id: number;data: BodyType<ReportAssetIssueInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reportAssetIssue>>, TError,{organizationId: number;id: number;data: BodyType<ReportAssetIssueInput>}, TContext> => {
+
+const mutationKey = ['reportAssetIssue'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reportAssetIssue>>, {organizationId: number;id: number;data: BodyType<ReportAssetIssueInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  reportAssetIssue(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReportAssetIssueMutationResult = NonNullable<Awaited<ReturnType<typeof reportAssetIssue>>>
+    export type ReportAssetIssueMutationBody = BodyType<ReportAssetIssueInput>
+    export type ReportAssetIssueMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Report a loss/damage issue on an asset currently assigned to me
+ */
+export const useReportAssetIssue = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reportAssetIssue>>, TError,{organizationId: number;id: number;data: BodyType<ReportAssetIssueInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reportAssetIssue>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<ReportAssetIssueInput>},
+        TContext
+      > => {
+      return useMutation(getReportAssetIssueMutationOptions(options));
     }
 

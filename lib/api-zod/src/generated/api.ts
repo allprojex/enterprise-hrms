@@ -10553,3 +10553,110 @@ export const AcknowledgeAssetAssignmentResponse = zod.object({
 })
 
 
+/**
+ * Requires asset_management.read.own. Identity is server-resolved from the caller's own linked employee record — never client-supplied. Returns the caller's own current + full historical assignments across every asset, newest first. A caller with no linked employee record gets an empty list, never an error.
+ * @summary List my own current and historical asset custody
+ */
+export const ListMyAssetAssignmentsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListMyAssetAssignmentsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "assetId": zod.number(),
+  "employeeId": zod.number().describe('Live reference — current identity, used for manager-scope resolution elsewhere. Not a historical snapshot.'),
+  "assetTagSnapshot": zod.string(),
+  "assetNameSnapshot": zod.string(),
+  "categorySnapshot": zod.string(),
+  "departmentIdSnapshot": zod.number().nullish().describe('The employee\'s department at issue time — never re-derived from a later transfer.'),
+  "positionIdSnapshot": zod.number().nullish(),
+  "issuedAt": zod.coerce.date(),
+  "issuedByMembershipId": zod.number().nullish(),
+  "expectedReturnDate": zod.coerce.date().nullish(),
+  "issueCondition": zod.enum(['new', 'good', 'fair', 'poor', 'damaged']).describe('Deliberately independent of asset status (§7) — a damaged asset can still be assigned or in maintenance.'),
+  "issueNotes": zod.string().nullish(),
+  "acknowledgedAt": zod.coerce.date().nullish().describe('Set once, only while custodyEndedAt is null. Never cleared by a later return.'),
+  "acknowledgementNote": zod.string().nullish(),
+  "custodyEndedAt": zod.coerce.date().nullish().describe('NULL means this is the currently-active assignment.'),
+  "endReason": zod.union([zod.enum(['returned', 'lost', 'transferred', 'retired']),zod.null()]).optional(),
+  "receivedByMembershipId": zod.number().nullish(),
+  "returnCondition": zod.union([zod.enum(['new', 'good', 'fair', 'poor', 'damaged']).describe('Deliberately independent of asset status (§7) — a damaged asset can still be assigned or in maintenance.'),zod.null()]).optional(),
+  "returnNotes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListMyAssetAssignmentsResponse = zod.array(ListMyAssetAssignmentsResponseItem)
+
+
+/**
+ * Requires asset_management.read.own. Current custody only, for current direct reports only — the reportingManagerId relationship is resolved live on every call, never snapshotted, never falling back to organization-wide reach. No closed/historical assignment is ever returned through this route. A caller with no linked employee record, or with zero current direct reports, gets an empty list.
+ * @summary List current custody for my current direct reports (Decision 3)
+ */
+export const ListTeamAssetAssignmentsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListTeamAssetAssignmentsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "assetId": zod.number(),
+  "employeeId": zod.number().describe('Live reference — current identity, used for manager-scope resolution elsewhere. Not a historical snapshot.'),
+  "assetTagSnapshot": zod.string(),
+  "assetNameSnapshot": zod.string(),
+  "categorySnapshot": zod.string(),
+  "departmentIdSnapshot": zod.number().nullish().describe('The employee\'s department at issue time — never re-derived from a later transfer.'),
+  "positionIdSnapshot": zod.number().nullish(),
+  "issuedAt": zod.coerce.date(),
+  "issuedByMembershipId": zod.number().nullish(),
+  "expectedReturnDate": zod.coerce.date().nullish(),
+  "issueCondition": zod.enum(['new', 'good', 'fair', 'poor', 'damaged']).describe('Deliberately independent of asset status (§7) — a damaged asset can still be assigned or in maintenance.'),
+  "issueNotes": zod.string().nullish(),
+  "acknowledgedAt": zod.coerce.date().nullish().describe('Set once, only while custodyEndedAt is null. Never cleared by a later return.'),
+  "acknowledgementNote": zod.string().nullish(),
+  "custodyEndedAt": zod.coerce.date().nullish().describe('NULL means this is the currently-active assignment.'),
+  "endReason": zod.union([zod.enum(['returned', 'lost', 'transferred', 'retired']),zod.null()]).optional(),
+  "receivedByMembershipId": zod.number().nullish(),
+  "returnCondition": zod.union([zod.enum(['new', 'good', 'fair', 'poor', 'damaged']).describe('Deliberately independent of asset status (§7) — a damaged asset can still be assigned or in maintenance.'),zod.null()]).optional(),
+  "returnNotes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListTeamAssetAssignmentsResponse = zod.array(ListTeamAssetAssignmentsResponseItem)
+
+
+/**
+ * Requires asset_management.write.own. Decision 2 — report-only. Identity is server-resolved, never client-supplied. Only on an asset with an active assignment belonging to the caller. Creates exactly one asset_incidents row (status=open) — never mutates asset status, condition, or custody state. HR/Asset-Officer review (reviewed/ dismissed) is a separate, later workstream's own routes.
+ * @summary Report a loss/damage issue on an asset currently assigned to me
+ */
+export const ReportAssetIssueParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const ReportAssetIssueBody = zod.object({
+  "incidentType": zod.enum(['damage', 'loss']),
+  "description": zod.string().min(1)
+})
+
+export const ReportAssetIssueResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "assetId": zod.number(),
+  "assignmentId": zod.number().describe('The specific custody period this report concerns.'),
+  "reportedByEmployeeId": zod.number().describe('Server-derived from caller identity at creation — never client-supplied.'),
+  "incidentType": zod.enum(['damage', 'loss']),
+  "description": zod.string(),
+  "reportedAt": zod.coerce.date(),
+  "status": zod.enum(['open', 'reviewed', 'dismissed']).describe('Minimal lifecycle. open -> reviewed | dismissed are HR\/Asset-Officer-only transitions, both terminal (no reopen).'),
+  "reviewedByMembershipId": zod.number().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "resolutionNotes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+

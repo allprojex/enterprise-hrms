@@ -389,6 +389,13 @@ export function AppShell({ children }: AppShellProps) {
     // above; the backend's own asset_management.manage/.read.own gating is
     // the real authorization boundary regardless of nav visibility.
     ...(isHrCapable ? [{ href: '/assets', label: 'Asset Register', icon: Boxes } satisfies NavItem] : []),
+    // Phase 3E, W98 — §19's own frozen manager "Team Assets" surface
+    // (Decision 3), same isHrCapable-only nav precedent as
+    // /learning-team-training (W89): the backend's own live
+    // reportingManagerId relationship check is the real authorization
+    // boundary, so a non-HR manager who navigates directly is still
+    // correctly authorized and scoped.
+    ...(isHrCapable ? [{ href: '/team-assets', label: 'Team Assets', icon: Users } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisitions', label: 'Job Requisitions', icon: ClipboardList } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisition-approvals', label: 'Requisition Approvals', icon: Stamp } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/vacancies', label: 'Vacancies', icon: Megaphone } satisfies NavItem] : []),

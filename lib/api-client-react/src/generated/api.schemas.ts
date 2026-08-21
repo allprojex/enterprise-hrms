@@ -5687,6 +5687,54 @@ export interface AcknowledgeAssetAssignmentInput {
   acknowledgementNote?: string;
 }
 
+export type AssetIncidentType = typeof AssetIncidentType[keyof typeof AssetIncidentType];
+
+
+export const AssetIncidentType = {
+  damage: 'damage',
+  loss: 'loss',
+} as const;
+
+/**
+ * Minimal lifecycle. open -> reviewed | dismissed are HR/Asset-Officer-only transitions, both terminal (no reopen).
+ */
+export type AssetIncidentStatus = typeof AssetIncidentStatus[keyof typeof AssetIncidentStatus];
+
+
+export const AssetIncidentStatus = {
+  open: 'open',
+  reviewed: 'reviewed',
+  dismissed: 'dismissed',
+} as const;
+
+export interface AssetIncident {
+  id: number;
+  organizationId: number;
+  assetId: number;
+  /** The specific custody period this report concerns. */
+  assignmentId: number;
+  /** Server-derived from caller identity at creation — never client-supplied. */
+  reportedByEmployeeId: number;
+  incidentType: AssetIncidentType;
+  description: string;
+  reportedAt: string;
+  status: AssetIncidentStatus;
+  /** @nullable */
+  reviewedByMembershipId?: number | null;
+  /** @nullable */
+  reviewedAt?: string | null;
+  /** @nullable */
+  resolutionNotes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReportAssetIssueInput {
+  incidentType: AssetIncidentType;
+  /** @minLength 1 */
+  description: string;
+}
+
 export type ListEmployeesParams = {
 search?: string;
 departmentId?: number;

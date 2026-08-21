@@ -12546,6 +12546,116 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/assets/my-assets:
+    get:
+      operationId: listMyAssetAssignments
+      tags: [assets]
+      summary: List my own current and historical asset custody
+      description: >-
+        Requires asset_management.read.own. Identity is server-resolved from
+        the caller's own linked employee record — never client-supplied.
+        Returns the caller's own current + full historical assignments
+        across every asset, newest first. A caller with no linked employee
+        record gets an empty list, never an error.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The caller's own assignment history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AssetAssignment"
+
+  /organizations/{organizationId}/assets/team-assets:
+    get:
+      operationId: listTeamAssetAssignments
+      tags: [assets]
+      summary: List current custody for my current direct reports (Decision 3)
+      description: >-
+        Requires asset_management.read.own. Current custody only, for
+        current direct reports only — the reportingManagerId relationship is
+        resolved live on every call, never snapshotted, never falling back
+        to organization-wide reach. No closed/historical assignment is ever
+        returned through this route. A caller with no linked employee record,
+        or with zero current direct reports, gets an empty list.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Current custody for the caller's current direct reports
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AssetAssignment"
+
+  /organizations/{organizationId}/assets/{id}/report-issue:
+    post:
+      operationId: reportAssetIssue
+      tags: [assets]
+      summary: Report a loss/damage issue on an asset currently assigned to me
+      description: >-
+        Requires asset_management.write.own. Decision 2 — report-only.
+        Identity is server-resolved, never client-supplied. Only on an asset
+        with an active assignment belonging to the caller. Creates exactly
+        one asset_incidents row (status=open) — never mutates asset status,
+        condition, or custody state. HR/Asset-Officer review (reviewed/
+        dismissed) is a separate, later workstream's own routes.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportAssetIssueInput"
+      responses:
+        "201":
+          description: Reported
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetIncident"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: This asset is not currently assigned to the caller
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -18989,3 +19099,62 @@ components:
       properties:
         acknowledgementNote:
           type: string
+
+
+    AssetIncidentType:
+      type: string
+      enum: [damage, loss]
+
+    AssetIncidentStatus:
+      type: string
+      enum: [open, reviewed, dismissed]
+      description: Minimal lifecycle. open -> reviewed | dismissed are HR/Asset-Officer-only transitions, both terminal (no reopen).
+
+    AssetIncident:
+      type: object
+      required: [id, organizationId, assetId, assignmentId, reportedByEmployeeId, incidentType, description, reportedAt, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        assetId:
+          type: integer
+        assignmentId:
+          type: integer
+          description: The specific custody period this report concerns.
+        reportedByEmployeeId:
+          type: integer
+          description: Server-derived from caller identity at creation — never client-supplied.
+        incidentType:
+          $ref: "#/components/schemas/AssetIncidentType"
+        description:
+          type: string
+        reportedAt:
+          type: string
+          format: date-time
+        status:
+          $ref: "#/components/schemas/AssetIncidentStatus"
+        reviewedByMembershipId:
+          type: ["integer", "null"]
+        reviewedAt:
+          type: ["string", "null"]
+          format: date-time
+        resolutionNotes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ReportAssetIssueInput:
+      type: object
+      required: [incidentType, description]
+      properties:
+        incidentType:
+          $ref: "#/components/schemas/AssetIncidentType"
+        description:
+          type: string
+          minLength: 1

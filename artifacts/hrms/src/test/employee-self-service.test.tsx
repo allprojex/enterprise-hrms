@@ -70,6 +70,12 @@ const { state } = vi.hoisted(() => ({
     myCertificatesError: undefined as unknown,
     learningEvidence: [] as unknown[],
     addLearningEvidenceMutate: vi.fn() as (...args: unknown[]) => void,
+    // My Assets (Phase 3E, W98)
+    myAssetAssignments: [] as unknown[],
+    myAssetAssignmentsLoading: false,
+    myAssetAssignmentsError: undefined as unknown,
+    acknowledgeAssetMutate: vi.fn() as (...args: unknown[]) => void,
+    reportAssetIssueMutate: vi.fn() as (...args: unknown[]) => void,
   },
 }));
 
@@ -154,6 +160,11 @@ vi.mock('@workspace/api-client-react', () => ({
   getListLearningEnrollmentEvidenceQueryKey: () => ['learningEnrollmentEvidence'],
   useAddLearningEnrollmentEvidence: () => ({ mutate: state.addLearningEvidenceMutate, isPending: false }),
   getDownloadLearningEnrollmentEvidenceUrl: (orgId: number, enrollmentId: number, evidenceId: number) => `/api/organizations/${orgId}/learning/enrollments/${enrollmentId}/evidence/${evidenceId}/download`,
+  // My Assets (Phase 3E, W98)
+  useListMyAssetAssignments: () => ({ data: state.myAssetAssignments, isLoading: state.myAssetAssignmentsLoading, error: state.myAssetAssignmentsError, refetch: vi.fn() }),
+  getListMyAssetAssignmentsQueryKey: () => ['myAssetAssignments'],
+  useAcknowledgeAssetAssignment: () => ({ mutate: state.acknowledgeAssetMutate, isPending: false }),
+  useReportAssetIssue: () => ({ mutate: state.reportAssetIssueMutate, isPending: false }),
 }));
 
 vi.mock('@/lib/auth', () => ({ getStoredToken: () => 'test-token' }));
@@ -1253,6 +1264,186 @@ describe('Employee Self-Service page', () => {
           expect.anything(),
         );
       });
+    });
+  });
+
+  describe('My Assets tab (W98)', () => {
+    function assignment(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 1, organizationId: 10, assetId: 1, employeeId: 42,
+        assetTagSnapshot: 'AST-00001', assetNameSnapshot: 'ThinkPad X1', categorySnapshot: 'laptop',
+        departmentIdSnapshot: null, positionIdSnapshot: null,
+        issuedAt: new Date().toISOString(), issuedByMembershipId: 3, expectedReturnDate: null,
+        issueCondition: 'good', issueNotes: null,
+        acknowledgedAt: null, acknowledgementNote: null,
+        custodyEndedAt: null, endReason: null, receivedByMembershipId: null, returnCondition: null, returnNotes: null,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+        ...overrides,
+      };
+    }
+
+    function resetAssetsState() {
+      state.myAssetAssignments = [];
+      state.myAssetAssignmentsLoading = false;
+      state.myAssetAssignmentsError = undefined;
+      state.acknowledgeAssetMutate = vi.fn();
+      state.reportAssetIssueMutate = vi.fn();
+    }
+
+    it('handles a disabled Asset Management module cleanly, without affecting other tabs', async () => {
+      resetAssetsState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'performance', enabled: true }), mod({ key: 'asset_management', enabled: false })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-assets'));
+      expect(screen.getByText(/asset management isn't enabled/i)).toBeInTheDocument();
+      // Other tabs remain unaffected by asset_management being disabled.
+      await userEvent.click(screen.getByTestId('tab-my-performance'));
+      expect(screen.queryByText(/asset management isn't enabled/i)).not.toBeInTheDocument();
+    });
+
+    it('shows an empty state when nothing is currently assigned', async () => {
+      resetAssetsState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'asset_management', enabled: true })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-assets'));
+      expect(screen.getByText(/no assets currently assigned to you/i)).toBeInTheDocument();
+    });
+
+    it('renders current custody with an unacknowledged badge and an Acknowledge action', async () => {
+      resetAssetsState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'asset_management', enabled: true })];
+      state.myAssetAssignments = [assignment({ id: 1, custodyEndedAt: null, acknowledgedAt: null })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-assets'));
+      expect(screen.getByTestId('card-my-asset-1')).toHaveTextContent('ThinkPad X1');
+      expect(screen.getByTestId('badge-ack-status-1')).toHaveTextContent('Not Yet Acknowledged');
+      expect(screen.getByTestId('button-open-acknowledge-1')).toBeInTheDocument();
+    });
+
+    it('does not offer Acknowledge once already acknowledged, and shows the acknowledged state', async () => {
+      resetAssetsState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'asset_management', enabled: true })];
+      state.myAssetAssignments = [assignment({ id: 1, custodyEndedAt: null, acknowledgedAt: new Date().toISOString() })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-assets'));
+      expect(screen.getByTestId('badge-ack-status-1')).toHaveTextContent('Acknowledged');
+      expect(screen.queryByTestId('button-open-acknowledge-1')).not.toBeInTheDocument();
+    });
+
+    it('submits acknowledgement through the real W97 route, with the literal receipt-confirmation wording', async () => {
+      resetAssetsState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'asset_management', enabled: true })];
+      state.myAssetAssignments = [assignment({ id: 1 })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-assets'));
+      await userEvent.click(screen.getByTestId('button-open-acknowledge-1'));
+      const confirmButton = screen.getByTestId('button-confirm-acknowledge-1');
+      expect(confirmButton).toHaveTextContent('I confirm I received this item');
+      await userEvent.click(confirmButton);
+      expect(state.acknowledgeAssetMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ organizationId: 10, id: 1 }),
+        expect.anything(),
+      );
+    });
+
+    it('explicitly disclaims approval, liability, damage acceptance, and financial responsibility (Decision 1) rather than staying silent on them', async () => {
+      resetAssetsState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'asset_management', enabled: true })];
+      state.myAssetAssignments = [assignment({ id: 1 })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-assets'));
+      await userEvent.click(screen.getByTestId('button-open-acknowledge-1'));
+      // The dialog's own disclaimer text negates all four concepts in one
+      // sentence — "It is not an approval, an agreement to liability, an
+      // acceptance of damage, or an acceptance of financial responsibility"
+      // — so the words are expected to appear, but only inside that single
+      // negating sentence, never as a standalone framing like "you approve"
+      // or "you accept liability."
+      expect(
+        screen.getByText(/It is not an approval, an agreement to liability, an acceptance of damage, or an acceptance of financial responsibility\./),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/^you approve/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/you accept liability/i)).not.toBeInTheDocument();
+    });
+
+    it('offers a Report an Issue action on a current assignment', async () => {
+      resetAssetsState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'asset_management', enabled: true })];
+      state.myAssetAssignments = [assignment({ id: 1, assetId: 9 })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-assets'));
+      expect(screen.getByTestId('button-open-report-issue-9')).toBeInTheDocument();
+    });
+
+    it('requires an issue type and a description before submitting an incident report', async () => {
+      resetAssetsState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'asset_management', enabled: true })];
+      state.myAssetAssignments = [assignment({ id: 1, assetId: 9 })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-assets'));
+      await userEvent.click(screen.getByTestId('button-open-report-issue-9'));
+      expect(screen.getByTestId('button-confirm-report-issue-9')).toBeDisabled();
+      await userEvent.type(screen.getByTestId('textarea-incident-description-9'), 'Screen cracked');
+      expect(screen.getByTestId('button-confirm-report-issue-9')).toBeDisabled();
+      await userEvent.click(screen.getByTestId('select-incident-type-9'));
+      await userEvent.click(screen.getByRole('option', { name: 'Damage' }));
+      expect(screen.getByTestId('button-confirm-report-issue-9')).not.toBeDisabled();
+    });
+
+    it('submits an incident report through the real report-issue route', async () => {
+      resetAssetsState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'asset_management', enabled: true })];
+      state.myAssetAssignments = [assignment({ id: 1, assetId: 9 })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-assets'));
+      await userEvent.click(screen.getByTestId('button-open-report-issue-9'));
+      await userEvent.click(screen.getByTestId('select-incident-type-9'));
+      await userEvent.click(screen.getByRole('option', { name: 'Loss' }));
+      await userEvent.type(screen.getByTestId('textarea-incident-description-9'), 'Cannot locate it');
+      await userEvent.click(screen.getByTestId('button-confirm-report-issue-9'));
+      expect(state.reportAssetIssueMutate).toHaveBeenCalledWith(
+        { organizationId: 10, id: 9, data: { incidentType: 'loss', description: 'Cannot locate it' } },
+        expect.anything(),
+      );
+    });
+
+    it('shows past custody in an Asset History section, distinct from current custody', async () => {
+      resetAssetsState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'asset_management', enabled: true })];
+      state.myAssetAssignments = [
+        assignment({ id: 1, assetId: 9, custodyEndedAt: null }),
+        assignment({ id: 2, assetId: 8, assetNameSnapshot: 'Old Monitor', custodyEndedAt: new Date().toISOString(), endReason: 'returned' }),
+      ];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-assets'));
+      expect(screen.getByTestId('card-my-asset-1')).toBeInTheDocument();
+      expect(screen.queryByTestId('card-my-asset-2')).not.toBeInTheDocument();
+      expect(screen.getByTestId('row-my-asset-history-2')).toHaveTextContent('Old Monitor');
+    });
+
+    it('exposes no HR/manager mutation control anywhere on this tab', async () => {
+      resetAssetsState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'asset_management', enabled: true })];
+      state.myAssetAssignments = [assignment({ id: 1, assetId: 9 })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-assets'));
+      expect(screen.queryByRole('button', { name: /^assign/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^return/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /retire/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /mark lost/i })).not.toBeInTheDocument();
     });
   });
 });
