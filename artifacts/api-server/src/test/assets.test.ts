@@ -65,7 +65,7 @@ const {
     permissionsTable: mockTable("permissions", ["id", "key"]),
     modulesTable: mockTable("modules", ["id", "key", "status", "defaultEnabled", "requiredModuleKeys"]),
     organizationModulesTable: mockTable("organization_modules", ["id", "organizationId", "moduleId", "enabled"]),
-    employeesTable: mockTable("employees", ["id", "organizationId"]),
+    employeesTable: mockTable("employees", ["id", "organizationId", "departmentId", "positionId"]),
     employeeUserLinksTable: mockTable("employee_user_links", ["employeeId", "applicationUserId"]),
     branchesTable: mockTable("branches", ["id", "organizationId"]),
     assetsTable: mockTable("assets", [
@@ -73,7 +73,12 @@ const {
       "serialNumber", "branchId", "purchaseDate", "purchaseCost", "purchaseCurrency", "warrantyExpiryDate",
       "condition", "status", "notes", "createdBy",
     ]),
-    assetAssignmentsTable: mockTable("asset_assignments", ["id", "organizationId", "assetId", "employeeId", "custodyEndedAt", "endReason"]),
+    assetAssignmentsTable: mockTable("asset_assignments", [
+      "id", "organizationId", "assetId", "employeeId", "assetTagSnapshot", "assetNameSnapshot", "categorySnapshot",
+      "departmentIdSnapshot", "positionIdSnapshot", "issuedAt", "issuedByMembershipId", "expectedReturnDate",
+      "issueCondition", "issueNotes", "acknowledgedAt", "acknowledgementNote", "custodyEndedAt", "endReason",
+      "receivedByMembershipId", "returnCondition", "returnNotes",
+    ]),
     auditEventsTable: mockTable("audit_events", ["id", "eventType", "targetType", "targetId", "organizationId"]),
     state: {
       sessionRows: [] as unknown[],
@@ -134,6 +139,14 @@ function checkAssetUniqueness(table: { __name: string }, candidate: Record<strin
   }
 }
 
+/** Simulates W95's own asset_assignments_one_active_per_asset partial unique index — the defense-in-depth backstop assignAsset falls back on if the status='available' guard is ever bypassed. */
+function checkAssetAssignmentUniqueness(table: { __name: string }, candidate: Record<string, unknown>) {
+  if (table.__name !== "asset_assignments") return;
+  if (candidate.custodyEndedAt != null) return;
+  const rows = rowsFor(table);
+  if (rows.some((r) => r.assetId === candidate.assetId && r.custodyEndedAt == null)) throw uniqueViolation();
+}
+
 function makeQueryClient(): unknown {
   const client = {
     select: (proj?: Record<string, unknown>) => ({
@@ -186,7 +199,10 @@ function makeQueryClient(): unknown {
     insert: (table: { __name: string }) => ({
       values: (v: Record<string, unknown> | Record<string, unknown>[]) => {
         const items = Array.isArray(v) ? v : [v];
-        for (const item of items) checkAssetUniqueness(table, item);
+        for (const item of items) {
+          checkAssetUniqueness(table, item);
+          checkAssetAssignmentUniqueness(table, item);
+        }
         const inserted = items.map((item) => ({ id: nextId(table.__name), createdAt: new Date(), updatedAt: new Date(), ...item }));
         setRowsFor(table, [...rowsFor(table), ...inserted]);
         return { returning: () => Promise.resolve(inserted) };
@@ -252,6 +268,7 @@ vi.mock("drizzle-orm", () => ({
   gt: () => undefined,
   inArray: (col: string, vals: unknown[]) => ({ __op: "in", field: typeof col === "string" ? col.split(".").pop() : col, vals }),
   count: () => "count",
+  desc: () => undefined,
 }));
 
 const { default: app } = await import("../app");
@@ -261,6 +278,10 @@ const OTHER_ORG_ID = 20;
 const HR_USER_ID = 1;
 const EMPLOYEE_USER_ID = 2;
 const OTHER_ORG_HR_USER_ID = 3;
+const EMPLOYEE2_USER_ID = 4;
+const EMPLOYEE_ID = 900;
+const EMPLOYEE2_ID = 901;
+const OTHER_ORG_EMPLOYEE_ID = 902;
 
 function mockSession(userId: number) {
   state.sessionRows = [
@@ -304,6 +325,11 @@ function employeeHeaders() {
   mockPermissions(EMPLOYEE_PERMISSIONS);
   return { Authorization: `Bearer token-${EMPLOYEE_USER_ID}` };
 }
+function employee2Headers() {
+  mockSession(EMPLOYEE2_USER_ID);
+  mockPermissions(EMPLOYEE_PERMISSIONS);
+  return { Authorization: `Bearer token-${EMPLOYEE2_USER_ID}` };
+}
 function otherOrgHrHeaders() {
   mockSession(OTHER_ORG_HR_USER_ID);
   mockPermissions(HR_PERMISSIONS);
@@ -328,12 +354,27 @@ beforeEach(() => {
   mockMembership(HR_USER_ID, ORG_ID, 100);
   mockMembership(EMPLOYEE_USER_ID, ORG_ID, 101);
   mockMembership(OTHER_ORG_HR_USER_ID, OTHER_ORG_ID, 102);
+  mockMembership(EMPLOYEE2_USER_ID, ORG_ID, 103);
   mockAssetModuleEnabled(ORG_ID);
   mockAssetModuleEnabled(OTHER_ORG_ID);
 
   state.branchRows = [
     { id: 500, organizationId: ORG_ID },
     { id: 600, organizationId: OTHER_ORG_ID },
+  ];
+
+  // Assignment-target employees (W97): EMPLOYEE_ID is linked to
+  // EMPLOYEE_USER_ID (the "own-scope" caller in acknowledge/list tests),
+  // EMPLOYEE2_ID is a second, unrelated org employee, and
+  // OTHER_ORG_EMPLOYEE_ID belongs to a different organization entirely.
+  state.employeeRows = [
+    { id: EMPLOYEE_ID, organizationId: ORG_ID, departmentId: 55, positionId: 66 },
+    { id: EMPLOYEE2_ID, organizationId: ORG_ID, departmentId: 77, positionId: 88 },
+    { id: OTHER_ORG_EMPLOYEE_ID, organizationId: OTHER_ORG_ID, departmentId: null, positionId: null },
+  ];
+  state.employeeUserLinkRows = [
+    { employeeId: EMPLOYEE_ID, applicationUserId: EMPLOYEE_USER_ID },
+    { employeeId: EMPLOYEE2_ID, applicationUserId: EMPLOYEE2_USER_ID },
   ];
 });
 
@@ -630,11 +671,6 @@ describe("Asset Register (W96)", () => {
   });
 
   describe("scope boundary — no later-workstream surface exists yet", () => {
-    it("has no assignment route", async () => {
-      const created = await request(app).post(`/api/organizations/${ORG_ID}/assets`).set(hrHeaders()).send({ categoryCode: "laptop", name: "X" });
-      const res = await request(app).post(`/api/organizations/${ORG_ID}/assets/${created.body.id}/assign`).set(hrHeaders()).send({ employeeId: 1 });
-      expect(res.status).toBe(404);
-    });
     it("has no incident route", async () => {
       const created = await request(app).post(`/api/organizations/${ORG_ID}/assets`).set(hrHeaders()).send({ categoryCode: "laptop", name: "X" });
       const res = await request(app).post(`/api/organizations/${ORG_ID}/assets/${created.body.id}/report-issue`).set(employeeHeaders()).send({});
@@ -650,9 +686,369 @@ describe("Asset Register (W96)", () => {
       const res = await request(app).get(`/api/organizations/${ORG_ID}/assets/${created.body.id}/evidence`).set(hrHeaders());
       expect(res.status).toBe(404);
     });
+    it("has no my-assets route (W98) — falls through to the generic :id route, which rejects the non-numeric segment", async () => {
+      const res = await request(app).get(`/api/organizations/${ORG_ID}/assets/my-assets`).set(employeeHeaders());
+      expect(res.status).toBe(400);
+    });
+    it("has no team-assets route (W98) — falls through to the generic :id route, which rejects the non-numeric segment", async () => {
+      const res = await request(app).get(`/api/organizations/${ORG_ID}/assets/team-assets`).set(hrHeaders());
+      expect(res.status).toBe(400);
+    });
     it("the Asset DTO carries no employeeId/custody field", async () => {
       const created = await request(app).post(`/api/organizations/${ORG_ID}/assets`).set(hrHeaders()).send({ categoryCode: "laptop", name: "X" });
       expect(created.body).not.toHaveProperty("employeeId");
+    });
+  });
+
+  describe("assignment — issue custody (W97)", () => {
+    async function createAvailableAsset() {
+      const res = await request(app).post(`/api/organizations/${ORG_ID}/assets`).set(hrHeaders()).send({ categoryCode: "laptop", name: "X", condition: "good" });
+      return res.body.id as number;
+    }
+
+    it("denies assign to an employee without asset_management.manage", async () => {
+      const assetId = await createAvailableAsset();
+      const res = await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/assign`).set(employeeHeaders()).send({ employeeId: EMPLOYEE_ID });
+      expect(res.status).toBe(403);
+    });
+
+    it("assigns an available asset, flips it to assigned, and captures the frozen snapshots", async () => {
+      const assetId = await createAvailableAsset();
+      const res = await request(app)
+        .post(`/api/organizations/${ORG_ID}/assets/${assetId}/assign`)
+        .set(hrHeaders())
+        .send({ employeeId: EMPLOYEE_ID, issueNotes: "Handed over at onboarding" });
+      expect(res.status).toBe(201);
+      expect(res.body.status).toBe("assigned");
+
+      const list = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}/assignments`).set(hrHeaders());
+      expect(list.body).toHaveLength(1);
+      const assignment = list.body[0];
+      expect(assignment.employeeId).toBe(EMPLOYEE_ID);
+      expect(assignment.assetTagSnapshot).toBe("AST-00001");
+      expect(assignment.assetNameSnapshot).toBe("X");
+      expect(assignment.categorySnapshot).toBe("laptop");
+      expect(assignment.departmentIdSnapshot).toBe(55);
+      expect(assignment.positionIdSnapshot).toBe(66);
+      expect(assignment.issueCondition).toBe("good");
+      expect(assignment.custodyEndedAt).toBeNull();
+      expect(assignment.acknowledgedAt).toBeNull();
+    });
+
+    it("never trusts a client-supplied snapshot field — snapshots always come from the server-side asset/employee rows", async () => {
+      const assetId = await createAvailableAsset();
+      await request(app)
+        .post(`/api/organizations/${ORG_ID}/assets/${assetId}/assign`)
+        .set(hrHeaders())
+        .send({ employeeId: EMPLOYEE_ID, assetTagSnapshot: "SPOOFED", assetNameSnapshot: "SPOOFED", departmentIdSnapshot: 99999 });
+      const list = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}/assignments`).set(hrHeaders());
+      expect(list.body[0].assetTagSnapshot).toBe("AST-00001");
+      expect(list.body[0].departmentIdSnapshot).toBe(55);
+    });
+
+    it("a later asset rename never rewrites a historical assignment's own snapshot", async () => {
+      const assetId = await createAvailableAsset();
+      await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/assign`).set(hrHeaders()).send({ employeeId: EMPLOYEE_ID });
+      await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/return`).set(hrHeaders()).send({});
+      await request(app).patch(`/api/organizations/${ORG_ID}/assets/${assetId}`).set(hrHeaders()).send({ name: "Renamed Later", categoryCode: "renamed-category" });
+      const list = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}/assignments`).set(hrHeaders());
+      expect(list.body[0].assetNameSnapshot).toBe("X");
+      expect(list.body[0].categorySnapshot).toBe("laptop");
+    });
+
+    it("rejects a second assignment while one is already active (duplicate active assignment, 409)", async () => {
+      const assetId = await createAvailableAsset();
+      await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/assign`).set(hrHeaders()).send({ employeeId: EMPLOYEE_ID });
+      const res = await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/assign`).set(hrHeaders()).send({ employeeId: EMPLOYEE2_ID });
+      expect(res.status).toBe(409);
+    });
+
+    it("rejects assignment of a retired asset", async () => {
+      const assetId = await createAvailableAsset();
+      await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/retire`).set(hrHeaders()).send({ reason: "r" });
+      const res = await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/assign`).set(hrHeaders()).send({ employeeId: EMPLOYEE_ID });
+      expect(res.status).toBe(409);
+    });
+
+    it("rejects assignment of a lost asset", async () => {
+      const assetId = await createAvailableAsset();
+      await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/mark-lost`).set(hrHeaders()).send({ reason: "r" });
+      const res = await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/assign`).set(hrHeaders()).send({ employeeId: EMPLOYEE_ID });
+      expect(res.status).toBe(409);
+    });
+
+    it("rejects an employeeId belonging to a different organization, never trusting a client-supplied cross-org id", async () => {
+      const assetId = await createAvailableAsset();
+      const res = await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/assign`).set(hrHeaders()).send({ employeeId: OTHER_ORG_EMPLOYEE_ID });
+      expect(res.status).toBe(400);
+    });
+
+    it("rejects a nonexistent employeeId", async () => {
+      const assetId = await createAvailableAsset();
+      const res = await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/assign`).set(hrHeaders()).send({ employeeId: 999999 });
+      expect(res.status).toBe(400);
+    });
+
+    it("returns 404 for a foreign-org asset", async () => {
+      const created = await request(app).post(`/api/organizations/${OTHER_ORG_ID}/assets`).set(otherOrgHrHeaders()).send({ categoryCode: "laptop", name: "X" });
+      const res = await request(app).post(`/api/organizations/${ORG_ID}/assets/${created.body.id}/assign`).set(hrHeaders()).send({ employeeId: EMPLOYEE_ID });
+      expect(res.status).toBe(404);
+    });
+
+    it("a genuine concurrent double-assign race resolves to exactly one winner, never two active assignments", async () => {
+      const assetId = await createAvailableAsset();
+      const [a, b] = await Promise.all([
+        request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/assign`).set(hrHeaders()).send({ employeeId: EMPLOYEE_ID }),
+        request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/assign`).set(hrHeaders()).send({ employeeId: EMPLOYEE2_ID }),
+      ]);
+      const statuses = [a.status, b.status].sort();
+      expect(statuses).toEqual([201, 409]);
+      const list = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}/assignments`).set(hrHeaders());
+      expect(list.body.filter((r: { custodyEndedAt: string | null }) => r.custodyEndedAt === null)).toHaveLength(1);
+    });
+
+    it("falls back to a controlled 409 (never a raw DB error) if the partial unique index itself is what fires", async () => {
+      // Defense-in-depth: simulate the status='available' guard somehow
+      // being bypassed by directly inserting an already-active assignment
+      // row for an asset the register still (inconsistently) reports as
+      // available, then confirm the insert-time unique-violation catch in
+      // assignAsset still converts it into a controlled conflict.
+      const assetId = await createAvailableAsset();
+      state.assetAssignmentRows = [
+        { id: 9001, organizationId: ORG_ID, assetId, employeeId: EMPLOYEE2_ID, custodyEndedAt: null, assetTagSnapshot: "AST-00001", assetNameSnapshot: "X", categorySnapshot: "laptop", issuedAt: new Date(), issueCondition: "good" },
+      ];
+      const res = await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/assign`).set(hrHeaders()).send({ employeeId: EMPLOYEE_ID });
+      expect(res.status).toBe(409);
+      expect(typeof res.body.error).toBe("string");
+      expect(res.body.error).not.toMatch(/23505|constraint|SQLSTATE/i);
+    });
+
+    it("emits asset.assigned", async () => {
+      const assetId = await createAvailableAsset();
+      await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/assign`).set(hrHeaders()).send({ employeeId: EMPLOYEE_ID });
+      expect(state.auditRows.some((r) => r.eventType === "asset.assigned")).toBe(true);
+    });
+  });
+
+  describe("return — close custody (W97)", () => {
+    async function createAssignedAsset(employeeId = EMPLOYEE_ID) {
+      const created = await request(app).post(`/api/organizations/${ORG_ID}/assets`).set(hrHeaders()).send({ categoryCode: "laptop", name: "X" });
+      await request(app).post(`/api/organizations/${ORG_ID}/assets/${created.body.id}/assign`).set(hrHeaders()).send({ employeeId });
+      return created.body.id as number;
+    }
+
+    it("denies return to an employee without asset_management.manage", async () => {
+      const assetId = await createAssignedAsset();
+      const res = await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/return`).set(employeeHeaders()).send({});
+      expect(res.status).toBe(403);
+    });
+
+    it("returns an assigned asset back to available and closes the active assignment", async () => {
+      const assetId = await createAssignedAsset();
+      const res = await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/return`).set(hrHeaders()).send({ returnCondition: "fair", returnNotes: "Minor wear" });
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe("available");
+
+      const list = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}/assignments`).set(hrHeaders());
+      expect(list.body).toHaveLength(1);
+      expect(list.body[0].custodyEndedAt).not.toBeNull();
+      expect(list.body[0].endReason).toBe("returned");
+      expect(list.body[0].returnCondition).toBe("fair");
+    });
+
+    it("rejects return when there is no active assignment", async () => {
+      const created = await request(app).post(`/api/organizations/${ORG_ID}/assets`).set(hrHeaders()).send({ categoryCode: "laptop", name: "X" });
+      const res = await request(app).post(`/api/organizations/${ORG_ID}/assets/${created.body.id}/return`).set(hrHeaders()).send({});
+      expect(res.status).toBe(409);
+    });
+
+    it("a repeat return call after the first succeeds is a controlled 409, never a double-close", async () => {
+      const assetId = await createAssignedAsset();
+      const first = await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/return`).set(hrHeaders()).send({});
+      expect(first.status).toBe(200);
+      const repeat = await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/return`).set(hrHeaders()).send({});
+      expect(repeat.status).toBe(409);
+    });
+
+    it("a genuine concurrent double-return race resolves to exactly one winner", async () => {
+      const assetId = await createAssignedAsset();
+      const [a, b] = await Promise.all([
+        request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/return`).set(hrHeaders()).send({}),
+        request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/return`).set(hrHeaders()).send({}),
+      ]);
+      const statuses = [a.status, b.status].sort();
+      expect(statuses).toEqual([200, 409]);
+    });
+
+    it("re-assigning after a return creates a brand-new history row, leaving the first row's employeeId unchanged", async () => {
+      const assetId = await createAssignedAsset(EMPLOYEE_ID);
+      await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/return`).set(hrHeaders()).send({});
+      await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/assign`).set(hrHeaders()).send({ employeeId: EMPLOYEE2_ID });
+      const list = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}/assignments`).set(hrHeaders());
+      expect(list.body).toHaveLength(2);
+      const first = list.body.find((r: { employeeId: number }) => r.employeeId === EMPLOYEE_ID);
+      const second = list.body.find((r: { employeeId: number }) => r.employeeId === EMPLOYEE2_ID);
+      expect(first.custodyEndedAt).not.toBeNull();
+      expect(second.custodyEndedAt).toBeNull();
+    });
+
+    it("returns 404 for a foreign-org asset", async () => {
+      const created = await request(app).post(`/api/organizations/${OTHER_ORG_ID}/assets`).set(otherOrgHrHeaders()).send({ categoryCode: "laptop", name: "X" });
+      const res = await request(app).post(`/api/organizations/${ORG_ID}/assets/${created.body.id}/return`).set(hrHeaders()).send({});
+      expect(res.status).toBe(404);
+    });
+
+    it("emits asset.returned", async () => {
+      const assetId = await createAssignedAsset();
+      await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/return`).set(hrHeaders()).send({});
+      expect(state.auditRows.some((r) => r.eventType === "asset.returned")).toBe(true);
+    });
+  });
+
+  describe("assignment history — GET .../assets/:id/assignments (W97)", () => {
+    it("returns the full history for an org-wide (asset_management.manage) caller", async () => {
+      const created = await request(app).post(`/api/organizations/${ORG_ID}/assets`).set(hrHeaders()).send({ categoryCode: "laptop", name: "X" });
+      await request(app).post(`/api/organizations/${ORG_ID}/assets/${created.body.id}/assign`).set(hrHeaders()).send({ employeeId: EMPLOYEE_ID });
+      await request(app).post(`/api/organizations/${ORG_ID}/assets/${created.body.id}/return`).set(hrHeaders()).send({});
+      await request(app).post(`/api/organizations/${ORG_ID}/assets/${created.body.id}/assign`).set(hrHeaders()).send({ employeeId: EMPLOYEE2_ID });
+      const res = await request(app).get(`/api/organizations/${ORG_ID}/assets/${created.body.id}/assignments`).set(hrHeaders());
+      expect(res.body).toHaveLength(2);
+    });
+
+    it("scopes a non-org-wide caller to only their own rows for this asset", async () => {
+      const created = await request(app).post(`/api/organizations/${ORG_ID}/assets`).set(hrHeaders()).send({ categoryCode: "laptop", name: "X" });
+      await request(app).post(`/api/organizations/${ORG_ID}/assets/${created.body.id}/assign`).set(hrHeaders()).send({ employeeId: EMPLOYEE_ID });
+      await request(app).post(`/api/organizations/${ORG_ID}/assets/${created.body.id}/return`).set(hrHeaders()).send({});
+      await request(app).post(`/api/organizations/${ORG_ID}/assets/${created.body.id}/assign`).set(hrHeaders()).send({ employeeId: EMPLOYEE2_ID });
+
+      const ownView = await request(app).get(`/api/organizations/${ORG_ID}/assets/${created.body.id}/assignments`).set(employeeHeaders());
+      expect(ownView.status).toBe(200);
+      expect(ownView.body).toHaveLength(1);
+      expect(ownView.body[0].employeeId).toBe(EMPLOYEE_ID);
+    });
+
+    it("returns an empty array (never a 403) for a non-org-wide caller with no rows on this asset", async () => {
+      const created = await request(app).post(`/api/organizations/${ORG_ID}/assets`).set(hrHeaders()).send({ categoryCode: "laptop", name: "X" });
+      const res = await request(app).get(`/api/organizations/${ORG_ID}/assets/${created.body.id}/assignments`).set(employeeHeaders());
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual([]);
+    });
+
+    it("returns 404 for a foreign-org asset", async () => {
+      const created = await request(app).post(`/api/organizations/${OTHER_ORG_ID}/assets`).set(otherOrgHrHeaders()).send({ categoryCode: "laptop", name: "X" });
+      const res = await request(app).get(`/api/organizations/${ORG_ID}/assets/${created.body.id}/assignments`).set(hrHeaders());
+      expect(res.status).toBe(404);
+    });
+
+    it("never emits an audit row", async () => {
+      const created = await request(app).post(`/api/organizations/${ORG_ID}/assets`).set(hrHeaders()).send({ categoryCode: "laptop", name: "X" });
+      await request(app).post(`/api/organizations/${ORG_ID}/assets/${created.body.id}/assign`).set(hrHeaders()).send({ employeeId: EMPLOYEE_ID });
+      const countBefore = state.auditRows.length;
+      await request(app).get(`/api/organizations/${ORG_ID}/assets/${created.body.id}/assignments`).set(hrHeaders());
+      expect(state.auditRows.length).toBe(countBefore);
+    });
+  });
+
+  describe("acknowledgement — POST .../asset-assignments/:id/acknowledge (W97)", () => {
+    async function createAssignedAsset(employeeId = EMPLOYEE_ID) {
+      const created = await request(app).post(`/api/organizations/${ORG_ID}/assets`).set(hrHeaders()).send({ categoryCode: "laptop", name: "X" });
+      await request(app).post(`/api/organizations/${ORG_ID}/assets/${created.body.id}/assign`).set(hrHeaders()).send({ employeeId });
+      const list = await request(app).get(`/api/organizations/${ORG_ID}/assets/${created.body.id}/assignments`).set(hrHeaders());
+      return { assetId: created.body.id as number, assignmentId: list.body[0].id as number };
+    }
+
+    it("asset_management.write.own is enough — a plain employee may acknowledge their own assignment", async () => {
+      const { assignmentId } = await createAssignedAsset();
+      const res = await request(app).post(`/api/organizations/${ORG_ID}/asset-assignments/${assignmentId}/acknowledge`).set(employeeHeaders()).send({});
+      expect(res.status).toBe(200);
+      expect(res.body.acknowledgedAt).not.toBeNull();
+    });
+
+    it("accepts an optional acknowledgementNote", async () => {
+      const { assignmentId } = await createAssignedAsset();
+      const res = await request(app).post(`/api/organizations/${ORG_ID}/asset-assignments/${assignmentId}/acknowledge`).set(employeeHeaders()).send({ acknowledgementNote: "Received in good condition" });
+      expect(res.status).toBe(200);
+      expect(res.body.acknowledgementNote).toBe("Received in good condition");
+    });
+
+    it("never mutates asset status, condition, or custody ownership", async () => {
+      const { assetId, assignmentId } = await createAssignedAsset();
+      await request(app).post(`/api/organizations/${ORG_ID}/asset-assignments/${assignmentId}/acknowledge`).set(employeeHeaders()).send({});
+      const asset = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}`).set(hrHeaders());
+      expect(asset.body.status).toBe("assigned");
+      expect(asset.body.condition).toBe("good");
+    });
+
+    it("denies an unrelated employee (404, never leaking existence)", async () => {
+      const { assignmentId } = await createAssignedAsset(EMPLOYEE_ID);
+      const res = await request(app).post(`/api/organizations/${ORG_ID}/asset-assignments/${assignmentId}/acknowledge`).set(employee2Headers()).send({});
+      expect(res.status).toBe(404);
+    });
+
+    it("rejects a repeat acknowledgement with a controlled 409, never a silent overwrite", async () => {
+      const { assignmentId } = await createAssignedAsset();
+      const first = await request(app).post(`/api/organizations/${ORG_ID}/asset-assignments/${assignmentId}/acknowledge`).set(employeeHeaders()).send({});
+      expect(first.status).toBe(200);
+      const repeat = await request(app).post(`/api/organizations/${ORG_ID}/asset-assignments/${assignmentId}/acknowledge`).set(employeeHeaders()).send({});
+      expect(repeat.status).toBe(409);
+    });
+
+    it("a genuine concurrent double-acknowledge race resolves to exactly one winner", async () => {
+      const { assignmentId } = await createAssignedAsset();
+      const [a, b] = await Promise.all([
+        request(app).post(`/api/organizations/${ORG_ID}/asset-assignments/${assignmentId}/acknowledge`).set(employeeHeaders()).send({}),
+        request(app).post(`/api/organizations/${ORG_ID}/asset-assignments/${assignmentId}/acknowledge`).set(employeeHeaders()).send({}),
+      ]);
+      const statuses = [a.status, b.status].sort();
+      expect(statuses).toEqual([200, 409]);
+    });
+
+    it("rejects acknowledgement of an already-closed (returned) assignment", async () => {
+      const { assetId, assignmentId } = await createAssignedAsset();
+      await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/return`).set(hrHeaders()).send({});
+      const res = await request(app).post(`/api/organizations/${ORG_ID}/asset-assignments/${assignmentId}/acknowledge`).set(employeeHeaders()).send({});
+      expect(res.status).toBe(409);
+    });
+
+    it("acknowledgement survives return — remains permanently visible on the now-closed row", async () => {
+      const { assetId, assignmentId } = await createAssignedAsset();
+      await request(app).post(`/api/organizations/${ORG_ID}/asset-assignments/${assignmentId}/acknowledge`).set(employeeHeaders()).send({});
+      await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/return`).set(hrHeaders()).send({});
+      const list = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}/assignments`).set(hrHeaders());
+      expect(list.body[0].acknowledgedAt).not.toBeNull();
+      expect(list.body[0].custodyEndedAt).not.toBeNull();
+    });
+
+    it("returns 404 for a nonexistent assignment id", async () => {
+      const res = await request(app).post(`/api/organizations/${ORG_ID}/asset-assignments/999999/acknowledge`).set(employeeHeaders()).send({});
+      expect(res.status).toBe(404);
+    });
+
+    it("returns 404 for a real foreign-org assignment id, never leaking existence", async () => {
+      const created = await request(app).post(`/api/organizations/${OTHER_ORG_ID}/assets`).set(otherOrgHrHeaders()).send({ categoryCode: "laptop", name: "X" });
+      await request(app).post(`/api/organizations/${OTHER_ORG_ID}/assets/${created.body.id}/assign`).set(otherOrgHrHeaders()).send({ employeeId: OTHER_ORG_EMPLOYEE_ID });
+      const otherList = await request(app).get(`/api/organizations/${OTHER_ORG_ID}/assets/${created.body.id}/assignments`).set(otherOrgHrHeaders());
+      const res = await request(app).post(`/api/organizations/${ORG_ID}/asset-assignments/${otherList.body[0].id}/acknowledge`).set(employeeHeaders()).send({});
+      expect(res.status).toBe(404);
+    });
+
+    it("denies module-disabled access", async () => {
+      const { assignmentId } = await createAssignedAsset();
+      state.organizationModuleRows = state.organizationModuleRows.filter((r) => (r as Record<string, unknown>).organizationId !== ORG_ID);
+      const res = await request(app).post(`/api/organizations/${ORG_ID}/asset-assignments/${assignmentId}/acknowledge`).set(employeeHeaders()).send({});
+      expect(res.status).toBe(403);
+    });
+
+    it("denies unauthenticated requests", async () => {
+      const { assignmentId } = await createAssignedAsset();
+      const res = await request(app).post(`/api/organizations/${ORG_ID}/asset-assignments/${assignmentId}/acknowledge`).send({});
+      expect(res.status).toBe(401);
+    });
+
+    it("emits asset_assignment.acknowledged", async () => {
+      const { assignmentId } = await createAssignedAsset();
+      await request(app).post(`/api/organizations/${ORG_ID}/asset-assignments/${assignmentId}/acknowledge`).set(employeeHeaders()).send({});
+      expect(state.auditRows.some((r) => r.eventType === "asset_assignment.acknowledged")).toBe(true);
     });
   });
 });

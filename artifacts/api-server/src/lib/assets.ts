@@ -59,8 +59,8 @@
  * prior status — a concurrent or wrong-state attempt affects zero rows and
  * throws a controlled 409, never a silent double-transition.
  */
-import { and, eq, or, ilike, isNull, count } from "drizzle-orm";
-import { db, assetsTable, assetAssignmentsTable, branchesTable, type Asset } from "@workspace/db";
+import { and, eq, or, ilike, isNull, count, desc } from "drizzle-orm";
+import { db, assetsTable, assetAssignmentsTable, branchesTable, employeesTable, type Asset, type AssetAssignment } from "@workspace/db";
 import { recordAuditEvent } from "./auditLog";
 import { assertBelongsToOrganization, CrossOrganizationReferenceError } from "./orgScopedRefs";
 import { isUniqueViolation } from "./dbErrors";
@@ -87,6 +87,13 @@ export class DuplicateAssetSerialNumberError extends Error {
   }
 }
 export class AssetLifecycleConflictError extends Error {}
+export class AssetAssignmentNotFoundError extends Error {
+  constructor() {
+    super("Asset assignment not found");
+    this.name = "AssetAssignmentNotFoundError";
+  }
+}
+export class AssetAssignmentConflictError extends Error {}
 
 type AssetCondition = "new" | "good" | "fair" | "poor" | "damaged";
 
@@ -95,6 +102,29 @@ async function findOwnAsset(organizationId: number, assetId: number): Promise<As
     .select()
     .from(assetsTable)
     .where(and(eq(assetsTable.id, assetId), eq(assetsTable.organizationId, organizationId)))
+    .limit(1);
+  return row ?? null;
+}
+
+/** Fetches the full employee row (for snapshot capture), scoped to the organization — never trusts a client-supplied employeeId across tenants. */
+async function findOrgEmployee(
+  organizationId: number,
+  employeeId: number,
+): Promise<{ id: number; departmentId: number | null; positionId: number | null } | null> {
+  const [row] = await db
+    .select({ id: employeesTable.id, organizationId: employeesTable.organizationId, departmentId: employeesTable.departmentId, positionId: employeesTable.positionId })
+    .from(employeesTable)
+    .where(eq(employeesTable.id, employeeId))
+    .limit(1);
+  if (!row || row.organizationId !== organizationId) return null;
+  return row;
+}
+
+async function findOrgAssignment(organizationId: number, assignmentId: number): Promise<AssetAssignment | null> {
+  const [row] = await db
+    .select()
+    .from(assetAssignmentsTable)
+    .where(and(eq(assetAssignmentsTable.id, assignmentId), eq(assetAssignmentsTable.organizationId, organizationId)))
     .limit(1);
   return row ?? null;
 }
@@ -571,4 +601,322 @@ export async function updateAssetCondition(params: UpdateAssetConditionParams): 
   });
 
   return updated;
+}
+
+/**
+ * ============================================================================
+ * Asset Management (Phase 3E, W97 — Assignment, Custody, Return &
+ * Acknowledgement): docs/PHASE_3E_ASSETS_IMPLEMENTATION_PLAN.md §8/§9/§14/
+ * §20/§24's own frozen W97 scope. `asset_assignments` business logic —
+ * issue/return, snapshot capture at issue, the acknowledgement route. The
+ * dedicated `asset_assignments` history table (W95) remains the sole
+ * custody source of truth — no mutable `assets.employeeId` pointer exists or
+ * is ever added; a transfer always closes the old row and creates a new one,
+ * never rewriting a historical row's own employeeId (§8).
+ *
+ * SCOPE BOUNDARY (§24's own W97 line): no incident reporting (W98/W99), no
+ * maintenance (W100), no evidence (W100), no ESS/manager self-service
+ * surfaces, no acknowledgement UI control (§24's own W97 frontend-impact
+ * line: "the acknowledgement control itself ships in W98 alongside the ESS
+ * surface that renders it — this workstream ships the route, not the
+ * employee-facing control"). `my-assets`/`team-assets`/`report-issue` are
+ * NOT built here — they belong to the "Employee own assets / manager team
+ * view" API group, which §24 assigns to W98, not to W97's own "Assignments"
+ * group.
+ *
+ * MAINTENANCE-ROUTING DISCLOSURE: §9's own text says return is "assigned →
+ * available, or → maintenance in the same call if return notes indicate a
+ * service need." This is not implemented — the parenthetical names no
+ * concrete request field or mechanism (no literal free-text parsing exists
+ * anywhere on this platform), W97's own §24 scope line never mentions
+ * maintenance, and no maintenance route/table logic is wired yet (W100).
+ * Per this workstream's own explicit instruction not to invent a
+ * caller-selectable resulting status unless the frozen plan unambiguously
+ * allows it, `returnAsset` here only ever performs the unambiguous
+ * `assigned → available` transition. The separate `assigned → maintenance`
+ * transition (§7 — custody stays OPEN, a recall for service, not a return at
+ * all) is also not built here, for the same reason and because it is not a
+ * custody-closing action in the first place.
+ *
+ * SNAPSHOTS (§14): `assetTagSnapshot`/`assetNameSnapshot`/`categorySnapshot`/
+ * `departmentIdSnapshot`/`positionIdSnapshot` are captured ONCE at issue
+ * time from the asset's and employee's own current server-side rows —
+ * never client-supplied, never re-derived or rewritten by a later
+ * asset/employee/department/position edit. `employeeId` itself is a LIVE
+ * reference (§14) — current identity, needed for manager-scope resolution
+ * elsewhere; this is why closing/re-issuing custody always creates a new
+ * row rather than mutating the employeeId of an existing one (§7's own
+ * "assignment lifecycle" — a closed row is never reopened).
+ *
+ * CONCURRENCY (§23): every mutation here is an atomic conditional UPDATE (or
+ * an UPDATE nested with an INSERT inside one `db.transaction`), guarded by
+ * the expected prior state — never a pre-check trusted alone. The
+ * `asset_assignments_one_active_per_asset` partial unique index (W95) is
+ * the final database-level backstop for "one active assignment per asset,"
+ * independent of and in addition to the `assets.status='available'` guard
+ * on assignment.
+ *
+ * ACKNOWLEDGEMENT (§9, Owner Decision 1): `asset_management.write.own`
+ * authorizes exactly this action (and, later, W98's own report-issue) and
+ * nothing else — never asset status, condition, custody, assignment, or
+ * return, under any circumstance (§15's own explicit, permanent invariant).
+ * Identity is always server-resolved from the caller's own linked employee
+ * record, never client-supplied. A non-owner attempting to acknowledge
+ * someone else's assignment receives the same 404 as a nonexistent
+ * assignment id — never a distinguishing signal that would leak existence.
+ * ============================================================================
+ */
+
+export interface AssignAssetParams {
+  organizationId: number;
+  assetId: number;
+  employeeId: number;
+  issueCondition?: AssetCondition;
+  expectedReturnDate?: string;
+  issueNotes?: string;
+  actorApplicationUserId: number;
+  actorMembershipId: number;
+}
+
+/**
+ * available -> assigned (§7, §9). Atomic — the conditional status UPDATE and
+ * the new asset_assignments INSERT happen in one transaction, mirroring
+ * Learning's own W90 certificate-issuance-inside-completion transaction
+ * shape (completeEnrollment, lib/learningEnrollments.ts). The status UPDATE's
+ * own `WHERE status = 'available'` guard is the primary race protection;
+ * the partial unique index is the final database-level backstop if that
+ * guard is ever somehow bypassed.
+ */
+export async function assignAsset(params: AssignAssetParams): Promise<Asset> {
+  const existingAsset = await findOwnAsset(params.organizationId, params.assetId);
+  if (!existingAsset) throw new AssetNotFoundError();
+
+  const employee = await findOrgEmployee(params.organizationId, params.employeeId);
+  if (!employee) throw new CrossOrganizationReferenceError("Employee");
+
+  let assignment: AssetAssignment | undefined;
+  const updatedAsset = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(assetsTable)
+      .set({ status: "assigned", updatedAt: new Date() })
+      .where(and(eq(assetsTable.id, params.assetId), eq(assetsTable.organizationId, params.organizationId), eq(assetsTable.status, "available")))
+      .returning();
+    if (!row) return null;
+
+    try {
+      const [inserted] = await tx
+        .insert(assetAssignmentsTable)
+        .values({
+          organizationId: params.organizationId,
+          assetId: params.assetId,
+          employeeId: params.employeeId,
+          assetTagSnapshot: existingAsset.assetTag,
+          assetNameSnapshot: existingAsset.name,
+          categorySnapshot: existingAsset.categoryCode,
+          departmentIdSnapshot: employee.departmentId,
+          positionIdSnapshot: employee.positionId,
+          issuedAt: new Date(),
+          issuedByMembershipId: params.actorMembershipId,
+          expectedReturnDate: params.expectedReturnDate ?? null,
+          issueCondition: params.issueCondition ?? existingAsset.condition,
+          issueNotes: params.issueNotes ?? null,
+          acknowledgedAt: null,
+          acknowledgementNote: null,
+          custodyEndedAt: null,
+          endReason: null,
+          receivedByMembershipId: null,
+          returnCondition: null,
+          returnNotes: null,
+        })
+        .returning();
+      assignment = inserted;
+    } catch (err) {
+      // Defense-in-depth: the status='available' guard above is the primary
+      // race protection, but if the one-active-assignment partial unique
+      // index (W95) is ever the one that actually fires, it must still
+      // surface as a controlled conflict, never a raw DB error.
+      if (isUniqueViolation(err)) throw new AssetLifecycleConflictError("This asset already has an active assignment");
+      throw err;
+    }
+
+    return row;
+  });
+
+  if (!updatedAsset) {
+    throw new AssetLifecycleConflictError("This asset is not currently available for assignment");
+  }
+
+  await recordAuditEvent({
+    actorApplicationUserId: params.actorApplicationUserId,
+    actorMembershipId: params.actorMembershipId,
+    organizationId: params.organizationId,
+    eventType: "asset.assigned",
+    targetType: "asset",
+    targetId: String(params.assetId),
+    beforeState: { status: existingAsset.status },
+    afterState: { status: "assigned" },
+    metadata: { employeeId: params.employeeId, assignmentId: assignment?.id },
+  });
+
+  return updatedAsset;
+}
+
+export interface ReturnAssetParams {
+  organizationId: number;
+  assetId: number;
+  returnCondition?: AssetCondition;
+  returnNotes?: string;
+  actorApplicationUserId: number;
+  actorMembershipId: number;
+}
+
+/**
+ * assigned -> available (§7, §9) only — see the file header's own
+ * maintenance-routing disclosure for what is deliberately NOT implemented
+ * here. Closes the active assignment row (custodyEndedAt, endReason=
+ * 'returned', receivedByMembershipId, returnCondition/returnNotes) and
+ * atomically flips the asset back to available, one transaction. The
+ * assignment-closing UPDATE's own `WHERE ... custodyEndedAt IS NULL` guard
+ * is what makes a second concurrent return call affect zero rows and 409,
+ * identical discipline to markAssetLost's own existing closing pattern.
+ */
+export async function returnAsset(params: ReturnAssetParams): Promise<Asset> {
+  const existingAsset = await findOwnAsset(params.organizationId, params.assetId);
+  if (!existingAsset) throw new AssetNotFoundError();
+
+  const updatedAsset = await db.transaction(async (tx) => {
+    const [closedAssignment] = await tx
+      .update(assetAssignmentsTable)
+      .set({
+        custodyEndedAt: new Date(),
+        endReason: "returned",
+        receivedByMembershipId: params.actorMembershipId,
+        returnCondition: params.returnCondition ?? null,
+        returnNotes: params.returnNotes ?? null,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(assetAssignmentsTable.assetId, params.assetId),
+          eq(assetAssignmentsTable.organizationId, params.organizationId),
+          isNull(assetAssignmentsTable.custodyEndedAt),
+        ),
+      )
+      .returning();
+    if (!closedAssignment) return null;
+
+    const [row] = await tx
+      .update(assetsTable)
+      .set({ status: "available", updatedAt: new Date() })
+      .where(and(eq(assetsTable.id, params.assetId), eq(assetsTable.organizationId, params.organizationId), eq(assetsTable.status, "assigned")))
+      .returning();
+    // Defensive only — status='assigned' and an open assignment row are
+    // always mutated together by every transition in this file, so this
+    // should never actually diverge; still guarded rather than assumed.
+    if (!row) throw new AssetLifecycleConflictError("This asset's status is inconsistent with its custody state");
+
+    return row;
+  });
+
+  if (!updatedAsset) {
+    throw new AssetLifecycleConflictError("This asset has no active assignment to return");
+  }
+
+  await recordAuditEvent({
+    actorApplicationUserId: params.actorApplicationUserId,
+    actorMembershipId: params.actorMembershipId,
+    organizationId: params.organizationId,
+    eventType: "asset.returned",
+    targetType: "asset",
+    targetId: String(params.assetId),
+    beforeState: { status: "assigned" },
+    afterState: { status: "available" },
+  });
+
+  return updatedAsset;
+}
+
+export interface AcknowledgeAssetAssignmentParams {
+  organizationId: number;
+  assignmentId: number;
+  employeeId: number;
+  acknowledgementNote?: string;
+  actorApplicationUserId: number;
+  actorMembershipId: number;
+}
+
+/**
+ * Decision 1, §9: sets acknowledgedAt (server-generated) on the caller's own
+ * currently-open assignment. A non-owner gets the identical 404 a
+ * nonexistent id would (never leaks existence, §12). Atomic conditional
+ * UPDATE guarded by `employeeId=:caller AND custodyEndedAt IS NULL AND
+ * acknowledgedAt IS NULL` — a repeat or concurrent call affects 0 rows and
+ * 409s. acknowledgedAt is never cleared by a later return (§9's own "after
+ * return" rule) — nothing here or in returnAsset ever touches it once set.
+ */
+export async function acknowledgeAssetAssignment(params: AcknowledgeAssetAssignmentParams): Promise<AssetAssignment> {
+  const existing = await findOrgAssignment(params.organizationId, params.assignmentId);
+  if (!existing || existing.employeeId !== params.employeeId) {
+    throw new AssetAssignmentNotFoundError();
+  }
+
+  const [updated] = await db
+    .update(assetAssignmentsTable)
+    .set({ acknowledgedAt: new Date(), acknowledgementNote: params.acknowledgementNote ?? null, updatedAt: new Date() })
+    .where(
+      and(
+        eq(assetAssignmentsTable.id, params.assignmentId),
+        eq(assetAssignmentsTable.organizationId, params.organizationId),
+        eq(assetAssignmentsTable.employeeId, params.employeeId),
+        isNull(assetAssignmentsTable.custodyEndedAt),
+        isNull(assetAssignmentsTable.acknowledgedAt),
+      ),
+    )
+    .returning();
+
+  if (!updated) {
+    throw new AssetAssignmentConflictError("This assignment has already been acknowledged or is no longer open");
+  }
+
+  await recordAuditEvent({
+    actorApplicationUserId: params.actorApplicationUserId,
+    actorMembershipId: params.actorMembershipId,
+    organizationId: params.organizationId,
+    eventType: "asset_assignment.acknowledged",
+    targetType: "asset_assignment",
+    targetId: String(params.assignmentId),
+    metadata: { assetId: existing.assetId },
+  });
+
+  return updated;
+}
+
+export type AssetAssignmentVisibilityScope = "organization_wide" | "own";
+
+export interface ListAssetAssignmentsParams {
+  organizationId: number;
+  assetId: number;
+  scope: AssetAssignmentVisibilityScope;
+  callerEmployeeId?: number | null;
+}
+
+/**
+ * GET .../assets/:id/assignments (§20): org-wide reach returns this asset's
+ * full custody history; own-scope returns only the caller's own rows for
+ * this asset (current + historical) — never another employee's rows, and no
+ * manager tier exists for this specific route (Decision 3's own
+ * current-only manager reach is a separate dedicated route, `team-assets`,
+ * explicitly owned by W98, not this one). Read-only, never audited.
+ */
+export async function listAssetAssignments(params: ListAssetAssignmentsParams): Promise<AssetAssignment[]> {
+  const conditions = [eq(assetAssignmentsTable.assetId, params.assetId), eq(assetAssignmentsTable.organizationId, params.organizationId)];
+  if (params.scope === "own") {
+    if (params.callerEmployeeId == null) return [];
+    conditions.push(eq(assetAssignmentsTable.employeeId, params.callerEmployeeId));
+  }
+  return db
+    .select()
+    .from(assetAssignmentsTable)
+    .where(and(...conditions))
+    .orderBy(desc(assetAssignmentsTable.issuedAt));
 }

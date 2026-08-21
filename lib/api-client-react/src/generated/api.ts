@@ -22,6 +22,7 @@ import type {
 import type {
   AcceptInvitationInput,
   AcceptPerformanceReviewGoalInput,
+  AcknowledgeAssetAssignmentInput,
   AcknowledgePerformanceReviewInput,
   AddCandidateTagInput,
   AddEmployeeCertificationInput,
@@ -43,7 +44,9 @@ import type {
   ApproveJobRequisitionInput,
   ApproveOfferVersionInput,
   Asset,
+  AssetAssignment,
   AssetListResponse,
+  AssignAssetInput,
   AssignLearningEnrollmentsInput,
   AssignLearningEnrollmentsResult,
   AssignRoleInput,
@@ -232,6 +235,7 @@ import type {
   RestructureDepartmentInput,
   RestructurePositionInput,
   RetireAssetInput,
+  ReturnAssetInput,
   RevokeLearningCertificateInput,
   Role,
   RunAttendanceReportParams,
@@ -24260,5 +24264,313 @@ export const useUpdateAssetCondition = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getUpdateAssetConditionMutationOptions(options));
+    }
+
+export const getAssignAssetUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/assets/${id}/assign`
+}
+
+/**
+ * Requires asset_management.manage. available -> assigned only (§7). Atomic — the status transition and the new asset_assignments history row are created in one transaction. employeeId must belong to the caller's own organization. issueCondition defaults to the asset's own current condition when omitted. Snapshots (assetTag/name/category/department/position) are captured server-side at this moment and never later rewritten by an asset or employee edit (§14).
+ * @summary Assign an asset to an employee (issue custody)
+ */
+export const assignAsset = async (organizationId: number,
+    id: number,
+    assignAssetInput: AssignAssetInput, options?: RequestInit): Promise<Asset> => {
+
+  return customFetch<Asset>(getAssignAssetUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(assignAssetInput)
+  }
+);}
+
+
+
+
+
+export const getAssignAssetMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof assignAsset>>, TError,{organizationId: number;id: number;data: BodyType<AssignAssetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof assignAsset>>, TError,{organizationId: number;id: number;data: BodyType<AssignAssetInput>}, TContext> => {
+
+const mutationKey = ['assignAsset'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof assignAsset>>, {organizationId: number;id: number;data: BodyType<AssignAssetInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  assignAsset(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AssignAssetMutationResult = NonNullable<Awaited<ReturnType<typeof assignAsset>>>
+    export type AssignAssetMutationBody = BodyType<AssignAssetInput>
+    export type AssignAssetMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Assign an asset to an employee (issue custody)
+ */
+export const useAssignAsset = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof assignAsset>>, TError,{organizationId: number;id: number;data: BodyType<AssignAssetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof assignAsset>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<AssignAssetInput>},
+        TContext
+      > => {
+      return useMutation(getAssignAssetMutationOptions(options));
+    }
+
+export const getReturnAssetUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/assets/${id}/return`
+}
+
+/**
+ * Requires asset_management.manage. assigned -> available only (§7). Closes the currently active asset_assignments row (custodyEndedAt/endReason=returned/receivedByMembershipId/ returnCondition/returnNotes) and atomically flips the asset back to available, one transaction. The historical assignment row is never deleted or reused — a later re-issue always creates a new row.
+ * @summary Return an asset (close active custody)
+ */
+export const returnAsset = async (organizationId: number,
+    id: number,
+    returnAssetInput: ReturnAssetInput, options?: RequestInit): Promise<Asset> => {
+
+  return customFetch<Asset>(getReturnAssetUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(returnAssetInput)
+  }
+);}
+
+
+
+
+
+export const getReturnAssetMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof returnAsset>>, TError,{organizationId: number;id: number;data: BodyType<ReturnAssetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof returnAsset>>, TError,{organizationId: number;id: number;data: BodyType<ReturnAssetInput>}, TContext> => {
+
+const mutationKey = ['returnAsset'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof returnAsset>>, {organizationId: number;id: number;data: BodyType<ReturnAssetInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  returnAsset(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReturnAssetMutationResult = NonNullable<Awaited<ReturnType<typeof returnAsset>>>
+    export type ReturnAssetMutationBody = BodyType<ReturnAssetInput>
+    export type ReturnAssetMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Return an asset (close active custody)
+ */
+export const useReturnAsset = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof returnAsset>>, TError,{organizationId: number;id: number;data: BodyType<ReturnAssetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof returnAsset>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<ReturnAssetInput>},
+        TContext
+      > => {
+      return useMutation(getReturnAssetMutationOptions(options));
+    }
+
+export const getListAssetAssignmentsUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/assets/${id}/assignments`
+}
+
+/**
+ * Requires asset_management.read.own. Organization-wide reach (via asset_management.manage) returns this asset's full custody history; otherwise only the caller's own rows for this asset (current + historical). No manager tier on this route — Decision 3's current-only manager reach is the separate team-assets route (W98).
+ * @summary List an asset's custody history
+ */
+export const listAssetAssignments = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<AssetAssignment[]> => {
+
+  return customFetch<AssetAssignment[]>(getListAssetAssignmentsUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAssetAssignmentsQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/assets/${id}/assignments`
+    ] as const;
+    }
+
+
+export const getListAssetAssignmentsQueryOptions = <TData = Awaited<ReturnType<typeof listAssetAssignments>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAssetAssignments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAssetAssignmentsQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAssetAssignments>>> = ({ signal }) => listAssetAssignments(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAssetAssignments>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAssetAssignmentsQueryResult = NonNullable<Awaited<ReturnType<typeof listAssetAssignments>>>
+export type ListAssetAssignmentsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List an asset's custody history
+ */
+
+export function useListAssetAssignments<TData = Awaited<ReturnType<typeof listAssetAssignments>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAssetAssignments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAssetAssignmentsQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAcknowledgeAssetAssignmentUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/asset-assignments/${id}/acknowledge`
+}
+
+/**
+ * Requires asset_management.write.own. Decision 1. Identity is server-resolved from the caller's own linked employee record — never client-supplied. Only the caller's own currently-open (custodyEndedAt IS NULL) assignment may be acknowledged. acknowledgedAt is server-generated and never cleared by a later return. A repeat or concurrent call, or one against an already- closed assignment, returns a controlled 409. A non-owner receives the same 404 a nonexistent id would.
+ * @summary Acknowledge receipt of an asset (own currently-open assignment only)
+ */
+export const acknowledgeAssetAssignment = async (organizationId: number,
+    id: number,
+    acknowledgeAssetAssignmentInput: AcknowledgeAssetAssignmentInput, options?: RequestInit): Promise<AssetAssignment> => {
+
+  return customFetch<AssetAssignment>(getAcknowledgeAssetAssignmentUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(acknowledgeAssetAssignmentInput)
+  }
+);}
+
+
+
+
+
+export const getAcknowledgeAssetAssignmentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acknowledgeAssetAssignment>>, TError,{organizationId: number;id: number;data: BodyType<AcknowledgeAssetAssignmentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof acknowledgeAssetAssignment>>, TError,{organizationId: number;id: number;data: BodyType<AcknowledgeAssetAssignmentInput>}, TContext> => {
+
+const mutationKey = ['acknowledgeAssetAssignment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof acknowledgeAssetAssignment>>, {organizationId: number;id: number;data: BodyType<AcknowledgeAssetAssignmentInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  acknowledgeAssetAssignment(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AcknowledgeAssetAssignmentMutationResult = NonNullable<Awaited<ReturnType<typeof acknowledgeAssetAssignment>>>
+    export type AcknowledgeAssetAssignmentMutationBody = BodyType<AcknowledgeAssetAssignmentInput>
+    export type AcknowledgeAssetAssignmentMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Acknowledge receipt of an asset (own currently-open assignment only)
+ */
+export const useAcknowledgeAssetAssignment = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acknowledgeAssetAssignment>>, TError,{organizationId: number;id: number;data: BodyType<AcknowledgeAssetAssignmentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof acknowledgeAssetAssignment>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<AcknowledgeAssetAssignmentInput>},
+        TContext
+      > => {
+      return useMutation(getAcknowledgeAssetAssignmentMutationOptions(options));
     }
 

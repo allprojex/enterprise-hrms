@@ -12345,6 +12345,207 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/assets/{id}/assign:
+    post:
+      operationId: assignAsset
+      tags: [assets]
+      summary: Assign an asset to an employee (issue custody)
+      description: >-
+        Requires asset_management.manage. available -> assigned only (§7).
+        Atomic — the status transition and the new asset_assignments
+        history row are created in one transaction. employeeId must belong
+        to the caller's own organization. issueCondition defaults to the
+        asset's own current condition when omitted. Snapshots
+        (assetTag/name/category/department/position) are captured
+        server-side at this moment and never later rewritten by an asset or
+        employee edit (§14).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignAssetInput"
+      responses:
+        "201":
+          description: Assigned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asset"
+        "400":
+          description: Invalid input, or employeeId does not belong to this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: This asset is not currently available for assignment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/assets/{id}/return:
+    post:
+      operationId: returnAsset
+      tags: [assets]
+      summary: Return an asset (close active custody)
+      description: >-
+        Requires asset_management.manage. assigned -> available only (§7).
+        Closes the currently active asset_assignments row
+        (custodyEndedAt/endReason=returned/receivedByMembershipId/
+        returnCondition/returnNotes) and atomically flips the asset back to
+        available, one transaction. The historical assignment row is never
+        deleted or reused — a later re-issue always creates a new row.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnAssetInput"
+      responses:
+        "200":
+          description: Returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asset"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: This asset has no active assignment to return
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/assets/{id}/assignments:
+    get:
+      operationId: listAssetAssignments
+      tags: [assets]
+      summary: List an asset's custody history
+      description: >-
+        Requires asset_management.read.own. Organization-wide reach (via
+        asset_management.manage) returns this asset's full custody history;
+        otherwise only the caller's own rows for this asset (current +
+        historical). No manager tier on this route — Decision 3's
+        current-only manager reach is the separate team-assets route (W98).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Assignment history, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AssetAssignment"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/asset-assignments/{id}/acknowledge:
+    post:
+      operationId: acknowledgeAssetAssignment
+      tags: [assets]
+      summary: Acknowledge receipt of an asset (own currently-open assignment only)
+      description: >-
+        Requires asset_management.write.own. Decision 1. Identity is
+        server-resolved from the caller's own linked employee record —
+        never client-supplied. Only the caller's own currently-open
+        (custodyEndedAt IS NULL) assignment may be acknowledged.
+        acknowledgedAt is server-generated and never cleared by a later
+        return. A repeat or concurrent call, or one against an already-
+        closed assignment, returns a controlled 409. A non-owner receives
+        the same 404 a nonexistent id would.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AcknowledgeAssetAssignmentInput"
+      responses:
+        "200":
+          description: Acknowledged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetAssignment"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Already acknowledged, or no longer open
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -18677,3 +18878,114 @@ components:
         reason:
           type: string
           minLength: 1
+
+    AssetAssignmentEndReason:
+      type: string
+      enum: [returned, lost, transferred, retired]
+
+    AssetAssignment:
+      type: object
+      required:
+        [
+          id,
+          organizationId,
+          assetId,
+          employeeId,
+          assetTagSnapshot,
+          assetNameSnapshot,
+          categorySnapshot,
+          issuedAt,
+          issueCondition,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        assetId:
+          type: integer
+        employeeId:
+          type: integer
+          description: Live reference — current identity, used for manager-scope resolution elsewhere. Not a historical snapshot.
+        assetTagSnapshot:
+          type: string
+        assetNameSnapshot:
+          type: string
+        categorySnapshot:
+          type: string
+        departmentIdSnapshot:
+          type: ["integer", "null"]
+          description: The employee's department at issue time — never re-derived from a later transfer.
+        positionIdSnapshot:
+          type: ["integer", "null"]
+        issuedAt:
+          type: string
+          format: date-time
+        issuedByMembershipId:
+          type: ["integer", "null"]
+        expectedReturnDate:
+          type: ["string", "null"]
+          format: date
+        issueCondition:
+          $ref: "#/components/schemas/AssetCondition"
+        issueNotes:
+          type: ["string", "null"]
+        acknowledgedAt:
+          type: ["string", "null"]
+          format: date-time
+          description: Set once, only while custodyEndedAt is null. Never cleared by a later return.
+        acknowledgementNote:
+          type: ["string", "null"]
+        custodyEndedAt:
+          type: ["string", "null"]
+          format: date-time
+          description: NULL means this is the currently-active assignment.
+        endReason:
+          anyOf:
+            - $ref: "#/components/schemas/AssetAssignmentEndReason"
+            - type: "null"
+        receivedByMembershipId:
+          type: ["integer", "null"]
+        returnCondition:
+          anyOf:
+            - $ref: "#/components/schemas/AssetCondition"
+            - type: "null"
+        returnNotes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AssignAssetInput:
+      type: object
+      required: [employeeId]
+      properties:
+        employeeId:
+          type: integer
+          description: Must belong to the caller's own organization.
+        issueCondition:
+          $ref: "#/components/schemas/AssetCondition"
+        expectedReturnDate:
+          type: string
+          format: date
+        issueNotes:
+          type: string
+
+    ReturnAssetInput:
+      type: object
+      properties:
+        returnCondition:
+          $ref: "#/components/schemas/AssetCondition"
+        returnNotes:
+          type: string
+
+    AcknowledgeAssetAssignmentInput:
+      type: object
+      properties:
+        acknowledgementNote:
+          type: string

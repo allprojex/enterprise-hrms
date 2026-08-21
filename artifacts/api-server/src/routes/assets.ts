@@ -16,6 +16,9 @@ import {
   MarkAssetLostBody,
   RecoverAssetBody,
   UpdateAssetConditionBody,
+  AssignAssetBody,
+  ReturnAssetBody,
+  AcknowledgeAssetAssignmentBody,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireMembership, type MembershipRequest } from "../middlewares/requireMembership";
@@ -33,11 +36,17 @@ import {
   markAssetLost,
   recoverAsset,
   updateAssetCondition,
+  assignAsset,
+  returnAsset,
+  acknowledgeAssetAssignment,
+  listAssetAssignments,
   AssetNotFoundError,
   InvalidAssetError,
   DuplicateAssetTagError,
   DuplicateAssetSerialNumberError,
   AssetLifecycleConflictError,
+  AssetAssignmentNotFoundError,
+  AssetAssignmentConflictError,
   CrossOrganizationReferenceError,
 } from "../lib/assets";
 
@@ -61,11 +70,16 @@ function iso(d: Date | null | undefined): string | undefined | null {
 }
 
 function handleAssetError(err: unknown, res: Response): void {
-  if (err instanceof AssetNotFoundError) {
+  if (err instanceof AssetNotFoundError || err instanceof AssetAssignmentNotFoundError) {
     res.status(404).json({ error: err.message });
     return;
   }
-  if (err instanceof AssetLifecycleConflictError || err instanceof DuplicateAssetTagError || err instanceof DuplicateAssetSerialNumberError) {
+  if (
+    err instanceof AssetLifecycleConflictError ||
+    err instanceof DuplicateAssetTagError ||
+    err instanceof DuplicateAssetSerialNumberError ||
+    err instanceof AssetAssignmentConflictError
+  ) {
     res.status(409).json({ error: err.message });
     return;
   }
@@ -353,6 +367,159 @@ router.post(
         assetId,
         condition: parsed.data.condition,
         reason: parsed.data.reason,
+        actorApplicationUserId: req.userId!,
+        actorMembershipId: req.membership!.id,
+      });
+      res.json(updated);
+    } catch (err) {
+      handleAssetError(err, res);
+    }
+  },
+);
+
+// ============================================================================
+// Assignments (Phase 3E, W97): §20's own "Assignments" route group — issue/
+// return/history/acknowledge. No employee/manager self-service surface, no
+// report-issue, no incident/maintenance/evidence route exists here — those
+// belong to W98-W100 (§24's own "Employee own assets / manager team view"
+// group, a separate route group W97 does not own).
+// ============================================================================
+
+// POST /organizations/:organizationId/assets/:id/assign
+router.post(
+  "/organizations/:organizationId/assets/:id/assign",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requireModuleEnabled(ASSET_MANAGEMENT_MODULE_KEY),
+  requirePermission("asset_management.manage"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const assetId = parseId(req.params.id);
+    if (isNaN(assetId)) {
+      res.status(400).json({ error: "Invalid asset ID" });
+      return;
+    }
+    const parsed = AssignAssetBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+
+    try {
+      const updated = await assignAsset({
+        organizationId: req.membership!.organizationId,
+        assetId,
+        employeeId: parsed.data.employeeId,
+        issueCondition: parsed.data.issueCondition,
+        expectedReturnDate: iso(parsed.data.expectedReturnDate) ?? undefined,
+        issueNotes: parsed.data.issueNotes,
+        actorApplicationUserId: req.userId!,
+        actorMembershipId: req.membership!.id,
+      });
+      res.status(201).json(updated);
+    } catch (err) {
+      handleAssetError(err, res);
+    }
+  },
+);
+
+// POST /organizations/:organizationId/assets/:id/return
+router.post(
+  "/organizations/:organizationId/assets/:id/return",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requireModuleEnabled(ASSET_MANAGEMENT_MODULE_KEY),
+  requirePermission("asset_management.manage"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const assetId = parseId(req.params.id);
+    if (isNaN(assetId)) {
+      res.status(400).json({ error: "Invalid asset ID" });
+      return;
+    }
+    const parsed = ReturnAssetBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+
+    try {
+      const updated = await returnAsset({
+        organizationId: req.membership!.organizationId,
+        assetId,
+        returnCondition: parsed.data.returnCondition,
+        returnNotes: parsed.data.returnNotes,
+        actorApplicationUserId: req.userId!,
+        actorMembershipId: req.membership!.id,
+      });
+      res.json(updated);
+    } catch (err) {
+      handleAssetError(err, res);
+    }
+  },
+);
+
+// GET /organizations/:organizationId/assets/:id/assignments
+router.get(
+  "/organizations/:organizationId/assets/:id/assignments",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requireModuleEnabled(ASSET_MANAGEMENT_MODULE_KEY),
+  requirePermission("asset_management.read.own"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const assetId = parseId(req.params.id);
+    if (isNaN(assetId)) {
+      res.status(400).json({ error: "Invalid asset ID" });
+      return;
+    }
+    const organizationId = req.membership!.organizationId;
+    const asset = await getAsset(organizationId, assetId);
+    if (!asset) {
+      res.status(404).json({ error: "Asset not found" });
+      return;
+    }
+
+    const isOrgWide = await hasOrgWideAssetAccess(req.membership!.id, "asset_management.manage");
+    const callerEmployeeId = isOrgWide ? null : await resolveAssetActorEmployeeId(organizationId, req.userId!);
+    const assignments = await listAssetAssignments({
+      organizationId,
+      assetId,
+      scope: isOrgWide ? "organization_wide" : "own",
+      callerEmployeeId,
+    });
+    res.json(assignments);
+  },
+);
+
+// POST /organizations/:organizationId/asset-assignments/:id/acknowledge
+router.post(
+  "/organizations/:organizationId/asset-assignments/:id/acknowledge",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requireModuleEnabled(ASSET_MANAGEMENT_MODULE_KEY),
+  requirePermission("asset_management.write.own"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const assignmentId = parseId(req.params.id);
+    if (isNaN(assignmentId)) {
+      res.status(400).json({ error: "Invalid assignment ID" });
+      return;
+    }
+    const parsed = AcknowledgeAssetAssignmentBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const organizationId = req.membership!.organizationId;
+    const callerEmployeeId = await resolveAssetActorEmployeeId(organizationId, req.userId!);
+    if (callerEmployeeId == null) {
+      res.status(404).json({ error: "Asset assignment not found" });
+      return;
+    }
+
+    try {
+      const updated = await acknowledgeAssetAssignment({
+        organizationId,
+        assignmentId,
+        employeeId: callerEmployeeId,
+        acknowledgementNote: parsed.data.acknowledgementNote,
         actorApplicationUserId: req.userId!,
         actorMembershipId: req.membership!.id,
       });

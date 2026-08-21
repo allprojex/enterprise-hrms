@@ -20,12 +20,16 @@ const { state } = vi.hoisted(() => ({
     assetsError: undefined as unknown,
     detail: undefined as Asset | undefined,
     detailLoading: false,
-    createAssetMutate: vi.fn() as (...args: unknown[]) => void,
-    updateAssetMutate: vi.fn() as (...args: unknown[]) => void,
-    retireAssetMutate: vi.fn() as (...args: unknown[]) => void,
-    markAssetLostMutate: vi.fn() as (...args: unknown[]) => void,
-    recoverAssetMutate: vi.fn() as (...args: unknown[]) => void,
-    updateAssetConditionMutate: vi.fn() as (...args: unknown[]) => void,
+    createAssetMutate: vi.fn(),
+    updateAssetMutate: vi.fn(),
+    retireAssetMutate: vi.fn(),
+    markAssetLostMutate: vi.fn(),
+    recoverAssetMutate: vi.fn(),
+    updateAssetConditionMutate: vi.fn(),
+    assignAssetMutate: vi.fn(),
+    returnAssetMutate: vi.fn(),
+    assignments: [] as unknown[],
+    employees: [] as unknown[],
   },
 }));
 
@@ -53,6 +57,12 @@ vi.mock('@workspace/api-client-react', () => ({
   useMarkAssetLost: () => ({ mutate: state.markAssetLostMutate, isPending: false }),
   useRecoverAsset: () => ({ mutate: state.recoverAssetMutate, isPending: false }),
   useUpdateAssetCondition: () => ({ mutate: state.updateAssetConditionMutate, isPending: false }),
+  useAssignAsset: () => ({ mutate: state.assignAssetMutate, isPending: false }),
+  useReturnAsset: () => ({ mutate: state.returnAssetMutate, isPending: false }),
+  useListAssetAssignments: () => ({ data: state.assignments, isLoading: false, error: undefined, refetch: vi.fn() }),
+  getListAssetAssignmentsQueryKey: () => ['assetAssignments'],
+  useListEmployees: () => ({ data: { items: state.employees, total: state.employees.length, page: 1, pageSize: 200 } }),
+  getListEmployeesQueryKey: () => ['employees'],
   AssetCondition: { new: 'new', good: 'good', fair: 'fair', poor: 'poor', damaged: 'damaged' },
   AssetStatus: { available: 'available', assigned: 'assigned', maintenance: 'maintenance', lost: 'lost', retired: 'retired' },
 }));
@@ -111,6 +121,10 @@ function resetState() {
   state.markAssetLostMutate = vi.fn();
   state.recoverAssetMutate = vi.fn();
   state.updateAssetConditionMutate = vi.fn();
+  state.assignAssetMutate = vi.fn();
+  state.returnAssetMutate = vi.fn();
+  state.assignments = [];
+  state.employees = [{ id: 200, firstName: 'Amara', lastName: 'Owusu' }, { id: 201, firstName: 'Kojo', lastName: 'Mensah' }];
 }
 
 describe('Asset Register page', () => {
@@ -319,17 +333,89 @@ describe('Asset Register page', () => {
     });
   });
 
-  it('does not expose assignment, custody, maintenance, incident, or evidence controls anywhere on the page', async () => {
+  it('does not expose acknowledgement, incident, maintenance, or evidence controls anywhere on the page (W98-W100)', async () => {
     resetState();
     state.assets = { items: [asset()], total: 1, page: 1, pageSize: 20 };
     state.detail = asset();
     renderPage();
     await userEvent.click(screen.getByTestId('button-manage-asset-1'));
-    expect(screen.queryByRole('button', { name: /assign/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /return/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /acknowledge/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /report incident/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /schedule maintenance/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /upload evidence/i })).not.toBeInTheDocument();
+  });
+
+  describe('custody — assign / return (W97)', () => {
+    it('only offers Assign when the asset is available', async () => {
+      resetState();
+      state.assets = { items: [asset({ status: 'assigned' })], total: 1, page: 1, pageSize: 20 };
+      state.detail = asset({ status: 'assigned' });
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-manage-asset-1'));
+      expect(screen.queryByTestId('button-open-assign-1')).not.toBeInTheDocument();
+    });
+
+    it('offers Assign for an available asset and submits with the chosen employee', async () => {
+      resetState();
+      state.assets = { items: [asset({ status: 'available' })], total: 1, page: 1, pageSize: 20 };
+      state.detail = asset({ status: 'available' });
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-manage-asset-1'));
+      await userEvent.click(screen.getByTestId('button-open-assign-1'));
+      expect(screen.getByTestId('button-confirm-assign-1')).toBeDisabled();
+      await userEvent.click(screen.getByTestId('select-assign-employee-1'));
+      await userEvent.click(screen.getByRole('option', { name: 'Amara Owusu' }));
+      expect(screen.getByTestId('button-confirm-assign-1')).not.toBeDisabled();
+      await userEvent.click(screen.getByTestId('button-confirm-assign-1'));
+      expect(state.assignAssetMutate).toHaveBeenCalledWith(
+        { organizationId: 10, id: 1, data: expect.objectContaining({ employeeId: 200 }) },
+        expect.anything(),
+      );
+    });
+
+    it('only offers Return when the asset is assigned', async () => {
+      resetState();
+      state.assets = { items: [asset({ status: 'available' })], total: 1, page: 1, pageSize: 20 };
+      state.detail = asset({ status: 'available' });
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-manage-asset-1'));
+      expect(screen.queryByTestId('button-open-return-1')).not.toBeInTheDocument();
+    });
+
+    it('offers Return for an assigned asset and submits', async () => {
+      resetState();
+      state.assets = { items: [asset({ status: 'assigned' })], total: 1, page: 1, pageSize: 20 };
+      state.detail = asset({ status: 'assigned' });
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-manage-asset-1'));
+      await userEvent.click(screen.getByTestId('button-open-return-1'));
+      await userEvent.click(screen.getByTestId('button-confirm-return-1'));
+      expect(state.returnAssetMutate).toHaveBeenCalledWith(
+        { organizationId: 10, id: 1, data: expect.objectContaining({}) },
+        expect.anything(),
+      );
+    });
+
+    it('shows current custody from the assignment history', async () => {
+      resetState();
+      state.assets = { items: [asset({ status: 'assigned' })], total: 1, page: 1, pageSize: 20 };
+      state.detail = asset({ status: 'assigned' });
+      state.assignments = [
+        { id: 1, organizationId: 10, assetId: 1, employeeId: 200, assetTagSnapshot: 'AST-00001', assetNameSnapshot: 'ThinkPad X1', categorySnapshot: 'laptop', departmentIdSnapshot: null, positionIdSnapshot: null, issuedAt: new Date().toISOString(), issuedByMembershipId: null, expectedReturnDate: null, issueCondition: 'good', issueNotes: null, acknowledgedAt: null, acknowledgementNote: null, custodyEndedAt: null, endReason: null, receivedByMembershipId: null, returnCondition: null, returnNotes: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+      ];
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-manage-asset-1'));
+      expect(screen.getByTestId('text-current-custody-1')).toHaveTextContent('employee #200');
+      expect(screen.getByTestId('text-current-custody-1')).toHaveTextContent('Not yet acknowledged');
+    });
+
+    it('shows "no one currently holds this asset" when there is no active custody', async () => {
+      resetState();
+      state.assets = { items: [asset({ status: 'available' })], total: 1, page: 1, pageSize: 20 };
+      state.detail = asset({ status: 'available' });
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-manage-asset-1'));
+      expect(screen.getByTestId('text-no-current-custody-1')).toBeInTheDocument();
+    });
   });
 });

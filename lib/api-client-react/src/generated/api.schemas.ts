@@ -5614,6 +5614,79 @@ export interface UpdateAssetConditionInput {
   reason: string;
 }
 
+export type AssetAssignmentEndReason = typeof AssetAssignmentEndReason[keyof typeof AssetAssignmentEndReason];
+
+
+export const AssetAssignmentEndReason = {
+  returned: 'returned',
+  lost: 'lost',
+  transferred: 'transferred',
+  retired: 'retired',
+} as const;
+
+export interface AssetAssignment {
+  id: number;
+  organizationId: number;
+  assetId: number;
+  /** Live reference — current identity, used for manager-scope resolution elsewhere. Not a historical snapshot. */
+  employeeId: number;
+  assetTagSnapshot: string;
+  assetNameSnapshot: string;
+  categorySnapshot: string;
+  /**
+     * The employee's department at issue time — never re-derived from a later transfer.
+     * @nullable
+     */
+  departmentIdSnapshot?: number | null;
+  /** @nullable */
+  positionIdSnapshot?: number | null;
+  issuedAt: string;
+  /** @nullable */
+  issuedByMembershipId?: number | null;
+  /** @nullable */
+  expectedReturnDate?: string | null;
+  issueCondition: AssetCondition;
+  /** @nullable */
+  issueNotes?: string | null;
+  /**
+     * Set once, only while custodyEndedAt is null. Never cleared by a later return.
+     * @nullable
+     */
+  acknowledgedAt?: string | null;
+  /** @nullable */
+  acknowledgementNote?: string | null;
+  /**
+     * NULL means this is the currently-active assignment.
+     * @nullable
+     */
+  custodyEndedAt?: string | null;
+  endReason?: AssetAssignmentEndReason | null;
+  /** @nullable */
+  receivedByMembershipId?: number | null;
+  returnCondition?: AssetCondition | null;
+  /** @nullable */
+  returnNotes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AssignAssetInput {
+  /** Must belong to the caller's own organization. */
+  employeeId: number;
+  issueCondition?: AssetCondition;
+  expectedReturnDate?: string;
+  issueNotes?: string;
+}
+
+export interface ReturnAssetInput {
+  returnCondition?: AssetCondition;
+  returnNotes?: string;
+}
+
+export interface AcknowledgeAssetAssignmentInput {
+  acknowledgementNote?: string;
+}
+
 export type ListEmployeesParams = {
 search?: string;
 departmentId?: number;

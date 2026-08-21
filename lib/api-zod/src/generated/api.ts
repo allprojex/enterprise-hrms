@@ -10398,3 +10398,158 @@ export const UpdateAssetConditionResponse = zod.object({
 })
 
 
+/**
+ * Requires asset_management.manage. available -> assigned only (§7). Atomic — the status transition and the new asset_assignments history row are created in one transaction. employeeId must belong to the caller's own organization. issueCondition defaults to the asset's own current condition when omitted. Snapshots (assetTag/name/category/department/position) are captured server-side at this moment and never later rewritten by an asset or employee edit (§14).
+ * @summary Assign an asset to an employee (issue custody)
+ */
+export const AssignAssetParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const AssignAssetBody = zod.object({
+  "employeeId": zod.number().describe('Must belong to the caller\'s own organization.'),
+  "issueCondition": zod.enum(['new', 'good', 'fair', 'poor', 'damaged']).optional().describe('Deliberately independent of asset status (§7) — a damaged asset can still be assigned or in maintenance.'),
+  "expectedReturnDate": zod.coerce.date().optional(),
+  "issueNotes": zod.string().optional()
+})
+
+export const AssignAssetResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "assetTag": zod.string().describe('Server-generated, sequential, per-organization (\"AST-00001\", ...) — never client-supplied, never editable.'),
+  "categoryCode": zod.string().describe('Free-text code from the asset_category Master Data domain, not validated against the domain\'s item list.'),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "manufacturer": zod.string().nullish(),
+  "model": zod.string().nullish(),
+  "serialNumber": zod.string().nullish().describe('Unique per organization only when present. An empty string is stored as null.'),
+  "branchId": zod.number().nullish().describe('Current physical location — a live reference, not a historical snapshot.'),
+  "purchaseDate": zod.coerce.date().nullish(),
+  "purchaseCost": zod.string().nullish().describe('Optional, reference-only. No depreciation\/valuation\/accounting logic anywhere. No pairing requirement with purchaseCurrency.'),
+  "purchaseCurrency": zod.string().nullish(),
+  "warrantyExpiryDate": zod.coerce.date().nullish(),
+  "condition": zod.enum(['new', 'good', 'fair', 'poor', 'damaged']).describe('Deliberately independent of asset status (§7) — a damaged asset can still be assigned or in maintenance.'),
+  "status": zod.enum(['available', 'assigned', 'maintenance', 'lost', 'retired']).describe('The sole-authoritative lifecycle field. retired is permanently terminal.'),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Requires asset_management.manage. assigned -> available only (§7). Closes the currently active asset_assignments row (custodyEndedAt/endReason=returned/receivedByMembershipId/ returnCondition/returnNotes) and atomically flips the asset back to available, one transaction. The historical assignment row is never deleted or reused — a later re-issue always creates a new row.
+ * @summary Return an asset (close active custody)
+ */
+export const ReturnAssetParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ReturnAssetBody = zod.object({
+  "returnCondition": zod.enum(['new', 'good', 'fair', 'poor', 'damaged']).optional().describe('Deliberately independent of asset status (§7) — a damaged asset can still be assigned or in maintenance.'),
+  "returnNotes": zod.string().optional()
+})
+
+export const ReturnAssetResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "assetTag": zod.string().describe('Server-generated, sequential, per-organization (\"AST-00001\", ...) — never client-supplied, never editable.'),
+  "categoryCode": zod.string().describe('Free-text code from the asset_category Master Data domain, not validated against the domain\'s item list.'),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "manufacturer": zod.string().nullish(),
+  "model": zod.string().nullish(),
+  "serialNumber": zod.string().nullish().describe('Unique per organization only when present. An empty string is stored as null.'),
+  "branchId": zod.number().nullish().describe('Current physical location — a live reference, not a historical snapshot.'),
+  "purchaseDate": zod.coerce.date().nullish(),
+  "purchaseCost": zod.string().nullish().describe('Optional, reference-only. No depreciation\/valuation\/accounting logic anywhere. No pairing requirement with purchaseCurrency.'),
+  "purchaseCurrency": zod.string().nullish(),
+  "warrantyExpiryDate": zod.coerce.date().nullish(),
+  "condition": zod.enum(['new', 'good', 'fair', 'poor', 'damaged']).describe('Deliberately independent of asset status (§7) — a damaged asset can still be assigned or in maintenance.'),
+  "status": zod.enum(['available', 'assigned', 'maintenance', 'lost', 'retired']).describe('The sole-authoritative lifecycle field. retired is permanently terminal.'),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Requires asset_management.read.own. Organization-wide reach (via asset_management.manage) returns this asset's full custody history; otherwise only the caller's own rows for this asset (current + historical). No manager tier on this route — Decision 3's current-only manager reach is the separate team-assets route (W98).
+ * @summary List an asset's custody history
+ */
+export const ListAssetAssignmentsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ListAssetAssignmentsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "assetId": zod.number(),
+  "employeeId": zod.number().describe('Live reference — current identity, used for manager-scope resolution elsewhere. Not a historical snapshot.'),
+  "assetTagSnapshot": zod.string(),
+  "assetNameSnapshot": zod.string(),
+  "categorySnapshot": zod.string(),
+  "departmentIdSnapshot": zod.number().nullish().describe('The employee\'s department at issue time — never re-derived from a later transfer.'),
+  "positionIdSnapshot": zod.number().nullish(),
+  "issuedAt": zod.coerce.date(),
+  "issuedByMembershipId": zod.number().nullish(),
+  "expectedReturnDate": zod.coerce.date().nullish(),
+  "issueCondition": zod.enum(['new', 'good', 'fair', 'poor', 'damaged']).describe('Deliberately independent of asset status (§7) — a damaged asset can still be assigned or in maintenance.'),
+  "issueNotes": zod.string().nullish(),
+  "acknowledgedAt": zod.coerce.date().nullish().describe('Set once, only while custodyEndedAt is null. Never cleared by a later return.'),
+  "acknowledgementNote": zod.string().nullish(),
+  "custodyEndedAt": zod.coerce.date().nullish().describe('NULL means this is the currently-active assignment.'),
+  "endReason": zod.union([zod.enum(['returned', 'lost', 'transferred', 'retired']),zod.null()]).optional(),
+  "receivedByMembershipId": zod.number().nullish(),
+  "returnCondition": zod.union([zod.enum(['new', 'good', 'fair', 'poor', 'damaged']).describe('Deliberately independent of asset status (§7) — a damaged asset can still be assigned or in maintenance.'),zod.null()]).optional(),
+  "returnNotes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListAssetAssignmentsResponse = zod.array(ListAssetAssignmentsResponseItem)
+
+
+/**
+ * Requires asset_management.write.own. Decision 1. Identity is server-resolved from the caller's own linked employee record — never client-supplied. Only the caller's own currently-open (custodyEndedAt IS NULL) assignment may be acknowledged. acknowledgedAt is server-generated and never cleared by a later return. A repeat or concurrent call, or one against an already- closed assignment, returns a controlled 409. A non-owner receives the same 404 a nonexistent id would.
+ * @summary Acknowledge receipt of an asset (own currently-open assignment only)
+ */
+export const AcknowledgeAssetAssignmentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const AcknowledgeAssetAssignmentBody = zod.object({
+  "acknowledgementNote": zod.string().optional()
+})
+
+export const AcknowledgeAssetAssignmentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "assetId": zod.number(),
+  "employeeId": zod.number().describe('Live reference — current identity, used for manager-scope resolution elsewhere. Not a historical snapshot.'),
+  "assetTagSnapshot": zod.string(),
+  "assetNameSnapshot": zod.string(),
+  "categorySnapshot": zod.string(),
+  "departmentIdSnapshot": zod.number().nullish().describe('The employee\'s department at issue time — never re-derived from a later transfer.'),
+  "positionIdSnapshot": zod.number().nullish(),
+  "issuedAt": zod.coerce.date(),
+  "issuedByMembershipId": zod.number().nullish(),
+  "expectedReturnDate": zod.coerce.date().nullish(),
+  "issueCondition": zod.enum(['new', 'good', 'fair', 'poor', 'damaged']).describe('Deliberately independent of asset status (§7) — a damaged asset can still be assigned or in maintenance.'),
+  "issueNotes": zod.string().nullish(),
+  "acknowledgedAt": zod.coerce.date().nullish().describe('Set once, only while custodyEndedAt is null. Never cleared by a later return.'),
+  "acknowledgementNote": zod.string().nullish(),
+  "custodyEndedAt": zod.coerce.date().nullish().describe('NULL means this is the currently-active assignment.'),
+  "endReason": zod.union([zod.enum(['returned', 'lost', 'transferred', 'retired']),zod.null()]).optional(),
+  "receivedByMembershipId": zod.number().nullish(),
+  "returnCondition": zod.union([zod.enum(['new', 'good', 'fair', 'poor', 'damaged']).describe('Deliberately independent of asset status (§7) — a damaged asset can still be assigned or in maintenance.'),zod.null()]).optional(),
+  "returnNotes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+

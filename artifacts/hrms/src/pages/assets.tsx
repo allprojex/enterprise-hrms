@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Boxes, Plus, Settings, ChevronLeft, ChevronRight, Archive, PackageX, RotateCcw, Wrench } from 'lucide-react';
+import { Boxes, Plus, Settings, ChevronLeft, ChevronRight, Archive, PackageX, RotateCcw, Wrench, UserPlus, Undo2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -25,13 +25,20 @@ import {
   useMarkAssetLost,
   useRecoverAsset,
   useUpdateAssetCondition,
+  useAssignAsset,
+  useReturnAsset,
+  useListAssetAssignments,
+  getListAssetAssignmentsQueryKey,
   useListMasterDataItems,
   getListMasterDataItemsQueryKey,
   useListBranches,
   getListBranchesQueryKey,
+  useListEmployees,
+  getListEmployeesQueryKey,
   AssetCondition,
   AssetStatus,
   type Asset,
+  type AssetAssignment,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -289,6 +296,247 @@ function UpdateConditionDialog({ organizationId, asset, onChanged }: { organizat
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// --- Custody (Phase 3E, W97): issue/return only — no acknowledgement
+// control here (ships in W98 alongside the ESS surface that renders it, per
+// the frozen plan's own W97 frontend-impact line), no report-issue, no
+// incident/maintenance/evidence control. ---
+
+function AssignAssetDialog({ organizationId, asset, onChanged }: { organizationId: number; asset: Asset; onChanged: () => void }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [employeeId, setEmployeeId] = useState('');
+  const [issueCondition, setIssueCondition] = useState<AssetCondition | ''>('');
+  const [expectedReturnDate, setExpectedReturnDate] = useState('');
+  const [issueNotes, setIssueNotes] = useState('');
+  const mutation = useAssignAsset();
+  const { data: employeesPage } = useListEmployees(organizationId, { pageSize: 200 }, {
+    query: { queryKey: getListEmployeesQueryKey(organizationId, { pageSize: 200 }), enabled: organizationId > 0 && open },
+  });
+
+  if (asset.status !== 'available') return null;
+
+  const reset = () => {
+    setEmployeeId('');
+    setIssueCondition('');
+    setExpectedReturnDate('');
+    setIssueNotes('');
+  };
+
+  const handle = () => {
+    if (!employeeId) return;
+    mutation.mutate(
+      {
+        organizationId,
+        id: asset.id,
+        data: {
+          employeeId: Number(employeeId),
+          issueCondition: issueCondition || undefined,
+          expectedReturnDate: expectedReturnDate || undefined,
+          issueNotes: issueNotes.trim() || undefined,
+        },
+      },
+      {
+        onSuccess: () => {
+          setOpen(false);
+          reset();
+          onChanged();
+          toast({ title: 'Asset assigned' });
+        },
+        onError: (err) => toast({ title: 'Could not assign this asset', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
+      <DialogTrigger asChild>
+        <Button size="sm" data-testid={`button-open-assign-${asset.id}`}>
+          <UserPlus className="h-3.5 w-3.5" aria-hidden="true" />
+          Assign…
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Assign Asset</DialogTitle>
+          <DialogDescription>Issues custody of this asset to an employee. Creates a new custody history record.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor={`assign-employee-${asset.id}`}>Employee</Label>
+            <Select value={employeeId} onValueChange={setEmployeeId}>
+              <SelectTrigger id={`assign-employee-${asset.id}`} data-testid={`select-assign-employee-${asset.id}`}>
+                <SelectValue placeholder="Choose an employee" />
+              </SelectTrigger>
+              <SelectContent>
+                {(employeesPage?.items ?? []).map((e) => (
+                  <SelectItem key={e.id} value={String(e.id)}>{e.firstName} {e.lastName}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`assign-condition-${asset.id}`}>Issue Condition (optional — defaults to current condition)</Label>
+            <Select value={issueCondition} onValueChange={(v) => setIssueCondition(v as AssetCondition)}>
+              <SelectTrigger id={`assign-condition-${asset.id}`} data-testid={`select-assign-condition-${asset.id}`}>
+                <SelectValue placeholder={CONDITION_LABEL[asset.condition]} />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(CONDITION_LABEL).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`assign-return-date-${asset.id}`}>Expected Return Date (optional)</Label>
+            <Input id={`assign-return-date-${asset.id}`} type="date" value={expectedReturnDate} onChange={(e) => setExpectedReturnDate(e.target.value)} data-testid={`input-assign-return-date-${asset.id}`} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`assign-notes-${asset.id}`}>Notes (optional)</Label>
+            <Textarea id={`assign-notes-${asset.id}`} value={issueNotes} onChange={(e) => setIssueNotes(e.target.value)} data-testid={`textarea-assign-notes-${asset.id}`} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={handle} disabled={mutation.isPending || !employeeId} data-testid={`button-confirm-assign-${asset.id}`}>
+            {mutation.isPending ? 'Assigning…' : 'Confirm Assign'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ReturnAssetDialog({ organizationId, asset, onChanged }: { organizationId: number; asset: Asset; onChanged: () => void }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [returnCondition, setReturnCondition] = useState<AssetCondition | ''>('');
+  const [returnNotes, setReturnNotes] = useState('');
+  const mutation = useReturnAsset();
+
+  if (asset.status !== 'assigned') return null;
+
+  const reset = () => {
+    setReturnCondition('');
+    setReturnNotes('');
+  };
+
+  const handle = () => {
+    mutation.mutate(
+      { organizationId, id: asset.id, data: { returnCondition: returnCondition || undefined, returnNotes: returnNotes.trim() || undefined } },
+      {
+        onSuccess: () => {
+          setOpen(false);
+          reset();
+          onChanged();
+          toast({ title: 'Asset returned' });
+        },
+        onError: (err) => toast({ title: 'Could not return this asset', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" data-testid={`button-open-return-${asset.id}`}>
+          <Undo2 className="h-3.5 w-3.5" aria-hidden="true" />
+          Return…
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Return Asset</DialogTitle>
+          <DialogDescription>Closes the current custody record and returns this asset to available.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor={`return-condition-${asset.id}`}>Return Condition (optional)</Label>
+            <Select value={returnCondition} onValueChange={(v) => setReturnCondition(v as AssetCondition)}>
+              <SelectTrigger id={`return-condition-${asset.id}`} data-testid={`select-return-condition-${asset.id}`}>
+                <SelectValue placeholder="Not recorded" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(CONDITION_LABEL).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`return-notes-${asset.id}`}>Notes (optional)</Label>
+            <Textarea id={`return-notes-${asset.id}`} value={returnNotes} onChange={(e) => setReturnNotes(e.target.value)} data-testid={`textarea-return-notes-${asset.id}`} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={handle} disabled={mutation.isPending} data-testid={`button-confirm-return-${asset.id}`}>
+            {mutation.isPending ? 'Returning…' : 'Confirm Return'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CustodyPanel({ organizationId, asset, onAssetChanged }: { organizationId: number; asset: Asset; onAssetChanged: () => void }) {
+  const queryClient = useQueryClient();
+  const { data: assignments, isLoading, error, refetch } = useListAssetAssignments(organizationId, asset.id, {
+    query: { queryKey: getListAssetAssignmentsQueryKey(organizationId, asset.id), enabled: organizationId > 0 },
+  });
+
+  const handleChanged = () => {
+    queryClient.invalidateQueries({ queryKey: getListAssetAssignmentsQueryKey(organizationId, asset.id) });
+    onAssetChanged();
+    refetch();
+  };
+
+  const current = (assignments ?? []).find((a) => a.custodyEndedAt == null);
+  const history = (assignments ?? []).filter((a) => a.custodyEndedAt != null);
+
+  return (
+    <div className="space-y-3 border-t border-border pt-4">
+      <div className="flex items-center justify-between">
+        <Label>Custody</Label>
+        <div className="flex gap-2">
+          <AssignAssetDialog organizationId={organizationId} asset={asset} onChanged={handleChanged} />
+          <ReturnAssetDialog organizationId={organizationId} asset={asset} onChanged={handleChanged} />
+        </div>
+      </div>
+
+      {isLoading ? (
+        <Skeleton className="h-14 w-full" />
+      ) : error ? (
+        <QueryError title="Could not load custody history" message={errorMessage(error) ?? 'Please try again.'} onRetry={() => refetch()} />
+      ) : (
+        <>
+          {current ? (
+            <div className="rounded-md border border-border p-3 text-sm" data-testid={`text-current-custody-${asset.id}`}>
+              <p className="font-medium text-foreground">Currently assigned — employee #{current.employeeId}</p>
+              <p className="text-muted-foreground">
+                Issued {new Date(current.issuedAt).toLocaleDateString()}
+                {current.expectedReturnDate ? ` · expected back ${new Date(current.expectedReturnDate).toLocaleDateString()}` : ''}
+                {' · '}{current.acknowledgedAt ? 'Acknowledged by employee' : 'Not yet acknowledged'}
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground" data-testid={`text-no-current-custody-${asset.id}`}>No one currently holds this asset.</p>
+          )}
+
+          {history.length > 0 && (
+            <div className="space-y-2">
+              {history.map((a: AssetAssignment) => (
+                <div key={a.id} className="flex items-center justify-between rounded-md border border-border p-2 text-sm" data-testid={`row-custody-history-${a.id}`}>
+                  <span className="text-muted-foreground">Employee #{a.employeeId} · {new Date(a.issuedAt).toLocaleDateString()} – {a.custodyEndedAt ? new Date(a.custodyEndedAt).toLocaleDateString() : ''}</span>
+                  <Badge variant="outline" className="capitalize">{a.endReason ?? 'closed'}</Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 
@@ -781,6 +1029,8 @@ export default function Assets() {
                 <RecoverAssetDialog organizationId={organizationId} asset={detail} onChanged={invalidateAfterChange} />
                 <UpdateConditionDialog organizationId={organizationId} asset={detail} onChanged={invalidateAfterChange} />
               </div>
+
+              <CustodyPanel organizationId={organizationId} asset={detail} onAssetChanged={invalidateAfterChange} />
 
               <form onSubmit={handleSave} className="space-y-4 border-t border-border pt-4">
                 <div className="space-y-2">
