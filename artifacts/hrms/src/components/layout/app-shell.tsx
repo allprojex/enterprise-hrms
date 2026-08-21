@@ -371,6 +371,11 @@ export function AppShell({ children }: AppShellProps) {
     // record/instructor-of-record authorization is the real gate, so a
     // non-HR manager who navigates directly is still correctly authorized.
     ...(isHrCapable ? [{ href: '/learning-team-training', label: 'My Team Training', icon: Users } satisfies NavItem] : []),
+    // Phase 3D, W91 — §15's own frozen internal HR/L&D workspace surface
+    // (/learning-enrollments), same isHrCapable-only nav precedent as
+    // /performance-reviews (W80): the backend's own org-wide routes remain
+    // learning.manage-gated regardless of nav visibility.
+    ...(isHrCapable ? [{ href: '/learning-enrollments', label: 'Learning Enrollments', icon: ClipboardList } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisitions', label: 'Job Requisitions', icon: ClipboardList } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisition-approvals', label: 'Requisition Approvals', icon: Stamp } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/vacancies', label: 'Vacancies', icon: Megaphone } satisfies NavItem] : []),
