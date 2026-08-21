@@ -5465,6 +5465,155 @@ export interface LearningEnrollmentEvidence {
   uploadedBy: number | null;
 }
 
+/**
+ * Deliberately independent of asset status (§7) — a damaged asset can still be assigned or in maintenance.
+ */
+export type AssetCondition = typeof AssetCondition[keyof typeof AssetCondition];
+
+
+export const AssetCondition = {
+  new: 'new',
+  good: 'good',
+  fair: 'fair',
+  poor: 'poor',
+  damaged: 'damaged',
+} as const;
+
+/**
+ * The sole-authoritative lifecycle field. retired is permanently terminal.
+ */
+export type AssetStatus = typeof AssetStatus[keyof typeof AssetStatus];
+
+
+export const AssetStatus = {
+  available: 'available',
+  assigned: 'assigned',
+  maintenance: 'maintenance',
+  lost: 'lost',
+  retired: 'retired',
+} as const;
+
+export interface Asset {
+  id: number;
+  organizationId: number;
+  /** Server-generated, sequential, per-organization ("AST-00001", ...) — never client-supplied, never editable. */
+  assetTag: string;
+  /** Free-text code from the asset_category Master Data domain, not validated against the domain's item list. */
+  categoryCode: string;
+  name: string;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  manufacturer?: string | null;
+  /** @nullable */
+  model?: string | null;
+  /**
+     * Unique per organization only when present. An empty string is stored as null.
+     * @nullable
+     */
+  serialNumber?: string | null;
+  /**
+     * Current physical location — a live reference, not a historical snapshot.
+     * @nullable
+     */
+  branchId?: number | null;
+  /** @nullable */
+  purchaseDate?: string | null;
+  /**
+     * Optional, reference-only. No depreciation/valuation/accounting logic anywhere. No pairing requirement with purchaseCurrency.
+     * @nullable
+     */
+  purchaseCost?: string | null;
+  /** @nullable */
+  purchaseCurrency?: string | null;
+  /** @nullable */
+  warrantyExpiryDate?: string | null;
+  condition: AssetCondition;
+  status: AssetStatus;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  createdBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAssetInput {
+  /** @minLength 1 */
+  categoryCode: string;
+  /** @minLength 1 */
+  name: string;
+  description?: string;
+  manufacturer?: string;
+  model?: string;
+  serialNumber?: string;
+  branchId?: number;
+  purchaseDate?: string;
+  /** @minimum 0 */
+  purchaseCost?: number;
+  purchaseCurrency?: string;
+  warrantyExpiryDate?: string;
+  condition?: AssetCondition;
+  notes?: string;
+}
+
+/**
+ * Base register fields only — never status, never condition, never assetTag.
+ */
+export interface UpdateAssetInput {
+  /** @minLength 1 */
+  categoryCode?: string;
+  /** @minLength 1 */
+  name?: string;
+  description?: string;
+  manufacturer?: string;
+  model?: string;
+  /** @nullable */
+  serialNumber?: string | null;
+  /** @nullable */
+  branchId?: number | null;
+  /** @nullable */
+  purchaseDate?: string | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  purchaseCost?: number | null;
+  /** @nullable */
+  purchaseCurrency?: string | null;
+  /** @nullable */
+  warrantyExpiryDate?: string | null;
+  notes?: string;
+}
+
+export interface AssetListResponse {
+  items: Asset[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface RetireAssetInput {
+  /** @minLength 1 */
+  reason: string;
+}
+
+export interface MarkAssetLostInput {
+  /** @minLength 1 */
+  reason: string;
+}
+
+export interface RecoverAssetInput {
+  /** @minLength 1 */
+  reason: string;
+}
+
+export interface UpdateAssetConditionInput {
+  condition: AssetCondition;
+  /** @minLength 1 */
+  reason: string;
+}
+
 export type ListEmployeesParams = {
 search?: string;
 departmentId?: number;
@@ -5924,4 +6073,39 @@ export const RunLearningReportFormat = {
 export type AddLearningEnrollmentEvidenceBody = {
   file: Blob;
 };
+
+export type ListAssetsParams = {
+status?: ListAssetsStatus;
+condition?: ListAssetsCondition;
+categoryCode?: string;
+branchId?: number;
+/**
+ * Matches asset tag, name, serial number, manufacturer, or model.
+ */
+search?: string;
+page?: number;
+pageSize?: number;
+};
+
+export type ListAssetsStatus = typeof ListAssetsStatus[keyof typeof ListAssetsStatus];
+
+
+export const ListAssetsStatus = {
+  available: 'available',
+  assigned: 'assigned',
+  maintenance: 'maintenance',
+  lost: 'lost',
+  retired: 'retired',
+} as const;
+
+export type ListAssetsCondition = typeof ListAssetsCondition[keyof typeof ListAssetsCondition];
+
+
+export const ListAssetsCondition = {
+  new: 'new',
+  good: 'good',
+  fair: 'fair',
+  poor: 'poor',
+  damaged: 'damaged',
+} as const;
 

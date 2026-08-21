@@ -69,6 +69,7 @@ import learningEnrollmentsRouter from "./learningEnrollments";
 import learningCertificatesRouter from "./learningCertificates";
 import learningEnrollmentEvidenceRouter from "./learningEnrollmentEvidence";
 import learningReportingRouter from "./learningReporting";
+import assetsRouter from "./assets";
 
 const router: IRouter = Router();
 
@@ -142,5 +143,6 @@ router.use(learningEnrollmentsRouter);
 router.use(learningCertificatesRouter);
 router.use(learningEnrollmentEvidenceRouter);
 router.use(learningReportingRouter);
+router.use(assetsRouter);
 
 export default router;

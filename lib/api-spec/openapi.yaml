@@ -11946,6 +11946,405 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/assets:
+    get:
+      operationId: listAssets
+      tags: [assets]
+      summary: List an organization's assets (Asset Register)
+      description: >-
+        Requires asset_management.manage, organization-wide (§20 — the
+        register itself is HR/Asset Officer only in V1, no broader own-scope
+        catalog rule is frozen). Optional status/condition/categoryCode/
+        branchId/search query filters. Paginated (items/total/page/pageSize).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [available, assigned, maintenance, lost, retired]
+        - name: condition
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [new, good, fair, poor, damaged]
+        - name: categoryCode
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: branchId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Matches asset tag, name, serial number, manufacturer, or model.
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Paginated assets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetListResponse"
+    post:
+      operationId: createAsset
+      tags: [assets]
+      summary: Register a new asset
+      description: >-
+        Requires asset_management.manage. assetTag is always server-generated
+        (sequential, per-organization) — never client-supplied. status always
+        starts "available" — never client-supplied. categoryCode is
+        free-text from the asset_category Master Data domain, not validated
+        against the domain's item list (§4, §5, Owner Decision 8). A
+        submitted empty-string serialNumber is stored as null. branchId, when
+        supplied, must belong to the caller's own organization.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAssetInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asset"
+        "400":
+          description: Invalid input, or branchId does not belong to this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/assets/{id}:
+    get:
+      operationId: getAsset
+      tags: [assets]
+      summary: Get an asset
+      description: >-
+        Requires asset_management.read.own — org-wide reach for a caller who
+        additionally holds asset_management.manage, otherwise only if the
+        caller currently holds this specific asset via an active assignment
+        (§20's own frozen dual-floor; no assignment exists until W97 ships,
+        so this narrower reach is presently unreachable in practice but is
+        implemented exactly as frozen).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Asset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asset"
+        "403":
+          description: Not authorized to view this asset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    patch:
+      operationId: updateAsset
+      tags: [assets]
+      summary: Update an asset's base register fields
+      description: >-
+        Requires asset_management.manage. Base register fields only — never
+        status, never condition (each has its own dedicated, mandatory-
+        reason, audited action: retire/mark-lost/recover and
+        POST .../condition respectively). assetTag is never editable
+        (server-generated only). branchId, when supplied, must belong to the
+        caller's own organization.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAssetInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asset"
+        "400":
+          description: Invalid input, or a referenced organization-scoped ID does not belong to this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Duplicate serial number
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/assets/{id}/retire:
+    post:
+      operationId: retireAsset
+      tags: [assets]
+      summary: Retire an asset (permanently terminal)
+      description: >-
+        Requires asset_management.manage. Mandatory reason. Allowed only
+        from available/maintenance/lost — never directly from assigned (the
+        assign-side custody must close first, W97). Retired is permanently
+        terminal — no reopen path exists anywhere (§7, Owner Decision 10).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RetireAssetInput"
+      responses:
+        "200":
+          description: Retired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asset"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Currently assigned (return it first), or already retired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/assets/{id}/mark-lost:
+    post:
+      operationId: markAssetLost
+      tags: [assets]
+      summary: Mark an asset lost
+      description: >-
+        Requires asset_management.manage. Mandatory reason. Allowed from
+        available/assigned/maintenance. If the asset currently has an active
+        assignment, that custody period is closed in the same transaction
+        (endReason=lost) — the transition's own defined effect, not an
+        assign/return action in its own right.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MarkAssetLostInput"
+      responses:
+        "200":
+          description: Marked lost
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asset"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Already lost or retired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/assets/{id}/recover:
+    post:
+      operationId: recoverAsset
+      tags: [assets]
+      summary: Recover a lost asset back to available
+      description: Requires asset_management.manage. Mandatory reason. Allowed only from lost.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecoverAssetInput"
+      responses:
+        "200":
+          description: Recovered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asset"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Not currently lost
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/assets/{id}/condition:
+    post:
+      operationId: updateAssetCondition
+      tags: [assets]
+      summary: Record a condition change for an asset
+      description: >-
+        Requires asset_management.manage. Mandatory reason, always audited.
+        Condition is kept structurally separate from status (§7) — never
+        editable through the base-field PATCH.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAssetConditionInput"
+      responses:
+        "200":
+          description: Condition updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asset"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -18095,3 +18494,186 @@ components:
           type: integer
         uploadedBy:
           type: ["integer", "null"]
+
+    AssetCondition:
+      type: string
+      enum: [new, good, fair, poor, damaged]
+      description: Deliberately independent of asset status (§7) — a damaged asset can still be assigned or in maintenance.
+
+    AssetStatus:
+      type: string
+      enum: [available, assigned, maintenance, lost, retired]
+      description: The sole-authoritative lifecycle field. retired is permanently terminal.
+
+    Asset:
+      type: object
+      required: [id, organizationId, assetTag, categoryCode, name, condition, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        assetTag:
+          type: string
+          description: Server-generated, sequential, per-organization ("AST-00001", ...) — never client-supplied, never editable.
+        categoryCode:
+          type: string
+          description: Free-text code from the asset_category Master Data domain, not validated against the domain's item list.
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        manufacturer:
+          type: ["string", "null"]
+        model:
+          type: ["string", "null"]
+        serialNumber:
+          type: ["string", "null"]
+          description: Unique per organization only when present. An empty string is stored as null.
+        branchId:
+          type: ["integer", "null"]
+          description: Current physical location — a live reference, not a historical snapshot.
+        purchaseDate:
+          type: ["string", "null"]
+          format: date
+        purchaseCost:
+          type: ["string", "null"]
+          description: Optional, reference-only. No depreciation/valuation/accounting logic anywhere. No pairing requirement with purchaseCurrency.
+        purchaseCurrency:
+          type: ["string", "null"]
+        warrantyExpiryDate:
+          type: ["string", "null"]
+          format: date
+        condition:
+          $ref: "#/components/schemas/AssetCondition"
+        status:
+          $ref: "#/components/schemas/AssetStatus"
+        notes:
+          type: ["string", "null"]
+        createdBy:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateAssetInput:
+      type: object
+      required: [categoryCode, name]
+      properties:
+        categoryCode:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        manufacturer:
+          type: string
+        model:
+          type: string
+        serialNumber:
+          type: string
+        branchId:
+          type: integer
+        purchaseDate:
+          type: string
+          format: date
+        purchaseCost:
+          type: number
+          minimum: 0
+        purchaseCurrency:
+          type: string
+        warrantyExpiryDate:
+          type: string
+          format: date
+        condition:
+          $ref: "#/components/schemas/AssetCondition"
+        notes:
+          type: string
+
+    UpdateAssetInput:
+      type: object
+      description: Base register fields only — never status, never condition, never assetTag.
+      properties:
+        categoryCode:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        manufacturer:
+          type: string
+        model:
+          type: string
+        serialNumber:
+          type: ["string", "null"]
+        branchId:
+          type: ["integer", "null"]
+        purchaseDate:
+          type: ["string", "null"]
+          format: date
+        purchaseCost:
+          type: ["number", "null"]
+          minimum: 0
+        purchaseCurrency:
+          type: ["string", "null"]
+        warrantyExpiryDate:
+          type: ["string", "null"]
+          format: date
+        notes:
+          type: string
+
+    AssetListResponse:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Asset"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+
+    RetireAssetInput:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+
+    MarkAssetLostInput:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+
+    RecoverAssetInput:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+
+    UpdateAssetConditionInput:
+      type: object
+      required: [condition, reason]
+      properties:
+        condition:
+          $ref: "#/components/schemas/AssetCondition"
+        reason:
+          type: string
+          minLength: 1

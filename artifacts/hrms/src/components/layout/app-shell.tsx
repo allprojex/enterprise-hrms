@@ -38,6 +38,7 @@ import {
   Ruler,
   FileText,
   GraduationCap,
+  Boxes,
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -383,6 +384,11 @@ export function AppShell({ children }: AppShellProps) {
     // a non-HR manager who navigates directly is still correctly authorized.
     ...(isHrCapable ? [{ href: '/learning', label: 'Learning Dashboard', icon: LayoutDashboard } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/learning-reports', label: 'Learning Reports', icon: FileBarChart } satisfies NavItem] : []),
+    // Phase 3E, W96 — §19's own frozen /assets register surface, same
+    // isHrCapable-only nav precedent as every other HR configuration page
+    // above; the backend's own asset_management.manage/.read.own gating is
+    // the real authorization boundary regardless of nav visibility.
+    ...(isHrCapable ? [{ href: '/assets', label: 'Asset Register', icon: Boxes } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisitions', label: 'Job Requisitions', icon: ClipboardList } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisition-approvals', label: 'Requisition Approvals', icon: Stamp } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/vacancies', label: 'Vacancies', icon: Megaphone } satisfies NavItem] : []),

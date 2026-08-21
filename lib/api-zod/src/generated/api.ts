@@ -10046,3 +10046,355 @@ export const DownloadLearningEnrollmentEvidenceParams = zod.object({
 export const DownloadLearningEnrollmentEvidenceResponse = zod.unknown()
 
 
+/**
+ * Requires asset_management.manage, organization-wide (§20 — the register itself is HR/Asset Officer only in V1, no broader own-scope catalog rule is frozen). Optional status/condition/categoryCode/ branchId/search query filters. Paginated (items/total/page/pageSize).
+ * @summary List an organization's assets (Asset Register)
+ */
+export const ListAssetsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const listAssetsQueryPageDefault = 1;
+export const listAssetsQueryPageSizeDefault = 20;
+
+export const ListAssetsQueryParams = zod.object({
+  "status": zod.enum(['available', 'assigned', 'maintenance', 'lost', 'retired']).optional(),
+  "condition": zod.enum(['new', 'good', 'fair', 'poor', 'damaged']).optional(),
+  "categoryCode": zod.coerce.string().optional(),
+  "branchId": zod.coerce.number().optional(),
+  "search": zod.coerce.string().optional().describe('Matches asset tag, name, serial number, manufacturer, or model.'),
+  "page": zod.coerce.number().default(listAssetsQueryPageDefault),
+  "pageSize": zod.coerce.number().default(listAssetsQueryPageSizeDefault)
+})
+
+export const ListAssetsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "assetTag": zod.string().describe('Server-generated, sequential, per-organization (\"AST-00001\", ...) — never client-supplied, never editable.'),
+  "categoryCode": zod.string().describe('Free-text code from the asset_category Master Data domain, not validated against the domain\'s item list.'),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "manufacturer": zod.string().nullish(),
+  "model": zod.string().nullish(),
+  "serialNumber": zod.string().nullish().describe('Unique per organization only when present. An empty string is stored as null.'),
+  "branchId": zod.number().nullish().describe('Current physical location — a live reference, not a historical snapshot.'),
+  "purchaseDate": zod.coerce.date().nullish(),
+  "purchaseCost": zod.string().nullish().describe('Optional, reference-only. No depreciation\/valuation\/accounting logic anywhere. No pairing requirement with purchaseCurrency.'),
+  "purchaseCurrency": zod.string().nullish(),
+  "warrantyExpiryDate": zod.coerce.date().nullish(),
+  "condition": zod.enum(['new', 'good', 'fair', 'poor', 'damaged']).describe('Deliberately independent of asset status (§7) — a damaged asset can still be assigned or in maintenance.'),
+  "status": zod.enum(['available', 'assigned', 'maintenance', 'lost', 'retired']).describe('The sole-authoritative lifecycle field. retired is permanently terminal.'),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "pageSize": zod.number()
+})
+
+
+/**
+ * Requires asset_management.manage. assetTag is always server-generated (sequential, per-organization) — never client-supplied. status always starts "available" — never client-supplied. categoryCode is free-text from the asset_category Master Data domain, not validated against the domain's item list (§4, §5, Owner Decision 8). A submitted empty-string serialNumber is stored as null. branchId, when supplied, must belong to the caller's own organization.
+ * @summary Register a new asset
+ */
+export const CreateAssetParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+
+export const createAssetBodyPurchaseCostMin = 0;
+
+
+
+export const CreateAssetBody = zod.object({
+  "categoryCode": zod.string().min(1),
+  "name": zod.string().min(1),
+  "description": zod.string().optional(),
+  "manufacturer": zod.string().optional(),
+  "model": zod.string().optional(),
+  "serialNumber": zod.string().optional(),
+  "branchId": zod.number().optional(),
+  "purchaseDate": zod.coerce.date().optional(),
+  "purchaseCost": zod.number().min(createAssetBodyPurchaseCostMin).optional(),
+  "purchaseCurrency": zod.string().optional(),
+  "warrantyExpiryDate": zod.coerce.date().optional(),
+  "condition": zod.enum(['new', 'good', 'fair', 'poor', 'damaged']).optional().describe('Deliberately independent of asset status (§7) — a damaged asset can still be assigned or in maintenance.'),
+  "notes": zod.string().optional()
+})
+
+export const CreateAssetResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "assetTag": zod.string().describe('Server-generated, sequential, per-organization (\"AST-00001\", ...) — never client-supplied, never editable.'),
+  "categoryCode": zod.string().describe('Free-text code from the asset_category Master Data domain, not validated against the domain\'s item list.'),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "manufacturer": zod.string().nullish(),
+  "model": zod.string().nullish(),
+  "serialNumber": zod.string().nullish().describe('Unique per organization only when present. An empty string is stored as null.'),
+  "branchId": zod.number().nullish().describe('Current physical location — a live reference, not a historical snapshot.'),
+  "purchaseDate": zod.coerce.date().nullish(),
+  "purchaseCost": zod.string().nullish().describe('Optional, reference-only. No depreciation\/valuation\/accounting logic anywhere. No pairing requirement with purchaseCurrency.'),
+  "purchaseCurrency": zod.string().nullish(),
+  "warrantyExpiryDate": zod.coerce.date().nullish(),
+  "condition": zod.enum(['new', 'good', 'fair', 'poor', 'damaged']).describe('Deliberately independent of asset status (§7) — a damaged asset can still be assigned or in maintenance.'),
+  "status": zod.enum(['available', 'assigned', 'maintenance', 'lost', 'retired']).describe('The sole-authoritative lifecycle field. retired is permanently terminal.'),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Requires asset_management.read.own — org-wide reach for a caller who additionally holds asset_management.manage, otherwise only if the caller currently holds this specific asset via an active assignment (§20's own frozen dual-floor; no assignment exists until W97 ships, so this narrower reach is presently unreachable in practice but is implemented exactly as frozen).
+ * @summary Get an asset
+ */
+export const GetAssetParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const GetAssetResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "assetTag": zod.string().describe('Server-generated, sequential, per-organization (\"AST-00001\", ...) — never client-supplied, never editable.'),
+  "categoryCode": zod.string().describe('Free-text code from the asset_category Master Data domain, not validated against the domain\'s item list.'),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "manufacturer": zod.string().nullish(),
+  "model": zod.string().nullish(),
+  "serialNumber": zod.string().nullish().describe('Unique per organization only when present. An empty string is stored as null.'),
+  "branchId": zod.number().nullish().describe('Current physical location — a live reference, not a historical snapshot.'),
+  "purchaseDate": zod.coerce.date().nullish(),
+  "purchaseCost": zod.string().nullish().describe('Optional, reference-only. No depreciation\/valuation\/accounting logic anywhere. No pairing requirement with purchaseCurrency.'),
+  "purchaseCurrency": zod.string().nullish(),
+  "warrantyExpiryDate": zod.coerce.date().nullish(),
+  "condition": zod.enum(['new', 'good', 'fair', 'poor', 'damaged']).describe('Deliberately independent of asset status (§7) — a damaged asset can still be assigned or in maintenance.'),
+  "status": zod.enum(['available', 'assigned', 'maintenance', 'lost', 'retired']).describe('The sole-authoritative lifecycle field. retired is permanently terminal.'),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Requires asset_management.manage. Base register fields only — never status, never condition (each has its own dedicated, mandatory- reason, audited action: retire/mark-lost/recover and POST .../condition respectively). assetTag is never editable (server-generated only). branchId, when supplied, must belong to the caller's own organization.
+ * @summary Update an asset's base register fields
+ */
+export const UpdateAssetParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+
+
+export const updateAssetBodyPurchaseCostMin = 0;
+
+
+
+export const UpdateAssetBody = zod.object({
+  "categoryCode": zod.string().min(1).optional(),
+  "name": zod.string().min(1).optional(),
+  "description": zod.string().optional(),
+  "manufacturer": zod.string().optional(),
+  "model": zod.string().optional(),
+  "serialNumber": zod.string().nullish(),
+  "branchId": zod.number().nullish(),
+  "purchaseDate": zod.coerce.date().nullish(),
+  "purchaseCost": zod.number().min(updateAssetBodyPurchaseCostMin).nullish(),
+  "purchaseCurrency": zod.string().nullish(),
+  "warrantyExpiryDate": zod.coerce.date().nullish(),
+  "notes": zod.string().optional()
+}).describe('Base register fields only — never status, never condition, never assetTag.')
+
+export const UpdateAssetResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "assetTag": zod.string().describe('Server-generated, sequential, per-organization (\"AST-00001\", ...) — never client-supplied, never editable.'),
+  "categoryCode": zod.string().describe('Free-text code from the asset_category Master Data domain, not validated against the domain\'s item list.'),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "manufacturer": zod.string().nullish(),
+  "model": zod.string().nullish(),
+  "serialNumber": zod.string().nullish().describe('Unique per organization only when present. An empty string is stored as null.'),
+  "branchId": zod.number().nullish().describe('Current physical location — a live reference, not a historical snapshot.'),
+  "purchaseDate": zod.coerce.date().nullish(),
+  "purchaseCost": zod.string().nullish().describe('Optional, reference-only. No depreciation\/valuation\/accounting logic anywhere. No pairing requirement with purchaseCurrency.'),
+  "purchaseCurrency": zod.string().nullish(),
+  "warrantyExpiryDate": zod.coerce.date().nullish(),
+  "condition": zod.enum(['new', 'good', 'fair', 'poor', 'damaged']).describe('Deliberately independent of asset status (§7) — a damaged asset can still be assigned or in maintenance.'),
+  "status": zod.enum(['available', 'assigned', 'maintenance', 'lost', 'retired']).describe('The sole-authoritative lifecycle field. retired is permanently terminal.'),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Requires asset_management.manage. Mandatory reason. Allowed only from available/maintenance/lost — never directly from assigned (the assign-side custody must close first, W97). Retired is permanently terminal — no reopen path exists anywhere (§7, Owner Decision 10).
+ * @summary Retire an asset (permanently terminal)
+ */
+export const RetireAssetParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const RetireAssetBody = zod.object({
+  "reason": zod.string().min(1)
+})
+
+export const RetireAssetResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "assetTag": zod.string().describe('Server-generated, sequential, per-organization (\"AST-00001\", ...) — never client-supplied, never editable.'),
+  "categoryCode": zod.string().describe('Free-text code from the asset_category Master Data domain, not validated against the domain\'s item list.'),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "manufacturer": zod.string().nullish(),
+  "model": zod.string().nullish(),
+  "serialNumber": zod.string().nullish().describe('Unique per organization only when present. An empty string is stored as null.'),
+  "branchId": zod.number().nullish().describe('Current physical location — a live reference, not a historical snapshot.'),
+  "purchaseDate": zod.coerce.date().nullish(),
+  "purchaseCost": zod.string().nullish().describe('Optional, reference-only. No depreciation\/valuation\/accounting logic anywhere. No pairing requirement with purchaseCurrency.'),
+  "purchaseCurrency": zod.string().nullish(),
+  "warrantyExpiryDate": zod.coerce.date().nullish(),
+  "condition": zod.enum(['new', 'good', 'fair', 'poor', 'damaged']).describe('Deliberately independent of asset status (§7) — a damaged asset can still be assigned or in maintenance.'),
+  "status": zod.enum(['available', 'assigned', 'maintenance', 'lost', 'retired']).describe('The sole-authoritative lifecycle field. retired is permanently terminal.'),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Requires asset_management.manage. Mandatory reason. Allowed from available/assigned/maintenance. If the asset currently has an active assignment, that custody period is closed in the same transaction (endReason=lost) — the transition's own defined effect, not an assign/return action in its own right.
+ * @summary Mark an asset lost
+ */
+export const MarkAssetLostParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const MarkAssetLostBody = zod.object({
+  "reason": zod.string().min(1)
+})
+
+export const MarkAssetLostResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "assetTag": zod.string().describe('Server-generated, sequential, per-organization (\"AST-00001\", ...) — never client-supplied, never editable.'),
+  "categoryCode": zod.string().describe('Free-text code from the asset_category Master Data domain, not validated against the domain\'s item list.'),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "manufacturer": zod.string().nullish(),
+  "model": zod.string().nullish(),
+  "serialNumber": zod.string().nullish().describe('Unique per organization only when present. An empty string is stored as null.'),
+  "branchId": zod.number().nullish().describe('Current physical location — a live reference, not a historical snapshot.'),
+  "purchaseDate": zod.coerce.date().nullish(),
+  "purchaseCost": zod.string().nullish().describe('Optional, reference-only. No depreciation\/valuation\/accounting logic anywhere. No pairing requirement with purchaseCurrency.'),
+  "purchaseCurrency": zod.string().nullish(),
+  "warrantyExpiryDate": zod.coerce.date().nullish(),
+  "condition": zod.enum(['new', 'good', 'fair', 'poor', 'damaged']).describe('Deliberately independent of asset status (§7) — a damaged asset can still be assigned or in maintenance.'),
+  "status": zod.enum(['available', 'assigned', 'maintenance', 'lost', 'retired']).describe('The sole-authoritative lifecycle field. retired is permanently terminal.'),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Requires asset_management.manage. Mandatory reason. Allowed only from lost.
+ * @summary Recover a lost asset back to available
+ */
+export const RecoverAssetParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const RecoverAssetBody = zod.object({
+  "reason": zod.string().min(1)
+})
+
+export const RecoverAssetResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "assetTag": zod.string().describe('Server-generated, sequential, per-organization (\"AST-00001\", ...) — never client-supplied, never editable.'),
+  "categoryCode": zod.string().describe('Free-text code from the asset_category Master Data domain, not validated against the domain\'s item list.'),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "manufacturer": zod.string().nullish(),
+  "model": zod.string().nullish(),
+  "serialNumber": zod.string().nullish().describe('Unique per organization only when present. An empty string is stored as null.'),
+  "branchId": zod.number().nullish().describe('Current physical location — a live reference, not a historical snapshot.'),
+  "purchaseDate": zod.coerce.date().nullish(),
+  "purchaseCost": zod.string().nullish().describe('Optional, reference-only. No depreciation\/valuation\/accounting logic anywhere. No pairing requirement with purchaseCurrency.'),
+  "purchaseCurrency": zod.string().nullish(),
+  "warrantyExpiryDate": zod.coerce.date().nullish(),
+  "condition": zod.enum(['new', 'good', 'fair', 'poor', 'damaged']).describe('Deliberately independent of asset status (§7) — a damaged asset can still be assigned or in maintenance.'),
+  "status": zod.enum(['available', 'assigned', 'maintenance', 'lost', 'retired']).describe('The sole-authoritative lifecycle field. retired is permanently terminal.'),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Requires asset_management.manage. Mandatory reason, always audited. Condition is kept structurally separate from status (§7) — never editable through the base-field PATCH.
+ * @summary Record a condition change for an asset
+ */
+export const UpdateAssetConditionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const UpdateAssetConditionBody = zod.object({
+  "condition": zod.enum(['new', 'good', 'fair', 'poor', 'damaged']).describe('Deliberately independent of asset status (§7) — a damaged asset can still be assigned or in maintenance.'),
+  "reason": zod.string().min(1)
+})
+
+export const UpdateAssetConditionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "assetTag": zod.string().describe('Server-generated, sequential, per-organization (\"AST-00001\", ...) — never client-supplied, never editable.'),
+  "categoryCode": zod.string().describe('Free-text code from the asset_category Master Data domain, not validated against the domain\'s item list.'),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "manufacturer": zod.string().nullish(),
+  "model": zod.string().nullish(),
+  "serialNumber": zod.string().nullish().describe('Unique per organization only when present. An empty string is stored as null.'),
+  "branchId": zod.number().nullish().describe('Current physical location — a live reference, not a historical snapshot.'),
+  "purchaseDate": zod.coerce.date().nullish(),
+  "purchaseCost": zod.string().nullish().describe('Optional, reference-only. No depreciation\/valuation\/accounting logic anywhere. No pairing requirement with purchaseCurrency.'),
+  "purchaseCurrency": zod.string().nullish(),
+  "warrantyExpiryDate": zod.coerce.date().nullish(),
+  "condition": zod.enum(['new', 'good', 'fair', 'poor', 'damaged']).describe('Deliberately independent of asset status (§7) — a damaged asset can still be assigned or in maintenance.'),
+  "status": zod.enum(['available', 'assigned', 'maintenance', 'lost', 'retired']).describe('The sole-authoritative lifecycle field. retired is permanently terminal.'),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+

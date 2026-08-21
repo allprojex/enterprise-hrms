@@ -42,6 +42,8 @@ import type {
   ApplyToPublicVacancyBody,
   ApproveJobRequisitionInput,
   ApproveOfferVersionInput,
+  Asset,
+  AssetListResponse,
   AssignLearningEnrollmentsInput,
   AssignLearningEnrollmentsResult,
   AssignRoleInput,
@@ -64,6 +66,7 @@ import type {
   ConfirmEmployeeInput,
   ConversionResult,
   CopyRoleTemplateInput,
+  CreateAssetInput,
   CreateBackgroundCheckInput,
   CreateBranchInput,
   CreateCandidateNoteInput,
@@ -137,6 +140,7 @@ import type {
   LeaveType,
   LinkEmployeeUserInput,
   ListApplicationsParams,
+  ListAssetsParams,
   ListAttendanceEventsParams,
   ListAttendanceRegisterParams,
   ListAuditEventsParams,
@@ -154,6 +158,7 @@ import type {
   ListPublicVacanciesParams,
   ListVacanciesParams,
   LoginInput,
+  MarkAssetLostInput,
   MarkLearningEnrollmentAttendanceInput,
   MasterDataDomain,
   MasterDataItem,
@@ -205,6 +210,7 @@ import type {
   ReadinessStatus,
   RecordAttendanceAdjustmentInput,
   RecordAttendanceEventInput,
+  RecoverAssetInput,
   RecruitmentDashboard,
   RecruitmentSettings,
   RecruitmentStage,
@@ -225,6 +231,7 @@ import type {
   ResetPasswordInput,
   RestructureDepartmentInput,
   RestructurePositionInput,
+  RetireAssetInput,
   RevokeLearningCertificateInput,
   Role,
   RunAttendanceReportParams,
@@ -244,6 +251,8 @@ import type {
   TalentPoolMember,
   TenantContext,
   TransferEmployeeInput,
+  UpdateAssetConditionInput,
+  UpdateAssetInput,
   UpdateBackgroundCheckStatusInput,
   UpdateBranchInput,
   UpdateDepartmentInput,
@@ -23631,4 +23640,625 @@ export function useDownloadLearningEnrollmentEvidence<TData = Awaited<ReturnType
 
 
 
+
+export const getListAssetsUrl = (organizationId: number,
+    params?: ListAssetsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/assets?${stringifiedParams}` : `/api/organizations/${organizationId}/assets`
+}
+
+/**
+ * Requires asset_management.manage, organization-wide (§20 — the register itself is HR/Asset Officer only in V1, no broader own-scope catalog rule is frozen). Optional status/condition/categoryCode/ branchId/search query filters. Paginated (items/total/page/pageSize).
+ * @summary List an organization's assets (Asset Register)
+ */
+export const listAssets = async (organizationId: number,
+    params?: ListAssetsParams, options?: RequestInit): Promise<AssetListResponse> => {
+
+  return customFetch<AssetListResponse>(getListAssetsUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAssetsQueryKey = (organizationId: number,
+    params?: ListAssetsParams,) => {
+    return [
+    `/api/organizations/${organizationId}/assets`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListAssetsQueryOptions = <TData = Awaited<ReturnType<typeof listAssets>>, TError = ErrorType<unknown>>(organizationId: number,
+    params?: ListAssetsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAssets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAssetsQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAssets>>> = ({ signal }) => listAssets(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAssets>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAssetsQueryResult = NonNullable<Awaited<ReturnType<typeof listAssets>>>
+export type ListAssetsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List an organization's assets (Asset Register)
+ */
+
+export function useListAssets<TData = Awaited<ReturnType<typeof listAssets>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    params?: ListAssetsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAssets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAssetsQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateAssetUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/assets`
+}
+
+/**
+ * Requires asset_management.manage. assetTag is always server-generated (sequential, per-organization) — never client-supplied. status always starts "available" — never client-supplied. categoryCode is free-text from the asset_category Master Data domain, not validated against the domain's item list (§4, §5, Owner Decision 8). A submitted empty-string serialNumber is stored as null. branchId, when supplied, must belong to the caller's own organization.
+ * @summary Register a new asset
+ */
+export const createAsset = async (organizationId: number,
+    createAssetInput: CreateAssetInput, options?: RequestInit): Promise<Asset> => {
+
+  return customFetch<Asset>(getCreateAssetUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createAssetInput)
+  }
+);}
+
+
+
+
+
+export const getCreateAssetMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAsset>>, TError,{organizationId: number;data: BodyType<CreateAssetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAsset>>, TError,{organizationId: number;data: BodyType<CreateAssetInput>}, TContext> => {
+
+const mutationKey = ['createAsset'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAsset>>, {organizationId: number;data: BodyType<CreateAssetInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createAsset(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAssetMutationResult = NonNullable<Awaited<ReturnType<typeof createAsset>>>
+    export type CreateAssetMutationBody = BodyType<CreateAssetInput>
+    export type CreateAssetMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Register a new asset
+ */
+export const useCreateAsset = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAsset>>, TError,{organizationId: number;data: BodyType<CreateAssetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createAsset>>,
+        TError,
+        {organizationId: number;data: BodyType<CreateAssetInput>},
+        TContext
+      > => {
+      return useMutation(getCreateAssetMutationOptions(options));
+    }
+
+export const getGetAssetUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/assets/${id}`
+}
+
+/**
+ * Requires asset_management.read.own — org-wide reach for a caller who additionally holds asset_management.manage, otherwise only if the caller currently holds this specific asset via an active assignment (§20's own frozen dual-floor; no assignment exists until W97 ships, so this narrower reach is presently unreachable in practice but is implemented exactly as frozen).
+ * @summary Get an asset
+ */
+export const getAsset = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<Asset> => {
+
+  return customFetch<Asset>(getGetAssetUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAssetQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/assets/${id}`
+    ] as const;
+    }
+
+
+export const getGetAssetQueryOptions = <TData = Awaited<ReturnType<typeof getAsset>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAsset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAssetQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAsset>>> = ({ signal }) => getAsset(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAsset>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAssetQueryResult = NonNullable<Awaited<ReturnType<typeof getAsset>>>
+export type GetAssetQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get an asset
+ */
+
+export function useGetAsset<TData = Awaited<ReturnType<typeof getAsset>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAsset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAssetQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateAssetUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/assets/${id}`
+}
+
+/**
+ * Requires asset_management.manage. Base register fields only — never status, never condition (each has its own dedicated, mandatory- reason, audited action: retire/mark-lost/recover and POST .../condition respectively). assetTag is never editable (server-generated only). branchId, when supplied, must belong to the caller's own organization.
+ * @summary Update an asset's base register fields
+ */
+export const updateAsset = async (organizationId: number,
+    id: number,
+    updateAssetInput: UpdateAssetInput, options?: RequestInit): Promise<Asset> => {
+
+  return customFetch<Asset>(getUpdateAssetUrl(organizationId,id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateAssetInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateAssetMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAsset>>, TError,{organizationId: number;id: number;data: BodyType<UpdateAssetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAsset>>, TError,{organizationId: number;id: number;data: BodyType<UpdateAssetInput>}, TContext> => {
+
+const mutationKey = ['updateAsset'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAsset>>, {organizationId: number;id: number;data: BodyType<UpdateAssetInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  updateAsset(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAssetMutationResult = NonNullable<Awaited<ReturnType<typeof updateAsset>>>
+    export type UpdateAssetMutationBody = BodyType<UpdateAssetInput>
+    export type UpdateAssetMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update an asset's base register fields
+ */
+export const useUpdateAsset = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAsset>>, TError,{organizationId: number;id: number;data: BodyType<UpdateAssetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAsset>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<UpdateAssetInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateAssetMutationOptions(options));
+    }
+
+export const getRetireAssetUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/assets/${id}/retire`
+}
+
+/**
+ * Requires asset_management.manage. Mandatory reason. Allowed only from available/maintenance/lost — never directly from assigned (the assign-side custody must close first, W97). Retired is permanently terminal — no reopen path exists anywhere (§7, Owner Decision 10).
+ * @summary Retire an asset (permanently terminal)
+ */
+export const retireAsset = async (organizationId: number,
+    id: number,
+    retireAssetInput: RetireAssetInput, options?: RequestInit): Promise<Asset> => {
+
+  return customFetch<Asset>(getRetireAssetUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(retireAssetInput)
+  }
+);}
+
+
+
+
+
+export const getRetireAssetMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retireAsset>>, TError,{organizationId: number;id: number;data: BodyType<RetireAssetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof retireAsset>>, TError,{organizationId: number;id: number;data: BodyType<RetireAssetInput>}, TContext> => {
+
+const mutationKey = ['retireAsset'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof retireAsset>>, {organizationId: number;id: number;data: BodyType<RetireAssetInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  retireAsset(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RetireAssetMutationResult = NonNullable<Awaited<ReturnType<typeof retireAsset>>>
+    export type RetireAssetMutationBody = BodyType<RetireAssetInput>
+    export type RetireAssetMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Retire an asset (permanently terminal)
+ */
+export const useRetireAsset = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retireAsset>>, TError,{organizationId: number;id: number;data: BodyType<RetireAssetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof retireAsset>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<RetireAssetInput>},
+        TContext
+      > => {
+      return useMutation(getRetireAssetMutationOptions(options));
+    }
+
+export const getMarkAssetLostUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/assets/${id}/mark-lost`
+}
+
+/**
+ * Requires asset_management.manage. Mandatory reason. Allowed from available/assigned/maintenance. If the asset currently has an active assignment, that custody period is closed in the same transaction (endReason=lost) — the transition's own defined effect, not an assign/return action in its own right.
+ * @summary Mark an asset lost
+ */
+export const markAssetLost = async (organizationId: number,
+    id: number,
+    markAssetLostInput: MarkAssetLostInput, options?: RequestInit): Promise<Asset> => {
+
+  return customFetch<Asset>(getMarkAssetLostUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(markAssetLostInput)
+  }
+);}
+
+
+
+
+
+export const getMarkAssetLostMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markAssetLost>>, TError,{organizationId: number;id: number;data: BodyType<MarkAssetLostInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markAssetLost>>, TError,{organizationId: number;id: number;data: BodyType<MarkAssetLostInput>}, TContext> => {
+
+const mutationKey = ['markAssetLost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markAssetLost>>, {organizationId: number;id: number;data: BodyType<MarkAssetLostInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  markAssetLost(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkAssetLostMutationResult = NonNullable<Awaited<ReturnType<typeof markAssetLost>>>
+    export type MarkAssetLostMutationBody = BodyType<MarkAssetLostInput>
+    export type MarkAssetLostMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Mark an asset lost
+ */
+export const useMarkAssetLost = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markAssetLost>>, TError,{organizationId: number;id: number;data: BodyType<MarkAssetLostInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof markAssetLost>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<MarkAssetLostInput>},
+        TContext
+      > => {
+      return useMutation(getMarkAssetLostMutationOptions(options));
+    }
+
+export const getRecoverAssetUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/assets/${id}/recover`
+}
+
+/**
+ * Requires asset_management.manage. Mandatory reason. Allowed only from lost.
+ * @summary Recover a lost asset back to available
+ */
+export const recoverAsset = async (organizationId: number,
+    id: number,
+    recoverAssetInput: RecoverAssetInput, options?: RequestInit): Promise<Asset> => {
+
+  return customFetch<Asset>(getRecoverAssetUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(recoverAssetInput)
+  }
+);}
+
+
+
+
+
+export const getRecoverAssetMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recoverAsset>>, TError,{organizationId: number;id: number;data: BodyType<RecoverAssetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recoverAsset>>, TError,{organizationId: number;id: number;data: BodyType<RecoverAssetInput>}, TContext> => {
+
+const mutationKey = ['recoverAsset'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recoverAsset>>, {organizationId: number;id: number;data: BodyType<RecoverAssetInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  recoverAsset(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecoverAssetMutationResult = NonNullable<Awaited<ReturnType<typeof recoverAsset>>>
+    export type RecoverAssetMutationBody = BodyType<RecoverAssetInput>
+    export type RecoverAssetMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Recover a lost asset back to available
+ */
+export const useRecoverAsset = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recoverAsset>>, TError,{organizationId: number;id: number;data: BodyType<RecoverAssetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recoverAsset>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<RecoverAssetInput>},
+        TContext
+      > => {
+      return useMutation(getRecoverAssetMutationOptions(options));
+    }
+
+export const getUpdateAssetConditionUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/assets/${id}/condition`
+}
+
+/**
+ * Requires asset_management.manage. Mandatory reason, always audited. Condition is kept structurally separate from status (§7) — never editable through the base-field PATCH.
+ * @summary Record a condition change for an asset
+ */
+export const updateAssetCondition = async (organizationId: number,
+    id: number,
+    updateAssetConditionInput: UpdateAssetConditionInput, options?: RequestInit): Promise<Asset> => {
+
+  return customFetch<Asset>(getUpdateAssetConditionUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateAssetConditionInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateAssetConditionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAssetCondition>>, TError,{organizationId: number;id: number;data: BodyType<UpdateAssetConditionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAssetCondition>>, TError,{organizationId: number;id: number;data: BodyType<UpdateAssetConditionInput>}, TContext> => {
+
+const mutationKey = ['updateAssetCondition'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAssetCondition>>, {organizationId: number;id: number;data: BodyType<UpdateAssetConditionInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  updateAssetCondition(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAssetConditionMutationResult = NonNullable<Awaited<ReturnType<typeof updateAssetCondition>>>
+    export type UpdateAssetConditionMutationBody = BodyType<UpdateAssetConditionInput>
+    export type UpdateAssetConditionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Record a condition change for an asset
+ */
+export const useUpdateAssetCondition = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAssetCondition>>, TError,{organizationId: number;id: number;data: BodyType<UpdateAssetConditionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAssetCondition>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<UpdateAssetConditionInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateAssetConditionMutationOptions(options));
+    }
 

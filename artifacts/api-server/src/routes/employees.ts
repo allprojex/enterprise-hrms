@@ -795,7 +795,7 @@ router.post(
   },
 );
 
-function formatEmployeeDocument(doc: { id: number; organizationId: number; employeeId: number; categoryCode: string; fileName: string; mimeType: string; fileSize: number; uploadedBy: number | null; createdAt: Date }) {
+function formatEmployeeDocument(doc: { id: number; organizationId: number; employeeId: number | null; categoryCode: string; fileName: string; mimeType: string; fileSize: number; uploadedBy: number | null; createdAt: Date }) {
   return {
     id: doc.id,
     organizationId: doc.organizationId,
