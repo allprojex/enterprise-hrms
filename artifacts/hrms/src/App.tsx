@@ -41,6 +41,8 @@ import PerformanceReports from '@/pages/performance-reports';
 import LearningCourses from '@/pages/learning-courses';
 import LearningTeamTraining from '@/pages/learning-team-training';
 import LearningEnrollments from '@/pages/learning-enrollments';
+import LearningDashboard from '@/pages/learning-dashboard';
+import LearningReports from '@/pages/learning-reports';
 import EmployeeSelfService from '@/pages/employee-self-service';
 import RecruitmentSettings from '@/pages/recruitment-settings';
 import Requisitions from '@/pages/requisitions';
@@ -194,6 +196,12 @@ function Router() {
       </Route>
       <Route path="/learning-enrollments">
         {() => <SecureRoute component={LearningEnrollments} moduleKey="learning" />}
+      </Route>
+      <Route path="/learning">
+        {() => <SecureRoute component={LearningDashboard} moduleKey="learning" />}
+      </Route>
+      <Route path="/learning-reports">
+        {() => <SecureRoute component={LearningReports} moduleKey="learning" />}
       </Route>
       <Route path="/self-service">
         {() => <SecureRoute component={EmployeeSelfService} moduleKey="employee_self_service" />}

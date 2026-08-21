@@ -9929,6 +9929,60 @@ export const RevokeLearningCertificateResponse = zod.object({
 
 
 /**
+ * Requires learning.reports.read. Scope resolved in the service layer exactly like performance.reports.read: learning.manage holders see the whole organization; everyone else sees only enrollments where they are the enrollment's own employee or its snapshotted managerEmployeeIdSnapshot. activeCourseCount is always organization-wide (course catalog existence isn't sensitive enrollment data). overdueCount excludes every terminal status (completed/failed/cancelled), not merely "not yet completed". certificatesExpiringSoonCount uses a fixed 30-day window. Plain counts only — no completion percentage or average-score tile.
+ * @summary Learning dashboard — zero-filled enrollment tile breakdown
+ */
+export const GetLearningDashboardParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetLearningDashboardResponse = zod.object({
+  "activeCourseCount": zod.number().describe('Organization-wide count of courses with status = active, regardless of the caller\'s own enrollment scope.'),
+  "enrollmentsAssignedCount": zod.number().describe('Total enrollments in the caller\'s authorized scope (a raw count, not distinct employees).'),
+  "statusBreakdown": zod.array(zod.object({
+  "status": zod.enum(['assigned', 'in_progress', 'completed', 'failed', 'cancelled']),
+  "count": zod.number()
+})).describe('All 5 enrollment statuses, zero-filled, fixed order.'),
+  "pendingApprovalCount": zod.number().describe('approvalStatus = pending, within scope.'),
+  "overdueCount": zod.number().describe('dueDate passed and status not in (completed, failed, cancelled).'),
+  "certificatesExpiringSoonCount": zod.number().describe('Active certificates with a fixed expiresAt within the next 30 days, within scope.')
+})
+
+
+/**
+ * Computes a registered Learning report (see GET /reports, category "learning": learning_enrollment_status, learning_completion_summary, learning_certificate_expiry) over the caller's own/manager-of- record/organization-wide visibility tier (identical to the dashboard). No instructor-of-record reporting tier exists. learning_completion_summary is a per-course aggregate; its completionPercentage excludes pending-approval and rejected enrollments from the denominator, and excludes cancelled enrollments, but includes failed. Pass ?format=csv for a CSV download instead of JSON — CSV scope is always identical to the already-authorized JSON scope.
+ * @summary Run a Learning report
+ */
+export const RunLearningReportParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "reportKey": zod.coerce.string()
+})
+
+export const RunLearningReportQueryParams = zod.object({
+  "courseId": zod.coerce.number().optional(),
+  "status": zod.coerce.string().optional().describe('Enrollment status for learning_enrollment_status; certificate status (active\/revoked) for learning_certificate_expiry.'),
+  "approvalStatus": zod.enum(['auto_approved', 'pending', 'approved', 'rejected']).optional(),
+  "departmentId": zod.coerce.number().optional().describe('Filters departmentIdSnapshot, not the employee\'s current department.'),
+  "positionId": zod.coerce.number().optional().describe('Filters positionIdSnapshot, not the employee\'s current position.'),
+  "managerId": zod.coerce.number().optional().describe('Filters the snapshotted managerEmployeeIdSnapshot.'),
+  "employeeId": zod.coerce.number().optional(),
+  "format": zod.enum(['json', 'csv']).optional()
+})
+
+export const RunLearningReportResponse = zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "description": zod.string(),
+  "generatedAt": zod.coerce.date(),
+  "columns": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string()
+})),
+  "rows": zod.array(zod.record(zod.string(), zod.unknown()))
+})
+
+
+/**
  * Visible to the same own/manager-of-record/instructor-of-record/ organization-wide tier as the enrollment itself (§21's own frozen row) — no stage/status restriction, at any enrollment status, including terminal.
  * @summary List an enrollment's evidence
  */

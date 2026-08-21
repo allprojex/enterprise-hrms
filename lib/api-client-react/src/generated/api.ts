@@ -125,6 +125,7 @@ import type {
   LearningCertificateListResponse,
   LearningCourse,
   LearningCourseSession,
+  LearningDashboard,
   LearningEnrollment,
   LearningEnrollmentEvidence,
   LearningEnrollmentListResponse,
@@ -227,6 +228,7 @@ import type {
   RevokeLearningCertificateInput,
   Role,
   RunAttendanceReportParams,
+  RunLearningReportParams,
   RunPerformanceReportParams,
   RunRecruitmentReportParams,
   RunReportParams,
@@ -23208,6 +23210,179 @@ export const useRevokeLearningCertificate = <TError = ErrorType<ApiError>,
       > => {
       return useMutation(getRevokeLearningCertificateMutationOptions(options));
     }
+
+export const getGetLearningDashboardUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/learning/dashboard`
+}
+
+/**
+ * Requires learning.reports.read. Scope resolved in the service layer exactly like performance.reports.read: learning.manage holders see the whole organization; everyone else sees only enrollments where they are the enrollment's own employee or its snapshotted managerEmployeeIdSnapshot. activeCourseCount is always organization-wide (course catalog existence isn't sensitive enrollment data). overdueCount excludes every terminal status (completed/failed/cancelled), not merely "not yet completed". certificatesExpiringSoonCount uses a fixed 30-day window. Plain counts only — no completion percentage or average-score tile.
+ * @summary Learning dashboard — zero-filled enrollment tile breakdown
+ */
+export const getLearningDashboard = async (organizationId: number, options?: RequestInit): Promise<LearningDashboard> => {
+
+  return customFetch<LearningDashboard>(getGetLearningDashboardUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLearningDashboardQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/learning/dashboard`
+    ] as const;
+    }
+
+
+export const getGetLearningDashboardQueryOptions = <TData = Awaited<ReturnType<typeof getLearningDashboard>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLearningDashboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLearningDashboardQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLearningDashboard>>> = ({ signal }) => getLearningDashboard(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLearningDashboard>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetLearningDashboardQueryResult = NonNullable<Awaited<ReturnType<typeof getLearningDashboard>>>
+export type GetLearningDashboardQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Learning dashboard — zero-filled enrollment tile breakdown
+ */
+
+export function useGetLearningDashboard<TData = Awaited<ReturnType<typeof getLearningDashboard>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLearningDashboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetLearningDashboardQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRunLearningReportUrl = (organizationId: number,
+    reportKey: string,
+    params?: RunLearningReportParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/learning/reports/${reportKey}?${stringifiedParams}` : `/api/organizations/${organizationId}/learning/reports/${reportKey}`
+}
+
+/**
+ * Computes a registered Learning report (see GET /reports, category "learning": learning_enrollment_status, learning_completion_summary, learning_certificate_expiry) over the caller's own/manager-of- record/organization-wide visibility tier (identical to the dashboard). No instructor-of-record reporting tier exists. learning_completion_summary is a per-course aggregate; its completionPercentage excludes pending-approval and rejected enrollments from the denominator, and excludes cancelled enrollments, but includes failed. Pass ?format=csv for a CSV download instead of JSON — CSV scope is always identical to the already-authorized JSON scope.
+ * @summary Run a Learning report
+ */
+export const runLearningReport = async (organizationId: number,
+    reportKey: string,
+    params?: RunLearningReportParams, options?: RequestInit): Promise<ReportRunResult | string> => {
+
+  return customFetch<ReportRunResult | string>(getRunLearningReportUrl(organizationId,reportKey,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getRunLearningReportQueryKey = (organizationId: number,
+    reportKey: string,
+    params?: RunLearningReportParams,) => {
+    return [
+    `/api/organizations/${organizationId}/learning/reports/${reportKey}`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getRunLearningReportQueryOptions = <TData = Awaited<ReturnType<typeof runLearningReport>>, TError = ErrorType<ApiError>>(organizationId: number,
+    reportKey: string,
+    params?: RunLearningReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runLearningReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getRunLearningReportQueryKey(organizationId,reportKey,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof runLearningReport>>> = ({ signal }) => runLearningReport(organizationId,reportKey,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && reportKey !== null && reportKey !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof runLearningReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type RunLearningReportQueryResult = NonNullable<Awaited<ReturnType<typeof runLearningReport>>>
+export type RunLearningReportQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Run a Learning report
+ */
+
+export function useRunLearningReport<TData = Awaited<ReturnType<typeof runLearningReport>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    reportKey: string,
+    params?: RunLearningReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runLearningReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getRunLearningReportQueryOptions(organizationId,reportKey,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListLearningEnrollmentEvidenceUrl = (organizationId: number,
     id: number,) => {

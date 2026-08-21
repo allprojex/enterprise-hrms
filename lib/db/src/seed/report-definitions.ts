@@ -187,6 +187,39 @@ export const REPORT_DEFINITIONS: readonly ReportDefinition[] = [
     category: "performance",
     requiredPermissionKey: "performance.reports.read",
   },
+  // Phase 3D, W92 — Learning Dashboard & Reporting (§16/§17 of the frozen
+  // plan). Registered here for catalog discoverability via the existing
+  // GET /reports (ADR-016), but — like every dedicated-route module above —
+  // NOT executed through the generic GET .../reports/:reportKey/run route
+  // (lib/reporting.ts's RUNNERS map has no entries for these keys, so that
+  // route safely 404s "Unknown report" for any of them). Learning reports
+  // need the own/manager-of-record/organization-wide visibility tiers the
+  // generic runner cannot express — execution is a dedicated, scope-aware
+  // route instead (GET .../learning/reports/:reportKey,
+  // artifacts/api-server/src/routes/learningReporting.ts), reusing the same
+  // {columns, rows}/CSV export shape and requiredPermissionKey convention
+  // this registry already established.
+  {
+    key: "learning_enrollment_status",
+    label: "Enrollment Status",
+    description: "Every in-scope Learning enrollment's status, approval state, dates, and mandatory flag, with historical snapshot dimensions.",
+    category: "learning",
+    requiredPermissionKey: "learning.reports.read",
+  },
+  {
+    key: "learning_completion_summary",
+    label: "Completion Summary",
+    description: "Completions and failures per course, with assigned/in-progress/failed/cancelled counts and a completion percentage.",
+    category: "learning",
+    requiredPermissionKey: "learning.reports.read",
+  },
+  {
+    key: "learning_certificate_expiry",
+    label: "Certificate Expiry",
+    description: "Issued Learning certificates with issue/expiry dates and computed active/expired/revoked state.",
+    category: "learning",
+    requiredPermissionKey: "learning.reports.read",
+  },
 ] as const;
 
 /** Throws on a duplicate key — the only integrity rule this registry has (no dependency graph, unlike modules). */

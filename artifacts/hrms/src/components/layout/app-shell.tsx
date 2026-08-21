@@ -376,6 +376,13 @@ export function AppShell({ children }: AppShellProps) {
     // /performance-reviews (W80): the backend's own org-wide routes remain
     // learning.manage-gated regardless of nav visibility.
     ...(isHrCapable ? [{ href: '/learning-enrollments', label: 'Learning Enrollments', icon: ClipboardList } satisfies NavItem] : []),
+    // Phase 3D, W92 — §15's own frozen surfaces (/learning,
+    // /learning-reports), same isHrCapable-only nav precedent as
+    // /performance/​/performance-reports (W81); backend remains
+    // learning.reports.read-gated (own/manager-of-record/org-wide scope) so
+    // a non-HR manager who navigates directly is still correctly authorized.
+    ...(isHrCapable ? [{ href: '/learning', label: 'Learning Dashboard', icon: LayoutDashboard } satisfies NavItem] : []),
+    ...(isHrCapable ? [{ href: '/learning-reports', label: 'Learning Reports', icon: FileBarChart } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisitions', label: 'Job Requisitions', icon: ClipboardList } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisition-approvals', label: 'Requisition Approvals', icon: Stamp } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/vacancies', label: 'Vacancies', icon: Megaphone } satisfies NavItem] : []),

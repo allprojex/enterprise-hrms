@@ -5417,6 +5417,37 @@ export interface RevokeLearningCertificateInput {
   revokeReason: string;
 }
 
+export type LearningDashboardStatusItemStatus = typeof LearningDashboardStatusItemStatus[keyof typeof LearningDashboardStatusItemStatus];
+
+
+export const LearningDashboardStatusItemStatus = {
+  assigned: 'assigned',
+  in_progress: 'in_progress',
+  completed: 'completed',
+  failed: 'failed',
+  cancelled: 'cancelled',
+} as const;
+
+export interface LearningDashboardStatusItem {
+  status: LearningDashboardStatusItemStatus;
+  count: number;
+}
+
+export interface LearningDashboard {
+  /** Organization-wide count of courses with status = active, regardless of the caller's own enrollment scope. */
+  activeCourseCount: number;
+  /** Total enrollments in the caller's authorized scope (a raw count, not distinct employees). */
+  enrollmentsAssignedCount: number;
+  /** All 5 enrollment statuses, zero-filled, fixed order. */
+  statusBreakdown: LearningDashboardStatusItem[];
+  /** approvalStatus = pending, within scope. */
+  pendingApprovalCount: number;
+  /** dueDate passed and status not in (completed, failed, cancelled). */
+  overdueCount: number;
+  /** Active certificates with a fixed expiresAt within the next 30 days, within scope. */
+  certificatesExpiringSoonCount: number;
+}
+
 export interface LearningEnrollmentEvidence {
   id: number;
   organizationId: number;
@@ -5847,6 +5878,47 @@ export type ListLearningCertificatesStatus = typeof ListLearningCertificatesStat
 export const ListLearningCertificatesStatus = {
   active: 'active',
   revoked: 'revoked',
+} as const;
+
+export type RunLearningReportParams = {
+courseId?: number;
+/**
+ * Enrollment status for learning_enrollment_status; certificate status (active/revoked) for learning_certificate_expiry.
+ */
+status?: string;
+approvalStatus?: RunLearningReportApprovalStatus;
+/**
+ * Filters departmentIdSnapshot, not the employee's current department.
+ */
+departmentId?: number;
+/**
+ * Filters positionIdSnapshot, not the employee's current position.
+ */
+positionId?: number;
+/**
+ * Filters the snapshotted managerEmployeeIdSnapshot.
+ */
+managerId?: number;
+employeeId?: number;
+format?: RunLearningReportFormat;
+};
+
+export type RunLearningReportApprovalStatus = typeof RunLearningReportApprovalStatus[keyof typeof RunLearningReportApprovalStatus];
+
+
+export const RunLearningReportApprovalStatus = {
+  auto_approved: 'auto_approved',
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export type RunLearningReportFormat = typeof RunLearningReportFormat[keyof typeof RunLearningReportFormat];
+
+
+export const RunLearningReportFormat = {
+  json: 'json',
+  csv: 'csv',
 } as const;
 
 export type AddLearningEnrollmentEvidenceBody = {
