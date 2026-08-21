@@ -49,6 +49,14 @@ export default function LearningReports() {
   const reports = (allReports ?? []).filter((r) => r.category === 'learning');
 
   const reportKey = reports.some((r) => r.key === selectedReportKey) ? selectedReportKey : (reports[0]?.key ?? '');
+  // learning_certificate_expiry is certificate-scoped, not enrollment-scoped
+  // — its own backend runner (runCertificateExpiry) only ever honors
+  // employeeId/status, never course/department/position (certificates carry
+  // no course/department/position column of their own to filter by). Hiding
+  // those controls for this one report keeps the UI honest about what's
+  // actually filterable, rather than showing a picker that silently has no
+  // effect on the result.
+  const supportsCourseDeptPositionFilters = reportKey !== 'learning_certificate_expiry';
 
   const { data: courses } = useListLearningCourses(organizationId, {
     query: { queryKey: getListLearningCoursesQueryKey(organizationId), enabled: organizationId > 0 },
@@ -65,9 +73,9 @@ export default function LearningReports() {
   });
 
   const params = {
-    courseId: courseId === ALL ? undefined : Number(courseId),
-    departmentId: departmentId === ALL ? undefined : Number(departmentId),
-    positionId: positionId === ALL ? undefined : Number(positionId),
+    courseId: supportsCourseDeptPositionFilters && courseId !== ALL ? Number(courseId) : undefined,
+    departmentId: supportsCourseDeptPositionFilters && departmentId !== ALL ? Number(departmentId) : undefined,
+    positionId: supportsCourseDeptPositionFilters && positionId !== ALL ? Number(positionId) : undefined,
     employeeId: employeeId === ALL ? undefined : Number(employeeId),
   };
 
@@ -140,20 +148,22 @@ export default function LearningReports() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="learning-report-course">Course</Label>
-                <Select value={courseId} onValueChange={setCourseId}>
-                  <SelectTrigger id="learning-report-course" data-testid="select-learning-report-course">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL}>All courses</SelectItem>
-                    {(courses ?? []).map((c) => (
-                      <SelectItem key={c.id} value={String(c.id)}>{c.title}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {supportsCourseDeptPositionFilters && (
+                <div className="space-y-1">
+                  <Label htmlFor="learning-report-course">Course</Label>
+                  <Select value={courseId} onValueChange={setCourseId}>
+                    <SelectTrigger id="learning-report-course" data-testid="select-learning-report-course">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={ALL}>All courses</SelectItem>
+                      {(courses ?? []).map((c) => (
+                        <SelectItem key={c.id} value={String(c.id)}>{c.title}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-1">
                 <Label htmlFor="learning-report-employee">Employee</Label>
                 <Select value={employeeId} onValueChange={setEmployeeId}>
@@ -168,34 +178,38 @@ export default function LearningReports() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="learning-report-department">Department</Label>
-                <Select value={departmentId} onValueChange={setDepartmentId}>
-                  <SelectTrigger id="learning-report-department" data-testid="select-learning-report-department">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL}>All departments</SelectItem>
-                    {(departments ?? []).map((d) => (
-                      <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="learning-report-position">Position</Label>
-                <Select value={positionId} onValueChange={setPositionId}>
-                  <SelectTrigger id="learning-report-position" data-testid="select-learning-report-position">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL}>All positions</SelectItem>
-                    {(positions ?? []).map((p) => (
-                      <SelectItem key={p.id} value={String(p.id)}>{p.title}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {supportsCourseDeptPositionFilters && (
+                <div className="space-y-1">
+                  <Label htmlFor="learning-report-department">Department</Label>
+                  <Select value={departmentId} onValueChange={setDepartmentId}>
+                    <SelectTrigger id="learning-report-department" data-testid="select-learning-report-department">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={ALL}>All departments</SelectItem>
+                      {(departments ?? []).map((d) => (
+                        <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {supportsCourseDeptPositionFilters && (
+                <div className="space-y-1">
+                  <Label htmlFor="learning-report-position">Position</Label>
+                  <Select value={positionId} onValueChange={setPositionId}>
+                    <SelectTrigger id="learning-report-position" data-testid="select-learning-report-position">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={ALL}>All positions</SelectItem>
+                      {(positions ?? []).map((p) => (
+                        <SelectItem key={p.id} value={String(p.id)}>{p.title}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </CardContent>
             <CardContent className="pt-0">
               <Button

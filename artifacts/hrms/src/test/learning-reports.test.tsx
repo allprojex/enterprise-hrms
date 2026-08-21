@@ -147,4 +147,28 @@ describe('Learning Reports page', () => {
     await userEvent.click(screen.getByTestId('select-learning-report-department'));
     expect(screen.getByRole('option', { name: 'Engineering' })).toBeInTheDocument();
   });
+
+  // W93 regression: learning_certificate_expiry's own backend runner
+  // (runCertificateExpiry) only ever honors employeeId/status — a
+  // course/department/position picker that appeared to filter it but
+  // silently had no effect would mislead the viewer, so those controls must
+  // not render for this one report.
+  it('hides course/department/position filters for the certificate expiry report, since the backend never applies them there', () => {
+    resetState();
+    state.reports = [learningReport('learning_certificate_expiry', 'Certificate Expiry')];
+    renderPage();
+    expect(screen.queryByTestId('select-learning-report-course')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('select-learning-report-department')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('select-learning-report-position')).not.toBeInTheDocument();
+    expect(screen.getByTestId('select-learning-report-employee')).toBeInTheDocument();
+  });
+
+  it('still offers course/department/position filters for row-level enrollment reports', () => {
+    resetState();
+    state.reports = [learningReport('learning_enrollment_status', 'Enrollment Status')];
+    renderPage();
+    expect(screen.getByTestId('select-learning-report-course')).toBeInTheDocument();
+    expect(screen.getByTestId('select-learning-report-department')).toBeInTheDocument();
+    expect(screen.getByTestId('select-learning-report-position')).toBeInTheDocument();
+  });
 });
