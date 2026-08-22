@@ -537,6 +537,58 @@ export const GetMyEmploymentHistoryResponse = zod.object({
 
 
 /**
+ * Resolves "which employee is me" the same way GET /me/employee does — never a client-supplied employee ID. Reuses the existing employee_skills table (Phase 2A, W24) verbatim. `linked: false` (with `items: []`) mirrors GET /me/employee's own intentional not-linked state. Gated by the employee_self_service module.
+ * @summary The caller's own skills (Employee Self-Service Career Profile, Phase 3F, W106)
+ */
+export const GetMySkillsResponse = zod.object({
+  "linked": zod.boolean(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "skillCode": zod.string().describe('Code from the \"skill\" Master Data domain.'),
+  "proficiencyLevel": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+}).describe('Career Profile (Phase 3F, W106) — the caller\'s own skill, restricted from the HR EmployeeSkill shape (organizationId\/employeeId\/createdBy excluded as redundant\/internal).'))
+})
+
+
+/**
+ * Resolves "which employee is me" the same way GET /me/employee does. Reuses the existing employee_qualifications table (Phase 2A, W24) verbatim. `linked: false` (with `items: []`) mirrors GET /me/employee's own intentional not-linked state. Gated by the employee_self_service module.
+ * @summary The caller's own qualifications (Employee Self-Service Career Profile, Phase 3F, W106)
+ */
+export const GetMyQualificationsResponse = zod.object({
+  "linked": zod.boolean(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "qualificationTypeCode": zod.string().describe('Code from the \"qualification_type\" Master Data domain.'),
+  "institution": zod.string().nullish(),
+  "fieldOfStudy": zod.string().nullish(),
+  "startDate": zod.coerce.date().nullish(),
+  "endDate": zod.coerce.date().nullish(),
+  "grade": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+}).describe('Career Profile (Phase 3F, W106) — the caller\'s own qualification, restricted from the HR EmployeeQualification shape.'))
+})
+
+
+/**
+ * Resolves "which employee is me" the same way GET /me/employee does. Reuses the existing employee_certifications table (Phase 2A, W24) verbatim — deliberately never learning_certificates (Phase 3D), which remains My Learning's own exclusive surface. Expired records are always included, never filtered. `linked: false` (with `items: []`) mirrors GET /me/employee's own intentional not-linked state. Gated by the employee_self_service module.
+ * @summary The caller's own external/HR-maintained certifications (Employee Self-Service Career Profile, Phase 3F, W106)
+ */
+export const GetMyCertificationsResponse = zod.object({
+  "linked": zod.boolean(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "certificationTypeCode": zod.string().describe('Code from the \"certification_type\" Master Data domain.'),
+  "issuingOrganization": zod.string().nullish(),
+  "issueDate": zod.coerce.date().nullish(),
+  "expiryDate": zod.coerce.date().nullish(),
+  "credentialId": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+}).describe('Career Profile (Phase 3F, W106) — the caller\'s own HR-maintained\/ external certification (employee_certifications only). Never includes system-issued Learning certificates (learning_certificates) — those remain My Learning\'s own exclusive surface. Expired records are always included; expiry status is computed client-side from expiryDate, mirroring My Learning\'s own established convention, never returned as a field here.'))
+})
+
+
+/**
  * Resolves "which employee is me" the same way GET /me/employee does — never a client-supplied employee ID. `linked: false` (unlinked login) or `active: false` (linked but not an active employee) both return `items: []` as an intentional 200-OK controlled state, not an error, mirroring GET /me/employee's own "linked: false" precedent. Only vacancies that are published, internally visible (visibility internal or both), and within their open/close window are included — never recruiter, hiring-manager, requisition, approval, or audit detail. Gated by both employee_self_service and recruitment (independently — a disabled recruitment module degrades only this section, per §8).
  * @summary List internal vacancies eligible for the caller to apply to (Employee Self-Service Internal Applications, W60)
  */

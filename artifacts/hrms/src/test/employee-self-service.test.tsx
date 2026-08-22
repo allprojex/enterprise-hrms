@@ -5,7 +5,7 @@
  * its own hooks are stubbed here too rather than mocking the child component.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import EmployeeSelfService from '@/pages/employee-self-service';
@@ -76,6 +76,19 @@ const { state } = vi.hoisted(() => ({
     myAssetAssignmentsError: undefined as unknown,
     acknowledgeAssetMutate: vi.fn() as (...args: unknown[]) => void,
     reportAssetIssueMutate: vi.fn() as (...args: unknown[]) => void,
+    // Career Profile (Phase 3F, W106)
+    careerEmploymentHistory: undefined as { linked: boolean; items: unknown[] } | undefined,
+    careerEmploymentHistoryLoading: false,
+    careerEmploymentHistoryError: false,
+    careerSkills: undefined as { linked: boolean; items: unknown[] } | undefined,
+    careerSkillsLoading: false,
+    careerSkillsError: false,
+    careerQualifications: undefined as { linked: boolean; items: unknown[] } | undefined,
+    careerQualificationsLoading: false,
+    careerQualificationsError: false,
+    careerCertifications: undefined as { linked: boolean; items: unknown[] } | undefined,
+    careerCertificationsLoading: false,
+    careerCertificationsError: false,
   },
 }));
 
@@ -165,6 +178,30 @@ vi.mock('@workspace/api-client-react', () => ({
   getListMyAssetAssignmentsQueryKey: () => ['myAssetAssignments'],
   useAcknowledgeAssetAssignment: () => ({ mutate: state.acknowledgeAssetMutate, isPending: false }),
   useReportAssetIssue: () => ({ mutate: state.reportAssetIssueMutate, isPending: false }),
+  // Career Profile (Phase 3F, W106)
+  useGetMyEmploymentHistory: () => ({
+    data: state.careerEmploymentHistory,
+    isLoading: state.careerEmploymentHistoryLoading,
+    isError: state.careerEmploymentHistoryError,
+    refetch: vi.fn(),
+  }),
+  getGetMyEmploymentHistoryQueryKey: () => ['myEmploymentHistory'],
+  useGetMySkills: () => ({ data: state.careerSkills, isLoading: state.careerSkillsLoading, isError: state.careerSkillsError, refetch: vi.fn() }),
+  getGetMySkillsQueryKey: () => ['mySkills'],
+  useGetMyQualifications: () => ({
+    data: state.careerQualifications,
+    isLoading: state.careerQualificationsLoading,
+    isError: state.careerQualificationsError,
+    refetch: vi.fn(),
+  }),
+  getGetMyQualificationsQueryKey: () => ['myQualifications'],
+  useGetMyCertifications: () => ({
+    data: state.careerCertifications,
+    isLoading: state.careerCertificationsLoading,
+    isError: state.careerCertificationsError,
+    refetch: vi.fn(),
+  }),
+  getGetMyCertificationsQueryKey: () => ['myCertifications'],
 }));
 
 vi.mock('@/lib/auth', () => ({ getStoredToken: () => 'test-token' }));
@@ -1444,6 +1481,184 @@ describe('Employee Self-Service page', () => {
       expect(screen.queryByRole('button', { name: /^return/i })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /retire/i })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /mark lost/i })).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Career Profile tab (Phase 3F, W106)', () => {
+    function resetCareerProfileState() {
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.careerEmploymentHistory = { linked: true, items: [] };
+      state.careerEmploymentHistoryLoading = false;
+      state.careerEmploymentHistoryError = false;
+      state.careerSkills = { linked: true, items: [] };
+      state.careerSkillsLoading = false;
+      state.careerSkillsError = false;
+      state.careerQualifications = { linked: true, items: [] };
+      state.careerQualificationsLoading = false;
+      state.careerQualificationsError = false;
+      state.careerCertifications = { linked: true, items: [] };
+      state.careerCertificationsLoading = false;
+      state.careerCertificationsError = false;
+    }
+
+    it('is reachable without any additional module — no module gate beyond employee_self_service itself', async () => {
+      resetCareerProfileState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = []; // no module rows at all — Career Profile is Core HR, ungated like My Profile/My Documents
+      renderEss();
+      expect(screen.getByTestId('tab-career-profile')).toBeInTheDocument();
+      await userEvent.click(screen.getByTestId('tab-career-profile'));
+      expect(screen.getByText('Employment History')).toBeInTheDocument();
+      expect(screen.getByText('Skills')).toBeInTheDocument();
+      expect(screen.getByText('Qualifications')).toBeInTheDocument();
+      expect(screen.getByText('Certifications')).toBeInTheDocument();
+    });
+
+    it('renders exactly four sections, no more, no fewer', async () => {
+      resetCareerProfileState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-career-profile'));
+      const headings = ['Employment History', 'Skills', 'Qualifications', 'Certifications'];
+      for (const heading of headings) {
+        expect(screen.getByText(heading)).toBeInTheDocument();
+      }
+    });
+
+    it('shows loading states independently per section', async () => {
+      resetCareerProfileState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.careerEmploymentHistoryLoading = true;
+      state.careerEmploymentHistory = undefined;
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-career-profile'));
+      expect(screen.getByTestId('loading-my-employment-history')).toBeInTheDocument();
+    });
+
+    it('shows error states independently per section', async () => {
+      resetCareerProfileState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.careerSkillsError = true;
+      state.careerSkills = undefined;
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-career-profile'));
+      expect(screen.getByText('Failed to load your skills')).toBeInTheDocument();
+    });
+
+    it('shows empty states with useful copy for every section when there are no records', async () => {
+      resetCareerProfileState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-career-profile'));
+      expect(screen.getByTestId('text-no-my-employment-history')).toBeInTheDocument();
+      expect(screen.getByTestId('text-no-my-skills')).toBeInTheDocument();
+      expect(screen.getByTestId('text-no-my-qualifications')).toBeInTheDocument();
+      expect(screen.getByTestId('text-no-my-certifications')).toBeInTheDocument();
+    });
+
+    it('renders Employment History rows from the own-scoped API response', async () => {
+      resetCareerProfileState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.careerEmploymentHistory = {
+        linked: true,
+        items: [{ id: 1, eventType: 'promotion', effectiveDate: '2026-03-01', previousState: null, newState: {}, createdAt: '2026-03-01' }],
+      };
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-career-profile'));
+      expect(screen.getByTestId('row-my-employment-history-1')).toHaveTextContent('promotion');
+    });
+
+    it('renders Skills rows, including proficiency when present', async () => {
+      resetCareerProfileState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.careerSkills = { linked: true, items: [{ id: 1, skillCode: 'javascript', proficiencyLevel: 'Advanced', createdAt: '2026-01-01' }] };
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-career-profile'));
+      const row = screen.getByTestId('row-my-skill-1');
+      expect(row).toHaveTextContent('javascript');
+      expect(row).toHaveTextContent('Advanced');
+    });
+
+    it('renders Qualifications rows', async () => {
+      resetCareerProfileState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.careerQualifications = {
+        linked: true,
+        items: [{ id: 1, qualificationTypeCode: 'bachelors', institution: 'University of Ghana', fieldOfStudy: null, startDate: null, endDate: null, grade: null, createdAt: '2026-01-01' }],
+      };
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-career-profile'));
+      const row = screen.getByTestId('row-my-qualification-1');
+      expect(row).toHaveTextContent('bachelors');
+      expect(row).toHaveTextContent('University of Ghana');
+    });
+
+    it('renders an active certification with a text "Active" status, never color-only', async () => {
+      resetCareerProfileState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      const future = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+      state.careerCertifications = {
+        linked: true,
+        items: [{ id: 1, certificationTypeCode: 'pmp', issuingOrganization: 'PMI', issueDate: null, expiryDate: future, credentialId: null, createdAt: '2026-01-01' }],
+      };
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-career-profile'));
+      expect(screen.getByTestId('badge-my-certification-status-1')).toHaveTextContent('Active');
+    });
+
+    it('keeps an expired certification visible with a text "Expired" status, never hidden', async () => {
+      resetCareerProfileState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.careerCertifications = {
+        linked: true,
+        items: [{ id: 1, certificationTypeCode: 'pmp', issuingOrganization: 'PMI', issueDate: null, expiryDate: '2020-01-01', credentialId: null, createdAt: '2020-01-01' }],
+      };
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-career-profile'));
+      expect(screen.getByTestId('row-my-certification-1')).toBeInTheDocument();
+      expect(screen.getByTestId('badge-my-certification-status-1')).toHaveTextContent('Expired');
+    });
+
+    it('never shows a Learning-issued certificate in Career Profile — only in My Learning', async () => {
+      resetCareerProfileState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'learning', enabled: true })];
+      // A Learning certificate exists and is available to My Learning...
+      state.myCertificates = [{ id: 99, courseTitleSnapshot: 'Learning-Issued Course', status: 'active', issuedAt: '2026-01-01', expiresAt: null }];
+      // ...but Career Profile's own own-scoped API never returns it — proven
+      // by the mock simply never including it, exactly like the real API.
+      state.careerCertifications = { linked: true, items: [] };
+      renderEss();
+
+      await userEvent.click(screen.getByTestId('tab-my-learning'));
+      expect(screen.getByText('Learning-Issued Course')).toBeInTheDocument();
+
+      await userEvent.click(screen.getByTestId('tab-career-profile'));
+      expect(screen.queryByText('Learning-Issued Course')).not.toBeInTheDocument();
+      expect(screen.getByTestId('text-no-my-certifications')).toBeInTheDocument();
+    });
+
+    it('exposes no employee mutation control anywhere on this tab (no add/edit/delete/upload/renew/verify)', async () => {
+      resetCareerProfileState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.careerEmploymentHistory = {
+        linked: true,
+        items: [{ id: 1, eventType: 'transfer', effectiveDate: '2026-01-01', previousState: null, newState: {}, createdAt: '2026-01-01' }],
+      };
+      state.careerSkills = { linked: true, items: [{ id: 1, skillCode: 'javascript', proficiencyLevel: null, createdAt: '2026-01-01' }] };
+      state.careerQualifications = {
+        linked: true,
+        items: [{ id: 1, qualificationTypeCode: 'bachelors', institution: null, fieldOfStudy: null, startDate: null, endDate: null, grade: null, createdAt: '2026-01-01' }],
+      };
+      state.careerCertifications = {
+        linked: true,
+        items: [{ id: 1, certificationTypeCode: 'pmp', issuingOrganization: null, issueDate: null, expiryDate: null, credentialId: null, createdAt: '2026-01-01' }],
+      };
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-career-profile'));
+      const panel = screen.getByTestId('list-my-employment-history').closest('[role="tabpanel"]') as HTMLElement;
+      expect(within(panel).queryAllByRole('button')).toHaveLength(0);
     });
   });
 });

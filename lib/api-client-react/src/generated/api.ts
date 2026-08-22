@@ -178,10 +178,13 @@ import type {
   MessageResponse,
   Module,
   MoveApplicationStageInput,
+  MyCertificationsResponse,
   MyEmployeeResponse,
   MyEmploymentHistoryResponse,
   MyInternalApplicationSubmitResult,
   MyInternalApplicationsResponse,
+  MyQualificationsResponse,
+  MySkillsResponse,
   Notification,
   OfferApproval,
   OfferDetail,
@@ -2202,6 +2205,240 @@ export function useGetMyEmploymentHistory<TData = Awaited<ReturnType<typeof getM
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetMyEmploymentHistoryQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetMySkillsUrl = () => {
+
+
+
+
+  return `/api/me/skills`
+}
+
+/**
+ * Resolves "which employee is me" the same way GET /me/employee does — never a client-supplied employee ID. Reuses the existing employee_skills table (Phase 2A, W24) verbatim. `linked: false` (with `items: []`) mirrors GET /me/employee's own intentional not-linked state. Gated by the employee_self_service module.
+ * @summary The caller's own skills (Employee Self-Service Career Profile, Phase 3F, W106)
+ */
+export const getMySkills = async ( options?: RequestInit): Promise<MySkillsResponse> => {
+
+  return customFetch<MySkillsResponse>(getGetMySkillsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMySkillsQueryKey = () => {
+    return [
+    `/api/me/skills`
+    ] as const;
+    }
+
+
+export const getGetMySkillsQueryOptions = <TData = Awaited<ReturnType<typeof getMySkills>>, TError = ErrorType<ApiError>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMySkills>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMySkillsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMySkills>>> = ({ signal }) => getMySkills({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMySkills>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMySkillsQueryResult = NonNullable<Awaited<ReturnType<typeof getMySkills>>>
+export type GetMySkillsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary The caller's own skills (Employee Self-Service Career Profile, Phase 3F, W106)
+ */
+
+export function useGetMySkills<TData = Awaited<ReturnType<typeof getMySkills>>, TError = ErrorType<ApiError>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMySkills>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMySkillsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetMyQualificationsUrl = () => {
+
+
+
+
+  return `/api/me/qualifications`
+}
+
+/**
+ * Resolves "which employee is me" the same way GET /me/employee does. Reuses the existing employee_qualifications table (Phase 2A, W24) verbatim. `linked: false` (with `items: []`) mirrors GET /me/employee's own intentional not-linked state. Gated by the employee_self_service module.
+ * @summary The caller's own qualifications (Employee Self-Service Career Profile, Phase 3F, W106)
+ */
+export const getMyQualifications = async ( options?: RequestInit): Promise<MyQualificationsResponse> => {
+
+  return customFetch<MyQualificationsResponse>(getGetMyQualificationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyQualificationsQueryKey = () => {
+    return [
+    `/api/me/qualifications`
+    ] as const;
+    }
+
+
+export const getGetMyQualificationsQueryOptions = <TData = Awaited<ReturnType<typeof getMyQualifications>>, TError = ErrorType<ApiError>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyQualifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyQualificationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyQualifications>>> = ({ signal }) => getMyQualifications({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyQualifications>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMyQualificationsQueryResult = NonNullable<Awaited<ReturnType<typeof getMyQualifications>>>
+export type GetMyQualificationsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary The caller's own qualifications (Employee Self-Service Career Profile, Phase 3F, W106)
+ */
+
+export function useGetMyQualifications<TData = Awaited<ReturnType<typeof getMyQualifications>>, TError = ErrorType<ApiError>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyQualifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMyQualificationsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetMyCertificationsUrl = () => {
+
+
+
+
+  return `/api/me/certifications`
+}
+
+/**
+ * Resolves "which employee is me" the same way GET /me/employee does. Reuses the existing employee_certifications table (Phase 2A, W24) verbatim — deliberately never learning_certificates (Phase 3D), which remains My Learning's own exclusive surface. Expired records are always included, never filtered. `linked: false` (with `items: []`) mirrors GET /me/employee's own intentional not-linked state. Gated by the employee_self_service module.
+ * @summary The caller's own external/HR-maintained certifications (Employee Self-Service Career Profile, Phase 3F, W106)
+ */
+export const getMyCertifications = async ( options?: RequestInit): Promise<MyCertificationsResponse> => {
+
+  return customFetch<MyCertificationsResponse>(getGetMyCertificationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyCertificationsQueryKey = () => {
+    return [
+    `/api/me/certifications`
+    ] as const;
+    }
+
+
+export const getGetMyCertificationsQueryOptions = <TData = Awaited<ReturnType<typeof getMyCertifications>>, TError = ErrorType<ApiError>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyCertifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyCertificationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyCertifications>>> = ({ signal }) => getMyCertifications({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyCertifications>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMyCertificationsQueryResult = NonNullable<Awaited<ReturnType<typeof getMyCertifications>>>
+export type GetMyCertificationsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary The caller's own external/HR-maintained certifications (Employee Self-Service Career Profile, Phase 3F, W106)
+ */
+
+export function useGetMyCertifications<TData = Awaited<ReturnType<typeof getMyCertifications>>, TError = ErrorType<ApiError>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyCertifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMyCertificationsQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

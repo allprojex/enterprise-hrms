@@ -7,7 +7,13 @@ import { getActiveMembershipsForUser, getActiveMembership, resolveActiveOrganiza
 import { hostnameOrganizationMismatch, shouldFailClosedForTenantResolution } from "../lib/organizationDomains";
 import { requireModuleEnabled } from "../middlewares/requireModuleEnabled";
 import type { MembershipRequest } from "../middlewares/requireMembership";
-import { resolveOwnEmployeeProfile, resolveOwnEmploymentHistory } from "../lib/employeeSelfService";
+import {
+  resolveOwnEmployeeProfile,
+  resolveOwnEmploymentHistory,
+  resolveOwnSkills,
+  resolveOwnQualifications,
+  resolveOwnCertifications,
+} from "../lib/employeeSelfService";
 import { RECRUITMENT_MODULE_KEY } from "../lib/recruitmentAuthorization";
 import {
   listInternalVacancies,
@@ -159,6 +165,47 @@ router.get(
   async (req: MembershipRequest, res): Promise<void> => {
     const history = await resolveOwnEmploymentHistory(req.membership!.organizationId, req.userId!);
     res.json(history);
+  },
+);
+
+// GET /me/skills, /me/qualifications, /me/certifications
+// Career Profile (Phase 3F, W106): own-scoped reads over the existing
+// employee_skills/employee_qualifications/employee_certifications tables
+// (Phase 2A, W24), gated and shaped identically to GET /me/employment-history
+// above — no permission key, own identity always server-resolved. Career
+// Profile's Certifications section deliberately reads employee_certifications
+// only; learning_certificates (Phase 3D) remains My Learning's own exclusive
+// surface, never read here (Learning's own frozen Owner Decision 3).
+router.get(
+  "/me/skills",
+  requireAuth as any,
+  requireActiveOrganizationMembership,
+  requireModuleEnabled("employee_self_service"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const skills = await resolveOwnSkills(req.membership!.organizationId, req.userId!);
+    res.json(skills);
+  },
+);
+
+router.get(
+  "/me/qualifications",
+  requireAuth as any,
+  requireActiveOrganizationMembership,
+  requireModuleEnabled("employee_self_service"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const qualifications = await resolveOwnQualifications(req.membership!.organizationId, req.userId!);
+    res.json(qualifications);
+  },
+);
+
+router.get(
+  "/me/certifications",
+  requireAuth as any,
+  requireActiveOrganizationMembership,
+  requireModuleEnabled("employee_self_service"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const certifications = await resolveOwnCertifications(req.membership!.organizationId, req.userId!);
+    res.json(certifications);
   },
 );
 

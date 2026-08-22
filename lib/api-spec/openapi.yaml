@@ -848,6 +848,101 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /me/skills:
+    get:
+      operationId: getMySkills
+      tags: [self-service]
+      summary: The caller's own skills (Employee Self-Service Career Profile, Phase 3F, W106)
+      description: >-
+        Resolves "which employee is me" the same way GET /me/employee does —
+        never a client-supplied employee ID. Reuses the existing
+        employee_skills table (Phase 2A, W24) verbatim. `linked: false` (with
+        `items: []`) mirrors GET /me/employee's own intentional not-linked
+        state. Gated by the employee_self_service module.
+      responses:
+        "200":
+          description: The caller's own skills, or the controlled not-linked state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MySkillsResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: No active organization membership, or the employee_self_service module is disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /me/qualifications:
+    get:
+      operationId: getMyQualifications
+      tags: [self-service]
+      summary: The caller's own qualifications (Employee Self-Service Career Profile, Phase 3F, W106)
+      description: >-
+        Resolves "which employee is me" the same way GET /me/employee does.
+        Reuses the existing employee_qualifications table (Phase 2A, W24)
+        verbatim. `linked: false` (with `items: []`) mirrors GET /me/employee's
+        own intentional not-linked state. Gated by the employee_self_service
+        module.
+      responses:
+        "200":
+          description: The caller's own qualifications, or the controlled not-linked state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyQualificationsResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: No active organization membership, or the employee_self_service module is disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /me/certifications:
+    get:
+      operationId: getMyCertifications
+      tags: [self-service]
+      summary: The caller's own external/HR-maintained certifications (Employee Self-Service Career Profile, Phase 3F, W106)
+      description: >-
+        Resolves "which employee is me" the same way GET /me/employee does.
+        Reuses the existing employee_certifications table (Phase 2A, W24)
+        verbatim — deliberately never learning_certificates (Phase 3D), which
+        remains My Learning's own exclusive surface. Expired records are
+        always included, never filtered. `linked: false` (with `items: []`)
+        mirrors GET /me/employee's own intentional not-linked state. Gated by
+        the employee_self_service module.
+      responses:
+        "200":
+          description: The caller's own certifications, or the controlled not-linked state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyCertificationsResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: No active organization membership, or the employee_self_service module is disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /me/internal-vacancies:
     get:
       operationId: listMyInternalVacancies
@@ -19972,3 +20067,109 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/EmploymentPeriodSummary"
+
+    SelfServiceSkill:
+      type: object
+      description: Career Profile (Phase 3F, W106) — the caller's own skill, restricted from the HR EmployeeSkill shape (organizationId/employeeId/createdBy excluded as redundant/internal).
+      required: [id, skillCode, createdAt]
+      properties:
+        id:
+          type: integer
+        skillCode:
+          type: string
+          description: Code from the "skill" Master Data domain.
+        proficiencyLevel:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    MySkillsResponse:
+      type: object
+      required: [linked, items]
+      properties:
+        linked:
+          type: boolean
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SelfServiceSkill"
+
+    SelfServiceQualification:
+      type: object
+      description: Career Profile (Phase 3F, W106) — the caller's own qualification, restricted from the HR EmployeeQualification shape.
+      required: [id, qualificationTypeCode, createdAt]
+      properties:
+        id:
+          type: integer
+        qualificationTypeCode:
+          type: string
+          description: Code from the "qualification_type" Master Data domain.
+        institution:
+          type: ["string", "null"]
+        fieldOfStudy:
+          type: ["string", "null"]
+        startDate:
+          type: ["string", "null"]
+          format: date-time
+        endDate:
+          type: ["string", "null"]
+          format: date-time
+        grade:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    MyQualificationsResponse:
+      type: object
+      required: [linked, items]
+      properties:
+        linked:
+          type: boolean
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SelfServiceQualification"
+
+    SelfServiceCertification:
+      type: object
+      description: >-
+        Career Profile (Phase 3F, W106) — the caller's own HR-maintained/
+        external certification (employee_certifications only). Never
+        includes system-issued Learning certificates (learning_certificates)
+        — those remain My Learning's own exclusive surface. Expired records
+        are always included; expiry status is computed client-side from
+        expiryDate, mirroring My Learning's own established convention, never
+        returned as a field here.
+      required: [id, certificationTypeCode, createdAt]
+      properties:
+        id:
+          type: integer
+        certificationTypeCode:
+          type: string
+          description: Code from the "certification_type" Master Data domain.
+        issuingOrganization:
+          type: ["string", "null"]
+        issueDate:
+          type: ["string", "null"]
+          format: date-time
+        expiryDate:
+          type: ["string", "null"]
+          format: date-time
+        credentialId:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    MyCertificationsResponse:
+      type: object
+      required: [linked, items]
+      properties:
+        linked:
+          type: boolean
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SelfServiceCertification"

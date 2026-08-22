@@ -5873,6 +5873,71 @@ export interface MyEmploymentHistoryResponse {
   items: EmploymentPeriodSummary[];
 }
 
+/**
+ * Career Profile (Phase 3F, W106) — the caller's own skill, restricted from the HR EmployeeSkill shape (organizationId/employeeId/createdBy excluded as redundant/internal).
+ */
+export interface SelfServiceSkill {
+  id: number;
+  /** Code from the "skill" Master Data domain. */
+  skillCode: string;
+  /** @nullable */
+  proficiencyLevel?: string | null;
+  createdAt: string;
+}
+
+export interface MySkillsResponse {
+  linked: boolean;
+  items: SelfServiceSkill[];
+}
+
+/**
+ * Career Profile (Phase 3F, W106) — the caller's own qualification, restricted from the HR EmployeeQualification shape.
+ */
+export interface SelfServiceQualification {
+  id: number;
+  /** Code from the "qualification_type" Master Data domain. */
+  qualificationTypeCode: string;
+  /** @nullable */
+  institution?: string | null;
+  /** @nullable */
+  fieldOfStudy?: string | null;
+  /** @nullable */
+  startDate?: string | null;
+  /** @nullable */
+  endDate?: string | null;
+  /** @nullable */
+  grade?: string | null;
+  createdAt: string;
+}
+
+export interface MyQualificationsResponse {
+  linked: boolean;
+  items: SelfServiceQualification[];
+}
+
+/**
+ * Career Profile (Phase 3F, W106) — the caller's own HR-maintained/ external certification (employee_certifications only). Never includes system-issued Learning certificates (learning_certificates) — those remain My Learning's own exclusive surface. Expired records are always included; expiry status is computed client-side from expiryDate, mirroring My Learning's own established convention, never returned as a field here.
+ */
+export interface SelfServiceCertification {
+  id: number;
+  /** Code from the "certification_type" Master Data domain. */
+  certificationTypeCode: string;
+  /** @nullable */
+  issuingOrganization?: string | null;
+  /** @nullable */
+  issueDate?: string | null;
+  /** @nullable */
+  expiryDate?: string | null;
+  /** @nullable */
+  credentialId?: string | null;
+  createdAt: string;
+}
+
+export interface MyCertificationsResponse {
+  linked: boolean;
+  items: SelfServiceCertification[];
+}
+
 export type ListEmployeesParams = {
 search?: string;
 departmentId?: number;

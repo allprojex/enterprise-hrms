@@ -62,6 +62,14 @@ import {
   getListMyAssetAssignmentsQueryKey,
   useAcknowledgeAssetAssignment,
   useReportAssetIssue,
+  useGetMyEmploymentHistory,
+  getGetMyEmploymentHistoryQueryKey,
+  useGetMySkills,
+  getGetMySkillsQueryKey,
+  useGetMyQualifications,
+  getGetMyQualificationsQueryKey,
+  useGetMyCertifications,
+  getGetMyCertificationsQueryKey,
   type SelfServiceEmployeeProfile,
   type InternalVacancySummary,
   type DailyAttendanceSummary,
@@ -73,6 +81,10 @@ import {
   type LearningEnrollment,
   type LearningCertificate,
   type AssetAssignment,
+  type EmploymentPeriodSummary,
+  type SelfServiceSkill,
+  type SelfServiceQualification,
+  type SelfServiceCertification,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { QueryError } from '@/components/query-error';
@@ -211,6 +223,249 @@ function MyDocumentsTab({ organizationId, employeeId }: { organizationId: number
         </ul>
       </CardContent>
     </Card>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Career Profile (Phase 3F, W106): read-only aggregation of the employee's own
+// employment history, skills, qualifications, and external certifications —
+// closes the long-deferred W39 roadmap item. Ungated by any additional
+// module, same precedent as My Profile/My Documents above — every entity
+// here is Core HR data, not tied to any Phase 3 module. No employee
+// create/edit/delete/upload control exists anywhere in this section, by
+// design (Owner Decision 1) — HR remains the sole writer via the existing,
+// unchanged employee-detail.tsx CRUD. Certifications deliberately reads only
+// employee_certifications — Learning's own system-issued certificates stay
+// exclusively in the My Learning tab above, never duplicated here (Learning's
+// own frozen Owner Decision 3).
+// -----------------------------------------------------------------------------
+
+function EmploymentHistorySection({ organizationId }: { organizationId: number }) {
+  const { data, isLoading, isError, refetch } = useGetMyEmploymentHistory({
+    query: { queryKey: getGetMyEmploymentHistoryQueryKey(), enabled: organizationId > 0 },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2" data-testid="loading-my-employment-history">
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" />
+      </div>
+    );
+  }
+  if (isError) {
+    return <QueryError title="Failed to load your employment history" onRetry={() => refetch()} />;
+  }
+
+  const items: EmploymentPeriodSummary[] = data?.items ?? [];
+  if (items.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground" data-testid="text-no-my-employment-history">
+        No employment history recorded yet.
+      </p>
+    );
+  }
+
+  return (
+    <ul className="divide-y divide-border" data-testid="list-my-employment-history">
+      {items.map((period) => (
+        <li key={period.id} className="py-3" data-testid={`row-my-employment-history-${period.id}`}>
+          <div className="flex items-center justify-between gap-4">
+            <Badge variant="outline" className="capitalize">
+              {period.eventType}
+            </Badge>
+            <span className="text-xs text-muted-foreground">{formatDate(period.effectiveDate)}</span>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function SkillsSection({ organizationId }: { organizationId: number }) {
+  const { data, isLoading, isError, refetch } = useGetMySkills({
+    query: { queryKey: getGetMySkillsQueryKey(), enabled: organizationId > 0 },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2" data-testid="loading-my-skills">
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" />
+      </div>
+    );
+  }
+  if (isError) {
+    return <QueryError title="Failed to load your skills" onRetry={() => refetch()} />;
+  }
+
+  const items: SelfServiceSkill[] = data?.items ?? [];
+  if (items.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground" data-testid="text-no-my-skills">
+        No skills on record yet.
+      </p>
+    );
+  }
+
+  return (
+    <ul className="divide-y divide-border" data-testid="list-my-skills">
+      {items.map((skill) => (
+        <li key={skill.id} className="flex items-center justify-between gap-4 py-3" data-testid={`row-my-skill-${skill.id}`}>
+          <p className="text-sm font-medium text-foreground">{skill.skillCode}</p>
+          {skill.proficiencyLevel && <Badge variant="outline">{skill.proficiencyLevel}</Badge>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function QualificationsSection({ organizationId }: { organizationId: number }) {
+  const { data, isLoading, isError, refetch } = useGetMyQualifications({
+    query: { queryKey: getGetMyQualificationsQueryKey(), enabled: organizationId > 0 },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2" data-testid="loading-my-qualifications">
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" />
+      </div>
+    );
+  }
+  if (isError) {
+    return <QueryError title="Failed to load your qualifications" onRetry={() => refetch()} />;
+  }
+
+  const items: SelfServiceQualification[] = data?.items ?? [];
+  if (items.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground" data-testid="text-no-my-qualifications">
+        No qualifications on record yet.
+      </p>
+    );
+  }
+
+  return (
+    <ul className="divide-y divide-border" data-testid="list-my-qualifications">
+      {items.map((qualification) => (
+        <li key={qualification.id} className="py-3" data-testid={`row-my-qualification-${qualification.id}`}>
+          <p className="text-sm font-medium text-foreground">{qualification.qualificationTypeCode}</p>
+          {(qualification.institution || qualification.fieldOfStudy) && (
+            <p className="text-xs text-muted-foreground">
+              {[qualification.institution, qualification.fieldOfStudy].filter(Boolean).join(' · ')}
+            </p>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * "Expired" is never a value the API returns — mirrors My Learning's own
+ * established isCertificateExpired precedent exactly: a pure, live,
+ * client-side computation on top of expiryDate, recomputed on every render.
+ */
+function isEmployeeCertificationExpired(certification: SelfServiceCertification): boolean {
+  return certification.expiryDate != null && new Date(certification.expiryDate) < new Date();
+}
+
+function CertificationsSection({ organizationId }: { organizationId: number }) {
+  const { data, isLoading, isError, refetch } = useGetMyCertifications({
+    query: { queryKey: getGetMyCertificationsQueryKey(), enabled: organizationId > 0 },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2" data-testid="loading-my-certifications">
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" />
+      </div>
+    );
+  }
+  if (isError) {
+    return <QueryError title="Failed to load your certifications" onRetry={() => refetch()} />;
+  }
+
+  const items: SelfServiceCertification[] = data?.items ?? [];
+  if (items.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground" data-testid="text-no-my-certifications">
+        No certifications on record yet.
+      </p>
+    );
+  }
+
+  return (
+    <ul className="divide-y divide-border" data-testid="list-my-certifications">
+      {items.map((certification) => {
+        const expired = isEmployeeCertificationExpired(certification);
+        return (
+          <li key={certification.id} className="py-3" data-testid={`row-my-certification-${certification.id}`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-medium text-foreground">{certification.certificationTypeCode}</p>
+                {certification.issuingOrganization && (
+                  <p className="text-xs text-muted-foreground">{certification.issuingOrganization}</p>
+                )}
+              </div>
+              <Badge variant={expired ? 'outline' : 'secondary'} data-testid={`badge-my-certification-status-${certification.id}`}>
+                {expired ? 'Expired' : 'Active'}
+              </Badge>
+            </div>
+            {certification.expiryDate && (
+              <p className="text-xs text-muted-foreground mt-1">Valid until {formatDate(certification.expiryDate)}</p>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function CareerProfileTab({ organizationId }: { organizationId: number }) {
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Employment History</CardTitle>
+          <CardDescription>Internal movement (transfer, promotion, confirmation) on your own record — read-only, most recent first.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <EmploymentHistorySection organizationId={organizationId} />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Skills</CardTitle>
+          <CardDescription>Skills your organisation has on file for you — read-only.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <SkillsSection organizationId={organizationId} />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Qualifications</CardTitle>
+          <CardDescription>Academic and professional qualifications on file — read-only.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <QualificationsSection organizationId={organizationId} />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Certifications</CardTitle>
+          <CardDescription>
+            External and HR-maintained certifications on file — read-only. System-issued Learning certificates remain in the My Learning tab.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <CertificationsSection organizationId={organizationId} />
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -2083,6 +2338,7 @@ export default function EmployeeSelfService() {
           <TabsTrigger value="assets" data-testid="tab-my-assets">My Assets</TabsTrigger>
           <TabsTrigger value="leave" data-testid="tab-my-leave">My Leave</TabsTrigger>
           <TabsTrigger value="documents" data-testid="tab-my-documents">My Documents</TabsTrigger>
+          <TabsTrigger value="career-profile" data-testid="tab-career-profile">Career Profile</TabsTrigger>
           <TabsTrigger value="internal-vacancies" data-testid="tab-internal-vacancies">Internal Vacancies</TabsTrigger>
           <TabsTrigger value="my-internal-applications" data-testid="tab-my-internal-applications">My Applications</TabsTrigger>
         </TabsList>
@@ -2171,6 +2427,9 @@ export default function EmployeeSelfService() {
         </TabsContent>
         <TabsContent value="documents">
           <MyDocumentsTab organizationId={organizationId} employeeId={employee.id} />
+        </TabsContent>
+        <TabsContent value="career-profile">
+          <CareerProfileTab organizationId={organizationId} />
         </TabsContent>
         <TabsContent value="internal-vacancies">
           {recruitmentAccessible ? (
