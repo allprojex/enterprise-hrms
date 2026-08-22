@@ -11,9 +11,10 @@
  * their own active organization).
  */
 import { eq } from "drizzle-orm";
-import { db, departmentsTable, branchesTable, positionsTable, employeesTable } from "@workspace/db";
+import { db, departmentsTable, branchesTable, positionsTable, employeesTable, type EmploymentPeriod } from "@workspace/db";
 import { getEmployeeById } from "./employees";
 import { resolveOwnEmployeeId } from "./leaveRequests";
+import { listEmploymentPeriods } from "./employmentLifecycleService";
 
 export interface SelfServiceEmployeeProfile {
   id: number;
@@ -119,4 +120,54 @@ export async function resolveOwnEmployeeProfile(
     separationDate: employee.separationDate,
     separationReason: employee.separationReason,
   };
+}
+
+export interface SelfServiceEmploymentPeriod {
+  id: number;
+  eventType: string;
+  effectiveDate: Date;
+  previousState: unknown;
+  newState: unknown;
+  createdAt: Date;
+}
+
+export interface SelfServiceEmploymentHistory {
+  linked: boolean;
+  items: SelfServiceEmploymentPeriod[];
+}
+
+function toSelfServiceEmploymentPeriod(period: EmploymentPeriod): SelfServiceEmploymentPeriod {
+  return {
+    id: period.id,
+    eventType: period.eventType,
+    effectiveDate: period.effectiveDate,
+    previousState: period.previousState,
+    newState: period.newState,
+    createdAt: period.createdAt,
+  };
+}
+
+/**
+ * Phase 3F, W105: the caller's own internal employment history (transfer/
+ * promotion/confirmation events), reusing W22's `listEmploymentPeriods`
+ * verbatim — no second history engine, no new table. Own employee id is
+ * always server-resolved via the same `resolveOwnEmployeeId` GET /me/employee
+ * already uses — never a client-supplied employeeId. `linked: false` (with
+ * `items: []`) mirrors GET /me/employee's own intentional not-linked state,
+ * not an error. Rows are returned exactly as stored — no denormalized
+ * department/branch/position *names* are resolved here, since
+ * `previousState`/`newState` only ever snapshot ids, and joining those ids to
+ * their *current* name would silently replace historical meaning with
+ * present-day meaning (the exact behavior the frozen plan's own historical-
+ * integrity requirement forbids).
+ */
+export async function resolveOwnEmploymentHistory(
+  organizationId: number,
+  applicationUserId: number,
+): Promise<SelfServiceEmploymentHistory> {
+  const employeeId = await resolveOwnEmployeeId(organizationId, applicationUserId);
+  if (employeeId == null) return { linked: false, items: [] };
+
+  const periods = await listEmploymentPeriods(organizationId, employeeId);
+  return { linked: true, items: periods.map(toSelfServiceEmploymentPeriod) };
 }

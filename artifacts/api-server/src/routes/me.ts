@@ -7,7 +7,7 @@ import { getActiveMembershipsForUser, getActiveMembership, resolveActiveOrganiza
 import { hostnameOrganizationMismatch, shouldFailClosedForTenantResolution } from "../lib/organizationDomains";
 import { requireModuleEnabled } from "../middlewares/requireModuleEnabled";
 import type { MembershipRequest } from "../middlewares/requireMembership";
-import { resolveOwnEmployeeProfile } from "../lib/employeeSelfService";
+import { resolveOwnEmployeeProfile, resolveOwnEmploymentHistory } from "../lib/employeeSelfService";
 import { RECRUITMENT_MODULE_KEY } from "../lib/recruitmentAuthorization";
 import {
   listInternalVacancies,
@@ -141,6 +141,24 @@ router.get(
   async (req: MembershipRequest, res): Promise<void> => {
     const profile = await resolveOwnEmployeeProfile(req.membership!.organizationId, req.userId!);
     res.json({ linked: profile != null, employee: profile });
+  },
+);
+
+// GET /me/employment-history
+// Employee Self-Service Career Profile foundation (Phase 3F, W105): the
+// caller's own internal employment history (transfer/promotion/confirmation
+// events) — reuses W22's employment_periods verbatim, no new table, no new
+// permission. Own identity always server-resolved (see
+// lib/employeeSelfService.ts's own resolveOwnEmploymentHistory) — never a
+// client-supplied employeeId. Gated identically to GET /me/employee.
+router.get(
+  "/me/employment-history",
+  requireAuth as any,
+  requireActiveOrganizationMembership,
+  requireModuleEnabled("employee_self_service"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const history = await resolveOwnEmploymentHistory(req.membership!.organizationId, req.userId!);
+    res.json(history);
   },
 );
 

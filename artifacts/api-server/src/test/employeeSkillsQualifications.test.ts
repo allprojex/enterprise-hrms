@@ -198,7 +198,7 @@ describe("Employee Skills", () => {
   it("returns 404 when the employee does not exist", async () => {
     mockSession();
     mockActiveMembership();
-    mockPermissions(["employee.read"]);
+    mockPermissions(["employee.write"]);
     fixtures.employeeRows = [];
 
     const res = await request(app).get("/api/organizations/10/employees/42/skills").set("Authorization", "Bearer valid-token");
@@ -223,7 +223,25 @@ describe("Employee Skills", () => {
     expect((auditInsert!.values as Record<string, unknown>).eventType).toBe("employee_skill.added");
   });
 
-  it("lists skills for the employee", async () => {
+  it("lists skills for the employee (HR-authoritative employee.write floor)", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["employee.write"]);
+    fixtures.employeeRows = [{ id: 42, organizationId: 10, firstName: "Ada", lastName: "Lovelace" }];
+    fixtures.skillRows = [{ id: 1, organizationId: 10, employeeId: 42, skillCode: "javascript", proficiencyLevel: null }];
+
+    const res = await request(app).get("/api/organizations/10/employees/42/skills").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+  });
+
+  // Phase 3F, W105: the genuine pre-existing authorization gap this
+  // workstream closes — an ordinary employee-role user (employee.read only,
+  // no employee.write) could previously GET a coworker's skills through this
+  // HR-administration route. Own-scope employee visibility is served
+  // separately by GET /me/skills (W106), never through this route.
+  it("denies an ordinary employee (employee.read only, no employee.write) from reading a coworker's skills via the HR route", async () => {
     mockSession();
     mockActiveMembership();
     mockPermissions(["employee.read"]);
@@ -232,8 +250,7 @@ describe("Employee Skills", () => {
 
     const res = await request(app).get("/api/organizations/10/employees/42/skills").set("Authorization", "Bearer valid-token");
 
-    expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(1);
+    expect(res.status).toBe(403);
   });
 
   it("returns 404 when removing a skill that isn't in this employee's scope", async () => {
@@ -263,6 +280,31 @@ describe("Employee Skills", () => {
 });
 
 describe("Employee Qualifications", () => {
+  it("lists qualifications for the employee (HR-authoritative employee.write floor)", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["employee.write"]);
+    fixtures.employeeRows = [{ id: 42, organizationId: 10, firstName: "Ada", lastName: "Lovelace" }];
+    fixtures.qualificationRows = [{ id: 1, organizationId: 10, employeeId: 42, qualificationTypeCode: "bachelors" }];
+
+    const res = await request(app).get("/api/organizations/10/employees/42/qualifications").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+  });
+
+  it("denies an ordinary employee (employee.read only, no employee.write) from reading a coworker's qualifications via the HR route", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["employee.read"]);
+    fixtures.employeeRows = [{ id: 42, organizationId: 10, firstName: "Ada", lastName: "Lovelace" }];
+    fixtures.qualificationRows = [{ id: 1, organizationId: 10, employeeId: 42, qualificationTypeCode: "bachelors" }];
+
+    const res = await request(app).get("/api/organizations/10/employees/42/qualifications").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(403);
+  });
+
   it("adds a qualification and records an audit event", async () => {
     mockSession();
     mockActiveMembership();
@@ -307,6 +349,31 @@ describe("Employee Qualifications", () => {
 });
 
 describe("Employee Certifications", () => {
+  it("lists certifications for the employee (HR-authoritative employee.write floor)", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["employee.write"]);
+    fixtures.employeeRows = [{ id: 42, organizationId: 10, firstName: "Ada", lastName: "Lovelace" }];
+    fixtures.certificationRows = [{ id: 1, organizationId: 10, employeeId: 42, certificationTypeCode: "pmp" }];
+
+    const res = await request(app).get("/api/organizations/10/employees/42/certifications").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+  });
+
+  it("denies an ordinary employee (employee.read only, no employee.write) from reading a coworker's certifications via the HR route", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["employee.read"]);
+    fixtures.employeeRows = [{ id: 42, organizationId: 10, firstName: "Ada", lastName: "Lovelace" }];
+    fixtures.certificationRows = [{ id: 1, organizationId: 10, employeeId: 42, certificationTypeCode: "pmp" }];
+
+    const res = await request(app).get("/api/organizations/10/employees/42/certifications").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(403);
+  });
+
   it("adds a certification and records an audit event", async () => {
     mockSession();
     mockActiveMembership();

@@ -816,6 +816,38 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /me/employment-history:
+    get:
+      operationId: getMyEmploymentHistory
+      tags: [self-service]
+      summary: The caller's own internal employment history (Employee Self-Service Career Profile foundation, Phase 3F, W105)
+      description: >-
+        Resolves "which employee is me" the same way GET /me/employee does —
+        never a client-supplied employee ID. Reuses the existing
+        employment_periods table (Phase 2A, W22) verbatim — transfer/
+        promotion/confirmation events, most recent first. `linked: false`
+        (with `items: []`) is the intentional not-linked response, mirroring
+        GET /me/employee. Gated by the employee_self_service module.
+      responses:
+        "200":
+          description: The caller's own employment history, or the controlled not-linked state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyEmploymentHistoryResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: No active organization membership, or the employee_self_service module is disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /me/internal-vacancies:
     get:
       operationId: listMyInternalVacancies
@@ -2181,6 +2213,45 @@ paths:
                 $ref: "#/components/schemas/MessageResponse"
         "404":
           description: Employee or certification not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}/employment-history:
+    get:
+      operationId: listEmployeeEmploymentHistory
+      tags: [employees]
+      summary: An employee's internal employment history (Phase 3F, W105)
+      description: >-
+        HR-administration read of employment_periods (Phase 2A, W22) —
+        closes the pre-existing gap where Transfer/Promote/Confirm wrote
+        this data but nothing ever rendered it back. Requires employee.write,
+        matching the same HR-authoritative floor every other HR-
+        administration route on this resource requires — not an own-scope
+        self-service read (see GET /me/employment-history for that).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The employee's employment history, most recent first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmploymentPeriodSummary"
+        "404":
+          description: Employee not found
           content:
             application/json:
               schema:
@@ -19859,3 +19930,45 @@ components:
         openIncidentCount:
           type: integer
           description: In-scope asset_incidents with status = open.
+
+    EmploymentPeriodSummary:
+      type: object
+      description: >-
+        One employment_periods row (Phase 2A, W22) — append-only, never
+        edited or deleted. previousState/newState snapshot the raw ids that
+        changed at the time of the event; they are never resolved to
+        current department/branch/position names, since that would silently
+        replace historical meaning with present-day meaning.
+      required: [id, eventType, effectiveDate, newState, createdAt]
+      properties:
+        id:
+          type: integer
+        eventType:
+          type: string
+          description: Free text — "transfer" | "promotion" | "confirmation" today, per each writing workstream's own event type.
+        effectiveDate:
+          type: string
+          format: date-time
+        previousState:
+          nullable: true
+          description: Raw snapshot of the fields that changed, before the event. Null for the first employment_periods row on a given employee.
+        newState:
+          description: Raw snapshot of the fields that changed, after the event.
+        createdAt:
+          type: string
+          format: date-time
+
+    MyEmploymentHistoryResponse:
+      type: object
+      description: >-
+        Employee Self-Service Career Profile foundation (Phase 3F, W105).
+        `linked: false` (with `items: []`) mirrors GET /me/employee's own
+        intentional not-linked state, not an error.
+      required: [linked, items]
+      properties:
+        linked:
+          type: boolean
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmploymentPeriodSummary"

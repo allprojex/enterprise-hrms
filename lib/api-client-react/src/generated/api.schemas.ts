@@ -5850,6 +5850,29 @@ export interface AssetDashboard {
   openIncidentCount: number;
 }
 
+/**
+ * One employment_periods row (Phase 2A, W22) — append-only, never edited or deleted. previousState/newState snapshot the raw ids that changed at the time of the event; they are never resolved to current department/branch/position names, since that would silently replace historical meaning with present-day meaning.
+ */
+export interface EmploymentPeriodSummary {
+  id: number;
+  /** Free text — "transfer" | "promotion" | "confirmation" today, per each writing workstream's own event type. */
+  eventType: string;
+  effectiveDate: string;
+  /** Raw snapshot of the fields that changed, before the event. Null for the first employment_periods row on a given employee. */
+  previousState?: unknown | null;
+  /** Raw snapshot of the fields that changed, after the event. */
+  newState: unknown;
+  createdAt: string;
+}
+
+/**
+ * Employee Self-Service Career Profile foundation (Phase 3F, W105). `linked: false` (with `items: []`) mirrors GET /me/employee's own intentional not-linked state, not an error.
+ */
+export interface MyEmploymentHistoryResponse {
+  linked: boolean;
+  items: EmploymentPeriodSummary[];
+}
+
 export type ListEmployeesParams = {
 search?: string;
 departmentId?: number;

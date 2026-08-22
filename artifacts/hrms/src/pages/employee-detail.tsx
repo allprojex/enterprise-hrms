@@ -43,6 +43,8 @@ import {
   getListEmployeeCertificationsQueryKey,
   useAddEmployeeCertification,
   useRemoveEmployeeCertification,
+  useListEmployeeEmploymentHistory,
+  getListEmployeeEmploymentHistoryQueryKey,
   useTransferEmployee,
   usePromoteEmployee,
   useConfirmEmployee,
@@ -167,6 +169,14 @@ export default function EmployeeDetail() {
   });
   const { data: certifications } = useListEmployeeCertifications(organizationId, employeeId, {
     query: { queryKey: getListEmployeeCertificationsQueryKey(organizationId, employeeId), enabled: organizationId > 0 && !isNaN(employeeId) },
+  });
+  const {
+    data: employmentHistory,
+    isLoading: employmentHistoryLoading,
+    isError: employmentHistoryError,
+    refetch: refetchEmploymentHistory,
+  } = useListEmployeeEmploymentHistory(organizationId, employeeId, {
+    query: { queryKey: getListEmployeeEmploymentHistoryQueryKey(organizationId, employeeId), enabled: organizationId > 0 && !isNaN(employeeId) },
   });
 
   const { data: departments } = useListDepartments(organizationId, {
@@ -1577,6 +1587,51 @@ export default function EmployeeDetail() {
                     </li>
                   );
                 })}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-3">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Network className="h-5 w-5" aria-hidden="true" />
+              Employment History
+            </CardTitle>
+            <CardDescription>
+              Internal movement (transfer, promotion, confirmation) recorded through this employee's own record — read-only, most recent first.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {employmentHistoryLoading ? (
+              <div className="space-y-2" data-testid="loading-employment-history">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : employmentHistoryError ? (
+              <QueryError
+                title="Failed to load employment history"
+                message="Could not fetch this employee's employment history."
+                onRetry={() => refetchEmploymentHistory()}
+              />
+            ) : (employmentHistory ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground" data-testid="text-no-employment-history">
+                No employment history recorded yet.
+              </p>
+            ) : (
+              <ul className="divide-y divide-border" data-testid="list-employment-history">
+                {(employmentHistory ?? []).map((period) => (
+                  <li key={period.id} className="py-3" data-testid={`row-employment-history-${period.id}`}>
+                    <div className="flex items-center justify-between gap-4">
+                      <Badge variant="outline" className="capitalize">
+                        {period.eventType}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(period.effectiveDate).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </li>
+                ))}
               </ul>
             )}
           </CardContent>

@@ -43,6 +43,7 @@ import {
   EmployeePromotionNoChangeError,
   EmployeeNotOnProbationError,
 } from "../lib/employees";
+import { listEmploymentPeriods } from "../lib/employmentLifecycleService";
 import { recordAuditEvent } from "../lib/auditLog";
 import { validateImageUpload, processAvatarImage, InvalidImageError } from "../lib/imageProcessing";
 import { writeOrgFile, readOrgFile, deleteOrgFile } from "../lib/fileStorage";
@@ -792,6 +793,50 @@ router.post(
       }
       throw err;
     }
+  },
+);
+
+// GET /organizations/:organizationId/employees/:employeeId/employment-history
+// Phase 3F, W105: closes the HR-side gap discovered during Phase 3F
+// discovery — Transfer/Promote/Confirm have always written to
+// employment_periods, but nothing ever rendered it back, not even here.
+// employee.write (not employee.read) — matching the HR-authoritative
+// permission floor every other HR-administration route in this file
+// requires, and the same corrected floor now used by the Skills/
+// Qualifications/Certifications GET routes (see
+// routes/employeeSkillsQualifications.ts). Org-wide, any employeeId, by
+// design — this is HR viewing an employee's record, not own-scope self-
+// service (that is GET /me/employment-history, gated entirely differently).
+router.get(
+  "/organizations/:organizationId/employees/:employeeId/employment-history",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requirePermission("employee.write"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const employeeIdRaw = Array.isArray(req.params.employeeId) ? req.params.employeeId[0] : req.params.employeeId;
+    const employeeId = parseInt(employeeIdRaw, 10);
+    if (isNaN(employeeId)) {
+      res.status(400).json({ error: "Invalid employee ID" });
+      return;
+    }
+
+    const employee = await getEmployeeById(req.membership!.organizationId, employeeId);
+    if (!employee) {
+      res.status(404).json({ error: "Employee not found" });
+      return;
+    }
+
+    const periods = await listEmploymentPeriods(req.membership!.organizationId, employeeId);
+    res.json(
+      periods.map((p) => ({
+        id: p.id,
+        eventType: p.eventType,
+        effectiveDate: p.effectiveDate,
+        previousState: p.previousState,
+        newState: p.newState,
+        createdAt: p.createdAt,
+      })),
+    );
   },
 );
 

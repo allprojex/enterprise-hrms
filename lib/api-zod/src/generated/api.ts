@@ -520,6 +520,23 @@ export const GetMyEmployeeResponse = zod.object({
 
 
 /**
+ * Resolves "which employee is me" the same way GET /me/employee does — never a client-supplied employee ID. Reuses the existing employment_periods table (Phase 2A, W22) verbatim — transfer/ promotion/confirmation events, most recent first. `linked: false` (with `items: []`) is the intentional not-linked response, mirroring GET /me/employee. Gated by the employee_self_service module.
+ * @summary The caller's own internal employment history (Employee Self-Service Career Profile foundation, Phase 3F, W105)
+ */
+export const GetMyEmploymentHistoryResponse = zod.object({
+  "linked": zod.boolean(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "eventType": zod.string().describe('Free text — \"transfer\" | \"promotion\" | \"confirmation\" today, per each writing workstream\'s own event type.'),
+  "effectiveDate": zod.coerce.date(),
+  "previousState": zod.unknown().nullish().describe('Raw snapshot of the fields that changed, before the event. Null for the first employment_periods row on a given employee.'),
+  "newState": zod.unknown().describe('Raw snapshot of the fields that changed, after the event.'),
+  "createdAt": zod.coerce.date()
+}).describe('One employment_periods row (Phase 2A, W22) — append-only, never edited or deleted. previousState\/newState snapshot the raw ids that changed at the time of the event; they are never resolved to current department\/branch\/position names, since that would silently replace historical meaning with present-day meaning.'))
+}).describe('Employee Self-Service Career Profile foundation (Phase 3F, W105). `linked: false` (with `items: []`) mirrors GET \/me\/employee\'s own intentional not-linked state, not an error.')
+
+
+/**
  * Resolves "which employee is me" the same way GET /me/employee does — never a client-supplied employee ID. `linked: false` (unlinked login) or `active: false` (linked but not an active employee) both return `items: []` as an intentional 200-OK controlled state, not an error, mirroring GET /me/employee's own "linked: false" precedent. Only vacancies that are published, internally visible (visibility internal or both), and within their open/close window are included — never recruiter, hiring-manager, requisition, approval, or audit detail. Gated by both employee_self_service and recruitment (independently — a disabled recruitment module degrades only this section, per §8).
  * @summary List internal vacancies eligible for the caller to apply to (Employee Self-Service Internal Applications, W60)
  */
@@ -1935,6 +1952,26 @@ export const RemoveEmployeeCertificationParams = zod.object({
 export const RemoveEmployeeCertificationResponse = zod.object({
   "message": zod.string()
 })
+
+
+/**
+ * HR-administration read of employment_periods (Phase 2A, W22) — closes the pre-existing gap where Transfer/Promote/Confirm wrote this data but nothing ever rendered it back. Requires employee.write, matching the same HR-authoritative floor every other HR- administration route on this resource requires — not an own-scope self-service read (see GET /me/employment-history for that).
+ * @summary An employee's internal employment history (Phase 3F, W105)
+ */
+export const ListEmployeeEmploymentHistoryParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const ListEmployeeEmploymentHistoryResponseItem = zod.object({
+  "id": zod.number(),
+  "eventType": zod.string().describe('Free text — \"transfer\" | \"promotion\" | \"confirmation\" today, per each writing workstream\'s own event type.'),
+  "effectiveDate": zod.coerce.date(),
+  "previousState": zod.unknown().nullish().describe('Raw snapshot of the fields that changed, before the event. Null for the first employment_periods row on a given employee.'),
+  "newState": zod.unknown().describe('Raw snapshot of the fields that changed, after the event.'),
+  "createdAt": zod.coerce.date()
+}).describe('One employment_periods row (Phase 2A, W22) — append-only, never edited or deleted. previousState\/newState snapshot the raw ids that changed at the time of the event; they are never resolved to current department\/branch\/position names, since that would silently replace historical meaning with present-day meaning.')
+export const ListEmployeeEmploymentHistoryResponse = zod.array(ListEmployeeEmploymentHistoryResponseItem)
 
 
 /**

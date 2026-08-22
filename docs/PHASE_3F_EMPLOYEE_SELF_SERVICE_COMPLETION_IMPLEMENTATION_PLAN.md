@@ -30,7 +30,7 @@ Both were explicit, approved scope exclusions from Phase 2B's own W39 (Employee 
 1. A new, properly own-scoped, server-derived read path for all four entities (employment history, skills, qualifications, certifications), reusing every existing table and every existing HR-side write path verbatim.
 2. A new "Career Profile" tab inside the existing `/self-service` page, four read-only sections.
 3. A one-card HR-side gap closure in `employee-detail.tsx` (employment history has never been visible to HR either — Transfer/Promote/Confirm write to it, nothing renders it).
-4. Authorization hardening of the 4 currently-unscoped GET routes in `employeeSkillsQualifications.ts` (§5).
+4. Authorization hardening of the 3 currently-unscoped GET routes in `employeeSkillsQualifications.ts` (§5).
 
 ## 4. Explicit Non-Scope (V1) — Final
 
@@ -55,7 +55,7 @@ The draft's own recommended default (mint `employee.read.own`) is **superseded**
 
 ### Existing HR routes: hardened using an existing permission only (Owner Decision 6 — SUPERSEDED BY OWNER DIRECTION)
 
-The draft's own recommended default (track separately, do not fix) is **superseded** — the Owner has directed this gap be fixed inside Phase 3F. The fix must not invent employee CRUD access and must not touch the underlying `employee.read`/`employee.write` permission definitions or their role grants (both are used far more broadly than these 12 routes — `employees.ts`, `employeeConversion.ts`, `employeeExitProcess.ts`, `employeeDisciplinaryRecords.ts` all depend on the current `employee.read`/`employee.write` role mapping being unchanged). The correct, minimal, surgical fix, grounded in an already-established precedent in this exact permission family (`seed-roles-permissions.ts:225-234`'s own comment: "`employee.write`'s existing gate... the same admin-only rollout"): **change the 4 currently-`employee.read`-gated GET routes to require `employee.write` instead**, matching the 8 mutating routes on the same three resources that already require `employee.write`. This makes all 12 routes uniformly HR-only (`org_admin`/`hr_manager`, who both already hold `employee.write`), with zero change to any permission definition or role-permission mapping, and zero risk to any other route that depends on `employee.read`/`employee.write`'s current role grants.
+The draft's own recommended default (track separately, do not fix) is **superseded** — the Owner has directed this gap be fixed inside Phase 3F. The fix must not invent employee CRUD access and must not touch the underlying `employee.read`/`employee.write` permission definitions or their role grants (both are used far more broadly than these 12 routes — `employees.ts`, `employeeConversion.ts`, `employeeExitProcess.ts`, `employeeDisciplinaryRecords.ts` all depend on the current `employee.read`/`employee.write` role mapping being unchanged). The correct, minimal, surgical fix, grounded in an already-established precedent in this exact permission family (`seed-roles-permissions.ts:225-234`'s own comment: "`employee.write`'s existing gate... the same admin-only rollout"): **change the 3 currently-`employee.read`-gated GET routes to require `employee.write` instead**, matching the 8 mutating routes on the same three resources that already require `employee.write`. This makes all 12 routes uniformly HR-only (`org_admin`/`hr_manager`, who both already hold `employee.write`), with zero change to any permission definition or role-permission mapping, and zero risk to any other route that depends on `employee.read`/`employee.write`'s current role grants.
 
 **Full 12-route table, as required before freeze:**
 
@@ -116,7 +116,7 @@ Every decision is final. None are pending.
 **Question (as drafted):** Track the gap separately, or fix it now?
 **Draft's own recommended default:** track separately (Option A).
 **Owner direction:** fix it now, inside Phase 3F, without inventing employee CRUD access.
-**Final Frozen Requirement:** See §5's full 12-route table above. The 4 currently-unscoped GET routes are changed from `employee.read` to `employee.write`, closing the gap with zero new permission and zero change to any permission's role mapping. W105 must include the regression tests specified in §5 and §21.
+**Final Frozen Requirement:** See §5's full 12-route table above. The 3 currently-unscoped GET routes are changed from `employee.read` to `employee.write`, closing the gap with zero new permission and zero change to any permission's role mapping. W105 must include the regression tests specified in §5 and §21.
 
 ### Decision 7 — New permission vs. no-permission precedent — **SUPERSEDED BY OWNER DIRECTION**
 
@@ -146,7 +146,7 @@ One new **"Career Profile"** tab inside the existing `/self-service` page, four 
 
 No pagination — matches the existing `/me/employee`-family precedent (small, bounded per-employee datasets; no other `/me/*` route in this codebase paginates). No route accepts an `employeeId` query parameter of any kind.
 
-**Existing routes changed** (permission only — see §5 table): the 4 GET routes in `employeeSkillsQualifications.ts` change from `employee.read` to `employee.write`. No route path, method, or response shape changes.
+**Existing routes changed** (permission only — see §5 table): the 3 GET routes in `employeeSkillsQualifications.ts` change from `employee.read` to `employee.write`. No route path, method, or response shape changes.
 
 **New HR-side route** (§10): `GET /organizations/:organizationId/employees/:employeeId/employment-history`, `employee.write`, org-wide, audit-silent read.
 
@@ -174,7 +174,7 @@ Every new `/me/*` route resolves the caller's own employee id server-side; no ro
 Continuing from W104. Four workstreams — unchanged count from the draft, scope of W105 expanded to include the now-in-scope authorization hardening.
 
 ### W105 — ESS Foundation, Authorization Hardening & Employment History
-**Scope:** (1) Harden the 4 GET routes in `employeeSkillsQualifications.ts` per §5's table (`employee.read` → `employee.write`), with regression tests proving `org_admin`/`hr_manager` unaffected and `employee`-role denied. (2) New `resolveOwnEmployeeId`-shaped helper in `lib/employeeSelfService.ts`. (3) New route `GET /me/employment-history` (no permission, own-scope, reuses `listEmploymentPeriods` verbatim). (4) New HR-side route + `employee-detail.tsx` "Employment History" card (§10). No skills/qualifications/certifications ESS work yet — backend-first, matching this codebase's established workstream-splitting convention.
+**Scope:** (1) Harden the 3 GET routes in `employeeSkillsQualifications.ts` per §5's table (`employee.read` → `employee.write`), with regression tests proving `org_admin`/`hr_manager` unaffected and `employee`-role denied. (2) New `resolveOwnEmployeeId`-shaped helper in `lib/employeeSelfService.ts`. (3) New route `GET /me/employment-history` (no permission, own-scope, reuses `listEmploymentPeriods` verbatim). (4) New HR-side route + `employee-detail.tsx` "Employment History" card (§10). No skills/qualifications/certifications ESS work yet — backend-first, matching this codebase's established workstream-splitting convention.
 **Database impact:** none.
 **API impact:** 1 new `/me/*` route, 1 new HR-side route, 4 existing routes' permission changed (no path/method/response change).
 **Frontend impact:** one new card in `employee-detail.tsx`; no ESS frontend yet.

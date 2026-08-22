@@ -53,11 +53,19 @@ async function requireEmployee(req: MembershipRequest, res: import("express").Re
 // Skills
 // ---------------------------------------------------------------------------
 
+// Phase 3F, W105: gated on employee.write, not employee.read — this is an
+// HR-administration route (org-wide, any employeeId), not an own-scope
+// employee-facing read; the employee role holds employee.read but not
+// employee.write, so this closes a genuine pre-existing gap (an ordinary
+// employee could otherwise GET any coworker's skills through this route).
+// An employee's own read access is served separately by GET /me/skills
+// (W106), which is own-scoped and server-derived, never permission-gated
+// the same way an HR-administration route is.
 router.get(
   "/organizations/:organizationId/employees/:employeeId/skills",
   requireAuth as any,
   requireMembership("organizationId"),
-  requirePermission("employee.read"),
+  requirePermission("employee.write"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeId = parseId(req.params.employeeId);
     if (!(await requireEmployee(req, res, employeeId))) return;
@@ -172,11 +180,14 @@ router.delete(
 // Qualifications
 // ---------------------------------------------------------------------------
 
+// Phase 3F, W105: gated on employee.write — see the identical rationale on
+// the Skills GET route above; GET /me/qualifications (W106) serves own-scope
+// employee reads separately.
 router.get(
   "/organizations/:organizationId/employees/:employeeId/qualifications",
   requireAuth as any,
   requireMembership("organizationId"),
-  requirePermission("employee.read"),
+  requirePermission("employee.write"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeId = parseId(req.params.employeeId);
     if (!(await requireEmployee(req, res, employeeId))) return;
@@ -299,11 +310,14 @@ router.delete(
 // Certifications
 // ---------------------------------------------------------------------------
 
+// Phase 3F, W105: gated on employee.write — see the identical rationale on
+// the Skills GET route above; GET /me/certifications (W106) serves own-scope
+// employee reads separately.
 router.get(
   "/organizations/:organizationId/employees/:employeeId/certifications",
   requireAuth as any,
   requireMembership("organizationId"),
-  requirePermission("employee.read"),
+  requirePermission("employee.write"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeId = parseId(req.params.employeeId);
     if (!(await requireEmployee(req, res, employeeId))) return;

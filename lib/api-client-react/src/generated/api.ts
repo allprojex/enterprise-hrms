@@ -116,6 +116,7 @@ import type {
   EmployeeListResponse,
   EmployeeQualification,
   EmployeeSkill,
+  EmploymentPeriodSummary,
   FinalizePerformanceReviewInput,
   ForgotPasswordInput,
   GeneratePerformanceReviewsInput,
@@ -178,6 +179,7 @@ import type {
   Module,
   MoveApplicationStageInput,
   MyEmployeeResponse,
+  MyEmploymentHistoryResponse,
   MyInternalApplicationSubmitResult,
   MyInternalApplicationsResponse,
   Notification,
@@ -2122,6 +2124,84 @@ export function useGetMyEmployee<TData = Awaited<ReturnType<typeof getMyEmployee
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetMyEmployeeQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetMyEmploymentHistoryUrl = () => {
+
+
+
+
+  return `/api/me/employment-history`
+}
+
+/**
+ * Resolves "which employee is me" the same way GET /me/employee does — never a client-supplied employee ID. Reuses the existing employment_periods table (Phase 2A, W22) verbatim — transfer/ promotion/confirmation events, most recent first. `linked: false` (with `items: []`) is the intentional not-linked response, mirroring GET /me/employee. Gated by the employee_self_service module.
+ * @summary The caller's own internal employment history (Employee Self-Service Career Profile foundation, Phase 3F, W105)
+ */
+export const getMyEmploymentHistory = async ( options?: RequestInit): Promise<MyEmploymentHistoryResponse> => {
+
+  return customFetch<MyEmploymentHistoryResponse>(getGetMyEmploymentHistoryUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyEmploymentHistoryQueryKey = () => {
+    return [
+    `/api/me/employment-history`
+    ] as const;
+    }
+
+
+export const getGetMyEmploymentHistoryQueryOptions = <TData = Awaited<ReturnType<typeof getMyEmploymentHistory>>, TError = ErrorType<ApiError>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyEmploymentHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyEmploymentHistoryQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyEmploymentHistory>>> = ({ signal }) => getMyEmploymentHistory({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyEmploymentHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMyEmploymentHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof getMyEmploymentHistory>>>
+export type GetMyEmploymentHistoryQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary The caller's own internal employment history (Employee Self-Service Career Profile foundation, Phase 3F, W105)
+ */
+
+export function useGetMyEmploymentHistory<TData = Awaited<ReturnType<typeof getMyEmploymentHistory>>, TError = ErrorType<ApiError>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyEmploymentHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMyEmploymentHistoryQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -4901,6 +4981,89 @@ export const useRemoveEmployeeCertification = <TError = ErrorType<ApiError>,
       > => {
       return useMutation(getRemoveEmployeeCertificationMutationOptions(options));
     }
+
+export const getListEmployeeEmploymentHistoryUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/employment-history`
+}
+
+/**
+ * HR-administration read of employment_periods (Phase 2A, W22) — closes the pre-existing gap where Transfer/Promote/Confirm wrote this data but nothing ever rendered it back. Requires employee.write, matching the same HR-authoritative floor every other HR- administration route on this resource requires — not an own-scope self-service read (see GET /me/employment-history for that).
+ * @summary An employee's internal employment history (Phase 3F, W105)
+ */
+export const listEmployeeEmploymentHistory = async (organizationId: number,
+    employeeId: number, options?: RequestInit): Promise<EmploymentPeriodSummary[]> => {
+
+  return customFetch<EmploymentPeriodSummary[]>(getListEmployeeEmploymentHistoryUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListEmployeeEmploymentHistoryQueryKey = (organizationId: number,
+    employeeId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/employees/${employeeId}/employment-history`
+    ] as const;
+    }
+
+
+export const getListEmployeeEmploymentHistoryQueryOptions = <TData = Awaited<ReturnType<typeof listEmployeeEmploymentHistory>>, TError = ErrorType<ApiError>>(organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmployeeEmploymentHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListEmployeeEmploymentHistoryQueryKey(organizationId,employeeId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEmployeeEmploymentHistory>>> = ({ signal }) => listEmployeeEmploymentHistory(organizationId,employeeId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && employeeId !== null && employeeId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEmployeeEmploymentHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListEmployeeEmploymentHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof listEmployeeEmploymentHistory>>>
+export type ListEmployeeEmploymentHistoryQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary An employee's internal employment history (Phase 3F, W105)
+ */
+
+export function useListEmployeeEmploymentHistory<TData = Awaited<ReturnType<typeof listEmployeeEmploymentHistory>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmployeeEmploymentHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListEmployeeEmploymentHistoryQueryOptions(organizationId,employeeId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListLeaveRequestsUrl = (organizationId: number,
     employeeId: number,) => {
