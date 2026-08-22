@@ -1,10 +1,11 @@
 # Phase 3F — Employee Self Service Completion Implementation Plan
 
-**Status: DRAFT — NOT APPROVED FOR IMPLEMENTATION**
+**Status: FROZEN — APPROVED FOR IMPLEMENTATION**
+**Freeze date: 2026-08-22**
 
-This document is the output of a repository-grounded discovery pass, not a frozen plan. Nothing in this document authorizes writing code. It exists so the Owner can review the findings, resolve the Owner Decisions in §7, and freeze (or redirect) the plan before any workstream begins.
+This document was produced by a repository-grounded discovery pass, then reviewed and resolved by the Owner. All seven Owner Decisions below are final. Nothing in this document is a "TBD" or "pending" — every choice that affects implementation has an explicit, final answer. Sections are labeled to distinguish **Discovery Finding** (what the repository already contains, unchanged by review), **Owner Decision** (the resolution reached in this freeze session), and **Final Frozen Requirement** (the exact, binding scope for implementation).
 
-Naming note: `ROADMAP.md`'s own Phase 3 ("Workforce Operations") list is Recruitment → Attendance → Leave → Performance → Learning → Assets → **Employee Self Service** → Manager Portal. Recruitment/Attendance/Performance/Learning/Assets shipped as Phase 3A/3B/3C/3D/3E respectively (Leave shipped earlier, in Phase 2B). This document continues that lettering as **Phase 3F**, matching the established `docs/PHASE_3[A-E]_*_IMPLEMENTATION_PLAN.md` naming convention exactly. Workstream numbering continues from the last-used number, **W105**, per `PROJECT_STATUS.md`'s own continuous numbering across every phase to date.
+Naming note: `ROADMAP.md`'s own Phase 3 ("Workforce Operations") list is Recruitment → Attendance → Leave → Performance → Learning → Assets → **Employee Self Service** → Manager Portal. Recruitment/Attendance/Performance/Learning/Assets shipped as Phase 3A/3B/3C/3D/3E respectively (Leave shipped earlier, in Phase 2B). This document continues that lettering as **Phase 3F**, matching the established `docs/PHASE_3[A-E]_*_IMPLEMENTATION_PLAN.md` naming convention exactly. Workstream numbering continues from the last-used number, **W105**.
 
 ---
 
@@ -16,232 +17,228 @@ Naming note: `ROADMAP.md`'s own Phase 3 ("Workforce Operations") list is Recruit
 > "W39 — skills/qualifications/certifications aggregation into Employee Self-Service (W24's `employee_skills`/`employee_qualifications`/`employee_certifications`) — deferred, not completed. Remains open pending separate approval."
 > — `PROJECT_STATUS.md:1328-1329`
 
-Both were explicit, approved scope exclusions from Phase 2B's own W39 (Employee Self-Service, narrowed scope) — not defects. No later phase closed either item; each later phase's own module-gated ESS tab (Attendance/Performance/Learning/Assets) added only its own module's own-scope data, never touching these four entities. This plan closes both bullets.
+Both were explicit, approved scope exclusions from Phase 2B's own W39 (Employee Self-Service, narrowed scope) — not defects. No later phase closed either item. This plan closes both bullets.
 
-## 2. Verified Current State (repository-grounded, not assumed)
+## 2. Verified Current State (Discovery Finding — unchanged)
 
-**`/self-service` (`artifacts/hrms/src/pages/employee-self-service.tsx`, 2209 lines)** currently has 9 tabs: My Profile (read-only by design), My Attendance, My Performance, My Learning, My Assets, My Leave, My Documents (read-only), Internal Vacancies, My Applications. Every later-phase tab independently checks its own module key via `isModuleAccessible(modules, '<key>')`; the page itself is gated server-side by the `employee_self_service` module on `GET /me/employee`. **There is no tab, section, or reference anywhere in this file to employment history, skills, qualifications, or certifications.**
+`/self-service` (`artifacts/hrms/src/pages/employee-self-service.tsx`) has 9 tabs today, none referencing employment history, skills, qualifications, or certifications. `employment_periods` (employment history) has a working append-only write path (Transfer/Promote/Confirm) but its own read function `listEmploymentPeriods` is orphaned — no route, HR or employee, calls it. `employee_skills`/`employee_qualifications`/`employee_certifications` already have full HR-admin CRUD (`routes/employeeSkillsQualifications.ts`, 12 routes; `employee-detail.tsx`, 3 cards) but no self-service read surface. `learning_certificates` remains deliberately, structurally separate from `employee_certifications` per Learning's own Owner Decision 3. No document/evidence attachment exists for any of the four entities. Zero test coverage exists today for any self-service view of this data.
 
-**Employment history** — `employment_periods` (`lib/db/src/schema/employment-periods.ts`): one append-only table (`eventType` free text — `transfer`/`promotion`/`confirmation`), written by `transferEmployee`/`promoteEmployee`/`confirmEmployee` (`artifacts/api-server/src/lib/employees.ts`) via the shared `recordEmploymentPeriodEvent` (`lib/employmentLifecycleService.ts:25-62`). A read function `listEmploymentPeriods` exists (`lib/employmentLifecycleService.ts:65-71`, org+employee scoped) but **is never called by any route** — not by HR, not by self-service. Nobody in the product can currently see this data rendered anywhere, including HR.
+**A genuine pre-existing authorization gap was found**: all 12 `employeeSkillsQualifications.ts` routes are gated only by the flat `employee.read`/`employee.write` permissions with a client-supplied `:employeeId` and no own-scope narrowing. The `employee` role holds `employee.read` (not `employee.write`) — so an ordinary employee could currently `GET` a coworker's skills/qualifications/certifications, org-wide, via these routes. No frontend surface calls this today as an employee. **This is fixed in this frozen plan — see §5 and Decision 6.**
 
-**Skills / Qualifications / Certifications** — `employee_skills`, `employee_qualifications`, `employee_certifications` (`lib/db/src/schema/employee-{skills,qualifications,certifications}.ts`) each already have full CRUD: routes in `artifacts/api-server/src/routes/employeeSkillsQualifications.ts` (12 routes total) and HR-admin frontend in `artifacts/hrms/src/pages/employee-detail.tsx` (three cards with add/list/remove). **The gap is purely the self-service read surface** — none of this is exposed to the employee's own view today.
+## 3. Final V1 Scope
 
-**A genuine pre-existing authorization gap, found during this discovery, not previously known:** all 12 skills/qualifications/certifications routes are gated only by the flat `employee.read`/`employee.write` permissions, with a client-supplied `:employeeId` path param and **no own-scope narrowing of any kind** — unlike every later Phase 3 module (Attendance/Performance/Learning/Assets), which all mint a dedicated `<resource>.read.own`/`.write.own` pair and resolve the caller's own employee id server-side via a `resolveOwn*EmployeeId`-style function that ignores any client-supplied id. Concretely: the `employee` role already holds `employee.read` (but not `employee.write`) — so any employee-role user hitting `GET /organizations/:orgId/employees/:employeeId/skills` with a coworker's `:employeeId` would currently succeed, org-wide, not own-scope-limited. No frontend surface calls this today, so it is dormant rather than actively exploited, but it is real and live in the shipped API surface. **This plan does not silently fix it** — see §7, Owner Decision 6.
+1. A new, properly own-scoped, server-derived read path for all four entities (employment history, skills, qualifications, certifications), reusing every existing table and every existing HR-side write path verbatim.
+2. A new "Career Profile" tab inside the existing `/self-service` page, four read-only sections.
+3. A one-card HR-side gap closure in `employee-detail.tsx` (employment history has never been visible to HR either — Transfer/Promote/Confirm write to it, nothing renders it).
+4. Authorization hardening of the 4 currently-unscoped GET routes in `employeeSkillsQualifications.ts` (§5).
 
-**`learning_certificates` (Phase 3D) is deliberately kept structurally separate from `employee_certifications`** — Learning's own Owner Decision 3, stated explicitly in `lib/db/src/schema/learning-certificates.ts:10-24`: "A DISTINCT, Learning-owned model — deliberately never merged with the existing `employee_certifications` table... No cross-write, no FK between the two tables." `learning_certificates` is already shown in My Learning's "My Certificates" card. This precedent must be preserved: any new certifications surface shows both, clearly separated, never merged into one list.
+## 4. Explicit Non-Scope (V1) — Final
 
-**No document/evidence attachment exists** for any of the four entities today. Two reusable patterns already exist elsewhere in the codebase if evidence attachment is ever wanted: a many-per-record join table (`asset_evidence`/`learning_enrollment_evidence` shape) or a single nullable FK column (`learning_certificates.employeeDocumentId` shape). Neither is proposed for V1 — see §6, §7 Owner Decision 5.
+- No employee create/edit/delete/verify/approve on any of the four entities, ever, through ESS (Owner Decision 1).
+- No employee submission/approval workflow (Owner Decision 1).
+- No merging or duplication of `learning_certificates` into Career Profile (Owner Decision 3).
+- No synchronization between `learning_certificates` and `employee_certifications` (Owner Decision 3).
+- No automatic `employee_skills` writes from Learning course/certificate completion (§7, Owner direction).
+- No document/evidence attachment or upload workflow for any of the four entities (Owner Decision 5).
+- No external previous-employer history — `employment_periods` only models internal movement (transfer/promotion/confirmation); external prior-employer history is not represented by the current schema and is explicitly **deferred**, not built (Owner Decision 2 refinement).
+- No new dashboard, no new reports (Owner direction §18).
+- No new module; Career Profile lives inside the existing `employee_self_service`-gated `/self-service` page, ungated by any additional module key (Owner direction §14).
+- No manager Career Profile view, no manager impersonation of `/me/*`, no new `.read.team` permission, no manager mutation authority (Owner Decision, §12). Manager Portal remains a separate, not-yet-planned roadmap item.
+- No new permission of any kind (Owner Decision 7 — superseded from the draft's own recommendation; see below).
+- No change to `employees.ts`'s `transferEmployee`/`promoteEmployee`/`confirmEmployee` write logic.
 
-**Zero test coverage exists today** for any self-service view of this data, frontend or backend.
+## 5. Authorization Design — FINAL
 
-## 3. What "ESS Completion" Means Here
+### New `/me/*` routes: zero new permission (Owner Decision 7 — SUPERSEDED BY OWNER DIRECTION)
 
-The deferred item's own wording is "aggregation... into Employee Self-Service" — a read-surfacing gap, not a request to rebuild HR master-data administration (which already fully exists for three of the four entities). The smallest coherent scope that genuinely closes both W39 bullets is:
+The draft's own recommended default (mint `employee.read.own`) is **superseded**. `GET /me/employee` already establishes a safe, existing, zero-permission pattern for own-scoped self-service data: `requireAuth → requireActiveOrganizationMembership → requireModuleEnabled("employee_self_service")`, with identity resolved server-side via `resolveOwnEmployeeProfile` (`lib/employeeSelfService.ts:60`) — no permission key at all, because scope is derived from the authenticated session, not a permission grant. The four new routes (`GET /me/employment-history`, `/me/skills`, `/me/qualifications`, `/me/certifications`) follow this exact precedent verbatim. This fully satisfies the Owner's "prefer ZERO new permissions" direction — no STOP condition is triggered, because a safe existing pattern already exists and is reused, not invented.
 
-1. A new, properly own-scoped read path for all four entities (employment history, skills, qualifications, certifications), reusing every existing table and every existing HR-side write path verbatim.
-2. A new tab (or tab group) inside the existing `/self-service` page surfacing that data.
-3. Closing the incidental HR-side gap that even HR cannot currently see rendered employment history (a one-card addition to the already-existing `employee-detail.tsx`, reusing the already-existing `listEmploymentPeriods` function — not a new feature, just wiring an orphaned read function to a UI).
+### Existing HR routes: hardened using an existing permission only (Owner Decision 6 — SUPERSEDED BY OWNER DIRECTION)
 
-Nothing else is required to close the two W39 bullets as written.
+The draft's own recommended default (track separately, do not fix) is **superseded** — the Owner has directed this gap be fixed inside Phase 3F. The fix must not invent employee CRUD access and must not touch the underlying `employee.read`/`employee.write` permission definitions or their role grants (both are used far more broadly than these 12 routes — `employees.ts`, `employeeConversion.ts`, `employeeExitProcess.ts`, `employeeDisciplinaryRecords.ts` all depend on the current `employee.read`/`employee.write` role mapping being unchanged). The correct, minimal, surgical fix, grounded in an already-established precedent in this exact permission family (`seed-roles-permissions.ts:225-234`'s own comment: "`employee.write`'s existing gate... the same admin-only rollout"): **change the 4 currently-`employee.read`-gated GET routes to require `employee.write` instead**, matching the 8 mutating routes on the same three resources that already require `employee.write`. This makes all 12 routes uniformly HR-only (`org_admin`/`hr_manager`, who both already hold `employee.write`), with zero change to any permission definition or role-permission mapping, and zero risk to any other route that depends on `employee.read`/`employee.write`'s current role grants.
 
-## 4. Explicit Non-Scope (V1)
+**Full 12-route table, as required before freeze:**
 
-- No new HR administration surface for employment history (Transfer/Promote/Confirm already exist and are unaffected).
-- No merging of `learning_certificates` and `employee_certifications`.
-- No document/evidence attachment for skills/qualifications/certifications/employment-history (deferred; see Owner Decision 5).
-- No new dashboard, no new reports (the deferred item never asked for either — see §11, §12).
-- No coupling to Learning (Learning's own zero-automatic-skill-grant boundary is preserved unchanged).
-- No fix to the pre-existing HR-route own-scope gap described in §2/§7 Decision 6, beyond disclosure — that is flagged as separately-approvable technical debt, not silently bundled into this phase's scope.
-- No new module. Core HR data (My Profile, My Documents) is already ungated inside `/self-service`; this data follows the identical precedent (see §7 Decision 7).
-- No Manager Portal work of any kind (separate, not-yet-planned roadmap item).
+| # | Method + Path | Current middleware | Intended middleware | Intended actor | Intended scope |
+|---|---|---|---|---|---|
+| 1 | `GET .../employees/:employeeId/skills` | `employee.read` | **`employee.write`** (changed) | HR/Admin only | Org-wide (unchanged — an HR admin page legitimately views any employee's records) |
+| 2 | `POST .../employees/:employeeId/skills` | `employee.write` | `employee.write` (unchanged) | HR/Admin only | Org-wide |
+| 3 | `PATCH .../skills/:skillId` | `employee.write` | `employee.write` (unchanged) | HR/Admin only | Org-wide |
+| 4 | `DELETE .../skills/:skillId` | `employee.write` | `employee.write` (unchanged) | HR/Admin only | Org-wide |
+| 5 | `GET .../employees/:employeeId/qualifications` | `employee.read` | **`employee.write`** (changed) | HR/Admin only | Org-wide |
+| 6 | `POST .../qualifications` | `employee.write` | `employee.write` (unchanged) | HR/Admin only | Org-wide |
+| 7 | `PATCH .../qualifications/:qualificationId` | `employee.write` | `employee.write` (unchanged) | HR/Admin only | Org-wide |
+| 8 | `DELETE .../qualifications/:qualificationId` | `employee.write` | `employee.write` (unchanged) | HR/Admin only | Org-wide |
+| 9 | `GET .../employees/:employeeId/certifications` | `employee.read` | **`employee.write`** (changed) | HR/Admin only | Org-wide |
+| 10 | `POST .../certifications` | `employee.write` | `employee.write` (unchanged) | HR/Admin only | Org-wide |
+| 11 | `PATCH .../certifications/:certificationId` | `employee.write` | `employee.write` (unchanged) | HR/Admin only | Org-wide |
+| 12 | `DELETE .../certifications/:certificationId` | `employee.write` | `employee.write` (unchanged) | HR/Admin only | Org-wide |
 
-## 5. Authorization Design (proposed, pending Owner Decision 6/7)
+**Net effect:** an ordinary `employee`-role user (who holds `employee.read` but not `employee.write`) can no longer read any of these 12 routes at all — the previously-dormant coworker-read gap is closed. `org_admin`/`hr_manager` (both already hold `employee.write`) are entirely unaffected — every legitimate current HR workflow through `employee-detail.tsx` continues to work exactly as before. This is verified, not assumed — W105 must include a regression test proving `employee-detail.tsx`'s existing Skills/Qualifications/Certifications cards still function for `org_admin`/`hr_manager`, plus a new test proving an `employee`-role caller is denied all 4 changed routes for both their own and another employee's id.
 
-Recommendation: **do not reuse the existing flat `employee.read`/`employee.write` HR routes for the new self-service surface.** Mint a new pair matching the established, consistent naming convention already used identically by every other Phase 3 module:
+**New HR-side employment-history route** (§10 below): `GET .../employees/:employeeId/employment-history`, new, `employee.write` (consistent with the table above — HR-administrative read, not a general directory-browse permission), `org_admin`/`hr_manager` only.
 
-- `employee.read.own` — new. Grants read of the caller's own skills/qualifications/certifications/employment-history only.
-- No write permission is proposed for V1 (see Owner Decision 1 — if Owner selects an editable/submit-for-approval model instead of read-only, a `.write.own` companion and schema changes would follow; not built here until that decision is made).
+## 6. Database Impact — FINAL
 
-New routes live under `/me/*` (mirroring `/me/employee`'s own precedent exactly — no permission key at all is even strictly required there, since `/me/*` routes already resolve identity via `resolveOwnEmployeeProfile`-style functions and are gated purely by `employee_self_service` module + authentication). Given the existing `/me/*` precedent uses no discrete permission key, **Owner Decision 7** below asks whether to follow that exact precedent (simplest, zero new permission) or mint `employee.read.own` anyway for consistency with Attendance/Performance/Learning/Assets' own explicit-permission pattern. Either way, the caller's own employee id is always server-resolved (via a new `resolveOwnEmployeeId`-shaped helper in `lib/employeeSelfService.ts`, reusing `resolveOwnEmployeeProfile`'s existing internal lookup), never trusted from a client-supplied `:employeeId`.
+**Zero new tables. Zero new migration. Migration remains `0040`.** All four entities already exist with adequate columns for a read-only V1 under the approved decisions. `drizzle-kit generate` must report "No schema changes, nothing to migrate" before any workstream is considered complete. No STOP condition is triggered — the approved V1 design (read-only, no evidence attachment, no submission workflow) requires no schema change of any kind.
 
-## 6. Database Impact
+## 7. Final Owner Decisions
 
-**Preferred outcome: zero new tables, zero new migration.** All four entities already exist with full org/employee ownership and adequate columns for a read-only V1. `drizzle-kit generate` is expected to report "No schema changes, nothing to migrate," and migration stays at `0040` unless Owner Decision 1 or 5 (below) requires an additive column/table.
+Every decision is final. None are pending.
 
-**Conditional impact, only if Owner approves it:**
-- Owner Decision 1 (employee-submitted, pending HR approval) would require one additive `status` enum column (`pending`/`approved`/`rejected`) plus a `submittedByMembershipId` column on each of `employee_skills`/`employee_qualifications`/`employee_certifications` — three additive `ALTER TABLE` statements, one migration (`0041`), no data loss, no table rewrite.
-- Owner Decision 5 (evidence attachment) would require one new join table per the `asset_evidence` shape, or a nullable FK column per the `learning_certificates.employeeDocumentId` shape — either way, additive only.
+### Decision 1 — Employee edit rights — **APPROVED** (Option A, as drafted)
 
-**Do not create migration `0041` during this discovery pass or before Owner freeze**, regardless of which option is eventually approved.
+**Question:** Can the employee add/edit their own skills/qualifications/certifications, or view-only?
+**Final Frozen Requirement:** Career Profile is **READ-ONLY** for employees in V1. Employees may view but never create, edit, delete, verify, or approve these records through ESS. HR/Admin remains the sole authoritative writer via the existing, unchanged `employee-detail.tsx` CRUD. No submission/approval workflow is built. If employees later need to propose new records, that is a separately designed future workflow, not part of Phase 3F.
 
-## 7. Owner Decisions Requiring Approval
+### Decision 2 — Employment history visibility scope — **APPROVED WITH REFINEMENT**
 
-Every decision below is genuinely unresolved by existing repository evidence — none are pre-chosen.
+**Question:** Full raw `employment_periods` feed, formatted, or redacted/filtered?
+**Final Frozen Requirement:** Show the full history, formatted into plain-language rows from the existing `eventType`/`previousState`/`newState` fields — no redaction policy, no hidden event types. **Refinement, made explicit by Owner direction §6:** `employment_periods` only models *internal* movement (transfer/promotion/confirmation) — it has no representation of employment prior to joining this organization. External previous-employer history is therefore **explicitly deferred**, not built in Phase 3F, since the current schema does not model it and Owner direction is clear: do not invent a new table for it here.
 
-### Decision 1 — Employee edit rights on Skills/Qualifications/Certifications
+### Decision 3 — Learning certificates vs. external certifications — **APPROVED** (Option A, as drafted)
 
-**Question:** Can the employee add/edit their own skills, qualifications, and certifications directly, or are these strictly HR-authored records the employee can only view?
-**Evidence:** Today, all three are HR-write-only via `employee-detail.tsx`. Nothing in the deferred item's own wording ("aggregation... into Employee Self-Service") implies employee editability — it reads as a visibility gap, not a write-access request.
-**Option A (recommended default):** Employee read-only. HR continues to be the sole writer via the existing `employee-detail.tsx` CRUD. Zero schema change, zero new write route, matches the "aggregation" wording literally.
-**Option B:** Employee-submitted, pending HR approval/verification (new `status` column, new approval workflow, new HR review queue). Materially larger scope — closer to a new mini-module than a completion of an existing gap.
-**Consequence:** Option A ships in roughly two workstreams; Option B requires additional workstreams for the approval workflow and a schema migration.
-**Recommended default: Option A.**
+**Question:** Merge `employee_certifications` and `learning_certificates` into one list, or keep separate?
+**Final Frozen Requirement:** Strictly separate, per Learning's own frozen Owner Decision 3. Career Profile's Certifications section shows **only** `employee_certifications` (HR-maintained/external). `learning_certificates` remains exclusively in My Learning's existing "My Certificates" card — **not duplicated, not synchronized, not converted** into `employee_certifications` automatically, ever.
 
-### Decision 2 — Employment History employee visibility scope
+### Decision 4 — Expired certifications visibility — **APPROVED** (Option A, as drafted)
 
-**Question:** Should the employee see the full raw `employment_periods` feed (every transfer/promotion/confirmation with its `previousState`/`newState` JSON), or a simplified, HR-approved-for-display summary?
-**Evidence:** `employment_periods.previousState`/`newState` are raw JSON snapshots of whatever fields changed (department/branch/position/status) — not currently formatted for end-user display anywhere, since no UI reads this table at all today (§2).
-**Option A (recommended default):** Show the full history, formatted into plain-language rows (e.g. "Transferred to Finance — 2026-03-01"), reusing the existing `eventType`/`previousState`/`newState` fields directly — no new data, just a rendering layer.
-**Option B:** Hide certain event types or fields from the employee's own view (e.g. suppress `confirmation` events, or redact salary-adjacent fields if any are ever added to `newState`).
-**Consequence:** Option A is a pure read/format task. Option B requires defining a redaction policy that does not exist anywhere in the codebase today.
-**Recommended default: Option A** — nothing in `employment_periods`' current fields is sensitive beyond what the employee already implicitly knows about their own history.
+**Question:** Hide expired certifications or always show them?
+**Final Frozen Requirement:** Always visible. Every `employee_certifications` row is shown with a live-computed expiry status label (mirroring `learning_certificates`' own existing active/expired/revoked computation pattern), never hidden or deleted from the ESS view solely due to expiry. No renewal automation is built.
 
-### Decision 3 — Certifications: Learning + external, shown together or separately?
+### Decision 5 — Evidence/document attachment — **APPROVED** (Option A, as drafted)
 
-**Question:** Should the new Certifications view show `employee_certifications` (external/manual) and `learning_certificates` (system-issued, already shown in My Learning) in one merged list, or keep them visually separate?
-**Evidence:** Learning's own Owner Decision 3 (`learning-certificates.ts:10-24`) is explicit that the two tables must never be merged at the data layer. `learning_certificates` already has its own card in My Learning.
-**Option A (recommended default):** Keep them fully separate. The new tab shows only `employee_certifications` (external/manual credentials); `learning_certificates` stays exactly where it already is, in My Learning's own existing card. No duplication, no merged UI list.
-**Option B:** Add a second "System-Issued Certificates" section to the new tab that also displays `learning_certificates` (read-only, reusing the existing `useListMyLearningCertificates` hook), so an employee has one place to see all certificates, clearly labeled by source.
-**Consequence:** Option A is simpler and changes nothing about My Learning. Option B duplicates a read-only view Learning already ships, purely for UX convenience.
-**Recommended default: Option A**, unless the Owner specifically wants a single "all my certificates" consolidated view.
+**Question:** Allow attaching supporting documents to qualifications/certifications?
+**Final Frozen Requirement:** Out of V1 scope entirely. No new upload workflow, no new storage layer, no public file URLs, no new document-ownership model. Since discovery confirmed no existing document relationship exists for any of the four entities (§2), there is nothing "already safe to surface" either — the entire feature is deferred, not partially built.
 
-### Decision 4 — Expired certifications visibility
+### Decision 6 — Existing HR-route authorization gap — **SUPERSEDED BY OWNER DIRECTION**
 
-**Question:** Do expired `employee_certifications` rows (past `expiryDate`) remain visible to the employee, or are they hidden/archived from the self-service view?
-**Evidence:** `employee_certifications.expiryDate` is a plain nullable timestamp with no status/archival column; nothing in the schema or existing HR UI currently hides expired rows (`employee-detail.tsx`'s own Certifications card lists everything unconditionally).
-**Option A (recommended default):** Always visible, with an expired/active label computed live (mirroring `learning_certificates`' own already-established live-computed active/expired/revoked pattern) — no data hidden, no new column.
-**Option B:** Hide expired certifications by default behind a toggle.
-**Consequence:** Option A is zero-new-logic beyond a date comparison already proven elsewhere in the codebase. Option B requires new UI state with no existing precedent to reuse.
-**Recommended default: Option A.**
+**Question (as drafted):** Track the gap separately, or fix it now?
+**Draft's own recommended default:** track separately (Option A).
+**Owner direction:** fix it now, inside Phase 3F, without inventing employee CRUD access.
+**Final Frozen Requirement:** See §5's full 12-route table above. The 4 currently-unscoped GET routes are changed from `employee.read` to `employee.write`, closing the gap with zero new permission and zero change to any permission's role mapping. W105 must include the regression tests specified in §5 and §21.
 
-### Decision 5 — Evidence/document attachment
+### Decision 7 — New permission vs. no-permission precedent — **SUPERSEDED BY OWNER DIRECTION**
 
-**Question:** Should employees (or HR) be able to attach a supporting document (e.g. a diploma PDF, a certification scan) to a qualification or certification record?
-**Evidence:** No such attachment exists today for any of the four entities. Two reusable patterns exist elsewhere (`asset_evidence`-style join table, or `learning_certificates.employeeDocumentId`-style nullable FK) — either would require an additive schema change.
-**Option A (recommended default):** Out of V1 scope entirely. The deferred item's own wording is about "aggregation," not evidence capture; `employee_documents`'s existing generic "My Documents" tab already gives employees a place to view (not attach) HR-uploaded documents, which is sufficient for V1.
-**Option B:** Add evidence attachment now, following the `learning_certificates.employeeDocumentId` (single nullable FK) shape for simplicity, or the `asset_evidence` (join table, multi-file) shape for flexibility.
-**Consequence:** Option A ships with zero schema change. Option B adds one additive migration and materially expands scope (upload UI, validation reuse, authenticated download reuse, cleanup discipline).
-**Recommended default: Option A** — can be proposed as its own small follow-up phase later if wanted.
+**Question (as drafted):** Mint `employee.read.own`, or follow `/me/employee`'s no-permission precedent?
+**Draft's own recommended default:** mint `employee.read.own` (Option A).
+**Owner direction:** strong preference for zero new permissions; use existing patterns if they safely express the required boundary.
+**Final Frozen Requirement:** **No new permission.** All four new `/me/*` routes follow `/me/employee`'s exact existing precedent — `requireAuth` → `requireActiveOrganizationMembership` → `requireModuleEnabled("employee_self_service")` → server-derived identity via a new `resolveOwnEmployeeId`-shaped helper in `lib/employeeSelfService.ts`. This is safe because scope is never permission-derived on these routes — it is derived entirely from the authenticated session, identical in kind to `/me/employee`'s own already-proven-safe pattern. No STOP condition applies; a safe existing pattern was found and reused.
 
-### Decision 6 — Existing HR-route authorization gap
+### Decision on Manager Access (raised by Owner direction §12, not one of the original 7 — recorded for completeness)
 
-**Question:** Should the pre-existing lack of own-scope narrowing on the 12 existing `employeeSkillsQualifications.ts` HR routes (§2 — any `employee`-role user can currently GET any coworker's skills/qualifications/certifications, not just their own) be hardened as part of this phase, or tracked separately?
-**Evidence:** This is a real, live, already-shipped gap discovered during this research pass, not introduced by this plan. It predates Phase 3F entirely (Phase 2A/W24).
-**Option A (recommended default):** Track it separately, disclosed here, not bundled into Phase 3F's own scope — Phase 3F only adds new, correctly-scoped `/me/*` routes; the existing HR routes are left exactly as they are, pending a dedicated decision on whether/how to hardened them (e.g. requiring `employee.write` — which `employee` role members do not hold — be checked even for the read routes, or minting a proper `employee.read.team`/manager tier).
-**Option B:** Fix it now, inside Phase 3F, by adding own-scope/manager-scope narrowing to the existing 12 routes.
-**Consequence:** Option A keeps Phase 3F's blast radius small and auditable. Option B risks silently changing already-shipped HR-admin behavior (e.g. if any current legitimate HR workflow relies on the current unscoped read) without its own dedicated review.
-**Recommended default: Option A**, with this finding formally logged in `PROJECT_STATUS.md` as a disclosed, separately-trackable item (not silently left undocumented).
+No manager Career Profile view was ever proposed in the original discovery. Owner's explicit prohibition is recorded as a permanent boundary: no manager `/me` impersonation, no team career profiles, no new `.read.team` permission, no manager mutation authority. Manager Portal remains entirely out of scope, a separate, not-yet-planned roadmap item.
 
-### Decision 7 — New permission key vs. `/me/*` no-permission precedent
+## 8. Frontend Design — Final
 
-**Question:** Should the new self-service read routes mint a discrete `employee.read.own` permission (matching Attendance/Performance/Learning/Assets' own explicit-permission convention), or follow `/me/employee`'s own existing precedent of no permission key at all (module-gate + server-resolved-identity only)?
-**Evidence:** Both patterns are already established and live in the codebase (see §5).
-**Option A (recommended default):** Mint `employee.read.own`, for consistency with every other Phase 3 module and for future-proofing (e.g. if a manager-of-record tier is ever wanted later, having a real permission key to extend is easier than retrofitting one).
-**Option B:** No new permission — follow `/me/employee`'s exact precedent (module gate only).
-**Consequence:** Option A is one additive permission-seed row, fully consistent with the rest of the platform. Option B is marginally simpler but inconsistent with every other Phase 3 module's own "own" tier.
-**Recommended default: Option A.**
+One new **"Career Profile"** tab inside the existing `/self-service` page, four clearly separated sections in order: Employment History, Skills, Qualifications, Certifications. Ungated by any additional module key (matches My Profile/My Documents' own precedent — reachable whenever `employee_self_service` is enabled and the caller is linked to an employee record). Read-only throughout. Each section independently implements: a loading state, an empty state (e.g., "No skills on record"), an error state (reusing the existing `QueryError` component pattern already used across ESS), plain-language date formatting, a text-labeled (never color-only) expiry/status indicator for certifications, and standard responsive/accessible markup consistent with every other ESS tab. Not implemented in this freeze session — this is the binding design brief for W106.
 
----
+## 9. API Impact — Final
 
-## 8. Proposed Frontend Design
+**New routes** (no permission — see §5 Decision 7):
 
-Recommendation: **one new "Career Profile" tab** inside the existing `/self-service` page (not four separate tabs, not a separate page/route), containing four clearly labeled sections in this order: Employment History, Skills, Qualifications, Certifications. This matches the deferred item's own framing ("aggregation" — one consolidated place), keeps the existing 9-tab structure from growing unwieldy, and mirrors the same "one page, many cards" layout `employee-detail.tsx` already uses for the equivalent HR-admin view. The tab is **ungated by any additional module** (matching My Profile/My Documents' own precedent — all four entities are Core HR, not tied to any Phase 3 module), reachable whenever `employee_self_service` itself is enabled and the caller is linked to an employee record. Read-only throughout for V1 (per Decision 1 Option A).
+| Method + Path | Middleware | Scope | Response | Audit |
+|---|---|---|---|---|
+| `GET /me/employment-history` | `requireAuth`, `requireActiveOrganizationMembership`, `requireModuleEnabled("employee_self_service")` | Own employee only, server-resolved | Array of `employment_periods` rows for the caller | Silent (read) |
+| `GET /me/skills` | same | Own employee only | Array of `employee_skills` rows | Silent |
+| `GET /me/qualifications` | same | Own employee only | Array of `employee_qualifications` rows | Silent |
+| `GET /me/certifications` | same | Own employee only | Array of `employee_certifications` rows, each with a computed `expiryStatus` field | Silent |
 
-## 9. Proposed API Impact
+No pagination — matches the existing `/me/employee`-family precedent (small, bounded per-employee datasets; no other `/me/*` route in this codebase paginates). No route accepts an `employeeId` query parameter of any kind.
 
-New routes only — no existing route is modified or removed.
+**Existing routes changed** (permission only — see §5 table): the 4 GET routes in `employeeSkillsQualifications.ts` change from `employee.read` to `employee.write`. No route path, method, or response shape changes.
 
-| Method + Path | Permission | Scope | Reason |
-|---|---|---|---|
-| `GET /me/employment-history` | `employee.read.own` (pending Decision 7) | Own employee only, server-resolved | Surfaces the already-existing, currently-orphaned `listEmploymentPeriods` |
-| `GET /me/skills` | `employee.read.own` | Own employee only | New own-scoped read over existing `employee_skills`, reusing `listEmployeeSkills` |
-| `GET /me/qualifications` | `employee.read.own` | Own employee only | Reuses existing `listEmployeeQualifications` |
-| `GET /me/certifications` | `employee.read.own` | Own employee only | Reuses existing `listEmployeeCertifications` |
+**New HR-side route** (§10): `GET /organizations/:organizationId/employees/:employeeId/employment-history`, `employee.write`, org-wide, audit-silent read.
 
-Existing routes explicitly **not** duplicated or modified: all 12 `employeeSkillsQualifications.ts` HR routes stay exactly as they are (see Decision 6); `employees.ts`'s `transferEmployee`/`promoteEmployee`/`confirmEmployee` stay exactly as they are.
+**Not built:** any `POST`/`PATCH`/`DELETE` under `/me/*` for any of these four entities (Decision 1).
 
-If Decision 1 resolves to Option B (employee-submitted), additional `POST`/`PATCH` routes under `/me/*` with an approval workflow would be designed in a follow-up revision of this plan — not included above.
+## 10. HR-Side Gap Closure — Final
 
-## 10. Proposed HR-Side Gap Closure
+`employee-detail.tsx` gains one new read-only "Employment History" card, reusing the existing `listEmploymentPeriods` function via the new route in §9, formatted identically to the employee-facing version (§8) so both surfaces render the same events the same way. This is the only way to verify a Transfer/Promote/Confirm action produces a correct, readable history entry before the employee-facing version ships.
 
-`employee-detail.tsx` already has full CRUD for Skills/Qualifications/Certifications but **no employment-history display at all** — not a new feature, an existing orphaned read function (`listEmploymentPeriods`) with no UI consumer anywhere. Proposed: add one read-only "Employment History" card to `employee-detail.tsx`, reusing `listEmploymentPeriods` via a new thin HR-facing route (`GET /organizations/:organizationId/employees/:employeeId/employment-history`, `employee.read`, matching the existing HR-route permission convention exactly) — this is the natural, minimal companion to giving the employee their own read view, and is the only way to actually verify a Transfer/Promote/Confirm action produced a sane history entry before shipping the employee-facing version.
+## 11-12. Reporting / Dashboard Impact — Final
 
-## 11. Reporting / Dashboard Impact
+**None.** No new report, no new dashboard tile, no interaction with the Reporting Foundation or the generic report runner. Confirmed correct per Owner direction §18.
 
-**None proposed.** The deferred item asks only for ESS aggregation; the Reporting Foundation (ADR-016) has no existing employment-history/skills/qualifications/certifications report definitions, and nothing in the roadmap or `PROJECT_STATUS.md` calls for one. Not recommended for this phase.
+## 13. Historical Integrity Strategy — Final
 
-## 12. Reporting Foundation / Generic Runner
+**Employment History:** `employment_periods` rows are already immutable/append-only (no update/delete path exists in the codebase). `previousState`/`newState` JSON snapshots already capture values at write time; a later rename of a referenced department/position does not retroactively alter a historical row. No new snapshot fields are invented — the existing model is used exactly as-is.
+**Skills / Qualifications / Certifications:** these are live, mutable, HR-maintained records with no historical/versioned concept — Career Profile always shows the current HR-recorded state, exactly as `employee-detail.tsx` already does today. There is no "point-in-time" semantic to preserve for these three tables, and none is invented.
 
-No interaction — this phase adds no report keys, no dashboard tiles.
+## 14. Tenant Isolation Strategy — Final
 
-## 13. Historical Integrity Strategy
+Every new `/me/*` route resolves the caller's own employee id server-side; no route accepts a client-supplied employee id. Every underlying query (`listEmploymentPeriods`, `listEmployeeSkills`, `listEmployeeQualifications`, `listEmployeeCertifications`) is already `organizationId`-scoped and reused verbatim. WWM ↔ Acme isolation is explicitly required in live QA (§16, Scenario D) for all four new routes, and the existing 12 HR routes remain unaffected by this plan's own tenant-isolation properties (unchanged from their current, already-tested `organizationId`-scoped behavior).
 
-`employment_periods` rows are already immutable/append-only (no update/delete path exists anywhere in the codebase) — this property is preserved unchanged; the new read route adds no mutation. `previousState`/`newState` JSON snapshots already capture the values at the moment of the event, so a later change to (for example) a department's name would not retroactively alter historical entries, since departments are referenced by id, and the snapshot captures the id/value at write time — this matches every other Phase 3 module's own snapshot-at-write-time convention (assignment snapshots in Assets, review snapshots in Performance, enrollment snapshots in Learning). Skills/qualifications/certifications rows are live, mutable HR-maintained records (per Decision 1 Option A) — there is no "historical" version of these to preserve; they simply reflect current HR-recorded state, exactly as `employee-detail.tsx` already treats them today.
+## 15. Final Workstream Design
 
-## 14. Tenant Isolation Strategy
+Continuing from W104. Four workstreams — unchanged count from the draft, scope of W105 expanded to include the now-in-scope authorization hardening.
 
-Every new route resolves the caller's own employee id server-side (never trusts a client-supplied `:employeeId`) exactly like `/me/employee` already does, and every underlying query is already `organizationId`-scoped in the existing lib functions (`listEmploymentPeriods`, `listEmployeeSkills`, `listEmployeeQualifications`, `listEmployeeCertifications`) — reused verbatim, not reimplemented. Live QA (see §16) will verify WWM ↔ Acme isolation explicitly for all four new routes, plus confirm an employee cannot reach another employee's data through the new routes (impossible by construction, since no route accepts a caller-supplied employee id at all — verified, not merely asserted).
+### W105 — ESS Foundation, Authorization Hardening & Employment History
+**Scope:** (1) Harden the 4 GET routes in `employeeSkillsQualifications.ts` per §5's table (`employee.read` → `employee.write`), with regression tests proving `org_admin`/`hr_manager` unaffected and `employee`-role denied. (2) New `resolveOwnEmployeeId`-shaped helper in `lib/employeeSelfService.ts`. (3) New route `GET /me/employment-history` (no permission, own-scope, reuses `listEmploymentPeriods` verbatim). (4) New HR-side route + `employee-detail.tsx` "Employment History" card (§10). No skills/qualifications/certifications ESS work yet — backend-first, matching this codebase's established workstream-splitting convention.
+**Database impact:** none.
+**API impact:** 1 new `/me/*` route, 1 new HR-side route, 4 existing routes' permission changed (no path/method/response change).
+**Frontend impact:** one new card in `employee-detail.tsx`; no ESS frontend yet.
+**Permissions used:** `employee.write` (existing, now also covers the 4 hardened GET routes and the new HR history route); no new permission.
+**Tests:** own-scope enforcement and cross-org denial on `/me/employment-history`; the two authorization-hardening regression tests above; unlinked-employee empty state; HR-route permission check for the new history route.
+**Live QA:** Scenarios D, E, F, G (§16).
+**Definition of Done:** both W39 employment-history bullets' data path proven end-to-end, live-verified; authorization hardening proven not to regress legitimate HR workflows.
+**STOP boundary:** no skills/qualifications/certifications routes or frontend yet. Do not begin W106 without its own separate go-ahead.
 
-## 15. Proposed Workstreams
-
-Continuing numbering from W104. Four workstreams proposed — proportional to the actual gap found (a read-surfacing task over already-existing, already-validated data), not padded.
-
-### W105 — Foundation, Authorization & Employment History
-**Scope:** Resolve Owner Decisions 2, 6, 7 into code. Mint `employee.read.own` (if Decision 7 = Option A). New `resolveOwnEmployeeId`-shaped helper in `lib/employeeSelfService.ts`. New route `GET /me/employment-history` (own-scope, reuses `listEmploymentPeriods` verbatim). New HR-side route + `employee-detail.tsx` card per §10 (closes the "even HR can't see this" gap). No skills/qualifications/certifications work yet.
-**Database impact:** none (zero schema change) unless Decision 2 requires field-level redaction logic — expected none.
-**API impact:** 2 new routes (`/me/employment-history`, HR-side history read).
-**Frontend impact:** one new card in `employee-detail.tsx`; no ESS frontend yet (backend-first, per this codebase's own established workstream-splitting convention).
-**Permissions used:** `employee.read.own` (new), `employee.read` (existing, HR route).
-**Tests:** own-scope enforcement, cross-org denial, unlinked-employee empty state, HR-route permission check.
-**Live QA:** own employee sees their own history; unrelated employee denied; HR sees the same data via the new admin card; WWM↔Acme isolation.
-**Definition of Done:** both W39 employment-history bullets' data path proven end-to-end, live-verified.
-**STOP boundary:** no skills/qualifications/certifications routes yet. Do not begin W106 without its own separate go-ahead.
-
-### W106 — Skills / Qualifications / Certifications ESS Integration
-**Scope:** Resolve Owner Decisions 1, 3, 4 into code. New routes `GET /me/skills`, `GET /me/qualifications`, `GET /me/certifications` (own-scope, reuse existing list functions verbatim). New "Career Profile" tab in `employee-self-service.tsx` (§8) with all four sections (Employment History from W105 + these three), live-computed expired/active certification labels, `employee_certifications` and `learning_certificates` kept visually separate per Decision 3.
-**Database impact:** none, if Decision 1 = Option A (expected).
+### W106 — Career Profile: Skills, Qualifications & Certifications
+**Scope:** New routes `GET /me/skills`, `/me/qualifications`, `/me/certifications` (no permission, own-scope, reuse existing list functions verbatim). New "Career Profile" tab (§8) with all four sections (Employment History from W105 + these three). Live-computed expiry status for certifications. `employee_certifications` and `learning_certificates` kept strictly separate (Decision 3) — no duplication anywhere in the new tab.
+**Database impact:** none.
 **API impact:** 3 new `/me/*` routes.
-**Frontend impact:** new "Career Profile" tab, 4 sections, read-only.
-**Permissions used:** `employee.read.own`.
-**Tests:** own-scope enforcement for all 3 new routes, cross-org denial, module-gate behavior (page-level `employee_self_service` only, no additional module), certifications-separation regression test (confirms `employee_certifications` and `learning_certificates` never merge in the response/UI), existing 9-tab regression suite re-run clean.
-**Live QA:** full Career Profile tab render for a real employee with data in all four categories; unrelated employee denial on all 3 routes; WWM↔Acme isolation; expired-certification display; existing ESS tabs (Attendance/Performance/Learning/Assets/Leave/Documents/Recruitment) regression-checked unaffected.
-**Definition of Done:** both W39 bullets fully closed, both halves (employment history from W105, skills/qualifications/certifications from W106) live in one consolidated ESS tab.
-**STOP boundary:** no evidence/document attachment (Decision 5 = Option A), no employee-editability (Decision 1 = Option A), no HR-route hardening (Decision 6 = Option A). Do not begin W107 without its own separate go-ahead.
+**Frontend impact:** new "Career Profile" tab, 4 read-only sections, loading/empty/error states per §8.
+**Permissions used:** none (module gate only).
+**Tests:** own-scope enforcement and cross-org denial for all 3 new routes; module-gate behavior (page-level `employee_self_service` only, no additional module); a certifications-separation regression test confirming `employee_certifications` and `learning_certificates` never merge in response or UI; the full existing 9-tab regression suite re-run clean.
+**Live QA:** Scenarios A, B, C, D, H, I, J (§16).
+**Definition of Done:** both W39 bullets fully closed — employment history (W105) and skills/qualifications/certifications (W106) live in one consolidated, read-only Career Profile tab.
+**STOP boundary:** no evidence/document attachment, no employee-editability, no manager view, no new report/dashboard. Do not begin W107 without its own separate go-ahead.
 
 ### W107 — Phase 3F Verification
-**Scope:** Full integrated verification pass mirroring W93/W103's own exact charter — functional, authorization, tenant isolation, historical integrity, regression (backend + frontend full suites), typecheck (both root and full-build paths), production builds, OpenAPI/codegen determinism, one integrated live-QA lifecycle. Verification-only, no new scope.
+**Scope:** Full integrated verification pass mirroring W93/W103's own exact charter — functional, authorization (including the W105 hardening), tenant isolation, historical integrity, full regression (backend + frontend), typecheck (root + full-build paths), production builds, OpenAPI/codegen determinism, one integrated live-QA lifecycle covering every scenario in §16 and every requirement in §21. Verification-only, no new scope.
 **Definition of Done:** matches W93/W103's own template exactly.
 **STOP boundary:** report PASS / PASS WITH FIXES / BLOCKED. Do not begin W108 without its own separate go-ahead.
 
 ### W108 — Phase 3F Completion Report
-**Scope:** Formal closure, mirroring W94/W104's own exact structure. Update `PROJECT_STATUS.md` to close both W39 bullets explicitly (quoting them as closed, not merely superseded), record final module/permission/route/test totals, restate the still-open **Manager Portal** roadmap item as the next unresolved Phase 3 gap.
-**Definition of Done:** `PROJECT_STATUS.md` updated, both original W39 deferrals marked closed only if genuinely delivered.
+**Scope:** Formal closure, mirroring W94/W104's own exact structure. `PROJECT_STATUS.md` updated to close both original W39 bullets explicitly as delivered, final module/permission/route/test totals recorded, the still-open **Manager Portal** roadmap item restated as the next unresolved Phase 3 gap.
+**Definition of Done:** `PROJECT_STATUS.md` updated; both W39 deferrals marked closed only if genuinely delivered and verified in W107.
 **STOP boundary:** the final Phase 3F workstream. Do not begin Manager Portal planning without its own separate go-ahead.
 
-## 16. Proposed Live QA (draft scenarios, not executed during this discovery pass)
+## 16. Live QA Requirements — Final (10 scenarios, binding for W105–W107)
 
-- Employee A sees their own employment history, skills, qualifications, certifications (including a live expired-certification label) via the new Career Profile tab.
-- Employee B (unrelated) is denied all 4 new routes when attempting to fetch Employee A's data by id (impossible by construction — routes accept no caller-supplied employee id — verified, not merely asserted).
-- Manager M has no special access via these new routes (no manager tier is proposed — Owner Decisions do not introduce one).
-- HR sees the same employment-history data via the new `employee-detail.tsx` card, confirming a live Transfer/Promote/Confirm action is correctly reflected.
-- WWM ↔ Acme isolation on all 4 new routes, both directions.
-- `employee_self_service` module-disabled → all 4 routes and the new tab correctly unavailable (existing `/me/*` module-gate precedent).
-- No evidence/document IDOR scenario applies (Decision 5 = Option A, out of scope).
-- Historical integrity: a live department/position rename after an existing `employment_periods` row is written must not alter that row's own `previousState`/`newState` snapshot.
-- Full regression pass across all 9 existing `/self-service` tabs, confirming zero behavior change to Attendance/Performance/Learning/Assets/Leave/Documents/Recruitment.
+- **Scenario A:** employee with all four Career Profile data types populated sees all four correctly.
+- **Scenario B:** employee with empty sections sees correct empty states, no errors.
+- **Scenario C:** unrelated employee attempts to access another employee's data via all 4 new `/me/*` routes — denied by construction (no route accepts a caller-supplied employee id).
+- **Scenario D:** WWM ↔ Acme isolation verified on all new and hardened routes, both directions, real and nonexistent ids.
+- **Scenario E:** an ordinary `employee`-role user attempts the 4 now-hardened HR routes directly — denied (`403`), proving the authorization fix.
+- **Scenario F:** HR legitimately manages a skill/qualification/certification record via the unchanged `employee-detail.tsx` flow; the employee's own Career Profile reflects the update on next read (no caching).
+- **Scenario G:** an employment-period event created through the existing, unmodified Transfer/Promote/Confirm workflow appears correctly, plain-language formatted, in both the employee's own Career Profile and HR's new admin card.
+- **Scenario H:** an expired certification remains visible with a correct expiry-status label.
+- **Scenario I:** a Learning-issued certificate remains visible only in My Learning, confirmed absent from Career Profile.
+- **Scenario J:** every existing module-gated ESS tab (Attendance/Performance/Learning/Assets/Leave/Recruitment) remains correctly gated — Phase 3F introduces no indirect access to a disabled module.
 
-No QA data is created during this discovery/planning pass.
+Cleanup must restore the exact pre-QA baseline; no genuine business/audit history may be deleted during cleanup, matching every prior phase's own established discipline. No QA data is created during this freeze session.
 
-## 17. Expected Next Migration
+## 17. Expected Next Migration — Final
 
-**None expected** for the recommended Owner Decision defaults (Decision 1/5 = Option A each). Migration remains `0040` through W105–W108. If the Owner instead selects Decision 1 Option B or Decision 5 Option B, this plan would need a revision pass before implementation, including a real `0041` migration design — not created here.
+**None.** Migration remains `0040` through W105–W108 under this frozen design. Do not create `0041`.
 
-## 18. Issues / Ambiguities Disclosed
+## 18. Security Test Requirements — Final (binding minimum for W105–W107)
 
-1. The pre-existing HR-route own-scope authorization gap (§2, Decision 6) — real, live, predates this plan, disclosed rather than silently fixed or silently ignored.
-2. `ROADMAP.md` itself never restates the deferred item — it is tracked only in `PROJECT_STATUS.md`. No inconsistency was found between the two documents once this is accounted for; `ROADMAP.md`'s own Phase 3 list still correctly names "Employee Self Service" as a not-yet-fully-delivered item.
-3. Decision 3/4's "recommended default" assumes the Owner wants the smallest possible surface; if the Owner instead wants a single consolidated "all my certificates" view (Decision 3 Option B), the workstream sequence above does not change, only the tab's internal layout.
+**Employee:** can read own Career Profile data; cannot select another employeeId (impossible by route construction, verified by test); cannot use the 4 hardened HR CRUD endpoints (verified by test, Scenario E); cannot mutate any Career Profile record through ESS (no write route exists at all).
+**HR:** legitimate HR CRUD continues working unchanged (Scenario F regression); authorization hardening does not break valid HR administration (the two W105 regression tests in §5).
+**Tenant:** WWM ↔ Acme both directions, real and nonexistent ids, on all new and hardened routes (Scenario D).
+**Documents:** not applicable — no document surfacing exists in V1 (Decision 5).
+**Modules:** all independently-gated ESS tabs remain inaccessible when their own module is disabled (Scenario J); Career Profile itself remains inaccessible when `employee_self_service` is disabled.
+**Regression:** all 9 existing `/self-service` tabs (Profile, Attendance, Performance, Learning, Assets, Leave, Documents, Internal Vacancies, My Applications) verified unaffected.
+
+## 19. Issues / Ambiguities Disclosed
+
+1. The pre-existing HR-route authorization gap (§2, §5) — real, live, predated this plan, now fixed rather than carried forward, per explicit Owner direction.
+2. `employment_periods` does not model external prior-employer history — explicitly deferred (Decision 2 refinement), not silently expanded into.
+3. `ROADMAP.md` itself never restates the deferred item — tracked only in `PROJECT_STATUS.md`; no inconsistency found once accounted for.
 
 ---
 
-**This document is a DRAFT for Owner review only. No implementation, migration, route, permission, or frontend change has been made as part of producing this document.**
+**Freeze confirmation:** all 7 original Owner Decisions are resolved (2 APPROVED as drafted, 1 APPROVED WITH REFINEMENT, 2 APPROVED as drafted, 2 SUPERSEDED BY OWNER DIRECTION). Zero decisions remain pending. Zero new tables. Zero new migrations. Zero new permissions. One genuine pre-existing authorization gap fixed using an existing permission, with regression tests required before it can be considered done. This document authorizes W105 to begin once given its own separate explicit go-ahead — it does not itself begin implementation.
