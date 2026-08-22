@@ -13418,6 +13418,111 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/manager-portal/dashboard:
+    get:
+      operationId: getManagerPortalDashboard
+      tags: [manager-portal]
+      summary: Six frozen deterministic tiles for the caller's own team (Manager Portal Dashboard, Phase 3G, W110)
+      description: >-
+        Requires the manager_portal module only — same zero-permission
+        precedent as GET .../manager-portal/team. Direct Reports, Attendance
+        "Absent or Late Today", Pending Leave Actions, Pending Performance
+        Actions, Pending Learning Actions, Team Assets In Custody — no
+        invented score/percentage/KPI tile. Each of the five module-backed
+        tiles is `null` when its own underlying module is disabled for the
+        organization, or when the caller lacks that module's own existing
+        permission — silently omitted, never a 403 for the whole response.
+        A real number (including 0) means the module is enabled, the caller
+        is authorized, and the query genuinely found nothing. Attendance
+        additionally returns `null` if the organization's timezone isn't
+        configured yet (the same "nothing safe to show" signal, since
+        Attendance's own read-model hard-errors on that precondition rather
+        than risk a wrong "late" calculation). Direct Reports and Attendance
+        share the caller's own live reportingManagerId scope (W109's
+        listLiveDirectReports); Performance uses reviewer-of-record
+        (snapshot); Learning uses manager-of-record (snapshot, excluding
+        instructor-only work); Assets uses current-custody live direct-report
+        scope; Leave is direct-reports-only for a plain manager or org-wide
+        if the caller separately holds leave_request.manage. No tile ever
+        widens authority beyond what its own module already grants.
+        Read-only, audit-silent.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The caller's own dashboard, with per-tile null for a disabled/unauthorized/unavailable module
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManagerPortalDashboard"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: No membership in this organization, or the manager_portal module is disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/manager-portal/pending-actions:
+    get:
+      operationId: getManagerPortalPendingActions
+      tags: [manager-portal]
+      summary: Read-only aggregated pending work across Leave/Performance/Learning (Manager Portal Pending Actions, Phase 3G, W110)
+      description: >-
+        Requires the manager_portal module only — same zero-permission
+        precedent as GET .../manager-portal/team. Aggregates ONLY Leave,
+        Performance, and Learning — Attendance and Assets are dashboard/
+        read-awareness tiles, not action queues, per the frozen plan.
+        Recruitment, Workforce/Scheduling, and any other module are never
+        included. Every item is recomputed live from that module's own
+        existing service functions on every call — no persistent task table,
+        no notifications engine, no mutation route exists anywhere in this
+        response. Leave items are direct-reports-only for a plain manager or
+        org-wide if the caller separately holds leave_request.manage;
+        Performance items are strictly reviewer-of-record (snapshot) at
+        status "manager_review"; Learning items are strictly
+        manager-of-record (snapshot) at approvalStatus "pending" —
+        instructor-only work is never included. Each item carries only a
+        deliberately narrow, safe field set (source module, the underlying
+        entity's own id, the target employee's id and raw first/last name,
+        current authoritative status, a concise safe title, createdAt) —
+        never a leave reason, never confidential Performance/Learning
+        fields. Sorted by createdAt descending. Read-only, audit-silent.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The caller's own aggregated pending actions, or the controlled not-linked/empty state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManagerPortalPendingActions"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: No membership in this organization, or the manager_portal module is disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -20272,3 +20377,74 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ManagerPortalTeamMember"
+
+    ManagerPortalDashboard:
+      type: object
+      description: >-
+        Manager Portal Dashboard (Phase 3G, W110). Six frozen tiles, no
+        invented score/percentage/KPI. Each *Count field for a module-backed
+        tile is null when that module is disabled, the caller lacks its own
+        permission, or (Attendance only) the organization's timezone isn't
+        configured — never conflated with a genuine zero.
+      required: [linked, directReportsCount, attendanceAbsentOrLateTodayCount, pendingLeaveActionsCount, pendingPerformanceActionsCount, pendingLearningActionsCount, teamAssetsInCustodyCount]
+      properties:
+        linked:
+          type: boolean
+        directReportsCount:
+          type: integer
+        attendanceAbsentOrLateTodayCount:
+          type: ["integer", "null"]
+        pendingLeaveActionsCount:
+          type: ["integer", "null"]
+        pendingPerformanceActionsCount:
+          type: ["integer", "null"]
+        pendingLearningActionsCount:
+          type: ["integer", "null"]
+        teamAssetsInCustodyCount:
+          type: ["integer", "null"]
+
+    ManagerPortalPendingActionItem:
+      type: object
+      description: >-
+        One pending item from Leave, Performance, or Learning (Phase 3G,
+        W110) — a deliberately narrow, safe field set only. Never a leave
+        reason, never confidential Performance/Learning fields, never a full
+        Employee shape.
+      required: [sourceModule, id, employeeId, employeeFirstName, employeeLastName, status, title, createdAt]
+      properties:
+        sourceModule:
+          type: string
+          enum: [leave, performance, learning]
+        id:
+          type: integer
+          description: The underlying leave_requests/performance_reviews/learning_enrollments row's own id.
+        employeeId:
+          type: integer
+        employeeFirstName:
+          type: string
+        employeeLastName:
+          type: string
+        status:
+          type: string
+          description: leave_requests.status ("pending") | performance_reviews.status ("manager_review") | learning_enrollments.approvalStatus ("pending").
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    ManagerPortalPendingActions:
+      type: object
+      description: >-
+        Manager Portal Pending Actions (Phase 3G, W110). `linked: false`
+        mirrors Team Overview's/Dashboard's own not-linked semantics — Leave
+        items still resolve independently for an org-wide HR/admin caller
+        even when unlinked. Sorted by createdAt descending.
+      required: [linked, items]
+      properties:
+        linked:
+          type: boolean
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ManagerPortalPendingActionItem"

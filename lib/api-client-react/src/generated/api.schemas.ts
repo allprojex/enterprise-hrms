@@ -5971,6 +5971,57 @@ export interface ManagerPortalTeamOverview {
   directReports: ManagerPortalTeamMember[];
 }
 
+/**
+ * Manager Portal Dashboard (Phase 3G, W110). Six frozen tiles, no invented score/percentage/KPI. Each *Count field for a module-backed tile is null when that module is disabled, the caller lacks its own permission, or (Attendance only) the organization's timezone isn't configured — never conflated with a genuine zero.
+ */
+export interface ManagerPortalDashboard {
+  linked: boolean;
+  directReportsCount: number;
+  /** @nullable */
+  attendanceAbsentOrLateTodayCount: number | null;
+  /** @nullable */
+  pendingLeaveActionsCount: number | null;
+  /** @nullable */
+  pendingPerformanceActionsCount: number | null;
+  /** @nullable */
+  pendingLearningActionsCount: number | null;
+  /** @nullable */
+  teamAssetsInCustodyCount: number | null;
+}
+
+export type ManagerPortalPendingActionItemSourceModule = typeof ManagerPortalPendingActionItemSourceModule[keyof typeof ManagerPortalPendingActionItemSourceModule];
+
+
+export const ManagerPortalPendingActionItemSourceModule = {
+  leave: 'leave',
+  performance: 'performance',
+  learning: 'learning',
+} as const;
+
+/**
+ * One pending item from Leave, Performance, or Learning (Phase 3G, W110) — a deliberately narrow, safe field set only. Never a leave reason, never confidential Performance/Learning fields, never a full Employee shape.
+ */
+export interface ManagerPortalPendingActionItem {
+  sourceModule: ManagerPortalPendingActionItemSourceModule;
+  /** The underlying leave_requests/performance_reviews/learning_enrollments row's own id. */
+  id: number;
+  employeeId: number;
+  employeeFirstName: string;
+  employeeLastName: string;
+  /** leave_requests.status ("pending") | performance_reviews.status ("manager_review") | learning_enrollments.approvalStatus ("pending"). */
+  status: string;
+  title: string;
+  createdAt: string;
+}
+
+/**
+ * Manager Portal Pending Actions (Phase 3G, W110). `linked: false` mirrors Team Overview's/Dashboard's own not-linked semantics — Leave items still resolve independently for an org-wide HR/admin caller even when unlinked. Sorted by createdAt descending.
+ */
+export interface ManagerPortalPendingActions {
+  linked: boolean;
+  items: ManagerPortalPendingActionItem[];
+}
+
 export type ListEmployeesParams = {
 search?: string;
 departmentId?: number;

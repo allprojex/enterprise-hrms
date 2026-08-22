@@ -170,6 +170,8 @@ import type {
   ListPublicVacanciesParams,
   ListVacanciesParams,
   LoginInput,
+  ManagerPortalDashboard,
+  ManagerPortalPendingActions,
   ManagerPortalTeamOverview,
   MarkAssetLostInput,
   MarkLearningEnrollmentAttendanceInput,
@@ -26178,6 +26180,162 @@ export function useGetManagerPortalTeam<TData = Awaited<ReturnType<typeof getMan
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetManagerPortalTeamQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetManagerPortalDashboardUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/manager-portal/dashboard`
+}
+
+/**
+ * Requires the manager_portal module only — same zero-permission precedent as GET .../manager-portal/team. Direct Reports, Attendance "Absent or Late Today", Pending Leave Actions, Pending Performance Actions, Pending Learning Actions, Team Assets In Custody — no invented score/percentage/KPI tile. Each of the five module-backed tiles is `null` when its own underlying module is disabled for the organization, or when the caller lacks that module's own existing permission — silently omitted, never a 403 for the whole response. A real number (including 0) means the module is enabled, the caller is authorized, and the query genuinely found nothing. Attendance additionally returns `null` if the organization's timezone isn't configured yet (the same "nothing safe to show" signal, since Attendance's own read-model hard-errors on that precondition rather than risk a wrong "late" calculation). Direct Reports and Attendance share the caller's own live reportingManagerId scope (W109's listLiveDirectReports); Performance uses reviewer-of-record (snapshot); Learning uses manager-of-record (snapshot, excluding instructor-only work); Assets uses current-custody live direct-report scope; Leave is direct-reports-only for a plain manager or org-wide if the caller separately holds leave_request.manage. No tile ever widens authority beyond what its own module already grants. Read-only, audit-silent.
+ * @summary Six frozen deterministic tiles for the caller's own team (Manager Portal Dashboard, Phase 3G, W110)
+ */
+export const getManagerPortalDashboard = async (organizationId: number, options?: RequestInit): Promise<ManagerPortalDashboard> => {
+
+  return customFetch<ManagerPortalDashboard>(getGetManagerPortalDashboardUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetManagerPortalDashboardQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/manager-portal/dashboard`
+    ] as const;
+    }
+
+
+export const getGetManagerPortalDashboardQueryOptions = <TData = Awaited<ReturnType<typeof getManagerPortalDashboard>>, TError = ErrorType<ApiError>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getManagerPortalDashboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetManagerPortalDashboardQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getManagerPortalDashboard>>> = ({ signal }) => getManagerPortalDashboard(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getManagerPortalDashboard>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetManagerPortalDashboardQueryResult = NonNullable<Awaited<ReturnType<typeof getManagerPortalDashboard>>>
+export type GetManagerPortalDashboardQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Six frozen deterministic tiles for the caller's own team (Manager Portal Dashboard, Phase 3G, W110)
+ */
+
+export function useGetManagerPortalDashboard<TData = Awaited<ReturnType<typeof getManagerPortalDashboard>>, TError = ErrorType<ApiError>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getManagerPortalDashboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetManagerPortalDashboardQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetManagerPortalPendingActionsUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/manager-portal/pending-actions`
+}
+
+/**
+ * Requires the manager_portal module only — same zero-permission precedent as GET .../manager-portal/team. Aggregates ONLY Leave, Performance, and Learning — Attendance and Assets are dashboard/ read-awareness tiles, not action queues, per the frozen plan. Recruitment, Workforce/Scheduling, and any other module are never included. Every item is recomputed live from that module's own existing service functions on every call — no persistent task table, no notifications engine, no mutation route exists anywhere in this response. Leave items are direct-reports-only for a plain manager or org-wide if the caller separately holds leave_request.manage; Performance items are strictly reviewer-of-record (snapshot) at status "manager_review"; Learning items are strictly manager-of-record (snapshot) at approvalStatus "pending" — instructor-only work is never included. Each item carries only a deliberately narrow, safe field set (source module, the underlying entity's own id, the target employee's id and raw first/last name, current authoritative status, a concise safe title, createdAt) — never a leave reason, never confidential Performance/Learning fields. Sorted by createdAt descending. Read-only, audit-silent.
+ * @summary Read-only aggregated pending work across Leave/Performance/Learning (Manager Portal Pending Actions, Phase 3G, W110)
+ */
+export const getManagerPortalPendingActions = async (organizationId: number, options?: RequestInit): Promise<ManagerPortalPendingActions> => {
+
+  return customFetch<ManagerPortalPendingActions>(getGetManagerPortalPendingActionsUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetManagerPortalPendingActionsQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/manager-portal/pending-actions`
+    ] as const;
+    }
+
+
+export const getGetManagerPortalPendingActionsQueryOptions = <TData = Awaited<ReturnType<typeof getManagerPortalPendingActions>>, TError = ErrorType<ApiError>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getManagerPortalPendingActions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetManagerPortalPendingActionsQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getManagerPortalPendingActions>>> = ({ signal }) => getManagerPortalPendingActions(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getManagerPortalPendingActions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetManagerPortalPendingActionsQueryResult = NonNullable<Awaited<ReturnType<typeof getManagerPortalPendingActions>>>
+export type GetManagerPortalPendingActionsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Read-only aggregated pending work across Leave/Performance/Learning (Manager Portal Pending Actions, Phase 3G, W110)
+ */
+
+export function useGetManagerPortalPendingActions<TData = Awaited<ReturnType<typeof getManagerPortalPendingActions>>, TError = ErrorType<ApiError>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getManagerPortalPendingActions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetManagerPortalPendingActionsQueryOptions(organizationId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

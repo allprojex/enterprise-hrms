@@ -11092,3 +11092,45 @@ export const GetManagerPortalTeamResponse = zod.object({
 }).describe('Manager Portal Team Overview (Phase 3G, W109). `linked: false` (with `directReports: []`) mirrors GET \/me\/employee\'s own intentional not-linked state, not an error. A linked caller with zero current direct reports gets `linked: true, directReports: []` — a valid empty state (frozen plan Decision 15), never denied.')
 
 
+/**
+ * Requires the manager_portal module only — same zero-permission precedent as GET .../manager-portal/team. Direct Reports, Attendance "Absent or Late Today", Pending Leave Actions, Pending Performance Actions, Pending Learning Actions, Team Assets In Custody — no invented score/percentage/KPI tile. Each of the five module-backed tiles is `null` when its own underlying module is disabled for the organization, or when the caller lacks that module's own existing permission — silently omitted, never a 403 for the whole response. A real number (including 0) means the module is enabled, the caller is authorized, and the query genuinely found nothing. Attendance additionally returns `null` if the organization's timezone isn't configured yet (the same "nothing safe to show" signal, since Attendance's own read-model hard-errors on that precondition rather than risk a wrong "late" calculation). Direct Reports and Attendance share the caller's own live reportingManagerId scope (W109's listLiveDirectReports); Performance uses reviewer-of-record (snapshot); Learning uses manager-of-record (snapshot, excluding instructor-only work); Assets uses current-custody live direct-report scope; Leave is direct-reports-only for a plain manager or org-wide if the caller separately holds leave_request.manage. No tile ever widens authority beyond what its own module already grants. Read-only, audit-silent.
+ * @summary Six frozen deterministic tiles for the caller's own team (Manager Portal Dashboard, Phase 3G, W110)
+ */
+export const GetManagerPortalDashboardParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetManagerPortalDashboardResponse = zod.object({
+  "linked": zod.boolean(),
+  "directReportsCount": zod.number(),
+  "attendanceAbsentOrLateTodayCount": zod.number().nullable(),
+  "pendingLeaveActionsCount": zod.number().nullable(),
+  "pendingPerformanceActionsCount": zod.number().nullable(),
+  "pendingLearningActionsCount": zod.number().nullable(),
+  "teamAssetsInCustodyCount": zod.number().nullable()
+}).describe('Manager Portal Dashboard (Phase 3G, W110). Six frozen tiles, no invented score\/percentage\/KPI. Each \*Count field for a module-backed tile is null when that module is disabled, the caller lacks its own permission, or (Attendance only) the organization\'s timezone isn\'t configured — never conflated with a genuine zero.')
+
+
+/**
+ * Requires the manager_portal module only — same zero-permission precedent as GET .../manager-portal/team. Aggregates ONLY Leave, Performance, and Learning — Attendance and Assets are dashboard/ read-awareness tiles, not action queues, per the frozen plan. Recruitment, Workforce/Scheduling, and any other module are never included. Every item is recomputed live from that module's own existing service functions on every call — no persistent task table, no notifications engine, no mutation route exists anywhere in this response. Leave items are direct-reports-only for a plain manager or org-wide if the caller separately holds leave_request.manage; Performance items are strictly reviewer-of-record (snapshot) at status "manager_review"; Learning items are strictly manager-of-record (snapshot) at approvalStatus "pending" — instructor-only work is never included. Each item carries only a deliberately narrow, safe field set (source module, the underlying entity's own id, the target employee's id and raw first/last name, current authoritative status, a concise safe title, createdAt) — never a leave reason, never confidential Performance/Learning fields. Sorted by createdAt descending. Read-only, audit-silent.
+ * @summary Read-only aggregated pending work across Leave/Performance/Learning (Manager Portal Pending Actions, Phase 3G, W110)
+ */
+export const GetManagerPortalPendingActionsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetManagerPortalPendingActionsResponse = zod.object({
+  "linked": zod.boolean(),
+  "items": zod.array(zod.object({
+  "sourceModule": zod.enum(['leave', 'performance', 'learning']),
+  "id": zod.number().describe('The underlying leave_requests\/performance_reviews\/learning_enrollments row\'s own id.'),
+  "employeeId": zod.number(),
+  "employeeFirstName": zod.string(),
+  "employeeLastName": zod.string(),
+  "status": zod.string().describe('leave_requests.status (\"pending\") | performance_reviews.status (\"manager_review\") | learning_enrollments.approvalStatus (\"pending\").'),
+  "title": zod.string(),
+  "createdAt": zod.coerce.date()
+}).describe('One pending item from Leave, Performance, or Learning (Phase 3G, W110) — a deliberately narrow, safe field set only. Never a leave reason, never confidential Performance\/Learning fields, never a full Employee shape.'))
+}).describe('Manager Portal Pending Actions (Phase 3G, W110). `linked: false` mirrors Team Overview\'s\/Dashboard\'s own not-linked semantics — Leave items still resolve independently for an org-wide HR\/admin caller even when unlinked. Sorted by createdAt descending.')
+
+
