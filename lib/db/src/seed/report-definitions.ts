@@ -220,6 +220,49 @@ export const REPORT_DEFINITIONS: readonly ReportDefinition[] = [
     category: "learning",
     requiredPermissionKey: "learning.reports.read",
   },
+  // Phase 3E, W102 — Asset Dashboard & Reporting (§17/§20 of the frozen
+  // plan; the frozen plan's own §24 numbers this W102, not W101 — W101 is
+  // "Internal Asset Workspace," a separate, still-unbuilt frontend-only
+  // workstream). Registered here for catalog discoverability via the
+  // existing GET /reports (ADR-016), but — like every dedicated-route
+  // module above — NOT executed through the generic
+  // GET .../reports/:reportKey/run route (lib/reporting.ts's RUNNERS map
+  // has no entries for these keys, so that route safely 404s "Unknown
+  // report" for any of them). asset_unreturned_by_employee needs the own/
+  // manager-of-record-CURRENT-only/organization-wide visibility tiers the
+  // generic runner cannot express (and Assets' own manager tier is LIVE,
+  // never a snapshot, per Owner Decision 3 — unlike Performance's/
+  // Learning's own snapshot-based reviewer/manager-of-record model);
+  // asset_register and asset_maintenance_history are organization-wide
+  // only, per §17's own literal Scope column. Execution is a dedicated,
+  // scope-aware route instead (GET .../assets/reports/:reportKey,
+  // artifacts/api-server/src/routes/assetReporting.ts), reusing the same
+  // {columns, rows}/CSV export shape and requiredPermissionKey convention
+  // this registry already established. No 4th report (incidents) — §17's
+  // own explicit "the incident queue is better served as a live
+  // operational list inside the internal workspace than a historical
+  // report" reasoning, not an oversight.
+  {
+    key: "asset_register",
+    label: "Asset Register",
+    description: "Every in-scope asset's current status, condition, location, and current holder.",
+    category: "asset_management",
+    requiredPermissionKey: "asset_management.reports.read",
+  },
+  {
+    key: "asset_unreturned_by_employee",
+    label: "Unreturned Assets by Employee",
+    description: "Outstanding (currently-assigned) assets, one row per active custody record. Informational only — never a hard offboarding block (§10).",
+    category: "asset_management",
+    requiredPermissionKey: "asset_management.reports.read",
+  },
+  {
+    key: "asset_maintenance_history",
+    label: "Maintenance History",
+    description: "Maintenance events over a date range, including completed events for assets whose current status or custody has since changed.",
+    category: "asset_management",
+    requiredPermissionKey: "asset_management.reports.read",
+  },
 ] as const;
 
 /** Throws on a duplicate key — the only integrity rule this registry has (no dependency graph, unlike modules). */

@@ -10922,3 +10922,57 @@ export const DownloadAssetEvidenceParams = zod.object({
 export const DownloadAssetEvidenceResponse = zod.unknown()
 
 
+/**
+ * Requires asset_management.reports.read. Scope resolved in the service layer: asset_management.manage holders see the whole organization; everyone else sees only assets currently under an active assignment to themselves or a CURRENT (live-resolved, never snapshotted) direct report. Plain zero-filled counts only — no financial/rate/KPI tile, per the frozen plan's own §18 scope.
+ * @summary Asset dashboard — zero-filled deterministic tile breakdown
+ */
+export const GetAssetDashboardParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetAssetDashboardResponse = zod.object({
+  "totalAssetCount": zod.number().describe('In scope for the caller (§18) — organization-wide total, or the count of assets currently under an active assignment to the caller\/a current direct report.'),
+  "statusBreakdown": zod.array(zod.object({
+  "status": zod.enum(['available', 'assigned', 'maintenance', 'lost', 'retired']).describe('The sole-authoritative lifecycle field. retired is permanently terminal.'),
+  "count": zod.number()
+})).describe('All 5 asset statuses, zero-filled, fixed order.'),
+  "employeesWithAssignedAssetsCount": zod.number().describe('Distinct employees currently holding an in-scope asset.'),
+  "overdueReturnCount": zod.number().describe('In-scope active assignments past their own expectedReturnDate — only for assignments that set one.'),
+  "openIncidentCount": zod.number().describe('In-scope asset_incidents with status = open.')
+})
+
+
+/**
+ * Computes a registered Asset report (see GET /reports, category "asset_management": asset_register, asset_unreturned_by_employee, asset_maintenance_history). asset_register and asset_maintenance_history are organization-wide only (§17) — a non-asset_management.manage caller receives 403. asset_unreturned_by_employee follows the same own/manager-current- only/organization-wide tier as the dashboard. Pass ?format=csv for a CSV download instead of JSON, identical scope/filters/rows to JSON.
+ * @summary Run an Asset report
+ */
+export const RunAssetReportParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "reportKey": zod.coerce.string()
+})
+
+export const RunAssetReportQueryParams = zod.object({
+  "categoryCode": zod.coerce.string().optional().describe('asset_register only.'),
+  "status": zod.coerce.string().optional().describe('asset_register\'s own asset status, or asset_maintenance_history\'s own maintenance status — whichever the selected report actually uses.'),
+  "branchId": zod.coerce.number().optional().describe('asset_register only.'),
+  "employeeId": zod.coerce.number().optional().describe('asset_unreturned_by_employee only.'),
+  "departmentId": zod.coerce.number().optional().describe('asset_unreturned_by_employee only — filters departmentIdSnapshot (department at issue time), not the employee\'s current department.'),
+  "assetId": zod.coerce.number().optional().describe('asset_maintenance_history only.'),
+  "dateFrom": zod.date().optional().describe('asset_maintenance_history only — inclusive lower bound on the maintenance record\'s own createdAt.'),
+  "dateTo": zod.date().optional().describe('asset_maintenance_history only — inclusive upper bound on the maintenance record\'s own createdAt.'),
+  "format": zod.enum(['json', 'csv']).optional()
+})
+
+export const RunAssetReportResponse = zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "description": zod.string(),
+  "generatedAt": zod.coerce.date(),
+  "columns": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string()
+})),
+  "rows": zod.array(zod.record(zod.string(), zod.unknown()))
+})
+
+

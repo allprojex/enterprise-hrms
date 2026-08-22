@@ -5832,6 +5832,24 @@ export interface AssetEvidence {
   uploadedBy: number | null;
 }
 
+export interface AssetDashboardStatusItem {
+  status: AssetStatus;
+  count: number;
+}
+
+export interface AssetDashboard {
+  /** In scope for the caller (§18) — organization-wide total, or the count of assets currently under an active assignment to the caller/a current direct report. */
+  totalAssetCount: number;
+  /** All 5 asset statuses, zero-filled, fixed order. */
+  statusBreakdown: AssetDashboardStatusItem[];
+  /** Distinct employees currently holding an in-scope asset. */
+  employeesWithAssignedAssetsCount: number;
+  /** In-scope active assignments past their own expectedReturnDate — only for assignments that set one. */
+  overdueReturnCount: number;
+  /** In-scope asset_incidents with status = open. */
+  openIncidentCount: number;
+}
+
 export type ListEmployeesParams = {
 search?: string;
 departmentId?: number;
@@ -6334,4 +6352,48 @@ status?: AssetIncidentStatus;
 export type AddAssetEvidenceBody = {
   file: Blob;
 };
+
+export type RunAssetReportParams = {
+/**
+ * asset_register only.
+ */
+categoryCode?: string;
+/**
+ * asset_register's own asset status, or asset_maintenance_history's own maintenance status — whichever the selected report actually uses.
+ */
+status?: string;
+/**
+ * asset_register only.
+ */
+branchId?: number;
+/**
+ * asset_unreturned_by_employee only.
+ */
+employeeId?: number;
+/**
+ * asset_unreturned_by_employee only — filters departmentIdSnapshot (department at issue time), not the employee's current department.
+ */
+departmentId?: number;
+/**
+ * asset_maintenance_history only.
+ */
+assetId?: number;
+/**
+ * asset_maintenance_history only — inclusive lower bound on the maintenance record's own createdAt.
+ */
+dateFrom?: string;
+/**
+ * asset_maintenance_history only — inclusive upper bound on the maintenance record's own createdAt.
+ */
+dateTo?: string;
+format?: RunAssetReportFormat;
+};
+
+export type RunAssetReportFormat = typeof RunAssetReportFormat[keyof typeof RunAssetReportFormat];
+
+
+export const RunAssetReportFormat = {
+  json: 'json',
+  csv: 'csv',
+} as const;
 

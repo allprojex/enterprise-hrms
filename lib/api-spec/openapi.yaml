@@ -13074,6 +13074,137 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/assets/dashboard:
+    get:
+      operationId: getAssetDashboard
+      tags: [asset-reporting]
+      summary: Asset dashboard — zero-filled deterministic tile breakdown
+      description: >-
+        Requires asset_management.reports.read. Scope resolved in the
+        service layer: asset_management.manage holders see the whole
+        organization; everyone else sees only assets currently under an
+        active assignment to themselves or a CURRENT (live-resolved, never
+        snapshotted) direct report. Plain zero-filled counts only — no
+        financial/rate/KPI tile, per the frozen plan's own §18 scope.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Dashboard tile breakdown
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetDashboard"
+
+  /organizations/{organizationId}/assets/reports/{reportKey}:
+    get:
+      operationId: runAssetReport
+      tags: [asset-reporting]
+      summary: Run an Asset report
+      description: >-
+        Computes a registered Asset report (see GET /reports, category
+        "asset_management": asset_register, asset_unreturned_by_employee,
+        asset_maintenance_history). asset_register and
+        asset_maintenance_history are organization-wide only (§17) — a
+        non-asset_management.manage caller receives 403.
+        asset_unreturned_by_employee follows the same own/manager-current-
+        only/organization-wide tier as the dashboard. Pass ?format=csv for
+        a CSV download instead of JSON, identical scope/filters/rows to
+        JSON.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: reportKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: categoryCode
+          in: query
+          required: false
+          description: asset_register only.
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          description: asset_register's own asset status, or asset_maintenance_history's own maintenance status — whichever the selected report actually uses.
+          schema:
+            type: string
+        - name: branchId
+          in: query
+          required: false
+          description: asset_register only.
+          schema:
+            type: integer
+        - name: employeeId
+          in: query
+          required: false
+          description: asset_unreturned_by_employee only.
+          schema:
+            type: integer
+        - name: departmentId
+          in: query
+          required: false
+          description: asset_unreturned_by_employee only — filters departmentIdSnapshot (department at issue time), not the employee's current department.
+          schema:
+            type: integer
+        - name: assetId
+          in: query
+          required: false
+          description: asset_maintenance_history only.
+          schema:
+            type: integer
+        - name: dateFrom
+          in: query
+          required: false
+          description: asset_maintenance_history only — inclusive lower bound on the maintenance record's own createdAt.
+          schema:
+            type: string
+            format: date
+        - name: dateTo
+          in: query
+          required: false
+          description: asset_maintenance_history only — inclusive upper bound on the maintenance record's own createdAt.
+          schema:
+            type: string
+            format: date
+        - name: format
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [json, csv]
+      responses:
+        "200":
+          description: Asset report result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportRunResult"
+            text/csv:
+              schema:
+                type: string
+        "403":
+          description: This report requires organization-wide asset access
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Unknown Asset report key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -19697,3 +19828,34 @@ components:
           type: integer
         uploadedBy:
           type: ["integer", "null"]
+
+    AssetDashboardStatusItem:
+      type: object
+      required: [status, count]
+      properties:
+        status:
+          $ref: "#/components/schemas/AssetStatus"
+        count:
+          type: integer
+
+    AssetDashboard:
+      type: object
+      required: [totalAssetCount, statusBreakdown, employeesWithAssignedAssetsCount, overdueReturnCount, openIncidentCount]
+      properties:
+        totalAssetCount:
+          type: integer
+          description: In scope for the caller (§18) — organization-wide total, or the count of assets currently under an active assignment to the caller/a current direct report.
+        statusBreakdown:
+          type: array
+          description: All 5 asset statuses, zero-filled, fixed order.
+          items:
+            $ref: "#/components/schemas/AssetDashboardStatusItem"
+        employeesWithAssignedAssetsCount:
+          type: integer
+          description: Distinct employees currently holding an in-scope asset.
+        overdueReturnCount:
+          type: integer
+          description: In-scope active assignments past their own expectedReturnDate — only for assignments that set one.
+        openIncidentCount:
+          type: integer
+          description: In-scope asset_incidents with status = open.

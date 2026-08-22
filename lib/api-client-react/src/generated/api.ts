@@ -46,6 +46,7 @@ import type {
   ApproveOfferVersionInput,
   Asset,
   AssetAssignment,
+  AssetDashboard,
   AssetEvidence,
   AssetIncident,
   AssetListResponse,
@@ -247,6 +248,7 @@ import type {
   ReviewAssetIncidentInput,
   RevokeLearningCertificateInput,
   Role,
+  RunAssetReportParams,
   RunAttendanceReportParams,
   RunLearningReportParams,
   RunPerformanceReportParams,
@@ -25524,6 +25526,179 @@ export function useDownloadAssetEvidence<TData = Awaited<ReturnType<typeof downl
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getDownloadAssetEvidenceQueryOptions(organizationId,id,evidenceId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAssetDashboardUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/assets/dashboard`
+}
+
+/**
+ * Requires asset_management.reports.read. Scope resolved in the service layer: asset_management.manage holders see the whole organization; everyone else sees only assets currently under an active assignment to themselves or a CURRENT (live-resolved, never snapshotted) direct report. Plain zero-filled counts only — no financial/rate/KPI tile, per the frozen plan's own §18 scope.
+ * @summary Asset dashboard — zero-filled deterministic tile breakdown
+ */
+export const getAssetDashboard = async (organizationId: number, options?: RequestInit): Promise<AssetDashboard> => {
+
+  return customFetch<AssetDashboard>(getGetAssetDashboardUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAssetDashboardQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/assets/dashboard`
+    ] as const;
+    }
+
+
+export const getGetAssetDashboardQueryOptions = <TData = Awaited<ReturnType<typeof getAssetDashboard>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAssetDashboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAssetDashboardQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAssetDashboard>>> = ({ signal }) => getAssetDashboard(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAssetDashboard>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAssetDashboardQueryResult = NonNullable<Awaited<ReturnType<typeof getAssetDashboard>>>
+export type GetAssetDashboardQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Asset dashboard — zero-filled deterministic tile breakdown
+ */
+
+export function useGetAssetDashboard<TData = Awaited<ReturnType<typeof getAssetDashboard>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAssetDashboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAssetDashboardQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRunAssetReportUrl = (organizationId: number,
+    reportKey: string,
+    params?: RunAssetReportParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/assets/reports/${reportKey}?${stringifiedParams}` : `/api/organizations/${organizationId}/assets/reports/${reportKey}`
+}
+
+/**
+ * Computes a registered Asset report (see GET /reports, category "asset_management": asset_register, asset_unreturned_by_employee, asset_maintenance_history). asset_register and asset_maintenance_history are organization-wide only (§17) — a non-asset_management.manage caller receives 403. asset_unreturned_by_employee follows the same own/manager-current- only/organization-wide tier as the dashboard. Pass ?format=csv for a CSV download instead of JSON, identical scope/filters/rows to JSON.
+ * @summary Run an Asset report
+ */
+export const runAssetReport = async (organizationId: number,
+    reportKey: string,
+    params?: RunAssetReportParams, options?: RequestInit): Promise<ReportRunResult | string> => {
+
+  return customFetch<ReportRunResult | string>(getRunAssetReportUrl(organizationId,reportKey,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getRunAssetReportQueryKey = (organizationId: number,
+    reportKey: string,
+    params?: RunAssetReportParams,) => {
+    return [
+    `/api/organizations/${organizationId}/assets/reports/${reportKey}`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getRunAssetReportQueryOptions = <TData = Awaited<ReturnType<typeof runAssetReport>>, TError = ErrorType<ApiError>>(organizationId: number,
+    reportKey: string,
+    params?: RunAssetReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runAssetReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getRunAssetReportQueryKey(organizationId,reportKey,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof runAssetReport>>> = ({ signal }) => runAssetReport(organizationId,reportKey,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && reportKey !== null && reportKey !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof runAssetReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type RunAssetReportQueryResult = NonNullable<Awaited<ReturnType<typeof runAssetReport>>>
+export type RunAssetReportQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Run an Asset report
+ */
+
+export function useRunAssetReport<TData = Awaited<ReturnType<typeof runAssetReport>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    reportKey: string,
+    params?: RunAssetReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runAssetReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getRunAssetReportQueryOptions(organizationId,reportKey,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

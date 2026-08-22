@@ -70,6 +70,7 @@ import learningCertificatesRouter from "./learningCertificates";
 import learningEnrollmentEvidenceRouter from "./learningEnrollmentEvidence";
 import learningReportingRouter from "./learningReporting";
 import assetsRouter from "./assets";
+import assetReportingRouter from "./assetReporting";
 
 const router: IRouter = Router();
 
@@ -143,6 +144,12 @@ router.use(learningEnrollmentsRouter);
 router.use(learningCertificatesRouter);
 router.use(learningEnrollmentEvidenceRouter);
 router.use(learningReportingRouter);
+// assetReportingRouter MUST be registered before assetsRouter: Express
+// matches routes in registration order, and assetsRouter's own
+// GET .../assets/:id would otherwise swallow GET .../assets/dashboard
+// (treating "dashboard" as an invalid numeric id) — the identical ordering
+// bug W98 already found and fixed for my-assets/team-assets.
+router.use(assetReportingRouter);
 router.use(assetsRouter);
 
 export default router;

@@ -396,6 +396,15 @@ export function AppShell({ children }: AppShellProps) {
     // boundary, so a non-HR manager who navigates directly is still
     // correctly authorized and scoped.
     ...(isHrCapable ? [{ href: '/team-assets', label: 'Team Assets', icon: Users } satisfies NavItem] : []),
+    // Phase 3E, W102 per the frozen plan's own §24 numbering — §19's own
+    // frozen surfaces (/assets-dashboard, /asset-reports), same
+    // isHrCapable-only nav precedent as /performance/​/performance-reports
+    // (W81) and /learning/​/learning-reports (W92); backend remains
+    // asset_management.reports.read-gated (own/manager-current-only/
+    // org-wide scope) so a non-HR manager who navigates directly is still
+    // correctly authorized and scoped.
+    ...(isHrCapable ? [{ href: '/assets-dashboard', label: 'Asset Dashboard', icon: LayoutDashboard } satisfies NavItem] : []),
+    ...(isHrCapable ? [{ href: '/asset-reports', label: 'Asset Reports', icon: FileBarChart } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisitions', label: 'Job Requisitions', icon: ClipboardList } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisition-approvals', label: 'Requisition Approvals', icon: Stamp } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/vacancies', label: 'Vacancies', icon: Megaphone } satisfies NavItem] : []),
