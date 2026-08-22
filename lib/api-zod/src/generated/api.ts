@@ -11065,3 +11065,30 @@ export const RunAssetReportResponse = zod.object({
 })
 
 
+/**
+ * Requires the manager_portal module only — deliberately no permission key (frozen plan §13/§37: zero new permissions), mirroring GET /me/employee's own zero-permission precedent. Identity is server-resolved from the session, never a client-supplied employeeId/organizationId. Direct-report-based even for HR/admin callers (frozen plan §27, Decision 4/27) — this endpoint never returns an organization-wide employee list; Employee Management already serves that purpose. The reportingManagerId relationship is resolved live on every call, never snapshotted. A caller with no linked employee record, or with zero current direct reports, gets a valid empty result, never a 403/404. Excludes employmentStatus "terminated" direct reports (a former employee's reportingManagerId is never automatically cleared elsewhere in this system). Read-only, audit-silent. Returns a deliberately narrow DTO — never the full Employee shape.
+ * @summary The caller's own live direct reports (Manager Portal Team Overview, Phase 3G, W109)
+ */
+export const GetManagerPortalTeamParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetManagerPortalTeamResponse = zod.object({
+  "linked": zod.boolean(),
+  "directReports": zod.array(zod.object({
+  "id": zod.number(),
+  "employeeNumber": zod.string().nullish(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "positionId": zod.number().nullish(),
+  "positionName": zod.string().nullish(),
+  "departmentId": zod.number().nullish(),
+  "departmentName": zod.string().nullish(),
+  "branchId": zod.number().nullish(),
+  "branchName": zod.string().nullish(),
+  "employmentStatus": zod.string(),
+  "hasProfilePicture": zod.boolean()
+}).describe('Manager Portal Team Overview (Phase 3G, W109) — a deliberately narrow DTO for one of the caller\'s own live direct reports. Frozen field set (frozen plan Decision 7\/§27): never the full Employee shape, never address\/personal email\/phone\/emergency contacts\/identity documents\/ compensation\/disciplinary\/medical\/Career Profile data.'))
+}).describe('Manager Portal Team Overview (Phase 3G, W109). `linked: false` (with `directReports: []`) mirrors GET \/me\/employee\'s own intentional not-linked state, not an error. A linked caller with zero current direct reports gets `linked: true, directReports: []` — a valid empty state (frozen plan Decision 15), never denied.')
+
+

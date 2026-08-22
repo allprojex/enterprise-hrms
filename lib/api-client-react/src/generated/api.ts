@@ -170,6 +170,7 @@ import type {
   ListPublicVacanciesParams,
   ListVacanciesParams,
   LoginInput,
+  ManagerPortalTeamOverview,
   MarkAssetLostInput,
   MarkLearningEnrollmentAttendanceInput,
   MasterDataDomain,
@@ -26099,6 +26100,84 @@ export function useRunAssetReport<TData = Awaited<ReturnType<typeof runAssetRepo
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getRunAssetReportQueryOptions(organizationId,reportKey,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetManagerPortalTeamUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/manager-portal/team`
+}
+
+/**
+ * Requires the manager_portal module only — deliberately no permission key (frozen plan §13/§37: zero new permissions), mirroring GET /me/employee's own zero-permission precedent. Identity is server-resolved from the session, never a client-supplied employeeId/organizationId. Direct-report-based even for HR/admin callers (frozen plan §27, Decision 4/27) — this endpoint never returns an organization-wide employee list; Employee Management already serves that purpose. The reportingManagerId relationship is resolved live on every call, never snapshotted. A caller with no linked employee record, or with zero current direct reports, gets a valid empty result, never a 403/404. Excludes employmentStatus "terminated" direct reports (a former employee's reportingManagerId is never automatically cleared elsewhere in this system). Read-only, audit-silent. Returns a deliberately narrow DTO — never the full Employee shape.
+ * @summary The caller's own live direct reports (Manager Portal Team Overview, Phase 3G, W109)
+ */
+export const getManagerPortalTeam = async (organizationId: number, options?: RequestInit): Promise<ManagerPortalTeamOverview> => {
+
+  return customFetch<ManagerPortalTeamOverview>(getGetManagerPortalTeamUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetManagerPortalTeamQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/manager-portal/team`
+    ] as const;
+    }
+
+
+export const getGetManagerPortalTeamQueryOptions = <TData = Awaited<ReturnType<typeof getManagerPortalTeam>>, TError = ErrorType<ApiError>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getManagerPortalTeam>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetManagerPortalTeamQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getManagerPortalTeam>>> = ({ signal }) => getManagerPortalTeam(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getManagerPortalTeam>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetManagerPortalTeamQueryResult = NonNullable<Awaited<ReturnType<typeof getManagerPortalTeam>>>
+export type GetManagerPortalTeamQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary The caller's own live direct reports (Manager Portal Team Overview, Phase 3G, W109)
+ */
+
+export function useGetManagerPortalTeam<TData = Awaited<ReturnType<typeof getManagerPortalTeam>>, TError = ErrorType<ApiError>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getManagerPortalTeam>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetManagerPortalTeamQueryOptions(organizationId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

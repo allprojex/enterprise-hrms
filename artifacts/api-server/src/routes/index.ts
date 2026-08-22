@@ -71,6 +71,7 @@ import learningEnrollmentEvidenceRouter from "./learningEnrollmentEvidence";
 import learningReportingRouter from "./learningReporting";
 import assetsRouter from "./assets";
 import assetReportingRouter from "./assetReporting";
+import managerPortalRouter from "./managerPortal";
 
 const router: IRouter = Router();
 
@@ -151,5 +152,6 @@ router.use(learningReportingRouter);
 // bug W98 already found and fixed for my-assets/team-assets.
 router.use(assetReportingRouter);
 router.use(assetsRouter);
+router.use(managerPortalRouter);
 
 export default router;

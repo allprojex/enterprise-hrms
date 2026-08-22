@@ -128,7 +128,14 @@ export const MODULE_DEFINITIONS: readonly ModuleDefinition[] = [
     description: "Manager-facing views and approvals for their reports.",
     category: "hr-operations",
     version: "1.0.0",
-    status: "hidden",
+    // Phase 3G W109 foundation shipped (module activation, authorization
+    // primitives, Team Overview) — flipped from "hidden" per this file's own
+    // documented convention. See status note on "recruitment"/"attendance"/
+    // "performance"/"learning"/"asset_management" above. No frontend page
+    // exists yet (W111); module availability does not by itself grant any
+    // organization access (see organization_modules) — zero organizations
+    // are auto-enabled by this change.
+    status: "active",
     defaultEnabled: false,
     requiredModuleKeys: [],
     optionalModuleKeys: [],

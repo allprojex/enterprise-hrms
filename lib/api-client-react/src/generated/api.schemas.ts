@@ -5938,6 +5938,39 @@ export interface MyCertificationsResponse {
   items: SelfServiceCertification[];
 }
 
+/**
+ * Manager Portal Team Overview (Phase 3G, W109) — a deliberately narrow DTO for one of the caller's own live direct reports. Frozen field set (frozen plan Decision 7/§27): never the full Employee shape, never address/personal email/phone/emergency contacts/identity documents/ compensation/disciplinary/medical/Career Profile data.
+ */
+export interface ManagerPortalTeamMember {
+  id: number;
+  /** @nullable */
+  employeeNumber?: string | null;
+  firstName: string;
+  lastName: string;
+  /** @nullable */
+  positionId?: number | null;
+  /** @nullable */
+  positionName?: string | null;
+  /** @nullable */
+  departmentId?: number | null;
+  /** @nullable */
+  departmentName?: string | null;
+  /** @nullable */
+  branchId?: number | null;
+  /** @nullable */
+  branchName?: string | null;
+  employmentStatus: string;
+  hasProfilePicture: boolean;
+}
+
+/**
+ * Manager Portal Team Overview (Phase 3G, W109). `linked: false` (with `directReports: []`) mirrors GET /me/employee's own intentional not-linked state, not an error. A linked caller with zero current direct reports gets `linked: true, directReports: []` — a valid empty state (frozen plan Decision 15), never denied.
+ */
+export interface ManagerPortalTeamOverview {
+  linked: boolean;
+  directReports: ManagerPortalTeamMember[];
+}
+
 export type ListEmployeesParams = {
 search?: string;
 departmentId?: number;
