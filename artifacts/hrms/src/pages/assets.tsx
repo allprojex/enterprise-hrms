@@ -59,45 +59,49 @@ import { useToast } from '@/hooks/use-toast';
 import { QueryError } from '@/components/query-error';
 import { getStoredToken } from '@/lib/auth';
 
-function errorMessage(err: unknown): string | undefined {
+export function errorMessage(err: unknown): string | undefined {
   return err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
 }
 
 const ALL = '__all__';
 const PAGE_SIZE = 20;
 
-const STATUS_LABEL: Record<string, string> = {
+// Exported alongside the dialog/row components below so W101's own
+// /asset-workspace can reuse the exact same lifecycle/incident dialogs and
+// their labels verbatim — a single source of truth for both surfaces,
+// rather than a second, drifting copy of the same business-facing text.
+export const STATUS_LABEL: Record<string, string> = {
   available: 'Available',
   assigned: 'Assigned',
   maintenance: 'Maintenance',
   lost: 'Lost',
   retired: 'Retired',
 };
-const STATUS_VARIANT: Record<string, 'secondary' | 'outline' | 'destructive'> = {
+export const STATUS_VARIANT: Record<string, 'secondary' | 'outline' | 'destructive'> = {
   available: 'secondary',
   assigned: 'outline',
   maintenance: 'outline',
   lost: 'destructive',
   retired: 'outline',
 };
-const CONDITION_LABEL: Record<string, string> = {
+export const CONDITION_LABEL: Record<string, string> = {
   new: 'New',
   good: 'Good',
   fair: 'Fair',
   poor: 'Poor',
   damaged: 'Damaged',
 };
-const INCIDENT_STATUS_LABEL: Record<string, string> = {
+export const INCIDENT_STATUS_LABEL: Record<string, string> = {
   open: 'Open',
   reviewed: 'Reviewed',
   dismissed: 'Dismissed',
 };
-const INCIDENT_STATUS_VARIANT: Record<string, 'secondary' | 'outline' | 'destructive'> = {
+export const INCIDENT_STATUS_VARIANT: Record<string, 'secondary' | 'outline' | 'destructive'> = {
   open: 'destructive',
   reviewed: 'secondary',
   dismissed: 'outline',
 };
-const INCIDENT_TYPE_LABEL: Record<string, string> = {
+export const INCIDENT_TYPE_LABEL: Record<string, string> = {
   damage: 'Damage',
   loss: 'Loss',
 };
@@ -125,7 +129,7 @@ function formatFileSize(bytes: number): string {
 // --- Lifecycle action dialogs (mandatory-reason pattern, mirrors
 // RevokeCertificateDialog in learning-enrollments.tsx) ---
 
-function RetireAssetDialog({ organizationId, asset, onChanged }: { organizationId: number; asset: Asset; onChanged: () => void }) {
+export function RetireAssetDialog({ organizationId, asset, onChanged }: { organizationId: number; asset: Asset; onChanged: () => void }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
@@ -176,7 +180,7 @@ function RetireAssetDialog({ organizationId, asset, onChanged }: { organizationI
   );
 }
 
-function MarkAssetLostDialog({ organizationId, asset, onChanged }: { organizationId: number; asset: Asset; onChanged: () => void }) {
+export function MarkAssetLostDialog({ organizationId, asset, onChanged }: { organizationId: number; asset: Asset; onChanged: () => void }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
@@ -231,7 +235,7 @@ function MarkAssetLostDialog({ organizationId, asset, onChanged }: { organizatio
   );
 }
 
-function RecoverAssetDialog({ organizationId, asset, onChanged }: { organizationId: number; asset: Asset; onChanged: () => void }) {
+export function RecoverAssetDialog({ organizationId, asset, onChanged }: { organizationId: number; asset: Asset; onChanged: () => void }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
@@ -458,7 +462,7 @@ function AssignAssetDialog({ organizationId, asset, onChanged }: { organizationI
   );
 }
 
-function ReturnAssetDialog({ organizationId, asset, onChanged }: { organizationId: number; asset: Asset; onChanged: () => void }) {
+export function ReturnAssetDialog({ organizationId, asset, onChanged }: { organizationId: number; asset: Asset; onChanged: () => void }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [returnCondition, setReturnCondition] = useState<AssetCondition | ''>('');
@@ -906,7 +910,7 @@ function AssetEvidencePanel({ organizationId, assetId }: { organizationId: numbe
 // deliberate, disclosed non-coupling, not a missing feature. No incident
 // editing, withdrawal, or reopen control exists anywhere. ---
 
-function ReviewIncidentDialog({ organizationId, incident, onChanged, idPrefix }: { organizationId: number; incident: AssetIncident; onChanged: () => void; idPrefix: string }) {
+export function ReviewIncidentDialog({ organizationId, incident, onChanged, idPrefix }: { organizationId: number; incident: AssetIncident; onChanged: () => void; idPrefix: string }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [notes, setNotes] = useState('');
@@ -958,7 +962,7 @@ function ReviewIncidentDialog({ organizationId, incident, onChanged, idPrefix }:
   );
 }
 
-function DismissIncidentDialog({ organizationId, incident, onChanged, idPrefix }: { organizationId: number; incident: AssetIncident; onChanged: () => void; idPrefix: string }) {
+export function DismissIncidentDialog({ organizationId, incident, onChanged, idPrefix }: { organizationId: number; incident: AssetIncident; onChanged: () => void; idPrefix: string }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [notes, setNotes] = useState('');
@@ -1008,7 +1012,7 @@ function DismissIncidentDialog({ organizationId, incident, onChanged, idPrefix }
   );
 }
 
-function IncidentRow({ organizationId, incident, onChanged, showAsset, idPrefix }: { organizationId: number; incident: AssetIncident; onChanged: () => void; showAsset: boolean; idPrefix: string }) {
+export function IncidentRow({ organizationId, incident, onChanged, showAsset, idPrefix }: { organizationId: number; incident: AssetIncident; onChanged: () => void; showAsset: boolean; idPrefix: string }) {
   return (
     <div className="rounded-md border border-border p-3 space-y-2 text-sm" data-testid={`row-incident-${idPrefix}-${incident.id}`}>
       <div className="flex flex-wrap items-start justify-between gap-2">

@@ -47,6 +47,7 @@ import Assets from '@/pages/assets';
 import TeamAssets from '@/pages/team-assets';
 import AssetsDashboard from '@/pages/assets-dashboard';
 import AssetReports from '@/pages/asset-reports';
+import AssetWorkspace from '@/pages/asset-workspace';
 import EmployeeSelfService from '@/pages/employee-self-service';
 import RecruitmentSettings from '@/pages/recruitment-settings';
 import Requisitions from '@/pages/requisitions';
@@ -218,6 +219,9 @@ function Router() {
       </Route>
       <Route path="/asset-reports">
         {() => <SecureRoute component={AssetReports} moduleKey="asset_management" />}
+      </Route>
+      <Route path="/asset-workspace">
+        {() => <SecureRoute component={AssetWorkspace} moduleKey="asset_management" />}
       </Route>
       <Route path="/self-service">
         {() => <SecureRoute component={EmployeeSelfService} moduleKey="employee_self_service" />}

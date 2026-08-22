@@ -405,6 +405,14 @@ export function AppShell({ children }: AppShellProps) {
     // correctly authorized and scoped.
     ...(isHrCapable ? [{ href: '/assets-dashboard', label: 'Asset Dashboard', icon: LayoutDashboard } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/asset-reports', label: 'Asset Reports', icon: FileBarChart } satisfies NavItem] : []),
+    // Phase 3E, W101 — §19's own frozen org-wide operational surface
+    // (/asset-workspace, asset_management.manage only), same isHrCapable-
+    // only nav precedent as every other Assets/Performance/Learning
+    // organization-wide page above; the backend's own .manage-gated
+    // routes remain the real authorization boundary regardless of nav
+    // visibility — a manager's own Team Assets relationship never widens
+    // to this page.
+    ...(isHrCapable ? [{ href: '/asset-workspace', label: 'Asset Workspace', icon: LayoutGrid } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisitions', label: 'Job Requisitions', icon: ClipboardList } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisition-approvals', label: 'Requisition Approvals', icon: Stamp } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/vacancies', label: 'Vacancies', icon: Megaphone } satisfies NavItem] : []),
