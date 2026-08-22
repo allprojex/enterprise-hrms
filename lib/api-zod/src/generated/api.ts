@@ -10753,3 +10753,172 @@ export const DismissAssetIncidentResponse = zod.object({
 })
 
 
+/**
+ * Requires asset_management.manage — org-wide only; no own/manager visibility is frozen for maintenance history (§20). Simple history, newest first.
+ * @summary List an asset's maintenance history (HR/Asset-Officer)
+ */
+export const ListAssetMaintenanceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ListAssetMaintenanceResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "assetId": zod.number(),
+  "maintenanceType": zod.string(),
+  "description": zod.string().nullish(),
+  "providerText": zod.string().nullish().describe('Free text — no vendor\/provider table (§11).'),
+  "status": zod.enum(['scheduled', 'in_progress', 'completed', 'cancelled']).describe('scheduled -> in_progress -> completed | cancelled. Both completed and cancelled are terminal — no reopen (§7).'),
+  "startedAt": zod.coerce.date().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "cost": zod.string().nullish().describe('Optional, reference-only. No depreciation\/accounting logic.'),
+  "notes": zod.string().nullish(),
+  "createdByMembershipId": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListAssetMaintenanceResponse = zod.array(ListAssetMaintenanceResponseItem)
+
+
+/**
+ * Requires asset_management.manage. Creates a `scheduled` maintenance record — never touches the asset's own status (§7). Blocked only on a retired asset.
+ * @summary Schedule a maintenance record for an asset (HR/Asset-Officer)
+ */
+export const CreateAssetMaintenanceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+
+export const createAssetMaintenanceBodyCostMin = 0;
+
+
+
+export const CreateAssetMaintenanceBody = zod.object({
+  "maintenanceType": zod.string().min(1),
+  "description": zod.string().optional(),
+  "providerText": zod.string().optional(),
+  "cost": zod.number().min(createAssetMaintenanceBodyCostMin).optional(),
+  "notes": zod.string().optional()
+})
+
+export const CreateAssetMaintenanceResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "assetId": zod.number(),
+  "maintenanceType": zod.string(),
+  "description": zod.string().nullish(),
+  "providerText": zod.string().nullish().describe('Free text — no vendor\/provider table (§11).'),
+  "status": zod.enum(['scheduled', 'in_progress', 'completed', 'cancelled']).describe('scheduled -> in_progress -> completed | cancelled. Both completed and cancelled are terminal — no reopen (§7).'),
+  "startedAt": zod.coerce.date().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "cost": zod.string().nullish().describe('Optional, reference-only. No depreciation\/accounting logic.'),
+  "notes": zod.string().nullish(),
+  "createdByMembershipId": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Requires asset_management.manage. The single frozen route for every maintenance lifecycle transition (§20) — dispatched by the `action` field, never a raw target status. `start` atomically sets the asset's own status to `maintenance` (from `available`/`assigned` only). `complete`/`cancel` (from `in_progress`) atomically derive the asset's own post-maintenance status — `assigned` if an active custody row still exists, `available` otherwise — live, inside the same transaction; this is never caller-suppliable. `cancel` is also accepted from `scheduled`, which never touched the asset's own status in the first place.
+ * @summary Transition a maintenance record (start / complete / cancel)
+ */
+export const UpdateAssetMaintenanceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const updateAssetMaintenanceBodyCostMin = 0;
+
+
+
+export const UpdateAssetMaintenanceBody = zod.object({
+  "action": zod.enum(['start', 'complete', 'cancel']).describe('The server maps this to the correct validated conditional UPDATE — the request body never accepts a raw target status.'),
+  "cost": zod.number().min(updateAssetMaintenanceBodyCostMin).optional(),
+  "notes": zod.string().optional()
+})
+
+export const UpdateAssetMaintenanceResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "assetId": zod.number(),
+  "maintenanceType": zod.string(),
+  "description": zod.string().nullish(),
+  "providerText": zod.string().nullish().describe('Free text — no vendor\/provider table (§11).'),
+  "status": zod.enum(['scheduled', 'in_progress', 'completed', 'cancelled']).describe('scheduled -> in_progress -> completed | cancelled. Both completed and cancelled are terminal — no reopen (§7).'),
+  "startedAt": zod.coerce.date().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "cost": zod.string().nullish().describe('Optional, reference-only. No depreciation\/accounting logic.'),
+  "notes": zod.string().nullish(),
+  "createdByMembershipId": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Same visibility tier as the asset itself (§20) — organization-wide (asset_management.manage) or own-scope (the caller currently holds this specific asset).
+ * @summary List evidence attached to an asset
+ */
+export const ListAssetEvidenceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ListAssetEvidenceResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "assetId": zod.number(),
+  "employeeDocumentId": zod.number().describe('Points into the existing employee_documents table — no separate Assets storage layer (§13).'),
+  "addedByMembershipId": zod.number().nullable(),
+  "addedAt": zod.coerce.date(),
+  "fileName": zod.string().describe('Original client-supplied filename, for display only — never used to build a storage path.'),
+  "mimeType": zod.string(),
+  "fileSize": zod.number(),
+  "uploadedBy": zod.number().nullable()
+})
+export const ListAssetEvidenceResponse = zod.array(ListAssetEvidenceResponseItem)
+
+
+/**
+ * multipart/form-data upload. Reuses the existing employee_documents storage layer verbatim (§13) — PDF, JPEG, PNG, DOCX, and XLSX only, validated by file signature, 10MB max, identical to every other document upload on this platform. Same visibility tier as the asset itself — organization-wide or own-scope (currently holds this asset). The created employee_documents row has employeeId=null (an asset has no natural single-employee owner, §13).
+ * @summary Attach evidence to an asset
+ */
+export const AddAssetEvidenceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const AddAssetEvidenceBody = zod.object({
+  "file": zod.instanceof(File)
+})
+
+export const AddAssetEvidenceResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "assetId": zod.number(),
+  "employeeDocumentId": zod.number().describe('Points into the existing employee_documents table — no separate Assets storage layer (§13).'),
+  "addedByMembershipId": zod.number().nullable(),
+  "addedAt": zod.coerce.date(),
+  "fileName": zod.string().describe('Original client-supplied filename, for display only — never used to build a storage path.'),
+  "mimeType": zod.string(),
+  "fileSize": zod.number(),
+  "uploadedBy": zod.number().nullable()
+})
+
+
+/**
+ * Authorization-checked before any storage read (same visibility tier as the asset itself). No public or signed URL is ever generated — the file streams through this authenticated route on every request.
+ * @summary Download a single evidence file
+ */
+export const DownloadAssetEvidenceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number(),
+  "evidenceId": zod.coerce.number()
+})
+
+export const DownloadAssetEvidenceResponse = zod.unknown()
+
+

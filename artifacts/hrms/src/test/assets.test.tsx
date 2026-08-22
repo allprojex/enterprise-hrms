@@ -8,7 +8,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Assets from '@/pages/assets';
-import type { Asset, AssetIncident, Branch, MasterDataItem, MembershipSummary } from '@workspace/api-client-react';
+import type { Asset, AssetIncident, AssetMaintenance, AssetEvidence, Branch, MasterDataItem, MembershipSummary } from '@workspace/api-client-react';
 
 const { state } = vi.hoisted(() => ({
   state: {
@@ -35,6 +35,15 @@ const { state } = vi.hoisted(() => ({
     incidentsError: undefined as unknown,
     reviewIncidentMutate: vi.fn(),
     dismissIncidentMutate: vi.fn(),
+    maintenanceRecords: [] as AssetMaintenance[],
+    maintenanceLoading: false,
+    maintenanceError: undefined as unknown,
+    createMaintenanceMutate: vi.fn(),
+    updateMaintenanceMutate: vi.fn(),
+    evidenceItems: [] as AssetEvidence[],
+    evidenceLoading: false,
+    evidenceError: undefined as unknown,
+    addEvidenceMutate: vi.fn(),
   },
 }));
 
@@ -72,6 +81,14 @@ vi.mock('@workspace/api-client-react', () => ({
   getListAssetIncidentsQueryKey: () => ['assetIncidents'],
   useReviewAssetIncident: () => ({ mutate: state.reviewIncidentMutate, isPending: false }),
   useDismissAssetIncident: () => ({ mutate: state.dismissIncidentMutate, isPending: false }),
+  useListAssetMaintenance: () => ({ data: state.maintenanceRecords, isLoading: state.maintenanceLoading, error: state.maintenanceError, refetch: vi.fn() }),
+  getListAssetMaintenanceQueryKey: () => ['assetMaintenance'],
+  useCreateAssetMaintenance: () => ({ mutate: state.createMaintenanceMutate, isPending: false }),
+  useUpdateAssetMaintenance: () => ({ mutate: state.updateMaintenanceMutate, isPending: false }),
+  useListAssetEvidence: () => ({ data: state.evidenceItems, isLoading: state.evidenceLoading, error: state.evidenceError, refetch: vi.fn() }),
+  getListAssetEvidenceQueryKey: () => ['assetEvidence'],
+  useAddAssetEvidence: () => ({ mutate: state.addEvidenceMutate, isPending: false }),
+  getDownloadAssetEvidenceUrl: (organizationId: number, id: number, evidenceId: number) => `/api/organizations/${organizationId}/assets/${id}/evidence/${evidenceId}/download`,
   AssetCondition: { new: 'new', good: 'good', fair: 'fair', poor: 'poor', damaged: 'damaged' },
   AssetStatus: { available: 'available', assigned: 'assigned', maintenance: 'maintenance', lost: 'lost', retired: 'retired' },
 }));
@@ -139,6 +156,15 @@ function resetState() {
   state.incidentsError = undefined;
   state.reviewIncidentMutate = vi.fn();
   state.dismissIncidentMutate = vi.fn();
+  state.maintenanceRecords = [];
+  state.maintenanceLoading = false;
+  state.maintenanceError = undefined;
+  state.createMaintenanceMutate = vi.fn();
+  state.updateMaintenanceMutate = vi.fn();
+  state.evidenceItems = [];
+  state.evidenceLoading = false;
+  state.evidenceError = undefined;
+  state.addEvidenceMutate = vi.fn();
 }
 
 function incident(overrides: Partial<AssetIncident> = {}): AssetIncident {
@@ -157,6 +183,42 @@ function incident(overrides: Partial<AssetIncident> = {}): AssetIncident {
     resolutionNotes: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+function maintenance(overrides: Partial<AssetMaintenance> = {}): AssetMaintenance {
+  return {
+    id: 1,
+    organizationId: 10,
+    assetId: 1,
+    maintenanceType: 'Annual service',
+    description: null,
+    providerText: null,
+    status: 'scheduled',
+    startedAt: null,
+    completedAt: null,
+    cost: null,
+    notes: null,
+    createdByMembershipId: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+function evidence(overrides: Partial<AssetEvidence> = {}): AssetEvidence {
+  return {
+    id: 1,
+    organizationId: 10,
+    assetId: 1,
+    employeeDocumentId: 1,
+    addedByMembershipId: null,
+    addedAt: new Date().toISOString(),
+    fileName: 'receipt.pdf',
+    mimeType: 'application/pdf',
+    fileSize: 2048,
+    uploadedBy: null,
     ...overrides,
   };
 }
@@ -367,16 +429,14 @@ describe('Asset Register page', () => {
     });
   });
 
-  it('does not expose acknowledgement, incident, maintenance, or evidence controls anywhere on the page (W98-W100)', async () => {
+  it('does not expose the ESS-only acknowledgement or report-incident controls anywhere on this HR page (W98)', async () => {
     resetState();
     state.assets = { items: [asset()], total: 1, page: 1, pageSize: 20 };
     state.detail = asset();
     renderPage();
     await userEvent.click(screen.getByTestId('button-manage-asset-1'));
-    expect(screen.queryByRole('button', { name: /acknowledge/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /report incident/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /schedule maintenance/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /upload evidence/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^i confirm i received this item$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /report an issue/i })).not.toBeInTheDocument();
   });
 
   describe('custody — assign / return (W97)', () => {
@@ -595,6 +655,231 @@ describe('Asset Register page', () => {
       expect(state.retireAssetMutate).not.toHaveBeenCalled();
       expect(state.markAssetLostMutate).not.toHaveBeenCalled();
       expect(state.updateAssetConditionMutate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('maintenance (W100)', () => {
+    it('shows an empty state when this asset has no maintenance history', async () => {
+      resetState();
+      state.assets = { items: [asset()], total: 1, page: 1, pageSize: 20 };
+      state.detail = asset();
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-manage-asset-1'));
+      expect(screen.getByTestId('text-no-maintenance')).toBeInTheDocument();
+    });
+
+    it('shows a loading state without crashing', async () => {
+      resetState();
+      state.assets = { items: [asset()], total: 1, page: 1, pageSize: 20 };
+      state.detail = asset();
+      state.maintenanceLoading = true;
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-manage-asset-1'));
+      expect(screen.getByText('Manage Asset')).toBeInTheDocument();
+    });
+
+    it('shows an error state with retry', async () => {
+      resetState();
+      state.assets = { items: [asset()], total: 1, page: 1, pageSize: 20 };
+      state.detail = asset();
+      state.maintenanceError = { error: 'boom' };
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-manage-asset-1'));
+      expect(screen.getByText(/could not load maintenance history/i)).toBeInTheDocument();
+    });
+
+    it('renders a maintenance record with a text status label, never color alone', async () => {
+      resetState();
+      state.assets = { items: [asset()], total: 1, page: 1, pageSize: 20 };
+      state.detail = asset();
+      state.maintenanceRecords = [maintenance({ id: 1, status: 'in_progress', maintenanceType: 'Screen repair' })];
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-manage-asset-1'));
+      const row = screen.getByTestId('row-maintenance-1');
+      expect(row).toHaveTextContent('Screen repair');
+      expect(screen.getByTestId('badge-maintenance-status-1')).toHaveTextContent('In Progress');
+    });
+
+    it('schedules a new maintenance record with the entered fields', async () => {
+      resetState();
+      state.assets = { items: [asset()], total: 1, page: 1, pageSize: 20 };
+      state.detail = asset();
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-manage-asset-1'));
+      await userEvent.click(screen.getByTestId('button-open-schedule-maintenance-1'));
+      await userEvent.type(screen.getByTestId('input-maintenance-type-1'), 'Annual service');
+      await userEvent.click(screen.getByTestId('button-confirm-schedule-maintenance-1'));
+      expect(state.createMaintenanceMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ organizationId: 10, id: 1, data: expect.objectContaining({ maintenanceType: 'Annual service' }) }),
+        expect.anything(),
+      );
+    });
+
+    it('requires a maintenanceType before Schedule is confirmed', async () => {
+      resetState();
+      state.assets = { items: [asset()], total: 1, page: 1, pageSize: 20 };
+      state.detail = asset();
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-manage-asset-1'));
+      await userEvent.click(screen.getByTestId('button-open-schedule-maintenance-1'));
+      expect(screen.getByTestId('button-confirm-schedule-maintenance-1')).toBeDisabled();
+    });
+
+    it('offers only Start and Cancel while scheduled — no caller-selectable completion target anywhere', async () => {
+      resetState();
+      state.assets = { items: [asset()], total: 1, page: 1, pageSize: 20 };
+      state.detail = asset();
+      state.maintenanceRecords = [maintenance({ id: 1, status: 'scheduled' })];
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-manage-asset-1'));
+      expect(screen.getByTestId('button-start-maintenance-1')).toBeInTheDocument();
+      expect(screen.getByTestId('button-cancel-maintenance-1')).toBeInTheDocument();
+      expect(screen.queryByTestId('button-complete-maintenance-1')).not.toBeInTheDocument();
+      expect(screen.queryByRole('combobox', { name: /status/i })).not.toBeInTheDocument();
+    });
+
+    it('offers only Complete and Cancel while in progress', async () => {
+      resetState();
+      state.assets = { items: [asset()], total: 1, page: 1, pageSize: 20 };
+      state.detail = asset();
+      state.maintenanceRecords = [maintenance({ id: 1, status: 'in_progress' })];
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-manage-asset-1'));
+      expect(screen.getByTestId('button-complete-maintenance-1')).toBeInTheDocument();
+      expect(screen.getByTestId('button-cancel-maintenance-1')).toBeInTheDocument();
+      expect(screen.queryByTestId('button-start-maintenance-1')).not.toBeInTheDocument();
+    });
+
+    it('hides every transition control once terminal (completed)', async () => {
+      resetState();
+      state.assets = { items: [asset()], total: 1, page: 1, pageSize: 20 };
+      state.detail = asset();
+      state.maintenanceRecords = [maintenance({ id: 1, status: 'completed', completedAt: new Date().toISOString() })];
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-manage-asset-1'));
+      expect(screen.queryByTestId('button-start-maintenance-1')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-complete-maintenance-1')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-cancel-maintenance-1')).not.toBeInTheDocument();
+    });
+
+    it('hides every transition control once terminal (cancelled)', async () => {
+      resetState();
+      state.assets = { items: [asset()], total: 1, page: 1, pageSize: 20 };
+      state.detail = asset();
+      state.maintenanceRecords = [maintenance({ id: 1, status: 'cancelled' })];
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-manage-asset-1'));
+      expect(screen.queryByTestId('button-start-maintenance-1')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-complete-maintenance-1')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-cancel-maintenance-1')).not.toBeInTheDocument();
+    });
+
+    it('calls the transition mutation with exactly the action — never a caller-selected target status', async () => {
+      resetState();
+      state.assets = { items: [asset()], total: 1, page: 1, pageSize: 20 };
+      state.detail = asset();
+      state.maintenanceRecords = [maintenance({ id: 1, status: 'scheduled' })];
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-manage-asset-1'));
+      await userEvent.click(screen.getByTestId('button-start-maintenance-1'));
+      expect(state.updateMaintenanceMutate).toHaveBeenCalledWith(
+        { organizationId: 10, id: 1, data: { action: 'start' } },
+        expect.anything(),
+      );
+    });
+
+    it('a manager cannot reach this page at all (relationship-only authority, no manage control renders for a non-HR role)', () => {
+      resetState();
+      state.myOrganizations = [membership(['employee'])];
+      renderPage();
+      expect(screen.queryByTestId('button-open-schedule-maintenance-1')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('evidence (W100)', () => {
+    it('shows an empty state when this asset has no evidence', async () => {
+      resetState();
+      state.assets = { items: [asset()], total: 1, page: 1, pageSize: 20 };
+      state.detail = asset();
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-manage-asset-1'));
+      expect(screen.getByTestId('text-no-evidence')).toBeInTheDocument();
+    });
+
+    it('shows a loading state without crashing', async () => {
+      resetState();
+      state.assets = { items: [asset()], total: 1, page: 1, pageSize: 20 };
+      state.detail = asset();
+      state.evidenceLoading = true;
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-manage-asset-1'));
+      expect(screen.getByText('Manage Asset')).toBeInTheDocument();
+    });
+
+    it('shows an error state with retry', async () => {
+      resetState();
+      state.assets = { items: [asset()], total: 1, page: 1, pageSize: 20 };
+      state.detail = asset();
+      state.evidenceError = { error: 'boom' };
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-manage-asset-1'));
+      expect(screen.getByText(/could not load evidence/i)).toBeInTheDocument();
+    });
+
+    it('lists attached evidence with filename, type, and size', async () => {
+      resetState();
+      state.assets = { items: [asset()], total: 1, page: 1, pageSize: 20 };
+      state.detail = asset();
+      state.evidenceItems = [evidence({ id: 1, fileName: 'warranty.pdf', mimeType: 'application/pdf', fileSize: 10240 })];
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-manage-asset-1'));
+      const row = screen.getByTestId('row-evidence-1');
+      expect(row).toHaveTextContent('warranty.pdf');
+      expect(row).toHaveTextContent('application/pdf');
+      expect(row).toHaveTextContent('10.0 KB');
+    });
+
+    it('offers an authenticated download action for each evidence row', async () => {
+      resetState();
+      state.assets = { items: [asset()], total: 1, page: 1, pageSize: 20 };
+      state.detail = asset();
+      state.evidenceItems = [evidence({ id: 1, fileName: 'warranty.pdf' })];
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-manage-asset-1'));
+      expect(screen.getByTestId('button-download-evidence-1')).toBeInTheDocument();
+    });
+
+    it('uploading a file calls the mutation with the asset id and the selected file', async () => {
+      resetState();
+      state.assets = { items: [asset()], total: 1, page: 1, pageSize: 20 };
+      state.detail = asset();
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-manage-asset-1'));
+      const file = new File(['%PDF-1.4'], 'evidence.pdf', { type: 'application/pdf' });
+      const input = screen.getByTestId('input-evidence-file-1') as HTMLInputElement;
+      await userEvent.upload(input, file);
+      expect(state.addEvidenceMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ organizationId: 10, id: 1, data: expect.objectContaining({ file }) }),
+        expect.anything(),
+      );
+    });
+
+    it('no delete/remove control exists anywhere for an evidence row (attach/list/download only)', async () => {
+      resetState();
+      state.assets = { items: [asset()], total: 1, page: 1, pageSize: 20 };
+      state.detail = asset();
+      state.evidenceItems = [evidence({ id: 1 })];
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-manage-asset-1'));
+      expect(screen.queryByRole('button', { name: /delete/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /remove/i })).not.toBeInTheDocument();
+    });
+
+    it('a manager cannot reach this page at all (relationship-only authority, no evidence control renders for a non-HR role)', () => {
+      resetState();
+      state.myOrganizations = [membership(['employee'])];
+      renderPage();
+      expect(screen.queryByTestId('button-attach-evidence-1')).not.toBeInTheDocument();
     });
   });
 });

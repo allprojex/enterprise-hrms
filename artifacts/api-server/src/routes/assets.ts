@@ -1,14 +1,16 @@
 /**
- * Asset Register (Phase 3E, W96): docs/PHASE_3E_ASSETS_IMPLEMENTATION_PLAN.md
+ * Asset Register (Phase 3E, W96-W100): docs/PHASE_3E_ASSETS_IMPLEMENTATION_PLAN.md
  * §20's own frozen route list — every mutating route requires
- * asset_management.manage; GET .../assets/:id alone accepts the broader
+ * asset_management.manage (maintenance: exclusively, no exception, §15);
+ * GET .../assets/:id and the evidence routes accept the broader
  * asset_management.read.own floor, with fine-grained own-scope reach
  * (currently holds this asset) resolved inside the handler, mirroring
  * learningEnrollments.ts's own GET .../enrollments/:id dual-floor pattern
- * exactly. No assignment/return/acknowledgement/incident/maintenance/
- * evidence route exists here — those are W97-W100.
+ * exactly (see lib/assets.ts's own W100 file-header for the full evidence
+ * visibility-tier reconciliation).
  */
-import { Router, type Response } from "express";
+import { Router, type Response, type NextFunction } from "express";
+import multer from "multer";
 import {
   CreateAssetBody,
   UpdateAssetBody,
@@ -22,6 +24,8 @@ import {
   ReportAssetIssueBody,
   ReviewAssetIncidentBody,
   DismissAssetIncidentBody,
+  CreateAssetMaintenanceBody,
+  UpdateAssetMaintenanceBody,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireMembership, type MembershipRequest } from "../middlewares/requireMembership";
@@ -29,6 +33,7 @@ import { requirePermission } from "../middlewares/requirePermission";
 import { requireModuleEnabled } from "../middlewares/requireModuleEnabled";
 import { ASSET_MANAGEMENT_MODULE_KEY, resolveAssetActorEmployeeId, hasOrgWideAssetAccess } from "../lib/assetManagementAuthorization";
 import { toIsoDate } from "../lib/leaveRequests";
+import { readOrgFile } from "../lib/fileStorage";
 import {
   listAssets,
   getAsset,
@@ -49,6 +54,12 @@ import {
   listAssetIncidents,
   reviewAssetIncident,
   dismissAssetIncident,
+  createAssetMaintenance,
+  listAssetMaintenance,
+  updateAssetMaintenance,
+  listAssetEvidence,
+  getAssetEvidenceForDownload,
+  addAssetEvidence,
   AssetNotFoundError,
   InvalidAssetError,
   DuplicateAssetTagError,
@@ -59,6 +70,9 @@ import {
   AssetNotCurrentlyAssignedToCallerError,
   AssetIncidentNotFoundError,
   AssetIncidentConflictError,
+  AssetMaintenanceNotFoundError,
+  AssetMaintenanceConflictError,
+  InvalidDocumentError,
   CrossOrganizationReferenceError,
 } from "../lib/assets";
 
@@ -82,7 +96,12 @@ function iso(d: Date | null | undefined): string | undefined | null {
 }
 
 function handleAssetError(err: unknown, res: Response): void {
-  if (err instanceof AssetNotFoundError || err instanceof AssetAssignmentNotFoundError || err instanceof AssetIncidentNotFoundError) {
+  if (
+    err instanceof AssetNotFoundError ||
+    err instanceof AssetAssignmentNotFoundError ||
+    err instanceof AssetIncidentNotFoundError ||
+    err instanceof AssetMaintenanceNotFoundError
+  ) {
     res.status(404).json({ error: err.message });
     return;
   }
@@ -91,12 +110,13 @@ function handleAssetError(err: unknown, res: Response): void {
     err instanceof DuplicateAssetTagError ||
     err instanceof DuplicateAssetSerialNumberError ||
     err instanceof AssetAssignmentConflictError ||
-    err instanceof AssetIncidentConflictError
+    err instanceof AssetIncidentConflictError ||
+    err instanceof AssetMaintenanceConflictError
   ) {
     res.status(409).json({ error: err.message });
     return;
   }
-  if (err instanceof InvalidAssetError || err instanceof CrossOrganizationReferenceError) {
+  if (err instanceof InvalidAssetError || err instanceof CrossOrganizationReferenceError || err instanceof InvalidDocumentError) {
     res.status(400).json({ error: err.message });
     return;
   }
@@ -105,6 +125,27 @@ function handleAssetError(err: unknown, res: Response): void {
     return;
   }
   throw err;
+}
+
+// Same 10MB ceiling as every other document upload on this platform —
+// validateDocumentUpload enforces the same limit again from the actual file
+// bytes; this is just multer's own outer bound, identical to
+// learningEnrollmentEvidence.ts's/performanceReviewEvidence.ts's own setup.
+const uploadEvidence = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+function handleEvidenceUpload(req: MembershipRequest, res: Response, next: NextFunction): void {
+  uploadEvidence.single("file")(req as never, res as never, (err: unknown) => {
+    if (err instanceof multer.MulterError) {
+      const message = err.code === "LIMIT_FILE_SIZE" ? "File exceeds the 10MB size limit" : err.message;
+      res.status(400).json({ error: message });
+      return;
+    }
+    if (err) {
+      next(err);
+      return;
+    }
+    next();
+  });
 }
 
 // GET /organizations/:organizationId/assets
@@ -721,6 +762,254 @@ router.post(
     } catch (err) {
       handleAssetError(err, res);
     }
+  },
+);
+
+// ============================================================================
+// Maintenance (Phase 3E, W100): §20's own frozen "Maintenance" route group —
+// asset_management.manage only, no exception, never reachable through
+// read.own/write.own/reports.read/manager-of-record (§15). See
+// lib/assets.ts's own W100 file header for the full lifecycle/derivation
+// design.
+// ============================================================================
+
+// GET/POST /organizations/:organizationId/assets/:id/maintenance
+router.get(
+  "/organizations/:organizationId/assets/:id/maintenance",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requireModuleEnabled(ASSET_MANAGEMENT_MODULE_KEY),
+  requirePermission("asset_management.manage"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const assetId = parseId(req.params.id);
+    if (isNaN(assetId)) {
+      res.status(400).json({ error: "Invalid asset ID" });
+      return;
+    }
+    const organizationId = req.membership!.organizationId;
+    const asset = await getAsset(organizationId, assetId);
+    if (!asset) {
+      res.status(404).json({ error: "Asset not found" });
+      return;
+    }
+    res.json(await listAssetMaintenance(organizationId, assetId));
+  },
+);
+
+router.post(
+  "/organizations/:organizationId/assets/:id/maintenance",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requireModuleEnabled(ASSET_MANAGEMENT_MODULE_KEY),
+  requirePermission("asset_management.manage"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const assetId = parseId(req.params.id);
+    if (isNaN(assetId)) {
+      res.status(400).json({ error: "Invalid asset ID" });
+      return;
+    }
+    const parsed = CreateAssetMaintenanceBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+
+    try {
+      const maintenance = await createAssetMaintenance({
+        organizationId: req.membership!.organizationId,
+        assetId,
+        maintenanceType: parsed.data.maintenanceType,
+        description: parsed.data.description,
+        providerText: parsed.data.providerText,
+        cost: parsed.data.cost,
+        notes: parsed.data.notes,
+        actorApplicationUserId: req.userId!,
+        actorMembershipId: req.membership!.id,
+      });
+      res.status(201).json(maintenance);
+    } catch (err) {
+      handleAssetError(err, res);
+    }
+  },
+);
+
+// PATCH /organizations/:organizationId/asset-maintenance/:id — the single
+// frozen route for every maintenance lifecycle transition (§20), dispatched
+// by the request body's own `action` (start/complete/cancel), never a raw
+// target status.
+router.patch(
+  "/organizations/:organizationId/asset-maintenance/:id",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requireModuleEnabled(ASSET_MANAGEMENT_MODULE_KEY),
+  requirePermission("asset_management.manage"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const maintenanceId = parseId(req.params.id);
+    if (isNaN(maintenanceId)) {
+      res.status(400).json({ error: "Invalid maintenance ID" });
+      return;
+    }
+    const parsed = UpdateAssetMaintenanceBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+
+    try {
+      const updated = await updateAssetMaintenance({
+        organizationId: req.membership!.organizationId,
+        maintenanceId,
+        action: parsed.data.action,
+        cost: parsed.data.cost,
+        notes: parsed.data.notes,
+        actorApplicationUserId: req.userId!,
+        actorMembershipId: req.membership!.id,
+      });
+      res.json(updated);
+    } catch (err) {
+      handleAssetError(err, res);
+    }
+  },
+);
+
+// ============================================================================
+// Documents/evidence (Phase 3E, W100): §20's own frozen "Documents/evidence"
+// route group — "same visibility tier as the asset itself" for every route
+// here (GET list, POST upload, GET download): organization-wide
+// (asset_management.manage) OR own-scope (the caller currently holds this
+// specific asset), the exact dual-floor GET .../assets/:id already resolves.
+// The permission-middleware floor is asset_management.read.own, matching
+// GET .../assets/:id's own floor — never asset_management.write.own (§15's
+// permanent invariant: exactly acknowledge + report-issue, untouched here).
+// See lib/assets.ts's own W100 file header for the full reconciliation.
+// ============================================================================
+
+// GET/POST /organizations/:organizationId/assets/:id/evidence
+router.get(
+  "/organizations/:organizationId/assets/:id/evidence",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requireModuleEnabled(ASSET_MANAGEMENT_MODULE_KEY),
+  requirePermission("asset_management.read.own"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const assetId = parseId(req.params.id);
+    if (isNaN(assetId)) {
+      res.status(400).json({ error: "Invalid asset ID" });
+      return;
+    }
+    const organizationId = req.membership!.organizationId;
+    const asset = await getAsset(organizationId, assetId);
+    if (!asset) {
+      res.status(404).json({ error: "Asset not found" });
+      return;
+    }
+
+    const isOrgWide = await hasOrgWideAssetAccess(req.membership!.id, "asset_management.manage");
+    if (!isOrgWide) {
+      const callerEmployeeId = await resolveAssetActorEmployeeId(organizationId, req.userId!);
+      const isOwnAssignment = await callerHasActiveAssignment(organizationId, assetId, callerEmployeeId);
+      if (!isOwnAssignment) {
+        res.status(403).json({ error: "Not authorized to view this asset's evidence" });
+        return;
+      }
+    }
+
+    res.json(await listAssetEvidence(organizationId, assetId));
+  },
+);
+
+router.post(
+  "/organizations/:organizationId/assets/:id/evidence",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requireModuleEnabled(ASSET_MANAGEMENT_MODULE_KEY),
+  requirePermission("asset_management.read.own"),
+  handleEvidenceUpload,
+  async (req: MembershipRequest, res): Promise<void> => {
+    const assetId = parseId(req.params.id);
+    if (isNaN(assetId) || !req.file) {
+      res.status(400).json({ error: "Invalid request" });
+      return;
+    }
+    const organizationId = req.membership!.organizationId;
+    const asset = await getAsset(organizationId, assetId);
+    if (!asset) {
+      res.status(404).json({ error: "Asset not found" });
+      return;
+    }
+
+    const isOrgWide = await hasOrgWideAssetAccess(req.membership!.id, "asset_management.manage");
+    if (!isOrgWide) {
+      const callerEmployeeId = await resolveAssetActorEmployeeId(organizationId, req.userId!);
+      const isOwnAssignment = await callerHasActiveAssignment(organizationId, assetId, callerEmployeeId);
+      if (!isOwnAssignment) {
+        res.status(403).json({ error: "Not authorized to add evidence to this asset" });
+        return;
+      }
+    }
+
+    try {
+      const evidence = await addAssetEvidence({
+        organizationId,
+        assetId,
+        file: { mimetype: req.file.mimetype, size: req.file.size, buffer: req.file.buffer, originalname: req.file.originalname },
+        actorApplicationUserId: req.userId!,
+        actorMembershipId: req.membership!.id,
+      });
+      res.status(201).json(evidence);
+    } catch (err) {
+      handleAssetError(err, res);
+    }
+  },
+);
+
+// GET /organizations/:organizationId/assets/:id/evidence/:evidenceId/download
+// Authorization-checked before any storage read: authenticate -> membership
+// -> module -> resolve asset -> prove the caller's own/org-wide visibility
+// -> confirm the evidence row belongs to this exact asset/org -> only then
+// read the file. No public URL is ever generated; the file streams through
+// this authenticated route on every request.
+router.get(
+  "/organizations/:organizationId/assets/:id/evidence/:evidenceId/download",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requireModuleEnabled(ASSET_MANAGEMENT_MODULE_KEY),
+  requirePermission("asset_management.read.own"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const assetId = parseId(req.params.id);
+    const evidenceId = parseId(req.params.evidenceId);
+    if (isNaN(assetId) || isNaN(evidenceId)) {
+      res.status(400).json({ error: "Invalid request" });
+      return;
+    }
+    const organizationId = req.membership!.organizationId;
+    const asset = await getAsset(organizationId, assetId);
+    if (!asset) {
+      res.status(404).json({ error: "Asset not found" });
+      return;
+    }
+
+    const isOrgWide = await hasOrgWideAssetAccess(req.membership!.id, "asset_management.manage");
+    if (!isOrgWide) {
+      const callerEmployeeId = await resolveAssetActorEmployeeId(organizationId, req.userId!);
+      const isOwnAssignment = await callerHasActiveAssignment(organizationId, assetId, callerEmployeeId);
+      if (!isOwnAssignment) {
+        res.status(403).json({ error: "Not authorized to access this asset's evidence" });
+        return;
+      }
+    }
+
+    const row = await getAssetEvidenceForDownload(organizationId, assetId, evidenceId);
+    if (!row) {
+      res.status(404).json({ error: "Evidence not found" });
+      return;
+    }
+
+    const buffer = await readOrgFile(organizationId, row.storageKey);
+    res.set("Content-Type", row.mimeType || "application/octet-stream");
+    res.set("Content-Disposition", `attachment; filename="${encodeURIComponent(row.fileName)}"`);
+    res.set("Cache-Control", "private, no-store");
+    res.send(buffer);
   },
 );
 

@@ -5743,6 +5743,95 @@ export interface DismissAssetIncidentInput {
   resolutionNotes?: string;
 }
 
+/**
+ * scheduled -> in_progress -> completed | cancelled. Both completed and cancelled are terminal — no reopen (§7).
+ */
+export type AssetMaintenanceStatus = typeof AssetMaintenanceStatus[keyof typeof AssetMaintenanceStatus];
+
+
+export const AssetMaintenanceStatus = {
+  scheduled: 'scheduled',
+  in_progress: 'in_progress',
+  completed: 'completed',
+  cancelled: 'cancelled',
+} as const;
+
+export interface AssetMaintenance {
+  id: number;
+  organizationId: number;
+  assetId: number;
+  maintenanceType: string;
+  /** @nullable */
+  description?: string | null;
+  /**
+     * Free text — no vendor/provider table (§11).
+     * @nullable
+     */
+  providerText?: string | null;
+  status: AssetMaintenanceStatus;
+  /** @nullable */
+  startedAt?: string | null;
+  /** @nullable */
+  completedAt?: string | null;
+  /**
+     * Optional, reference-only. No depreciation/accounting logic.
+     * @nullable
+     */
+  cost?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  createdByMembershipId?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAssetMaintenanceInput {
+  /** @minLength 1 */
+  maintenanceType: string;
+  description?: string;
+  providerText?: string;
+  /** @minimum 0 */
+  cost?: number;
+  notes?: string;
+}
+
+/**
+ * The server maps this to the correct validated conditional UPDATE — the request body never accepts a raw target status.
+ */
+export type AssetMaintenanceAction = typeof AssetMaintenanceAction[keyof typeof AssetMaintenanceAction];
+
+
+export const AssetMaintenanceAction = {
+  start: 'start',
+  complete: 'complete',
+  cancel: 'cancel',
+} as const;
+
+export interface UpdateAssetMaintenanceInput {
+  action: AssetMaintenanceAction;
+  /** @minimum 0 */
+  cost?: number;
+  notes?: string;
+}
+
+export interface AssetEvidence {
+  id: number;
+  organizationId: number;
+  assetId: number;
+  /** Points into the existing employee_documents table — no separate Assets storage layer (§13). */
+  employeeDocumentId: number;
+  /** @nullable */
+  addedByMembershipId: number | null;
+  addedAt: string;
+  /** Original client-supplied filename, for display only — never used to build a storage path. */
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  /** @nullable */
+  uploadedBy: number | null;
+}
+
 export type ListEmployeesParams = {
 search?: string;
 departmentId?: number;
@@ -6240,5 +6329,9 @@ export const ListAssetsCondition = {
 
 export type ListAssetIncidentsParams = {
 status?: AssetIncidentStatus;
+};
+
+export type AddAssetEvidenceBody = {
+  file: Blob;
 };
 

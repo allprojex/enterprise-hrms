@@ -24,6 +24,7 @@ import type {
   AcceptPerformanceReviewGoalInput,
   AcknowledgeAssetAssignmentInput,
   AcknowledgePerformanceReviewInput,
+  AddAssetEvidenceBody,
   AddCandidateTagInput,
   AddEmployeeCertificationInput,
   AddEmployeeDisciplinaryRecordInput,
@@ -45,8 +46,10 @@ import type {
   ApproveOfferVersionInput,
   Asset,
   AssetAssignment,
+  AssetEvidence,
   AssetIncident,
   AssetListResponse,
+  AssetMaintenance,
   AssignAssetInput,
   AssignLearningEnrollmentsInput,
   AssignLearningEnrollmentsResult,
@@ -71,6 +74,7 @@ import type {
   ConversionResult,
   CopyRoleTemplateInput,
   CreateAssetInput,
+  CreateAssetMaintenanceInput,
   CreateBackgroundCheckInput,
   CreateBranchInput,
   CreateCandidateNoteInput,
@@ -262,6 +266,7 @@ import type {
   TransferEmployeeInput,
   UpdateAssetConditionInput,
   UpdateAssetInput,
+  UpdateAssetMaintenanceInput,
   UpdateBackgroundCheckStatusInput,
   UpdateBranchInput,
   UpdateDepartmentInput,
@@ -25049,4 +25054,485 @@ export const useDismissAssetIncident = <TError = ErrorType<ApiError>,
       > => {
       return useMutation(getDismissAssetIncidentMutationOptions(options));
     }
+
+export const getListAssetMaintenanceUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/assets/${id}/maintenance`
+}
+
+/**
+ * Requires asset_management.manage — org-wide only; no own/manager visibility is frozen for maintenance history (§20). Simple history, newest first.
+ * @summary List an asset's maintenance history (HR/Asset-Officer)
+ */
+export const listAssetMaintenance = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<AssetMaintenance[]> => {
+
+  return customFetch<AssetMaintenance[]>(getListAssetMaintenanceUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAssetMaintenanceQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/assets/${id}/maintenance`
+    ] as const;
+    }
+
+
+export const getListAssetMaintenanceQueryOptions = <TData = Awaited<ReturnType<typeof listAssetMaintenance>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAssetMaintenance>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAssetMaintenanceQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAssetMaintenance>>> = ({ signal }) => listAssetMaintenance(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAssetMaintenance>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAssetMaintenanceQueryResult = NonNullable<Awaited<ReturnType<typeof listAssetMaintenance>>>
+export type ListAssetMaintenanceQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List an asset's maintenance history (HR/Asset-Officer)
+ */
+
+export function useListAssetMaintenance<TData = Awaited<ReturnType<typeof listAssetMaintenance>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAssetMaintenance>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAssetMaintenanceQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateAssetMaintenanceUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/assets/${id}/maintenance`
+}
+
+/**
+ * Requires asset_management.manage. Creates a `scheduled` maintenance record — never touches the asset's own status (§7). Blocked only on a retired asset.
+ * @summary Schedule a maintenance record for an asset (HR/Asset-Officer)
+ */
+export const createAssetMaintenance = async (organizationId: number,
+    id: number,
+    createAssetMaintenanceInput: CreateAssetMaintenanceInput, options?: RequestInit): Promise<AssetMaintenance> => {
+
+  return customFetch<AssetMaintenance>(getCreateAssetMaintenanceUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createAssetMaintenanceInput)
+  }
+);}
+
+
+
+
+
+export const getCreateAssetMaintenanceMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAssetMaintenance>>, TError,{organizationId: number;id: number;data: BodyType<CreateAssetMaintenanceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAssetMaintenance>>, TError,{organizationId: number;id: number;data: BodyType<CreateAssetMaintenanceInput>}, TContext> => {
+
+const mutationKey = ['createAssetMaintenance'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAssetMaintenance>>, {organizationId: number;id: number;data: BodyType<CreateAssetMaintenanceInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  createAssetMaintenance(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAssetMaintenanceMutationResult = NonNullable<Awaited<ReturnType<typeof createAssetMaintenance>>>
+    export type CreateAssetMaintenanceMutationBody = BodyType<CreateAssetMaintenanceInput>
+    export type CreateAssetMaintenanceMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Schedule a maintenance record for an asset (HR/Asset-Officer)
+ */
+export const useCreateAssetMaintenance = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAssetMaintenance>>, TError,{organizationId: number;id: number;data: BodyType<CreateAssetMaintenanceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createAssetMaintenance>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<CreateAssetMaintenanceInput>},
+        TContext
+      > => {
+      return useMutation(getCreateAssetMaintenanceMutationOptions(options));
+    }
+
+export const getUpdateAssetMaintenanceUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/asset-maintenance/${id}`
+}
+
+/**
+ * Requires asset_management.manage. The single frozen route for every maintenance lifecycle transition (§20) — dispatched by the `action` field, never a raw target status. `start` atomically sets the asset's own status to `maintenance` (from `available`/`assigned` only). `complete`/`cancel` (from `in_progress`) atomically derive the asset's own post-maintenance status — `assigned` if an active custody row still exists, `available` otherwise — live, inside the same transaction; this is never caller-suppliable. `cancel` is also accepted from `scheduled`, which never touched the asset's own status in the first place.
+ * @summary Transition a maintenance record (start / complete / cancel)
+ */
+export const updateAssetMaintenance = async (organizationId: number,
+    id: number,
+    updateAssetMaintenanceInput: UpdateAssetMaintenanceInput, options?: RequestInit): Promise<AssetMaintenance> => {
+
+  return customFetch<AssetMaintenance>(getUpdateAssetMaintenanceUrl(organizationId,id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateAssetMaintenanceInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateAssetMaintenanceMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAssetMaintenance>>, TError,{organizationId: number;id: number;data: BodyType<UpdateAssetMaintenanceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAssetMaintenance>>, TError,{organizationId: number;id: number;data: BodyType<UpdateAssetMaintenanceInput>}, TContext> => {
+
+const mutationKey = ['updateAssetMaintenance'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAssetMaintenance>>, {organizationId: number;id: number;data: BodyType<UpdateAssetMaintenanceInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  updateAssetMaintenance(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAssetMaintenanceMutationResult = NonNullable<Awaited<ReturnType<typeof updateAssetMaintenance>>>
+    export type UpdateAssetMaintenanceMutationBody = BodyType<UpdateAssetMaintenanceInput>
+    export type UpdateAssetMaintenanceMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Transition a maintenance record (start / complete / cancel)
+ */
+export const useUpdateAssetMaintenance = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAssetMaintenance>>, TError,{organizationId: number;id: number;data: BodyType<UpdateAssetMaintenanceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAssetMaintenance>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<UpdateAssetMaintenanceInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateAssetMaintenanceMutationOptions(options));
+    }
+
+export const getListAssetEvidenceUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/assets/${id}/evidence`
+}
+
+/**
+ * Same visibility tier as the asset itself (§20) — organization-wide (asset_management.manage) or own-scope (the caller currently holds this specific asset).
+ * @summary List evidence attached to an asset
+ */
+export const listAssetEvidence = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<AssetEvidence[]> => {
+
+  return customFetch<AssetEvidence[]>(getListAssetEvidenceUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAssetEvidenceQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/assets/${id}/evidence`
+    ] as const;
+    }
+
+
+export const getListAssetEvidenceQueryOptions = <TData = Awaited<ReturnType<typeof listAssetEvidence>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAssetEvidence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAssetEvidenceQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAssetEvidence>>> = ({ signal }) => listAssetEvidence(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAssetEvidence>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAssetEvidenceQueryResult = NonNullable<Awaited<ReturnType<typeof listAssetEvidence>>>
+export type ListAssetEvidenceQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List evidence attached to an asset
+ */
+
+export function useListAssetEvidence<TData = Awaited<ReturnType<typeof listAssetEvidence>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAssetEvidence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAssetEvidenceQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAddAssetEvidenceUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/assets/${id}/evidence`
+}
+
+/**
+ * multipart/form-data upload. Reuses the existing employee_documents storage layer verbatim (§13) — PDF, JPEG, PNG, DOCX, and XLSX only, validated by file signature, 10MB max, identical to every other document upload on this platform. Same visibility tier as the asset itself — organization-wide or own-scope (currently holds this asset). The created employee_documents row has employeeId=null (an asset has no natural single-employee owner, §13).
+ * @summary Attach evidence to an asset
+ */
+export const addAssetEvidence = async (organizationId: number,
+    id: number,
+    addAssetEvidenceBody: AddAssetEvidenceBody, options?: RequestInit): Promise<AssetEvidence> => {
+    const formData = new FormData();
+formData.append(`file`, addAssetEvidenceBody.file);
+
+  return customFetch<AssetEvidence>(getAddAssetEvidenceUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+    ,
+    body: formData
+  }
+);}
+
+
+
+
+
+export const getAddAssetEvidenceMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addAssetEvidence>>, TError,{organizationId: number;id: number;data: BodyType<AddAssetEvidenceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addAssetEvidence>>, TError,{organizationId: number;id: number;data: BodyType<AddAssetEvidenceBody>}, TContext> => {
+
+const mutationKey = ['addAssetEvidence'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addAssetEvidence>>, {organizationId: number;id: number;data: BodyType<AddAssetEvidenceBody>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  addAssetEvidence(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddAssetEvidenceMutationResult = NonNullable<Awaited<ReturnType<typeof addAssetEvidence>>>
+    export type AddAssetEvidenceMutationBody = BodyType<AddAssetEvidenceBody>
+    export type AddAssetEvidenceMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Attach evidence to an asset
+ */
+export const useAddAssetEvidence = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addAssetEvidence>>, TError,{organizationId: number;id: number;data: BodyType<AddAssetEvidenceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addAssetEvidence>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<AddAssetEvidenceBody>},
+        TContext
+      > => {
+      return useMutation(getAddAssetEvidenceMutationOptions(options));
+    }
+
+export const getDownloadAssetEvidenceUrl = (organizationId: number,
+    id: number,
+    evidenceId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/assets/${id}/evidence/${evidenceId}/download`
+}
+
+/**
+ * Authorization-checked before any storage read (same visibility tier as the asset itself). No public or signed URL is ever generated — the file streams through this authenticated route on every request.
+ * @summary Download a single evidence file
+ */
+export const downloadAssetEvidence = async (organizationId: number,
+    id: number,
+    evidenceId: number, options?: RequestInit): Promise<Blob> => {
+
+  return customFetch<Blob>(getDownloadAssetEvidenceUrl(organizationId,id,evidenceId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadAssetEvidenceQueryKey = (organizationId: number,
+    id: number,
+    evidenceId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/assets/${id}/evidence/${evidenceId}/download`
+    ] as const;
+    }
+
+
+export const getDownloadAssetEvidenceQueryOptions = <TData = Awaited<ReturnType<typeof downloadAssetEvidence>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number,
+    evidenceId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadAssetEvidence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadAssetEvidenceQueryKey(organizationId,id,evidenceId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadAssetEvidence>>> = ({ signal }) => downloadAssetEvidence(organizationId,id,evidenceId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined && evidenceId !== null && evidenceId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadAssetEvidence>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DownloadAssetEvidenceQueryResult = NonNullable<Awaited<ReturnType<typeof downloadAssetEvidence>>>
+export type DownloadAssetEvidenceQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Download a single evidence file
+ */
+
+export function useDownloadAssetEvidence<TData = Awaited<ReturnType<typeof downloadAssetEvidence>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number,
+    evidenceId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadAssetEvidence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDownloadAssetEvidenceQueryOptions(organizationId,id,evidenceId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 

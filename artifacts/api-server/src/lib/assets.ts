@@ -65,17 +65,23 @@ import {
   assetsTable,
   assetAssignmentsTable,
   assetIncidentsTable,
+  assetMaintenanceTable,
+  assetEvidenceTable,
+  employeeDocumentsTable,
   branchesTable,
   employeesTable,
   type Asset,
   type AssetAssignment,
   type AssetIncident,
+  type AssetMaintenance,
 } from "@workspace/db";
 import { recordAuditEvent } from "./auditLog";
 import { assertBelongsToOrganization, CrossOrganizationReferenceError } from "./orgScopedRefs";
 import { isUniqueViolation } from "./dbErrors";
+import { writeOrgFile, deleteOrgFile } from "./fileStorage";
+import { validateDocumentUpload, InvalidDocumentError } from "./documentValidation";
 
-export { CrossOrganizationReferenceError };
+export { CrossOrganizationReferenceError, InvalidDocumentError };
 
 export class AssetNotFoundError extends Error {
   constructor() {
@@ -117,6 +123,19 @@ export class AssetIncidentNotFoundError extends Error {
   }
 }
 export class AssetIncidentConflictError extends Error {}
+export class AssetMaintenanceNotFoundError extends Error {
+  constructor() {
+    super("Asset maintenance record not found");
+    this.name = "AssetMaintenanceNotFoundError";
+  }
+}
+export class AssetMaintenanceConflictError extends Error {}
+export class AssetEvidenceNotFoundError extends Error {
+  constructor() {
+    super("Asset evidence not found");
+    this.name = "AssetEvidenceNotFoundError";
+  }
+}
 
 type AssetCondition = "new" | "good" | "fair" | "poor" | "damaged";
 
@@ -157,6 +176,15 @@ async function findOrgIncident(organizationId: number, incidentId: number): Prom
     .select()
     .from(assetIncidentsTable)
     .where(and(eq(assetIncidentsTable.id, incidentId), eq(assetIncidentsTable.organizationId, organizationId)))
+    .limit(1);
+  return row ?? null;
+}
+
+async function findOrgMaintenance(organizationId: number, maintenanceId: number): Promise<AssetMaintenance | null> {
+  const [row] = await db
+    .select()
+    .from(assetMaintenanceTable)
+    .where(and(eq(assetMaintenanceTable.id, maintenanceId), eq(assetMaintenanceTable.organizationId, organizationId)))
     .limit(1);
   return row ?? null;
 }
@@ -1253,4 +1281,484 @@ export async function dismissAssetIncident(params: DismissAssetIncidentParams): 
   });
 
   return updated;
+}
+
+/**
+ * ============================================================================
+ * Asset Management (Phase 3E, W100 — Maintenance & Documents/Evidence):
+ * docs/PHASE_3E_ASSETS_IMPLEMENTATION_PLAN.md §5/§7/§11/§13/§20/§24's own
+ * frozen W100 scope. Simple maintenance HISTORY only (no scheduling engine,
+ * no work orders, no vendor management, no parts inventory, no SLA/reminder
+ * functionality — §11) plus asset evidence/document attachment reusing the
+ * EXISTING employee_documents/fileStorage/documentValidation layer verbatim
+ * (§13, Owner Decision 9) — no second storage subsystem, no public URLs.
+ *
+ * MAINTENANCE ROUTE SHAPE (§20's own literal table): exactly two routes —
+ * `GET, POST .../assets/:id/maintenance` (list/create) and a SINGLE
+ * `PATCH .../asset-maintenance/:id` for every lifecycle transition. "No
+ * status-smuggling through generic PATCH" (this workstream's own explicit
+ * instruction) does not mean a second route per transition — the frozen
+ * table names exactly one PATCH route — it means that route's own request
+ * body never accepts a raw target `status` field; it accepts a closed
+ * `action` enum (`start`/`complete`/`cancel`) that this file alone maps to
+ * the correct validated conditional UPDATE. A client can never smuggle an
+ * arbitrary status value through it.
+ *
+ * MAINTENANCE LIFECYCLE (§7): `scheduled -> in_progress -> completed |
+ * cancelled`. `completed` and `cancelled` are both terminal — no reopen; a
+ * further service need creates a new asset_maintenance row. `cancel` is
+ * accepted from EITHER `scheduled` (never touched assets.status — nothing to
+ * revert) or `in_progress` (assets.status was set to 'maintenance' at start
+ * time and must be restored via the identical derivation logic completion
+ * uses) — the frozen lifecycle diagram itself is silent on which prior
+ * states cancel is reachable from; permitting both is the only reading that
+ * never corrupts assets.status either way, disclosed here as a reasoned
+ * interpretation, not a frozen-literal one.
+ *
+ * ASSET STATUS DURING MAINTENANCE (§7, this workstream's own central
+ * invariant): creating (`scheduled`) a maintenance record never touches
+ * assets.status. Only `start` (`available|assigned -> maintenance`, atomic
+ * with the maintenance row's own `scheduled -> in_progress` transition) and
+ * `complete`/`cancel-from-in_progress` (deriving `available` or `assigned`
+ * from whether an active, `custodyEndedAt IS NULL`, asset_assignments row
+ * still exists — queried fresh, inside the same transaction, never trusted
+ * from any caller input or stale snapshot) touch it, always in the same
+ * transaction as the maintenance row's own transition. The caller can never
+ * supply a target asset status — `completeAssetMaintenance`/
+ * `cancelAssetMaintenance` accept no such field anywhere in their params.
+ *
+ * A REAL RACE, NOT MERELY DEFENSIVE: because markAssetLost's own existing
+ * W96 transition already accepts 'maintenance' as a valid source status
+ * (§7: "available/assigned/maintenance -> lost"), an asset can genuinely be
+ * marked lost out from under an in_progress maintenance record. The
+ * asset-side conditional UPDATE inside `completeAssetMaintenance`/
+ * `cancelAssetMaintenance` (`WHERE status = 'maintenance'`) is this file's
+ * real protection against that — if it has fired, the maintenance
+ * transition itself is rolled back and a controlled 409 is returned
+ * ("this asset is no longer in a maintenance state"), never a silent asset
+ * status overwrite.
+ *
+ * CUSTODY INTEGRITY: nothing here ever creates, closes, or rewrites an
+ * asset_assignments row — `completeAssetMaintenance`/`cancelAssetMaintenance`
+ * only ever READ the open assignment row (if any) to decide the derived
+ * target status; the row itself, and its own snapshots, are untouched by
+ * this file, identical discipline to every other W96-W99 action that reads
+ * but never mutates custody history incidentally.
+ *
+ * MAINTENANCE AUTHORIZATION (§15, §20): `asset_management.manage` only,
+ * every route, no exception — never reachable through `read.own`/
+ * `write.own`/`reports.read`/manager-of-record. `write.own` is untouched by
+ * this file (still exactly acknowledge + report-issue, §15's permanent
+ * invariant).
+ *
+ * EVIDENCE VISIBILITY (§20's own literal table row, "same visibility tier as
+ * the asset itself" for BOTH the GET/POST evidence row and the download
+ * row): the exact same two-tier dual-floor GET .../assets/:id already
+ * resolves — organization-wide (`asset_management.manage`) OR own-scope
+ * (the caller currently holds this specific asset via an open
+ * asset_assignments row, `callerHasActiveAssignment`) — reused verbatim,
+ * zero new authorization primitives. There is no manager tier for evidence
+ * (Assets' own asset-detail dispatch has never had one — `team-assets` is a
+ * separate, bespoke, read-only route, not reused here). This resolves an
+ * apparent tension against this workstream's own scope-entry text
+ * ("Permissions used: asset_management.manage, plus the existing
+ * evidence-visibility-tier resolution") — that text is satisfied because
+ * the org-wide half of the dual-floor dispatch itself checks
+ * `asset_management.manage`; it does not mean upload is restricted to
+ * `.manage` alone while GET/download use a broader tier. This mirrors the
+ * proven Learning W90 precedent exactly (`learningEnrollmentEvidence.ts`'s
+ * own `addEvidence`/`resolveEvidenceEnrollmentRelationship`), which also
+ * permits upload at the identical tier as read — not merely list/download.
+ * Employee own-scope evidence access here is NOT authorized through
+ * `write.own` (still exactly acknowledge + report-issue) — the route-level
+ * permission floor is `asset_management.read.own`, matching GET
+ * .../assets/:id's own existing floor exactly.
+ *
+ * DOCUMENT OWNERSHIP (§13, W95's own nullable employeeId change): every
+ * employee_documents row this file creates has `employeeId: null` — an
+ * asset has no natural single-employee owner, and no uploader/custodian/
+ * manager is ever fabricated into that field to populate it.
+ *
+ * FILE/DB CONSISTENCY: identical compensating-deletion discipline to
+ * performanceReviewEvidence.ts's/learningEnrollmentEvidence.ts's own W82/
+ * W90 precedent — the file is written first; if the subsequent transaction
+ * (both inserts) fails for any reason, the already-written physical file is
+ * deleted before the error propagates, so storage and the database can
+ * never disagree.
+ *
+ * NO DELETE ROUTE: §20 names no delete/remove contract for evidence, so
+ * none is built here — attach/list/download only, identical to Learning's
+ * own "no delete route" precedent.
+ * ============================================================================
+ */
+
+export type AssetMaintenanceAction = "start" | "complete" | "cancel";
+
+export interface CreateAssetMaintenanceParams {
+  organizationId: number;
+  assetId: number;
+  maintenanceType: string;
+  description?: string;
+  providerText?: string;
+  cost?: number;
+  notes?: string;
+  actorApplicationUserId: number;
+  actorMembershipId: number;
+}
+
+/**
+ * GET/POST .../assets/:id/maintenance's own POST half (§20). Creates a new
+ * `scheduled` maintenance row — never touches assets.status (see file
+ * header). Blocked only on a `retired` asset (permanently terminal, §7's
+ * own universal "no further transitions" rule) — every other asset status
+ * may be scheduled ahead; the `start` transition's own atomic guard is the
+ * real enforcement point for which of those statuses can actually begin
+ * (§7's own literal "available/assigned -> maintenance" transitions).
+ */
+export async function createAssetMaintenance(params: CreateAssetMaintenanceParams): Promise<AssetMaintenance> {
+  const asset = await findOwnAsset(params.organizationId, params.assetId);
+  if (!asset) throw new AssetNotFoundError();
+  if (asset.status === "retired") {
+    throw new AssetLifecycleConflictError("This asset is retired and cannot be scheduled for maintenance");
+  }
+  if (params.cost != null && params.cost < 0) {
+    throw new InvalidAssetError("cost must not be negative");
+  }
+
+  const [maintenance] = await db
+    .insert(assetMaintenanceTable)
+    .values({
+      organizationId: params.organizationId,
+      assetId: params.assetId,
+      maintenanceType: params.maintenanceType,
+      description: params.description ?? null,
+      providerText: params.providerText ?? null,
+      status: "scheduled",
+      startedAt: null,
+      completedAt: null,
+      cost: params.cost != null ? String(params.cost) : null,
+      notes: params.notes ?? null,
+      createdByMembershipId: params.actorMembershipId,
+    })
+    .returning();
+
+  return maintenance;
+}
+
+/** GET .../assets/:id/maintenance (§20): org-wide only — no own/manager visibility is frozen for maintenance history, so none is invented here. Read-only, never audited. */
+export async function listAssetMaintenance(organizationId: number, assetId: number): Promise<AssetMaintenance[]> {
+  return db
+    .select()
+    .from(assetMaintenanceTable)
+    .where(and(eq(assetMaintenanceTable.organizationId, organizationId), eq(assetMaintenanceTable.assetId, assetId)))
+    .orderBy(desc(assetMaintenanceTable.createdAt));
+}
+
+/** Live "does an active custody row still exist" check — queried fresh at completion/cancellation time, never trusted from a snapshot (§7's own explicit derivation rule). */
+async function hasActiveAssignmentForAsset(organizationId: number, assetId: number): Promise<boolean> {
+  const [row] = await db
+    .select({ id: assetAssignmentsTable.id })
+    .from(assetAssignmentsTable)
+    .where(and(eq(assetAssignmentsTable.organizationId, organizationId), eq(assetAssignmentsTable.assetId, assetId), isNull(assetAssignmentsTable.custodyEndedAt)))
+    .limit(1);
+  return !!row;
+}
+
+export interface UpdateAssetMaintenanceParams {
+  organizationId: number;
+  maintenanceId: number;
+  action: AssetMaintenanceAction;
+  cost?: number;
+  notes?: string;
+  actorApplicationUserId: number;
+  actorMembershipId: number;
+}
+
+/**
+ * PATCH .../asset-maintenance/:id (§20) — the single frozen route for every
+ * maintenance lifecycle transition, dispatched by the caller-supplied
+ * `action` (never a raw target status). The maintenance record's own
+ * `assetId` (never a caller-supplied one — the route carries no separate
+ * asset id) is what the asset-side atomic update targets.
+ */
+export async function updateAssetMaintenance(params: UpdateAssetMaintenanceParams): Promise<AssetMaintenance> {
+  const existing = await findOrgMaintenance(params.organizationId, params.maintenanceId);
+  if (!existing) throw new AssetMaintenanceNotFoundError();
+  const assetId = existing.assetId;
+  if (params.cost != null && params.cost < 0) {
+    throw new InvalidAssetError("cost must not be negative");
+  }
+
+  const optionalPatch: Record<string, unknown> = {};
+  if (params.cost !== undefined) optionalPatch.cost = String(params.cost);
+  if (params.notes !== undefined) optionalPatch.notes = params.notes;
+
+  if (params.action === "start") {
+    const updated = await db.transaction(async (tx) => {
+      const [maintenanceRow] = await tx
+        .update(assetMaintenanceTable)
+        .set({ status: "in_progress", startedAt: new Date(), updatedAt: new Date(), ...optionalPatch })
+        .where(and(eq(assetMaintenanceTable.id, params.maintenanceId), eq(assetMaintenanceTable.organizationId, params.organizationId), eq(assetMaintenanceTable.status, "scheduled")))
+        .returning();
+      if (!maintenanceRow) return null;
+
+      const [assetRow] = await tx
+        .update(assetsTable)
+        .set({ status: "maintenance", updatedAt: new Date() })
+        .where(and(eq(assetsTable.id, assetId), eq(assetsTable.organizationId, params.organizationId), or(eq(assetsTable.status, "available"), eq(assetsTable.status, "assigned"))!))
+        .returning();
+      if (!assetRow) {
+        throw new AssetLifecycleConflictError("This asset is not currently in a state that can enter maintenance");
+      }
+
+      return maintenanceRow;
+    });
+    if (!updated) {
+      throw new AssetMaintenanceConflictError(existing.status === "scheduled" ? "This maintenance record is no longer scheduled" : `This maintenance record has already been ${existing.status === "in_progress" ? "started" : existing.status}`);
+    }
+
+    await recordAuditEvent({
+      actorApplicationUserId: params.actorApplicationUserId,
+      actorMembershipId: params.actorMembershipId,
+      organizationId: params.organizationId,
+      eventType: "asset_maintenance.started",
+      targetType: "asset_maintenance",
+      targetId: String(params.maintenanceId),
+      beforeState: { status: "scheduled" },
+      afterState: { status: "in_progress" },
+      metadata: { assetId },
+    });
+
+    return updated;
+  }
+
+  if (params.action === "complete" || params.action === "cancel") {
+    const terminalStatus = params.action === "complete" ? "completed" : "cancelled";
+
+    if (existing.status === "scheduled") {
+      // cancel-from-scheduled: assets.status was never touched (see file
+      // header) — a pure maintenance-row transition, no asset-side update.
+      if (params.action === "complete") {
+        throw new AssetMaintenanceConflictError("This maintenance record has not been started yet");
+      }
+      const [updated] = await db
+        .update(assetMaintenanceTable)
+        .set({ status: "cancelled", updatedAt: new Date(), ...optionalPatch })
+        .where(and(eq(assetMaintenanceTable.id, params.maintenanceId), eq(assetMaintenanceTable.organizationId, params.organizationId), eq(assetMaintenanceTable.status, "scheduled")))
+        .returning();
+      if (!updated) {
+        throw new AssetMaintenanceConflictError(`This maintenance record has already been ${existing.status}`);
+      }
+      await recordAuditEvent({
+        actorApplicationUserId: params.actorApplicationUserId,
+        actorMembershipId: params.actorMembershipId,
+        organizationId: params.organizationId,
+        eventType: "asset_maintenance.cancelled",
+        targetType: "asset_maintenance",
+        targetId: String(params.maintenanceId),
+        beforeState: { status: "scheduled" },
+        afterState: { status: "cancelled" },
+        metadata: { assetId },
+      });
+      return updated;
+    }
+
+    if (existing.status !== "in_progress") {
+      throw new AssetMaintenanceConflictError(`This maintenance record has already been ${existing.status}`);
+    }
+
+    // in_progress -> completed | cancelled: both derive the asset's own
+    // post-maintenance status live, inside the same transaction as the
+    // maintenance row's own transition — never caller-supplied (§7).
+    const updated = await db.transaction(async (tx) => {
+      const stillAssigned = await hasActiveAssignmentForAsset(params.organizationId, assetId);
+      const derivedAssetStatus = stillAssigned ? "assigned" : "available";
+
+      const maintenancePatch: Record<string, unknown> = { status: terminalStatus, updatedAt: new Date(), ...optionalPatch };
+      if (params.action === "complete") maintenancePatch.completedAt = new Date();
+
+      const [maintenanceRow] = await tx
+        .update(assetMaintenanceTable)
+        .set(maintenancePatch)
+        .where(and(eq(assetMaintenanceTable.id, params.maintenanceId), eq(assetMaintenanceTable.organizationId, params.organizationId), eq(assetMaintenanceTable.status, "in_progress")))
+        .returning();
+      if (!maintenanceRow) return null;
+
+      const [assetRow] = await tx
+        .update(assetsTable)
+        .set({ status: derivedAssetStatus, updatedAt: new Date() })
+        .where(and(eq(assetsTable.id, assetId), eq(assetsTable.organizationId, params.organizationId), eq(assetsTable.status, "maintenance")))
+        .returning();
+      if (!assetRow) {
+        // A real race (see file header) — e.g. the asset was marked lost
+        // while this maintenance record was in_progress — not merely
+        // defensive. Rolls back both updates; a controlled 409, never a
+        // silent asset-status overwrite.
+        throw new AssetMaintenanceConflictError("This asset is no longer in a maintenance state");
+      }
+
+      return maintenanceRow;
+    });
+    if (!updated) {
+      throw new AssetMaintenanceConflictError(`This maintenance record has already been ${existing.status}`);
+    }
+
+    await recordAuditEvent({
+      actorApplicationUserId: params.actorApplicationUserId,
+      actorMembershipId: params.actorMembershipId,
+      organizationId: params.organizationId,
+      eventType: params.action === "complete" ? "asset_maintenance.completed" : "asset_maintenance.cancelled",
+      targetType: "asset_maintenance",
+      targetId: String(params.maintenanceId),
+      beforeState: { status: "in_progress" },
+      afterState: { status: terminalStatus },
+      metadata: { assetId },
+    });
+
+    return updated;
+  }
+
+  throw new InvalidAssetError("Unknown maintenance action");
+}
+
+export interface AssetEvidenceWithDocument {
+  id: number;
+  organizationId: number;
+  assetId: number;
+  employeeDocumentId: number;
+  addedByMembershipId: number | null;
+  addedAt: Date;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  uploadedBy: number | null;
+}
+
+/** The document_category Master Data code Assets' own evidence uploads register under — a free string, not validated against the domain's item list, identical precedent to Learning's own LEARNING_EVIDENCE_CATEGORY. */
+export const ASSET_EVIDENCE_CATEGORY = "asset_evidence";
+
+/** GET .../assets/:id/evidence (§20): org-scoped, asset-scoped, most recently added first. */
+export async function listAssetEvidence(organizationId: number, assetId: number): Promise<AssetEvidenceWithDocument[]> {
+  return db
+    .select({
+      id: assetEvidenceTable.id,
+      organizationId: assetEvidenceTable.organizationId,
+      assetId: assetEvidenceTable.assetId,
+      employeeDocumentId: assetEvidenceTable.employeeDocumentId,
+      addedByMembershipId: assetEvidenceTable.addedByMembershipId,
+      addedAt: assetEvidenceTable.addedAt,
+      fileName: employeeDocumentsTable.fileName,
+      mimeType: employeeDocumentsTable.mimeType,
+      fileSize: employeeDocumentsTable.fileSize,
+      uploadedBy: employeeDocumentsTable.uploadedBy,
+    })
+    .from(assetEvidenceTable)
+    .innerJoin(employeeDocumentsTable, eq(assetEvidenceTable.employeeDocumentId, employeeDocumentsTable.id))
+    .where(and(eq(assetEvidenceTable.organizationId, organizationId), eq(assetEvidenceTable.assetId, assetId)))
+    .orderBy(desc(assetEvidenceTable.addedAt));
+}
+
+/** A single evidence row's document metadata + storage key — for the authorization-checked download route only (storageKey never otherwise leaves this file). */
+export async function getAssetEvidenceForDownload(organizationId: number, assetId: number, evidenceId: number) {
+  const [row] = await db
+    .select({
+      id: assetEvidenceTable.id,
+      fileName: employeeDocumentsTable.fileName,
+      mimeType: employeeDocumentsTable.mimeType,
+      storageKey: employeeDocumentsTable.storageKey,
+    })
+    .from(assetEvidenceTable)
+    .innerJoin(employeeDocumentsTable, eq(assetEvidenceTable.employeeDocumentId, employeeDocumentsTable.id))
+    .where(and(eq(assetEvidenceTable.id, evidenceId), eq(assetEvidenceTable.assetId, assetId), eq(assetEvidenceTable.organizationId, organizationId)))
+    .limit(1);
+  return row ?? null;
+}
+
+export interface AddAssetEvidenceParams {
+  organizationId: number;
+  assetId: number;
+  file: { mimetype: string; size: number; buffer: Buffer; originalname: string };
+  actorApplicationUserId: number;
+  actorMembershipId: number;
+}
+
+/**
+ * Validates the upload (identical rigor to every other document upload on
+ * this platform — file-signature-checked, 10MB cap, allowlisted MIME
+ * types), writes the file, then creates the employee_documents row
+ * (`employeeId: null` — see file header) and the asset_evidence join row
+ * together in one transaction. If the transaction fails, the already-
+ * written file is deleted (compensating cleanup).
+ */
+export async function addAssetEvidence(params: AddAssetEvidenceParams): Promise<AssetEvidenceWithDocument> {
+  const asset = await findOwnAsset(params.organizationId, params.assetId);
+  if (!asset) throw new AssetNotFoundError();
+
+  const extension = validateDocumentUpload(params.file);
+  const storageKey = await writeOrgFile(params.organizationId, "documents", extension, params.file.buffer);
+
+  try {
+    const { document, evidence } = await db.transaction(async (tx) => {
+      const [document] = await tx
+        .insert(employeeDocumentsTable)
+        .values({
+          organizationId: params.organizationId,
+          employeeId: null,
+          categoryCode: ASSET_EVIDENCE_CATEGORY,
+          fileName: params.file.originalname,
+          storageKey,
+          mimeType: params.file.mimetype,
+          fileSize: params.file.size,
+          uploadedBy: params.actorApplicationUserId,
+        })
+        .returning();
+
+      const [evidence] = await tx
+        .insert(assetEvidenceTable)
+        .values({
+          organizationId: params.organizationId,
+          assetId: params.assetId,
+          employeeDocumentId: document.id,
+          addedByMembershipId: params.actorMembershipId,
+        })
+        .returning();
+
+      return { document, evidence };
+    });
+
+    await recordAuditEvent({
+      actorApplicationUserId: params.actorApplicationUserId,
+      actorMembershipId: params.actorMembershipId,
+      organizationId: params.organizationId,
+      eventType: "employee_document.uploaded",
+      targetType: "asset",
+      targetId: String(params.assetId),
+      metadata: { documentId: document.id, categoryCode: document.categoryCode, fileName: document.fileName },
+    });
+    await recordAuditEvent({
+      actorApplicationUserId: params.actorApplicationUserId,
+      actorMembershipId: params.actorMembershipId,
+      organizationId: params.organizationId,
+      eventType: "asset_evidence.attached",
+      targetType: "asset",
+      targetId: String(params.assetId),
+      metadata: { evidenceId: evidence.id, employeeDocumentId: document.id, fileName: document.fileName, mimeType: document.mimeType, sizeBytes: document.fileSize },
+    });
+
+    return {
+      id: evidence.id,
+      organizationId: evidence.organizationId,
+      assetId: evidence.assetId,
+      employeeDocumentId: evidence.employeeDocumentId,
+      addedByMembershipId: evidence.addedByMembershipId,
+      addedAt: evidence.addedAt,
+      fileName: document.fileName,
+      mimeType: document.mimeType,
+      fileSize: document.fileSize,
+      uploadedBy: document.uploadedBy,
+    };
+  } catch (err) {
+    await deleteOrgFile(params.organizationId, storageKey);
+    throw err;
+  }
 }

@@ -12782,6 +12782,298 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/assets/{id}/maintenance:
+    get:
+      operationId: listAssetMaintenance
+      tags: [assets]
+      summary: List an asset's maintenance history (HR/Asset-Officer)
+      description: >-
+        Requires asset_management.manage — org-wide only; no own/manager
+        visibility is frozen for maintenance history (§20). Simple history,
+        newest first.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Maintenance history for this asset
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AssetMaintenance"
+        "404":
+          description: Asset not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createAssetMaintenance
+      tags: [assets]
+      summary: Schedule a maintenance record for an asset (HR/Asset-Officer)
+      description: >-
+        Requires asset_management.manage. Creates a `scheduled` maintenance
+        record — never touches the asset's own status (§7). Blocked only on
+        a retired asset.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAssetMaintenanceInput"
+      responses:
+        "201":
+          description: Scheduled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetMaintenance"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Asset not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: This asset is retired and cannot be scheduled for maintenance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/asset-maintenance/{id}:
+    patch:
+      operationId: updateAssetMaintenance
+      tags: [assets]
+      summary: Transition a maintenance record (start / complete / cancel)
+      description: >-
+        Requires asset_management.manage. The single frozen route for every
+        maintenance lifecycle transition (§20) — dispatched by the `action`
+        field, never a raw target status. `start` atomically sets the
+        asset's own status to `maintenance` (from `available`/`assigned`
+        only). `complete`/`cancel` (from `in_progress`) atomically derive
+        the asset's own post-maintenance status — `assigned` if an active
+        custody row still exists, `available` otherwise — live, inside the
+        same transaction; this is never caller-suppliable. `cancel` is also
+        accepted from `scheduled`, which never touched the asset's own
+        status in the first place.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAssetMaintenanceInput"
+      responses:
+        "200":
+          description: Transitioned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetMaintenance"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: This maintenance record is not in a state that permits this action, or the asset is no longer in a maintenance state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/assets/{id}/evidence:
+    get:
+      operationId: listAssetEvidence
+      tags: [assets]
+      summary: List evidence attached to an asset
+      description: >-
+        Same visibility tier as the asset itself (§20) — organization-wide
+        (asset_management.manage) or own-scope (the caller currently holds
+        this specific asset).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Evidence attached to this asset
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AssetEvidence"
+        "403":
+          description: Not authorized to view this asset's evidence
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Asset not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: addAssetEvidence
+      tags: [assets]
+      summary: Attach evidence to an asset
+      description: >-
+        multipart/form-data upload. Reuses the existing employee_documents
+        storage layer verbatim (§13) — PDF, JPEG, PNG, DOCX, and XLSX only,
+        validated by file signature, 10MB max, identical to every other
+        document upload on this platform. Same visibility tier as the asset
+        itself — organization-wide or own-scope (currently holds this
+        asset). The created employee_documents row has employeeId=null (an
+        asset has no natural single-employee owner, §13).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          description: Evidence attached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetEvidence"
+        "400":
+          description: Invalid file
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Not authorized to add evidence to this asset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Asset not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/assets/{id}/evidence/{evidenceId}/download:
+    get:
+      operationId: downloadAssetEvidence
+      tags: [assets]
+      summary: Download a single evidence file
+      description: >-
+        Authorization-checked before any storage read (same visibility tier
+        as the asset itself). No public or signed URL is ever generated —
+        the file streams through this authenticated route on every request.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: evidenceId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The file
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "403":
+          description: Not authorized to access this asset's evidence
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Asset or evidence not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -19297,3 +19589,111 @@ components:
       properties:
         resolutionNotes:
           type: string
+
+    AssetMaintenanceStatus:
+      type: string
+      enum: [scheduled, in_progress, completed, cancelled]
+      description: scheduled -> in_progress -> completed | cancelled. Both completed and cancelled are terminal — no reopen (§7).
+
+    AssetMaintenance:
+      type: object
+      required: [id, organizationId, assetId, maintenanceType, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        assetId:
+          type: integer
+        maintenanceType:
+          type: string
+        description:
+          type: ["string", "null"]
+        providerText:
+          type: ["string", "null"]
+          description: Free text — no vendor/provider table (§11).
+        status:
+          $ref: "#/components/schemas/AssetMaintenanceStatus"
+        startedAt:
+          type: ["string", "null"]
+          format: date-time
+        completedAt:
+          type: ["string", "null"]
+          format: date-time
+        cost:
+          type: ["string", "null"]
+          description: Optional, reference-only. No depreciation/accounting logic.
+        notes:
+          type: ["string", "null"]
+        createdByMembershipId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateAssetMaintenanceInput:
+      type: object
+      required: [maintenanceType]
+      properties:
+        maintenanceType:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        providerText:
+          type: string
+        cost:
+          type: number
+          minimum: 0
+        notes:
+          type: string
+
+    AssetMaintenanceAction:
+      type: string
+      enum: [start, complete, cancel]
+      description: >-
+        The server maps this to the correct validated conditional UPDATE —
+        the request body never accepts a raw target status.
+
+    UpdateAssetMaintenanceInput:
+      type: object
+      required: [action]
+      properties:
+        action:
+          $ref: "#/components/schemas/AssetMaintenanceAction"
+        cost:
+          type: number
+          minimum: 0
+        notes:
+          type: string
+
+    AssetEvidence:
+      type: object
+      required: [id, organizationId, assetId, employeeDocumentId, addedByMembershipId, addedAt, fileName, mimeType, fileSize, uploadedBy]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        assetId:
+          type: integer
+        employeeDocumentId:
+          type: integer
+          description: Points into the existing employee_documents table — no separate Assets storage layer (§13).
+        addedByMembershipId:
+          type: ["integer", "null"]
+        addedAt:
+          type: string
+          format: date-time
+        fileName:
+          type: string
+          description: Original client-supplied filename, for display only — never used to build a storage path.
+        mimeType:
+          type: string
+        fileSize:
+          type: integer
+        uploadedBy:
+          type: ["integer", "null"]

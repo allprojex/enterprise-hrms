@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Boxes, Plus, Settings, ChevronLeft, ChevronRight, Archive, PackageX, RotateCcw, Wrench, UserPlus, Undo2, ShieldAlert, CheckCircle2, XCircle } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Boxes, Plus, Settings, ChevronLeft, ChevronRight, Archive, PackageX, RotateCcw, Wrench, UserPlus, Undo2, ShieldAlert, CheckCircle2, XCircle, PlayCircle, Ban, Paperclip, Download, Upload, Loader2, FileText } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -33,6 +33,14 @@ import {
   getListAssetIncidentsQueryKey,
   useReviewAssetIncident,
   useDismissAssetIncident,
+  useListAssetMaintenance,
+  getListAssetMaintenanceQueryKey,
+  useCreateAssetMaintenance,
+  useUpdateAssetMaintenance,
+  useListAssetEvidence,
+  getListAssetEvidenceQueryKey,
+  useAddAssetEvidence,
+  getDownloadAssetEvidenceUrl,
   useListMasterDataItems,
   getListMasterDataItemsQueryKey,
   useListBranches,
@@ -44,10 +52,12 @@ import {
   type Asset,
   type AssetAssignment,
   type AssetIncident,
+  type AssetMaintenance,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { QueryError } from '@/components/query-error';
+import { getStoredToken } from '@/lib/auth';
 
 function errorMessage(err: unknown): string | undefined {
   return err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
@@ -91,6 +101,26 @@ const INCIDENT_TYPE_LABEL: Record<string, string> = {
   damage: 'Damage',
   loss: 'Loss',
 };
+const MAINTENANCE_STATUS_LABEL: Record<string, string> = {
+  scheduled: 'Scheduled',
+  in_progress: 'In Progress',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+};
+const MAINTENANCE_STATUS_VARIANT: Record<string, 'secondary' | 'outline' | 'destructive'> = {
+  scheduled: 'outline',
+  in_progress: 'secondary',
+  completed: 'outline',
+  cancelled: 'destructive',
+};
+const EVIDENCE_ACCEPTED_TYPES = 'application/pdf,image/jpeg,image/png,.docx,.xlsx';
+const EVIDENCE_ACCEPTED_TYPES_LABEL = 'PDF, JPEG, PNG, DOCX, or XLSX — up to 10MB';
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 // --- Lifecycle action dialogs (mandatory-reason pattern, mirrors
 // RevokeCertificateDialog in learning-enrollments.tsx) ---
@@ -554,6 +584,315 @@ function CustodyPanel({ organizationId, asset, onAssetChanged }: { organizationI
             </div>
           )}
         </>
+      )}
+    </div>
+  );
+}
+
+// --- Maintenance (Phase 3E, W100): simple history — schedule/start/
+// complete/cancel only. The completion/cancellation target asset status is
+// never caller-selectable anywhere in this UI — the backend alone derives
+// it from live custody state, so no such control is offered here. ---
+
+function ScheduleMaintenanceDialog({ organizationId, assetId, onChanged }: { organizationId: number; assetId: number; onChanged: () => void }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [maintenanceType, setMaintenanceType] = useState('');
+  const [description, setDescription] = useState('');
+  const [providerText, setProviderText] = useState('');
+  const [cost, setCost] = useState('');
+  const [notes, setNotes] = useState('');
+  const mutation = useCreateAssetMaintenance();
+
+  const reset = () => {
+    setMaintenanceType('');
+    setDescription('');
+    setProviderText('');
+    setCost('');
+    setNotes('');
+  };
+
+  const handle = () => {
+    if (!maintenanceType.trim()) return;
+    mutation.mutate(
+      {
+        organizationId,
+        id: assetId,
+        data: {
+          maintenanceType: maintenanceType.trim(),
+          description: description.trim() || undefined,
+          providerText: providerText.trim() || undefined,
+          cost: cost ? Number(cost) : undefined,
+          notes: notes.trim() || undefined,
+        },
+      },
+      {
+        onSuccess: () => {
+          setOpen(false);
+          reset();
+          onChanged();
+          toast({ title: 'Maintenance scheduled' });
+        },
+        onError: (err) => toast({ title: 'Could not schedule maintenance', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" data-testid={`button-open-schedule-maintenance-${assetId}`}>
+          <Wrench className="h-3.5 w-3.5" aria-hidden="true" />
+          Schedule Maintenance…
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Schedule Maintenance</DialogTitle>
+          <DialogDescription>Creates a maintenance history record. This does not itself change the asset's status.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor={`maintenance-type-${assetId}`}>Maintenance Type</Label>
+            <Input id={`maintenance-type-${assetId}`} value={maintenanceType} onChange={(e) => setMaintenanceType(e.target.value)} placeholder="e.g. Annual service" data-testid={`input-maintenance-type-${assetId}`} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`maintenance-provider-${assetId}`}>Provider (optional)</Label>
+            <Input id={`maintenance-provider-${assetId}`} value={providerText} onChange={(e) => setProviderText(e.target.value)} data-testid={`input-maintenance-provider-${assetId}`} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`maintenance-cost-${assetId}`}>Cost (optional)</Label>
+            <Input id={`maintenance-cost-${assetId}`} type="number" min={0} step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} data-testid={`input-maintenance-cost-${assetId}`} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`maintenance-description-${assetId}`}>Description (optional)</Label>
+            <Textarea id={`maintenance-description-${assetId}`} value={description} onChange={(e) => setDescription(e.target.value)} data-testid={`input-maintenance-description-${assetId}`} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`maintenance-notes-${assetId}`}>Notes (optional)</Label>
+            <Textarea id={`maintenance-notes-${assetId}`} value={notes} onChange={(e) => setNotes(e.target.value)} data-testid={`input-maintenance-notes-${assetId}`} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={handle} disabled={mutation.isPending || !maintenanceType.trim()} data-testid={`button-confirm-schedule-maintenance-${assetId}`}>
+            {mutation.isPending ? 'Scheduling…' : 'Confirm Schedule'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function MaintenanceRow({ organizationId, record, onChanged }: { organizationId: number; record: AssetMaintenance; onChanged: () => void }) {
+  const { toast } = useToast();
+  const mutation = useUpdateAssetMaintenance();
+
+  const transition = (action: 'start' | 'complete' | 'cancel', successTitle: string) => {
+    mutation.mutate(
+      { organizationId, id: record.id, data: { action } },
+      {
+        onSuccess: () => {
+          onChanged();
+          toast({ title: successTitle });
+        },
+        onError: (err) => toast({ title: 'Could not update this maintenance record', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <div className="rounded-md border border-border p-3 space-y-2 text-sm" data-testid={`row-maintenance-${record.id}`}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="font-medium text-foreground">{record.maintenanceType}</p>
+          <p className="text-muted-foreground">
+            {record.providerText ? `${record.providerText} · ` : ''}
+            {record.startedAt ? `Started ${new Date(record.startedAt).toLocaleDateString()}` : 'Not yet started'}
+            {record.completedAt ? ` · Completed ${new Date(record.completedAt).toLocaleDateString()}` : ''}
+            {record.cost ? ` · Cost ${record.cost}` : ''}
+          </p>
+        </div>
+        <Badge variant={MAINTENANCE_STATUS_VARIANT[record.status] ?? 'outline'} data-testid={`badge-maintenance-status-${record.id}`}>
+          {MAINTENANCE_STATUS_LABEL[record.status] ?? record.status}
+        </Badge>
+      </div>
+      {record.description && <p className="text-foreground">{record.description}</p>}
+      {record.notes && <p className="text-xs text-muted-foreground">Notes: {record.notes}</p>}
+      {(record.status === 'scheduled' || record.status === 'in_progress') && (
+        <div className="flex flex-wrap gap-2 pt-1">
+          {record.status === 'scheduled' && (
+            <Button size="sm" onClick={() => transition('start', 'Maintenance started')} disabled={mutation.isPending} data-testid={`button-start-maintenance-${record.id}`}>
+              <PlayCircle className="h-3.5 w-3.5" aria-hidden="true" />
+              Start
+            </Button>
+          )}
+          {record.status === 'in_progress' && (
+            <Button size="sm" onClick={() => transition('complete', 'Maintenance completed')} disabled={mutation.isPending} data-testid={`button-complete-maintenance-${record.id}`}>
+              <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+              Complete
+            </Button>
+          )}
+          <Button size="sm" variant="outline" onClick={() => transition('cancel', 'Maintenance cancelled')} disabled={mutation.isPending} data-testid={`button-cancel-maintenance-${record.id}`}>
+            <Ban className="h-3.5 w-3.5" aria-hidden="true" />
+            Cancel
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AssetMaintenancePanel({ organizationId, assetId }: { organizationId: number; assetId: number }) {
+  const queryClient = useQueryClient();
+  const { data: records, isLoading, error, refetch } = useListAssetMaintenance(organizationId, assetId, {
+    query: { queryKey: getListAssetMaintenanceQueryKey(organizationId, assetId), enabled: organizationId > 0 },
+  });
+
+  const handleChanged = () => {
+    queryClient.invalidateQueries({ queryKey: getListAssetMaintenanceQueryKey(organizationId, assetId) });
+    refetch();
+  };
+
+  return (
+    <div className="space-y-3 border-t border-border pt-4">
+      <div className="flex items-center justify-between">
+        <Label>Maintenance</Label>
+        <ScheduleMaintenanceDialog organizationId={organizationId} assetId={assetId} onChanged={handleChanged} />
+      </div>
+
+      {isLoading ? (
+        <Skeleton className="h-14 w-full" />
+      ) : error ? (
+        <QueryError title="Could not load maintenance history" message={errorMessage(error) ?? 'Please try again.'} onRetry={() => refetch()} />
+      ) : !records || records.length === 0 ? (
+        <p className="text-sm text-muted-foreground" data-testid="text-no-maintenance">No maintenance history for this asset.</p>
+      ) : (
+        <div className="space-y-2">
+          {records.map((record) => (
+            <MaintenanceRow key={record.id} organizationId={organizationId} record={record} onChanged={handleChanged} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- Evidence/Documents (Phase 3E, W100): reuses the existing
+// employee_documents storage layer verbatim (§13) — attach/list/download
+// only, no delete/replace/versioning control exists anywhere, matching the
+// frozen §20 contract exactly. ---
+
+function AssetEvidencePanel({ organizationId, assetId }: { organizationId: number; assetId: number }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { data: evidence, isLoading, error, refetch } = useListAssetEvidence(organizationId, assetId, {
+    query: { queryKey: getListAssetEvidenceQueryKey(organizationId, assetId), enabled: organizationId > 0 },
+  });
+
+  const uploadMutation = useAddAssetEvidence();
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    uploadMutation.mutate(
+      { organizationId, id: assetId, data: { file } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListAssetEvidenceQueryKey(organizationId, assetId) });
+          refetch();
+          toast({ title: 'Evidence attached' });
+        },
+        onError: (err) => toast({ title: 'Could not attach evidence', description: errorMessage(err) ?? EVIDENCE_ACCEPTED_TYPES_LABEL, variant: 'destructive' }),
+      },
+    );
+  };
+
+  const handleDownload = async (evidenceId: number, fileName: string) => {
+    try {
+      const token = getStoredToken();
+      const res = await fetch(getDownloadAssetEvidenceUrl(organizationId, assetId, evidenceId), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error('Download failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: 'Could not download evidence', description: 'Please try again.', variant: 'destructive' });
+    }
+  };
+
+  return (
+    <div className="space-y-3 border-t border-border pt-4">
+      <div className="flex items-center justify-between">
+        <Label className="flex items-center gap-2">
+          <Paperclip className="h-3.5 w-3.5" aria-hidden="true" />
+          Evidence
+        </Label>
+        <>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadMutation.isPending}
+            data-testid={`button-attach-evidence-${assetId}`}
+          >
+            {uploadMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Upload className="h-3.5 w-3.5" aria-hidden="true" />}
+            Attach Evidence…
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={EVIDENCE_ACCEPTED_TYPES}
+            className="hidden"
+            onChange={handleFileChange}
+            aria-label="Attach evidence file"
+            data-testid={`input-evidence-file-${assetId}`}
+          />
+        </>
+      </div>
+      <p className="text-xs text-muted-foreground">{EVIDENCE_ACCEPTED_TYPES_LABEL}</p>
+
+      {isLoading ? (
+        <Skeleton className="h-14 w-full" />
+      ) : error ? (
+        <QueryError title="Could not load evidence" message={errorMessage(error) ?? 'Please try again.'} onRetry={() => refetch()} />
+      ) : !evidence || evidence.length === 0 ? (
+        <p className="text-sm text-muted-foreground" data-testid="text-no-evidence">No evidence attached yet.</p>
+      ) : (
+        <ul className="divide-y divide-border" data-testid="list-evidence">
+          {evidence.map((item) => (
+            <li key={item.id} className="flex items-center justify-between gap-4 py-2" data-testid={`row-evidence-${item.id}`}>
+              <div className="flex items-center gap-3 min-w-0">
+                <FileText className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-foreground">{item.fileName}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {item.mimeType} · {formatFileSize(item.fileSize)} · {new Date(item.addedAt).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => handleDownload(item.id, item.fileName)}
+                aria-label={`Download ${item.fileName}`}
+                data-testid={`button-download-evidence-${item.id}`}
+              >
+                <Download className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
@@ -1255,7 +1594,7 @@ export default function Assets() {
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Manage Asset</DialogTitle>
-            <DialogDescription>Edit register details and change lifecycle status. Assignment, maintenance, incidents, and evidence are managed elsewhere.</DialogDescription>
+            <DialogDescription>Edit register details, change lifecycle status, and manage custody, incidents, maintenance, and evidence for this asset.</DialogDescription>
           </DialogHeader>
 
           {detailLoading ? (
@@ -1280,6 +1619,10 @@ export default function Assets() {
               <CustodyPanel organizationId={organizationId} asset={detail} onAssetChanged={invalidateAfterChange} />
 
               <AssetIncidentsPanel organizationId={organizationId} assetId={detail.id} />
+
+              <AssetMaintenancePanel organizationId={organizationId} assetId={detail.id} />
+
+              <AssetEvidencePanel organizationId={organizationId} assetId={detail.id} />
 
               <form onSubmit={handleSave} className="space-y-4 border-t border-border pt-4">
                 <div className="space-y-2">

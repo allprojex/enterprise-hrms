@@ -49,6 +49,9 @@ const {
   assetsTable,
   assetAssignmentsTable,
   assetIncidentsTable,
+  assetMaintenanceTable,
+  assetEvidenceTable,
+  employeeDocumentsTable,
   auditEventsTable,
   state,
 } = vi.hoisted(() => {
@@ -84,6 +87,12 @@ const {
       "id", "organizationId", "assetId", "assignmentId", "reportedByEmployeeId", "incidentType", "description",
       "reportedAt", "status", "reviewedByMembershipId", "reviewedAt", "resolutionNotes",
     ]),
+    assetMaintenanceTable: mockTable("asset_maintenance", [
+      "id", "organizationId", "assetId", "maintenanceType", "description", "providerText", "status",
+      "startedAt", "completedAt", "cost", "notes", "createdByMembershipId",
+    ]),
+    assetEvidenceTable: mockTable("asset_evidence", ["id", "organizationId", "assetId", "employeeDocumentId", "addedByMembershipId", "addedAt"]),
+    employeeDocumentsTable: mockTable("employee_documents", ["id", "organizationId", "employeeId", "categoryCode", "fileName", "storageKey", "mimeType", "fileSize", "uploadedBy"]),
     auditEventsTable: mockTable("audit_events", ["id", "eventType", "targetType", "targetId", "organizationId"]),
     state: {
       sessionRows: [] as unknown[],
@@ -98,6 +107,9 @@ const {
       assetRows: [] as Record<string, unknown>[],
       assetAssignmentRows: [] as Record<string, unknown>[],
       assetIncidentRows: [] as Record<string, unknown>[],
+      assetMaintenanceRows: [] as Record<string, unknown>[],
+      assetEvidenceRows: [] as Record<string, unknown>[],
+      documentRows: [] as Record<string, unknown>[],
       auditRows: [] as Record<string, unknown>[],
       nextIds: new Map<string, number>(),
     },
@@ -117,6 +129,9 @@ const TABLE_STATE_KEY: Record<string, keyof typeof state> = {
   assets: "assetRows",
   asset_assignments: "assetAssignmentRows",
   asset_incidents: "assetIncidentRows",
+  asset_maintenance: "assetMaintenanceRows",
+  asset_evidence: "assetEvidenceRows",
+  employee_documents: "documentRows",
   audit_events: "auditRows",
 };
 
@@ -180,6 +195,37 @@ function makeQueryClient(): unknown {
           return passthrough;
         }
 
+        if (table === assetEvidenceTable) {
+          // The only join shape asset_evidence's own queries ever use:
+          // asset_evidence -> employee_documents, matched by
+          // employeeDocumentId = id, mirroring
+          // performanceReviewEvidence.test.ts's own identical hand-rolled
+          // join (the mock's eq() Cond can't express a column-to-column
+          // join condition, so it's hand-matched here instead).
+          const rows = rowsFor(table);
+          return {
+            innerJoin(joinTable: { __name: string }) {
+              const joinRows = rowsFor(joinTable);
+              const joined = rows.map((r) => {
+                const match = joinRows.find((j) => j.id === r.employeeDocumentId);
+                return { ...match, ...r };
+              });
+              return {
+                where(cond: Cond) {
+                  const filtered = joined.filter((r) => matches(r, cond));
+                  return {
+                    limit: (n: number) => Promise.resolve(filtered.slice(0, n)),
+                    orderBy: () => Promise.resolve(filtered),
+                    then: (resolve: (v: unknown) => void, reject?: (e: unknown) => void) => Promise.resolve(filtered).then(resolve, reject),
+                  };
+                },
+                orderBy: () => Promise.resolve(joined),
+                then: (resolve: (v: unknown) => void, reject?: (e: unknown) => void) => Promise.resolve(joined).then(resolve, reject),
+              };
+            },
+          };
+        }
+
         const isCount = !!proj && Object.values(proj).includes("count");
         const rows = rowsFor(table);
         const stage = (
@@ -210,7 +256,7 @@ function makeQueryClient(): unknown {
           checkAssetUniqueness(table, item);
           checkAssetAssignmentUniqueness(table, item);
         }
-        const inserted = items.map((item) => ({ id: nextId(table.__name), createdAt: new Date(), updatedAt: new Date(), ...item }));
+        const inserted = items.map((item) => ({ id: nextId(table.__name), createdAt: new Date(), updatedAt: new Date(), addedAt: new Date(), ...item }));
         setRowsFor(table, [...rowsFor(table), ...inserted]);
         return { returning: () => Promise.resolve(inserted) };
       },
@@ -241,7 +287,32 @@ function makeQueryClient(): unknown {
         return Promise.resolve();
       },
     }),
-    transaction: async (cb: (tx: unknown) => Promise<unknown>) => cb(client),
+    // A faithful-enough rollback simulation: snapshot the array REFERENCES
+    // for every mutable table before running the callback (every
+    // update()/insert() in this mock replaces the array with a new one
+    // rather than mutating in place, so restoring the pre-transaction
+    // reference genuinely undoes any writes made inside the callback) and
+    // restore them if the callback throws — needed for W100's maintenance
+    // transitions, which throw mid-transaction on a real asset-status race
+    // (see lib/assets.ts's own file header) and must prove the maintenance
+    // row's own write was actually rolled back, not just that a 409 came
+    // back.
+    transaction: async (cb: (tx: unknown) => Promise<unknown>) => {
+      const snapshot = {
+        assetRows: state.assetRows,
+        assetAssignmentRows: state.assetAssignmentRows,
+        assetIncidentRows: state.assetIncidentRows,
+        assetMaintenanceRows: state.assetMaintenanceRows,
+        assetEvidenceRows: state.assetEvidenceRows,
+        documentRows: state.documentRows,
+      };
+      try {
+        return await cb(client);
+      } catch (err) {
+        Object.assign(state, snapshot);
+        throw err;
+      }
+    },
   };
   return client;
 }
@@ -263,6 +334,9 @@ vi.mock("@workspace/db", () => ({
   assetsTable,
   assetAssignmentsTable,
   assetIncidentsTable,
+  assetMaintenanceTable,
+  assetEvidenceTable,
+  employeeDocumentsTable,
   auditEventsTable,
   db,
 }));
@@ -279,7 +353,19 @@ vi.mock("drizzle-orm", () => ({
   desc: () => undefined,
 }));
 
+// W100: no real disk I/O for evidence uploads/downloads — mirrors
+// performanceReviewEvidence.test.ts's/employeeDocuments.test.ts's own
+// established `vi.mock("../lib/fileStorage", ...)` precedent exactly.
+// documentValidation is deliberately NOT mocked — the real file-signature
+// validation runs against real PDF-signature test buffers below.
+vi.mock("../lib/fileStorage", () => ({
+  writeOrgFile: vi.fn(async () => "documents/mock-evidence-key.pdf"),
+  readOrgFile: vi.fn(async () => Buffer.from("asset evidence file contents")),
+  deleteOrgFile: vi.fn(async () => undefined),
+}));
+
 const { default: app } = await import("../app");
+const fileStorage = await import("../lib/fileStorage");
 
 const ORG_ID = 10;
 const OTHER_ORG_ID = 20;
@@ -325,6 +411,11 @@ function mockAssetModuleEnabled(organizationId: number) {
 const EMPLOYEE_PERMISSIONS = ["asset_management.read.own", "asset_management.write.own", "asset_management.reports.read"];
 const HR_PERMISSIONS = [...EMPLOYEE_PERMISSIONS, "asset_management.manage"];
 
+// W100: a real PDF-signature buffer — validateDocumentUpload runs for real
+// in these tests (not mocked), matching performanceReviewEvidence.test.ts's
+// own precedent.
+const PDF_BUFFER = Buffer.concat([Buffer.from("%PDF-1.4\n"), Buffer.alloc(16, 0)]);
+
 function hrHeaders() {
   mockSession(HR_USER_ID);
   mockPermissions(HR_PERMISSIONS);
@@ -368,8 +459,14 @@ beforeEach(() => {
   state.assetRows = [];
   state.assetAssignmentRows = [];
   state.assetIncidentRows = [];
+  state.assetMaintenanceRows = [];
+  state.assetEvidenceRows = [];
+  state.documentRows = [];
   state.auditRows = [];
   state.nextIds = new Map();
+  vi.mocked(fileStorage.writeOrgFile).mockClear();
+  vi.mocked(fileStorage.readOrgFile).mockClear();
+  vi.mocked(fileStorage.deleteOrgFile).mockClear();
 
   mockMembership(HR_USER_ID, ORG_ID, 100);
   mockMembership(EMPLOYEE_USER_ID, ORG_ID, 101);
@@ -697,16 +794,6 @@ describe("Asset Register (W96)", () => {
   });
 
   describe("scope boundary — no later-workstream surface exists yet", () => {
-    it("has no maintenance route", async () => {
-      const created = await request(app).post(`/api/organizations/${ORG_ID}/assets`).set(hrHeaders()).send({ categoryCode: "laptop", name: "X" });
-      const res = await request(app).get(`/api/organizations/${ORG_ID}/assets/${created.body.id}/maintenance`).set(hrHeaders());
-      expect(res.status).toBe(404);
-    });
-    it("has no evidence route", async () => {
-      const created = await request(app).post(`/api/organizations/${ORG_ID}/assets`).set(hrHeaders()).send({ categoryCode: "laptop", name: "X" });
-      const res = await request(app).get(`/api/organizations/${ORG_ID}/assets/${created.body.id}/evidence`).set(hrHeaders());
-      expect(res.status).toBe(404);
-    });
     it("has no GET .../asset-incidents/:id detail route — the frozen §20 contract names none; the list route's own rows already carry full detail", async () => {
       const res = await request(app).get(`/api/organizations/${ORG_ID}/asset-incidents/1`).set(hrHeaders());
       expect(res.status).toBe(404);
@@ -1624,6 +1711,579 @@ describe("Asset Register (W96)", () => {
         expect(res.status).toBe(200);
         expect(res.body.status).toBe("retired");
         expect(res.body.status).not.toBe("disposed");
+      });
+    });
+  });
+
+  describe("maintenance (W100)", () => {
+    async function createAvailableAsset() {
+      const res = await request(app).post(`/api/organizations/${ORG_ID}/assets`).set(hrHeaders()).send({ categoryCode: "laptop", name: "X" });
+      return res.body.id as number;
+    }
+    async function createAssignedAsset(employeeId = EMPLOYEE_ID) {
+      const assetId = await createAvailableAsset();
+      await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/assign`).set(hrHeaders()).send({ employeeId });
+      return assetId;
+    }
+    async function scheduleMaintenance(assetId: number) {
+      const res = await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/maintenance`).set(hrHeaders()).send({ maintenanceType: "Repair" });
+      return res.body.id as number;
+    }
+
+    describe("create — POST .../assets/:id/maintenance", () => {
+      it("schedules a maintenance record on an available asset without touching the asset's own status", async () => {
+        const assetId = await createAvailableAsset();
+        const res = await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/maintenance`).set(hrHeaders()).send({ maintenanceType: "Annual service", cost: 50, notes: "n" });
+        expect(res.status).toBe(201);
+        expect(res.body.status).toBe("scheduled");
+        expect(res.body.startedAt).toBeNull();
+        expect(res.body.completedAt).toBeNull();
+        const asset = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}`).set(hrHeaders());
+        expect(asset.body.status).toBe("available");
+      });
+
+      it("schedules a maintenance record on an assigned asset without touching custody", async () => {
+        const assetId = await createAssignedAsset();
+        const res = await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/maintenance`).set(hrHeaders()).send({ maintenanceType: "Repair" });
+        expect(res.status).toBe(201);
+        const list = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}/assignments`).set(hrHeaders());
+        expect(list.body[0].custodyEndedAt).toBeNull();
+      });
+
+      it("rejects scheduling maintenance on a retired asset", async () => {
+        const assetId = await createAvailableAsset();
+        await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/retire`).set(hrHeaders()).send({ reason: "r" });
+        const res = await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/maintenance`).set(hrHeaders()).send({ maintenanceType: "Repair" });
+        expect(res.status).toBe(409);
+      });
+
+      it("rejects a negative cost", async () => {
+        const assetId = await createAvailableAsset();
+        const res = await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/maintenance`).set(hrHeaders()).send({ maintenanceType: "Repair", cost: -5 });
+        expect(res.status).toBe(400);
+      });
+
+      it("rejects a missing maintenanceType", async () => {
+        const assetId = await createAvailableAsset();
+        const res = await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/maintenance`).set(hrHeaders()).send({});
+        expect(res.status).toBe(400);
+      });
+
+      it("denies an employee without asset_management.manage", async () => {
+        const assetId = await createAvailableAsset();
+        const res = await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/maintenance`).set(employeeHeaders()).send({ maintenanceType: "Repair" });
+        expect(res.status).toBe(403);
+      });
+
+      it("denies a manager (relationship-only authority, Decision 4)", async () => {
+        const assetId = await createAvailableAsset();
+        const res = await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/maintenance`).set(managerHeaders()).send({ maintenanceType: "Repair" });
+        expect(res.status).toBe(403);
+      });
+
+      it("returns 404 for a nonexistent asset", async () => {
+        const res = await request(app).post(`/api/organizations/${ORG_ID}/assets/999999/maintenance`).set(hrHeaders()).send({ maintenanceType: "Repair" });
+        expect(res.status).toBe(404);
+      });
+
+      it("returns 404 for a foreign-org asset", async () => {
+        const created = await request(app).post(`/api/organizations/${OTHER_ORG_ID}/assets`).set(otherOrgHrHeaders()).send({ categoryCode: "laptop", name: "X" });
+        const res = await request(app).post(`/api/organizations/${ORG_ID}/assets/${created.body.id}/maintenance`).set(hrHeaders()).send({ maintenanceType: "Repair" });
+        expect(res.status).toBe(404);
+      });
+
+      it("denies module-disabled access", async () => {
+        const assetId = await createAvailableAsset();
+        state.organizationModuleRows = state.organizationModuleRows.filter((r) => (r as Record<string, unknown>).organizationId !== ORG_ID);
+        const res = await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/maintenance`).set(hrHeaders()).send({ maintenanceType: "Repair" });
+        expect(res.status).toBe(403);
+      });
+
+      it("denies unauthenticated requests", async () => {
+        const assetId = await createAvailableAsset();
+        const res = await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/maintenance`).send({ maintenanceType: "Repair" });
+        expect(res.status).toBe(401);
+      });
+    });
+
+    describe("list — GET .../assets/:id/maintenance", () => {
+      it("returns this asset's maintenance history", async () => {
+        const assetId = await createAvailableAsset();
+        await scheduleMaintenance(assetId);
+        await scheduleMaintenance(assetId);
+        const res = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}/maintenance`).set(hrHeaders());
+        expect(res.status).toBe(200);
+        expect(res.body).toHaveLength(2);
+      });
+
+      it("is asset-scoped — never returns another asset's history", async () => {
+        const assetId = await createAvailableAsset();
+        const otherAssetId = await createAvailableAsset();
+        await scheduleMaintenance(assetId);
+        const res = await request(app).get(`/api/organizations/${ORG_ID}/assets/${otherAssetId}/maintenance`).set(hrHeaders());
+        expect(res.body).toEqual([]);
+      });
+
+      it("denies an employee and a manager", async () => {
+        const assetId = await createAvailableAsset();
+        const empRes = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}/maintenance`).set(employeeHeaders());
+        expect(empRes.status).toBe(403);
+        const mgrRes = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}/maintenance`).set(managerHeaders());
+        expect(mgrRes.status).toBe(403);
+      });
+
+      it("returns 404 for a foreign-org asset", async () => {
+        const created = await request(app).post(`/api/organizations/${OTHER_ORG_ID}/assets`).set(otherOrgHrHeaders()).send({ categoryCode: "laptop", name: "X" });
+        const res = await request(app).get(`/api/organizations/${ORG_ID}/assets/${created.body.id}/maintenance`).set(hrHeaders());
+        expect(res.status).toBe(404);
+      });
+
+      it("never emits an audit row", async () => {
+        const assetId = await createAvailableAsset();
+        await scheduleMaintenance(assetId);
+        const countBefore = state.auditRows.length;
+        await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}/maintenance`).set(hrHeaders());
+        expect(state.auditRows.length).toBe(countBefore);
+      });
+    });
+
+    describe("transition — PATCH .../asset-maintenance/:id (action=start)", () => {
+      it("starts a scheduled record on an available asset, flipping the asset to 'maintenance'", async () => {
+        const assetId = await createAvailableAsset();
+        const maintenanceId = await scheduleMaintenance(assetId);
+        const res = await request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${maintenanceId}`).set(hrHeaders()).send({ action: "start" });
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe("in_progress");
+        expect(res.body.startedAt).not.toBeNull();
+        const asset = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}`).set(hrHeaders());
+        expect(asset.body.status).toBe("maintenance");
+      });
+
+      it("starts a scheduled record on an assigned asset — the active assignment row stays open (custody not relinquished)", async () => {
+        const assetId = await createAssignedAsset();
+        const maintenanceId = await scheduleMaintenance(assetId);
+        await request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${maintenanceId}`).set(hrHeaders()).send({ action: "start" });
+        const asset = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}`).set(hrHeaders());
+        expect(asset.body.status).toBe("maintenance");
+        const list = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}/assignments`).set(hrHeaders());
+        expect(list.body[0].custodyEndedAt).toBeNull();
+        expect(list.body[0].employeeId).toBe(EMPLOYEE_ID);
+      });
+
+      it("rejects starting an already-started record with a controlled 409", async () => {
+        const assetId = await createAvailableAsset();
+        const maintenanceId = await scheduleMaintenance(assetId);
+        await request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${maintenanceId}`).set(hrHeaders()).send({ action: "start" });
+        const res = await request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${maintenanceId}`).set(hrHeaders()).send({ action: "start" });
+        expect(res.status).toBe(409);
+      });
+
+      it("rejects starting when the asset is no longer in a startable state (e.g. marked lost after scheduling) and rolls back the maintenance row", async () => {
+        const assetId = await createAvailableAsset();
+        const maintenanceId = await scheduleMaintenance(assetId);
+        await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/mark-lost`).set(hrHeaders()).send({ reason: "r" });
+        const res = await request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${maintenanceId}`).set(hrHeaders()).send({ action: "start" });
+        expect(res.status).toBe(409);
+        const history = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}/maintenance`).set(hrHeaders());
+        expect(history.body[0].status).toBe("scheduled");
+      });
+
+      it("denies an employee and a manager", async () => {
+        const assetId = await createAvailableAsset();
+        const maintenanceId = await scheduleMaintenance(assetId);
+        const empRes = await request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${maintenanceId}`).set(employeeHeaders()).send({ action: "start" });
+        expect(empRes.status).toBe(403);
+        const mgrRes = await request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${maintenanceId}`).set(managerHeaders()).send({ action: "start" });
+        expect(mgrRes.status).toBe(403);
+      });
+
+      it("returns 404 for a nonexistent maintenance id", async () => {
+        const res = await request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/999999`).set(hrHeaders()).send({ action: "start" });
+        expect(res.status).toBe(404);
+      });
+
+      it("returns 404 for a real foreign-org maintenance id, never leaking existence", async () => {
+        const created = await request(app).post(`/api/organizations/${OTHER_ORG_ID}/assets`).set(otherOrgHrHeaders()).send({ categoryCode: "laptop", name: "X" });
+        const scheduled = await request(app).post(`/api/organizations/${OTHER_ORG_ID}/assets/${created.body.id}/maintenance`).set(otherOrgHrHeaders()).send({ maintenanceType: "Repair" });
+        const res = await request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${scheduled.body.id}`).set(hrHeaders()).send({ action: "start" });
+        expect(res.status).toBe(404);
+      });
+
+      it("a genuine concurrent double-start race resolves to exactly one winner", async () => {
+        const assetId = await createAvailableAsset();
+        const maintenanceId = await scheduleMaintenance(assetId);
+        const [a, b] = await Promise.all([
+          request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${maintenanceId}`).set(hrHeaders()).send({ action: "start" }),
+          request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${maintenanceId}`).set(hrHeaders()).send({ action: "start" }),
+        ]);
+        const statuses = [a.status, b.status].sort();
+        expect(statuses).toEqual([200, 409]);
+        const asset = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}`).set(hrHeaders());
+        expect(asset.body.status).toBe("maintenance");
+      });
+
+      it("emits asset_maintenance.started", async () => {
+        const assetId = await createAvailableAsset();
+        const maintenanceId = await scheduleMaintenance(assetId);
+        await request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${maintenanceId}`).set(hrHeaders()).send({ action: "start" });
+        expect(state.auditRows.some((r) => r.eventType === "asset_maintenance.started")).toBe(true);
+      });
+    });
+
+    describe("transition — PATCH .../asset-maintenance/:id (action=complete)", () => {
+      async function startedMaintenance(assetId: number) {
+        const maintenanceId = await scheduleMaintenance(assetId);
+        await request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${maintenanceId}`).set(hrHeaders()).send({ action: "start" });
+        return maintenanceId;
+      }
+
+      it("derives 'available' when no active assignment exists", async () => {
+        const assetId = await createAvailableAsset();
+        const maintenanceId = await startedMaintenance(assetId);
+        const res = await request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${maintenanceId}`).set(hrHeaders()).send({ action: "complete" });
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe("completed");
+        expect(res.body.completedAt).not.toBeNull();
+        const asset = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}`).set(hrHeaders());
+        expect(asset.body.status).toBe("available");
+      });
+
+      it("derives 'assigned' when an active assignment still exists, and never touches the assignment row", async () => {
+        const assetId = await createAssignedAsset();
+        const maintenanceId = await startedMaintenance(assetId);
+        await request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${maintenanceId}`).set(hrHeaders()).send({ action: "complete" });
+        const asset = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}`).set(hrHeaders());
+        expect(asset.body.status).toBe("assigned");
+        const list = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}/assignments`).set(hrHeaders());
+        expect(list.body[0].custodyEndedAt).toBeNull();
+        expect(list.body[0].employeeId).toBe(EMPLOYEE_ID);
+      });
+
+      it("the caller cannot supply a target asset status — an extraneous field is ignored, the derivation alone decides", async () => {
+        const assetId = await createAvailableAsset();
+        const maintenanceId = await startedMaintenance(assetId);
+        await request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${maintenanceId}`).set(hrHeaders()).send({ action: "complete", targetStatus: "lost", status: "lost" });
+        const asset = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}`).set(hrHeaders());
+        expect(asset.body.status).toBe("available");
+      });
+
+      it("rejects completing a record that has not been started yet", async () => {
+        const assetId = await createAvailableAsset();
+        const maintenanceId = await scheduleMaintenance(assetId);
+        const res = await request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${maintenanceId}`).set(hrHeaders()).send({ action: "complete" });
+        expect(res.status).toBe(409);
+      });
+
+      it("rejects completing an already-completed record", async () => {
+        const assetId = await createAvailableAsset();
+        const maintenanceId = await startedMaintenance(assetId);
+        await request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${maintenanceId}`).set(hrHeaders()).send({ action: "complete" });
+        const res = await request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${maintenanceId}`).set(hrHeaders()).send({ action: "complete" });
+        expect(res.status).toBe(409);
+      });
+
+      it("a real race — the asset is marked lost while maintenance is in_progress — blocks completion with a controlled 409 and leaves the maintenance record in_progress", async () => {
+        const assetId = await createAvailableAsset();
+        const maintenanceId = await startedMaintenance(assetId);
+        await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/mark-lost`).set(hrHeaders()).send({ reason: "r" });
+        const res = await request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${maintenanceId}`).set(hrHeaders()).send({ action: "complete" });
+        expect(res.status).toBe(409);
+        const history = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}/maintenance`).set(hrHeaders());
+        expect(history.body[0].status).toBe("in_progress");
+        const asset = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}`).set(hrHeaders());
+        expect(asset.body.status).toBe("lost");
+      });
+
+      it("a genuine concurrent double-complete race resolves to exactly one winner, and the final DB state is independently consistent", async () => {
+        const assetId = await createAvailableAsset();
+        const maintenanceId = await startedMaintenance(assetId);
+        const [a, b] = await Promise.all([
+          request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${maintenanceId}`).set(hrHeaders()).send({ action: "complete" }),
+          request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${maintenanceId}`).set(hrHeaders()).send({ action: "complete" }),
+        ]);
+        const statuses = [a.status, b.status].sort();
+        expect(statuses).toEqual([200, 409]);
+        const asset = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}`).set(hrHeaders());
+        expect(asset.body.status).toBe("available");
+        const history = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}/maintenance`).set(hrHeaders());
+        expect(history.body[0].status).toBe("completed");
+      });
+
+      it("denies an employee and a manager", async () => {
+        const assetId = await createAvailableAsset();
+        const maintenanceId = await startedMaintenance(assetId);
+        const empRes = await request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${maintenanceId}`).set(employeeHeaders()).send({ action: "complete" });
+        expect(empRes.status).toBe(403);
+        const mgrRes = await request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${maintenanceId}`).set(managerHeaders()).send({ action: "complete" });
+        expect(mgrRes.status).toBe(403);
+      });
+
+      it("emits asset_maintenance.completed", async () => {
+        const assetId = await createAvailableAsset();
+        const maintenanceId = await startedMaintenance(assetId);
+        await request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${maintenanceId}`).set(hrHeaders()).send({ action: "complete" });
+        expect(state.auditRows.some((r) => r.eventType === "asset_maintenance.completed")).toBe(true);
+      });
+    });
+
+    describe("transition — PATCH .../asset-maintenance/:id (action=cancel)", () => {
+      it("cancels a merely-scheduled record without ever touching the asset's own status", async () => {
+        const assetId = await createAvailableAsset();
+        const maintenanceId = await scheduleMaintenance(assetId);
+        const res = await request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${maintenanceId}`).set(hrHeaders()).send({ action: "cancel" });
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe("cancelled");
+        const asset = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}`).set(hrHeaders());
+        expect(asset.body.status).toBe("available");
+      });
+
+      it("cancels an in-progress record and restores the asset's own derived status", async () => {
+        const assetId = await createAssignedAsset();
+        const maintenanceId = await scheduleMaintenance(assetId);
+        await request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${maintenanceId}`).set(hrHeaders()).send({ action: "start" });
+        const res = await request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${maintenanceId}`).set(hrHeaders()).send({ action: "cancel" });
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe("cancelled");
+        const asset = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}`).set(hrHeaders());
+        expect(asset.body.status).toBe("assigned");
+      });
+
+      it("rejects cancelling an already-terminal record", async () => {
+        const assetId = await createAvailableAsset();
+        const maintenanceId = await scheduleMaintenance(assetId);
+        await request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${maintenanceId}`).set(hrHeaders()).send({ action: "cancel" });
+        const res = await request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${maintenanceId}`).set(hrHeaders()).send({ action: "cancel" });
+        expect(res.status).toBe(409);
+      });
+
+      it("emits asset_maintenance.cancelled", async () => {
+        const assetId = await createAvailableAsset();
+        const maintenanceId = await scheduleMaintenance(assetId);
+        await request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${maintenanceId}`).set(hrHeaders()).send({ action: "cancel" });
+        expect(state.auditRows.some((r) => r.eventType === "asset_maintenance.cancelled")).toBe(true);
+      });
+    });
+
+    it("rejects an unknown action value", async () => {
+      const assetId = await createAvailableAsset();
+      const maintenanceId = await scheduleMaintenance(assetId);
+      const res = await request(app).patch(`/api/organizations/${ORG_ID}/asset-maintenance/${maintenanceId}`).set(hrHeaders()).send({ action: "delete" });
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe("evidence (W100)", () => {
+    async function createAvailableAsset() {
+      const res = await request(app).post(`/api/organizations/${ORG_ID}/assets`).set(hrHeaders()).send({ categoryCode: "laptop", name: "X" });
+      return res.body.id as number;
+    }
+    async function createAssignedAsset(employeeId = EMPLOYEE_ID) {
+      const assetId = await createAvailableAsset();
+      await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/assign`).set(hrHeaders()).send({ employeeId });
+      return assetId;
+    }
+    function upload(assetId: number, headers: Record<string, string>, opts: { buffer?: Buffer; filename?: string; contentType?: string; orgId?: number } = {}) {
+      return request(app)
+        .post(`/api/organizations/${opts.orgId ?? ORG_ID}/assets/${assetId}/evidence`)
+        .set(headers)
+        .attach("file", opts.buffer ?? PDF_BUFFER, { filename: opts.filename ?? "evidence.pdf", contentType: opts.contentType ?? "application/pdf" });
+    }
+
+    describe("upload — POST .../assets/:id/evidence", () => {
+      it("lets an organization-wide (asset_management.manage) caller attach evidence", async () => {
+        const assetId = await createAvailableAsset();
+        const res = await upload(assetId, hrHeaders());
+        expect(res.status).toBe(201);
+        expect(res.body.assetId).toBe(assetId);
+        expect(res.body.fileName).toBe("evidence.pdf");
+        expect(res.body.mimeType).toBe("application/pdf");
+      });
+
+      it("lets an employee who currently holds this asset attach evidence too — the same visibility tier as the asset itself, not .manage-only", async () => {
+        const assetId = await createAssignedAsset();
+        const res = await upload(assetId, employeeHeaders());
+        expect(res.status).toBe(201);
+      });
+
+      it("creates the employee_documents row with employeeId=null — an asset has no natural single-employee owner", async () => {
+        const assetId = await createAvailableAsset();
+        await upload(assetId, hrHeaders());
+        expect(state.documentRows).toHaveLength(1);
+        expect(state.documentRows[0].employeeId).toBeNull();
+      });
+
+      it("denies an employee with no active assignment on this asset", async () => {
+        const assetId = await createAvailableAsset();
+        const res = await upload(assetId, employeeHeaders());
+        expect(res.status).toBe(403);
+      });
+
+      it("denies an unrelated employee even when someone else currently holds the asset", async () => {
+        const assetId = await createAssignedAsset(EMPLOYEE_ID);
+        const res = await upload(assetId, employee2Headers());
+        expect(res.status).toBe(403);
+      });
+
+      it("denies a manager (relationship-only authority) with no active assignment of their own", async () => {
+        const assetId = await createAssignedAsset(EMPLOYEE_ID);
+        const res = await upload(assetId, managerHeaders());
+        expect(res.status).toBe(403);
+      });
+
+      it("rejects a file whose content does not match an allowed type, with a controlled 400 not a raw 500", async () => {
+        const assetId = await createAvailableAsset();
+        const res = await upload(assetId, hrHeaders(), { buffer: Buffer.from("not a real pdf"), filename: "fake.pdf" });
+        expect(res.status).toBe(400);
+        expect(state.assetEvidenceRows).toHaveLength(0);
+      });
+
+      it("rejects an oversized file with a typed 400, not a raw 500", async () => {
+        const assetId = await createAvailableAsset();
+        const oversized = Buffer.concat([Buffer.from("%PDF-1.4\n"), Buffer.alloc(11 * 1024 * 1024, 0)]);
+        const res = await upload(assetId, hrHeaders(), { buffer: oversized });
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/10MB/);
+      });
+
+      it("returns 404 for a nonexistent asset", async () => {
+        const res = await upload(999999, hrHeaders());
+        expect(res.status).toBe(404);
+      });
+
+      it("returns 404 for a foreign-org asset", async () => {
+        const created = await request(app).post(`/api/organizations/${OTHER_ORG_ID}/assets`).set(otherOrgHrHeaders()).send({ categoryCode: "laptop", name: "X" });
+        const res = await upload(created.body.id, hrHeaders());
+        expect(res.status).toBe(404);
+      });
+
+      it("denies module-disabled access", async () => {
+        const assetId = await createAvailableAsset();
+        state.organizationModuleRows = state.organizationModuleRows.filter((r) => (r as Record<string, unknown>).organizationId !== ORG_ID);
+        const res = await upload(assetId, hrHeaders());
+        expect(res.status).toBe(403);
+      });
+
+      it("denies unauthenticated requests", async () => {
+        const assetId = await createAvailableAsset();
+        const res = await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/evidence`).attach("file", PDF_BUFFER, { filename: "evidence.pdf", contentType: "application/pdf" });
+        expect(res.status).toBe(401);
+      });
+
+      it("cleans up the written file if the DB transaction fails (no orphan)", async () => {
+        const assetId = await createAvailableAsset();
+        const spy = vi.spyOn(db as { transaction: (cb: (tx: unknown) => Promise<unknown>) => Promise<unknown> }, "transaction").mockRejectedValueOnce(new Error("simulated DB failure"));
+        const res = await upload(assetId, hrHeaders());
+        expect(res.status).toBe(500);
+        expect(fileStorage.deleteOrgFile).toHaveBeenCalledWith(ORG_ID, "documents/mock-evidence-key.pdf");
+        expect(state.documentRows).toHaveLength(0);
+        expect(state.assetEvidenceRows).toHaveLength(0);
+        spy.mockRestore();
+      });
+
+      it("emits both employee_document.uploaded and asset_evidence.attached", async () => {
+        const assetId = await createAvailableAsset();
+        await upload(assetId, hrHeaders());
+        expect(state.auditRows.some((r) => r.eventType === "employee_document.uploaded")).toBe(true);
+        expect(state.auditRows.some((r) => r.eventType === "asset_evidence.attached")).toBe(true);
+      });
+    });
+
+    describe("list — GET .../assets/:id/evidence", () => {
+      it("returns evidence for an organization-wide caller", async () => {
+        const assetId = await createAvailableAsset();
+        await upload(assetId, hrHeaders());
+        const res = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}/evidence`).set(hrHeaders());
+        expect(res.status).toBe(200);
+        expect(res.body).toHaveLength(1);
+        expect(res.body[0].fileName).toBe("evidence.pdf");
+      });
+
+      it("returns evidence for an employee who currently holds the asset", async () => {
+        const assetId = await createAssignedAsset();
+        await upload(assetId, hrHeaders());
+        const res = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}/evidence`).set(employeeHeaders());
+        expect(res.status).toBe(200);
+        expect(res.body).toHaveLength(1);
+      });
+
+      it("denies an unrelated employee", async () => {
+        const assetId = await createAssignedAsset(EMPLOYEE_ID);
+        await upload(assetId, hrHeaders());
+        const res = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}/evidence`).set(employee2Headers());
+        expect(res.status).toBe(403);
+      });
+
+      it("returns 404 for a foreign-org asset", async () => {
+        const created = await request(app).post(`/api/organizations/${OTHER_ORG_ID}/assets`).set(otherOrgHrHeaders()).send({ categoryCode: "laptop", name: "X" });
+        const res = await request(app).get(`/api/organizations/${ORG_ID}/assets/${created.body.id}/evidence`).set(hrHeaders());
+        expect(res.status).toBe(404);
+      });
+
+      it("never emits an audit row", async () => {
+        const assetId = await createAvailableAsset();
+        await upload(assetId, hrHeaders());
+        const countBefore = state.auditRows.length;
+        await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}/evidence`).set(hrHeaders());
+        expect(state.auditRows.length).toBe(countBefore);
+      });
+    });
+
+    describe("download — GET .../assets/:id/evidence/:evidenceId/download", () => {
+      async function uploadedEvidence(assetId: number, headers: Record<string, string>, orgId = ORG_ID) {
+        const res = await upload(assetId, headers, { orgId });
+        return res.body.id as number;
+      }
+
+      it("streams the file for an organization-wide caller, bytes matching what readOrgFile returns", async () => {
+        const assetId = await createAvailableAsset();
+        const evidenceId = await uploadedEvidence(assetId, hrHeaders());
+        const res = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}/evidence/${evidenceId}/download`).set(hrHeaders());
+        expect(res.status).toBe(200);
+        expect(Buffer.isBuffer(res.body) ? res.body.toString() : res.text).toBe("asset evidence file contents");
+      });
+
+      it("authorization is checked before any storage read — a denied caller never triggers readOrgFile", async () => {
+        const assetId = await createAssignedAsset(EMPLOYEE_ID);
+        const evidenceId = await uploadedEvidence(assetId, hrHeaders());
+        vi.mocked(fileStorage.readOrgFile).mockClear();
+        const res = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}/evidence/${evidenceId}/download`).set(employee2Headers());
+        expect(res.status).toBe(403);
+        expect(fileStorage.readOrgFile).not.toHaveBeenCalled();
+      });
+
+      it("lets an employee who currently holds the asset download", async () => {
+        const assetId = await createAssignedAsset();
+        const evidenceId = await uploadedEvidence(assetId, hrHeaders());
+        const res = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}/evidence/${evidenceId}/download`).set(employeeHeaders());
+        expect(res.status).toBe(200);
+      });
+
+      it("returns 404 for a nonexistent evidence id", async () => {
+        const assetId = await createAvailableAsset();
+        const res = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}/evidence/999999/download`).set(hrHeaders());
+        expect(res.status).toBe(404);
+      });
+
+      it("returns 404 for a real foreign-org evidence id, never leaking existence", async () => {
+        const created = await request(app).post(`/api/organizations/${OTHER_ORG_ID}/assets`).set(otherOrgHrHeaders()).send({ categoryCode: "laptop", name: "X" });
+        const evidenceId = await uploadedEvidence(created.body.id, otherOrgHrHeaders(), OTHER_ORG_ID);
+        const res = await request(app).get(`/api/organizations/${ORG_ID}/assets/${created.body.id}/evidence/${evidenceId}/download`).set(hrHeaders());
+        expect(res.status).toBe(404);
+      });
+
+      it("denies unauthenticated requests", async () => {
+        const assetId = await createAvailableAsset();
+        const evidenceId = await uploadedEvidence(assetId, hrHeaders());
+        const res = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}/evidence/${evidenceId}/download`);
+        expect(res.status).toBe(401);
+      });
+
+      it("never emits an audit row", async () => {
+        const assetId = await createAvailableAsset();
+        const evidenceId = await uploadedEvidence(assetId, hrHeaders());
+        const countBefore = state.auditRows.length;
+        await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}/evidence/${evidenceId}/download`).set(hrHeaders());
+        expect(state.auditRows.length).toBe(countBefore);
       });
     });
   });
