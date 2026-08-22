@@ -707,16 +707,8 @@ describe("Asset Register (W96)", () => {
       const res = await request(app).get(`/api/organizations/${ORG_ID}/assets/${created.body.id}/evidence`).set(hrHeaders());
       expect(res.status).toBe(404);
     });
-    it("has no HR-side incident review route (W99)", async () => {
-      const res = await request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/1/review`).set(hrHeaders()).send({});
-      expect(res.status).toBe(404);
-    });
-    it("has no HR-side incident dismiss route (W99)", async () => {
-      const res = await request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/1/dismiss`).set(hrHeaders()).send({});
-      expect(res.status).toBe(404);
-    });
-    it("has no org-wide incident-listing route (W99)", async () => {
-      const res = await request(app).get(`/api/organizations/${ORG_ID}/asset-incidents`).set(hrHeaders());
+    it("has no GET .../asset-incidents/:id detail route — the frozen §20 contract names none; the list route's own rows already carry full detail", async () => {
+      const res = await request(app).get(`/api/organizations/${ORG_ID}/asset-incidents/1`).set(hrHeaders());
       expect(res.status).toBe(404);
     });
     it("the Asset DTO carries no employeeId/custody field", async () => {
@@ -1344,6 +1336,295 @@ describe("Asset Register (W96)", () => {
       const event = state.auditRows.find((r) => r.eventType === "asset_incident.reported") as Record<string, unknown> | undefined;
       expect(event).toBeTruthy();
       expect(JSON.stringify(event?.metadata ?? {})).not.toContain("A very specific private description");
+    });
+  });
+
+  describe("incident handling — HR/Asset-Officer (W99)", () => {
+    async function reportIncident(orgId = ORG_ID, headers = hrHeaders(), employeeId = EMPLOYEE_ID, incidentType: "damage" | "loss" = "damage") {
+      const created = await request(app).post(`/api/organizations/${orgId}/assets`).set(headers).send({ categoryCode: "laptop", name: "X" });
+      await request(app).post(`/api/organizations/${orgId}/assets/${created.body.id}/assign`).set(headers).send({ employeeId });
+      const reportRes = await request(app)
+        .post(`/api/organizations/${orgId}/assets/${created.body.id}/report-issue`)
+        .set(employeeHeaders())
+        .send({ incidentType, description: "QA incident" });
+      return { assetId: created.body.id as number, incidentId: reportRes.body.id as number };
+    }
+
+    /**
+     * A real foreign-org incident fixture, staged directly (no properly
+     * linked Acme employee session exists in this mock harness — every
+     * other cross-org check in this suite already reuses HR/admin actors,
+     * which are deliberately never linked to an employee record, so a real
+     * end-to-end report-issue call as an Acme employee isn't reachable
+     * here). This only fabricates the row; the IDOR behavior under test is
+     * exercised entirely through the real review/dismiss routes below.
+     */
+    function stageForeignOrgIncident(): number {
+      const id = nextId("asset_incidents");
+      state.assetIncidentRows = [
+        ...state.assetIncidentRows,
+        { id, organizationId: OTHER_ORG_ID, assetId: 1, assignmentId: 1, reportedByEmployeeId: OTHER_ORG_EMPLOYEE_ID, incidentType: "damage", description: "Acme incident", reportedAt: new Date(), status: "open", reviewedByMembershipId: null, reviewedAt: null, resolutionNotes: null },
+      ];
+      return id;
+    }
+
+    describe("list — GET .../asset-incidents", () => {
+      it("returns organization-wide incidents for asset_management.manage", async () => {
+        await reportIncident();
+        const res = await request(app).get(`/api/organizations/${ORG_ID}/asset-incidents`).set(hrHeaders());
+        expect(res.status).toBe(200);
+        expect(res.body).toHaveLength(1);
+      });
+
+      it("filters by status", async () => {
+        const { incidentId } = await reportIncident();
+        await request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/${incidentId}/review`).set(hrHeaders()).send({});
+        const openRes = await request(app).get(`/api/organizations/${ORG_ID}/asset-incidents?status=open`).set(hrHeaders());
+        expect(openRes.body).toHaveLength(0);
+        const reviewedRes = await request(app).get(`/api/organizations/${ORG_ID}/asset-incidents?status=reviewed`).set(hrHeaders());
+        expect(reviewedRes.body).toHaveLength(1);
+      });
+
+      it("is organization-scoped — never returns another organization's incidents", async () => {
+        stageForeignOrgIncident();
+        const res = await request(app).get(`/api/organizations/${ORG_ID}/asset-incidents`).set(hrHeaders());
+        expect(res.body).toEqual([]);
+      });
+
+      it("denies an employee (no asset_management.manage)", async () => {
+        const res = await request(app).get(`/api/organizations/${ORG_ID}/asset-incidents`).set(employeeHeaders());
+        expect(res.status).toBe(403);
+      });
+
+      it("denies a manager, despite current-team visibility elsewhere, since HR review authority is unrelated to the manager relationship", async () => {
+        const res = await request(app).get(`/api/organizations/${ORG_ID}/asset-incidents`).set(managerHeaders());
+        expect(res.status).toBe(403);
+      });
+
+      it("denies module-disabled access", async () => {
+        state.organizationModuleRows = state.organizationModuleRows.filter((r) => (r as Record<string, unknown>).organizationId !== ORG_ID);
+        const res = await request(app).get(`/api/organizations/${ORG_ID}/asset-incidents`).set(hrHeaders());
+        expect(res.status).toBe(403);
+      });
+
+      it("denies unauthenticated requests", async () => {
+        const res = await request(app).get(`/api/organizations/${ORG_ID}/asset-incidents`);
+        expect(res.status).toBe(401);
+      });
+
+      it("never emits an audit row", async () => {
+        await reportIncident();
+        const countBefore = state.auditRows.length;
+        await request(app).get(`/api/organizations/${ORG_ID}/asset-incidents`).set(hrHeaders());
+        expect(state.auditRows.length).toBe(countBefore);
+      });
+    });
+
+    describe("review — POST .../asset-incidents/:id/review", () => {
+      it("marks an open incident reviewed, with server-derived actor/timestamp", async () => {
+        const { incidentId } = await reportIncident();
+        const res = await request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/${incidentId}/review`).set(hrHeaders()).send({});
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe("reviewed");
+        expect(res.body.reviewedByMembershipId).toBe(100);
+        expect(res.body.reviewedAt).not.toBeNull();
+      });
+
+      it("accepts an optional resolutionNotes", async () => {
+        const { incidentId } = await reportIncident();
+        const res = await request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/${incidentId}/review`).set(hrHeaders()).send({ resolutionNotes: "Confirmed with employee" });
+        expect(res.body.resolutionNotes).toBe("Confirmed with employee");
+      });
+
+      it("does not require resolutionNotes (optional, not mandatory)", async () => {
+        const { incidentId } = await reportIncident();
+        const res = await request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/${incidentId}/review`).set(hrHeaders()).send({});
+        expect(res.status).toBe(200);
+      });
+
+      it("never itself mutates the asset's own status, condition, or active custody", async () => {
+        const { assetId, incidentId } = await reportIncident();
+        await request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/${incidentId}/review`).set(hrHeaders()).send({});
+        const asset = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}`).set(hrHeaders());
+        expect(asset.body.status).toBe("assigned");
+        expect(asset.body.condition).toBe("good");
+        const list = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}/assignments`).set(hrHeaders());
+        expect(list.body[0].custodyEndedAt).toBeNull();
+      });
+
+      it("rejects a repeat review with a controlled 409", async () => {
+        const { incidentId } = await reportIncident();
+        const first = await request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/${incidentId}/review`).set(hrHeaders()).send({});
+        expect(first.status).toBe(200);
+        const repeat = await request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/${incidentId}/review`).set(hrHeaders()).send({});
+        expect(repeat.status).toBe(409);
+      });
+
+      it("rejects reviewing an already-dismissed incident (no dismissed -> reviewed)", async () => {
+        const { incidentId } = await reportIncident();
+        await request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/${incidentId}/dismiss`).set(hrHeaders()).send({});
+        const res = await request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/${incidentId}/review`).set(hrHeaders()).send({});
+        expect(res.status).toBe(409);
+      });
+
+      it("returns 404 for a nonexistent incident", async () => {
+        const res = await request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/999999/review`).set(hrHeaders()).send({});
+        expect(res.status).toBe(404);
+      });
+
+      it("returns 404 for a real foreign-org incident id, never leaking existence", async () => {
+        const incidentId = stageForeignOrgIncident();
+        const res = await request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/${incidentId}/review`).set(hrHeaders()).send({});
+        expect(res.status).toBe(404);
+      });
+
+      it("denies an employee", async () => {
+        const { incidentId } = await reportIncident();
+        const res = await request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/${incidentId}/review`).set(employeeHeaders()).send({});
+        expect(res.status).toBe(403);
+      });
+
+      it("denies a manager despite current-team visibility", async () => {
+        const { incidentId } = await reportIncident();
+        const res = await request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/${incidentId}/review`).set(managerHeaders()).send({});
+        expect(res.status).toBe(403);
+      });
+
+      it("denies module-disabled access", async () => {
+        const { incidentId } = await reportIncident();
+        state.organizationModuleRows = state.organizationModuleRows.filter((r) => (r as Record<string, unknown>).organizationId !== ORG_ID);
+        const res = await request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/${incidentId}/review`).set(hrHeaders()).send({});
+        expect(res.status).toBe(403);
+      });
+
+      it("denies unauthenticated requests", async () => {
+        const { incidentId } = await reportIncident();
+        const res = await request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/${incidentId}/review`).send({});
+        expect(res.status).toBe(401);
+      });
+
+      it("a genuine concurrent review-vs-dismiss race on the same open incident resolves to exactly one winner", async () => {
+        const { incidentId } = await reportIncident();
+        const [a, b] = await Promise.all([
+          request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/${incidentId}/review`).set(hrHeaders()).send({}),
+          request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/${incidentId}/dismiss`).set(hrHeaders()).send({}),
+        ]);
+        const statuses = [a.status, b.status].sort();
+        expect(statuses).toEqual([200, 409]);
+        const list = await request(app).get(`/api/organizations/${ORG_ID}/asset-incidents`).set(hrHeaders());
+        expect(["reviewed", "dismissed"]).toContain(list.body[0].status);
+      });
+
+      it("emits asset_incident.reviewed", async () => {
+        const { incidentId } = await reportIncident();
+        await request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/${incidentId}/review`).set(hrHeaders()).send({});
+        expect(state.auditRows.some((r) => r.eventType === "asset_incident.reviewed")).toBe(true);
+      });
+    });
+
+    describe("dismiss — POST .../asset-incidents/:id/dismiss", () => {
+      it("marks an open incident dismissed", async () => {
+        const { incidentId } = await reportIncident();
+        const res = await request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/${incidentId}/dismiss`).set(hrHeaders()).send({});
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe("dismissed");
+      });
+
+      it("never itself mutates the asset", async () => {
+        const { assetId, incidentId } = await reportIncident();
+        await request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/${incidentId}/dismiss`).set(hrHeaders()).send({});
+        const asset = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}`).set(hrHeaders());
+        expect(asset.body.status).toBe("assigned");
+      });
+
+      it("rejects a repeat dismiss with a controlled 409", async () => {
+        const { incidentId } = await reportIncident();
+        await request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/${incidentId}/dismiss`).set(hrHeaders()).send({});
+        const repeat = await request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/${incidentId}/dismiss`).set(hrHeaders()).send({});
+        expect(repeat.status).toBe(409);
+      });
+
+      it("rejects dismissing an already-reviewed incident (no reviewed -> dismissed)", async () => {
+        const { incidentId } = await reportIncident();
+        await request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/${incidentId}/review`).set(hrHeaders()).send({});
+        const res = await request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/${incidentId}/dismiss`).set(hrHeaders()).send({});
+        expect(res.status).toBe(409);
+      });
+
+      it("returns 404 for a foreign-org incident id", async () => {
+        const incidentId = stageForeignOrgIncident();
+        const res = await request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/${incidentId}/dismiss`).set(hrHeaders()).send({});
+        expect(res.status).toBe(404);
+      });
+
+      it("denies an employee and a manager", async () => {
+        const { incidentId } = await reportIncident();
+        const empRes = await request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/${incidentId}/dismiss`).set(employeeHeaders()).send({});
+        expect(empRes.status).toBe(403);
+        const mgrRes = await request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/${incidentId}/dismiss`).set(managerHeaders()).send({});
+        expect(mgrRes.status).toBe(403);
+      });
+
+      it("emits asset_incident.dismissed", async () => {
+        const { incidentId } = await reportIncident();
+        await request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/${incidentId}/dismiss`).set(hrHeaders()).send({});
+        expect(state.auditRows.some((r) => r.eventType === "asset_incident.dismissed")).toBe(true);
+      });
+    });
+
+    describe("incident disposition stays separate from asset lifecycle — reused W96 actions (§ incident/asset boundary)", () => {
+      it("HR reviews a damage incident, then separately applies a condition update through W96's own dedicated route — the review itself never touched condition", async () => {
+        const { assetId, incidentId } = await reportIncident(ORG_ID, hrHeaders(), EMPLOYEE_ID, "damage");
+        await request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/${incidentId}/review`).set(hrHeaders()).send({ resolutionNotes: "Confirmed damage, updating condition separately" });
+        const midway = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}`).set(hrHeaders());
+        expect(midway.body.condition).toBe("good");
+
+        const conditionRes = await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/condition`).set(hrHeaders()).send({ condition: "damaged", reason: "Confirmed via incident report" });
+        expect(conditionRes.status).toBe(200);
+        expect(conditionRes.body.condition).toBe("damaged");
+      });
+
+      it("HR reviews a loss incident, then separately marks the asset lost through W96's own reused mark-lost route (custody closes as that route already defines)", async () => {
+        const { assetId, incidentId } = await reportIncident(ORG_ID, hrHeaders(), EMPLOYEE_ID, "loss");
+        await request(app).post(`/api/organizations/${ORG_ID}/asset-incidents/${incidentId}/review`).set(hrHeaders()).send({});
+
+        const lostRes = await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/mark-lost`).set(hrHeaders()).send({ reason: "Confirmed via incident report" });
+        expect(lostRes.status).toBe(200);
+        expect(lostRes.body.status).toBe("lost");
+        const list = await request(app).get(`/api/organizations/${ORG_ID}/assets/${assetId}/assignments`).set(hrHeaders());
+        expect(list.body[0].custodyEndedAt).not.toBeNull();
+        expect(list.body[0].endReason).toBe("lost");
+      });
+
+      it("lost -> recover -> retired: recover restores availability, retire is then reused unchanged and remains terminal", async () => {
+        const { assetId } = await reportIncident(ORG_ID, hrHeaders(), EMPLOYEE_ID, "loss");
+        await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/mark-lost`).set(hrHeaders()).send({ reason: "r" });
+        const recoverRes = await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/recover`).set(hrHeaders()).send({ reason: "Found" });
+        expect(recoverRes.status).toBe(200);
+        expect(recoverRes.body.status).toBe("available");
+
+        const retireRes = await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/retire`).set(hrHeaders()).send({ reason: "End of life" });
+        expect(retireRes.status).toBe(200);
+        expect(retireRes.body.status).toBe("retired");
+
+        const repeatRetire = await request(app).post(`/api/organizations/${ORG_ID}/assets/${assetId}/retire`).set(hrHeaders()).send({ reason: "r2" });
+        expect(repeatRetire.status).toBe(409);
+      });
+
+      it("assigned -> retired remains blocked (custody must close first) — the frozen invariant still holds after W99", async () => {
+        const created = await request(app).post(`/api/organizations/${ORG_ID}/assets`).set(hrHeaders()).send({ categoryCode: "laptop", name: "X" });
+        await request(app).post(`/api/organizations/${ORG_ID}/assets/${created.body.id}/assign`).set(hrHeaders()).send({ employeeId: EMPLOYEE_ID });
+        const res = await request(app).post(`/api/organizations/${ORG_ID}/assets/${created.body.id}/retire`).set(hrHeaders()).send({ reason: "r" });
+        expect(res.status).toBe(409);
+      });
+
+      it("there is no disposed status — retirement always results in status=retired", async () => {
+        const created = await request(app).post(`/api/organizations/${ORG_ID}/assets`).set(hrHeaders()).send({ categoryCode: "laptop", name: "X" });
+        const res = await request(app).post(`/api/organizations/${ORG_ID}/assets/${created.body.id}/retire`).set(hrHeaders()).send({ reason: "Disposal — write-off" });
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe("retired");
+        expect(res.body.status).not.toBe("disposed");
+      });
     });
   });
 });

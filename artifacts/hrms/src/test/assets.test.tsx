@@ -8,7 +8,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Assets from '@/pages/assets';
-import type { Asset, Branch, MasterDataItem, MembershipSummary } from '@workspace/api-client-react';
+import type { Asset, AssetIncident, Branch, MasterDataItem, MembershipSummary } from '@workspace/api-client-react';
 
 const { state } = vi.hoisted(() => ({
   state: {
@@ -30,6 +30,11 @@ const { state } = vi.hoisted(() => ({
     returnAssetMutate: vi.fn(),
     assignments: [] as unknown[],
     employees: [] as unknown[],
+    incidents: [] as AssetIncident[],
+    incidentsLoading: false,
+    incidentsError: undefined as unknown,
+    reviewIncidentMutate: vi.fn(),
+    dismissIncidentMutate: vi.fn(),
   },
 }));
 
@@ -63,6 +68,10 @@ vi.mock('@workspace/api-client-react', () => ({
   getListAssetAssignmentsQueryKey: () => ['assetAssignments'],
   useListEmployees: () => ({ data: { items: state.employees, total: state.employees.length, page: 1, pageSize: 200 } }),
   getListEmployeesQueryKey: () => ['employees'],
+  useListAssetIncidents: () => ({ data: state.incidents, isLoading: state.incidentsLoading, error: state.incidentsError, refetch: vi.fn() }),
+  getListAssetIncidentsQueryKey: () => ['assetIncidents'],
+  useReviewAssetIncident: () => ({ mutate: state.reviewIncidentMutate, isPending: false }),
+  useDismissAssetIncident: () => ({ mutate: state.dismissIncidentMutate, isPending: false }),
   AssetCondition: { new: 'new', good: 'good', fair: 'fair', poor: 'poor', damaged: 'damaged' },
   AssetStatus: { available: 'available', assigned: 'assigned', maintenance: 'maintenance', lost: 'lost', retired: 'retired' },
 }));
@@ -125,6 +134,31 @@ function resetState() {
   state.returnAssetMutate = vi.fn();
   state.assignments = [];
   state.employees = [{ id: 200, firstName: 'Amara', lastName: 'Owusu' }, { id: 201, firstName: 'Kojo', lastName: 'Mensah' }];
+  state.incidents = [];
+  state.incidentsLoading = false;
+  state.incidentsError = undefined;
+  state.reviewIncidentMutate = vi.fn();
+  state.dismissIncidentMutate = vi.fn();
+}
+
+function incident(overrides: Partial<AssetIncident> = {}): AssetIncident {
+  return {
+    id: 1,
+    organizationId: 10,
+    assetId: 1,
+    assignmentId: 1,
+    reportedByEmployeeId: 200,
+    incidentType: 'damage',
+    description: 'Screen cracked',
+    reportedAt: new Date().toISOString(),
+    status: 'open',
+    reviewedByMembershipId: null,
+    reviewedAt: null,
+    resolutionNotes: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    ...overrides,
+  };
 }
 
 describe('Asset Register page', () => {
@@ -416,6 +450,151 @@ describe('Asset Register page', () => {
       renderPage();
       await userEvent.click(screen.getByTestId('button-manage-asset-1'));
       expect(screen.getByTestId('text-no-current-custody-1')).toBeInTheDocument();
+    });
+  });
+
+  describe('incidents — org-wide queue and per-asset panel (W99)', () => {
+    it('shows an empty state when no incidents have been reported', () => {
+      resetState();
+      renderPage();
+      expect(screen.getByTestId('text-no-incidents')).toBeInTheDocument();
+    });
+
+    it('shows a loading state for the incidents queue without crashing', () => {
+      resetState();
+      state.incidentsLoading = true;
+      renderPage();
+      expect(screen.getByText('Asset Register')).toBeInTheDocument();
+    });
+
+    it('shows an error state for the incidents queue with retry', () => {
+      resetState();
+      state.incidentsError = { error: 'boom' };
+      renderPage();
+      expect(screen.getByText(/could not load incidents/i)).toBeInTheDocument();
+    });
+
+    it('renders an open incident in the queue with a text status label, asset context, and reporter', () => {
+      resetState();
+      state.incidents = [incident({ id: 1, assetId: 7, status: 'open', incidentType: 'damage', reportedByEmployeeId: 200 })];
+      renderPage();
+      const row = screen.getByTestId('row-incident-queue-1');
+      expect(row).toHaveTextContent('Asset #7');
+      expect(row).toHaveTextContent('Damage');
+      expect(row).toHaveTextContent('employee #200');
+      expect(screen.getByTestId('badge-incident-status-queue-1')).toHaveTextContent('Open');
+    });
+
+    it('renders a reviewed incident with a text "Reviewed" label and no action buttons', () => {
+      resetState();
+      state.incidents = [incident({ id: 1, status: 'reviewed', resolutionNotes: 'Confirmed with employee' })];
+      renderPage();
+      expect(screen.getByTestId('badge-incident-status-queue-1')).toHaveTextContent('Reviewed');
+      expect(screen.getByTestId('row-incident-queue-1')).toHaveTextContent('Confirmed with employee');
+      expect(screen.queryByTestId('button-open-review-queue-1')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-open-dismiss-queue-1')).not.toBeInTheDocument();
+    });
+
+    it('renders a dismissed incident with a text "Dismissed" label and no action buttons', () => {
+      resetState();
+      state.incidents = [incident({ id: 1, status: 'dismissed' })];
+      renderPage();
+      expect(screen.getByTestId('badge-incident-status-queue-1')).toHaveTextContent('Dismissed');
+      expect(screen.queryByTestId('button-open-review-queue-1')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-open-dismiss-queue-1')).not.toBeInTheDocument();
+    });
+
+    it('offers Review and Dismiss only while an incident is open', () => {
+      resetState();
+      state.incidents = [incident({ id: 1, status: 'open' })];
+      renderPage();
+      expect(screen.getByTestId('button-open-review-queue-1')).toBeInTheDocument();
+      expect(screen.getByTestId('button-open-dismiss-queue-1')).toBeInTheDocument();
+    });
+
+    it('submits a review with an optional resolution note through the real route', async () => {
+      resetState();
+      state.incidents = [incident({ id: 1, status: 'open' })];
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-open-review-queue-1'));
+      await userEvent.type(screen.getByTestId('textarea-review-notes-queue-1'), 'Confirmed damage');
+      await userEvent.click(screen.getByTestId('button-confirm-review-queue-1'));
+      expect(state.reviewIncidentMutate).toHaveBeenCalledWith(
+        { organizationId: 10, id: 1, data: { resolutionNotes: 'Confirmed damage' } },
+        expect.anything(),
+      );
+    });
+
+    it('submits a review with no note at all (resolutionNotes is optional, not mandatory)', async () => {
+      resetState();
+      state.incidents = [incident({ id: 1, status: 'open' })];
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-open-review-queue-1'));
+      expect(screen.getByTestId('button-confirm-review-queue-1')).not.toBeDisabled();
+      await userEvent.click(screen.getByTestId('button-confirm-review-queue-1'));
+      expect(state.reviewIncidentMutate).toHaveBeenCalledWith(
+        { organizationId: 10, id: 1, data: { resolutionNotes: undefined } },
+        expect.anything(),
+      );
+    });
+
+    it('submits a dismiss through the real route', async () => {
+      resetState();
+      state.incidents = [incident({ id: 1, status: 'open' })];
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-open-dismiss-queue-1'));
+      await userEvent.click(screen.getByTestId('button-confirm-dismiss-queue-1'));
+      expect(state.dismissIncidentMutate).toHaveBeenCalledWith(
+        { organizationId: 10, id: 1, data: { resolutionNotes: undefined } },
+        expect.anything(),
+      );
+    });
+
+    it('groups incidents into Open and Resolved sections', () => {
+      resetState();
+      state.incidents = [
+        incident({ id: 1, status: 'open' }),
+        incident({ id: 2, status: 'reviewed' }),
+      ];
+      renderPage();
+      expect(screen.getByText('Open (1)')).toBeInTheDocument();
+      expect(screen.getByText('Resolved')).toBeInTheDocument();
+    });
+
+    it('shows only incidents for this specific asset inside the manage dialog panel, never other assets\' incidents', async () => {
+      resetState();
+      state.assets = { items: [asset({ id: 1 })], total: 1, page: 1, pageSize: 20 };
+      state.detail = asset({ id: 1 });
+      state.incidents = [
+        incident({ id: 1, assetId: 1, status: 'open' }),
+        incident({ id: 2, assetId: 99, status: 'open' }),
+      ];
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-manage-asset-1'));
+      expect(screen.getByTestId('row-incident-panel-1')).toBeInTheDocument();
+      expect(screen.queryByTestId('row-incident-panel-2')).not.toBeInTheDocument();
+    });
+
+    it('shows an empty state inside the manage dialog panel when this asset has no incidents', async () => {
+      resetState();
+      state.assets = { items: [asset({ id: 1 })], total: 1, page: 1, pageSize: 20 };
+      state.detail = asset({ id: 1 });
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-manage-asset-1'));
+      expect(screen.getByTestId('text-no-asset-incidents')).toBeInTheDocument();
+    });
+
+    it('reviewing/dismissing an incident never itself renders as an asset status or condition change on this page', async () => {
+      resetState();
+      state.incidents = [incident({ id: 1, status: 'open' })];
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-open-review-queue-1'));
+      await userEvent.click(screen.getByTestId('button-confirm-review-queue-1'));
+      // The review mutation was called; the page performs no separate,
+      // automatic asset-mutating call as a side effect of it.
+      expect(state.retireAssetMutate).not.toHaveBeenCalled();
+      expect(state.markAssetLostMutate).not.toHaveBeenCalled();
+      expect(state.updateAssetConditionMutate).not.toHaveBeenCalled();
     });
   });
 });

@@ -102,6 +102,7 @@ import type {
   DailyAttendanceSummary,
   DashboardSummary,
   Department,
+  DismissAssetIncidentInput,
   Employee,
   EmployeeCertification,
   EmployeeDisciplinaryRecord,
@@ -144,6 +145,7 @@ import type {
   LeaveType,
   LinkEmployeeUserInput,
   ListApplicationsParams,
+  ListAssetIncidentsParams,
   ListAssetsParams,
   ListAttendanceEventsParams,
   ListAttendanceRegisterParams,
@@ -238,6 +240,7 @@ import type {
   RestructurePositionInput,
   RetireAssetInput,
   ReturnAssetInput,
+  ReviewAssetIncidentInput,
   RevokeLearningCertificateInput,
   Role,
   RunAttendanceReportParams,
@@ -24805,5 +24808,245 @@ export const useReportAssetIssue = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getReportAssetIssueMutationOptions(options));
+    }
+
+export const getListAssetIncidentsUrl = (organizationId: number,
+    params?: ListAssetIncidentsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/asset-incidents?${stringifiedParams}` : `/api/organizations/${organizationId}/asset-incidents`
+}
+
+/**
+ * Requires asset_management.manage. Organization-wide, optionally filtered by status. Intentionally lightweight — no pagination, no case-management fields.
+ * @summary List an organization's asset incidents (HR/Asset-Officer)
+ */
+export const listAssetIncidents = async (organizationId: number,
+    params?: ListAssetIncidentsParams, options?: RequestInit): Promise<AssetIncident[]> => {
+
+  return customFetch<AssetIncident[]>(getListAssetIncidentsUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAssetIncidentsQueryKey = (organizationId: number,
+    params?: ListAssetIncidentsParams,) => {
+    return [
+    `/api/organizations/${organizationId}/asset-incidents`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListAssetIncidentsQueryOptions = <TData = Awaited<ReturnType<typeof listAssetIncidents>>, TError = ErrorType<unknown>>(organizationId: number,
+    params?: ListAssetIncidentsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAssetIncidents>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAssetIncidentsQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAssetIncidents>>> = ({ signal }) => listAssetIncidents(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAssetIncidents>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAssetIncidentsQueryResult = NonNullable<Awaited<ReturnType<typeof listAssetIncidents>>>
+export type ListAssetIncidentsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List an organization's asset incidents (HR/Asset-Officer)
+ */
+
+export function useListAssetIncidents<TData = Awaited<ReturnType<typeof listAssetIncidents>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    params?: ListAssetIncidentsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAssetIncidents>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAssetIncidentsQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getReviewAssetIncidentUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/asset-incidents/${id}/review`
+}
+
+/**
+ * Requires asset_management.manage. open -> reviewed only, terminal — no reopen, no reviewed -> dismissed. Sets reviewedByMembershipId/ reviewedAt server-side; resolutionNotes is optional. Deliberately independent of any asset-level action — reviewing an incident never itself changes assets.status/.condition or custody; if a resulting action (damage/loss/retirement) is warranted, the HR/Asset-Officer actor performs it separately through the existing asset routes.
+ * @summary Mark an open incident reviewed
+ */
+export const reviewAssetIncident = async (organizationId: number,
+    id: number,
+    reviewAssetIncidentInput?: ReviewAssetIncidentInput, options?: RequestInit): Promise<AssetIncident> => {
+
+  return customFetch<AssetIncident>(getReviewAssetIncidentUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reviewAssetIncidentInput)
+  }
+);}
+
+
+
+
+
+export const getReviewAssetIncidentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewAssetIncident>>, TError,{organizationId: number;id: number;data?: BodyType<ReviewAssetIncidentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reviewAssetIncident>>, TError,{organizationId: number;id: number;data?: BodyType<ReviewAssetIncidentInput>}, TContext> => {
+
+const mutationKey = ['reviewAssetIncident'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reviewAssetIncident>>, {organizationId: number;id: number;data?: BodyType<ReviewAssetIncidentInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  reviewAssetIncident(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReviewAssetIncidentMutationResult = NonNullable<Awaited<ReturnType<typeof reviewAssetIncident>>>
+    export type ReviewAssetIncidentMutationBody = BodyType<ReviewAssetIncidentInput> | undefined
+    export type ReviewAssetIncidentMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Mark an open incident reviewed
+ */
+export const useReviewAssetIncident = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewAssetIncident>>, TError,{organizationId: number;id: number;data?: BodyType<ReviewAssetIncidentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reviewAssetIncident>>,
+        TError,
+        {organizationId: number;id: number;data?: BodyType<ReviewAssetIncidentInput>},
+        TContext
+      > => {
+      return useMutation(getReviewAssetIncidentMutationOptions(options));
+    }
+
+export const getDismissAssetIncidentUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/asset-incidents/${id}/dismiss`
+}
+
+/**
+ * Requires asset_management.manage. open -> dismissed only, terminal — no reopen, no dismissed -> reviewed. Same actor/timestamp shape as review; resolutionNotes is optional.
+ * @summary Dismiss an open incident
+ */
+export const dismissAssetIncident = async (organizationId: number,
+    id: number,
+    dismissAssetIncidentInput?: DismissAssetIncidentInput, options?: RequestInit): Promise<AssetIncident> => {
+
+  return customFetch<AssetIncident>(getDismissAssetIncidentUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(dismissAssetIncidentInput)
+  }
+);}
+
+
+
+
+
+export const getDismissAssetIncidentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof dismissAssetIncident>>, TError,{organizationId: number;id: number;data?: BodyType<DismissAssetIncidentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof dismissAssetIncident>>, TError,{organizationId: number;id: number;data?: BodyType<DismissAssetIncidentInput>}, TContext> => {
+
+const mutationKey = ['dismissAssetIncident'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof dismissAssetIncident>>, {organizationId: number;id: number;data?: BodyType<DismissAssetIncidentInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  dismissAssetIncident(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DismissAssetIncidentMutationResult = NonNullable<Awaited<ReturnType<typeof dismissAssetIncident>>>
+    export type DismissAssetIncidentMutationBody = BodyType<DismissAssetIncidentInput> | undefined
+    export type DismissAssetIncidentMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Dismiss an open incident
+ */
+export const useDismissAssetIncident = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof dismissAssetIncident>>, TError,{organizationId: number;id: number;data?: BodyType<DismissAssetIncidentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof dismissAssetIncident>>,
+        TError,
+        {organizationId: number;id: number;data?: BodyType<DismissAssetIncidentInput>},
+        TContext
+      > => {
+      return useMutation(getDismissAssetIncidentMutationOptions(options));
     }
 

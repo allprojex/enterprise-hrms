@@ -10660,3 +10660,96 @@ export const ReportAssetIssueResponse = zod.object({
 })
 
 
+/**
+ * Requires asset_management.manage. Organization-wide, optionally filtered by status. Intentionally lightweight — no pagination, no case-management fields.
+ * @summary List an organization's asset incidents (HR/Asset-Officer)
+ */
+export const ListAssetIncidentsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListAssetIncidentsQueryParams = zod.object({
+  "status": zod.enum(['open', 'reviewed', 'dismissed']).optional()
+})
+
+export const ListAssetIncidentsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "assetId": zod.number(),
+  "assignmentId": zod.number().describe('The specific custody period this report concerns.'),
+  "reportedByEmployeeId": zod.number().describe('Server-derived from caller identity at creation — never client-supplied.'),
+  "incidentType": zod.enum(['damage', 'loss']),
+  "description": zod.string(),
+  "reportedAt": zod.coerce.date(),
+  "status": zod.enum(['open', 'reviewed', 'dismissed']).describe('Minimal lifecycle. open -> reviewed | dismissed are HR\/Asset-Officer-only transitions, both terminal (no reopen).'),
+  "reviewedByMembershipId": zod.number().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "resolutionNotes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListAssetIncidentsResponse = zod.array(ListAssetIncidentsResponseItem)
+
+
+/**
+ * Requires asset_management.manage. open -> reviewed only, terminal — no reopen, no reviewed -> dismissed. Sets reviewedByMembershipId/ reviewedAt server-side; resolutionNotes is optional. Deliberately independent of any asset-level action — reviewing an incident never itself changes assets.status/.condition or custody; if a resulting action (damage/loss/retirement) is warranted, the HR/Asset-Officer actor performs it separately through the existing asset routes.
+ * @summary Mark an open incident reviewed
+ */
+export const ReviewAssetIncidentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ReviewAssetIncidentBody = zod.object({
+  "resolutionNotes": zod.string().optional()
+})
+
+export const ReviewAssetIncidentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "assetId": zod.number(),
+  "assignmentId": zod.number().describe('The specific custody period this report concerns.'),
+  "reportedByEmployeeId": zod.number().describe('Server-derived from caller identity at creation — never client-supplied.'),
+  "incidentType": zod.enum(['damage', 'loss']),
+  "description": zod.string(),
+  "reportedAt": zod.coerce.date(),
+  "status": zod.enum(['open', 'reviewed', 'dismissed']).describe('Minimal lifecycle. open -> reviewed | dismissed are HR\/Asset-Officer-only transitions, both terminal (no reopen).'),
+  "reviewedByMembershipId": zod.number().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "resolutionNotes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Requires asset_management.manage. open -> dismissed only, terminal — no reopen, no dismissed -> reviewed. Same actor/timestamp shape as review; resolutionNotes is optional.
+ * @summary Dismiss an open incident
+ */
+export const DismissAssetIncidentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const DismissAssetIncidentBody = zod.object({
+  "resolutionNotes": zod.string().optional()
+})
+
+export const DismissAssetIncidentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "assetId": zod.number(),
+  "assignmentId": zod.number().describe('The specific custody period this report concerns.'),
+  "reportedByEmployeeId": zod.number().describe('Server-derived from caller identity at creation — never client-supplied.'),
+  "incidentType": zod.enum(['damage', 'loss']),
+  "description": zod.string(),
+  "reportedAt": zod.coerce.date(),
+  "status": zod.enum(['open', 'reviewed', 'dismissed']).describe('Minimal lifecycle. open -> reviewed | dismissed are HR\/Asset-Officer-only transitions, both terminal (no reopen).'),
+  "reviewedByMembershipId": zod.number().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "resolutionNotes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+

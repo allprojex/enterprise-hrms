@@ -110,6 +110,13 @@ export class AssetNotCurrentlyAssignedToCallerError extends Error {
     this.name = "AssetNotCurrentlyAssignedToCallerError";
   }
 }
+export class AssetIncidentNotFoundError extends Error {
+  constructor() {
+    super("Asset incident not found");
+    this.name = "AssetIncidentNotFoundError";
+  }
+}
+export class AssetIncidentConflictError extends Error {}
 
 type AssetCondition = "new" | "good" | "fair" | "poor" | "damaged";
 
@@ -141,6 +148,15 @@ async function findOrgAssignment(organizationId: number, assignmentId: number): 
     .select()
     .from(assetAssignmentsTable)
     .where(and(eq(assetAssignmentsTable.id, assignmentId), eq(assetAssignmentsTable.organizationId, organizationId)))
+    .limit(1);
+  return row ?? null;
+}
+
+async function findOrgIncident(organizationId: number, incidentId: number): Promise<AssetIncident | null> {
+  const [row] = await db
+    .select()
+    .from(assetIncidentsTable)
+    .where(and(eq(assetIncidentsTable.id, incidentId), eq(assetIncidentsTable.organizationId, organizationId)))
     .limit(1);
   return row ?? null;
 }
@@ -1095,4 +1111,146 @@ export async function listTeamAssetAssignments(organizationId: number, managerEm
       ),
     )
     .orderBy(desc(assetAssignmentsTable.issuedAt));
+}
+
+/**
+ * ============================================================================
+ * Asset Management (Phase 3E, W99 — Incident Review, Loss & Retirement
+ * (HR-Side)): docs/PHASE_3E_ASSETS_IMPLEMENTATION_PLAN.md §7/§20/§24's own
+ * frozen W99 scope — the "Incident handling (HR/Asset-Officer)" route group:
+ * org-wide incident listing, review, dismiss. No maintenance-table work
+ * (W100), no dashboard/reporting (W102).
+ *
+ * INTENTIONALLY LIGHTWEIGHT, NOT CASE MANAGEMENT (§5's own explicit
+ * instruction): review/dismiss set exactly status + reviewedByMembershipId +
+ * reviewedAt + an OPTIONAL resolutionNotes — nothing else. No multi-stage
+ * workflow, no linkage to "what action was separately taken." §5's own
+ * `resolutionNotes` field comment: "may reference what asset-level action
+ * (if any) was separately taken; no hard FK to a 'resulting action,'
+ * deliberately, to avoid drifting into case management."
+ *
+ * INCIDENT DISPOSITION IS DELIBERATELY SEPARATE FROM ASSET LIFECYCLE:
+ * reviewAssetIncident/dismissAssetIncident below NEVER call
+ * updateAssetCondition/markAssetLost/recoverAsset/retireAsset, and vice
+ * versa — no automatic coupling exists anywhere in this file. If HR decides
+ * a reviewed incident means the asset is damaged/lost/retired, they invoke
+ * the already-existing, independent W96 actions themselves, as a separate
+ * decision. This is the frozen plan's own explicit design, not an
+ * oversight: "the incident may be reviewed while the resulting
+ * administrative action is handled separately."
+ *
+ * NO SECOND STATUS-TRANSITION ENGINE: mark-lost/recover/retire/condition
+ * (all already shipped in W96, unchanged here) remain the sole authoritative
+ * paths to change assets.status/.condition. This file adds no new asset- or
+ * assignment-mutating function — only asset_incidents' own review/dismiss.
+ *
+ * TERMINAL, NO REOPEN (§7's own "Incident lifecycle (NEW)"): open ->
+ * reviewed | dismissed, both terminal. Every transition here is an atomic
+ * conditional UPDATE guarded by `status = 'open'` — a second review, a
+ * second dismiss, or dismissing an already-reviewed incident (or vice
+ * versa) all affect zero rows and throw a controlled conflict, never a
+ * silent no-op or an implicit reopen.
+ * ============================================================================
+ */
+
+export interface ListAssetIncidentsFilters {
+  organizationId: number;
+  status?: string;
+}
+
+/** GET .../asset-incidents (§20): org-wide, optionally filtered by status. Read-only, never audited. */
+export async function listAssetIncidents(filters: ListAssetIncidentsFilters): Promise<AssetIncident[]> {
+  const conditions = [eq(assetIncidentsTable.organizationId, filters.organizationId)];
+  if (filters.status != null) conditions.push(eq(assetIncidentsTable.status, filters.status as never));
+  return db
+    .select()
+    .from(assetIncidentsTable)
+    .where(and(...conditions))
+    .orderBy(desc(assetIncidentsTable.reportedAt));
+}
+
+export interface ReviewAssetIncidentParams {
+  organizationId: number;
+  incidentId: number;
+  resolutionNotes?: string;
+  actorApplicationUserId: number;
+  actorMembershipId: number;
+}
+
+/** open -> reviewed (§7, §20) — optional resolutionNotes (never mandatory; the frozen route table's own text). Atomic conditional UPDATE guarded by status='open'. */
+export async function reviewAssetIncident(params: ReviewAssetIncidentParams): Promise<AssetIncident> {
+  const existing = await findOrgIncident(params.organizationId, params.incidentId);
+  if (!existing) throw new AssetIncidentNotFoundError();
+
+  const [updated] = await db
+    .update(assetIncidentsTable)
+    .set({
+      status: "reviewed",
+      reviewedByMembershipId: params.actorMembershipId,
+      reviewedAt: new Date(),
+      resolutionNotes: params.resolutionNotes ?? null,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(assetIncidentsTable.id, params.incidentId), eq(assetIncidentsTable.organizationId, params.organizationId), eq(assetIncidentsTable.status, "open")))
+    .returning();
+  if (!updated) {
+    throw new AssetIncidentConflictError(existing.status === "open" ? "This incident is no longer open" : `This incident has already been ${existing.status}`);
+  }
+
+  await recordAuditEvent({
+    actorApplicationUserId: params.actorApplicationUserId,
+    actorMembershipId: params.actorMembershipId,
+    organizationId: params.organizationId,
+    eventType: "asset_incident.reviewed",
+    targetType: "asset_incident",
+    targetId: String(params.incidentId),
+    beforeState: { status: "open" },
+    afterState: { status: "reviewed" },
+    metadata: { assetId: existing.assetId },
+  });
+
+  return updated;
+}
+
+export interface DismissAssetIncidentParams {
+  organizationId: number;
+  incidentId: number;
+  resolutionNotes?: string;
+  actorApplicationUserId: number;
+  actorMembershipId: number;
+}
+
+/** open -> dismissed (§7, §20) — same shape as review, opposite terminal outcome. Atomic conditional UPDATE guarded by status='open'. */
+export async function dismissAssetIncident(params: DismissAssetIncidentParams): Promise<AssetIncident> {
+  const existing = await findOrgIncident(params.organizationId, params.incidentId);
+  if (!existing) throw new AssetIncidentNotFoundError();
+
+  const [updated] = await db
+    .update(assetIncidentsTable)
+    .set({
+      status: "dismissed",
+      reviewedByMembershipId: params.actorMembershipId,
+      reviewedAt: new Date(),
+      resolutionNotes: params.resolutionNotes ?? null,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(assetIncidentsTable.id, params.incidentId), eq(assetIncidentsTable.organizationId, params.organizationId), eq(assetIncidentsTable.status, "open")))
+    .returning();
+  if (!updated) {
+    throw new AssetIncidentConflictError(existing.status === "open" ? "This incident is no longer open" : `This incident has already been ${existing.status}`);
+  }
+
+  await recordAuditEvent({
+    actorApplicationUserId: params.actorApplicationUserId,
+    actorMembershipId: params.actorMembershipId,
+    organizationId: params.organizationId,
+    eventType: "asset_incident.dismissed",
+    targetType: "asset_incident",
+    targetId: String(params.incidentId),
+    beforeState: { status: "open" },
+    afterState: { status: "dismissed" },
+    metadata: { assetId: existing.assetId },
+  });
+
+  return updated;
 }

@@ -12656,6 +12656,132 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/asset-incidents:
+    get:
+      operationId: listAssetIncidents
+      tags: [assets]
+      summary: List an organization's asset incidents (HR/Asset-Officer)
+      description: >-
+        Requires asset_management.manage. Organization-wide, optionally
+        filtered by status. Intentionally lightweight — no pagination, no
+        case-management fields.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/AssetIncidentStatus"
+      responses:
+        "200":
+          description: Incidents, newest-reported first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AssetIncident"
+
+  /organizations/{organizationId}/asset-incidents/{id}/review:
+    post:
+      operationId: reviewAssetIncident
+      tags: [assets]
+      summary: Mark an open incident reviewed
+      description: >-
+        Requires asset_management.manage. open -> reviewed only, terminal —
+        no reopen, no reviewed -> dismissed. Sets reviewedByMembershipId/
+        reviewedAt server-side; resolutionNotes is optional. Deliberately
+        independent of any asset-level action — reviewing an incident never
+        itself changes assets.status/.condition or custody; if a resulting
+        action (damage/loss/retirement) is warranted, the HR/Asset-Officer
+        actor performs it separately through the existing asset routes.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewAssetIncidentInput"
+      responses:
+        "200":
+          description: Reviewed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetIncident"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: This incident is no longer open
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/asset-incidents/{id}/dismiss:
+    post:
+      operationId: dismissAssetIncident
+      tags: [assets]
+      summary: Dismiss an open incident
+      description: >-
+        Requires asset_management.manage. open -> dismissed only, terminal —
+        no reopen, no dismissed -> reviewed. Same actor/timestamp shape as
+        review; resolutionNotes is optional.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DismissAssetIncidentInput"
+      responses:
+        "200":
+          description: Dismissed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetIncident"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: This incident is no longer open
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -19158,3 +19284,16 @@ components:
         description:
           type: string
           minLength: 1
+
+
+    ReviewAssetIncidentInput:
+      type: object
+      properties:
+        resolutionNotes:
+          type: string
+
+    DismissAssetIncidentInput:
+      type: object
+      properties:
+        resolutionNotes:
+          type: string

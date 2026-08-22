@@ -5735,6 +5735,14 @@ export interface ReportAssetIssueInput {
   description: string;
 }
 
+export interface ReviewAssetIncidentInput {
+  resolutionNotes?: string;
+}
+
+export interface DismissAssetIncidentInput {
+  resolutionNotes?: string;
+}
+
 export type ListEmployeesParams = {
 search?: string;
 departmentId?: number;
@@ -6229,4 +6237,8 @@ export const ListAssetsCondition = {
   poor: 'poor',
   damaged: 'damaged',
 } as const;
+
+export type ListAssetIncidentsParams = {
+status?: AssetIncidentStatus;
+};
 

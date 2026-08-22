@@ -20,6 +20,8 @@ import {
   ReturnAssetBody,
   AcknowledgeAssetAssignmentBody,
   ReportAssetIssueBody,
+  ReviewAssetIncidentBody,
+  DismissAssetIncidentBody,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireMembership, type MembershipRequest } from "../middlewares/requireMembership";
@@ -44,6 +46,9 @@ import {
   reportAssetIssue,
   listMyAssetAssignments,
   listTeamAssetAssignments,
+  listAssetIncidents,
+  reviewAssetIncident,
+  dismissAssetIncident,
   AssetNotFoundError,
   InvalidAssetError,
   DuplicateAssetTagError,
@@ -52,6 +57,8 @@ import {
   AssetAssignmentNotFoundError,
   AssetAssignmentConflictError,
   AssetNotCurrentlyAssignedToCallerError,
+  AssetIncidentNotFoundError,
+  AssetIncidentConflictError,
   CrossOrganizationReferenceError,
 } from "../lib/assets";
 
@@ -75,7 +82,7 @@ function iso(d: Date | null | undefined): string | undefined | null {
 }
 
 function handleAssetError(err: unknown, res: Response): void {
-  if (err instanceof AssetNotFoundError || err instanceof AssetAssignmentNotFoundError) {
+  if (err instanceof AssetNotFoundError || err instanceof AssetAssignmentNotFoundError || err instanceof AssetIncidentNotFoundError) {
     res.status(404).json({ error: err.message });
     return;
   }
@@ -83,7 +90,8 @@ function handleAssetError(err: unknown, res: Response): void {
     err instanceof AssetLifecycleConflictError ||
     err instanceof DuplicateAssetTagError ||
     err instanceof DuplicateAssetSerialNumberError ||
-    err instanceof AssetAssignmentConflictError
+    err instanceof AssetAssignmentConflictError ||
+    err instanceof AssetIncidentConflictError
   ) {
     res.status(409).json({ error: err.message });
     return;
@@ -616,6 +624,100 @@ router.post(
         actorMembershipId: req.membership!.id,
       });
       res.status(201).json(incident);
+    } catch (err) {
+      handleAssetError(err, res);
+    }
+  },
+);
+
+// ============================================================================
+// Incident handling (Phase 3E, W99, HR/Asset-Officer): §20's own frozen
+// "Incident handling" route group — org-wide list, review, dismiss. No
+// GET .../asset-incidents/:id detail route exists — the frozen §20 contract
+// names none, and the list route's own rows already carry every field a
+// detail view would need. Every route here is asset_management.manage-only
+// — no employee/manager incident-review authority exists anywhere.
+// ============================================================================
+
+// GET /organizations/:organizationId/asset-incidents
+router.get(
+  "/organizations/:organizationId/asset-incidents",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requireModuleEnabled(ASSET_MANAGEMENT_MODULE_KEY),
+  requirePermission("asset_management.manage"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const status = typeof req.query.status === "string" ? req.query.status : undefined;
+    const incidents = await listAssetIncidents({
+      organizationId: req.membership!.organizationId,
+      status,
+    });
+    res.json(incidents);
+  },
+);
+
+// POST /organizations/:organizationId/asset-incidents/:id/review
+router.post(
+  "/organizations/:organizationId/asset-incidents/:id/review",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requireModuleEnabled(ASSET_MANAGEMENT_MODULE_KEY),
+  requirePermission("asset_management.manage"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const incidentId = parseId(req.params.id);
+    if (isNaN(incidentId)) {
+      res.status(400).json({ error: "Invalid incident ID" });
+      return;
+    }
+    const parsed = ReviewAssetIncidentBody.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+
+    try {
+      const updated = await reviewAssetIncident({
+        organizationId: req.membership!.organizationId,
+        incidentId,
+        resolutionNotes: parsed.data.resolutionNotes,
+        actorApplicationUserId: req.userId!,
+        actorMembershipId: req.membership!.id,
+      });
+      res.json(updated);
+    } catch (err) {
+      handleAssetError(err, res);
+    }
+  },
+);
+
+// POST /organizations/:organizationId/asset-incidents/:id/dismiss
+router.post(
+  "/organizations/:organizationId/asset-incidents/:id/dismiss",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requireModuleEnabled(ASSET_MANAGEMENT_MODULE_KEY),
+  requirePermission("asset_management.manage"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const incidentId = parseId(req.params.id);
+    if (isNaN(incidentId)) {
+      res.status(400).json({ error: "Invalid incident ID" });
+      return;
+    }
+    const parsed = DismissAssetIncidentBody.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+
+    try {
+      const updated = await dismissAssetIncident({
+        organizationId: req.membership!.organizationId,
+        incidentId,
+        resolutionNotes: parsed.data.resolutionNotes,
+        actorApplicationUserId: req.userId!,
+        actorMembershipId: req.membership!.id,
+      });
+      res.json(updated);
     } catch (err) {
       handleAssetError(err, res);
     }

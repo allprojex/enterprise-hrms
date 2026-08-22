@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Boxes, Plus, Settings, ChevronLeft, ChevronRight, Archive, PackageX, RotateCcw, Wrench, UserPlus, Undo2 } from 'lucide-react';
+import { Boxes, Plus, Settings, ChevronLeft, ChevronRight, Archive, PackageX, RotateCcw, Wrench, UserPlus, Undo2, ShieldAlert, CheckCircle2, XCircle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -29,6 +29,10 @@ import {
   useReturnAsset,
   useListAssetAssignments,
   getListAssetAssignmentsQueryKey,
+  useListAssetIncidents,
+  getListAssetIncidentsQueryKey,
+  useReviewAssetIncident,
+  useDismissAssetIncident,
   useListMasterDataItems,
   getListMasterDataItemsQueryKey,
   useListBranches,
@@ -39,6 +43,7 @@ import {
   AssetStatus,
   type Asset,
   type AssetAssignment,
+  type AssetIncident,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -71,6 +76,20 @@ const CONDITION_LABEL: Record<string, string> = {
   fair: 'Fair',
   poor: 'Poor',
   damaged: 'Damaged',
+};
+const INCIDENT_STATUS_LABEL: Record<string, string> = {
+  open: 'Open',
+  reviewed: 'Reviewed',
+  dismissed: 'Dismissed',
+};
+const INCIDENT_STATUS_VARIANT: Record<string, 'secondary' | 'outline' | 'destructive'> = {
+  open: 'destructive',
+  reviewed: 'secondary',
+  dismissed: 'outline',
+};
+const INCIDENT_TYPE_LABEL: Record<string, string> = {
+  damage: 'Damage',
+  loss: 'Loss',
 };
 
 // --- Lifecycle action dialogs (mandatory-reason pattern, mirrors
@@ -540,6 +559,232 @@ function CustodyPanel({ organizationId, asset, onAssetChanged }: { organizationI
   );
 }
 
+// --- Incident handling (Phase 3E, W99, HR/Asset-Officer): review/dismiss
+// only — this page never automatically mutates an asset because an
+// incident becomes reviewed. If HR decides a reviewed/dismissed incident
+// means the asset is damaged/lost/retired, they use the existing, separate
+// lifecycle actions above (Condition/Mark Lost/Recover/Retire) — a
+// deliberate, disclosed non-coupling, not a missing feature. No incident
+// editing, withdrawal, or reopen control exists anywhere. ---
+
+function ReviewIncidentDialog({ organizationId, incident, onChanged, idPrefix }: { organizationId: number; incident: AssetIncident; onChanged: () => void; idPrefix: string }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [notes, setNotes] = useState('');
+  const mutation = useReviewAssetIncident();
+
+  if (incident.status !== 'open') return null;
+
+  const handle = () => {
+    mutation.mutate(
+      { organizationId, id: incident.id, data: { resolutionNotes: notes.trim() || undefined } },
+      {
+        onSuccess: () => {
+          setOpen(false);
+          setNotes('');
+          onChanged();
+          toast({ title: 'Incident reviewed' });
+        },
+        onError: (err) => toast({ title: 'Could not review this incident', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setNotes(''); }}>
+      <DialogTrigger asChild>
+        <Button size="sm" data-testid={`button-open-review-${idPrefix}-${incident.id}`}>
+          <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+          Review…
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Review Incident</DialogTitle>
+          <DialogDescription>
+            Marks this report reviewed. This does not itself change the asset's status or condition — use the asset's own actions separately if a change is warranted.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2 py-2">
+          <Label htmlFor={`review-notes-${idPrefix}-${incident.id}`}>Resolution Notes (optional)</Label>
+          <Textarea id={`review-notes-${idPrefix}-${incident.id}`} value={notes} onChange={(e) => setNotes(e.target.value)} data-testid={`textarea-review-notes-${idPrefix}-${incident.id}`} />
+        </div>
+        <DialogFooter>
+          <Button onClick={handle} disabled={mutation.isPending} data-testid={`button-confirm-review-${idPrefix}-${incident.id}`}>
+            {mutation.isPending ? 'Saving…' : 'Confirm Review'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DismissIncidentDialog({ organizationId, incident, onChanged, idPrefix }: { organizationId: number; incident: AssetIncident; onChanged: () => void; idPrefix: string }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [notes, setNotes] = useState('');
+  const mutation = useDismissAssetIncident();
+
+  if (incident.status !== 'open') return null;
+
+  const handle = () => {
+    mutation.mutate(
+      { organizationId, id: incident.id, data: { resolutionNotes: notes.trim() || undefined } },
+      {
+        onSuccess: () => {
+          setOpen(false);
+          setNotes('');
+          onChanged();
+          toast({ title: 'Incident dismissed' });
+        },
+        onError: (err) => toast({ title: 'Could not dismiss this incident', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setNotes(''); }}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" data-testid={`button-open-dismiss-${idPrefix}-${incident.id}`}>
+          <XCircle className="h-3.5 w-3.5" aria-hidden="true" />
+          Dismiss…
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Dismiss Incident</DialogTitle>
+          <DialogDescription>Marks this report dismissed. This is terminal — there is no reopen action.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2 py-2">
+          <Label htmlFor={`dismiss-notes-${idPrefix}-${incident.id}`}>Resolution Notes (optional)</Label>
+          <Textarea id={`dismiss-notes-${idPrefix}-${incident.id}`} value={notes} onChange={(e) => setNotes(e.target.value)} data-testid={`textarea-dismiss-notes-${idPrefix}-${incident.id}`} />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={handle} disabled={mutation.isPending} data-testid={`button-confirm-dismiss-${idPrefix}-${incident.id}`}>
+            {mutation.isPending ? 'Saving…' : 'Confirm Dismiss'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function IncidentRow({ organizationId, incident, onChanged, showAsset, idPrefix }: { organizationId: number; incident: AssetIncident; onChanged: () => void; showAsset: boolean; idPrefix: string }) {
+  return (
+    <div className="rounded-md border border-border p-3 space-y-2 text-sm" data-testid={`row-incident-${idPrefix}-${incident.id}`}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          {showAsset && <p className="font-medium text-foreground">Asset #{incident.assetId}</p>}
+          <p className="text-muted-foreground">
+            {INCIDENT_TYPE_LABEL[incident.incidentType] ?? incident.incidentType} · reported by employee #{incident.reportedByEmployeeId} · {new Date(incident.reportedAt).toLocaleDateString()}
+          </p>
+        </div>
+        <Badge variant={INCIDENT_STATUS_VARIANT[incident.status] ?? 'outline'} data-testid={`badge-incident-status-${idPrefix}-${incident.id}`}>
+          {INCIDENT_STATUS_LABEL[incident.status] ?? incident.status}
+        </Badge>
+      </div>
+      <p className="text-foreground">{incident.description}</p>
+      {incident.resolutionNotes && <p className="text-xs text-muted-foreground">Resolution notes: {incident.resolutionNotes}</p>}
+      {incident.status === 'open' && (
+        <div className="flex flex-wrap gap-2 pt-1">
+          <ReviewIncidentDialog organizationId={organizationId} incident={incident} onChanged={onChanged} idPrefix={idPrefix} />
+          <DismissIncidentDialog organizationId={organizationId} incident={incident} onChanged={onChanged} idPrefix={idPrefix} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AssetIncidentsPanel({ organizationId, assetId }: { organizationId: number; assetId: number }) {
+  const queryClient = useQueryClient();
+  const { data: incidents, isLoading, error, refetch } = useListAssetIncidents(organizationId, undefined, {
+    query: { queryKey: getListAssetIncidentsQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+
+  const handleChanged = () => {
+    queryClient.invalidateQueries({ queryKey: getListAssetIncidentsQueryKey(organizationId) });
+    refetch();
+  };
+
+  const assetIncidents = (incidents ?? []).filter((i) => i.assetId === assetId);
+
+  return (
+    <div className="space-y-3 border-t border-border pt-4">
+      <Label>Incidents</Label>
+      {isLoading ? (
+        <Skeleton className="h-14 w-full" />
+      ) : error ? (
+        <QueryError title="Could not load incidents" message={errorMessage(error) ?? 'Please try again.'} onRetry={() => refetch()} />
+      ) : assetIncidents.length === 0 ? (
+        <p className="text-sm text-muted-foreground" data-testid="text-no-asset-incidents">No incidents reported for this asset.</p>
+      ) : (
+        <div className="space-y-2">
+          {assetIncidents.map((incident) => (
+            <IncidentRow key={incident.id} organizationId={organizationId} incident={incident} onChanged={handleChanged} showAsset={false} idPrefix="panel" />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function IncidentsQueueSection({ organizationId }: { organizationId: number }) {
+  const queryClient = useQueryClient();
+  const { data: incidents, isLoading, error, refetch } = useListAssetIncidents(organizationId, undefined, {
+    query: { queryKey: getListAssetIncidentsQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+
+  const handleChanged = () => {
+    queryClient.invalidateQueries({ queryKey: getListAssetIncidentsQueryKey(organizationId) });
+    refetch();
+  };
+
+  const all = incidents ?? [];
+  const open = all.filter((i) => i.status === 'open');
+  const resolved = all.filter((i) => i.status !== 'open');
+
+  return (
+    <Card>
+      <CardContent className="py-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+            <ShieldAlert className="h-5 w-5 text-primary" aria-hidden="true" />
+            Incidents
+          </h2>
+        </div>
+
+        {isLoading ? (
+          <Skeleton className="h-24 w-full" />
+        ) : error ? (
+          <QueryError title="Could not load incidents" message={errorMessage(error) ?? 'Please try again.'} onRetry={() => refetch()} />
+        ) : all.length === 0 ? (
+          <p className="text-sm text-muted-foreground" data-testid="text-no-incidents">No incidents have been reported.</p>
+        ) : (
+          <div className="space-y-4">
+            {open.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-foreground">Open ({open.length})</p>
+                {open.map((incident) => (
+                  <IncidentRow key={incident.id} organizationId={organizationId} incident={incident} onChanged={handleChanged} showAsset idPrefix="queue" />
+                ))}
+              </div>
+            )}
+            {open.length === 0 && <p className="text-sm text-muted-foreground" data-testid="text-no-open-incidents">No open incidents.</p>}
+            {resolved.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-foreground">Resolved</p>
+                {resolved.map((incident) => (
+                  <IncidentRow key={incident.id} organizationId={organizationId} incident={incident} onChanged={handleChanged} showAsset idPrefix="queue" />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Assets() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -873,6 +1118,8 @@ export default function Assets() {
         </Dialog>
       </div>
 
+      <IncidentsQueueSection organizationId={organizationId} />
+
       <Card>
         <CardContent className="py-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -1031,6 +1278,8 @@ export default function Assets() {
               </div>
 
               <CustodyPanel organizationId={organizationId} asset={detail} onAssetChanged={invalidateAfterChange} />
+
+              <AssetIncidentsPanel organizationId={organizationId} assetId={detail.id} />
 
               <form onSubmit={handleSave} className="space-y-4 border-t border-border pt-4">
                 <div className="space-y-2">
