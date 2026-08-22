@@ -39,6 +39,7 @@ import {
   FileText,
   GraduationCap,
   Boxes,
+  Compass,
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -312,6 +313,13 @@ export function AppShell({ children }: AppShellProps) {
     { href: '/departments',    label: 'Departments',    icon: Network },
     { href: '/positions',      label: 'Positions',      icon: Briefcase },
     { href: '/self-service',   label: 'Employee Self-Service', icon: CalendarClock },
+    // Phase 3G, W111 — unconditional nav visibility (frozen plan §25),
+    // mirroring Leave Approvals' own precedent immediately below: manager
+    // eligibility is a pure live reportingManagerId relationship, never a
+    // role, so there is no role flag to gate this on. The page itself
+    // resolves eligibility and renders the manager view, the HR/admin view,
+    // or the "no direct reports" empty state — never a hidden nav entry.
+    { href: '/manager',        label: 'Manager Portal', icon: Compass },
     { href: '/leave-approvals', label: 'Leave Approvals', icon: ClipboardCheck },
     { href: '/leave-calendar', label: 'Leave Calendar', icon: CalendarRange },
     { href: '/public-holidays', label: 'Public Holidays', icon: CalendarHeart },

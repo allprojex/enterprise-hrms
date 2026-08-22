@@ -49,6 +49,7 @@ import AssetsDashboard from '@/pages/assets-dashboard';
 import AssetReports from '@/pages/asset-reports';
 import AssetWorkspace from '@/pages/asset-workspace';
 import EmployeeSelfService from '@/pages/employee-self-service';
+import ManagerPortal from '@/pages/manager-portal';
 import RecruitmentSettings from '@/pages/recruitment-settings';
 import Requisitions from '@/pages/requisitions';
 import RequisitionDetail from '@/pages/requisition-detail';
@@ -225,6 +226,9 @@ function Router() {
       </Route>
       <Route path="/self-service">
         {() => <SecureRoute component={EmployeeSelfService} moduleKey="employee_self_service" />}
+      </Route>
+      <Route path="/manager">
+        {() => <SecureRoute component={ManagerPortal} moduleKey="manager_portal" />}
       </Route>
       <Route path="/recruitment-settings">
         {() => <SecureRoute component={RecruitmentSettings} moduleKey="recruitment" />}
