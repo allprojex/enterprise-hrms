@@ -1,523 +1,419 @@
 # Phase 3H — WWM HR Operations, Personnel Records & Document Reconciliation
 
-**Status: DRAFT — NOT APPROVED FOR IMPLEMENTATION**
+**Status: FROZEN — APPROVED FOR IMPLEMENTATION**
+**Freeze date: 2026-08-23**
 
-This document is the output of a repository-grounded discovery pass, prompted by Owner-supplied real-world requirements from Worldwide Word Ministries (WWM). Nothing in this document authorizes writing code. Every claim is labeled one of:
+This document was produced in two passes: a repository-grounded discovery pass (preserved below, labeled **FOUND IN REPOSITORY** / **OWNER-STATED REQUIREMENT** / **PROPOSED DESIGN**), followed by an Owner Review and this freeze pass, which resolves all 20 Owner Decisions plus the additional frozen requirements the Owner supplied on review. **Zero Owner Decisions remain unresolved.**
 
-- **FOUND IN REPOSITORY** — verified directly against shipped code/schema/docs, with file:line citations.
-- **OWNER-STATED REQUIREMENT** — supplied by the Owner in this session's own prompt, not independently verifiable against any source document (no WWM PIF/leave-form/evaluation/probation-review document exists anywhere in this repository — confirmed by an exhaustive search; see §1).
-- **PROPOSED DESIGN** — this document's own recommendation, not yet approved.
-
-Every design choice not directly dictated by existing repository behavior is tagged **[PROPOSED DESIGN DECISION]** in the numbered Owner Decisions section (§16) and is not approved until the Owner resolves it.
+This document authorizes implementation starting with **W114**, under its own separate, explicit go-ahead. No code, migration, schema, or permission change has been made as part of producing or freezing this document.
 
 ---
 
-## 1. Source Document Discovery
+## 1. Source Document Discovery (unchanged since draft)
 
-**FOUND IN REPOSITORY:** An exhaustive search (`grep -rli` across `*.md`/`*.txt`/`*.pdf`, plus a filesystem scan for any `*.pdf`/`*.docx`/`*wwm*` file anywhere in the repository, including `artifacts/api-server/uploads`) found:
-
-- **Zero WWM-specific source documents** of any kind (no PIF, no leave form, no staff evaluation form, no probation review form) anywhere in this repository or its uploads directory. The only file in `uploads/` is one disposable Acme (org 4) candidate document, unrelated to WWM.
-- Three passing mentions of adjacent terms in existing planning docs, none of which are WWM source material:
-  - `docs/PHASE_2A_IMPLEMENTATION_PLAN.md`, `docs/PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md` — contain the word "SSNIT" only inside the "Future Expansion" exclusion list.
-  - `docs/PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md:345` — a real, load-bearing Owner Decision about a **generic configurable national-identifier field**, explicitly written to avoid hardcoding "Ghana Card" (see §5).
-  - **`docs/PHASE_2B_IMPLEMENTATION_PLAN.md:245`** — the single most directly relevant citation in the whole repository: *"The Enterprise Document and Physical File Registry — remains reserved for a later dedicated phase, as already recorded in the Phase 2A Completion Report; W23's per-employee document attachment is not that system and this plan does not extend it into one."* This confirms a personnel-records/physical-file system was named and deliberately deferred **twice already** (Phase 2A's own completion report, then reaffirmed in Phase 2B) — this document is the first time that deferred item is being picked back up.
-
-**Conclusion:** every specific field, format example (`WWM/SN/001`, `PIF-001`), and workflow description in this document that concerns WWM's actual paper forms is **OWNER-STATED**, not independently verified against a source document. This is stated plainly rather than implied, per this document's own §3 instruction. If actual WWM forms exist outside this repository, they should be supplied before any workstream begins — this plan's own field-by-field reconciliation tables are built entirely from the Owner's own prompt text.
+**FOUND IN REPOSITORY:** an exhaustive search (`grep -rli` across `*.md`/`*.txt`/`*.pdf`, plus a filesystem scan for any `*.pdf`/`*.docx`/`*wwm*` file anywhere in the repository, including `artifacts/api-server/uploads`) found **zero WWM-specific source documents** (no PIF, leave form, staff-evaluation form, or probation-review form) anywhere in this repository. Every specific field, format example (`WWM/SN/001`, `PIF-001`), and workflow description in this document that concerns WWM's actual paper forms is **OWNER-STATED**, not independently verified against a source document — stated plainly, per this document's own discipline, rather than implied. The one directly relevant prior citation on record: `docs/PHASE_2B_IMPLEMENTATION_PLAN.md:245` — a personnel/physical-file registry was named and **deliberately deferred twice already** (Phase 2A's own completion report, then reaffirmed in Phase 2B). This document is the first time that deferred item is picked back up.
 
 ---
 
-## 2. WWM Personal Information Form (PIF) — Field Reconciliation
+## 2. Final Decisions 1–20
 
-**OWNER-STATED** field list, reconciled against the actual shipped `employees` schema (`lib/db/src/schema/employees.ts:32-108`, read in full) and its companion tables.
-
-| PIF Area | Field | Classification | Evidence |
-|---|---|---|---|
-| Personal | First/Middle/Last/Preferred name | **A** — already stored | `employees.firstName/middleName/lastName/preferredName` |
-| Personal | Gender, Date of Birth, Marital Status, Nationality | **A** — already stored | `employees.gender/dateOfBirth/maritalStatus/nationality` |
-| Personal | Ghana Card number | **A** — already stored, but generically named | `employees.nationalId` (plain `text`, not Ghana-Card-specific — see §5) |
-| Personal | SSNIT number | **D** — not represented | No `ssnit`/social-security/tax-id field exists anywhere on `employees` (confirmed via direct grep, zero matches) |
-| Personal | Employee Number | **A** — already stored, format not yet configurable | `employees.employeeNumber` (see §4) |
-| Contact | Phone, alternate phone, personal/work email, residential address | **A** — already stored | `employees.phoneNumber/alternatePhoneNumber/personalEmail/workEmail/residentialAddress` (jsonb) |
-| Emergency contact | Name, relationship, phone | **A** — already stored | `employees.emergencyContacts` (jsonb array, `[{name, relationship, phone}]`) |
-| Dependants | Name(s), relationship, etc. | **D** — not represented | No `employee_dependants` table or equivalent exists anywhere (confirmed: `lib/db/src/schema/employee-*.ts` lists only certifications/disciplinary-records/exit-processes/qualifications/skills/user-links/documents — no dependants table) |
-| Church/ministry information | Role, ministry, involvement | **D** — not represented | No field or table of any kind. This is the one PIF area with no generic HRMS analogue at all — see Owner Decision discussion below |
-| Education | Level, institution, qualification | **B** — stored under a different model | `employee_qualifications` (Phase 2A, W24) via the `qualification_type` Master Data domain — education level/degree can be represented as a qualification type, but there is no dedicated "highest education level" field distinct from the qualifications list |
-| Skills | Skill name/proficiency | **A** — already stored | `employee_skills` (Phase 2A, W24), `skill` Master Data domain |
-| Languages | Language(s) spoken | **D** — not represented | A `language` Master Data domain exists (used elsewhere, e.g. candidate/organization locale), but **no `employee_languages` linking table exists** — an employee cannot record which languages they speak today |
-| Medical information | Any medical details | **E** — deliberately excluded/sensitive, requires Owner Decision | No field exists; see §11 Security/Privacy — recommend NOT adding without an explicit Owner Decision on classification, encryption-at-rest expectations, and who may ever read it |
-| Employment information | Department, branch, position, reporting manager, hire date, employment type | **A** — already stored | `employees.departmentId/branchId/positionId/reportingManagerId/hireDate/employmentType` |
-| Employment information | Probation end date | **A** — already stored | `employees.probationEndDate` |
-| Declaration | Signature/date/acknowledgement | **D** — not represented, and arguably **F** | No e-signature/declaration-capture concept exists anywhere. If ever built, this is closer to a document-attachment (a signed, scanned PIF form) than a new structured field — see §9 |
-| — | Employee full name/number/department | **F** — derived, must not be manually re-typed | Already available on every employee record; any future PIF-capture UI must prefill these from the existing employee record, never ask HR to retype them |
-
-**No fields require immediate schema changes to support classification A/B items** — they already exist. Classification D/E items (dependants, languages, medical, church/ministry, declaration) would each need their own Owner Decision before any schema work, per this document's own explicit "discovery first, do not add fields" instruction.
-
----
-
-## 3. WWM Leave Form — Field Reconciliation
-
-**OWNER-STATED** form concepts, reconciled against the shipped Leave module.
-
-| WWM Form Concept | Status | Evidence |
-|---|---|---|
-| Employee information (name, department, position) | **F** — derived, prefillable | Already available server-side on every `leave_requests` row's own `employeeId` join |
-| Leave type | **A** — already stored | `leave_requests.leaveTypeId` → `leave_types` |
-| Requested dates | **A** — already stored | `leave_requests.startDate/endDate` |
-| Contact details while on leave | **D** — not represented | No field on `leave_requests` for an away-contact number/address distinct from the employee's own stored phone/address |
-| Approval/rejection | **A** — already stored | `leave_requests.status`, `approved_by`/`approved_at`/`rejection_reason` |
-| Remaining leave days | **A** — already computed | `leaveBalances.ts` computes this live from the ledger; not a form field, a live query |
-| Resumption date | **F** — derived, not a stored field | No dedicated column exists; this is trivially `endDate + 1 day`, and should stay computed rather than becoming a new column |
-| **"At least 7 working days in advance" submission rule** | **A, with a genuine discrepancy — see below** | `leave_policies.noticePeriodDays` (`lib/db/src/schema/leave-policies.ts`), enforced as a **hard block** in `createLeaveRequest` (`artifacts/api-server/src/lib/leaveRequests.ts:190-196`): `if (policy.noticePeriodDays != null && policy.noticePeriodDays > 0) { ...throw new InvalidLeaveRequestError(...) }` |
-
-**The discrepancy, precisely:** `noticePeriodDays` already exists, is already **per-leave-policy configurable** (more flexible than a single global "7 days" rule — WWM could set a different notice period per leave type if desired), and is already a **hard block with no exception path** (no HR override exists to force-submit past the notice window). But the existing implementation counts **calendar days** (`earliestAllowed.setUTCDate(earliestAllowed.getUTCDate() + policy.noticePeriodDays)` — a flat date-add, no weekend/holiday skipping), while WWM's own stated rule is **"7 working days."** This is a real, evidence-based gap, not a guess — flagged as Owner Decision 11.
-
----
-
-## 4. Current Employee Number Architecture
-
-**FOUND IN REPOSITORY**, verified directly against the actual shipped code (not assumed from any prior design discussion):
-
-- **Schema** (`lib/db/src/schema/employees.ts:41`): `employeeNumber: text("employee_number")` — plain nullable text, no format/pattern constraint.
-- **Uniqueness** (`employees.ts:100-101`, migration `0000_init_core_platform_foundation.sql:308`): a composite unique index on `(organization_id, employee_number)`. Scoped per-organization (two orgs may reuse the same value with zero conflict). Nullable, so Postgres allows unlimited `NULL` values simultaneously.
-- **Generation** (`artifacts/api-server/src/lib/employees.ts:77-84`):
-  ```ts
-  export async function generateEmployeeNumber(organizationId: number): Promise<string> {
-    const [row] = await db.select({ value: count() }).from(employeesTable).where(eq(employeesTable.organizationId, organizationId));
-    const sequence = (row?.value ?? 0) + 1;
-    return `EMP-${String(sequence).padStart(4, "0")}`;
-  }
-  ```
-  **Correcting an apparent prior assumption stated in this session's own prompt**: this format (`EMP-0001`) is **completely hardcoded** — there is **no organization-configurable numbering today**. `artifacts/api-server/src/services/organizationConfig.ts` (the actual config-namespace registry: `general`, `terminology`, `attendance`, `performance` — confirmed by reading `CONFIG_NAMESPACES` in full) has no `numbering` namespace, and that file's own top-of-file comment explicitly names **"numbering formats"** as an example of a namespace that will be **added later, by its own future workstream** — i.e., the codebase itself already documents that this was designed for, but never built. "We previously designed employee numbering as tenant-configurable" does not match what actually shipped; only the *aspiration* was recorded, not the capability.
-- **Manual entry**: supported at the API layer (`createEmployee`, `employees.ts:142`: `params.fields.employeeNumber ?? generateEmployeeNumber(...)`) and via `UpdateEmployeeBody`/`CreateEmployeeBody` (both accept an optional `employeeNumber` string) — but **not exposed in the current "Add Employee" UI dialog** (`artifacts/hrms/src/pages/employees.tsx` — no input field for it, confirmed by direct inspection).
-- **Legacy import path**: none exists as a distinct feature. The only way to preserve a legacy number today is the same generic "supply `employeeNumber` in the create body" path — there is no bulk-import tooling of any kind (see §4a).
-- **Mutability**: `employeeNumber` is **not immutable**. Any caller holding `employee.write` can change it via the generic `PATCH /employees/:employeeId` route, which spreads `UpdateEmployeeBody` (including `employeeNumber`) directly into the update (`routes/employees.ts:297`) — **with zero audit trail for that specific change**. The route's own audit block only fires when `employmentStatus` changes (`routes/employees.ts:301-312`); a same-request change to `employeeNumber` alone produces no `audit_events` row and no before/after record.
-- **Race condition (pre-existing, disclosed, unrelated to this discovery's own scope)**: `generateEmployeeNumber`'s `count()`-based sequence is not transactionally safe — two simultaneous employee creations can read the same count before either insert commits, producing a duplicate-candidate value that then collides on the unique index (surfacing as a 409, not silently succeeding). The function's own doc comment already acknowledges this is "not retried automatically." This is a genuine pre-existing gap, separate from the new reuse-model concurrency requirements in §7 below.
-- **Foreign-key/identity usage — the central finding for the reuse question**: an exhaustive grep across every backend module (`attendance*.ts`, `leave*.ts`, `performance*.ts`, `learning*.ts`, `asset*.ts`, `employeeSelfService.ts`, `managerPortal*.ts`) and every frontend page found **zero** places where `employeeNumber` is used as a foreign key or lookup identity. Every module without exception uses the internal integer `employees.id` for joins, scoping, and the `` `Employee #${employeeId}` `` display fallback pattern. `employeeNumber` is used only for (a) display, (b) the free-text search box in `listEmployees()` (`employees.ts:183`, an `ilike` OR-match alongside name/email), and (d) one CSV export column in `learningReporting.ts` that resolves the value **live** at export time (not snapshotted, unlike every other historical dimension in that same report, which the code's own comment explicitly says is deliberate: "every historical dimension read from the enrollment's own snapshot columns, never the live... employee row" — `employeeNumber` was simply never added to that snapshot).
-
-**Correcting the Owner's own "internal employee UUID" language**: the permanent internal identity is `employees.id`, a **serial auto-incrementing integer primary key**, not a literal UUID type. Functionally it already satisfies exactly what the Owner is asking for (permanent, immutable, never reused, never exposed as the "public" number) — this document just notes the terminology so the eventual implementation plan isn't built around a UUID migration that isn't actually needed.
-
-### 4a. Bulk Import / Export
-
-**FOUND IN REPOSITORY**: no bulk-import feature exists for employees at all — `routes/employees.ts`'s 19 routes are all single-record CRUD/action endpoints; the two `multer` upload instances in that file are scoped to profile pictures and document attachments, not CSV ingestion. Export is limited to the generic 3-report Reporting Foundation (none reference `employeeNumber`) and Learning's own CSV reports (§4, live-resolved `employeeNumber` column only). **This means WWM's own legacy staff/PIF data has no existing import path today** — relevant to Owner Decision 19 (Legacy Import).
-
----
-
-## 5. National Identifier Fields — A Real, Pre-Existing Inconsistency
-
-**FOUND IN REPOSITORY**: `employees.nationalId`/`employees.passportNumber` (`employees.ts:51-52`) are plain hardcoded `text` columns — one column per identifier type, Ghana-Card-shaped by convention but not by name. By contrast, `candidates.nationalIdentifierType`/`candidates.nationalIdentifierValue` (`lib/db/src/schema/candidates.ts:31-32`) use a **generic configurable type+value pair**, per an explicit, already-frozen Recruitment Owner Decision (`docs/PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md:345`, item 10): *"Generic configurable type+value (not hardcoded 'Ghana Card')... A hardcoded field violates the organization-neutral principle even though this deployment is Ghana-first."*
-
-**That decision was never retrofitted onto `employees`.** For WWM's own "Ghana Card number" PIF field, the existing `employees.nationalId` field already stores the value correctly (classification A) — the platform's own organization-neutral principle is preserved not by the column name but by **not hardcoding a UI label**: WWM's own terminology configuration (`organizationConfig.ts`'s `terminology` namespace, already shipped) can label this field "Ghana Card Number" for WWM specifically, while another organization labels the same column something else. No schema change is needed to satisfy WWM's own requirement here — only whether to retrofit the generic type+value pattern platform-wide is a genuinely open question, raised as Owner Decision 4-adjacent but not bundled into the numbering-engine decision itself.
-
----
-
-## 6. Employee Number Reuse — Impact Analysis
-
-**OWNER-STATED requirement**, evaluated against the architecture in §4.
-
-**What must change**: the current unique index — `UNIQUE (organization_id, employee_number)` — makes reuse **structurally impossible today**. Since employees are never hard-deleted (ADR-013, `DECISIONS.md:75-78`), Employee A's row (with `employeeNumber = 'WWM/SN/014'`) continues to exist in the `employees` table forever after separation. Any attempt to insert or update Employee B with the same `employeeNumber` value while Employee A's row still holds it would be rejected by the unique index (SQLSTATE `23505`) — this is not a policy gap, it is a hard database constraint. **A schema change is unavoidable to support reuse at all** — this is a firm, evidence-based conclusion, not a guess.
-
-**What does NOT need to change**, per §4's own "identity vs FK" finding: because zero modules treat `employeeNumber` as a foreign key or lookup identity anywhere in the codebase, **reuse does not require touching attendance, leave, performance, learning, assets, ESS, Manager Portal, or the audit log** — every one of those already keys exclusively off `employees.id`, which remains permanent and unique regardless of how `employeeNumber` is reallocated. The only code that must change is: (a) the uniqueness constraint itself, (b) the generation function, (c) the one live-resolved CSV column in `learningReporting.ts` (cosmetic only — it would start showing the *current* holder's number for a past report row unless a proposed allocation-history model is consulted at report time), and (d) any new UI/API built specifically to manage allocation.
-
----
-
-## 7. Proposed Allocation-History Model
-
-**PROPOSED DESIGN**, not yet approved, addressing §6/§7 of the Owner's own prompt.
-
-### Option A — New `employee_number_allocations` table (recommended)
-
-A new table, structurally similar to the existing `employment_periods` append-only pattern (`lib/db/src/schema/employment-periods.ts`, Phase 2A, W22 — already proven, already understood by this codebase's own conventions):
-
-```
-employee_number_allocations
-  id               serial PK
-  organizationId    integer, FK organizations
-  employeeNumber    text, NOT NULL
-  employeeId        integer, FK employees
-  validFrom         timestamp, NOT NULL
-  validTo           timestamp, NULL  -- NULL = current holder
-  allocatedBy       integer, FK users
-  releasedBy        integer, FK users, NULL
-  createdAt         timestamp
-```
-
-`employees.employeeNumber` would become a **denormalized, always-current cache** of the row where `validTo IS NULL` for that employee — kept in sync by the same service function that writes an allocation row, never edited directly via the generic `PATCH /employees/:id` route anymore (closing the §4 "no audit trail for employeeNumber change" gap as a side effect, not a separate fix).
-
-**Required properties, mapped to this model:**
-- *Only one current holder*: a **partial unique index** `UNIQUE (organizationId, employeeNumber) WHERE validTo IS NULL` — Postgres natively supports this and is the correct way to enforce "at most one open allocation per number" at the database level, not merely in application code.
-- *Previous holder permanently discoverable*: trivial — query `employee_number_allocations WHERE employeeNumber = ? ORDER BY validFrom`.
-- *Historical documents/transactions remain associated with the correct employee UUID*: automatic, since every other table already keys off `employees.id`, never `employeeNumber` (§4/§6).
-- *Reports for historical periods identify the correct holder*: requires each historical-reach report to resolve `employeeNumber` via the allocation table **as-of the report's own date**, not via a live join to `employees.employeeNumber` (this is the fix needed in `learningReporting.ts` and any future report touching this field).
-- *Accidental duplicate active allocation impossible under concurrency*: the partial unique index handles this at the database level — no reliance on a pre-check.
-
-**Schema impact**: one new table, one new partial unique index, a `NOT NULL` migration-safe backfill (one allocation row per existing employee with a non-null `employeeNumber`, `validFrom = createdAt`, `validTo = NULL`). `employees.employeeNumber` itself is **not dropped** — kept as the fast-read cache, with the allocation table as the source of truth. This is additive, not a breaking schema change.
-
-### Option B — Reuse `employment_periods` with a new event type
-
-Rejected as the primary recommendation: `employment_periods` already has a specific, narrow purpose (transfer/promotion/confirmation — organizational movement events tied to one continuously-employed person). Overloading it with a *different* concept (a business identifier's own allocation lifecycle, which spans *across* people) would blur that table's own single responsibility and complicate its existing consumers (Career Profile's own Employment History display, W105/W106) for no real benefit over a small dedicated table.
-
-### Option C — No allocation table; only track "released" numbers
-
-Rejected: does not satisfy "previous holder permanently discoverable" or "reports for historical periods identify the correct holder" — a bare release-date-only model cannot answer "who held `WWM/SN/014` in 2020" once a second person has taken it.
-
-**Recommendation: Option A.** [PROPOSED DESIGN DECISION — see Owner Decision 1]
-
----
-
-## 8. Current PIF/File Number Architecture
-
-**FOUND IN REPOSITORY**: **does not exist in any form.** No field, table, or Master Data domain resembling a "personnel file number" or "PIF number" exists anywhere in the schema. This is confirmed, not assumed — `employees.ts` has no such column, and no `employee_personnel_file` or similarly-named table exists among the `employee-*.ts` schema files.
-
-**Staff Number ↔ PIF Number linkage**: cannot exist today, since neither the PIF-number concept nor a linking mechanism has been built. Both would need to be created together as part of the same workstream (see §9/§15).
-
----
-
-## 9. PIF Number Format & Number Format Engine
-
-**OWNER-STATED** requirement: employee-number format and PIF-number format must be **independently configurable**, sharing a generic engine where sensible.
-
-**PROPOSED DESIGN**: a single, reusable **Numbering Format Configuration** mechanism (a natural fit for `organizationConfig.ts`'s own existing `numbering` namespace, already named as a "to be added" example in that file's own comment — §4), instantiated **twice** per organization: once for `employeeNumber`, once for `personnelFileNumber` — same engine, independent configuration values, never shared state. Proposed configurable components, evaluated against what the Owner's own examples actually need (not an unbounded list):
-
-| Component | Needed for `WWM/SN/001`? | Needed for `PIF-001`? | Include in V1? |
-|---|---|---|---|
-| Prefix (free text, e.g. `WWM/SN/`, `PIF-`) | Yes | Yes | Yes |
-| Sequence + zero-padding width | Yes | Yes | Yes |
-| Separator between components | Implicit in prefix | Implicit in prefix | Fold into prefix, not a separate component (simpler, matches both examples) |
-| Suffix | Not shown in examples | Not shown in examples | Defer — no evidence it's needed yet |
-| Year/month token | Not shown in examples | Not shown in examples | Defer to V1+ (mentioned only as a hypothetical, e.g. `EMP/2026/001`) |
-| Department/branch/position token | Not shown in examples | Not shown in examples | Defer — adds real complexity (what happens on transfer?) with no stated WWM need |
-| Manual override (bypass generator entirely) | Yes (already exists) | Yes (must exist from day one) | Yes |
-| Starting sequence value | Needed for legacy import (§ below) | Needed for legacy import | Yes |
-| Reset policy (e.g. yearly reset) | Not requested | Not requested | Defer |
-
-**Recommendation**: build the minimal engine (prefix + zero-padded sequence + manual override + configurable starting sequence), proven against WWM's own two real formats, rather than the full hypothetical component list — extend later only if a real organization needs year/department tokens. [PROPOSED DESIGN DECISION — see Owner Decision 4]
-
----
-
-## 10. PIF Number Reuse — Not Assumed
-
-Per this document's own explicit instruction, PIF/personnel-file-number reuse is **not** assumed merely because staff-number reuse is required. Records-management convention generally favors a personnel file's own identity staying permanently attached to the person's record, distinct from a reusable *organizational* business identifier like a staff number — but this is a genuine, unresolved policy question, not a technical one, since no PIF-number mechanism exists yet to reuse or not reuse. Raised as Owner Decision 3, with no reuse assumed as the default going in.
-
----
-
-## 11. Personnel File Identity, Physical Filing & Records Management
-
-**FOUND IN REPOSITORY**: confirmed via an exhaustive repository-wide search (code, schema, `*.md` docs) — **no personnel-file/physical-filing feature of any kind exists**, beyond the one explicit deferral citation already quoted in §1 (`docs/PHASE_2B_IMPLEMENTATION_PLAN.md:245`). Specifically confirmed absent: file number, records number, physical file, records room, cabinet, drawer, shelf, box, chain of custody, file movement, checkout, stocktake, QR code, barcode. Zero matches for any of these across the entire codebase.
-
-### 11a. The Five Distinct Identities (§13 of the Owner's prompt)
-
-Confirmed as genuinely distinct concepts requiring their own identity, none of which collapse into another:
-
-| # | Concept | Current State |
-|---|---|---|
-| A | Employee identity | `employees.id` — permanent, already correct (§4) |
-| B | Staff number | `employees.employeeNumber` — reusable-pending-redesign (§6/§7) |
-| C | Personnel/PIF file identity | Does not exist (§8) |
-| D | Physical storage location | Does not exist |
-| E | Digital documents | `employee_documents` — exists, metadata-only (§12) |
-
-### 11b. Physical Location Hierarchy
-
-**FOUND IN REPOSITORY**: Master Data (`lib/db/src/schema/master-data-items.ts`, confirmed by direct schema read) is **strictly flat** — `id, domain, organizationId, code, label, sortOrder, status, createdAt, updatedAt`, **no `parentId` or self-referencing column of any kind**. The two closest existing domains, `region` and `city`, are independent flat lists with no parent-child link between them (i.e., Master Data does not even model the *simplest* two-level hierarchy today, let alone site→building→room→cabinet→drawer→shelf→box).
-
-**Conclusion**: a physical-location hierarchy **cannot** be represented in the existing Master Data mechanism as-is. Two real options:
-
-- **Option A**: extend `master_data_items` with a nullable self-referencing `parentId` — a small, additive schema change, reusable by *any* future hierarchical domain, not just physical locations. Keeps the existing "flat by default" domains (skill, gender, etc.) completely unaffected (a `NULL parentId` is exactly today's behavior).
-- **Option B**: a dedicated new `records_locations` table, purpose-built for the location hierarchy only, with its own `parentId`.
-
-**Recommendation**: Option A (generic `parentId` on Master Data) — it solves the location hierarchy *and* becomes reusable platform infrastructure for any other future hierarchical requirement, matching this platform's own stated preference for configuration over dedicated one-off tables. Levels remain optional per the Owner's own explicit instruction ("Do not force all levels to be mandatory") — a location row can point directly at any ancestor, skipping unused levels. [PROPOSED DESIGN DECISION — see Owner Decision 5]
-
-### 11c. Movement / Chain of Custody
-
-Does not exist. Would require a new `personnel_file_movements` table (checkout/transfer/return, with `expectedReturnDate`, `actualReturnDate`, status enum `checked_out | returned | overdue | missing | recovered`) — additive, no precedent to reuse beyond the general append-only-history pattern already established by `employment_periods`.
-
-### 11d. Volumes
-
-Does not exist. A `personnel_file_volumes` table (one file → many volumes, `volumeNumber`, `status: open|closed`, own location) would be additive and structurally simple — the Owner's own instruction that "a new volume must not become a new employee" is already naturally satisfied by keeping volumes as a child of the personnel-file identity (§8/§11a item C), never of the employee identity directly.
-
-### 11e. QR/Barcode
-
-**FOUND IN REPOSITORY**: does not exist anywhere — zero package.json dependency, zero code reference, across the entire monorepo. `PROJECT_STATUS.md`'s own Phase 3E completion report explicitly lists "RFID/barcode/GPS tracking" as something Assets *deliberately did not build*. Building this is a genuinely new capability with a real V1-scope question (Owner Decision 9) — no hardware integration is implied by generating a scannable code string/image alone, but even that is new surface area.
-
-### 11f. Stocktaking
-
-Does not exist. A genuinely later-phase capability per the Owner's own framing ("Do not implement. Determine whether appropriate for initial records V1 or later") — recommend explicit deferral past V1 (Owner Decision 10).
-
-### 11g. Records-Related Roles
-
-**FOUND IN REPOSITORY**: "Records Officer" and "Auditor" are named only as **aspirational example role-template names** in `DECISIONS.md:89` (ADR-015) and `docs/FOUNDATION_IMPLEMENTATION_PLAN.md:234-248` — **never seeded, never implemented as actual roles**. However, the underlying **custom-role creation mechanism ADR-015 describes IS implemented**: `lib/roleTemplates.ts`'s `copyRoleTemplate()` (confirmed live, `routes/organizationRoles.ts:53`, `POST /organizations/:organizationId/roles`) lets an `org_admin` copy any existing **system** role (`super_admin`/`org_admin`/`hr_manager`/`employee`) into a new org-scoped custom role, then grant/revoke individual permissions on it. **No pre-seeded "Records Officer" template row exists** — but once records-related permissions are defined (a later workstream), an organization could create a "Records Officer" role today using this already-shipped mechanism, without any new platform capability. This is a materially different, more optimistic finding than "roles don't exist" — the infrastructure is there; only the specific permissions and the convenience of a pre-named template are missing.
-
----
-
-## 12. Document Management Reconciliation
-
-**FOUND IN REPOSITORY** (`lib/db/src/schema/employee-documents.ts`, `artifacts/api-server/src/lib/fileStorage.ts`, `documentValidation.ts`):
-
-- `employee_documents`: `id, organizationId, employeeId (nullable, since Phase 3E W95, to support non-employee org documents like asset receipts), categoryCode (free text, sourced from but NOT validated against the `document_category` Master Data domain), fileName, storageKey, mimeType, fileSize, uploadedBy, createdAt`. **One row per uploaded file — re-uploads are new rows, not versions.**
-- **No retention/expiry field of any kind.** No physical-location/file-number/volume column. **No download/read route exists at all** for employee documents (`routes/employees.ts` exposes only list/upload/delete — confirmed by direct inspection; contrast with the profile-picture route, which does read bytes back). Audit events exist only for `employee_document.uploaded`/`.removed` — no "viewed"/"downloaded" event, consistent with there being no download route to audit in the first place.
-- `fileStorage.ts`: local disk only (`uploads/organizations/{orgId}/...`), randomly-generated filenames (no path-traversal risk from user input), never served by static middleware. `documentValidation.ts`: magic-byte signature validation (PDF/JPEG/PNG/DOCX/XLSX only), 10MB cap. No cloud storage, no versioning, no retention/archive lifecycle anywhere.
-
-**Recommendation**: the records/filing system should **orchestrate** this existing infrastructure, never replace it — reuse `employee_documents`/`fileStorage`/`documentValidation` verbatim for every digital-document need (scanned PIF forms, evidence, etc.), adding only what's genuinely missing: retention metadata, a real download route (a surprising, pre-existing gap worth fixing regardless of records-system scope — flagged separately, not bundled), and the physical-location/movement/volume concepts described in §11, which belong to the *personnel file* record, not to `employee_documents` itself.
-
----
-
-## 13. Automatic Filing — Realistic Automation Matrix
-
-| Source Module | Record | Currently Produces a Document? | Should File Automatically? | Target Category | Owner Decision Required? |
-|---|---|---|---|---|---|
-| Employee Lifecycle | Transfer/Promotion/Confirmation event | No — `employment_periods` is a structured row, not a document | Optional — could auto-generate a simple text/HTML summary (mirroring Recruitment's own offer-letter precedent, `docs/PHASE_3A...` item 7: "stored HTML/text template, no PDF engine") | `employment_history` | Yes — whether to build this at all in V1 |
-| Leave | Approved leave request | No | Optional, low value (already fully queryable) | `leave` | Yes, but low priority |
-| Performance | Finalized review | No (Performance evidence/attachment exists as a separate upload feature, W83) | Possibly — a finalized review could auto-file its own PDF/HTML snapshot | `performance` | Yes |
-| Probation | Confirmation action | No — `confirmEmployee()` produces only an audit-logged status change, zero content capture (§14) | Depends entirely on the probation-review architecture decision (Owner Decision 13) | `probation` | Yes — coupled to Owner Decision 13 |
-| Learning | Certificate/evidence | Yes — `learning_certificates`, `learning_enrollment_evidence` already exist as real records | Already effectively "filed" via Learning's own module; no new automation needed | n/a | No |
-| Disciplinary | Disciplinary record | Yes — `employee_disciplinary_records` exists | Could auto-attach to personnel file once one exists | `disciplinary` | Yes |
-| Separation | Exit process | Yes — `employee_exit_processes` exists (checklist/clearance/exit interview) | Yes — natural candidate for auto-filing on close | `separation` | Yes |
-
-**No event in this codebase currently auto-files anything into any personnel-record concept, because no such concept exists yet.** Every "Yes" in the "Should File Automatically" column is a V1+ candidate, not a V1 requirement — recommend deferring all auto-filing until the personnel-file registry itself (§11a item C) exists and has proven the manual-filing path first.
-
----
-
-## 14. WWM Staff Evaluation — Reconciliation
-
-**OWNER-STATED** concepts (Staff Name, Position, Department, Review Period, rating/scoring, comments) reconciled against the shipped Performance module.
-
-| WWM Concept | Status | Evidence |
-|---|---|---|
-| Staff Name, Position, Department | **F** — already snapshotted automatically | `performance_reviews.departmentIdSnapshot`/`positionIdSnapshot` (captured at review-creation time, per Performance's own historical-integrity design) |
-| Review Period | **A** — already stored | `performance_reviews.cycleId` → `performance_cycles` (`startDate`/`endDate`) |
-| Rating/scoring | **A** — already stored, template-configurable | `performance_review_competencies`, `performance_rating_scales`, `computedOverallScore` |
-| Comments | **A** — already stored | `employeeFinalComment`, competency-level comment fields (confirmed present in the Performance schema from this session's own earlier work) |
-
-**Conclusion**: WWM's own stated Staff Evaluation fields are **already fully covered** by the existing Performance module's own template/cycle/rating-scale architecture — this requires **configuration** (a WWM-specific rating scale and review template matching their own wording/scale), not new schema or a second evaluation engine. No Owner Decision required here beyond "build WWM's own template using existing Performance Foundation tools" — a configuration task, not a Phase 3H implementation item.
-
----
-
-## 15. WWM Probation Review — Architecture Options
-
-**OWNER-STATED**: no actual WWM probation-review form/source material was supplied ("If the form is NOT available: say so. Do not invent its fields.") — **confirmed: not available.** This section evaluates architecture only, not fields.
-
-**FOUND IN REPOSITORY**, the load-bearing finding: `performance_cycles.cycleType` already has a `"probation"` enum value (`lib/performanceCycles.ts:231`) — but `resolveEligibleEmployees()` (`performanceCycles.ts:391-429`) **hard-requires `employmentStatus === 'active'` for every single applicability scope, including `manual`** (line 412-417: an explicit rejection — *"Employee id(s)... are not active and cannot be assigned a review"*). Since a probationary employee's `employmentStatus` is literally `"probation"`, not `"active"`, **zero probationary employees can be assigned a Performance review through any existing scope today, even by explicit manual HR selection.** The `"probation"` cycle-type value exists as a label with no actual path to use it for probationary staff as the schema currently stands.
-
-**Options, evaluated against this finding:**
-
-- **A — Inside Performance, via a special template/cycle**: architecturally the closest fit (reuses 100% of the Performance engine, satisfying "no parallel evaluation engine") but is **not viable without changing Performance's own `resolveEligibleEmployees` eligibility floor** — a genuine Performance-module change, not a configuration-only fix. This tension is disclosed, not hidden.
-- **B — Inside employment confirmation workflow**: `confirmEmployee()` (`lib/employees.ts:406-435`) already exists, audited via `employment_periods` (`eventType: "confirmation"`) — but captures **zero review content**, only a status flip + effective date. Extending it to hold a rating/comments would either bloat `employment_periods`'s own narrow purpose or require a small companion table just for confirmation-review content.
-- **C — A coordinated workflow using both**: Performance produces the *review content* (once the eligibility floor is addressed), confirmation remains the *outcome* (status transition), linked by referencing the review id from the confirmation event's own `employment_periods` row (`newState` already accepts arbitrary JSON per its existing shape). This avoids extending either engine's own core responsibility.
-- **D — A dedicated new architecture**: rejected as disproportionate — nothing evidence-based suggests probation review needs a third pattern beyond what Performance/confirmation already provide once connected.
-
-**Recommendation: Option C**, contingent on Owner Decision 13 approving the narrow, disclosed change to Performance's eligibility floor (allowing `employmentStatus = 'probation'` into `manual`-scope assignment specifically, not opening `all_active` to include probation — a deliberate, narrow carve-out, not a general loosening). [PROPOSED DESIGN DECISION — see Owner Decision 13]
-
----
-
-## 16. Separation, Number Release & the Assets/Payroll Boundary
-
-**FOUND IN REPOSITORY**:
-- All four Owner-stated separation types (resignation/retirement/dismissal/death) collapse into the single `employmentStatus = "terminated"` value today, distinguished only by the free-text `separationReason` (sourced from the `separation_reason` Master Data domain — `organization-overridable` classification, but **zero default values are pre-seeded** for it, confirmed: only the domain registration exists, `master-data-definitions.ts:38`, "No default items are frozen for this domain"). WWM's own four reasons could be added as that organization's own Master Data values with zero schema change.
-- `employee_exit_processes` (Phase 2A, W29) exists — checklist/clearance/exit-interview, one process per separation cycle (duplicate-prevented), audit-logged directly.
-- **Assets and separation are deliberately, completely decoupled today**: `asset_unreturned_by_employee` is a report-only, informational query (confirmed in this session's own prior Phase 3E completion work: "zero `employee_exit_processes` references anywhere in Assets code"). Separation is never blocked by unreturned assets.
-- **No Payroll exists in this codebase** — nothing to couple number-release to even if desired.
-
-**Recommendation for number release** (Owner Decision 2): release should be an **explicit HR action**, never automatic on separation — the Owner's own stated workflow ("optionally release staff number") already implies this. Automatic release risks releasing a number while file movements/outstanding items are still open. Whether unreturned assets or open file movements should *block* (not just warn) release is a genuine open question — recommend **warn, do not block**, mirroring Assets' own existing report-only precedent exactly (consistency with an already-established platform pattern), rather than inventing a new hard-block model for this one release action. Payroll must never be a factor while WWM has no Payroll — and the capability must not assume Payroll exists, satisfying the Owner's own explicit boundary (§38 of the prompt).
-
----
-
-## 17. Search Experience
-
-**FOUND IN REPOSITORY**: `listEmployees()` (`employees.ts:177-187`) already performs a single free-text `search` param matched via `ilike` `OR` across `firstName`, `lastName`, `preferredName`, `employeeNumber`, `workEmail`, `personalEmail` — so "search by name or employee number in one box" **already works today**, scoped to the Employees list page. **No cross-entity/global search exists anywhere** (confirmed: zero matches for "globalSearch"/"omnisearch"/"command-palette" repository-wide). A future "PIF number → employee + staff number" and "physical location → files" search would need genuinely new query paths once those entities exist — this is new surface area, not an extension of the existing search box, since PIF numbers/physical locations don't exist as queryable entities yet.
-
----
-
-## 18. Configurability Classification
-
-Per the Owner's own explicit instruction (§30), every proposed behavior classified:
-
-| Behavior | Classification |
-|---|---|
-| `employees.id` as permanent identity | **Platform invariant** (already true, unrelated to this phase) |
-| Employee-number format is configurable | **Platform capability** (the engine); the specific format chosen is **organization configuration** |
-| `WWM/SN/001`, `PIF-001` | **WWM configuration** (specific values within the platform capability) |
-| Employee-number reuse **capability** existing at all | **Platform invariant**, once built — must exist for every organization, per the Owner's own explicit "reuse must be supported for all organizations" statement |
-| Whether reuse is actually **exercised** for a given organization | **Organization configuration** — recommend a per-organization policy flag (default: reuse permitted, since the Owner's own instruction frames this as the general expectation, not an opt-in exception) — see Owner Decision 2 |
-| Physical-location hierarchy depth/levels used | **Organization configuration** (an organization uses only the levels it needs, per the Owner's own explicit instruction) |
-| Ghana Card / SSNIT as specific identifier types | **WWM configuration**, riding on a platform-level generic identifier capability (§5) |
-
----
-
-## 19. Security / Privacy
-
-**FOUND IN REPOSITORY**, the load-bearing pre-existing fact: `employee.read` (held by the default `employee` role) already exposes an employee's **full profile organization-wide** — including `nationalId`, `dateOfBirth`, `residentialAddress`, `emergencyContacts` — **with zero manager-vs-stranger narrowing anywhere.** This is the same pre-existing hardening item disclosed during Manager Portal's own discovery (Phase 3G) and **deliberately not fixed** by that phase. It remains open today.
-
-**Direct application to this discovery**: every PIF field this document recommends storing (Ghana Card/SSNIT/dependants/medical/church-ministry information, if approved) would, if simply added as new `employees` columns, **inherit this exact same broad exposure** — any `employee`-role holder could read any coworker's Ghana Card number, medical information, or dependants list, org-wide, today, with the existing gap unaddressed. **This is a real, load-bearing dependency, not a hypothetical one.**
-
-Per this document's own explicit instruction ("If not: raise a STOP-level dependency"): **this is flagged as a STOP-level dependency for any V1 workstream that would store new sensitive PIF fields (dependants, medical information, or any newly-added identifier) on the existing broad-`employee.read`-gated `employees` table.** It does **not** block the *numbering/reuse* work (§4-§7), which touches no new sensitive field, nor the *records/filing metadata* work (§11-§13), which is about file/location/movement tracking, not sensitive personal content. It specifically blocks: adding new sensitive fields directly to the broadly-exposed `employees` row. Two safe paths exist without fixing the broad gap first: (a) store new sensitive fields in a **separately-permissioned** table (mirroring `employee_disciplinary_records`'s own already-correct `employee.disciplinary.read` pattern, distinct from `employee.read`), or (b) fix the broad `employee.read` gap first, as its own dedicated, narrowly-scoped hardening workstream. **Recommendation: (a)** — narrower blast radius, consistent with the platform's own established precedent, and does not require Owner approval of a larger, separate hardening initiative before this phase can proceed. [PROPOSED DESIGN DECISION — see Owner Decision 20]
-
----
-
-## 20. Audit, Historical Integrity & Concurrency
-
-**Audit** (Owner Decision-adjacent, not itself a numbered decision — a build requirement once §7/§11 are approved): every action listed in the Owner's own prompt (§32) is a real gap today for numbering (confirmed: zero audit event exists for employee-number allocation/change, §4) and would be entirely new for the records/filing system (nothing exists to audit yet). No sensitive form *contents* should ever appear in audit metadata — matching the platform's own existing convention (e.g., Assets' incident-report audit metadata deliberately excludes free-text descriptions, per this session's own prior Phase 3E work).
-
-**Historical integrity**: verified structurally sound for the proposed reuse model — because zero modules use `employeeNumber` as identity (§4/§6), reallocating a number cannot rewrite any historical attendance/leave/performance/learning/asset/document/audit/employment-history record; all of those already key off the permanent `employees.id`. The one identified exception requiring a fix is `learningReporting.ts`'s live-resolved `employeeNumber` CSV column (§4) — a report generated *after* a reallocation would show the *new* holder's number next to *old* historical rows unless report generation is updated to consult the allocation-history table (§7) for the report's own as-of date.
-
-**Concurrency**: the partial unique index proposed in §7 (`UNIQUE (organizationId, employeeNumber) WHERE validTo IS NULL`) is a database-level guarantee, not an application pre-check — directly satisfying the Owner's own "recommend DB-level protection where appropriate... do not rely only on pre-checks" instruction. The same pattern (a partial/conditional unique index) would apply to PIF-number allocation and to "only one open file-movement checkout per file" if/when those are built. The pre-existing `generateEmployeeNumber` race condition (§4) is a separate, disclosed, pre-existing gap — fixing it is a reasonable side effect of building the allocation table (the sequence would move from a live `count()` to a proper allocation-table-backed generator), not a new problem this phase introduces.
-
----
-
-## 21. Legacy Import
-
-**FOUND IN REPOSITORY**: no bulk-import mechanism exists at all today (§4a) — this is not specific to numbering, it's a total gap. WWM's own existing staff/PIF/physical-location data has no path into the system beyond one-employee-at-a-time manual entry (which does already support supplying a pre-existing `employeeNumber`, satisfying "do not force regenerated identifiers during import" for the *single-record* case). A genuine bulk-import capability (CSV or similar), covering employees + optionally their historical number allocations + PIF numbers + known physical-location assignments, is new scope — recommend a dedicated, later workstream (W119 in the proposed structure below), not bundled into the foundational numbering/records work.
-
----
-
-## 22. HR Daily Workflow (Planning-Level Only)
-
-Per the Owner's own three example flows (§29), evaluated against what already exists:
-
-- **New Employee**: `create employee` (exists) → `allocate staff number` (exists today via manual entry or auto-generation, §4) → `allocate PIF` (does not exist, §8) → `capture PIF information` (partially exists per §2's reconciliation) → `create personnel file` (does not exist, §11) → `onboarding` (exists, Foundation-era) → `probation schedule` (exists — `probationEndDate` is already captured at hire). The gaps are concentrated entirely in PIF-number/personnel-file territory, not in what already works.
-- **Existing Employee**: the Owner's own "one profile" vision is already substantially true today — `employee-detail.tsx` already orchestrates employment history, documents, skills/qualifications/certifications (HR side) and Career Profile (ESS side) on one page per employee. Adding PIF number, personnel file, and physical-location status to that same existing page (rather than a new standalone screen) is the natural, low-friction extension — no new "workspace" architecture needed, just new cards on an already-proven page.
-- **Separation**: `close employment` (exists, `separateEmployee`) → `outstanding assets warning` (would need a new, deliberately non-blocking check, §16) → `outstanding file movements` (new, once §11c exists) → `preserve personnel record` (automatic — the personnel file's own identity outlives the employee's active status, per §11a) → `close staff-number allocation` (new, §7) → `optionally release staff number` (new, explicit HR action, §16).
-
----
-
-## 23. Existing HRMS Reuse (Confirmed Applicable)
-
-Every one of the Owner's own listed reuse targets (§37) was independently confirmed to exist and be reusable: Employee Management, `employment_periods`, Employee Self Service, Performance, Leave, Assets, `employee_documents`, `fileStorage`, Master Data, the audit log, the Reporting Foundation, the module registry, permissions, organization settings. No second engine is proposed anywhere in this document for anything already covered by one of these.
-
----
-
-## 24. Payroll Boundary
-
-Confirmed nowhere in this document does this discovery propose building Payroll, Payroll tables, Payroll permissions, or Payroll UI, or couple PIF/numbering/file operations to Payroll's own existence. Number-release recommendation (§16) explicitly does not require Payroll closure. The proposed `employee_number_allocations` table (§7) and personnel-file tables (§11) are structurally independent of Payroll — a future Payroll module could reference `employees.id` (as every other module already does) without any of this phase's own tables needing to change.
-
----
-
-## 25. Current-State Gap Matrix
-
-| Requirement | Current Support | Partial | Missing | Reusable Foundation | Schema Impact | Security Impact | Owner Decision? |
-|---|---|---|---|---|---|---|---|
-| Staff number | ✅ (hardcoded format) | | | `employees.employeeNumber` | None for current state | None | — |
-| Staff-number format | | | ✅ | `organizationConfig.ts`'s own "future numbering namespace" | New config namespace | None | Yes (4) |
-| Number reuse | | | ✅ | `employees.id` already unaffected | New table + partial unique index | None | Yes (1, 2) |
-| Allocation history | | | ✅ | `employment_periods`' own append-only pattern | New table | None | Yes (1) |
-| PIF number | | | ✅ | Numbering engine (shared w/ staff number) | New column/table | None | Yes (4) |
-| PIF format | | | ✅ | Same engine | Same as above | None | Yes (4) |
-| PIF form fields | ✅ Partial (§2 table) | ✅ | ✅ (dependants/languages/medical/church) | `employees`, `employee_qualifications` | New columns/tables for D/E items only | Yes, for E items | Yes (16, 20) |
-| Filing (personnel file identity) | | | ✅ | `employee_documents` (digital half only) | New table | Low (metadata only) | Yes (5) |
-| Physical location | | | ✅ | Master Data (needs `parentId` extension) | New column + optional new table | None | Yes (5) |
-| Movements | | | ✅ | `employment_periods`' own history pattern | New table | Low | Yes (6) |
-| Volumes | | | ✅ | — | New table | None | Yes (7) |
-| QR/barcode | | | ✅ | — | None (generated on read) | None | Yes (8) |
-| Stocktaking | | | ✅ | — | New table (if built) | None | Yes (9) |
-| Leave form | ✅ mostly | ✅ (contact-while-on-leave) | | Leave module, `noticePeriodDays` | None for existing fields | None | Yes (10, working-days) |
-| Staff evaluation | ✅ fully | | | Performance module | None (configuration only) | None | No |
-| Probation review | | ✅ (confirmation exists) | ✅ (review content) | Performance + confirmation | Small eligibility-floor change + small table | None | Yes (12) |
-| Separation | ✅ | | ✅ (typed reasons need seeding) | `employeeExitProcess`, Master Data | None (seed data only) | None | No |
-| Search | ✅ (per-page) | | ✅ (cross-entity: number↔PIF↔location) | `listEmployees()`'s own search pattern | None initially | None | No |
-| Automatic filing | | | ✅ | Every source module already listed in §13 | Depends on §11 existing first | None | Yes (13, coupled) |
-
----
-
-## 16. Owner Decisions
-
-Every decision below is genuinely unresolved by existing repository evidence and is not pre-approved.
+Every decision below carries its final disposition. Three were **settled directly by Owner direction**, not merely recommended; the rest were **refined** during this freeze pass, several materially, after re-inspecting the actual repository (not the Owner Review's own preliminary assumptions).
 
 ### Decision 1 — Allocation-History Model
-**Evidence**: §6/§7. **Recommendation**: new `employee_number_allocations` table with a partial unique index (`WHERE validTo IS NULL`), `employees.employeeNumber` retained as a denormalized current-value cache. [PROPOSED DESIGN DECISION]
+**FROZEN: new `employee_number_allocations` table**, append-only, partial unique index `WHERE valid_to IS NULL` (at most one open allocation per `(organizationId, employeeNumber)` pair). `employees.employeeNumber` remains a **denormalized current-value cache**, cleared to `NULL` when an allocation is released (§4). This is the one foundational, expensive-to-change-later decision in this document.
 
-### Decision 2 — Reuse: Always Allowed vs. Organization-Configurable
-**Evidence**: §18. The Owner's own instruction frames reuse as a required platform capability for every organization, but whether a given organization *exercises* it is a separate question. **Recommendation**: the capability is a platform invariant (must exist); whether reuse is actually offered to HR by default is a per-organization policy flag, defaulting to **enabled** (matching the Owner's own stated general expectation), not opt-in. [PROPOSED DESIGN DECISION]
+### Decision 2 — Staff-Number Reuse Policy
+**REFINED on freeze.** The Owner directed: capability platform-wide, **eligibility organization-configurable, defaulting conservatively to DISABLED** unless an existing repository convention argues otherwise. **Repository reconciliation finding**: every module built in this codebase's history defaults to **disabled** at the organization level — `organization_modules.defaultEnabled` is `false` for every module ever shipped (Manager Portal, Assets, Learning, Performance, Attendance, Employee Self Service — confirmed repeatedly across every phase this session touched). This is a strong, consistent, load-bearing repository convention, and it **reinforces** disabled-by-default rather than arguing against it. **FROZEN: reuse-eligibility defaults to DISABLED per organization**, a new boolean org policy flag, following the exact same "capability exists platform-wide, off until an org opts in" shape as every module before it. Even when enabled: reuse is never automatic, requires deliberate HR selection, records the acting HR user, and never transfers or rewrites historical records — all directly enforced by the Decision 1 data model itself (a new allocation row referencing a *different* `employeeId` for the same `employeeNumber`, with the prior row's own `employeeId`/`validFrom`/`validTo` permanently intact).
 
-### Decision 3 — Explicit Release vs. Automatic Release
-**Evidence**: §16. **Recommendation**: explicit HR action only, never automatic on separation; warn (do not block) on outstanding assets/file movements, mirroring Assets' own existing report-only precedent. [PROPOSED DESIGN DECISION]
+### Decision 3 — Explicit vs. Automatic Release
+**FROZEN: explicit HR action only**, distinct from separation. Never automatic. See the full lifecycle in §6.
 
 ### Decision 4 — PIF-Number Reuse
-**Evidence**: §10. **Recommendation**: PIF/personnel-file numbers remain permanently attached to the person's record after separation, never reallocated — records-management convention favors this, and unlike staff numbers, the Owner gave no explicit instruction requiring PIF reuse. [PROPOSED DESIGN DECISION]
+**SETTLED BY OWNER DIRECTION.** Permanent, 1:1, never released, never transferred. No allocation-history table is needed for it (unlike staff numbers) — there is no "previous holder" concept to track, since a PIF number never has more than one holder, ever.
 
 ### Decision 5 — Numbering Format Engine Scope
-**Evidence**: §9. **Recommendation**: minimal engine (prefix + zero-padded sequence + manual override + configurable starting sequence) proven against WWM's own two real formats; defer year/department/suffix tokens until a real need is shown. [PROPOSED DESIGN DECISION]
+**REFINED on freeze — expanded, not minimal.** The Owner explicitly rejected the Owner-Review's own "prefix + padding only" framing. **FROZEN engine components**: prefix, suffix, configurable sequence length/padding, configurable starting sequence, branch token, department token, year token, month token, configurable reset policy (`never | yearly | monthly`, relevant only when a year/month token is used), and manual override (always available, validated against the same uniqueness/allocation rules as a generated number — never a separate, weaker code path). Not every organization uses every component — WWM's own two real formats (`WWM/SN/001`, `PIF-001`) use only prefix + zero-padded sequence, and nothing in the engine forces the unused components to be configured. Full concurrency-safe generation model in §5.
 
 ### Decision 6 — Physical-Location Hierarchy Storage
-**Evidence**: §11b. **Recommendation**: extend Master Data (`master_data_items`) with a nullable `parentId`, rather than a dedicated one-off location table — reusable platform infrastructure, zero impact on existing flat domains. [PROPOSED DESIGN DECISION]
+**FROZEN: dedicated `records_locations` table**, self-referencing nullable `parentId`, not a Master Data extension. Confirmed during the Owner Review's own reconciliation: Master Data (`master_data_items`) is strictly flat with no hierarchy column of any kind, and a physical location is operational data (created, retired, referenced by movement history) rather than simple reference-list data — Master Data's own three-tier classification model doesn't fit it. Levels are optional per level, matching the Owner's own explicit "do not force all levels mandatory" instruction, and the organization-configurable hierarchy requirement.
 
-### Decision 7 — Movement/Check-Out Model
-**Evidence**: §11c. **Recommendation**: new `personnel_file_movements` table, append-only history, statuses `checked_out|returned|overdue|missing|recovered`. [PROPOSED DESIGN DECISION]
+### Decision 7 — Movement / Chain-of-Custody Model
+**REFINED on freeze — event-sourced, not stateful-row.** See the full state model in §7. `personnel_file_movements` is append-only, each row a discrete immutable **event** (`checked_out | returned | marked_missing | recovered`), never an editable stateful record. "Overdue" is **never persisted** — derived live from `expectedReturnDate` against the current unresolved `checked_out` event, per the Owner's own explicit instruction not to persist a time-derived status.
 
 ### Decision 8 — Volumes
-**Evidence**: §11d. **Recommendation**: new `personnel_file_volumes` table, child of the personnel-file identity (never of the employee identity directly), `open|closed` state. [PROPOSED DESIGN DECISION]
+**FROZEN: new `personnel_file_volumes` table**, child of `personnel_files` (never a sibling identity — "a new volume must not become a new employee"), `open | closed` state, own current-location reference.
 
 ### Decision 9 — Barcode/QR in V1
-**Evidence**: §11e. **Recommendation**: defer past V1 — genuinely new surface area with no existing precedent anywhere in this codebase, and no stated urgency distinct from the core filing/movement capability. [PROPOSED DESIGN DECISION]
+**FROZEN: deferred past V1**, but the location/movement schema (§6/§7) imposes no barrier to adding a scannable-code lookup later — a future QR/barcode value would simply resolve to a `records_locations.id` or `personnel_files.id`, both of which already exist as stable, addressable identities.
 
 ### Decision 10 — Stocktaking in V1
-**Evidence**: §11f. **Recommendation**: defer past V1 — depends on the filing/location/movement foundation existing and proving itself first. [PROPOSED DESIGN DECISION]
+**FROZEN: deferred past V1** — a consumer of the location/movement data, not a prerequisite for it.
 
 ### Decision 11 — WWM "7 Working Days" Leave Rule
-**Evidence**: §3. `noticePeriodDays` already exists, is per-policy configurable, and is already a hard block — but counts calendar days, not working days. **Recommendation**: extend the existing hard-block check to optionally count working days (skip weekends, and optionally public holidays via the already-existing `resolveHolidayDatesInRange` used elsewhere in Leave) via a new per-policy flag (`noticePeriodCountsWorkingDaysOnly` or similar) — additive to the existing field, not a redesign, and organization/leave-type-configurable rather than a hardcoded WWM-only rule. No exception/override path is added, matching the existing hard-block precedent unless the Owner explicitly wants one. [PROPOSED DESIGN DECISION]
+**FROZEN: additive `noticePeriodCountsWorkingDaysOnly` boolean on `leave_policies`** (nullable, defaulting to unset/calendar-days behavior — zero change to any existing organization's current Leave behavior). When set, the existing hard-block check in `createLeaveRequest` counts only working days (weekends skipped; public holidays optionally skipped too, reusing the already-existing `resolveHolidayDatesInRange` helper for consistency with how Leave already treats holidays elsewhere). The exact WWM leave-form field layout beyond this rule remains **pending source-document verification** — not invented.
 
 ### Decision 12 — Staff Evaluation Mapping
-**Evidence**: §14. **Recommendation**: no schema/code change — build WWM's own rating scale and review template using the existing, already-sufficient Performance Foundation. Not a Phase 3H implementation item at all, purely a configuration task any HR admin can already do today. [PROPOSED DESIGN DECISION — effectively "no work needed," included for completeness]
+**SETTLED BY OWNER DIRECTION.** Configuration/template work on the existing Performance module only. Zero schema or code change. Not a Phase 3H implementation item.
 
 ### Decision 13 — Probation-Review Architecture
-**Evidence**: §15. **Recommendation**: Option C (coordinated Performance + confirmation workflow), contingent on a narrow, disclosed change to `resolveEligibleEmployees`'s eligibility floor allowing `employmentStatus = 'probation'` into `manual`-scope assignment specifically (never `all_active`). This is the one recommendation in this document that touches existing Performance-module logic, not purely additive — flagged explicitly for that reason. [PROPOSED DESIGN DECISION]
+**REFINED on freeze — smaller than the Owner Review's own preliminary framing, after reconciling against the actual `employment_periods` schema.** Full model in §8. Headline change: **zero new table or column is needed to link a completed probation review to its confirmation event** — `employment_periods.newState` is an existing, already-free-form, already-queryable `jsonb` column (`lib/db/src/schema/employment-periods.ts:30`, `NOT NULL`, no fixed shape — each event type already defines its own shape). The confirmation event's own `newState` already can, and will, carry `{ employmentStatus: "active", probationReviewId: <id> }` with zero schema change. This is the "existing suitable mechanism" the Owner's own instruction asked me to look for before proposing anything additive, and it exists. The eligibility change to Performance itself remains genuinely additive and is unchanged from the Owner Review's own recommendation: `employmentStatus = 'probation'` is eligible **only** for a `cycleType = 'probation'` cycle, through a **dedicated probation assignment path** — `all_active`, `department`, `position`, and ordinary `manual` eligibility for every other cycle type are **not** touched, confirmed by scoping the change to a narrow conditional (`cycle.cycleType === "probation"`) inside `resolveEligibleEmployees`, never a general loosening of the `employmentStatus === 'active'` floor.
 
 ### Decision 14 — Automatic Filing Scope
-**Evidence**: §13. **Recommendation**: build zero auto-filing in the foundational workstream; prove manual/orchestrated filing first, revisit automation once the personnel-file registry exists and has real usage. [PROPOSED DESIGN DECISION]
+**FROZEN: prepopulation in V1 (required); broad auto-filing deferred.** These are distinct: prepopulation is a read-only UI convenience (don't make HR retype known data), required by the Owner's own explicit instruction; auto-filing is a new automation engine with real failure modes, deferred until manual/orchestrated filing has proven itself.
 
 ### Decision 15 — Separation Integration Depth
-**Evidence**: §16/§22. **Recommendation**: warn-only integration with Assets and file movements at separation time (no hard block), matching Assets' own existing precedent; number release remains a separate, explicit, later HR action, never automatic. [PROPOSED DESIGN DECISION]
+**FROZEN: warn-only**, never a hard block, for outstanding assets, open file movements, or an unreleased staff number. Matches Assets' own already-frozen Phase 3E precedent exactly. Full lifecycle in §11.
 
 ### Decision 16 — Sensitive PIF Field Handling
-**Evidence**: §2 (classification E items), §19. **Recommendation**: any newly-added sensitive field (dependants, medical information, church/ministry information if approved) is stored in a **separately-permissioned** table, never added directly to the broadly-`employee.read`-exposed `employees` row — mirroring `employee_disciplinary_records`'s own already-correct precedent. [PROPOSED DESIGN DECISION]
+**SETTLED BY OWNER DIRECTION.** Narrow, separately-permissioned storage; never dependent on the broad, disclosed, pre-existing `employee.read` gap. No specific sensitive fields are approved for capture by this freeze (§12) — the pattern is frozen, the field list is not.
 
 ### Decision 17 — Records Permissions
-**Evidence**: §11g. **Recommendation**: new, narrowly-scoped permissions (e.g. `personnel_file.read`, `personnel_file.manage`, `personnel_file.movement.write`) — zero new role, reusing the already-shipped `copyRoleTemplate` custom-role mechanism if an organization wants a dedicated "Records Officer" role. No new role-template row is pre-seeded by this phase unless the Owner wants one. [PROPOSED DESIGN DECISION]
+**REFINED on freeze — final permission set in §13.** Six new narrow permissions, zero new role, zero change to any existing permission. Numbering *configuration* (as opposed to allocation) reuses the **existing** `organization.update` permission, already gating every other `organizationConfig` namespace (`PATCH /organizations/:organizationId/config/:namespace`, `routes/organizationSettings.ts:57`) — confirmed live during this freeze's own reconciliation, a genuine reuse win over minting a seventh permission.
 
 ### Decision 18 — Reporting Scope
-**Evidence**: §25 (gap matrix), Owner's own §36 examples. **Recommendation**: build only the reports with a clear, stated operational need (current allocations, historical allocations, files by location, checked-out/overdue files, separated-employees-with-unreleased-numbers) via the existing Reporting Foundation pattern — defer probation/evaluation-due reports until the underlying workflow (Decision 13) is settled. [PROPOSED DESIGN DECISION]
+**FROZEN: five reports** (current allocations, historical allocations, files by location, checked-out/overdue files, separated-employees-with-unreleased-numbers), each **required** to resolve any staff number via the Decision 1 allocation table for the report's own as-of date — never a live join to `employees.employeeNumber`. `learningReporting.ts`'s own existing CSV column is flagged for the same fix once Decision 1 ships (the one concrete change required anywhere in the already-shipped codebase).
 
 ### Decision 19 — Legacy Import
-**Evidence**: §4a/§21. **Recommendation**: a dedicated, later workstream (proposed W119) — do not force-regenerate any identifier during import; unknown/missing legacy values remain nullable, matching the existing schema's own nullability. [PROPOSED DESIGN DECISION]
+**FROZEN: dedicated later workstream (W120)**, not bundled into foundational work. No forced identifier regeneration; unknown/missing legacy values stay nullable, matching the schema's own existing nullability.
 
 ### Decision 20 — Broad `employee.read` Dependency
-**Evidence**: §19. **Recommendation**: do **not** require fixing the broad `employee.read` gap before this phase proceeds — instead, store any new sensitive field behind its own narrow permission (Decision 16), which structurally avoids depending on the broad gap at all. The broad gap itself remains a separate, disclosed, pre-existing hardening item, exactly as it was left by Phase 3G. [PROPOSED DESIGN DECISION]
+**SETTLED BY OWNER DIRECTION.** Not required to be fixed first. The gap remains open, disclosed, unfixed, exactly as Manager Portal left it — new sensitive fields simply never depend on it (Decision 16).
 
 ---
 
-## 17. Proposed Phase
+## 3. Refinements Made During Repository Reconciliation
 
-**Proposed working title**: Phase 3H — HR Operations & Personnel Records (not fixed; may be renamed on freeze).
+Disclosed explicitly, per the freeze instructions, rather than silently absorbed:
+
+1. **Decision 2's default** was reconciled against actual repository convention (every module's own `defaultEnabled: false`) rather than assumed — the convention independently confirms, not merely permits, "disabled by default."
+2. **Decision 5's scope** was expanded from the Owner Review's own "minimal engine" framing to the Owner's own fuller component list (branch/department/year/month tokens, reset policy) — no repository contradiction found; this is purely an Owner-directed scope correction, not a discovery-driven one.
+3. **Decision 6** confirmed unchanged from the Owner Review (dedicated table, not Master Data) — the Owner's own instruction ("do not model this as one mutable text field... use dedicated structured/hierarchical file locations") independently reinforces the Owner Review's own reasoning for preferring a dedicated table.
+4. **Decision 7's data model** changed from a "stateful row with a status column" framing to a fully **event-sourced** model (discrete immutable events, current state always derived) — a direct, more precise response to the Owner's own explicit "do not persist overdue... persist actual business events/states" instruction, and a better fit than what the original draft plan's own looser table sketch implied.
+5. **Decision 13's schema footprint shrank to zero** for the confirmation↔review link specifically, after inspecting `employment_periods.newState`'s actual column definition (free-form `jsonb`, already the established mechanism for event-specific data) — the Owner Review's own preliminary language ("plus a small table/column") is superseded by this more precise finding.
+6. **Decision 17's numbering-configuration permission** was found to already exist (`organization.update`) rather than needing a new one — confirmed live by reading the actual route guard.
+
+**No genuine contradiction was found that would materially change the frozen architecture** — every refinement above is a sharpening or correction discovered through closer inspection, not a conflict requiring a STOP.
+
+---
+
+## 4. Numbering Configuration Model
+
+Per the Owner's own required distinction, seven concepts, each with its own clear boundary:
+
+1. **Numbering configuration** — an organization's own settings for one number type (employee or PIF), stored via the existing `organizationConfig.ts` mechanism as a new `numbering` namespace (two independent config keys per org: `numbering.employeeNumber`, `numbering.pifNumber` — never shared state). Configurable components: prefix, suffix, sequence length, starting sequence, branch/department/year/month token inclusion, reset policy. Gated by the **existing** `organization.update` permission — no new permission.
+2. **Generated identifier** — the string produced by applying an org's own numbering configuration to the next available sequence value at allocation time.
+3. **Manual override** — HR supplies the identifier directly instead of generating one; validated against the **same** uniqueness/allocation rules as a generated value (§5's own concurrency guarantee applies identically — no weaker path).
+4. **Identifier allocation** — the act of creating a new row in `employee_number_allocations` (staff number) or setting `personnel_files.pifNumber` (PIF number, one-time only), always recording the acting user.
+5. **Identifier release** — closing an *open* staff-number allocation (`validTo = now()`), a deliberate, separate, audited HR action. **Does not exist for PIF numbers** (Decision 4 — permanent, never released).
+6. **Identifier reuse** — creating a *new* allocation row for a *different* employee using a staff number that has a *closed* (released) prior allocation. Gated by Decision 2's own org-level policy flag. **Does not exist for PIF numbers.**
+7. **Historical allocation lookup** — querying `employee_number_allocations` for every row matching a given `employeeNumber`, ordered by `validFrom`, to answer "who has ever held this number, and when."
+
+### Concurrency (numbering generation)
+
+**FOUND IN REPOSITORY**: the current `generateEmployeeNumber()` (`lib/employees.ts:77-84`) is a disclosed, pre-existing race — a `count()`-based sequence read outside any lock, already known to be "not retried automatically" per its own code comment. **FROZEN fix**: a new `numbering_sequences` table (`organizationId, sequenceKey ('employeeNumber'|'pifNumber'), currentValue`, unique on `(organizationId, sequenceKey)`), incremented via `SELECT ... FOR UPDATE` **inside the same transaction** as the allocation-row insert — the row lock makes two simultaneous generation attempts serialize correctly, closing the pre-existing gap as a direct side effect of this workstream, not a separately-scoped fix. Manual override collisions and simultaneous-reuse-of-the-same-released-number races are both caught by Decision 1's own partial unique index (`WHERE valid_to IS NULL`) — a second concurrent insert for the same `(organizationId, employeeNumber)` pair fails at the database level (`SQLSTATE 23505`), converted to a clean error via the **existing** `isUniqueViolation()`/`dbErrors.ts` pattern, not a new one.
+
+---
+
+## 5. Staff-Number Allocation & Release/Reuse Lifecycle
+
+Per the Owner's own explicit 10-step lifecycle, frozen precisely:
+
+1. Employee is created; a staff number is either generated (via §4's engine) or manually supplied — a new `employee_number_allocations` row is inserted (`employeeId`, `employeeNumber`, `validFrom = now()`, `validTo = NULL`, `allocatedBy`), and `employees.employeeNumber` is set to match (the denormalized cache).
+2. The allocation is now **active/current** (`validTo IS NULL`).
+3. The employee separates (`employmentStatus → terminated`) — **the allocation is untouched**. The number remains theirs until an explicit release.
+4. The (now-closed-eligible) allocation remains fully intact and queryable — nothing changes automatically.
+5. HR performs a deliberate **release** action: the service layer requires `employmentStatus` to be a separated state (not `active`/`probation`/`on_leave`/`suspended`) — attempting to release an actively-employed employee's number is rejected with a clear domain error, enforced server-side, never merely a UI guard. On success: `validTo = now()`, `releasedBy` recorded, `employees.employeeNumber` cleared to `NULL` on that employee's own row.
+6. The organization's own Decision-2 reuse policy flag determines whether the now-released number is even *selectable* for a new allocation — if disabled, released numbers simply remain permanently retired for that organization (no data changes when the flag itself changes state, only future selectability).
+7. A released, reuse-eligible number may remain unallocated indefinitely — no forced/automatic reassignment.
+8. HR deliberately selects the released number for a different employee.
+9. A **new** `employee_number_allocations` row is inserted for the new `employeeId`, `validFrom = now()`, `validTo = NULL` — blocked by the partial unique index if, through any race, the "old" allocation wasn't actually closed yet.
+10. The old allocation row is never edited or deleted — permanently intact, historically queryable, forever attached to the original `employeeId`.
+
+### Explicit edge-case rules (frozen, not left to frontend validation)
+
+- **Separation reversed/corrected**: no distinct "undo separation" action exists in this codebase today — only `rehireEmployee()` (a genuinely new employment period). Rehiring **never automatically restores** a previously-held staff number, even if it was released — that is always a fresh, deliberate HR allocation decision (possibly re-selecting the same number if still unassigned, possibly a new one), consistent with "reuse is never automatic."
+- **A number was released accidentally, not yet reallocated**: HR performs a **new** allocation, same `employeeId`, same `employeeNumber` — a fresh row, never an edit to the released one (preserves the append-only guarantee; the "accidental release" itself remains visible in history, not erased).
+- **A number was released accidentally, already reallocated to someone else**: not automatically resolvable — surfaced as a visible conflict in history (two people, two periods) for manual HR resolution (assign one of the two employees a different number going forward); the system's own job is to make this visible, not to silently fix it.
+- **HR tries to release an actively-employed employee's number**: rejected server-side (§ step 5 above).
+- **HR tries to allocate an already-active (currently held) number**: rejected by the partial unique index, surfaced as a clean 409-style error.
+- **Two HR users simultaneously allocate the same released number**: the partial unique index allows exactly one to succeed; the second gets the same clean conflict error.
+- **Manual override collides with an existing active allocation**: identical handling — the uniqueness constraint is the single source of truth regardless of whether the number came from the generator or manual entry.
+- **Reuse disabled after numbers have already been released**: no data change; those numbers simply become unselectable for new allocation until/unless reuse is re-enabled for that organization.
+- **Numbering configuration changes after allocations already exist**: **existing identifiers are grandfathered exactly as stored, forever** — configuration changes affect only future allocations. No retroactive reformatting under any circumstance short of a separately-authorized, explicitly distinct correction workflow (not part of this phase).
+
+---
+
+## 6. Historical Staff-Number Resolution Model
+
+Every historical report or record display that includes a staff number must resolve it via `employee_number_allocations` **as of the record's own relevant date** — the allocation row where `validFrom <= recordDate AND (validTo IS NULL OR validTo > recordDate)` for that `employeeId`. **Never** a live join to `employees.employeeNumber`, which reflects only the *current* moment. This is required for every one of the five reports in Decision 18, and is the one concrete fix required in the already-shipped `learningReporting.ts` CSV export (its own `employeeNumberById` map, currently resolved live, must switch to this as-of-date resolution once Decision 1 ships).
+
+**Confirmed unaffected — the central finding underpinning this entire model**: an exhaustive audit (performed during discovery, re-confirmed on freeze) found **zero** places anywhere in Attendance, Leave, Performance, Learning, Assets, Employee Self Service, Manager Portal, Recruitment, employment history, audit records, or documents where `employeeNumber` is used as an identity or foreign key — every one of those exclusively uses `employees.id`. A reused staff number therefore **cannot** cause any historical record in any of those systems to appear to belong to the new holder — the only place resolution logic is needed at all is the small set of places that *display* a staff number as a label (§ Compatibility Analysis, §15).
+
+---
+
+## 7. Personnel-File / PIF Lifecycle & Physical-File Custody Model
+
+### 7a. Personnel-File / PIF Lifecycle
+
+1. Personnel-record creation — a new `personnel_files` row, 1:1 with `employees.id`, created (typically) alongside or shortly after employee creation.
+2. PIF-number allocation — a **one-time**, permanent value set on `personnel_files.pifNumber` (generated via §4's engine, using its own independent `numbering.pifNumber` config, or manually supplied), validated for uniqueness at allocation time. **No allocation-history table** — there is exactly one holder, forever, so there is nothing to track beyond the single allocation event itself (recorded via the same audit pattern as everything else in this phase, §14).
+3. Permanent employee association — fixed at creation, `personnel_files.employeeId` is never reassigned, ever, to any other employee, under any circumstance (including staff-number reuse) — the direct implementation of the Owner's own PIF-permanence requirement.
+4. Physical file creation (where an organization uses physical filing at all) — optional; a personnel record can exist purely digitally if an organization has no physical-filing need.
+5. Volumes (where applicable) — child rows of `personnel_files`, per Decision 8.
+6. Current physical location — a reference from `personnel_files` (or from the currently-open volume, if volumes are in use) to a `records_locations` row.
+7. Checkout / return / missing / recovery — governed entirely by §7b below.
+8. Separation/archive handling — the personnel record (and its PIF number) is **never** deleted, archived-in-place-only (matching ADR-013's own "never hard-delete" convention exactly) — it simply continues existing, permanently associated with the same, now-separated employee.
+9. Historical retention — permanent, by construction (append-only movement history, permanent PIF-employee association, employee row itself never deleted).
+
+If multiple physical volumes exist, they remain under the **same** permanent `personnel_files`/PIF identity — never their own separate identity, satisfying the Owner's own explicit "must not become a new employee" instruction, applied here to volumes-vs-personnel-file identity as well.
+
+### 7b. Physical-File Custody & Movement — Final State Model
+
+**Event-sourced, not a mutable status field** (§3 refinement 4). `personnel_file_movements` rows are immutable, append-only facts:
+
+```
+personnel_file_movements
+  id                organizationId, personnelFileId, volumeId (nullable)
+  eventType         'checked_out' | 'returned' | 'marked_missing' | 'recovered'
+  occurredAt
+  actorMembershipId
+  purpose           (checked_out only)
+  destination       (checked_out only)
+  expectedReturnDate (checked_out only)
+  notes
+```
+
+**Current custody state** is always **derived** from the most recent event for a given file/volume — never stored as an independently-editable field:
+- No events yet, or most recent event is `returned`/`recovered` → **in registry** (available to check out).
+- Most recent event is `checked_out` → **checked out**. **"Overdue" is derived live**: `checked_out` AND `expectedReturnDate < today` AND no later `returned`/`recovered` event exists for that same checkout. Never a persisted status value, per the Owner's own explicit instruction.
+- Most recent event is `marked_missing` → **missing**.
+
+**Valid transitions**: `(none) → checked_out`; `checked_out → returned`; `checked_out → marked_missing`; `marked_missing → returned` (found and brought back by the person who had it); `marked_missing → recovered` (found independently of the holder, e.g. in the wrong location); `returned/recovered → checked_out` (a fresh checkout cycle). **Chain of custody is never lost** — every event, including a mistaken or superseded one, remains permanently in the append-only log; nothing is ever deleted or overwritten, including once a file has safely returned.
+
+### Concurrency (physical-file custody)
+
+A small denormalized "current custody state" cache lives directly on `personnel_files`/`personnel_file_volumes` (mirroring the `employees.employeeNumber` cache pattern from Decision 1), updated **transactionally alongside** each new movement-event insert, guarded by `SELECT ... FOR UPDATE` on the file/volume's own row before the state check — the same concurrency-safe pattern as §4's numbering sequence, reused rather than reinvented. This resolves every scenario the Owner listed explicitly:
+- **Double checkout**: the row lock plus the "must currently be in-registry" check prevents a second `checked_out` event from being accepted while one is already open.
+- **Double return**: a `returned` event is only accepted from `checked_out`/`marked_missing` state — a second return attempt (state already `returned`) is rejected.
+- **Concurrent checkout attempts**: serialized by the same row lock — one succeeds, one gets a clean conflict error.
+- **Marking a checked-out file missing**: valid transition, accepted.
+- **Recovering a missing file**: valid transition (`marked_missing → recovered` or `→ returned`), accepted.
+- **Returning after marked missing**: explicitly valid (§ above), not an error.
+- **Movement/location update races**: the same row-lock discipline applies to any location reassignment, not just checkout/return events.
+
+---
+
+## 8. WWM Staff Evaluation & Probation Review Integration
+
+### Staff Evaluation
+**No implementation** — WWM's own stated fields (name, position, department, review period, rating, comments) are already fully covered by Performance's own existing snapshot/template/rating-scale architecture. Building WWM's own rating scale and review template is a configuration task any HR admin can already perform today, not a Phase 3H deliverable. The actual authoritative WWM evaluation form was not supplied — no field/wording is invented; this section is marked **pending source-document verification** for anything beyond the already-confirmed-sufficient generic structure.
+
+### Probation Review
+Frozen per Decision 13. Precisely, answering every sub-question the Owner posed:
+
+- **How a probation review is identified**: a `performance_reviews` row belonging to a `performance_cycles` row with `cycleType = 'probation'`.
+- **Who can assign it**: the dedicated probation-assignment path, gated by the **existing** `performance.review.write`-equivalent authority already governing cycle-review generation today — no new permission for this specific action (it is Performance's own existing capability, applied through a narrower, additive eligibility branch).
+- **Who completes it**: the review's own `reviewerEmployeeId` (snapshot, set at assignment time) — identical authority model to every other Performance review, per the platform's own established reviewer-of-record pattern; no special-cased "who can complete a probation review" rule beyond what already governs every review.
+- **What counts as completed**: the review reaching `status = 'finalized'` (or whatever terminal status Performance's own existing workflow already defines) — reused verbatim, not redefined for probation reviews specifically.
+- **How HR sees the result**: through Performance's own existing HR-review/finalization surfaces — no new UI surface invented for probation results specifically.
+- **How confirmation references it**: `confirmEmployee()`'s own `employment_periods` row, `eventType = 'confirmation'`, carries `newState: { employmentStatus: 'active', probationReviewId: <id> }` — zero schema change, per §2/§3.
+- **What happens when probation is extended**: outside this freeze's own scope to redesign — the existing `probationEndDate` field can simply be updated by HR via the existing employee-update path; a probation-extension event is not a new concept this phase introduces, and no new schema is proposed for it.
+- **What happens when confirmation is rejected/deferred**: `confirmEmployee()` is simply not called — the employee remains in `employmentStatus = 'probation'` indefinitely until HR acts; no new "rejected" state is invented, matching the existing binary confirm-or-don't-confirm shape of `confirmEmployee()` today.
+- **Historical probation reviews remain immutable**: automatic — Performance's own reviews are never edited post-finalization today, and this phase introduces no exception to that.
+
+---
+
+## 9. Digital Documents — Boundary (Unchanged, Reaffirmed)
+
+`employee_documents`/`fileStorage`/existing document validation remain the **sole** digital-document engine — no competing engine is proposed anywhere in this document. Where a personnel record needs to reference an existing employee document (e.g., a scanned signed PIF form), the smallest safe link is a nullable `employeeDocumentId` foreign key on `personnel_files` (or a small join table if a file can reference more than one document) — **not** a new document-storage mechanism. Documents/evidence and physical-file custody remain conceptually and structurally separate: a document is a digital artifact in `employee_documents`; physical custody is tracked entirely in `personnel_file_movements` — the two are linked by reference only, never merged.
+
+---
+
+## 10. Search Model
+
+**FROZEN**: direct cross-search for employee name, employee/staff number, and PIF/personnel-file number. Reuses the **existing** `listEmployees()` search pattern (`ilike` OR-match, `lib/employees.ts:177-187`) as its own foundation, extended to additionally match against `personnel_files.pifNumber` and — critically — against `employee_number_allocations.employeeNumber` (not only the live `employees.employeeNumber` cache), so a **historical** staff number remains searchable by authorized HR users, not only the current one.
+
+**Result clarity (the reuse-ambiguity requirement, applied directly)**: when a searched staff number matches more than one allocation (i.e., it has been reused), results must show **every** matching allocation, each clearly labeled with its own holder and validity period — current holder marked distinctly from historical holders — never silently collapsed to "the current one." Searching a PIF number always resolves to exactly one employee (by construction, since PIF numbers are never reused) — no ambiguity is structurally possible there.
+
+---
+
+## 11. Separation Integration & Warnings
+
+**FROZEN**: separation preserves all historical HR records automatically (ADR-013's own "never hard-delete" convention, unchanged and unaffected by this phase). Existing separation types/reasons remain exactly as they are today (`employmentStatus = 'terminated'` + a Master Data-sourced `separationReason` code) — no redesign. Separation **may warn** about: assets still in custody (reusing Assets' own existing `asset_unreturned_by_employee` report, unchanged), personnel files still checked out, and a staff number not yet released — **none of these block separation**, matching Assets' own already-frozen precedent exactly. Staff-number release remains a wholly separate, later, deliberate HR action — never a side effect of separation itself (§5, step 5). A released number never becomes assigned to anybody else automatically (§5, steps 6-8).
+
+---
+
+## 12. Payroll / SSNIT Boundary
+
+**FROZEN, unchanged from the Owner's own explicit instruction**: this phase contains zero payroll calculation, salary processing, tax calculation, SSNIT contribution calculation, deductions, benefits calculation, payslip processing, payroll approval, journal generation, payment processing, or payroll workflow of any kind. If an SSNIT identification number is later separately approved as a PIF field (not decided by this freeze — no specific sensitive fields are approved here, per Decision 16), it would be stored purely as a **personnel identifier**, behind the narrow permission model in §13, with **zero** implied or actual SSNIT contribution-processing capability. Personnel data is structured so a future Payroll/SSNIT phase can reference `employees.id` (exactly as every other module already does) without rebuilding anything in this phase — no table in this document has any Payroll-specific shape or dependency.
+
+---
+
+## 13. Sensitive PIF Authorization Model
+
+**FROZEN permission set** — six new, narrow permissions, zero new role, zero change to any existing permission:
+
+| Permission | Grants | Default holders |
+|---|---|---|
+| `employee_number.allocate` | Allocate/release/reuse a staff number | `hr_manager`, `org_admin` |
+| `personnel_file.read` | View a personnel record: PIF number, physical location, movement history | `hr_manager`, `org_admin` |
+| `personnel_file.manage` | Create personnel files, manage physical-location hierarchy, create volumes | `hr_manager`, `org_admin` |
+| `personnel_file.movement.write` | Checkout/return/mark-missing/recover actions | `hr_manager`, `org_admin` |
+| `personnel_file.sensitive.read` | View any approved sensitive PIF field (medical/dependants/SSNIT id/etc., once specifically approved) | `hr_manager`, `org_admin` — narrower still if a future decision requires it |
+| `personnel_file.sensitive.write` | Edit any approved sensitive PIF field | `hr_manager`, `org_admin` |
+
+**Numbering configuration** requires **no new permission** — it reuses the existing `organization.update` permission already gating every other `organizationConfig` namespace (confirmed live, `routes/organizationSettings.ts:57`).
+
+**Employee self-service**: employees may see **none** of this in V1 — no ESS surface for PIF number, physical-file status, or movement history is proposed. This is a deliberate, disclosed exclusion (not an oversight): nothing in the Owner's own instructions requested employee-facing visibility here, and building one would be scope creep beyond what was asked.
+
+**Manager Portal**: explicitly, deliberately **not** extended to cover any of this — "do not invent manager access merely because Manager Portal exists" is honored literally; no manager-facing personnel-records surface is proposed anywhere in this phase.
+
+**Least privilege preserved throughout**: `employee.read`/`employee.write` are untouched — narrower, not broader, than before this phase in relative terms, since every new sensitive concept gets its own gate rather than riding on the existing broad ones.
+
+---
+
+## 14. Audit
+
+Every action listed in the original discovery pass (§32 of the original prompt) remains a real requirement: staff-number allocated/released/reassigned, PIF-number allocated, personnel-file created, file moved/checked-out/returned/marked-missing/recovered, volume created, physical-location hierarchy changed, sensitive-record accessed (where a future Decision approves specific sensitive fields), and every probation/confirmation action already covered by Performance's/`employment_periods`'own existing audit paths. No sensitive form *contents* are ever placed in audit metadata, matching the platform's own established convention (e.g., Assets' own incident-report metadata already deliberately excludes free-text descriptions).
+
+---
+
+## 15. Compatibility Analysis Across Completed Modules
+
+| Module | Impact |
+|---|---|
+| **Recruitment** | None — `candidates` already uses its own generic national-identifier type+value pattern, untouched by anything here |
+| **Attendance** | None — zero `employeeNumber` reference anywhere in this module |
+| **Leave** | One additive, nullable column (`noticePeriodCountsWorkingDaysOnly`) — every existing leave policy's current behavior is completely unchanged unless an org explicitly sets the new flag |
+| **Performance** | One narrow, disclosed, additive eligibility branch scoped exclusively to `cycleType = 'probation'` assignment — every other cycle type, scope, and eligibility path is byte-for-byte unchanged |
+| **Learning** | One existing CSV export column (`employeeNumberById` in `learningReporting.ts`) needs to switch from a live join to as-of-date allocation resolution (§6) — the only concrete code change required anywhere in an already-shipped module |
+| **Assets** | None — the existing report-only, non-blocking `asset_unreturned_by_employee` precedent is reused as-is for the new separation-warning behavior (§11), never modified |
+| **Employee Self Service** | None — deliberately not extended (§13) |
+| **Manager Portal** | None — deliberately not extended (§13) |
+| **Existing Employee Management** | `employees.employeeNumber` gains a new *behavior* (cleared on release) but no schema change to the column itself; every existing employee record's current `employeeNumber` value is preserved exactly as-is (grandfathered, §5) |
+| **Employment Periods** | Reused, unmodified — the confirmation event's own `newState` shape gains one new optional key (`probationReviewId`), which is fully backward-compatible since `newState` was always free-form JSON with no fixed schema |
+| **Employee Documents** | Reused, unmodified — only a new nullable FK reference *from* `personnel_files` *to* `employee_documents`, never the reverse, never a schema change to `employee_documents` itself |
+| **Audit Infrastructure** | Reused, unmodified — new event types recorded through the existing `recordAuditEvent` mechanism, no new audit table |
+
+`employees.id` is not replaced by, aliased to, or made interchangeable with either the staff number or the PIF number anywhere in this document — it remains the sole technical employee identity, exactly as it is today.
+
+---
+
+## 16. Approved V1 Deferrals
+
+Barcode/QR generation and scanning (Decision 9); physical-file stocktaking/reconciliation (Decision 10); broad automatic document filing beyond prepopulation (Decision 14); bulk legacy import (Decision 19, its own later workstream); any Payroll/SSNIT contribution processing of any kind (§12); fixing the broad `employee.read` gap (Decision 20, remains a separate, disclosed, pre-existing item); Employee Self Service and Manager Portal visibility into personnel records (§13); probation-extension and confirmation-rejection workflows beyond what already exists today (§8).
+
+---
+
+## 17. Frozen Workstreams (W114–W121)
 
 ### W114 — Foundation, Numbering & Identifier History
-Scope: `employee_number_allocations` table + partial unique index; numbering-format config namespace (shared engine, independent config per number type); migrate `generateEmployeeNumber` off the racy `count()` pattern onto the new allocation table; audit events for allocation/release/reassignment; fix the disclosed `employeeNumber`-change audit gap as a natural side effect of routing changes through the new service layer instead of the generic `PATCH` spread.
+**Objective**: the numbering engine (§4), `numbering_sequences`, `employee_number_allocations`, the concurrency-safe generator replacing `generateEmployeeNumber`, and the release/reuse lifecycle service layer (§5).
+**Backend impact**: new `lib/numbering.ts`-style service module; `employees.employeeNumber` write path changes to route through the new allocation service instead of the generic `PATCH` spread (closing the pre-existing no-audit-trail gap as a side effect).
+**Database impact**: `numbering_sequences`, `employee_number_allocations`, both with the concurrency-safe patterns in §4/§5.
+**API impact**: new allocation/release/reuse endpoints; existing employee create/update routes stop accepting a raw `employeeNumber` write, routing through the new service instead.
+**Frontend impact**: none required yet — a minimal internal test surface only, if needed for verification.
+**Authorization**: new `employee_number.allocate` permission.
+**Audit**: allocation/release/reassignment events.
+**Tests**: concurrency races (§4/§5's own explicit scenario list), grandfathering behavior, release-blocked-while-active enforcement.
+**Live QA**: real allocation/release/reuse cycle against disposable fixtures; a genuine concurrent-allocation race proven live.
+**Cleanup**: standard disposable-fixture discipline, matching every prior phase.
+**Definition of Done**: the full staff-number lifecycle (§5) proven end-to-end, live-verified, zero regression in existing employee create/update behavior.
+**STOP boundary**: no PIF/personnel-file work yet. Do not begin W115 without its own separate go-ahead.
 
 ### W115 — Personnel File Registry & PIF Linkage
-Scope: PIF-number allocation (permanent, non-reusable per Decision 4) using the same engine from W114; personnel-file identity table linking employee ↔ staff-number-allocation-history ↔ PIF-number; the narrow sensitive-field table (Decision 16) if any PIF fields are approved for capture.
+**Objective**: `personnel_files` (§7a), PIF-number allocation (reusing W114's own numbering engine, its own independent `numbering.pifNumber` config), employee-UUID ↔ staff-number-history ↔ PIF-number relationship display (§10's own data model, not yet the search UI).
+**Database impact**: `personnel_files`.
+**API impact**: personnel-file CRUD (create, read, PIF allocation).
+**Frontend impact**: none required yet — a minimal internal test surface only, if needed.
+**Authorization**: `personnel_file.read`, `personnel_file.manage`.
+**Audit**: personnel-file creation, PIF allocation.
+**Tests**: PIF permanence (never released/reassigned under any tested scenario, including staff-number reuse), 1:1 employee linkage integrity.
+**Live QA**: real personnel-file + PIF creation; a real staff-number reuse scenario proving the PIF number never moves.
+**Cleanup**: standard discipline.
+**Definition of Done**: PIF lifecycle (§7a items 1-3) proven end-to-end, live-verified.
+**STOP boundary**: no physical filing/locations/movement yet. Do not begin W116 without its own separate go-ahead.
 
 ### W116 — Physical Filing, Locations & Movement
-Scope: Master Data `parentId` extension (Decision 6); `personnel_file_movements`; `personnel_file_volumes`. Barcode/QR and stocktaking explicitly excluded (Decisions 9/10).
+**Objective**: `records_locations` (§6, self-referencing hierarchy), `personnel_file_volumes` (§8), `personnel_file_movements` (§7b, event-sourced), the concurrency-safe custody-state model.
+**Database impact**: `records_locations`, `personnel_file_volumes`, `personnel_file_movements`, plus the denormalized custody-state cache columns on `personnel_files`/`personnel_file_volumes`.
+**API impact**: location CRUD, checkout/return/mark-missing/recover endpoints.
+**Frontend impact**: none required yet.
+**Authorization**: `personnel_file.movement.write` (actions), `personnel_file.manage` (locations/volumes), `personnel_file.read` (viewing history).
+**Audit**: every movement event, location changes, volume creation.
+**Tests**: the full concurrency scenario list in §7b (double checkout, double return, concurrent attempts, missing/recovery transitions, location-update races); overdue derived correctly, never persisted.
+**Live QA**: a real checkout → mark-missing → recover → return cycle; a genuine concurrent-checkout race proven live.
+**Cleanup**: standard discipline.
+**Definition of Done**: the full physical custody model (§7b) proven end-to-end, live-verified.
+**STOP boundary**: no WWM-specific form/workflow reconciliation yet. Do not begin W117 without its own separate go-ahead.
 
 ### W117 — WWM Forms / HR Workflow Reconciliation
-Scope: WWM's own Performance rating scale/template (Decision 12, configuration only); the working-days notice-period extension (Decision 11); the probation-review coordination workflow and its narrow Performance eligibility-floor change (Decision 13).
+**Objective**: the working-days notice-period extension (Decision 11); WWM's own Performance rating scale/template (Decision 12, configuration only — verify no code change is actually needed); the probation-review dedicated assignment path and its narrow eligibility branch (Decision 13/§8).
+**Database impact**: one nullable column (`leave_policies.noticePeriodCountsWorkingDaysOnly`).
+**API impact**: the notice-period check extended; a new probation-assignment endpoint (or an existing endpoint's own narrow new branch).
+**Frontend impact**: minimal — surfacing the working-days flag in Leave policy configuration if a UI already exists for policy editing.
+**Authorization**: reuses existing Performance/Leave permissions — no new permission for this workstream.
+**Audit**: reuses Performance's own existing review-lifecycle audit events; the confirmation event's own `newState.probationReviewId` key.
+**Tests**: probation-eligible-only-for-probation-cycle-type (proving `all_active`/`department`/`position`/ordinary `manual` scopes remain unaffected for every other cycle type); working-days notice-period calculation against a real holiday calendar.
+**Live QA**: a real probation-cycle review assignment, completion, and confirmation-linkage cycle.
+**Cleanup**: standard discipline.
+**Definition of Done**: probation-review architecture (§8) proven end-to-end, live-verified; zero regression in any existing Performance cycle-type behavior.
+**STOP boundary**: no search/automation/workspace UI yet. Do not begin W118 without its own separate go-ahead.
 
 ### W118 — Search, Automation & HR Workspace
-Scope: extend existing per-page search to cover PIF-number/staff-number/location cross-lookups; extend `employee-detail.tsx` with the new personnel-file/location/movement cards (§22); the automatic-filing matrix items approved by Decision 14, if any.
+**Objective**: the cross-search model (§10, including historical staff-number search); prepopulation in `employee-detail.tsx`-style personnel-record views (Decision 14); separation-time warnings (§11).
+**Database impact**: none beyond prior workstreams.
+**API impact**: extended search endpoint; separation-warning surface (reusing Assets' own existing report).
+**Frontend impact**: the first real personnel-records UI — new cards on the existing `employee-detail.tsx` page (per the discovery pass's own "extend the existing page, don't build a new workspace" recommendation), prepopulated from already-known employee data.
+**Authorization**: reuses W114-116's own permissions.
+**Audit**: none new — this is a read/UI workstream.
+**Tests**: reused-number search returns every allocation, clearly labeled; prepopulation never re-asks for already-known data; separation warnings never block.
+**Live QA**: a full HR walkthrough — new employee → number allocation → personnel file → PIF → (later) separation with warnings shown, not blocked.
+**Cleanup**: standard discipline.
+**Definition of Done**: the HR daily-workflow vision (original discovery §22) demonstrably smoother, live-verified.
+**STOP boundary**: no reporting/legacy-import yet. Do not begin W119 without its own separate go-ahead.
 
 ### W119 — Reporting / Legacy Import Support
-Scope: the reports approved by Decision 18; a dedicated legacy-import capability (Decision 19) — the first bulk-import feature this codebase would ever have.
+**Objective**: the five Decision-18 reports (via the existing Reporting Foundation, ADR-016); the dedicated legacy-import capability (Decision 19).
+**Database impact**: none beyond what import needs to populate already-designed tables.
+**API impact**: new report routes (existing pattern); a new import endpoint/tooling.
+**Frontend impact**: report access via existing Reporting Foundation UI conventions.
+**Authorization**: reports gated by `personnel_file.read`/`employee_number.allocate` as appropriate; import gated by `personnel_file.manage`.
+**Audit**: import actions themselves audited (bulk-created allocations/personnel-files each traceable to the import batch).
+**Tests**: every report resolves staff numbers via allocation history, never a live join (§6); import never regenerates a supplied legacy identifier; import handles missing/unknown values as nulls, not fabricated data.
+**Live QA**: a real CSV import of disposable legacy-style data; report output verified against independently-known-correct fixture data.
+**Cleanup**: standard discipline, including import-created fixtures.
+**Definition of Done**: reporting and import both proven end-to-end, live-verified.
+**STOP boundary**: no Payroll, no SSNIT processing, no QR/barcode, no stocktaking. Do not begin W120 without its own separate go-ahead.
 
 ### W120 — Verification
-Full integrated verification, mirroring every prior phase's own W-verification charter.
+**Objective**: full integrated verification of Phase 3H as one system, mirroring every prior phase's own W-verification charter (W83, W93, W103, W112) exactly — reconciliation against this frozen plan, regression across every module in the compatibility analysis (§15), a fresh integrated live-QA scenario covering the full lifecycle end-to-end (allocation → separation → warning → release → reuse → historical-report-correctness → search-clarity), tenant isolation, and a direct proof that no historical record anywhere was rewritten by a live reuse test.
+**Definition of Done**: matches the established verification template exactly — PASS, PASS WITH FIXES, or BLOCKED.
+**STOP boundary**: report result. Do not begin W121 without its own separate go-ahead.
 
 ### W121 — Completion Report
-
-This is a starting hypothesis, not a frozen structure — subject to revision once the Owner resolves §16's decisions, several of which (13, 16, 20) materially affect scope.
-
----
-
-## 18. Expected Migration
-
-**Likely `0041`**, but not created by this discovery document. Schema analysis (§7, §11, §15) confirms genuine, real schema work will be needed once Decisions 1, 5, 6, 7, 8, 16 are resolved — this is not a guess, it follows directly from "no table for X exists" findings verified in this document. The exact shape of `0041` depends entirely on which Owner Decisions are approved; this document does not presume the outcome.
+**Objective**: formal closure, mirroring W94/W104/W108/W113's own exact structure. Reconciles all 20 Owner Decisions plus every frozen requirement in this document against final shipped state. Marks Phase 3H complete only if W120 passed.
+**Definition of Done**: `PROJECT_STATUS.md` fully reconciled; next roadmap step identified (Future Expansion, per `ROADMAP.md`) without beginning it.
+**STOP boundary**: the final Phase 3H workstream. Do not begin Future Expansion/Payroll without its own separate planning/freeze cycle and go-ahead.
 
 ---
 
-**This document is a DRAFT for Owner review only. No implementation, migration, schema change, permission, or frontend change has been made as part of producing this document.**
+## 18. Expected Migration Impact
+
+**Recalculated against the final frozen schema** (not the Owner Review's own preliminary count), current migration ledger confirmed at `0040` (`lib/db/drizzle/0040_boring_rafael_vega.sql`, no `0041` exists). The next migration is expected to contain:
+
+**New tables (7)**: `numbering_sequences`, `employee_number_allocations`, `personnel_files`, `records_locations`, `personnel_file_volumes`, `personnel_file_movements`, and (only if a future, separate decision approves specific sensitive PIF fields) one narrow sensitive-fields table — **not committed by this freeze**, since no specific fields are approved yet.
+
+**New columns (1)**: `leave_policies.noticePeriodCountsWorkingDaysOnly` (nullable boolean).
+
+**New partial unique indexes (2+)**: `employee_number_allocations (organizationId, employeeNumber) WHERE valid_to IS NULL`; `personnel_file_movements (personnelFileId, volumeId) WHERE event_type IN ('checked_out', 'marked_missing')` (or the equivalent "open movement" predicate per §7b's final implementation).
+
+**New permission rows (6)**: `employee_number.allocate`, `personnel_file.read`, `personnel_file.manage`, `personnel_file.movement.write`, `personnel_file.sensitive.read`, `personnel_file.sensitive.write`.
+
+**Zero changes to any existing table's existing columns** — the only *behavioral* (not schema) change is how `employees.employeeNumber` gets written (via the new service layer instead of the generic `PATCH` spread) and cleared (on release).
+
+**This migration is not created by this freeze session** — it is created at the start of W114, per that workstream's own Definition of Done.
+
+---
+
+**This document is FROZEN — APPROVED FOR IMPLEMENTATION. W114 may begin under its own separate explicit go-ahead. No workstream implementation is authorized by the act of freezing this document alone.**
