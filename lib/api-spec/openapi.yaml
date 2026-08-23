@@ -16791,6 +16791,192 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/office-inventory/receiving:
+    get:
+      operationId: listOfficeInventoryReceipts
+      tags: [office-inventory-ledger]
+      summary: List receiving history (Office Inventory Workstream 2)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Receipt summaries, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OfficeInventoryReceiptSummary"
+        "403":
+          description: Forbidden — requires office_inventory.custody.read, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createOfficeInventoryReceipt
+      tags: [office-inventory-ledger]
+      summary: Receive stock — gated office_inventory.receive
+      description: >-
+        Not Procurement — stock has already entered organizational
+        possession. A multi-item submission commits atomically: if any line
+        is invalid, zero rows are written. Supports an optional
+        idempotencyKey; resubmitting the same key returns the original
+        receipt (`replay: true`) rather than creating a second one.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOfficeInventoryReceiptBody"
+      responses:
+        "201":
+          description: Created (or, on idempotency replay, the original) receipt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryReceipt"
+        "400":
+          description: No lines, invalid quantity, or store/items not found for this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires office_inventory.receive, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/receiving/{referenceNumber}:
+    get:
+      operationId: getOfficeInventoryReceipt
+      tags: [office-inventory-ledger]
+      summary: Get one receipt by its reference number
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: referenceNumber
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Receipt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryReceipt"
+        "403":
+          description: Forbidden — requires office_inventory.custody.read, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Receipt not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/stock/balance:
+    get:
+      operationId: getOfficeInventoryStockBalance
+      tags: [office-inventory-ledger]
+      summary: Current stock balance for one item — one store, or the organization-wide total with a per-store breakdown
+      description: >-
+        Live-derived from the stock ledger (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md
+        §8) — never a persisted balance column.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: itemId
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: storeId
+          in: query
+          required: false
+          description: If supplied, `total` is that one store's balance and `byStore` is empty. If omitted, `total` is the organization-wide total and `byStore` lists every store the item has moved through.
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Balance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryItemBalance"
+        "403":
+          description: Forbidden — requires office_inventory.custody.read, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Item (or store, if supplied) not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/stock/movements:
+    get:
+      operationId: listOfficeInventoryStockMovements
+      tags: [office-inventory-ledger]
+      summary: Stock movement history, optionally narrowed to one item and/or one store
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: itemId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: storeId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Movements, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OfficeInventoryStockMovement"
+        "403":
+          description: Forbidden — requires office_inventory.custody.read, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -25355,3 +25541,166 @@ components:
         status:
           type: string
           enum: [active, inactive]
+
+    OfficeInventoryStockMovement:
+      type: object
+      description: >-
+        Office Inventory, Workstream 2
+        (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.3). One row of the
+        authoritative, append-only stock ledger. Workstream 2 only ever
+        produces `movementType: received` rows; every other enum value
+        exists for later workstreams.
+      required: [id, organizationId, itemId, movementType, quantity, storeId, holderType, holderId, referenceNumber, sourceReferenceType, sourceReferenceId, source, deliveryReference, unitCost, condition, reason, expectedReturnDate, confirmedByMembershipId, confirmedAt, idempotencyKey, actorMembershipId, occurredAt, notes, createdAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        itemId:
+          type: integer
+        movementType:
+          type: string
+          enum: [received, issued, returned, transferred_out, transferred_in, adjustment_in, adjustment_out, written_off, missing, recovered, asset_handoff]
+        quantity:
+          type: string
+        storeId:
+          type: ["integer", "null"]
+        holderType:
+          type: ["string", "null"]
+          enum: [employee, department, null]
+        holderId:
+          type: ["integer", "null"]
+        referenceNumber:
+          type: ["string", "null"]
+        sourceReferenceType:
+          type: ["string", "null"]
+          enum: [request_line, incident, stocktake_line, asset, null]
+        sourceReferenceId:
+          type: ["integer", "null"]
+        source:
+          type: ["string", "null"]
+        deliveryReference:
+          type: ["string", "null"]
+        unitCost:
+          type: ["string", "null"]
+        condition:
+          type: ["string", "null"]
+          enum: [new, good, fair, poor, damaged, null]
+        reason:
+          type: ["string", "null"]
+        expectedReturnDate:
+          type: ["string", "null"]
+          format: date
+        confirmedByMembershipId:
+          type: ["integer", "null"]
+        confirmedAt:
+          type: ["string", "null"]
+          format: date-time
+        idempotencyKey:
+          type: ["string", "null"]
+        actorMembershipId:
+          type: ["integer", "null"]
+        occurredAt:
+          type: string
+          format: date-time
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    OfficeInventoryReceipt:
+      type: object
+      description: >-
+        Not a separate DB entity — the set of `received` ledger rows sharing
+        one `referenceNumber`, assembled on read.
+      required: [referenceNumber, organizationId, storeId, occurredAt, lines, replay]
+      properties:
+        referenceNumber:
+          type: string
+        organizationId:
+          type: integer
+        storeId:
+          type: integer
+        occurredAt:
+          type: string
+          format: date-time
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/OfficeInventoryStockMovement"
+        replay:
+          type: boolean
+          description: True when this response is the pre-existing result of an earlier identical idempotencyKey submission, not a newly-created receipt.
+
+    OfficeInventoryReceiptSummary:
+      type: object
+      required: [referenceNumber, storeId, occurredAt, lineCount]
+      properties:
+        referenceNumber:
+          type: string
+        storeId:
+          type: integer
+        occurredAt:
+          type: string
+          format: date-time
+        lineCount:
+          type: integer
+
+    ReceiveLineInput:
+      type: object
+      required: [itemId, quantity]
+      properties:
+        itemId:
+          type: integer
+        quantity:
+          type: string
+          description: Positive numeric(12,2)-shaped string.
+        unitCost:
+          type: string
+
+    CreateOfficeInventoryReceiptBody:
+      type: object
+      required: [storeId, lines]
+      properties:
+        storeId:
+          type: integer
+        lines:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ReceiveLineInput"
+        source:
+          type: string
+        deliveryReference:
+          type: string
+        notes:
+          type: string
+        idempotencyKey:
+          type: string
+          description: Optional client-generated key protecting against duplicate submission (e.g. a double click or network retry). Same key + same operation returns the original receipt rather than creating a second one.
+
+    OfficeInventoryStoreBalance:
+      type: object
+      required: [storeId, balance]
+      properties:
+        storeId:
+          type: integer
+        balance:
+          type: string
+
+    OfficeInventoryItemBalance:
+      type: object
+      description: Either a single store's balance (when `storeId` was supplied) or the organization-wide total plus a per-store breakdown (when it was not).
+      required: [itemId, total, byStore]
+      properties:
+        itemId:
+          type: integer
+        storeId:
+          type: ["integer", "null"]
+        total:
+          type: string
+        byStore:
+          type: array
+          items:
+            $ref: "#/components/schemas/OfficeInventoryStoreBalance"

@@ -7390,6 +7390,162 @@ export interface UpdateOfficeInventoryStoreBody {
   status?: UpdateOfficeInventoryStoreBodyStatus;
 }
 
+export type OfficeInventoryStockMovementMovementType = typeof OfficeInventoryStockMovementMovementType[keyof typeof OfficeInventoryStockMovementMovementType];
+
+
+export const OfficeInventoryStockMovementMovementType = {
+  received: 'received',
+  issued: 'issued',
+  returned: 'returned',
+  transferred_out: 'transferred_out',
+  transferred_in: 'transferred_in',
+  adjustment_in: 'adjustment_in',
+  adjustment_out: 'adjustment_out',
+  written_off: 'written_off',
+  missing: 'missing',
+  recovered: 'recovered',
+  asset_handoff: 'asset_handoff',
+} as const;
+
+/**
+ * @nullable
+ */
+export type OfficeInventoryStockMovementHolderType = typeof OfficeInventoryStockMovementHolderType[keyof typeof OfficeInventoryStockMovementHolderType] | null;
+
+
+export const OfficeInventoryStockMovementHolderType = {
+  employee: 'employee',
+  department: 'department',
+} as const;
+
+/**
+ * @nullable
+ */
+export type OfficeInventoryStockMovementSourceReferenceType = typeof OfficeInventoryStockMovementSourceReferenceType[keyof typeof OfficeInventoryStockMovementSourceReferenceType] | null;
+
+
+export const OfficeInventoryStockMovementSourceReferenceType = {
+  request_line: 'request_line',
+  incident: 'incident',
+  stocktake_line: 'stocktake_line',
+  asset: 'asset',
+} as const;
+
+/**
+ * @nullable
+ */
+export type OfficeInventoryStockMovementCondition = typeof OfficeInventoryStockMovementCondition[keyof typeof OfficeInventoryStockMovementCondition] | null;
+
+
+export const OfficeInventoryStockMovementCondition = {
+  new: 'new',
+  good: 'good',
+  fair: 'fair',
+  poor: 'poor',
+  damaged: 'damaged',
+} as const;
+
+/**
+ * Office Inventory, Workstream 2 (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.3). One row of the authoritative, append-only stock ledger. Workstream 2 only ever produces `movementType: received` rows; every other enum value exists for later workstreams.
+ */
+export interface OfficeInventoryStockMovement {
+  id: number;
+  organizationId: number;
+  itemId: number;
+  movementType: OfficeInventoryStockMovementMovementType;
+  quantity: string;
+  /** @nullable */
+  storeId: number | null;
+  /** @nullable */
+  holderType: OfficeInventoryStockMovementHolderType;
+  /** @nullable */
+  holderId: number | null;
+  /** @nullable */
+  referenceNumber: string | null;
+  /** @nullable */
+  sourceReferenceType: OfficeInventoryStockMovementSourceReferenceType;
+  /** @nullable */
+  sourceReferenceId: number | null;
+  /** @nullable */
+  source: string | null;
+  /** @nullable */
+  deliveryReference: string | null;
+  /** @nullable */
+  unitCost: string | null;
+  /** @nullable */
+  condition: OfficeInventoryStockMovementCondition;
+  /** @nullable */
+  reason: string | null;
+  /** @nullable */
+  expectedReturnDate: string | null;
+  /** @nullable */
+  confirmedByMembershipId: number | null;
+  /** @nullable */
+  confirmedAt: string | null;
+  /** @nullable */
+  idempotencyKey: string | null;
+  /** @nullable */
+  actorMembershipId: number | null;
+  occurredAt: string;
+  /** @nullable */
+  notes: string | null;
+  createdAt: string;
+}
+
+/**
+ * Not a separate DB entity — the set of `received` ledger rows sharing one `referenceNumber`, assembled on read.
+ */
+export interface OfficeInventoryReceipt {
+  referenceNumber: string;
+  organizationId: number;
+  storeId: number;
+  occurredAt: string;
+  lines: OfficeInventoryStockMovement[];
+  /** True when this response is the pre-existing result of an earlier identical idempotencyKey submission, not a newly-created receipt. */
+  replay: boolean;
+}
+
+export interface OfficeInventoryReceiptSummary {
+  referenceNumber: string;
+  storeId: number;
+  occurredAt: string;
+  lineCount: number;
+}
+
+export interface ReceiveLineInput {
+  itemId: number;
+  /** Positive numeric(12,2)-shaped string. */
+  quantity: string;
+  unitCost?: string;
+}
+
+export interface CreateOfficeInventoryReceiptBody {
+  storeId: number;
+  /** @minItems 1 */
+  lines: ReceiveLineInput[];
+  source?: string;
+  deliveryReference?: string;
+  notes?: string;
+  /** Optional client-generated key protecting against duplicate submission (e.g. a double click or network retry). Same key + same operation returns the original receipt rather than creating a second one. */
+  idempotencyKey?: string;
+}
+
+export interface OfficeInventoryStoreBalance {
+  storeId: number;
+  balance: string;
+}
+
+/**
+ * Either a single store's balance (when `storeId` was supplied) or the organization-wide total plus a per-store breakdown (when it was not).
+ */
+export interface OfficeInventoryItemBalance {
+  itemId: number;
+  /** @nullable */
+  storeId?: number | null;
+  total: string;
+  byStore: OfficeInventoryStoreBalance[];
+}
+
 export type ListEmployeesParams = {
 search?: string;
 departmentId?: number;
@@ -8007,5 +8163,18 @@ export type ResolveDepartmentHeadAsOfParams = {
  * ISO 8601 date-time to resolve authority as of
  */
 date: string;
+};
+
+export type GetOfficeInventoryStockBalanceParams = {
+itemId: number;
+/**
+ * If supplied, `total` is that one store's balance and `byStore` is empty. If omitted, `total` is the organization-wide total and `byStore` lists every store the item has moved through.
+ */
+storeId?: number;
+};
+
+export type ListOfficeInventoryStockMovementsParams = {
+itemId?: number;
+storeId?: number;
 };
 

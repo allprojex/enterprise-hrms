@@ -89,6 +89,7 @@ import payrollReportsRouter from "./payrollReports";
 import payrollPaymentBatchesRouter from "./payrollPaymentBatches";
 import departmentHeadsRouter from "./departmentHeads";
 import officeInventoryCatalogRouter from "./officeInventoryCatalog";
+import officeInventoryLedgerRouter from "./officeInventoryLedger";
 
 const router: IRouter = Router();
 
@@ -187,5 +188,6 @@ router.use(payrollReportsRouter);
 router.use(payrollPaymentBatchesRouter);
 router.use(departmentHeadsRouter);
 router.use(officeInventoryCatalogRouter);
+router.use(officeInventoryLedgerRouter);
 
 export default router;

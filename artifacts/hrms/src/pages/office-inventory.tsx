@@ -9,7 +9,7 @@
  * and lives on the existing Departments page instead.
  */
 import { useState } from 'react';
-import { Boxes, Warehouse, Settings2, Plus, Pencil } from 'lucide-react';
+import { Boxes, Warehouse, Settings2, Plus, Pencil, Truck, Trash2, PackageSearch } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -39,9 +39,17 @@ import {
   useGetOrganizationConfig,
   getGetOrganizationConfigQueryKey,
   useUpdateOrganizationConfig,
+  useListOfficeInventoryReceipts,
+  getListOfficeInventoryReceiptsQueryKey,
+  useCreateOfficeInventoryReceipt,
+  useGetOfficeInventoryReceipt,
+  getGetOfficeInventoryReceiptQueryKey,
+  useGetOfficeInventoryStockBalance,
+  getGetOfficeInventoryStockBalanceQueryKey,
   OfficeInventoryItemClassification,
   type OfficeInventoryItem,
   type OfficeInventoryStore,
+  type ReceiveLineInput,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -546,6 +554,310 @@ function StoresTab({ organizationId }: { organizationId: number }) {
   );
 }
 
+// --- Receiving (Workstream 2) — receiving means stock has already entered
+// organizational possession; this is NOT Procurement. No purchase
+// requisition/RFQ/PO/approval workflow exists here. A multi-item submission
+// commits atomically. No employee requests/approvals/issuing/returns exist
+// yet — receiving is the only populated movement type in Workstream 2. ---
+
+function ReceiveStockDialog({ organizationId, onCreated }: { organizationId: number; onCreated: () => void }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [storeId, setStoreId] = useState('');
+  const [lines, setLines] = useState<{ itemId: string; quantity: string; unitCost: string }[]>([{ itemId: '', quantity: '', unitCost: '' }]);
+  const [source, setSource] = useState('');
+  const [deliveryReference, setDeliveryReference] = useState('');
+  const [notes, setNotes] = useState('');
+  const mutation = useCreateOfficeInventoryReceipt();
+
+  const { data: stores } = useListOfficeInventoryStores(organizationId, {
+    query: { queryKey: getListOfficeInventoryStoresQueryKey(organizationId), enabled: organizationId > 0 && open },
+  });
+  const { data: items } = useListOfficeInventoryItems(organizationId, {
+    query: { queryKey: getListOfficeInventoryItemsQueryKey(organizationId), enabled: organizationId > 0 && open },
+  });
+
+  const reset = () => {
+    setStoreId('');
+    setLines([{ itemId: '', quantity: '', unitCost: '' }]);
+    setSource('');
+    setDeliveryReference('');
+    setNotes('');
+  };
+
+  const updateLine = (index: number, patch: Partial<{ itemId: string; quantity: string; unitCost: string }>) => {
+    setLines((prev) => prev.map((l, i) => (i === index ? { ...l, ...patch } : l)));
+  };
+  const addLine = () => setLines((prev) => [...prev, { itemId: '', quantity: '', unitCost: '' }]);
+  const removeLine = (index: number) => setLines((prev) => prev.filter((_, i) => i !== index));
+
+  const validLines: ReceiveLineInput[] = lines
+    .filter((l) => l.itemId && l.quantity)
+    .map((l) => ({ itemId: Number(l.itemId), quantity: l.quantity, unitCost: l.unitCost || undefined }));
+
+  const handle = () => {
+    if (!storeId || validLines.length === 0) return;
+    mutation.mutate(
+      {
+        organizationId,
+        data: {
+          storeId: Number(storeId),
+          lines: validLines,
+          source: source.trim() || undefined,
+          deliveryReference: deliveryReference.trim() || undefined,
+          notes: notes.trim() || undefined,
+          idempotencyKey: crypto.randomUUID(),
+        },
+      },
+      {
+        onSuccess: (receipt) => {
+          setOpen(false);
+          reset();
+          onCreated();
+          toast({ title: `Received ${receipt.lines.length} line(s) — ${receipt.referenceNumber}` });
+        },
+        onError: (err) => toast({ title: 'Could not receive stock', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
+      <DialogTrigger asChild>
+        <Button data-testid="button-receive-stock">
+          <Truck className="h-4 w-4" aria-hidden="true" />
+          Receive Stock
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Receive Stock</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="receive-store">Destination Store</Label>
+            <Select value={storeId} onValueChange={setStoreId}>
+              <SelectTrigger id="receive-store" data-testid="select-receive-store">
+                <SelectValue placeholder="Choose a store" />
+              </SelectTrigger>
+              <SelectContent>
+                {(stores ?? []).map((s) => (
+                  <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Lines</Label>
+            {lines.map((line, index) => (
+              <div key={index} className="flex items-end gap-2" data-testid={`row-receive-line-${index}`}>
+                <div className="flex-1 space-y-1">
+                  <Select value={line.itemId} onValueChange={(v) => updateLine(index, { itemId: v })}>
+                    <SelectTrigger data-testid={`select-receive-item-${index}`}>
+                      <SelectValue placeholder="Item" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(items ?? []).map((i) => (
+                        <SelectItem key={i.id} value={String(i.id)}>{i.name} ({i.itemCode})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Input type="number" min={0} step="0.01" placeholder="Quantity" className="w-28" value={line.quantity} onChange={(e) => updateLine(index, { quantity: e.target.value })} data-testid={`input-receive-quantity-${index}`} />
+                <Input type="number" min={0} step="0.01" placeholder="Unit cost (optional)" className="w-36" value={line.unitCost} onChange={(e) => updateLine(index, { unitCost: e.target.value })} data-testid={`input-receive-cost-${index}`} />
+                <Button type="button" size="icon" variant="ghost" onClick={() => removeLine(index)} disabled={lines.length === 1} aria-label="Remove line" data-testid={`button-remove-receive-line-${index}`}>
+                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                </Button>
+              </div>
+            ))}
+            <Button type="button" size="sm" variant="outline" onClick={addLine} data-testid="button-add-receive-line">
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+              Add Line
+            </Button>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="receive-source">Source / Supplier (optional, descriptive only)</Label>
+            <Input id="receive-source" value={source} onChange={(e) => setSource(e.target.value)} data-testid="input-receive-source" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="receive-delivery-ref">Delivery Note / Invoice Reference (optional, descriptive only)</Label>
+            <Input id="receive-delivery-ref" value={deliveryReference} onChange={(e) => setDeliveryReference(e.target.value)} data-testid="input-receive-delivery-ref" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="receive-notes">Notes (optional)</Label>
+            <Textarea id="receive-notes" value={notes} onChange={(e) => setNotes(e.target.value)} data-testid="textarea-receive-notes" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={handle} disabled={mutation.isPending || !storeId || validLines.length === 0} data-testid="button-confirm-receive">
+            {mutation.isPending ? 'Receiving…' : 'Confirm Receive'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ReceiptDetailDialog({ organizationId, referenceNumber }: { organizationId: number; referenceNumber: string }) {
+  const [open, setOpen] = useState(false);
+  const { data: receipt, isLoading } = useGetOfficeInventoryReceipt(organizationId, referenceNumber, {
+    query: { queryKey: getGetOfficeInventoryReceiptQueryKey(organizationId, referenceNumber), enabled: organizationId > 0 && open },
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" data-testid={`button-view-receipt-${referenceNumber}`}>View</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Receipt {referenceNumber}</DialogTitle>
+        </DialogHeader>
+        {isLoading ? (
+          <Skeleton className="h-24 w-full" />
+        ) : (
+          <div className="space-y-2 py-2">
+            {(receipt?.lines ?? []).map((line) => (
+              <div key={line.id} className="flex items-center justify-between rounded-md border border-border p-2 text-sm" data-testid={`row-receipt-line-${line.id}`}>
+                <span>Item #{line.itemId}</span>
+                <span className="font-mono">{line.quantity}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ReceivingTab({ organizationId }: { organizationId: number }) {
+  const queryClient = useQueryClient();
+  const { data: receipts, isLoading, error, refetch } = useListOfficeInventoryReceipts(organizationId, {
+    query: { queryKey: getListOfficeInventoryReceiptsQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+
+  const handleCreated = () => {
+    queryClient.invalidateQueries({ queryKey: getListOfficeInventoryReceiptsQueryKey(organizationId) });
+    refetch();
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-end">
+        <ReceiveStockDialog organizationId={organizationId} onCreated={handleCreated} />
+      </div>
+
+      {isLoading ? (
+        <Skeleton className="h-40 w-full" />
+      ) : error ? (
+        <QueryError title="Could not load receiving history" message={errorMessage(error) ?? 'Please try again.'} onRetry={() => refetch()} />
+      ) : !receipts || receipts.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <Truck className="h-8 w-8 text-muted-foreground mb-4" aria-hidden="true" />
+            <h3 className="text-lg font-semibold text-foreground mb-2">No stock received yet</h3>
+            <p className="text-sm text-muted-foreground max-w-sm">Receive your first delivery to start tracking stock.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <Table aria-label="Receiving History">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Reference</TableHead>
+                <TableHead>Store</TableHead>
+                <TableHead>Lines</TableHead>
+                <TableHead>Received</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {receipts.map((r) => (
+                <TableRow key={r.referenceNumber} data-testid={`row-receipt-${r.referenceNumber}`}>
+                  <TableCell className="font-mono text-sm">{r.referenceNumber}</TableCell>
+                  <TableCell>Store #{r.storeId}</TableCell>
+                  <TableCell>{r.lineCount}</TableCell>
+                  <TableCell className="text-muted-foreground">{new Date(r.occurredAt).toLocaleString()}</TableCell>
+                  <TableCell className="text-right">
+                    <ReceiptDetailDialog organizationId={organizationId} referenceNumber={r.referenceNumber} />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// --- Stock (Workstream 2) — current balance, live-derived from the ledger.
+// No employee/department custody view yet — that is a later workstream. ---
+
+function StockTab({ organizationId }: { organizationId: number }) {
+  const { data: items } = useListOfficeInventoryItems(organizationId, {
+    query: { queryKey: getListOfficeInventoryItemsQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+  const [itemId, setItemId] = useState('');
+
+  const { data: balance, isLoading, error, refetch } = useGetOfficeInventoryStockBalance(organizationId, { itemId: Number(itemId) }, {
+    query: { queryKey: getGetOfficeInventoryStockBalanceQueryKey(organizationId, { itemId: Number(itemId) }), enabled: organizationId > 0 && !!itemId },
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="max-w-sm space-y-2">
+        <Label htmlFor="stock-item">Item</Label>
+        <Select value={itemId} onValueChange={setItemId}>
+          <SelectTrigger id="stock-item" data-testid="select-stock-item">
+            <SelectValue placeholder="Choose an item to view its balance" />
+          </SelectTrigger>
+          <SelectContent>
+            {(items ?? []).map((i) => (
+              <SelectItem key={i.id} value={String(i.id)}>{i.name} ({i.itemCode})</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {!itemId ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <PackageSearch className="h-8 w-8 text-muted-foreground mb-4" aria-hidden="true" />
+            <p className="text-sm text-muted-foreground">Choose an item above to see its current stock.</p>
+          </CardContent>
+        </Card>
+      ) : isLoading ? (
+        <Skeleton className="h-32 w-full" />
+      ) : error ? (
+        <QueryError title="Could not load balance" message={errorMessage(error) ?? 'Please try again.'} onRetry={() => refetch()} />
+      ) : (
+        <Card>
+          <CardContent className="py-4 space-y-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Organization-wide total</p>
+              <p className="text-2xl font-bold text-foreground" data-testid="text-stock-total">{balance?.total}</p>
+            </div>
+            {(balance?.byStore ?? []).length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-foreground">By Store</p>
+                {balance!.byStore.map((b) => (
+                  <div key={b.storeId} className="flex items-center justify-between rounded-md border border-border p-2 text-sm" data-testid={`row-store-balance-${b.storeId}`}>
+                    <span>Store #{b.storeId}</span>
+                    <span className="font-mono">{b.balance}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 // --- Configuration ---
 
 function ConfigurationTab({ organizationId }: { organizationId: number }) {
@@ -634,6 +946,8 @@ export default function OfficeInventory() {
         <TabsList>
           <TabsTrigger value="items" data-testid="tab-items">Items</TabsTrigger>
           <TabsTrigger value="stores" data-testid="tab-stores">Stores</TabsTrigger>
+          <TabsTrigger value="receiving" data-testid="tab-receiving">Receiving</TabsTrigger>
+          <TabsTrigger value="stock" data-testid="tab-stock">Stock</TabsTrigger>
           <TabsTrigger value="configuration" data-testid="tab-configuration">Configuration</TabsTrigger>
         </TabsList>
         <TabsContent value="items">
@@ -641,6 +955,12 @@ export default function OfficeInventory() {
         </TabsContent>
         <TabsContent value="stores">
           <StoresTab organizationId={organizationId} />
+        </TabsContent>
+        <TabsContent value="receiving">
+          <ReceivingTab organizationId={organizationId} />
+        </TabsContent>
+        <TabsContent value="stock">
+          <StockTab organizationId={organizationId} />
         </TabsContent>
         <TabsContent value="configuration">
           <ConfigurationTab organizationId={organizationId} />

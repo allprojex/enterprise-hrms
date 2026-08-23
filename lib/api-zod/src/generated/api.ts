@@ -13583,3 +13583,186 @@ export const UpdateOfficeInventoryStoreResponse = zod.object({
 }).describe('Office Inventory, Workstream 1 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.2). Flat — no hierarchy in V1.')
 
 
+/**
+ * @summary List receiving history (Office Inventory Workstream 2)
+ */
+export const ListOfficeInventoryReceiptsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListOfficeInventoryReceiptsResponseItem = zod.object({
+  "referenceNumber": zod.string(),
+  "storeId": zod.number(),
+  "occurredAt": zod.coerce.date(),
+  "lineCount": zod.number()
+})
+export const ListOfficeInventoryReceiptsResponse = zod.array(ListOfficeInventoryReceiptsResponseItem)
+
+
+/**
+ * Not Procurement — stock has already entered organizational possession. A multi-item submission commits atomically: if any line is invalid, zero rows are written. Supports an optional idempotencyKey; resubmitting the same key returns the original receipt (`replay: true`) rather than creating a second one.
+ * @summary Receive stock — gated office_inventory.receive
+ */
+export const CreateOfficeInventoryReceiptParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+
+
+export const CreateOfficeInventoryReceiptBody = zod.object({
+  "storeId": zod.number(),
+  "lines": zod.array(zod.object({
+  "itemId": zod.number(),
+  "quantity": zod.string().describe('Positive numeric(12,2)-shaped string.'),
+  "unitCost": zod.string().optional()
+})).min(1),
+  "source": zod.string().optional(),
+  "deliveryReference": zod.string().optional(),
+  "notes": zod.string().optional(),
+  "idempotencyKey": zod.string().optional().describe('Optional client-generated key protecting against duplicate submission (e.g. a double click or network retry). Same key + same operation returns the original receipt rather than creating a second one.')
+})
+
+export const CreateOfficeInventoryReceiptResponse = zod.object({
+  "referenceNumber": zod.string(),
+  "organizationId": zod.number(),
+  "storeId": zod.number(),
+  "occurredAt": zod.coerce.date(),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "itemId": zod.number(),
+  "movementType": zod.enum(['received', 'issued', 'returned', 'transferred_out', 'transferred_in', 'adjustment_in', 'adjustment_out', 'written_off', 'missing', 'recovered', 'asset_handoff']),
+  "quantity": zod.string(),
+  "storeId": zod.number().nullable(),
+  "holderType": zod.union([zod.literal('employee'),zod.literal('department'),zod.literal(null)]).nullable(),
+  "holderId": zod.number().nullable(),
+  "referenceNumber": zod.string().nullable(),
+  "sourceReferenceType": zod.union([zod.literal('request_line'),zod.literal('incident'),zod.literal('stocktake_line'),zod.literal('asset'),zod.literal(null)]).nullable(),
+  "sourceReferenceId": zod.number().nullable(),
+  "source": zod.string().nullable(),
+  "deliveryReference": zod.string().nullable(),
+  "unitCost": zod.string().nullable(),
+  "condition": zod.union([zod.literal('new'),zod.literal('good'),zod.literal('fair'),zod.literal('poor'),zod.literal('damaged'),zod.literal(null)]).nullable(),
+  "reason": zod.string().nullable(),
+  "expectedReturnDate": zod.coerce.date().nullable(),
+  "confirmedByMembershipId": zod.number().nullable(),
+  "confirmedAt": zod.coerce.date().nullable(),
+  "idempotencyKey": zod.string().nullable(),
+  "actorMembershipId": zod.number().nullable(),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 2 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.3). One row of the authoritative, append-only stock ledger. Workstream 2 only ever produces `movementType: received` rows; every other enum value exists for later workstreams.')),
+  "replay": zod.boolean().describe('True when this response is the pre-existing result of an earlier identical idempotencyKey submission, not a newly-created receipt.')
+}).describe('Not a separate DB entity — the set of `received` ledger rows sharing one `referenceNumber`, assembled on read.')
+
+
+/**
+ * @summary Get one receipt by its reference number
+ */
+export const GetOfficeInventoryReceiptParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "referenceNumber": zod.coerce.string()
+})
+
+export const GetOfficeInventoryReceiptResponse = zod.object({
+  "referenceNumber": zod.string(),
+  "organizationId": zod.number(),
+  "storeId": zod.number(),
+  "occurredAt": zod.coerce.date(),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "itemId": zod.number(),
+  "movementType": zod.enum(['received', 'issued', 'returned', 'transferred_out', 'transferred_in', 'adjustment_in', 'adjustment_out', 'written_off', 'missing', 'recovered', 'asset_handoff']),
+  "quantity": zod.string(),
+  "storeId": zod.number().nullable(),
+  "holderType": zod.union([zod.literal('employee'),zod.literal('department'),zod.literal(null)]).nullable(),
+  "holderId": zod.number().nullable(),
+  "referenceNumber": zod.string().nullable(),
+  "sourceReferenceType": zod.union([zod.literal('request_line'),zod.literal('incident'),zod.literal('stocktake_line'),zod.literal('asset'),zod.literal(null)]).nullable(),
+  "sourceReferenceId": zod.number().nullable(),
+  "source": zod.string().nullable(),
+  "deliveryReference": zod.string().nullable(),
+  "unitCost": zod.string().nullable(),
+  "condition": zod.union([zod.literal('new'),zod.literal('good'),zod.literal('fair'),zod.literal('poor'),zod.literal('damaged'),zod.literal(null)]).nullable(),
+  "reason": zod.string().nullable(),
+  "expectedReturnDate": zod.coerce.date().nullable(),
+  "confirmedByMembershipId": zod.number().nullable(),
+  "confirmedAt": zod.coerce.date().nullable(),
+  "idempotencyKey": zod.string().nullable(),
+  "actorMembershipId": zod.number().nullable(),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 2 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.3). One row of the authoritative, append-only stock ledger. Workstream 2 only ever produces `movementType: received` rows; every other enum value exists for later workstreams.')),
+  "replay": zod.boolean().describe('True when this response is the pre-existing result of an earlier identical idempotencyKey submission, not a newly-created receipt.')
+}).describe('Not a separate DB entity — the set of `received` ledger rows sharing one `referenceNumber`, assembled on read.')
+
+
+/**
+ * Live-derived from the stock ledger (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §8) — never a persisted balance column.
+ * @summary Current stock balance for one item — one store, or the organization-wide total with a per-store breakdown
+ */
+export const GetOfficeInventoryStockBalanceParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetOfficeInventoryStockBalanceQueryParams = zod.object({
+  "itemId": zod.coerce.number(),
+  "storeId": zod.coerce.number().optional().describe('If supplied, `total` is that one store\'s balance and `byStore` is empty. If omitted, `total` is the organization-wide total and `byStore` lists every store the item has moved through.')
+})
+
+export const GetOfficeInventoryStockBalanceResponse = zod.object({
+  "itemId": zod.number(),
+  "storeId": zod.number().nullish(),
+  "total": zod.string(),
+  "byStore": zod.array(zod.object({
+  "storeId": zod.number(),
+  "balance": zod.string()
+}))
+}).describe('Either a single store\'s balance (when `storeId` was supplied) or the organization-wide total plus a per-store breakdown (when it was not).')
+
+
+/**
+ * @summary Stock movement history, optionally narrowed to one item and/or one store
+ */
+export const ListOfficeInventoryStockMovementsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListOfficeInventoryStockMovementsQueryParams = zod.object({
+  "itemId": zod.coerce.number().optional(),
+  "storeId": zod.coerce.number().optional()
+})
+
+export const ListOfficeInventoryStockMovementsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "itemId": zod.number(),
+  "movementType": zod.enum(['received', 'issued', 'returned', 'transferred_out', 'transferred_in', 'adjustment_in', 'adjustment_out', 'written_off', 'missing', 'recovered', 'asset_handoff']),
+  "quantity": zod.string(),
+  "storeId": zod.number().nullable(),
+  "holderType": zod.union([zod.literal('employee'),zod.literal('department'),zod.literal(null)]).nullable(),
+  "holderId": zod.number().nullable(),
+  "referenceNumber": zod.string().nullable(),
+  "sourceReferenceType": zod.union([zod.literal('request_line'),zod.literal('incident'),zod.literal('stocktake_line'),zod.literal('asset'),zod.literal(null)]).nullable(),
+  "sourceReferenceId": zod.number().nullable(),
+  "source": zod.string().nullable(),
+  "deliveryReference": zod.string().nullable(),
+  "unitCost": zod.string().nullable(),
+  "condition": zod.union([zod.literal('new'),zod.literal('good'),zod.literal('fair'),zod.literal('poor'),zod.literal('damaged'),zod.literal(null)]).nullable(),
+  "reason": zod.string().nullable(),
+  "expectedReturnDate": zod.coerce.date().nullable(),
+  "confirmedByMembershipId": zod.number().nullable(),
+  "confirmedAt": zod.coerce.date().nullable(),
+  "idempotencyKey": zod.string().nullable(),
+  "actorMembershipId": zod.number().nullable(),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 2 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.3). One row of the authoritative, append-only stock ledger. Workstream 2 only ever produces `movementType: received` rows; every other enum value exists for later workstreams.')
+export const ListOfficeInventoryStockMovementsResponse = zod.array(ListOfficeInventoryStockMovementsResponseItem)
+
+

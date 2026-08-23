@@ -153,6 +153,11 @@ const officeInventoryItemNumberConfigSchema = z
 const officeInventoryConfigSchema = z
   .object({
     itemNumber: officeInventoryItemNumberConfigSchema.optional(),
+    // Office Inventory, Workstream 2 — reuses the exact same format-config
+    // shape as itemNumber (a second, independent number series via the
+    // numbering engine's own multi-sequenceKey design), not a second
+    // numbering system.
+    receiptNumber: officeInventoryItemNumberConfigSchema.optional(),
     repeatRequestReviewWindowDays: z.number().int().min(0).max(365).optional(),
     costTrackingEnabled: z.boolean().optional(),
     directIssueEnabled: z.boolean().optional(),
@@ -274,6 +279,13 @@ export const CONFIG_NAMESPACES: Record<string, NamespaceDefinition> = {
     defaults: () => ({
       itemNumber: {
         prefix: "INV",
+        separator: "-",
+        sequenceLength: 5,
+        startingSequence: 1,
+        resetPolicy: "never",
+      },
+      receiptNumber: {
+        prefix: "RCV",
         separator: "-",
         sequenceLength: 5,
         startingSequence: 1,

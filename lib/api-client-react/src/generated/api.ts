@@ -98,6 +98,7 @@ import type {
   CreateMasterDataItemInput,
   CreateOfferInput,
   CreateOfficeInventoryItemBody,
+  CreateOfficeInventoryReceiptBody,
   CreateOfficeInventoryStoreBody,
   CreateOrganizationDomainInput,
   CreateOrganizationInput,
@@ -146,6 +147,7 @@ import type {
   GeneratePerformanceReviewsResult,
   GetAttendanceDailySummaryParams,
   GetAttendanceDashboardParams,
+  GetOfficeInventoryStockBalanceParams,
   GetPayrollReportParams,
   GetPerformanceDashboardParams,
   GrantRolePermissionInput,
@@ -190,6 +192,7 @@ import type {
   ListLeaveBalanceLedgerParams,
   ListLeaveCalendarParams,
   ListOffersParams,
+  ListOfficeInventoryStockMovementsParams,
   ListPayrollInputReferencesParams,
   ListPayrollStatutoryRuleVersionsParams,
   ListPerformanceReviewsParams,
@@ -223,6 +226,10 @@ import type {
   OfferListResponse,
   OfferVersion,
   OfficeInventoryItem,
+  OfficeInventoryItemBalance,
+  OfficeInventoryReceipt,
+  OfficeInventoryReceiptSummary,
+  OfficeInventoryStockMovement,
   OfficeInventoryStore,
   Organization,
   OrganizationConfig,
@@ -32686,4 +32693,415 @@ export const useUpdateOfficeInventoryStore = <TError = ErrorType<ApiError>,
       > => {
       return useMutation(getUpdateOfficeInventoryStoreMutationOptions(options));
     }
+
+export const getListOfficeInventoryReceiptsUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/receiving`
+}
+
+/**
+ * @summary List receiving history (Office Inventory Workstream 2)
+ */
+export const listOfficeInventoryReceipts = async (organizationId: number, options?: RequestInit): Promise<OfficeInventoryReceiptSummary[]> => {
+
+  return customFetch<OfficeInventoryReceiptSummary[]>(getListOfficeInventoryReceiptsUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOfficeInventoryReceiptsQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/office-inventory/receiving`
+    ] as const;
+    }
+
+
+export const getListOfficeInventoryReceiptsQueryOptions = <TData = Awaited<ReturnType<typeof listOfficeInventoryReceipts>>, TError = ErrorType<ApiError>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOfficeInventoryReceipts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOfficeInventoryReceiptsQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOfficeInventoryReceipts>>> = ({ signal }) => listOfficeInventoryReceipts(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOfficeInventoryReceipts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOfficeInventoryReceiptsQueryResult = NonNullable<Awaited<ReturnType<typeof listOfficeInventoryReceipts>>>
+export type ListOfficeInventoryReceiptsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List receiving history (Office Inventory Workstream 2)
+ */
+
+export function useListOfficeInventoryReceipts<TData = Awaited<ReturnType<typeof listOfficeInventoryReceipts>>, TError = ErrorType<ApiError>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOfficeInventoryReceipts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOfficeInventoryReceiptsQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateOfficeInventoryReceiptUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/receiving`
+}
+
+/**
+ * Not Procurement — stock has already entered organizational possession. A multi-item submission commits atomically: if any line is invalid, zero rows are written. Supports an optional idempotencyKey; resubmitting the same key returns the original receipt (`replay: true`) rather than creating a second one.
+ * @summary Receive stock — gated office_inventory.receive
+ */
+export const createOfficeInventoryReceipt = async (organizationId: number,
+    createOfficeInventoryReceiptBody: CreateOfficeInventoryReceiptBody, options?: RequestInit): Promise<OfficeInventoryReceipt> => {
+
+  return customFetch<OfficeInventoryReceipt>(getCreateOfficeInventoryReceiptUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createOfficeInventoryReceiptBody)
+  }
+);}
+
+
+
+
+
+export const getCreateOfficeInventoryReceiptMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryReceipt>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryReceiptBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryReceipt>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryReceiptBody>}, TContext> => {
+
+const mutationKey = ['createOfficeInventoryReceipt'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createOfficeInventoryReceipt>>, {organizationId: number;data: BodyType<CreateOfficeInventoryReceiptBody>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createOfficeInventoryReceipt(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateOfficeInventoryReceiptMutationResult = NonNullable<Awaited<ReturnType<typeof createOfficeInventoryReceipt>>>
+    export type CreateOfficeInventoryReceiptMutationBody = BodyType<CreateOfficeInventoryReceiptBody>
+    export type CreateOfficeInventoryReceiptMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Receive stock — gated office_inventory.receive
+ */
+export const useCreateOfficeInventoryReceipt = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryReceipt>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryReceiptBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createOfficeInventoryReceipt>>,
+        TError,
+        {organizationId: number;data: BodyType<CreateOfficeInventoryReceiptBody>},
+        TContext
+      > => {
+      return useMutation(getCreateOfficeInventoryReceiptMutationOptions(options));
+    }
+
+export const getGetOfficeInventoryReceiptUrl = (organizationId: number,
+    referenceNumber: string,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/receiving/${referenceNumber}`
+}
+
+/**
+ * @summary Get one receipt by its reference number
+ */
+export const getOfficeInventoryReceipt = async (organizationId: number,
+    referenceNumber: string, options?: RequestInit): Promise<OfficeInventoryReceipt> => {
+
+  return customFetch<OfficeInventoryReceipt>(getGetOfficeInventoryReceiptUrl(organizationId,referenceNumber),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOfficeInventoryReceiptQueryKey = (organizationId: number,
+    referenceNumber: string,) => {
+    return [
+    `/api/organizations/${organizationId}/office-inventory/receiving/${referenceNumber}`
+    ] as const;
+    }
+
+
+export const getGetOfficeInventoryReceiptQueryOptions = <TData = Awaited<ReturnType<typeof getOfficeInventoryReceipt>>, TError = ErrorType<ApiError>>(organizationId: number,
+    referenceNumber: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryReceipt>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOfficeInventoryReceiptQueryKey(organizationId,referenceNumber);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOfficeInventoryReceipt>>> = ({ signal }) => getOfficeInventoryReceipt(organizationId,referenceNumber, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && referenceNumber !== null && referenceNumber !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryReceipt>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOfficeInventoryReceiptQueryResult = NonNullable<Awaited<ReturnType<typeof getOfficeInventoryReceipt>>>
+export type GetOfficeInventoryReceiptQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get one receipt by its reference number
+ */
+
+export function useGetOfficeInventoryReceipt<TData = Awaited<ReturnType<typeof getOfficeInventoryReceipt>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    referenceNumber: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryReceipt>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOfficeInventoryReceiptQueryOptions(organizationId,referenceNumber,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetOfficeInventoryStockBalanceUrl = (organizationId: number,
+    params: GetOfficeInventoryStockBalanceParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/office-inventory/stock/balance?${stringifiedParams}` : `/api/organizations/${organizationId}/office-inventory/stock/balance`
+}
+
+/**
+ * Live-derived from the stock ledger (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §8) — never a persisted balance column.
+ * @summary Current stock balance for one item — one store, or the organization-wide total with a per-store breakdown
+ */
+export const getOfficeInventoryStockBalance = async (organizationId: number,
+    params: GetOfficeInventoryStockBalanceParams, options?: RequestInit): Promise<OfficeInventoryItemBalance> => {
+
+  return customFetch<OfficeInventoryItemBalance>(getGetOfficeInventoryStockBalanceUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOfficeInventoryStockBalanceQueryKey = (organizationId: number,
+    params?: GetOfficeInventoryStockBalanceParams,) => {
+    return [
+    `/api/organizations/${organizationId}/office-inventory/stock/balance`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetOfficeInventoryStockBalanceQueryOptions = <TData = Awaited<ReturnType<typeof getOfficeInventoryStockBalance>>, TError = ErrorType<ApiError>>(organizationId: number,
+    params: GetOfficeInventoryStockBalanceParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryStockBalance>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOfficeInventoryStockBalanceQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOfficeInventoryStockBalance>>> = ({ signal }) => getOfficeInventoryStockBalance(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryStockBalance>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOfficeInventoryStockBalanceQueryResult = NonNullable<Awaited<ReturnType<typeof getOfficeInventoryStockBalance>>>
+export type GetOfficeInventoryStockBalanceQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Current stock balance for one item — one store, or the organization-wide total with a per-store breakdown
+ */
+
+export function useGetOfficeInventoryStockBalance<TData = Awaited<ReturnType<typeof getOfficeInventoryStockBalance>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    params: GetOfficeInventoryStockBalanceParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryStockBalance>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOfficeInventoryStockBalanceQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListOfficeInventoryStockMovementsUrl = (organizationId: number,
+    params?: ListOfficeInventoryStockMovementsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/office-inventory/stock/movements?${stringifiedParams}` : `/api/organizations/${organizationId}/office-inventory/stock/movements`
+}
+
+/**
+ * @summary Stock movement history, optionally narrowed to one item and/or one store
+ */
+export const listOfficeInventoryStockMovements = async (organizationId: number,
+    params?: ListOfficeInventoryStockMovementsParams, options?: RequestInit): Promise<OfficeInventoryStockMovement[]> => {
+
+  return customFetch<OfficeInventoryStockMovement[]>(getListOfficeInventoryStockMovementsUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOfficeInventoryStockMovementsQueryKey = (organizationId: number,
+    params?: ListOfficeInventoryStockMovementsParams,) => {
+    return [
+    `/api/organizations/${organizationId}/office-inventory/stock/movements`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListOfficeInventoryStockMovementsQueryOptions = <TData = Awaited<ReturnType<typeof listOfficeInventoryStockMovements>>, TError = ErrorType<ApiError>>(organizationId: number,
+    params?: ListOfficeInventoryStockMovementsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOfficeInventoryStockMovements>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOfficeInventoryStockMovementsQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOfficeInventoryStockMovements>>> = ({ signal }) => listOfficeInventoryStockMovements(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOfficeInventoryStockMovements>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOfficeInventoryStockMovementsQueryResult = NonNullable<Awaited<ReturnType<typeof listOfficeInventoryStockMovements>>>
+export type ListOfficeInventoryStockMovementsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Stock movement history, optionally narrowed to one item and/or one store
+ */
+
+export function useListOfficeInventoryStockMovements<TData = Awaited<ReturnType<typeof listOfficeInventoryStockMovements>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    params?: ListOfficeInventoryStockMovementsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOfficeInventoryStockMovements>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOfficeInventoryStockMovementsQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
