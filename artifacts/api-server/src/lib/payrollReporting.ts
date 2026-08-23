@@ -67,7 +67,8 @@ async function getLockedRunOrThrow(organizationId: number, runId: number): Promi
   return run;
 }
 
-async function batchEmployeeNames(employeeIds: number[]): Promise<Map<number, string>> {
+/** Exported for reuse by payrollPaymentBatches.ts's own export/detail rendering (Frozen Workstream 8) — same disclosed cosmetic live-name-resolution convention, not duplicated. */
+export async function batchEmployeeNames(employeeIds: number[]): Promise<Map<number, string>> {
   const labelById = new Map<number, string>();
   if (employeeIds.length === 0) return labelById;
   const rows = await db

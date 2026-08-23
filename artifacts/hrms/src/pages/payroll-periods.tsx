@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CalendarClock, Plus, Play, RefreshCw, Trash2, CheckCircle2, Lock, GitCommitHorizontal, FileText, Download } from 'lucide-react';
+import { CalendarClock, Plus, Play, RefreshCw, Trash2, CheckCircle2, Lock, GitCommitHorizontal, FileText, Download, Banknote, Send } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -37,6 +37,13 @@ import {
   getGetPayrollReportUrl,
   useGetPayslip,
   getGetPayslipQueryKey,
+  useListPaymentBatchesForRun,
+  getListPaymentBatchesForRunQueryKey,
+  useCreatePaymentBatch,
+  useGetPaymentBatch,
+  getGetPaymentBatchQueryKey,
+  useDeletePaymentBatch,
+  getExportPaymentBatchUrl,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -57,6 +64,11 @@ function employeeErrors(err: unknown): { employeeId: number; error: string }[] |
 
 function isForbidden(err: unknown): boolean {
   return err != null && typeof err === 'object' && 'status' in err && (err as { status: unknown }).status === 403;
+}
+
+function missingBankingEmployeeIds(err: unknown): number[] | undefined {
+  if (!err || typeof err !== 'object' || !('employeeIds' in err)) return undefined;
+  return (err as { employeeIds: number[] }).employeeIds;
 }
 
 export default function PayrollPeriods() {
@@ -92,6 +104,8 @@ export default function PayrollPeriods() {
   const [reportKey, setReportKey] = useState<PayrollReportKey>('payroll_register');
   const [isDownloadingCsv, setIsDownloadingCsv] = useState(false);
   const [payslipLineId, setPayslipLineId] = useState<number | null>(null);
+  const [isExportingBatch, setIsExportingBatch] = useState(false);
+  const [batchExcludedLines, setBatchExcludedLines] = useState<{ employeeId: number; netPay: string; reason: string }[] | null>(null);
 
   const createPeriodMutation = useCreatePayrollPeriod();
   const createRunMutation = useCreatePayrollRun();
@@ -102,6 +116,8 @@ export default function PayrollPeriods() {
   const deleteInputMutation = useDeletePayrollInputReference();
   const createCorrectionMutation = useCreatePayrollCorrection();
   const approveCorrectionMutation = useApprovePayrollCorrection();
+  const createPaymentBatchMutation = useCreatePaymentBatch();
+  const deletePaymentBatchMutation = useDeletePaymentBatch();
 
   const selectedRun = runs?.find((r) => r.payrollPeriodId === selectedPeriodId) ?? null;
 
@@ -127,6 +143,15 @@ export default function PayrollPeriods() {
     query: { queryKey: getGetPayslipQueryKey(organizationId, selectedRun?.id ?? 0, payslipLineId ?? 0), enabled: !!isLocked && payslipLineId != null, retry: false },
   });
 
+  const { data: paymentBatches } = useListPaymentBatchesForRun(organizationId, selectedRun?.id ?? 0, {
+    query: { queryKey: getListPaymentBatchesForRunQueryKey(organizationId, selectedRun?.id ?? 0), enabled: !!isLocked, retry: false },
+  });
+  const paymentBatch = paymentBatches?.[0] ?? null;
+
+  const { data: paymentBatchDetail } = useGetPaymentBatch(organizationId, paymentBatch?.id ?? 0, {
+    query: { queryKey: getGetPaymentBatchQueryKey(organizationId, paymentBatch?.id ?? 0), enabled: !!paymentBatch, retry: false },
+  });
+
   const handleDownloadCsv = async () => {
     if (!selectedRun) return;
     setIsDownloadingCsv(true);
@@ -147,6 +172,70 @@ export default function PayrollPeriods() {
       toast({ title: 'Could not download report', description: 'Please try again.', variant: 'destructive' });
     } finally {
       setIsDownloadingCsv(false);
+    }
+  };
+
+  const handleCreatePaymentBatch = () => {
+    if (!selectedRun) return;
+    setBatchExcludedLines(null);
+    createPaymentBatchMutation.mutate(
+      { organizationId, runId: selectedRun.id },
+      {
+        onSuccess: (result) => {
+          queryClient.invalidateQueries({ queryKey: getListPaymentBatchesForRunQueryKey(organizationId, selectedRun.id) });
+          setBatchExcludedLines(result.excludedLines.length > 0 ? result.excludedLines : null);
+          toast({ title: 'Payment batch prepared', description: result.excludedLines.length > 0 ? `${result.excludedLines.length} employee(s) excluded — see below.` : undefined });
+        },
+        onError: (err) => {
+          const missing = missingBankingEmployeeIds(err);
+          toast({
+            title: 'Could not prepare payment batch',
+            description: missing ? `Missing banking details for employee(s): ${missing.join(', ')}` : errorMessage(err),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
+  };
+
+  const handleDeletePaymentBatch = () => {
+    if (!selectedRun || !paymentBatch) return;
+    deletePaymentBatchMutation.mutate(
+      { organizationId, id: paymentBatch.id },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListPaymentBatchesForRunQueryKey(organizationId, selectedRun.id) });
+          setBatchExcludedLines(null);
+          toast({ title: 'Draft payment batch deleted' });
+        },
+        onError: (err) => toast({ title: 'Could not delete payment batch', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  const handleExportPaymentBatch = async () => {
+    if (!paymentBatch) return;
+    setIsExportingBatch(true);
+    try {
+      const token = getStoredToken();
+      const res = await fetch(getExportPaymentBatchUrl(organizationId, paymentBatch.id), {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `payment-batch-${paymentBatch.reference}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+      queryClient.invalidateQueries({ queryKey: getListPaymentBatchesForRunQueryKey(organizationId, selectedRun!.id) });
+      queryClient.invalidateQueries({ queryKey: getGetPaymentBatchQueryKey(organizationId, paymentBatch.id) });
+    } catch {
+      toast({ title: 'Could not export payment batch', description: 'Please try again.', variant: 'destructive' });
+    } finally {
+      setIsExportingBatch(false);
     }
   };
 
@@ -728,6 +817,97 @@ export default function PayrollPeriods() {
                       </div>
                     )}
                   </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {isLocked && (
+            <Card data-testid="section-payment-batch">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Banknote className="h-4 w-4" aria-hidden="true" />
+                  Payment Batch
+                </CardTitle>
+                {!paymentBatch ? (
+                  <Button onClick={handleCreatePaymentBatch} disabled={createPaymentBatchMutation.isPending} data-testid="button-prepare-payment-batch">
+                    {createPaymentBatchMutation.isPending ? 'Preparing…' : 'Prepare Payment Batch'}
+                  </Button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    {paymentBatch.status === 'draft' && (
+                      <Button size="sm" variant="ghost" onClick={handleDeletePaymentBatch} disabled={deletePaymentBatchMutation.isPending} data-testid="button-delete-payment-batch">
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        Delete
+                      </Button>
+                    )}
+                    <Button size="sm" onClick={handleExportPaymentBatch} disabled={isExportingBatch} data-testid="button-export-payment-batch">
+                      <Send className="h-3.5 w-3.5" aria-hidden="true" />
+                      {isExportingBatch ? 'Exporting…' : paymentBatch.status === 'exported' ? 'Re-download CSV' : 'Export'}
+                    </Button>
+                  </div>
+                )}
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {!paymentBatch ? (
+                  <p className="text-sm text-muted-foreground">
+                    No payment batch exists for this run yet. Preparing one snapshots each employee's effective net pay and current banking details — it does not
+                    execute any payment.
+                  </p>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+                      <span>
+                        Reference: <span className="font-mono" data-testid="text-payment-batch-reference">{paymentBatch.reference}</span>
+                      </span>
+                      <Badge variant={paymentBatch.status === 'exported' ? 'default' : 'outline'} className="capitalize" data-testid="badge-payment-batch-status">
+                        {paymentBatch.status}
+                      </Badge>
+                      <span>
+                        {paymentBatch.employeeCount} employee(s) · Total {paymentBatch.totalAmount} {paymentBatch.currency}
+                      </span>
+                    </div>
+
+                    {batchExcludedLines && batchExcludedLines.length > 0 && (
+                      <Alert variant="destructive" data-testid="alert-payment-batch-excluded">
+                        <AlertTitle>Some employees were excluded from this batch</AlertTitle>
+                        <AlertDescription>
+                          <ul className="mt-1 list-disc pl-5">
+                            {batchExcludedLines.map((e) => (
+                              <li key={e.employeeId}>
+                                Employee #{e.employeeId}: {e.reason === 'zero_net_pay' ? 'zero net pay' : 'negative net pay'} ({e.netPay})
+                              </li>
+                            ))}
+                          </ul>
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
+                    {paymentBatchDetail && paymentBatchDetail.lines.length > 0 && (
+                      <Table aria-label="Payment batch lines">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Employee</TableHead>
+                            <TableHead>Staff #</TableHead>
+                            <TableHead>Bank</TableHead>
+                            <TableHead>Account</TableHead>
+                            <TableHead className="text-right">Amount</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {paymentBatchDetail.lines.map((l) => (
+                            <TableRow key={l.id} data-testid={`row-payment-batch-line-${l.employeeId}`}>
+                              <TableCell>{l.employeeName ?? `#${l.employeeId}`}</TableCell>
+                              <TableCell>{l.staffNumberSnapshot ?? '—'}</TableCell>
+                              <TableCell>{l.bankCode}</TableCell>
+                              <TableCell className="font-mono">{l.accountNumber}</TableCell>
+                              <TableCell className="text-right font-semibold">{l.amount}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>

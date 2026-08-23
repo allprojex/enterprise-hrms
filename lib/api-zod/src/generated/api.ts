@@ -13082,3 +13082,154 @@ export const GetPayrollReportResponse = zod.object({
 })
 
 
+/**
+ * Gated payroll.payment.manage.
+ * @summary List payment batches for a payroll run (Frozen Workstream 8 — at most one ever exists)
+ */
+export const ListPaymentBatchesForRunParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "runId": zod.coerce.number()
+})
+
+export const ListPaymentBatchesForRunResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "payrollRunId": zod.number(),
+  "paymentMethod": zod.enum(['bank_transfer']),
+  "reference": zod.string(),
+  "status": zod.enum(['draft', 'exported']),
+  "currency": zod.string(),
+  "totalAmount": zod.string(),
+  "employeeCount": zod.number(),
+  "createdByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "exportedAt": zod.coerce.date().nullable(),
+  "exportedByMembershipId": zod.number().nullable(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListPaymentBatchesForRunResponse = zod.array(ListPaymentBatchesForRunResponseItem)
+
+
+/**
+ * Gated payroll.payment.manage. PAYMENT BATCH PREPARATION only — no payment is executed. Only permitted once the run is "locked"; exactly one batch is permitted per run for its entire lifetime. Each included line's amount is the effective net pay (original, or the latest approved correction's own net pay) snapshotted at this instant, with banking details snapshotted from the employee's currently-open banking record. Employees with zero or negative effective net pay are excluded from the batch and reported in `excludedLines`, never silently dropped. Fails with 422 if any employee eligible for payment has no banking details on file.
+ * @summary Prepare a payment batch for a locked payroll run (Frozen Workstream 8)
+ */
+export const CreatePaymentBatchParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "runId": zod.coerce.number()
+})
+
+export const CreatePaymentBatchResponse = zod.object({
+  "batch": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "payrollRunId": zod.number(),
+  "paymentMethod": zod.enum(['bank_transfer']),
+  "reference": zod.string(),
+  "status": zod.enum(['draft', 'exported']),
+  "currency": zod.string(),
+  "totalAmount": zod.string(),
+  "employeeCount": zod.number(),
+  "createdByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "exportedAt": zod.coerce.date().nullable(),
+  "exportedByMembershipId": zod.number().nullable(),
+  "updatedAt": zod.coerce.date()
+}),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "paymentBatchId": zod.number(),
+  "organizationId": zod.number(),
+  "payrollRunLineId": zod.number(),
+  "sourceCorrectionId": zod.number().nullable(),
+  "employeeId": zod.number(),
+  "employeeName": zod.string().optional(),
+  "staffNumberSnapshot": zod.string().nullable(),
+  "amount": zod.string(),
+  "currency": zod.string(),
+  "bankCode": zod.string(),
+  "accountNumber": zod.string().describe('Masked (last 4 digits only) in every JSON response — the full value is only ever present in the CSV export.'),
+  "accountName": zod.string(),
+  "branch": zod.string().nullable(),
+  "paymentReference": zod.string(),
+  "createdAt": zod.coerce.date()
+})),
+  "excludedLines": zod.array(zod.object({
+  "employeeId": zod.number(),
+  "netPay": zod.string(),
+  "reason": zod.enum(['zero_net_pay', 'negative_net_pay'])
+}))
+})
+
+
+/**
+ * Gated payroll.payment.manage. Account numbers are masked; the full value is only ever present in the CSV export.
+ * @summary Get one payment batch and its lines (Frozen Workstream 8)
+ */
+export const GetPaymentBatchParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const GetPaymentBatchResponse = zod.object({
+  "batch": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "payrollRunId": zod.number(),
+  "paymentMethod": zod.enum(['bank_transfer']),
+  "reference": zod.string(),
+  "status": zod.enum(['draft', 'exported']),
+  "currency": zod.string(),
+  "totalAmount": zod.string(),
+  "employeeCount": zod.number(),
+  "createdByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "exportedAt": zod.coerce.date().nullable(),
+  "exportedByMembershipId": zod.number().nullable(),
+  "updatedAt": zod.coerce.date()
+}),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "paymentBatchId": zod.number(),
+  "organizationId": zod.number(),
+  "payrollRunLineId": zod.number(),
+  "sourceCorrectionId": zod.number().nullable(),
+  "employeeId": zod.number(),
+  "employeeName": zod.string().optional(),
+  "staffNumberSnapshot": zod.string().nullable(),
+  "amount": zod.string(),
+  "currency": zod.string(),
+  "bankCode": zod.string(),
+  "accountNumber": zod.string().describe('Masked (last 4 digits only) in every JSON response — the full value is only ever present in the CSV export.'),
+  "accountName": zod.string(),
+  "branch": zod.string().nullable(),
+  "paymentReference": zod.string(),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * Gated payroll.payment.manage. Only permitted while status is "draft" — nothing has been exported yet. Frees the run for a fresh batch attempt.
+ * @summary Delete a draft payment batch (Frozen Workstream 8)
+ */
+export const DeletePaymentBatchParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const DeletePaymentBatchResponse = zod.void()
+
+
+/**
+ * Gated payroll.payment.manage. First call on a "draft" batch transitions it to "exported" (terminal, immutable) and is audited as a sensitive banking-data disclosure; a repeat call on an already-exported batch performs no further mutation and simply re-serves the identical, already-persisted content. Contains full, unmasked account numbers — the only surface in this workstream that does. This is a generic, neutral export format only; it is not a submission to any specific bank's proprietary file format, and no payment is executed by calling this route.
+ * @summary Export a payment batch as a CSV payment instruction file (Frozen Workstream 8)
+ */
+export const ExportPaymentBatchParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ExportPaymentBatchResponse = zod.unknown()
+
+

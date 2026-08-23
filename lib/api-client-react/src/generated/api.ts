@@ -229,6 +229,9 @@ import type {
   PayrollCorrection,
   PayrollCorrectionWithTrace,
   PayrollInputReference,
+  PayrollPaymentBatch,
+  PayrollPaymentBatchCreateResult,
+  PayrollPaymentBatchDetail,
   PayrollPeriod,
   PayrollReportResult,
   PayrollRun,
@@ -31265,4 +31268,392 @@ export function useGetPayrollReport<TData = Awaited<ReturnType<typeof getPayroll
 
 
 
+
+export const getListPaymentBatchesForRunUrl = (organizationId: number,
+    runId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/runs/${runId}/payment-batches`
+}
+
+/**
+ * Gated payroll.payment.manage.
+ * @summary List payment batches for a payroll run (Frozen Workstream 8 — at most one ever exists)
+ */
+export const listPaymentBatchesForRun = async (organizationId: number,
+    runId: number, options?: RequestInit): Promise<PayrollPaymentBatch[]> => {
+
+  return customFetch<PayrollPaymentBatch[]>(getListPaymentBatchesForRunUrl(organizationId,runId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPaymentBatchesForRunQueryKey = (organizationId: number,
+    runId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/payroll/runs/${runId}/payment-batches`
+    ] as const;
+    }
+
+
+export const getListPaymentBatchesForRunQueryOptions = <TData = Awaited<ReturnType<typeof listPaymentBatchesForRun>>, TError = ErrorType<ApiError>>(organizationId: number,
+    runId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPaymentBatchesForRun>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPaymentBatchesForRunQueryKey(organizationId,runId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPaymentBatchesForRun>>> = ({ signal }) => listPaymentBatchesForRun(organizationId,runId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && runId !== null && runId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPaymentBatchesForRun>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPaymentBatchesForRunQueryResult = NonNullable<Awaited<ReturnType<typeof listPaymentBatchesForRun>>>
+export type ListPaymentBatchesForRunQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List payment batches for a payroll run (Frozen Workstream 8 — at most one ever exists)
+ */
+
+export function useListPaymentBatchesForRun<TData = Awaited<ReturnType<typeof listPaymentBatchesForRun>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    runId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPaymentBatchesForRun>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPaymentBatchesForRunQueryOptions(organizationId,runId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreatePaymentBatchUrl = (organizationId: number,
+    runId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/runs/${runId}/payment-batches`
+}
+
+/**
+ * Gated payroll.payment.manage. PAYMENT BATCH PREPARATION only — no payment is executed. Only permitted once the run is "locked"; exactly one batch is permitted per run for its entire lifetime. Each included line's amount is the effective net pay (original, or the latest approved correction's own net pay) snapshotted at this instant, with banking details snapshotted from the employee's currently-open banking record. Employees with zero or negative effective net pay are excluded from the batch and reported in `excludedLines`, never silently dropped. Fails with 422 if any employee eligible for payment has no banking details on file.
+ * @summary Prepare a payment batch for a locked payroll run (Frozen Workstream 8)
+ */
+export const createPaymentBatch = async (organizationId: number,
+    runId: number, options?: RequestInit): Promise<PayrollPaymentBatchCreateResult> => {
+
+  return customFetch<PayrollPaymentBatchCreateResult>(getCreatePaymentBatchUrl(organizationId,runId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreatePaymentBatchMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPaymentBatch>>, TError,{organizationId: number;runId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPaymentBatch>>, TError,{organizationId: number;runId: number}, TContext> => {
+
+const mutationKey = ['createPaymentBatch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPaymentBatch>>, {organizationId: number;runId: number}> = (props) => {
+          const {organizationId,runId} = props ?? {};
+
+          return  createPaymentBatch(organizationId,runId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePaymentBatchMutationResult = NonNullable<Awaited<ReturnType<typeof createPaymentBatch>>>
+
+    export type CreatePaymentBatchMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Prepare a payment batch for a locked payroll run (Frozen Workstream 8)
+ */
+export const useCreatePaymentBatch = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPaymentBatch>>, TError,{organizationId: number;runId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createPaymentBatch>>,
+        TError,
+        {organizationId: number;runId: number},
+        TContext
+      > => {
+      return useMutation(getCreatePaymentBatchMutationOptions(options));
+    }
+
+export const getGetPaymentBatchUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/payment-batches/${id}`
+}
+
+/**
+ * Gated payroll.payment.manage. Account numbers are masked; the full value is only ever present in the CSV export.
+ * @summary Get one payment batch and its lines (Frozen Workstream 8)
+ */
+export const getPaymentBatch = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<PayrollPaymentBatchDetail> => {
+
+  return customFetch<PayrollPaymentBatchDetail>(getGetPaymentBatchUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPaymentBatchQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/payroll/payment-batches/${id}`
+    ] as const;
+    }
+
+
+export const getGetPaymentBatchQueryOptions = <TData = Awaited<ReturnType<typeof getPaymentBatch>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPaymentBatch>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPaymentBatchQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPaymentBatch>>> = ({ signal }) => getPaymentBatch(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPaymentBatch>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPaymentBatchQueryResult = NonNullable<Awaited<ReturnType<typeof getPaymentBatch>>>
+export type GetPaymentBatchQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get one payment batch and its lines (Frozen Workstream 8)
+ */
+
+export function useGetPaymentBatch<TData = Awaited<ReturnType<typeof getPaymentBatch>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPaymentBatch>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPaymentBatchQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDeletePaymentBatchUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/payment-batches/${id}`
+}
+
+/**
+ * Gated payroll.payment.manage. Only permitted while status is "draft" — nothing has been exported yet. Frees the run for a fresh batch attempt.
+ * @summary Delete a draft payment batch (Frozen Workstream 8)
+ */
+export const deletePaymentBatch = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeletePaymentBatchUrl(organizationId,id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeletePaymentBatchMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePaymentBatch>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deletePaymentBatch>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['deletePaymentBatch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deletePaymentBatch>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  deletePaymentBatch(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeletePaymentBatchMutationResult = NonNullable<Awaited<ReturnType<typeof deletePaymentBatch>>>
+
+    export type DeletePaymentBatchMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Delete a draft payment batch (Frozen Workstream 8)
+ */
+export const useDeletePaymentBatch = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePaymentBatch>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deletePaymentBatch>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getDeletePaymentBatchMutationOptions(options));
+    }
+
+export const getExportPaymentBatchUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/payment-batches/${id}/export`
+}
+
+/**
+ * Gated payroll.payment.manage. First call on a "draft" batch transitions it to "exported" (terminal, immutable) and is audited as a sensitive banking-data disclosure; a repeat call on an already-exported batch performs no further mutation and simply re-serves the identical, already-persisted content. Contains full, unmasked account numbers — the only surface in this workstream that does. This is a generic, neutral export format only; it is not a submission to any specific bank's proprietary file format, and no payment is executed by calling this route.
+ * @summary Export a payment batch as a CSV payment instruction file (Frozen Workstream 8)
+ */
+export const exportPaymentBatch = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<string> => {
+
+  return customFetch<string>(getExportPaymentBatchUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getExportPaymentBatchMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof exportPaymentBatch>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof exportPaymentBatch>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['exportPaymentBatch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof exportPaymentBatch>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  exportPaymentBatch(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ExportPaymentBatchMutationResult = NonNullable<Awaited<ReturnType<typeof exportPaymentBatch>>>
+
+    export type ExportPaymentBatchMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Export a payment batch as a CSV payment instruction file (Frozen Workstream 8)
+ */
+export const useExportPaymentBatch = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof exportPaymentBatch>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof exportPaymentBatch>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getExportPaymentBatchMutationOptions(options));
+    }
 

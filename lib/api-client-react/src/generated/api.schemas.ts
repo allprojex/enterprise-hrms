@@ -5352,6 +5352,89 @@ export interface PayrollReportResult {
   totals: PayrollReportResultTotals;
 }
 
+export type PayrollPaymentBatchPaymentMethod = typeof PayrollPaymentBatchPaymentMethod[keyof typeof PayrollPaymentBatchPaymentMethod];
+
+
+export const PayrollPaymentBatchPaymentMethod = {
+  bank_transfer: 'bank_transfer',
+} as const;
+
+export type PayrollPaymentBatchStatus = typeof PayrollPaymentBatchStatus[keyof typeof PayrollPaymentBatchStatus];
+
+
+export const PayrollPaymentBatchStatus = {
+  draft: 'draft',
+  exported: 'exported',
+} as const;
+
+export interface PayrollPaymentBatch {
+  id: number;
+  organizationId: number;
+  payrollRunId: number;
+  paymentMethod: PayrollPaymentBatchPaymentMethod;
+  reference: string;
+  status: PayrollPaymentBatchStatus;
+  currency: string;
+  totalAmount: string;
+  employeeCount: number;
+  /** @nullable */
+  createdByMembershipId: number | null;
+  createdAt: string;
+  /** @nullable */
+  exportedAt: string | null;
+  /** @nullable */
+  exportedByMembershipId: number | null;
+  updatedAt: string;
+}
+
+export interface PayrollPaymentBatchLine {
+  id: number;
+  paymentBatchId: number;
+  organizationId: number;
+  payrollRunLineId: number;
+  /** @nullable */
+  sourceCorrectionId: number | null;
+  employeeId: number;
+  employeeName?: string;
+  /** @nullable */
+  staffNumberSnapshot: string | null;
+  amount: string;
+  currency: string;
+  bankCode: string;
+  /** Masked (last 4 digits only) in every JSON response — the full value is only ever present in the CSV export. */
+  accountNumber: string;
+  accountName: string;
+  /** @nullable */
+  branch: string | null;
+  paymentReference: string;
+  createdAt: string;
+}
+
+export type PayrollPaymentBatchExcludedLineReason = typeof PayrollPaymentBatchExcludedLineReason[keyof typeof PayrollPaymentBatchExcludedLineReason];
+
+
+export const PayrollPaymentBatchExcludedLineReason = {
+  zero_net_pay: 'zero_net_pay',
+  negative_net_pay: 'negative_net_pay',
+} as const;
+
+export interface PayrollPaymentBatchExcludedLine {
+  employeeId: number;
+  netPay: string;
+  reason: PayrollPaymentBatchExcludedLineReason;
+}
+
+export interface PayrollPaymentBatchCreateResult {
+  batch: PayrollPaymentBatch;
+  lines: PayrollPaymentBatchLine[];
+  excludedLines: PayrollPaymentBatchExcludedLine[];
+}
+
+export interface PayrollPaymentBatchDetail {
+  batch: PayrollPaymentBatch;
+  lines: PayrollPaymentBatchLine[];
+}
+
 export type RecruitmentStageBreakdownItemCategory = typeof RecruitmentStageBreakdownItemCategory[keyof typeof RecruitmentStageBreakdownItemCategory];
 
 

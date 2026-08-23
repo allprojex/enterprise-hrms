@@ -86,6 +86,7 @@ import payrollRunsRouter from "./payrollRuns";
 import payrollCorrectionsRouter from "./payrollCorrections";
 import payrollPayslipsRouter from "./payrollPayslips";
 import payrollReportsRouter from "./payrollReports";
+import payrollPaymentBatchesRouter from "./payrollPaymentBatches";
 
 const router: IRouter = Router();
 
@@ -181,5 +182,6 @@ router.use(payrollRunsRouter);
 router.use(payrollCorrectionsRouter);
 router.use(payrollPayslipsRouter);
 router.use(payrollReportsRouter);
+router.use(payrollPaymentBatchesRouter);
 
 export default router;

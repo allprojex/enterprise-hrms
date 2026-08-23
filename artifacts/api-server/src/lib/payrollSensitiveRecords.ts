@@ -176,6 +176,35 @@ export async function listStatutoryIdentifierHistory(organizationId: number, emp
  * never edited in place, only superseded. Returns null per employeeId with
  * no identifier on file at that date.
  */
+/**
+ * Payroll, Frozen Workstream 8 (docs/PAYROLL_IMPLEMENTATION_PLAN.md §9.6) —
+ * batched (never one query per employee, §35) resolution of each
+ * employee's CURRENTLY-OPEN banking record, for payment-batch-creation-time
+ * snapshotting. Deliberately "current", not "as of a historical date" —
+ * banking is a payment-instruction detail resolved at the moment a batch is
+ * prepared, never part of the payroll calculation itself, so there is no
+ * historical payDate to resolve against here (contrast
+ * resolveStatutoryIdentifiersAsOf, which does have one). Returns no entry
+ * for an employee with no open banking record on file.
+ */
+export async function resolveCurrentBankingDetailsBatch(organizationId: number, employeeIds: number[]): Promise<Map<number, EmployeeBankingDetail>> {
+  const result = new Map<number, EmployeeBankingDetail>();
+  if (employeeIds.length === 0) return result;
+
+  const rows = await db
+    .select()
+    .from(employeeBankingDetailsTable)
+    .where(
+      and(
+        eq(employeeBankingDetailsTable.organizationId, organizationId),
+        inArray(employeeBankingDetailsTable.employeeId, employeeIds),
+        isNull(employeeBankingDetailsTable.validTo),
+      ),
+    );
+  for (const row of rows) result.set(row.employeeId, row);
+  return result;
+}
+
 export async function resolveStatutoryIdentifiersAsOf(
   organizationId: number,
   employeeIds: number[],

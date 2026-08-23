@@ -8,7 +8,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import PayrollPeriods from '@/pages/payroll-periods';
-import type { PayrollPeriod, PayrollRun, PayrollRunLineWithTrace, PayrollInputReference, PayrollCorrection, PayrollReportResult, Payslip } from '@workspace/api-client-react';
+import type { PayrollPeriod, PayrollRun, PayrollRunLineWithTrace, PayrollInputReference, PayrollCorrection, PayrollReportResult, Payslip, PayrollPaymentBatch, PayrollPaymentBatchDetail } from '@workspace/api-client-react';
 
 const { state } = vi.hoisted(() => ({
   state: {
@@ -21,6 +21,8 @@ const { state } = vi.hoisted(() => ({
     corrections: [] as PayrollCorrection[],
     reportResult: undefined as PayrollReportResult | undefined,
     payslip: undefined as Payslip | undefined,
+    paymentBatches: [] as PayrollPaymentBatch[],
+    paymentBatchDetail: undefined as PayrollPaymentBatchDetail | undefined,
     createPeriodMutate: vi.fn() as (...args: unknown[]) => void,
     createRunMutate: vi.fn() as (...args: unknown[]) => void,
     calculateMutate: vi.fn() as (...args: unknown[]) => void,
@@ -30,6 +32,8 @@ const { state } = vi.hoisted(() => ({
     deleteInputMutate: vi.fn() as (...args: unknown[]) => void,
     createCorrectionMutate: vi.fn() as (...args: unknown[]) => void,
     approveCorrectionMutate: vi.fn() as (...args: unknown[]) => void,
+    createPaymentBatchMutate: vi.fn() as (...args: unknown[]) => void,
+    deletePaymentBatchMutate: vi.fn() as (...args: unknown[]) => void,
   },
 }));
 
@@ -60,6 +64,13 @@ vi.mock('@workspace/api-client-react', () => ({
   getGetPayrollReportUrl: () => '/api/payroll-report',
   useGetPayslip: () => ({ data: state.payslip }),
   getGetPayslipQueryKey: () => ['payslip'],
+  useListPaymentBatchesForRun: () => ({ data: state.paymentBatches }),
+  getListPaymentBatchesForRunQueryKey: () => ['paymentBatches'],
+  useCreatePaymentBatch: () => ({ mutate: state.createPaymentBatchMutate, isPending: false }),
+  useGetPaymentBatch: () => ({ data: state.paymentBatchDetail }),
+  getGetPaymentBatchQueryKey: () => ['paymentBatch'],
+  useDeletePaymentBatch: () => ({ mutate: state.deletePaymentBatchMutate, isPending: false }),
+  getExportPaymentBatchUrl: () => '/api/payment-batch-export',
 }));
 
 vi.mock('@/lib/auth', () => ({ getStoredToken: () => 'test-token' }));
@@ -83,6 +94,8 @@ function resetState() {
   state.corrections = [];
   state.reportResult = undefined;
   state.payslip = undefined;
+  state.paymentBatches = [];
+  state.paymentBatchDetail = undefined;
   state.createPeriodMutate = vi.fn();
   state.createRunMutate = vi.fn();
   state.calculateMutate = vi.fn();
@@ -92,7 +105,11 @@ function resetState() {
   state.deleteInputMutate = vi.fn();
   state.createCorrectionMutate = vi.fn();
   state.approveCorrectionMutate = vi.fn();
+  state.createPaymentBatchMutate = vi.fn();
+  state.deletePaymentBatchMutate = vi.fn();
 }
+
+const LOCKED_RUN: PayrollRun = { id: 7, organizationId: 10, payrollPeriodId: 1, status: 'locked', preparedByMembershipId: 5, approvedByMembershipId: 8, lockedAt: '2026-02-01T00:00:00.000Z', calculatedAt: '2026-01-31T00:00:00.000Z', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-02-01T00:00:00.000Z' };
 
 const PERIOD: PayrollPeriod = {
   id: 1,
@@ -393,5 +410,64 @@ describe('Payroll Periods page', () => {
     expect(screen.getByTestId('text-payslip-original-net')).toHaveTextContent('922.75');
     expect(screen.getByTestId('badge-payslip-effective-source')).toHaveTextContent('Corrected');
     expect(screen.getByTestId('text-payslip-effective-net')).toHaveTextContent('1325.75');
+  });
+
+  it('does not show the Payment Batch section while the run is only calculated (not locked)', async () => {
+    resetState();
+    state.periods = [PERIOD];
+    state.runs = [{ id: 7, organizationId: 10, payrollPeriodId: 1, status: 'calculated', preparedByMembershipId: 5, approvedByMembershipId: null, lockedAt: null, calculatedAt: '2026-01-31T00:00:00.000Z', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-31T00:00:00.000Z' }];
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-select-period-1'));
+    expect(screen.queryByTestId('section-payment-batch')).not.toBeInTheDocument();
+  });
+
+  it('a locked run with no payment batch shows Prepare Payment Batch, which invokes the mutation', async () => {
+    resetState();
+    state.periods = [PERIOD];
+    state.runs = [LOCKED_RUN];
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-select-period-1'));
+    expect(screen.getByTestId('section-payment-batch')).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('button-prepare-payment-batch'));
+    expect(state.createPaymentBatchMutate).toHaveBeenCalledWith({ organizationId: 10, runId: 7 }, expect.anything());
+  });
+
+  it('a draft payment batch shows its reference/status/total, a masked account number, and a Delete action', async () => {
+    resetState();
+    state.periods = [PERIOD];
+    state.runs = [LOCKED_RUN];
+    state.paymentBatches = [
+      { id: 1, organizationId: 10, payrollRunId: 7, paymentMethod: 'bank_transfer', reference: 'PB-10-7-abc123', status: 'draft', currency: 'GHS', totalAmount: '922.75', employeeCount: 1, createdByMembershipId: 5, createdAt: '2026-02-02T00:00:00.000Z', exportedAt: null, exportedByMembershipId: null, updatedAt: '2026-02-02T00:00:00.000Z' },
+    ];
+    state.paymentBatchDetail = {
+      batch: state.paymentBatches[0],
+      lines: [
+        { id: 1, paymentBatchId: 1, organizationId: 10, payrollRunLineId: 1, sourceCorrectionId: null, employeeId: 501, employeeName: 'Ada Lovelace', staffNumberSnapshot: 'EMP-501', amount: '922.75', currency: 'GHS', bankCode: 'GCB', accountNumber: '******6655', accountName: 'Ada Lovelace', branch: 'Accra Main', paymentReference: 'PB-10-7-abc123-L501', createdAt: '2026-02-02T00:00:00.000Z' },
+      ],
+    };
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-select-period-1'));
+    expect(screen.getByTestId('text-payment-batch-reference')).toHaveTextContent('PB-10-7-abc123');
+    expect(screen.getByTestId('badge-payment-batch-status')).toHaveTextContent('draft');
+    const row = screen.getByTestId('row-payment-batch-line-501');
+    expect(row).toHaveTextContent('Ada Lovelace');
+    expect(row).toHaveTextContent('******6655');
+    expect(row).toHaveTextContent('922.75');
+    await userEvent.click(screen.getByTestId('button-delete-payment-batch'));
+    expect(state.deletePaymentBatchMutate).toHaveBeenCalledWith({ organizationId: 10, id: 1 }, expect.anything());
+  });
+
+  it('an exported payment batch shows Re-download CSV and no Delete action', async () => {
+    resetState();
+    state.periods = [PERIOD];
+    state.runs = [LOCKED_RUN];
+    state.paymentBatches = [
+      { id: 1, organizationId: 10, payrollRunId: 7, paymentMethod: 'bank_transfer', reference: 'PB-10-7-abc123', status: 'exported', currency: 'GHS', totalAmount: '922.75', employeeCount: 1, createdByMembershipId: 5, createdAt: '2026-02-02T00:00:00.000Z', exportedAt: '2026-02-03T00:00:00.000Z', exportedByMembershipId: 8, updatedAt: '2026-02-03T00:00:00.000Z' },
+    ];
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-select-period-1'));
+    expect(screen.getByTestId('badge-payment-batch-status')).toHaveTextContent('exported');
+    expect(screen.getByTestId('button-export-payment-batch')).toHaveTextContent('Re-download CSV');
+    expect(screen.queryByTestId('button-delete-payment-batch')).not.toBeInTheDocument();
   });
 });

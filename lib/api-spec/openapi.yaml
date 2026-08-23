@@ -16101,6 +16101,216 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/payroll/runs/{runId}/payment-batches:
+    get:
+      operationId: listPaymentBatchesForRun
+      tags: [payroll-payment-batches]
+      summary: List payment batches for a payroll run (Frozen Workstream 8 — at most one ever exists)
+      description: Gated payroll.payment.manage.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Payment batches for this run (0 or 1)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PayrollPaymentBatch"
+        "403":
+          description: Forbidden — requires payroll.payment.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createPaymentBatch
+      tags: [payroll-payment-batches]
+      summary: Prepare a payment batch for a locked payroll run (Frozen Workstream 8)
+      description: >-
+        Gated payroll.payment.manage. PAYMENT BATCH PREPARATION only — no
+        payment is executed. Only permitted once the run is "locked"; exactly
+        one batch is permitted per run for its entire lifetime. Each included
+        line's amount is the effective net pay (original, or the latest
+        approved correction's own net pay) snapshotted at this instant, with
+        banking details snapshotted from the employee's currently-open
+        banking record. Employees with zero or negative effective net pay are
+        excluded from the batch and reported in `excludedLines`, never
+        silently dropped. Fails with 422 if any employee eligible for payment
+        has no banking details on file.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "201":
+          description: Payment batch prepared
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollPaymentBatchCreateResult"
+        "403":
+          description: Forbidden — requires payroll.payment.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Payroll run not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Run is not locked, or a payment batch already exists for this run
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: No eligible employees, or one or more eligible employees have no banking details on file
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/payroll/payment-batches/{id}:
+    get:
+      operationId: getPaymentBatch
+      tags: [payroll-payment-batches]
+      summary: Get one payment batch and its lines (Frozen Workstream 8)
+      description: Gated payroll.payment.manage. Account numbers are masked; the full value is only ever present in the CSV export.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Payment batch detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollPaymentBatchDetail"
+        "403":
+          description: Forbidden — requires payroll.payment.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Payment batch not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    delete:
+      operationId: deletePaymentBatch
+      tags: [payroll-payment-batches]
+      summary: Delete a draft payment batch (Frozen Workstream 8)
+      description: Gated payroll.payment.manage. Only permitted while status is "draft" — nothing has been exported yet. Frees the run for a fresh batch attempt.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "403":
+          description: Forbidden — requires payroll.payment.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Payment batch not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Batch is already exported and can no longer be deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/payroll/payment-batches/{id}/export:
+    post:
+      operationId: exportPaymentBatch
+      tags: [payroll-payment-batches]
+      summary: Export a payment batch as a CSV payment instruction file (Frozen Workstream 8)
+      description: >-
+        Gated payroll.payment.manage. First call on a "draft" batch
+        transitions it to "exported" (terminal, immutable) and is audited as
+        a sensitive banking-data disclosure; a repeat call on an
+        already-exported batch performs no further mutation and simply
+        re-serves the identical, already-persisted content. Contains full,
+        unmasked account numbers — the only surface in this workstream that
+        does. This is a generic, neutral export format only; it is not a
+        submission to any specific bank's proprietary file format, and no
+        payment is executed by calling this route.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: CSV payment instruction file
+          content:
+            text/csv:
+              schema:
+                type: string
+        "403":
+          description: Forbidden — requires payroll.payment.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Payment batch not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -22126,6 +22336,121 @@ components:
           type: object
           additionalProperties:
             type: string
+
+    PayrollPaymentBatch:
+      type: object
+      required: [id, organizationId, payrollRunId, paymentMethod, reference, status, currency, totalAmount, employeeCount, createdByMembershipId, createdAt, exportedAt, exportedByMembershipId, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        payrollRunId:
+          type: integer
+        paymentMethod:
+          type: string
+          enum: [bank_transfer]
+        reference:
+          type: string
+        status:
+          type: string
+          enum: [draft, exported]
+        currency:
+          type: string
+        totalAmount:
+          type: string
+        employeeCount:
+          type: integer
+        createdByMembershipId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        exportedAt:
+          type: ["string", "null"]
+          format: date-time
+        exportedByMembershipId:
+          type: ["integer", "null"]
+        updatedAt:
+          type: string
+          format: date-time
+
+    PayrollPaymentBatchLine:
+      type: object
+      required: [id, paymentBatchId, organizationId, payrollRunLineId, sourceCorrectionId, employeeId, staffNumberSnapshot, amount, currency, bankCode, accountNumber, accountName, branch, paymentReference, createdAt]
+      properties:
+        id:
+          type: integer
+        paymentBatchId:
+          type: integer
+        organizationId:
+          type: integer
+        payrollRunLineId:
+          type: integer
+        sourceCorrectionId:
+          type: ["integer", "null"]
+        employeeId:
+          type: integer
+        employeeName:
+          type: string
+        staffNumberSnapshot:
+          type: ["string", "null"]
+        amount:
+          type: string
+        currency:
+          type: string
+        bankCode:
+          type: string
+        accountNumber:
+          type: string
+          description: Masked (last 4 digits only) in every JSON response — the full value is only ever present in the CSV export.
+        accountName:
+          type: string
+        branch:
+          type: ["string", "null"]
+        paymentReference:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    PayrollPaymentBatchExcludedLine:
+      type: object
+      required: [employeeId, netPay, reason]
+      properties:
+        employeeId:
+          type: integer
+        netPay:
+          type: string
+        reason:
+          type: string
+          enum: [zero_net_pay, negative_net_pay]
+
+    PayrollPaymentBatchCreateResult:
+      type: object
+      required: [batch, lines, excludedLines]
+      properties:
+        batch:
+          $ref: "#/components/schemas/PayrollPaymentBatch"
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/PayrollPaymentBatchLine"
+        excludedLines:
+          type: array
+          items:
+            $ref: "#/components/schemas/PayrollPaymentBatchExcludedLine"
+
+    PayrollPaymentBatchDetail:
+      type: object
+      required: [batch, lines]
+      properties:
+        batch:
+          $ref: "#/components/schemas/PayrollPaymentBatch"
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/PayrollPaymentBatchLine"
 
     RecruitmentStageBreakdownItem:
       type: object
