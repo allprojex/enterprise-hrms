@@ -5202,6 +5202,156 @@ export interface PayrollCorrectionWithTrace {
   components: PayrollCorrectionComponent[];
 }
 
+export interface PayslipFigures {
+  grossEarnings: string;
+  pensionableEarnings: string;
+  employeePensionDeduction: string;
+  employerPensionContribution: string;
+  tier1Amount: string;
+  tier2Amount: string;
+  taxableIncome: string;
+  payeAmount: string;
+  otherDeductions: string;
+  netPay: string;
+}
+
+export type PayslipComponentCategory = typeof PayslipComponentCategory[keyof typeof PayslipComponentCategory];
+
+
+export const PayslipComponentCategory = {
+  earning: 'earning',
+  deduction: 'deduction',
+} as const;
+
+export type PayslipComponentTaxableTreatment = typeof PayslipComponentTaxableTreatment[keyof typeof PayslipComponentTaxableTreatment];
+
+
+export const PayslipComponentTaxableTreatment = {
+  ordinary: 'ordinary',
+  benefit_in_kind: 'benefit_in_kind',
+  bonus: 'bonus',
+  overtime: 'overtime',
+} as const;
+
+export type PayslipComponentSource = typeof PayslipComponentSource[keyof typeof PayslipComponentSource];
+
+
+export const PayslipComponentSource = {
+  recurring: 'recurring',
+  one_off: 'one_off',
+} as const;
+
+export interface PayslipComponent {
+  category: PayslipComponentCategory;
+  componentTypeCode: string;
+  amount: string;
+  taxableTreatment: PayslipComponentTaxableTreatment;
+  pensionable: boolean;
+  source: PayslipComponentSource;
+}
+
+export type PayslipOriginal = PayslipFigures & {
+  components: PayslipComponent[];
+};
+
+export type PayslipCorrectionStatus = typeof PayslipCorrectionStatus[keyof typeof PayslipCorrectionStatus];
+
+
+export const PayslipCorrectionStatus = {
+  draft: 'draft',
+  approved: 'approved',
+} as const;
+
+export type PayslipCorrection = PayslipFigures & ({
+  id: number;
+  status: PayslipCorrectionStatus;
+  reason: string;
+  netPayDelta: string;
+  /** @nullable */
+  approvedAt: string | null;
+  components: PayslipComponent[];
+});
+
+export type PayslipEffectiveSource = typeof PayslipEffectiveSource[keyof typeof PayslipEffectiveSource];
+
+
+export const PayslipEffectiveSource = {
+  original: 'original',
+  correction: 'correction',
+} as const;
+
+export type PayslipEffective = PayslipFigures & ({
+  source: PayslipEffectiveSource;
+  /** @nullable */
+  correctionId: number | null;
+});
+
+export type PayslipPeriodFrequency = typeof PayslipPeriodFrequency[keyof typeof PayslipPeriodFrequency];
+
+
+export const PayslipPeriodFrequency = {
+  monthly: 'monthly',
+  bi_weekly: 'bi_weekly',
+  weekly: 'weekly',
+} as const;
+
+export interface PayslipPeriod {
+  id: number;
+  frequency: PayslipPeriodFrequency;
+  periodKey: string;
+  startDate: string;
+  endDate: string;
+  payDate: string;
+}
+
+export interface Payslip {
+  organizationId: number;
+  payrollRunId: number;
+  payrollRunLineId: number;
+  employeeId: number;
+  employeeName: string;
+  /** @nullable */
+  staffNumberSnapshot: string | null;
+  payrollPeriod: PayslipPeriod;
+  currency: string;
+  original: PayslipOriginal;
+  corrections: PayslipCorrection[];
+  effective: PayslipEffective;
+}
+
+export type OwnPayslipSummaryPayrollPeriod = {
+  id: number;
+  periodKey: string;
+  payDate: string;
+};
+
+export interface OwnPayslipSummary {
+  payrollRunId: number;
+  payrollRunLineId: number;
+  payrollPeriod: OwnPayslipSummaryPayrollPeriod;
+  netPay: string;
+  currency: string;
+  hasApprovedCorrection: boolean;
+}
+
+export interface PayrollReportColumn {
+  key: string;
+  label: string;
+}
+
+export type PayrollReportResultRowsItem = { [key: string]: unknown };
+
+export type PayrollReportResultTotals = {[key: string]: string};
+
+export interface PayrollReportResult {
+  key: string;
+  label: string;
+  generatedAt: string;
+  columns: PayrollReportColumn[];
+  rows: PayrollReportResultRowsItem[];
+  totals: PayrollReportResultTotals;
+}
+
 export type RecruitmentStageBreakdownItemCategory = typeof RecruitmentStageBreakdownItemCategory[keyof typeof RecruitmentStageBreakdownItemCategory];
 
 
@@ -7594,4 +7744,15 @@ export type EndEmployeeCompensationComponentBody = {
 export type ListPayrollInputReferencesParams = {
 employeeId?: number;
 };
+
+export type GetPayrollReportParams = {
+format?: GetPayrollReportFormat;
+};
+
+export type GetPayrollReportFormat = typeof GetPayrollReportFormat[keyof typeof GetPayrollReportFormat];
+
+
+export const GetPayrollReportFormat = {
+  csv: 'csv',
+} as const;
 

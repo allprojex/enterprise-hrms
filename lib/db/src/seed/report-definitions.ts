@@ -314,6 +314,44 @@ export const REPORT_DEFINITIONS: readonly ReportDefinition[] = [
     category: "personnel_records",
     requiredPermissionKey: "personnel_file.read",
   },
+  // Payroll, Workstream 5 (docs/PAYROLL_IMPLEMENTATION_PLAN.md §12/§13 —
+  // frozen Workstream 7 "Statutory Schedules & Reports", combined with
+  // frozen Workstream 6 "Payslips & ESS" into this session's own delivered
+  // Workstream 5 — see this workstream's own numbering reconciliation).
+  // Registered here for catalog discoverability via the existing GET
+  // /reports (ADR-016), but — like every dedicated-route module above — NOT
+  // executed through the generic GET .../reports/:reportKey/run route
+  // (lib/reporting.ts's RUNNERS map has no entries for these keys, so that
+  // route safely 404s "Unknown report" for any of them). Every payroll
+  // report is scoped to one locked payroll_runs row (never organization-wide
+  // across all runs), which the generic runner's organizationId-only
+  // signature cannot express — execution is a dedicated route instead
+  // (GET .../payroll/runs/:runId/reports/:reportKey,
+  // artifacts/api-server/src/routes/payrollReports.ts), reusing the same
+  // {columns, rows}/CSV export shape and requiredPermissionKey convention
+  // this registry already established. payroll.report.read — never
+  // employee.read, personnel_file.*, or any generic reporting permission.
+  {
+    key: "payroll_register",
+    label: "Payroll Register",
+    description: "Every employee's locked payroll figures for one payroll run, with the latest approved correction's net pay shown alongside the original, never merged into it.",
+    category: "payroll",
+    requiredPermissionKey: "payroll.report.read",
+  },
+  {
+    key: "payroll_paye_schedule",
+    label: "PAYE Schedule",
+    description: "Each employee's locked taxable income and PAYE for one payroll run, with the exact statutory PAYE-bands version consumed.",
+    category: "payroll",
+    requiredPermissionKey: "payroll.report.read",
+  },
+  {
+    key: "payroll_pension_schedule",
+    label: "Pension / SSNIT Schedule",
+    description: "Each employee's locked pensionable earnings, employee/employer contributions, and Tier 1/Tier 2 split for one payroll run, with the exact statutory pension-rates version consumed. SSNIT numbers appear only for an actor who additionally holds payroll.statutory_identifiers.read.",
+    category: "payroll",
+    requiredPermissionKey: "payroll.report.read",
+  },
 ] as const;
 
 /** Throws on a duplicate key — the only integrity rule this registry has (no dependency graph, unlike modules). */

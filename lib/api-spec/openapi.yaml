@@ -15902,6 +15902,205 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/payroll/runs/{runId}/lines/{lineId}/payslip:
+    get:
+      operationId: getPayslip
+      tags: [payroll-payslips]
+      summary: Get one employee's payslip for a locked payroll run (Payroll, Workstream 5)
+      description: >-
+        Gated payroll.payslip.read. Only available once the run is "locked"
+        — a draft/calculated/approved run's payslip does not exist yet.
+        Reads exclusively from the immutable payroll_run_lines/
+        payroll_run_line_components snapshot, never recalculates. Approved
+        corrections for this line appear in their own `corrections` array,
+        never merged into `original`; `effective` is the most recently
+        approved correction's own figures, or `original` if none exists.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: lineId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Payslip
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payslip"
+        "403":
+          description: Forbidden — requires payroll.payslip.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Payroll run or run line not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Run is not locked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/payroll/me/payslips:
+    get:
+      operationId: listOwnPayslips
+      tags: [payroll-payslips]
+      summary: List the caller's own payslips across every locked payroll run (Payroll, Workstream 5)
+      description: >-
+        Gated payroll.payslip.read.own. Identity is resolved server-side
+        from the caller's own employee_user_links — never a client-supplied
+        employeeId. Returns an empty array if the caller has no linked
+        employee record.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Own payslip summaries, newest pay date first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OwnPayslipSummary"
+        "403":
+          description: Forbidden — requires payroll.payslip.read.own
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/payroll/me/payslips/{runId}:
+    get:
+      operationId: getOwnPayslip
+      tags: [payroll-payslips]
+      summary: Get the caller's own payslip for one locked payroll run (Payroll, Workstream 5)
+      description: >-
+        Gated payroll.payslip.read.own. The run line is resolved from the
+        caller's own identity — never a client-supplied employeeId or line
+        ID — so no coworker's payslip is ever reachable through this route.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Own payslip
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payslip"
+        "403":
+          description: Forbidden — requires payroll.payslip.read.own
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No linked employee record, or no payslip for this run
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Run is not locked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/payroll/runs/{runId}/reports/{reportKey}:
+    get:
+      operationId: getPayrollReport
+      tags: [payroll-reports]
+      summary: Get a payroll register/PAYE/pension report for one locked run (Payroll, Workstream 5)
+      description: >-
+        Gated payroll.report.read. reportKey is one of payroll_register,
+        payroll_paye_schedule, payroll_pension_schedule. Only available once
+        the run is "locked". Reads exclusively from stored run lines, never
+        recalculates. ?format=csv returns a CSV download instead of JSON,
+        using the exact same authorization and data. The pension schedule
+        includes SSNIT numbers only for an actor who additionally holds
+        payroll.statutory_identifiers.read — every such inclusion is
+        audit-logged as a sensitive read.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: reportKey
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [payroll_register, payroll_paye_schedule, payroll_pension_schedule]
+        - name: format
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [csv]
+      responses:
+        "200":
+          description: Report result (JSON), or a CSV file when ?format=csv
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollReportResult"
+            text/csv:
+              schema:
+                type: string
+        "403":
+          description: Forbidden — requires payroll.report.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Payroll run not found, or unknown reportKey
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Run is not locked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -21726,6 +21925,207 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PayrollCorrectionComponent"
+
+    PayslipFigures:
+      type: object
+      required: [grossEarnings, pensionableEarnings, employeePensionDeduction, employerPensionContribution, tier1Amount, tier2Amount, taxableIncome, payeAmount, otherDeductions, netPay]
+      properties:
+        grossEarnings:
+          type: string
+        pensionableEarnings:
+          type: string
+        employeePensionDeduction:
+          type: string
+        employerPensionContribution:
+          type: string
+        tier1Amount:
+          type: string
+        tier2Amount:
+          type: string
+        taxableIncome:
+          type: string
+        payeAmount:
+          type: string
+        otherDeductions:
+          type: string
+        netPay:
+          type: string
+
+    PayslipComponent:
+      type: object
+      required: [category, componentTypeCode, amount, taxableTreatment, pensionable, source]
+      properties:
+        category:
+          type: string
+          enum: [earning, deduction]
+        componentTypeCode:
+          type: string
+        amount:
+          type: string
+        taxableTreatment:
+          type: string
+          enum: [ordinary, benefit_in_kind, bonus, overtime]
+        pensionable:
+          type: boolean
+        source:
+          type: string
+          enum: [recurring, one_off]
+
+    PayslipOriginal:
+      allOf:
+        - $ref: "#/components/schemas/PayslipFigures"
+        - type: object
+          required: [components]
+          properties:
+            components:
+              type: array
+              items:
+                $ref: "#/components/schemas/PayslipComponent"
+
+    PayslipCorrection:
+      allOf:
+        - $ref: "#/components/schemas/PayslipFigures"
+        - type: object
+          required: [id, status, reason, netPayDelta, approvedAt, components]
+          properties:
+            id:
+              type: integer
+            status:
+              type: string
+              enum: [draft, approved]
+            reason:
+              type: string
+            netPayDelta:
+              type: string
+            approvedAt:
+              type: ["string", "null"]
+              format: date-time
+            components:
+              type: array
+              items:
+                $ref: "#/components/schemas/PayslipComponent"
+
+    PayslipEffective:
+      allOf:
+        - $ref: "#/components/schemas/PayslipFigures"
+        - type: object
+          required: [source, correctionId]
+          properties:
+            source:
+              type: string
+              enum: [original, correction]
+            correctionId:
+              type: ["integer", "null"]
+
+    PayslipPeriod:
+      type: object
+      required: [id, frequency, periodKey, startDate, endDate, payDate]
+      properties:
+        id:
+          type: integer
+        frequency:
+          type: string
+          enum: [monthly, bi_weekly, weekly]
+        periodKey:
+          type: string
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
+        payDate:
+          type: string
+          format: date-time
+
+    Payslip:
+      type: object
+      required: [organizationId, payrollRunId, payrollRunLineId, employeeId, employeeName, staffNumberSnapshot, payrollPeriod, currency, original, corrections, effective]
+      properties:
+        organizationId:
+          type: integer
+        payrollRunId:
+          type: integer
+        payrollRunLineId:
+          type: integer
+        employeeId:
+          type: integer
+        employeeName:
+          type: string
+        staffNumberSnapshot:
+          type: ["string", "null"]
+        payrollPeriod:
+          $ref: "#/components/schemas/PayslipPeriod"
+        currency:
+          type: string
+        original:
+          $ref: "#/components/schemas/PayslipOriginal"
+        corrections:
+          type: array
+          items:
+            $ref: "#/components/schemas/PayslipCorrection"
+        effective:
+          $ref: "#/components/schemas/PayslipEffective"
+
+    OwnPayslipSummary:
+      type: object
+      required: [payrollRunId, payrollRunLineId, payrollPeriod, netPay, currency, hasApprovedCorrection]
+      properties:
+        payrollRunId:
+          type: integer
+        payrollRunLineId:
+          type: integer
+        payrollPeriod:
+          type: object
+          required: [id, periodKey, payDate]
+          properties:
+            id:
+              type: integer
+            periodKey:
+              type: string
+            payDate:
+              type: string
+              format: date-time
+        netPay:
+          type: string
+        currency:
+          type: string
+        hasApprovedCorrection:
+          type: boolean
+
+    PayrollReportColumn:
+      type: object
+      required: [key, label]
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+
+    PayrollReportResult:
+      type: object
+      required: [key, label, generatedAt, columns, rows, totals]
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        generatedAt:
+          type: string
+          format: date-time
+        columns:
+          type: array
+          items:
+            $ref: "#/components/schemas/PayrollReportColumn"
+        rows:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        totals:
+          type: object
+          additionalProperties:
+            type: string
 
     RecruitmentStageBreakdownItem:
       type: object

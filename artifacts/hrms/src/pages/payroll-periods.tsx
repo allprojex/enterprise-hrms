@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CalendarClock, Plus, Play, RefreshCw, Trash2, CheckCircle2, Lock, GitCommitHorizontal } from 'lucide-react';
+import { CalendarClock, Plus, Play, RefreshCw, Trash2, CheckCircle2, Lock, GitCommitHorizontal, FileText, Download } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -32,9 +32,17 @@ import {
   getListPayrollCorrectionsForRunQueryKey,
   useCreatePayrollCorrection,
   useApprovePayrollCorrection,
+  useGetPayrollReport,
+  getGetPayrollReportQueryKey,
+  getGetPayrollReportUrl,
+  useGetPayslip,
+  getGetPayslipQueryKey,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
+import { getStoredToken } from '@/lib/auth';
+
+type PayrollReportKey = 'payroll_register' | 'payroll_paye_schedule' | 'payroll_pension_schedule';
 
 type Frequency = 'monthly' | 'bi_weekly' | 'weekly';
 
@@ -81,6 +89,10 @@ export default function PayrollPeriods() {
   const [correctionLineId, setCorrectionLineId] = useState<number | null>(null);
   const [correctionReason, setCorrectionReason] = useState('');
 
+  const [reportKey, setReportKey] = useState<PayrollReportKey>('payroll_register');
+  const [isDownloadingCsv, setIsDownloadingCsv] = useState(false);
+  const [payslipLineId, setPayslipLineId] = useState<number | null>(null);
+
   const createPeriodMutation = useCreatePayrollPeriod();
   const createRunMutation = useCreatePayrollRun();
   const calculateMutation = useCalculatePayrollRun();
@@ -104,6 +116,39 @@ export default function PayrollPeriods() {
   const { data: corrections } = useListPayrollCorrectionsForRun(organizationId, selectedRun?.id ?? 0, {
     query: { queryKey: getListPayrollCorrectionsForRunQueryKey(organizationId, selectedRun?.id ?? 0), enabled: !!selectedRun && selectedRun.status === 'locked', retry: false },
   });
+
+  const isLocked = selectedRun?.status === 'locked';
+
+  const { data: reportResult } = useGetPayrollReport(organizationId, selectedRun?.id ?? 0, reportKey, {}, {
+    query: { queryKey: getGetPayrollReportQueryKey(organizationId, selectedRun?.id ?? 0, reportKey, {}), enabled: !!isLocked, retry: false },
+  });
+
+  const { data: payslip } = useGetPayslip(organizationId, selectedRun?.id ?? 0, payslipLineId ?? 0, {
+    query: { queryKey: getGetPayslipQueryKey(organizationId, selectedRun?.id ?? 0, payslipLineId ?? 0), enabled: !!isLocked && payslipLineId != null, retry: false },
+  });
+
+  const handleDownloadCsv = async () => {
+    if (!selectedRun) return;
+    setIsDownloadingCsv(true);
+    try {
+      const token = getStoredToken();
+      const res = await fetch(getGetPayrollReportUrl(organizationId, selectedRun.id, reportKey, { format: 'csv' }), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error('Download failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${reportKey}-run-${selectedRun.id}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: 'Could not download report', description: 'Please try again.', variant: 'destructive' });
+    } finally {
+      setIsDownloadingCsv(false);
+    }
+  };
 
   const resetCreateForm = () => {
     setFrequency('monthly');
@@ -568,6 +613,122 @@ export default function PayrollPeriods() {
                     ))}
                   </TableBody>
                 </Table>
+              </CardContent>
+            </Card>
+          )}
+
+          {isLocked && (
+            <Card data-testid="section-payroll-outputs">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-lg">Payroll Outputs</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Select value={reportKey} onValueChange={(v) => setReportKey(v as PayrollReportKey)}>
+                    <SelectTrigger className="w-64" data-testid="select-report-key">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="payroll_register">Payroll Register</SelectItem>
+                      <SelectItem value="payroll_paye_schedule">PAYE Schedule</SelectItem>
+                      <SelectItem value="payroll_pension_schedule">Pension / SSNIT Schedule</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button size="sm" variant="outline" onClick={handleDownloadCsv} disabled={isDownloadingCsv} data-testid="button-download-report-csv">
+                    <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                    CSV
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {reportResult && typeof reportResult === 'object' && 'rows' in reportResult && (
+                  <div className="overflow-x-auto">
+                    <Table aria-label={reportResult.label} data-testid="table-payroll-report">
+                      <TableHeader>
+                        <TableRow>
+                          {reportResult.columns.map((c) => (
+                            <TableHead key={c.key}>{c.label}</TableHead>
+                          ))}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {reportResult.rows.map((row, i) => (
+                          <TableRow key={i} data-testid={`row-payroll-report-${i}`}>
+                            {reportResult.columns.map((c) => (
+                              <TableCell key={c.key}>{row[c.key] == null ? '—' : String(row[c.key])}</TableCell>
+                            ))}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    <p className="text-sm text-muted-foreground mt-2" data-testid="text-report-totals">
+                      Total Net Pay: {reportResult.totals.netPay ?? '—'}
+                    </p>
+                  </div>
+                )}
+
+                {runLines && runLines.length > 0 && (
+                  <div className="space-y-2 pt-4 border-t">
+                    <Label>View Payslip</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {runLines.map(({ line }) => (
+                        <Button
+                          key={line.id}
+                          size="sm"
+                          variant={payslipLineId === line.id ? 'secondary' : 'outline'}
+                          onClick={() => setPayslipLineId(line.id)}
+                          data-testid={`button-view-payslip-${line.employeeId}`}
+                        >
+                          <FileText className="h-3.5 w-3.5" aria-hidden="true" />#{line.employeeId}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {payslip && (
+                  <div className="rounded-md border p-4 space-y-3" data-testid="section-payslip-detail">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold">{payslip.employeeName}</p>
+                        <p className="text-sm text-muted-foreground">
+                          Staff #{payslip.staffNumberSnapshot ?? '—'} · {payslip.payrollPeriod.periodKey} · Pay date {new Date(payslip.payrollPeriod.payDate).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <Badge variant={payslip.effective.source === 'correction' ? 'default' : 'outline'} data-testid="badge-payslip-effective-source">
+                        {payslip.effective.source === 'correction' ? 'Corrected' : 'Original'}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm">
+                      <span className="text-muted-foreground">Gross Earnings</span>
+                      <span className="text-right" data-testid="text-payslip-original-gross">{payslip.original.grossEarnings}</span>
+                      <span className="text-muted-foreground">Employee Pension</span>
+                      <span className="text-right">{payslip.original.employeePensionDeduction}</span>
+                      <span className="text-muted-foreground">PAYE</span>
+                      <span className="text-right">{payslip.original.payeAmount}</span>
+                      <span className="text-muted-foreground">Other Deductions</span>
+                      <span className="text-right">{payslip.original.otherDeductions}</span>
+                      <span className="font-semibold">Net Pay (Original)</span>
+                      <span className="text-right font-semibold" data-testid="text-payslip-original-net">{payslip.original.netPay}</span>
+                    </div>
+
+                    {payslip.corrections.length > 0 && (
+                      <div className="pt-3 border-t space-y-2">
+                        <p className="text-sm font-medium">Approved Corrections</p>
+                        {payslip.corrections.map((c) => (
+                          <div key={c.id} className="text-sm flex items-center justify-between" data-testid={`row-payslip-correction-${c.id}`}>
+                            <span className="text-muted-foreground">{c.reason}</span>
+                            <span>
+                              {c.netPay} (Δ {c.netPayDelta})
+                            </span>
+                          </div>
+                        ))}
+                        <p className="text-sm font-semibold flex items-center justify-between pt-1">
+                          <span>Effective Net Pay</span>
+                          <span data-testid="text-payslip-effective-net">{payslip.effective.netPay}</span>
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}

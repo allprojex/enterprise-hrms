@@ -7,7 +7,7 @@
  * concern of what was actually returned to a caller, not of the data-access
  * function in isolation.
  */
-import { and, eq, isNull, desc } from "drizzle-orm";
+import { and, eq, isNull, desc, inArray } from "drizzle-orm";
 import {
   db,
   employeeBankingDetailsTable,
@@ -163,4 +163,48 @@ export async function listStatutoryIdentifierHistory(organizationId: number, emp
     .from(employeeStatutoryIdentifiersTable)
     .where(and(eq(employeeStatutoryIdentifiersTable.organizationId, organizationId), eq(employeeStatutoryIdentifiersTable.employeeId, employeeId)))
     .orderBy(desc(employeeStatutoryIdentifiersTable.validFrom));
+}
+
+/**
+ * Payroll, Workstream 5 (docs/PAYROLL_IMPLEMENTATION_PLAN.md §12) — batched
+ * (never one query per employee, §35) as-of resolution for the pension/
+ * SSNIT schedule. Mirrors resolveCompensationAsOf's/pickAllocationAsOf's own
+ * proven half-open [validFrom, validTo) pattern exactly: this is historical
+ * resolution against an immutable effective-dated history, never a "live
+ * current value" — resolving at `asOfDate` (a locked run's own payDate)
+ * always yields the same answer on every future read, since prior rows are
+ * never edited in place, only superseded. Returns null per employeeId with
+ * no identifier on file at that date.
+ */
+export async function resolveStatutoryIdentifiersAsOf(
+  organizationId: number,
+  employeeIds: number[],
+  asOfDate: Date,
+): Promise<Map<number, EmployeeStatutoryIdentifier | null>> {
+  const result = new Map<number, EmployeeStatutoryIdentifier | null>();
+  if (employeeIds.length === 0) return result;
+
+  const rows = await db
+    .select()
+    .from(employeeStatutoryIdentifiersTable)
+    .where(and(eq(employeeStatutoryIdentifiersTable.organizationId, organizationId), inArray(employeeStatutoryIdentifiersTable.employeeId, employeeIds)));
+
+  const byEmployee = new Map<number, EmployeeStatutoryIdentifier[]>();
+  for (const row of rows) {
+    const list = byEmployee.get(row.employeeId) ?? [];
+    list.push(row);
+    byEmployee.set(row.employeeId, list);
+  }
+
+  const at = asOfDate.getTime();
+  for (const employeeId of employeeIds) {
+    const history = byEmployee.get(employeeId) ?? [];
+    const match = history.find((row) => {
+      const from = row.validFrom.getTime();
+      const to = row.validTo ? row.validTo.getTime() : Infinity;
+      return at >= from && at < to;
+    });
+    result.set(employeeId, match ?? null);
+  }
+  return result;
 }

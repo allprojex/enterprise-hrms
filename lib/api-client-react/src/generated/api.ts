@@ -142,6 +142,7 @@ import type {
   GeneratePerformanceReviewsResult,
   GetAttendanceDailySummaryParams,
   GetAttendanceDashboardParams,
+  GetPayrollReportParams,
   GetPerformanceDashboardParams,
   GrantRolePermissionInput,
   HealthStatus,
@@ -223,17 +224,20 @@ import type {
   OrganizationMember,
   OrganizationModule,
   OrganizationRole,
+  OwnPayslipSummary,
   PasswordResetStatus,
   PayrollCorrection,
   PayrollCorrectionWithTrace,
   PayrollInputReference,
   PayrollPeriod,
+  PayrollReportResult,
   PayrollRun,
   PayrollRunCalculationSummary,
   PayrollRunLineWithTrace,
   PayrollRunValidationErrorBody,
   PayrollStatutoryRuleVersion,
   PayrollStatutoryRuleVersionDetail,
+  Payslip,
   PerformanceCycle,
   PerformanceDashboard,
   PerformanceGoal,
@@ -30912,4 +30916,353 @@ export const useApprovePayrollCorrection = <TError = ErrorType<ApiError>,
       > => {
       return useMutation(getApprovePayrollCorrectionMutationOptions(options));
     }
+
+export const getGetPayslipUrl = (organizationId: number,
+    runId: number,
+    lineId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/runs/${runId}/lines/${lineId}/payslip`
+}
+
+/**
+ * Gated payroll.payslip.read. Only available once the run is "locked" — a draft/calculated/approved run's payslip does not exist yet. Reads exclusively from the immutable payroll_run_lines/ payroll_run_line_components snapshot, never recalculates. Approved corrections for this line appear in their own `corrections` array, never merged into `original`; `effective` is the most recently approved correction's own figures, or `original` if none exists.
+ * @summary Get one employee's payslip for a locked payroll run (Payroll, Workstream 5)
+ */
+export const getPayslip = async (organizationId: number,
+    runId: number,
+    lineId: number, options?: RequestInit): Promise<Payslip> => {
+
+  return customFetch<Payslip>(getGetPayslipUrl(organizationId,runId,lineId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPayslipQueryKey = (organizationId: number,
+    runId: number,
+    lineId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/payroll/runs/${runId}/lines/${lineId}/payslip`
+    ] as const;
+    }
+
+
+export const getGetPayslipQueryOptions = <TData = Awaited<ReturnType<typeof getPayslip>>, TError = ErrorType<ApiError>>(organizationId: number,
+    runId: number,
+    lineId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayslip>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPayslipQueryKey(organizationId,runId,lineId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPayslip>>> = ({ signal }) => getPayslip(organizationId,runId,lineId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && runId !== null && runId !== undefined && lineId !== null && lineId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPayslip>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPayslipQueryResult = NonNullable<Awaited<ReturnType<typeof getPayslip>>>
+export type GetPayslipQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get one employee's payslip for a locked payroll run (Payroll, Workstream 5)
+ */
+
+export function useGetPayslip<TData = Awaited<ReturnType<typeof getPayslip>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    runId: number,
+    lineId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayslip>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPayslipQueryOptions(organizationId,runId,lineId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListOwnPayslipsUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/me/payslips`
+}
+
+/**
+ * Gated payroll.payslip.read.own. Identity is resolved server-side from the caller's own employee_user_links — never a client-supplied employeeId. Returns an empty array if the caller has no linked employee record.
+ * @summary List the caller's own payslips across every locked payroll run (Payroll, Workstream 5)
+ */
+export const listOwnPayslips = async (organizationId: number, options?: RequestInit): Promise<OwnPayslipSummary[]> => {
+
+  return customFetch<OwnPayslipSummary[]>(getListOwnPayslipsUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOwnPayslipsQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/payroll/me/payslips`
+    ] as const;
+    }
+
+
+export const getListOwnPayslipsQueryOptions = <TData = Awaited<ReturnType<typeof listOwnPayslips>>, TError = ErrorType<ApiError>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOwnPayslips>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOwnPayslipsQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOwnPayslips>>> = ({ signal }) => listOwnPayslips(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOwnPayslips>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOwnPayslipsQueryResult = NonNullable<Awaited<ReturnType<typeof listOwnPayslips>>>
+export type ListOwnPayslipsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List the caller's own payslips across every locked payroll run (Payroll, Workstream 5)
+ */
+
+export function useListOwnPayslips<TData = Awaited<ReturnType<typeof listOwnPayslips>>, TError = ErrorType<ApiError>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOwnPayslips>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOwnPayslipsQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetOwnPayslipUrl = (organizationId: number,
+    runId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/me/payslips/${runId}`
+}
+
+/**
+ * Gated payroll.payslip.read.own. The run line is resolved from the caller's own identity — never a client-supplied employeeId or line ID — so no coworker's payslip is ever reachable through this route.
+ * @summary Get the caller's own payslip for one locked payroll run (Payroll, Workstream 5)
+ */
+export const getOwnPayslip = async (organizationId: number,
+    runId: number, options?: RequestInit): Promise<Payslip> => {
+
+  return customFetch<Payslip>(getGetOwnPayslipUrl(organizationId,runId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOwnPayslipQueryKey = (organizationId: number,
+    runId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/payroll/me/payslips/${runId}`
+    ] as const;
+    }
+
+
+export const getGetOwnPayslipQueryOptions = <TData = Awaited<ReturnType<typeof getOwnPayslip>>, TError = ErrorType<ApiError>>(organizationId: number,
+    runId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOwnPayslip>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOwnPayslipQueryKey(organizationId,runId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOwnPayslip>>> = ({ signal }) => getOwnPayslip(organizationId,runId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && runId !== null && runId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOwnPayslip>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOwnPayslipQueryResult = NonNullable<Awaited<ReturnType<typeof getOwnPayslip>>>
+export type GetOwnPayslipQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get the caller's own payslip for one locked payroll run (Payroll, Workstream 5)
+ */
+
+export function useGetOwnPayslip<TData = Awaited<ReturnType<typeof getOwnPayslip>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    runId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOwnPayslip>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOwnPayslipQueryOptions(organizationId,runId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPayrollReportUrl = (organizationId: number,
+    runId: number,
+    reportKey: 'payroll_register' | 'payroll_paye_schedule' | 'payroll_pension_schedule',
+    params?: GetPayrollReportParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/payroll/runs/${runId}/reports/${reportKey}?${stringifiedParams}` : `/api/organizations/${organizationId}/payroll/runs/${runId}/reports/${reportKey}`
+}
+
+/**
+ * Gated payroll.report.read. reportKey is one of payroll_register, payroll_paye_schedule, payroll_pension_schedule. Only available once the run is "locked". Reads exclusively from stored run lines, never recalculates. ?format=csv returns a CSV download instead of JSON, using the exact same authorization and data. The pension schedule includes SSNIT numbers only for an actor who additionally holds payroll.statutory_identifiers.read — every such inclusion is audit-logged as a sensitive read.
+ * @summary Get a payroll register/PAYE/pension report for one locked run (Payroll, Workstream 5)
+ */
+export const getPayrollReport = async (organizationId: number,
+    runId: number,
+    reportKey: 'payroll_register' | 'payroll_paye_schedule' | 'payroll_pension_schedule',
+    params?: GetPayrollReportParams, options?: RequestInit): Promise<PayrollReportResult | string> => {
+
+  return customFetch<PayrollReportResult | string>(getGetPayrollReportUrl(organizationId,runId,reportKey,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPayrollReportQueryKey = (organizationId: number,
+    runId: number,
+    reportKey: 'payroll_register' | 'payroll_paye_schedule' | 'payroll_pension_schedule',
+    params?: GetPayrollReportParams,) => {
+    return [
+    `/api/organizations/${organizationId}/payroll/runs/${runId}/reports/${reportKey}`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetPayrollReportQueryOptions = <TData = Awaited<ReturnType<typeof getPayrollReport>>, TError = ErrorType<ApiError>>(organizationId: number,
+    runId: number,
+    reportKey: 'payroll_register' | 'payroll_paye_schedule' | 'payroll_pension_schedule',
+    params?: GetPayrollReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayrollReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPayrollReportQueryKey(organizationId,runId,reportKey,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPayrollReport>>> = ({ signal }) => getPayrollReport(organizationId,runId,reportKey,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && runId !== null && runId !== undefined && reportKey !== null && reportKey !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPayrollReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPayrollReportQueryResult = NonNullable<Awaited<ReturnType<typeof getPayrollReport>>>
+export type GetPayrollReportQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get a payroll register/PAYE/pension report for one locked run (Payroll, Workstream 5)
+ */
+
+export function useGetPayrollReport<TData = Awaited<ReturnType<typeof getPayrollReport>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    runId: number,
+    reportKey: 'payroll_register' | 'payroll_paye_schedule' | 'payroll_pension_schedule',
+    params?: GetPayrollReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayrollReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPayrollReportQueryOptions(organizationId,runId,reportKey,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 

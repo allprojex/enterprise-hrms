@@ -12851,3 +12851,234 @@ export const ApprovePayrollCorrectionResponse = zod.object({
 })
 
 
+/**
+ * Gated payroll.payslip.read. Only available once the run is "locked" — a draft/calculated/approved run's payslip does not exist yet. Reads exclusively from the immutable payroll_run_lines/ payroll_run_line_components snapshot, never recalculates. Approved corrections for this line appear in their own `corrections` array, never merged into `original`; `effective` is the most recently approved correction's own figures, or `original` if none exists.
+ * @summary Get one employee's payslip for a locked payroll run (Payroll, Workstream 5)
+ */
+export const GetPayslipParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "runId": zod.coerce.number(),
+  "lineId": zod.coerce.number()
+})
+
+export const GetPayslipResponse = zod.object({
+  "organizationId": zod.number(),
+  "payrollRunId": zod.number(),
+  "payrollRunLineId": zod.number(),
+  "employeeId": zod.number(),
+  "employeeName": zod.string(),
+  "staffNumberSnapshot": zod.string().nullable(),
+  "payrollPeriod": zod.object({
+  "id": zod.number(),
+  "frequency": zod.enum(['monthly', 'bi_weekly', 'weekly']),
+  "periodKey": zod.string(),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date(),
+  "payDate": zod.coerce.date()
+}),
+  "currency": zod.string(),
+  "original": zod.object({
+  "grossEarnings": zod.string(),
+  "pensionableEarnings": zod.string(),
+  "employeePensionDeduction": zod.string(),
+  "employerPensionContribution": zod.string(),
+  "tier1Amount": zod.string(),
+  "tier2Amount": zod.string(),
+  "taxableIncome": zod.string(),
+  "payeAmount": zod.string(),
+  "otherDeductions": zod.string(),
+  "netPay": zod.string()
+}).and(zod.object({
+  "components": zod.array(zod.object({
+  "category": zod.enum(['earning', 'deduction']),
+  "componentTypeCode": zod.string(),
+  "amount": zod.string(),
+  "taxableTreatment": zod.enum(['ordinary', 'benefit_in_kind', 'bonus', 'overtime']),
+  "pensionable": zod.boolean(),
+  "source": zod.enum(['recurring', 'one_off'])
+}))
+})),
+  "corrections": zod.array(zod.object({
+  "grossEarnings": zod.string(),
+  "pensionableEarnings": zod.string(),
+  "employeePensionDeduction": zod.string(),
+  "employerPensionContribution": zod.string(),
+  "tier1Amount": zod.string(),
+  "tier2Amount": zod.string(),
+  "taxableIncome": zod.string(),
+  "payeAmount": zod.string(),
+  "otherDeductions": zod.string(),
+  "netPay": zod.string()
+}).and(zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['draft', 'approved']),
+  "reason": zod.string(),
+  "netPayDelta": zod.string(),
+  "approvedAt": zod.coerce.date().nullable(),
+  "components": zod.array(zod.object({
+  "category": zod.enum(['earning', 'deduction']),
+  "componentTypeCode": zod.string(),
+  "amount": zod.string(),
+  "taxableTreatment": zod.enum(['ordinary', 'benefit_in_kind', 'bonus', 'overtime']),
+  "pensionable": zod.boolean(),
+  "source": zod.enum(['recurring', 'one_off'])
+}))
+}))),
+  "effective": zod.object({
+  "grossEarnings": zod.string(),
+  "pensionableEarnings": zod.string(),
+  "employeePensionDeduction": zod.string(),
+  "employerPensionContribution": zod.string(),
+  "tier1Amount": zod.string(),
+  "tier2Amount": zod.string(),
+  "taxableIncome": zod.string(),
+  "payeAmount": zod.string(),
+  "otherDeductions": zod.string(),
+  "netPay": zod.string()
+}).and(zod.object({
+  "source": zod.enum(['original', 'correction']),
+  "correctionId": zod.number().nullable()
+}))
+})
+
+
+/**
+ * Gated payroll.payslip.read.own. Identity is resolved server-side from the caller's own employee_user_links — never a client-supplied employeeId. Returns an empty array if the caller has no linked employee record.
+ * @summary List the caller's own payslips across every locked payroll run (Payroll, Workstream 5)
+ */
+export const ListOwnPayslipsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListOwnPayslipsResponseItem = zod.object({
+  "payrollRunId": zod.number(),
+  "payrollRunLineId": zod.number(),
+  "payrollPeriod": zod.object({
+  "id": zod.number(),
+  "periodKey": zod.string(),
+  "payDate": zod.coerce.date()
+}),
+  "netPay": zod.string(),
+  "currency": zod.string(),
+  "hasApprovedCorrection": zod.boolean()
+})
+export const ListOwnPayslipsResponse = zod.array(ListOwnPayslipsResponseItem)
+
+
+/**
+ * Gated payroll.payslip.read.own. The run line is resolved from the caller's own identity — never a client-supplied employeeId or line ID — so no coworker's payslip is ever reachable through this route.
+ * @summary Get the caller's own payslip for one locked payroll run (Payroll, Workstream 5)
+ */
+export const GetOwnPayslipParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "runId": zod.coerce.number()
+})
+
+export const GetOwnPayslipResponse = zod.object({
+  "organizationId": zod.number(),
+  "payrollRunId": zod.number(),
+  "payrollRunLineId": zod.number(),
+  "employeeId": zod.number(),
+  "employeeName": zod.string(),
+  "staffNumberSnapshot": zod.string().nullable(),
+  "payrollPeriod": zod.object({
+  "id": zod.number(),
+  "frequency": zod.enum(['monthly', 'bi_weekly', 'weekly']),
+  "periodKey": zod.string(),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date(),
+  "payDate": zod.coerce.date()
+}),
+  "currency": zod.string(),
+  "original": zod.object({
+  "grossEarnings": zod.string(),
+  "pensionableEarnings": zod.string(),
+  "employeePensionDeduction": zod.string(),
+  "employerPensionContribution": zod.string(),
+  "tier1Amount": zod.string(),
+  "tier2Amount": zod.string(),
+  "taxableIncome": zod.string(),
+  "payeAmount": zod.string(),
+  "otherDeductions": zod.string(),
+  "netPay": zod.string()
+}).and(zod.object({
+  "components": zod.array(zod.object({
+  "category": zod.enum(['earning', 'deduction']),
+  "componentTypeCode": zod.string(),
+  "amount": zod.string(),
+  "taxableTreatment": zod.enum(['ordinary', 'benefit_in_kind', 'bonus', 'overtime']),
+  "pensionable": zod.boolean(),
+  "source": zod.enum(['recurring', 'one_off'])
+}))
+})),
+  "corrections": zod.array(zod.object({
+  "grossEarnings": zod.string(),
+  "pensionableEarnings": zod.string(),
+  "employeePensionDeduction": zod.string(),
+  "employerPensionContribution": zod.string(),
+  "tier1Amount": zod.string(),
+  "tier2Amount": zod.string(),
+  "taxableIncome": zod.string(),
+  "payeAmount": zod.string(),
+  "otherDeductions": zod.string(),
+  "netPay": zod.string()
+}).and(zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['draft', 'approved']),
+  "reason": zod.string(),
+  "netPayDelta": zod.string(),
+  "approvedAt": zod.coerce.date().nullable(),
+  "components": zod.array(zod.object({
+  "category": zod.enum(['earning', 'deduction']),
+  "componentTypeCode": zod.string(),
+  "amount": zod.string(),
+  "taxableTreatment": zod.enum(['ordinary', 'benefit_in_kind', 'bonus', 'overtime']),
+  "pensionable": zod.boolean(),
+  "source": zod.enum(['recurring', 'one_off'])
+}))
+}))),
+  "effective": zod.object({
+  "grossEarnings": zod.string(),
+  "pensionableEarnings": zod.string(),
+  "employeePensionDeduction": zod.string(),
+  "employerPensionContribution": zod.string(),
+  "tier1Amount": zod.string(),
+  "tier2Amount": zod.string(),
+  "taxableIncome": zod.string(),
+  "payeAmount": zod.string(),
+  "otherDeductions": zod.string(),
+  "netPay": zod.string()
+}).and(zod.object({
+  "source": zod.enum(['original', 'correction']),
+  "correctionId": zod.number().nullable()
+}))
+})
+
+
+/**
+ * Gated payroll.report.read. reportKey is one of payroll_register, payroll_paye_schedule, payroll_pension_schedule. Only available once the run is "locked". Reads exclusively from stored run lines, never recalculates. ?format=csv returns a CSV download instead of JSON, using the exact same authorization and data. The pension schedule includes SSNIT numbers only for an actor who additionally holds payroll.statutory_identifiers.read — every such inclusion is audit-logged as a sensitive read.
+ * @summary Get a payroll register/PAYE/pension report for one locked run (Payroll, Workstream 5)
+ */
+export const GetPayrollReportParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "runId": zod.coerce.number(),
+  "reportKey": zod.enum(['payroll_register', 'payroll_paye_schedule', 'payroll_pension_schedule'])
+})
+
+export const GetPayrollReportQueryParams = zod.object({
+  "format": zod.enum(['csv']).optional()
+})
+
+export const GetPayrollReportResponse = zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "generatedAt": zod.coerce.date(),
+  "columns": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string()
+})),
+  "rows": zod.array(zod.record(zod.string(), zod.unknown())),
+  "totals": zod.record(zod.string(), zod.string())
+})
+
+

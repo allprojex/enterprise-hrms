@@ -35,6 +35,7 @@ import PerformanceRatingScales from '@/pages/performance-rating-scales';
 import PayrollStatutoryRules from '@/pages/payroll-statutory-rules';
 import PayrollEmployeeCompensation from '@/pages/payroll-employee-compensation';
 import PayrollPeriods from '@/pages/payroll-periods';
+import PayrollMyPayslips from '@/pages/payroll-my-payslips';
 import PerformanceTemplates from '@/pages/performance-templates';
 import PerformanceCycles from '@/pages/performance-cycles';
 import PerformanceTeam from '@/pages/performance-team';
@@ -195,6 +196,9 @@ function Router() {
       </Route>
       <Route path="/payroll-periods">
         {() => <SecureRoute component={PayrollPeriods} moduleKey="payroll" />}
+      </Route>
+      <Route path="/payroll-my-payslips">
+        {() => <SecureRoute component={PayrollMyPayslips} moduleKey="payroll" />}
       </Route>
       <Route path="/performance-templates">
         {() => <SecureRoute component={PerformanceTemplates} moduleKey="performance" />}

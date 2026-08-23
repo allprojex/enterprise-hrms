@@ -8,7 +8,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import PayrollPeriods from '@/pages/payroll-periods';
-import type { PayrollPeriod, PayrollRun, PayrollRunLineWithTrace, PayrollInputReference, PayrollCorrection } from '@workspace/api-client-react';
+import type { PayrollPeriod, PayrollRun, PayrollRunLineWithTrace, PayrollInputReference, PayrollCorrection, PayrollReportResult, Payslip } from '@workspace/api-client-react';
 
 const { state } = vi.hoisted(() => ({
   state: {
@@ -19,6 +19,8 @@ const { state } = vi.hoisted(() => ({
     runLines: [] as PayrollRunLineWithTrace[],
     inputReferences: [] as PayrollInputReference[],
     corrections: [] as PayrollCorrection[],
+    reportResult: undefined as PayrollReportResult | undefined,
+    payslip: undefined as Payslip | undefined,
     createPeriodMutate: vi.fn() as (...args: unknown[]) => void,
     createRunMutate: vi.fn() as (...args: unknown[]) => void,
     calculateMutate: vi.fn() as (...args: unknown[]) => void,
@@ -53,7 +55,14 @@ vi.mock('@workspace/api-client-react', () => ({
   getListPayrollCorrectionsForRunQueryKey: () => ['payrollCorrections'],
   useCreatePayrollCorrection: () => ({ mutate: state.createCorrectionMutate, isPending: false }),
   useApprovePayrollCorrection: () => ({ mutate: state.approveCorrectionMutate, isPending: false }),
+  useGetPayrollReport: () => ({ data: state.reportResult }),
+  getGetPayrollReportQueryKey: () => ['payrollReport'],
+  getGetPayrollReportUrl: () => '/api/payroll-report',
+  useGetPayslip: () => ({ data: state.payslip }),
+  getGetPayslipQueryKey: () => ['payslip'],
 }));
+
+vi.mock('@/lib/auth', () => ({ getStoredToken: () => 'test-token' }));
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -72,6 +81,8 @@ function resetState() {
   state.runLines = [];
   state.inputReferences = [];
   state.corrections = [];
+  state.reportResult = undefined;
+  state.payslip = undefined;
   state.createPeriodMutate = vi.fn();
   state.createRunMutate = vi.fn();
   state.calculateMutate = vi.fn();
@@ -305,5 +316,82 @@ describe('Payroll Periods page', () => {
     expect(row).toHaveTextContent('403.00');
     await userEvent.click(screen.getByTestId('button-approve-correction-3'));
     expect(state.approveCorrectionMutate).toHaveBeenCalledWith({ organizationId: 10, id: 3 }, expect.anything());
+  });
+
+  it('does not show the Payroll Outputs section while the run is only calculated (not locked)', async () => {
+    resetState();
+    state.periods = [PERIOD];
+    state.runs = [{ id: 7, organizationId: 10, payrollPeriodId: 1, status: 'calculated', preparedByMembershipId: 5, approvedByMembershipId: null, lockedAt: null, calculatedAt: '2026-01-31T00:00:00.000Z', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-31T00:00:00.000Z' }];
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-select-period-1'));
+    expect(screen.queryByTestId('section-payroll-outputs')).not.toBeInTheDocument();
+  });
+
+  it('shows the Payroll Outputs section with a report table and totals once the run is locked', async () => {
+    resetState();
+    state.periods = [PERIOD];
+    state.runs = [{ id: 7, organizationId: 10, payrollPeriodId: 1, status: 'locked', preparedByMembershipId: 5, approvedByMembershipId: 8, lockedAt: '2026-02-01T00:00:00.000Z', calculatedAt: '2026-01-31T00:00:00.000Z', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-02-01T00:00:00.000Z' }];
+    state.reportResult = {
+      key: 'payroll_register', label: 'Payroll Register', generatedAt: '2026-02-01T00:00:00.000Z',
+      columns: [{ key: 'employeeName', label: 'Employee Name' }, { key: 'netPay', label: 'Net Pay' }],
+      rows: [{ employeeName: 'Ada Lovelace', netPay: '922.75' }],
+      totals: { netPay: '922.75' },
+    };
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-select-period-1'));
+    expect(screen.getByTestId('section-payroll-outputs')).toBeInTheDocument();
+    expect(screen.getByTestId('table-payroll-report')).toHaveTextContent('Ada Lovelace');
+    expect(screen.getByTestId('text-report-totals')).toHaveTextContent('922.75');
+  });
+
+  it('viewing a payslip shows original figures and, once corrected, the effective net pay', async () => {
+    resetState();
+    state.periods = [PERIOD];
+    state.runs = [{ id: 7, organizationId: 10, payrollPeriodId: 1, status: 'locked', preparedByMembershipId: 5, approvedByMembershipId: 8, lockedAt: '2026-02-01T00:00:00.000Z', calculatedAt: '2026-01-31T00:00:00.000Z', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-02-01T00:00:00.000Z' }];
+    state.runLines = [
+      {
+        line: {
+          id: 1, organizationId: 10, payrollRunId: 7, employeeId: 501, staffNumberSnapshot: 'EMP-501',
+          payeBandsVersionId: 1, pensionRatesVersionId: 2, pensionEarningsCeilingVersionId: null,
+          grossEarnings: '1000.00', pensionableEarnings: '1000.00', employeePensionDeduction: '55.00',
+          employerPensionContribution: '130.00', tier1Amount: '135.00', tier2Amount: '50.00',
+          taxableIncome: '945.00', payeAmount: '22.25', otherDeductions: '0.00', netPay: '922.75',
+          currency: 'GHS', calculatedAt: '2026-01-31T00:00:00.000Z', createdAt: '2026-01-31T00:00:00.000Z', updatedAt: '2026-01-31T00:00:00.000Z',
+        },
+        components: [],
+      },
+    ];
+    state.payslip = {
+      organizationId: 10, payrollRunId: 7, payrollRunLineId: 1, employeeId: 501, employeeName: 'Ada Lovelace',
+      staffNumberSnapshot: 'EMP-501',
+      payrollPeriod: { id: 1, frequency: 'monthly', periodKey: '2026-01', startDate: '2026-01-01T00:00:00.000Z', endDate: '2026-02-01T00:00:00.000Z', payDate: '2026-01-31T00:00:00.000Z' },
+      currency: 'GHS',
+      original: {
+        grossEarnings: '1000.00', pensionableEarnings: '1000.00', employeePensionDeduction: '55.00', employerPensionContribution: '130.00',
+        tier1Amount: '135.00', tier2Amount: '50.00', taxableIncome: '945.00', payeAmount: '22.25', otherDeductions: '0.00', netPay: '922.75',
+        components: [],
+      },
+      corrections: [
+        {
+          id: 9, status: 'approved', reason: 'salary was under-entered', netPayDelta: '403.00', approvedAt: '2026-02-05T00:00:00.000Z',
+          grossEarnings: '1500.00', pensionableEarnings: '1500.00', employeePensionDeduction: '82.50', employerPensionContribution: '195.00',
+          tier1Amount: '202.50', tier2Amount: '75.00', taxableIncome: '1417.50', payeAmount: '91.75', otherDeductions: '0.00', netPay: '1325.75',
+          components: [],
+        },
+      ],
+      effective: {
+        grossEarnings: '1500.00', pensionableEarnings: '1500.00', employeePensionDeduction: '82.50', employerPensionContribution: '195.00',
+        tier1Amount: '202.50', tier2Amount: '75.00', taxableIncome: '1417.50', payeAmount: '91.75', otherDeductions: '0.00', netPay: '1325.75',
+        source: 'correction', correctionId: 9,
+      },
+    };
+
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-select-period-1'));
+    await userEvent.click(screen.getByTestId('button-view-payslip-501'));
+    expect(screen.getByTestId('section-payslip-detail')).toBeInTheDocument();
+    expect(screen.getByTestId('text-payslip-original-net')).toHaveTextContent('922.75');
+    expect(screen.getByTestId('badge-payslip-effective-source')).toHaveTextContent('Corrected');
+    expect(screen.getByTestId('text-payslip-effective-net')).toHaveTextContent('1325.75');
   });
 });
