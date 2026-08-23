@@ -1,15 +1,27 @@
 /**
  * Office Inventory, Workstream 2 — Stock Ledger & Receiving routes
  * (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §9, §47). Every route is
- * gated by requireModuleEnabled("office_inventory"). Creating a receipt uses
- * the frozen narrow `office_inventory.receive` authority; every read route
- * (receipt history, balance, movement history) uses `office_inventory.custody.read`
- * — the only read-oriented permission among the frozen 23 keys not already
- * claimed by a more specific later-workstream surface (`reports.read` is
- * reserved for the ADR-016 formal reports Workstream 9 owns). This mapping
- * is a disclosed interpretation, not an explicit frozen-plan text mapping —
- * flagged here for confirmation the same way the prior reconciliation round
- * surfaced and resolved an ambiguity, rather than silently assumed.
+ * gated by requireModuleEnabled("office_inventory").
+ *
+ * PERMISSION RECONCILIATION (post-W2): every route in this file — creating
+ * AND reading — uses `office_inventory.receive`, not `custody.read`.
+ * `office_inventory.custody.read` is reserved exclusively for HOLDER
+ * (employee/department) custody, per the frozen plan's own textually
+ * consistent vocabulary: schema comments at §7.3 tie `storeId` to "a
+ * store's balance" and `holderType`/`holderId` to "a holder's custody" as
+ * distinct terms; §35 (Store/Inventory Officer UX) states a Store Officer's
+ * "view stock by store" and "movement history" capabilities alongside the
+ * explicit principle "no confidential HR data exposed merely because
+ * someone manages Inventory operations"; §34 (Department Head UX) lists
+ * "current store availability" and "current custody for both" as two
+ * separate items in the same sentence. No permission in the frozen 23-key
+ * list is an explicit, general "read store stock" grant — `receive` is the
+ * only existing, already-implemented permission genuinely relevant to W2's
+ * own scope (nothing else exists to read yet but what receiving produced),
+ * so it is reused for W2's own read routes rather than inventing a 24th
+ * key. This deliberately does NOT resolve read access for a future
+ * read-only-observer role with no operational permission at all — that gap,
+ * if the Owner wants it, is for a later reconciliation, not W2.
  *
  * No generic ledger-write endpoint exists here or anywhere — the only way
  * to append a movement row through this API is `POST .../receiving`, which
@@ -51,7 +63,7 @@ router.get(
   requireAuth as any,
   requireMembership("organizationId"),
   requireModuleEnabled("office_inventory"),
-  requirePermission("office_inventory.custody.read"),
+  requirePermission("office_inventory.receive"),
   async (req: MembershipRequest, res): Promise<void> => {
     const receipts = await listOfficeInventoryReceipts(req.membership!.organizationId);
     res.json(receipts);
@@ -108,7 +120,7 @@ router.get(
   requireAuth as any,
   requireMembership("organizationId"),
   requireModuleEnabled("office_inventory"),
-  requirePermission("office_inventory.custody.read"),
+  requirePermission("office_inventory.receive"),
   async (req: MembershipRequest, res): Promise<void> => {
     try {
       const receipt = await getOfficeInventoryReceipt(req.membership!.organizationId, req.params.referenceNumber as string);
@@ -129,7 +141,7 @@ router.get(
   requireAuth as any,
   requireMembership("organizationId"),
   requireModuleEnabled("office_inventory"),
-  requirePermission("office_inventory.custody.read"),
+  requirePermission("office_inventory.receive"),
   async (req: MembershipRequest, res): Promise<void> => {
     const organizationId = req.membership!.organizationId;
     const itemId = parseIntParam(req.query.itemId as string | undefined);
@@ -168,7 +180,7 @@ router.get(
   requireAuth as any,
   requireMembership("organizationId"),
   requireModuleEnabled("office_inventory"),
-  requirePermission("office_inventory.custody.read"),
+  requirePermission("office_inventory.receive"),
   async (req: MembershipRequest, res): Promise<void> => {
     const itemId = parseIntParam(req.query.itemId as string | undefined);
     const storeId = parseIntParam(req.query.storeId as string | undefined);

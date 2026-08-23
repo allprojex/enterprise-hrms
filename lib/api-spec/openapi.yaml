@@ -16812,7 +16812,7 @@ paths:
                 items:
                   $ref: "#/components/schemas/OfficeInventoryReceiptSummary"
         "403":
-          description: Forbidden — requires office_inventory.custody.read, or module not enabled
+          description: Forbidden — requires office_inventory.receive, or module not enabled
           content:
             application/json:
               schema:
@@ -16883,7 +16883,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/OfficeInventoryReceipt"
         "403":
-          description: Forbidden — requires office_inventory.custody.read, or module not enabled
+          description: Forbidden — requires office_inventory.receive, or module not enabled
           content:
             application/json:
               schema:
@@ -16928,7 +16928,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/OfficeInventoryItemBalance"
         "403":
-          description: Forbidden — requires office_inventory.custody.read, or module not enabled
+          description: Forbidden — requires office_inventory.receive, or module not enabled
           content:
             application/json:
               schema:
@@ -16971,7 +16971,7 @@ paths:
                 items:
                   $ref: "#/components/schemas/OfficeInventoryStockMovement"
         "403":
-          description: Forbidden — requires office_inventory.custody.read, or module not enabled
+          description: Forbidden — requires office_inventory.receive, or module not enabled
           content:
             application/json:
               schema:

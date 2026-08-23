@@ -303,16 +303,40 @@ describe("POST /api/organizations/:organizationId/office-inventory/receiving", (
   });
 });
 
-describe("GET stock balance / movements — office_inventory.custody.read", () => {
-  it("returns 403 for hr_manager-shaped permissions without office_inventory.custody.read", async () => {
+describe("GET stock balance / movements / receiving — office_inventory.receive", () => {
+  it("returns 403 for hr_manager-shaped permissions without office_inventory.receive", async () => {
     mockPermissions(["employee.read", "employee.write"]);
     const res = await request(app).get(`/api/organizations/${ORG_ID}/office-inventory/stock/balance?itemId=100`).set("Authorization", "Bearer valid-token");
     expect(res.status).toBe(403);
   });
 
-  it("succeeds for an authorized actor and returns a zero balance for a never-moved item", async () => {
+  // Permission reconciliation (post-W2): office_inventory.custody.read is
+  // reserved exclusively for future HOLDER (employee/department) custody —
+  // it must NOT grant access to store-stock/movement/receiving reads, per
+  // the frozen plan's own "no confidential HR data exposed merely because
+  // someone manages Inventory operations" principle (§35) and its own
+  // consistent "balance" (storeId) vs "custody" (holderType/holderId)
+  // schema-comment vocabulary (§7.3).
+  it("custody.read alone does NOT grant access to store stock/movement/receiving reads", async () => {
     mockPermissions(["office_inventory.custody.read"]);
+    const balanceRes = await request(app).get(`/api/organizations/${ORG_ID}/office-inventory/stock/balance?itemId=100`).set("Authorization", "Bearer valid-token");
+    const movementsRes = await request(app).get(`/api/organizations/${ORG_ID}/office-inventory/stock/movements?itemId=100`).set("Authorization", "Bearer valid-token");
+    const receivingRes = await request(app).get(`/api/organizations/${ORG_ID}/office-inventory/receiving`).set("Authorization", "Bearer valid-token");
+    expect(balanceRes.status).toBe(403);
+    expect(movementsRes.status).toBe(403);
+    expect(receivingRes.status).toBe(403);
+  });
+
+  it("succeeds for an authorized actor and returns a zero balance for a never-moved item", async () => {
+    mockPermissions(["office_inventory.receive"]);
     const res = await request(app).get(`/api/organizations/${ORG_ID}/office-inventory/stock/movements?itemId=100`).set("Authorization", "Bearer valid-token");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
+  it("succeeds for an authorized actor listing receiving history", async () => {
+    mockPermissions(["office_inventory.receive"]);
+    const res = await request(app).get(`/api/organizations/${ORG_ID}/office-inventory/receiving`).set("Authorization", "Bearer valid-token");
     expect(res.status).toBe(200);
     expect(res.body).toEqual([]);
   });
