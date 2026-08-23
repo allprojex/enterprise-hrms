@@ -72,6 +72,8 @@ import Offers from '@/pages/offers';
 import OfferDetail from '@/pages/offer-detail';
 import RecruitmentDashboard from '@/pages/recruitment-dashboard';
 import RecruitmentReports from '@/pages/recruitment-reports';
+import PersonnelReports from '@/pages/personnel-reports';
+import PersonnelImport from '@/pages/personnel-import';
 import { ModuleGate } from '@/components/module-gate';
 
 const queryClient = new QueryClient({
@@ -139,6 +141,12 @@ function Router() {
       </Route>
       <Route path="/employees">
         {() => <SecureRoute component={Employees} />}
+      </Route>
+      <Route path="/personnel-reports">
+        {() => <SecureRoute component={PersonnelReports} />}
+      </Route>
+      <Route path="/personnel-import">
+        {() => <SecureRoute component={PersonnelImport} />}
       </Route>
       <Route path="/admin">
         {() => <SecureRoute component={Admin} />}

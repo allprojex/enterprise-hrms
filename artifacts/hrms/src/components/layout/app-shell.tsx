@@ -40,6 +40,7 @@ import {
   GraduationCap,
   Boxes,
   Compass,
+  Upload,
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -309,6 +310,13 @@ export function AppShell({ children }: AppShellProps) {
   const navItems: NavItem[] = [
     { href: '/dashboard',      label: 'Dashboard',      icon: LayoutDashboard },
     { href: '/employees',      label: 'Employees',      icon: Users },
+    // Phase 3H, W119 — Reporting & Legacy Import. Same isHrCapable-only nav
+    // precedent as every other reports/import surface; the backend remains
+    // personnel_file.read/personnel_file.manage+employee_number.allocate-
+    // gated (never the broad employee.read), so a non-HR caller who
+    // navigates directly is still correctly authorized.
+    ...(isHrCapable ? [{ href: '/personnel-reports', label: 'Personnel Reports', icon: FileBarChart } satisfies NavItem] : []),
+    ...(isHrCapable ? [{ href: '/personnel-import', label: 'Legacy Import', icon: Upload } satisfies NavItem] : []),
     { href: '/branches',       label: 'Branches',       icon: MapPin },
     { href: '/departments',    label: 'Departments',    icon: Network },
     { href: '/positions',      label: 'Positions',      icon: Briefcase },

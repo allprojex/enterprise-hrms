@@ -4569,6 +4569,48 @@ export interface ReportRunResult {
   rows: ReportRunResultRowsItem[];
 }
 
+export type PersonnelImportRowResultStatus = typeof PersonnelImportRowResultStatus[keyof typeof PersonnelImportRowResultStatus];
+
+
+export const PersonnelImportRowResultStatus = {
+  valid: 'valid',
+  warning: 'warning',
+  invalid: 'invalid',
+} as const;
+
+/**
+ * One CSV row's validation outcome (Phase 3H, W119). "invalid" rows block the whole file at commit time (all-or-nothing); "warning" rows (e.g. a staff number that reuses a previously-released one) do not.
+ */
+export interface PersonnelImportRowResult {
+  /** 1-based, header row excluded. */
+  rowNumber: number;
+  status: PersonnelImportRowResultStatus;
+  errors: string[];
+  warnings: string[];
+}
+
+export interface PersonnelImportValidationSummary {
+  totalRows: number;
+  validCount: number;
+  warningCount: number;
+  invalidCount: number;
+  rows: PersonnelImportRowResult[];
+}
+
+export interface PersonnelImportCommitResultRow {
+  rowNumber: number;
+  employeeId: number;
+  /** @nullable */
+  employeeNumber: string | null;
+  /** @nullable */
+  pifNumber: string | null;
+}
+
+export interface PersonnelImportCommitResult {
+  count: number;
+  created: PersonnelImportCommitResultRow[];
+}
+
 export type RecruitmentStageBreakdownItemCategory = typeof RecruitmentStageBreakdownItemCategory[keyof typeof RecruitmentStageBreakdownItemCategory];
 
 
@@ -6915,4 +6957,25 @@ export const RunAssetReportFormat = {
   json: 'json',
   csv: 'csv',
 } as const;
+
+export type RunPersonnelReportParams = {
+employeeId?: number;
+format?: RunPersonnelReportFormat;
+};
+
+export type RunPersonnelReportFormat = typeof RunPersonnelReportFormat[keyof typeof RunPersonnelReportFormat];
+
+
+export const RunPersonnelReportFormat = {
+  json: 'json',
+  csv: 'csv',
+} as const;
+
+export type PreviewPersonnelImportBody = {
+  file: Blob;
+};
+
+export type CommitPersonnelImportBody = {
+  file: Blob;
+};
 

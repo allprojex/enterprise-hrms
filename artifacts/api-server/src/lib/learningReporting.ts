@@ -46,8 +46,10 @@ import {
   employeesTable,
   departmentsTable,
   positionsTable,
+  type EmployeeNumberAllocation,
 } from "@workspace/db";
 import { resolveLearningActorEmployeeId, hasOrgWideLearningAccess } from "./learningAuthorization";
+import { listEmployeeNumberAllocationsForEmployees, pickAllocationAsOf } from "./numbering";
 
 export class LearningReportNotFoundError extends Error {
   constructor(key: string) {
@@ -123,7 +125,12 @@ export interface LearningReportContext {
   organizationId: number;
   enrollments: EnrollmentRow[];
   employeeLabelById: Map<number, string>;
-  employeeNumberById: Map<number, string | null>;
+  // Phase 3H, W119 (frozen plan §6 — Historical Staff-Number Resolution):
+  // every allocation ever held by each employee, never just the current
+  // employees.employeeNumber cache — a per-row "as of" resolution
+  // (employeeNumberLabel below) is required precisely because an
+  // enrollment's own historical date may predate a since-reused number.
+  employeeAllocationsById: Map<number, EmployeeNumberAllocation[]>;
   departmentNameById: Map<number, string>;
   positionNameById: Map<number, string>;
   sessionLabelById: Map<number, string>;
@@ -140,7 +147,7 @@ export async function buildLearningReportContext(
       organizationId,
       enrollments: [],
       employeeLabelById: new Map(),
-      employeeNumberById: new Map(),
+      employeeAllocationsById: new Map(),
       departmentNameById: new Map(),
       positionNameById: new Map(),
       sessionLabelById: new Map(),
@@ -154,18 +161,19 @@ export async function buildLearningReportContext(
   const positionIds = [...new Set(enrollments.map((e) => e.positionIdSnapshot).filter((id): id is number => id != null))];
   const sessionIds = [...new Set(enrollments.map((e) => e.sessionId).filter((id): id is number => id != null))];
 
-  const [employees, departments, positions, sessions] = await Promise.all([
-    db.select({ id: employeesTable.id, firstName: employeesTable.firstName, lastName: employeesTable.lastName, employeeNumber: employeesTable.employeeNumber }).from(employeesTable).where(inArray(employeesTable.id, employeeIds)),
+  const [employees, departments, positions, sessions, employeeAllocationsById] = await Promise.all([
+    db.select({ id: employeesTable.id, firstName: employeesTable.firstName, lastName: employeesTable.lastName }).from(employeesTable).where(inArray(employeesTable.id, employeeIds)),
     departmentIds.length ? db.select({ id: departmentsTable.id, name: departmentsTable.name }).from(departmentsTable).where(inArray(departmentsTable.id, departmentIds)) : Promise.resolve([]),
     positionIds.length ? db.select({ id: positionsTable.id, title: positionsTable.title }).from(positionsTable).where(inArray(positionsTable.id, positionIds)) : Promise.resolve([]),
     sessionIds.length ? db.select({ id: learningCourseSessionsTable.id, scheduledAt: learningCourseSessionsTable.scheduledAt }).from(learningCourseSessionsTable).where(inArray(learningCourseSessionsTable.id, sessionIds)) : Promise.resolve([]),
+    listEmployeeNumberAllocationsForEmployees(organizationId, employeeIds),
   ]);
 
   return {
     organizationId,
     enrollments,
     employeeLabelById: new Map(employees.map((e) => [e.id, `${e.firstName} ${e.lastName}`])),
-    employeeNumberById: new Map(employees.map((e) => [e.id, e.employeeNumber])),
+    employeeAllocationsById,
     departmentNameById: new Map(departments.map((d) => [d.id, d.name])),
     positionNameById: new Map(positions.map((p) => [p.id, p.title])),
     sessionLabelById: new Map(sessions.map((s) => [s.id, s.scheduledAt.toISOString()])),
@@ -297,9 +305,16 @@ function employeeLabel(ctx: LearningReportContext, employeeId: number | null): s
   if (employeeId == null) return "—";
   return ctx.employeeLabelById.get(employeeId) ?? "Unknown employee";
 }
-function employeeNumberLabel(ctx: LearningReportContext, employeeId: number | null): string | null {
+/**
+ * Phase 3H, W119 (frozen plan §6) — resolves employeeId's staff number as
+ * it stood at asOfDate, from employee_number_allocations, never the live
+ * employees.employeeNumber cache. A row created before a since-reused
+ * number's reassignment must keep showing the number it actually had at
+ * that time — never the new holder's current one.
+ */
+function employeeNumberLabel(ctx: LearningReportContext, employeeId: number | null, asOfDate: Date): string | null {
   if (employeeId == null) return null;
-  return ctx.employeeNumberById.get(employeeId) ?? null;
+  return pickAllocationAsOf(ctx.employeeAllocationsById.get(employeeId) ?? [], asOfDate);
 }
 function departmentLabel(ctx: LearningReportContext, departmentId: number | null): string {
   if (departmentId == null) return "—";
@@ -347,7 +362,7 @@ function runEnrollmentStatus(ctx: LearningReportContext): { columns: LearningRep
   ];
   const rows: LearningReportRow[] = ctx.enrollments.map((e) => ({
     employee: employeeLabel(ctx, e.employeeId),
-    employeeNumber: employeeNumberLabel(ctx, e.employeeId),
+    employeeNumber: employeeNumberLabel(ctx, e.employeeId, e.createdAt),
     course: e.courseTitleSnapshot,
     category: e.categorySnapshot,
     deliveryMode: e.deliveryModeSnapshot,
@@ -457,16 +472,20 @@ async function runCertificateExpiry(ctx: LearningReportContext, scope: LearningR
   if (certificates.length === 0) return { columns, rows: [] };
 
   const employeeIds = [...new Set(certificates.map((c) => c.employeeId))];
-  const employees = await db.select({ id: employeesTable.id, firstName: employeesTable.firstName, lastName: employeesTable.lastName, employeeNumber: employeesTable.employeeNumber }).from(employeesTable).where(inArray(employeesTable.id, employeeIds));
+  const [employees, allocationsById] = await Promise.all([
+    db.select({ id: employeesTable.id, firstName: employeesTable.firstName, lastName: employeesTable.lastName }).from(employeesTable).where(inArray(employeesTable.id, employeeIds)),
+    listEmployeeNumberAllocationsForEmployees(organizationId, employeeIds),
+  ]);
   const labelById = new Map(employees.map((e) => [e.id, `${e.firstName} ${e.lastName}`]));
-  const numberById = new Map(employees.map((e) => [e.id, e.employeeNumber]));
 
   const now = new Date();
   const rows: LearningReportRow[] = certificates.map((c) => {
     const computedStatus = c.status === "revoked" ? "revoked" : c.expiresAt != null && c.expiresAt < now ? "expired" : "active";
     return {
       employee: labelById.get(c.employeeId) ?? "Unknown employee",
-      employeeNumber: numberById.get(c.employeeId) ?? null,
+      // Phase 3H, W119 (frozen plan §6) — as-of the certificate's own issue
+      // date, never the live employees.employeeNumber cache.
+      employeeNumber: pickAllocationAsOf(allocationsById.get(c.employeeId) ?? [], c.issuedAt),
       course: c.courseTitleSnapshot,
       certificateNumber: c.certificateNumber,
       issuedAt: isoOrNull(c.issuedAt),

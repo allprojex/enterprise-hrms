@@ -14163,6 +14163,203 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/personnel-records/reports/{reportKey}:
+    get:
+      operationId: runPersonnelReport
+      tags: [personnel-reporting]
+      summary: Run a Personnel Records report (Phase 3H, W119)
+      description: >-
+        Computes one of the five frozen Personnel Records reports (see GET
+        /reports, category "personnel_records": current/historical
+        staff-number allocations, files by location, checked-out/overdue
+        files, separated employees with unreleased numbers). Gated
+        personnel_file.read — never the broad employee.read. Historical
+        staff numbers are always resolved from employee_number_allocations,
+        never a live employees.employeeNumber join; a reused number's
+        separate allocations are never collapsed into one row. Pass
+        ?format=csv for a CSV download instead of JSON, identical
+        scope/filters/rows to JSON.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: reportKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: employeeId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: format
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [json, csv]
+      responses:
+        "200":
+          description: Personnel report result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportRunResult"
+            text/csv:
+              schema:
+                type: string
+        "403":
+          description: Forbidden — requires personnel_file.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Unknown Personnel report key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/personnel-records/import/template:
+    get:
+      operationId: getPersonnelImportTemplate
+      tags: [personnel-import]
+      summary: Download the legacy-import CSV template (Phase 3H, W119)
+      description: >-
+        A generic, platform-defined CSV template — not modeled on any
+        specific organization's own legacy spreadsheet. See
+        PersonnelImportRow for which fields are required, optional, or
+        conditionally required (separationDate when employmentStatus is
+        terminated).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: CSV template
+          content:
+            text/csv:
+              schema:
+                type: string
+        "403":
+          description: Forbidden — requires personnel_file.manage and employee_number.allocate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/personnel-records/import/preview:
+    post:
+      operationId: previewPersonnelImport
+      tags: [personnel-import]
+      summary: Validate a legacy-import CSV without writing anything (Phase 3H, W119)
+      description: >-
+        multipart/form-data upload, field "file", CSV only, 2MB max.
+        Read-only — every row is validated against this organization's own
+        reference data and the batch's own internal consistency, but nothing
+        is written. Call /commit with the same file to actually import.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Row-level validation summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonnelImportValidationSummary"
+        "400":
+          description: The file itself is malformed/unsupported (not a per-row validation error)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires personnel_file.manage and employee_number.allocate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/personnel-records/import/commit:
+    post:
+      operationId: commitPersonnelImport
+      tags: [personnel-import]
+      summary: Commit a validated legacy-import CSV (Phase 3H, W119)
+      description: >-
+        multipart/form-data upload, field "file" — re-validates the file
+        server-side (never trusts a prior /preview result) and, only if
+        every row is valid, creates every employee/staff-number
+        allocation/personnel-file in one all-or-nothing transaction through
+        the same authoritative services live employee creation uses.
+        Legacy staff/PIF numbers are preserved exactly as supplied, recorded
+        with allocationMethod "migrated". A single invalid row rejects the
+        whole file with the same row-level detail /preview returns — nothing
+        is partially imported.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          description: Import committed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonnelImportCommitResult"
+        "400":
+          description: The file is malformed, or contains one or more invalid rows (response body includes the same row-level summary shape as /preview)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires personnel_file.manage and employee_number.allocate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: A staff number or PIF number collided with an existing allocation during commit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /organizations/{organizationId}/manager-portal/team:
     get:
       operationId: getManagerPortalTeam
@@ -19356,6 +19553,70 @@ components:
           items:
             type: object
             additionalProperties: true
+
+    PersonnelImportRowResult:
+      type: object
+      description: >-
+        One CSV row's validation outcome (Phase 3H, W119). "invalid" rows
+        block the whole file at commit time (all-or-nothing); "warning" rows
+        (e.g. a staff number that reuses a previously-released one) do not.
+      required: [rowNumber, status, errors, warnings]
+      properties:
+        rowNumber:
+          type: integer
+          description: 1-based, header row excluded.
+        status:
+          type: string
+          enum: [valid, warning, invalid]
+        errors:
+          type: array
+          items:
+            type: string
+        warnings:
+          type: array
+          items:
+            type: string
+
+    PersonnelImportValidationSummary:
+      type: object
+      required: [totalRows, validCount, warningCount, invalidCount, rows]
+      properties:
+        totalRows:
+          type: integer
+        validCount:
+          type: integer
+        warningCount:
+          type: integer
+        invalidCount:
+          type: integer
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/PersonnelImportRowResult"
+
+    PersonnelImportCommitResultRow:
+      type: object
+      required: [rowNumber, employeeId, employeeNumber, pifNumber]
+      properties:
+        rowNumber:
+          type: integer
+        employeeId:
+          type: integer
+        employeeNumber:
+          type: ["string", "null"]
+        pifNumber:
+          type: ["string", "null"]
+
+    PersonnelImportCommitResult:
+      type: object
+      required: [count, created]
+      properties:
+        count:
+          type: integer
+        created:
+          type: array
+          items:
+            $ref: "#/components/schemas/PersonnelImportCommitResultRow"
 
     RecruitmentStageBreakdownItem:
       type: object

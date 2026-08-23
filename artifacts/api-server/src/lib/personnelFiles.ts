@@ -182,6 +182,49 @@ export async function createManualPersonnelFile(
   });
 }
 
+/**
+ * Legacy-import personnel-file creation (Phase 3H, W119, §20). Mirrors
+ * createManualPersonnelFile's own uniqueness validation exactly, but
+ * records allocationMethod "migrated" (never "manual") and, when the
+ * import row supplied a current physical location, sets currentLocationId
+ * directly at creation — this is a fact about where the file already is as
+ * of import, not a checkout/movement business event, so no
+ * personnel_file_movements row is fabricated for it (mirrors how
+ * employees.employeeNumber's own initial cache value is set directly on
+ * insert, never synthesized from a fake first "movement"). Deliberately a
+ * separate function from createManualPersonnelFile — that function backs
+ * the live "Create Personnel File" UI action and is not touched here.
+ */
+export async function createLegacyPersonnelFile(
+  client: QueryClient,
+  params: { organizationId: number; employeeId: number; pifNumber: string; currentLocationId: number | null; actorMembershipId: number | null },
+): Promise<PersonnelFile> {
+  const pifNumber = params.pifNumber.trim();
+  if (!pifNumber) throw new InvalidManualPifNumberError();
+
+  return client.transaction(async (tx) => {
+    await lockEmployeeForPersonnelFile(tx, params.organizationId, params.employeeId);
+
+    try {
+      const [personnelFile] = await tx
+        .insert(personnelFilesTable)
+        .values({
+          organizationId: params.organizationId,
+          employeeId: params.employeeId,
+          pifNumber,
+          allocationMethod: "migrated",
+          allocatedByMembershipId: params.actorMembershipId,
+          currentLocationId: params.currentLocationId,
+        })
+        .returning();
+      return personnelFile;
+    } catch (err) {
+      if (isUniqueViolation(err)) throw new PifNumberCollisionError();
+      throw err;
+    }
+  });
+}
+
 export async function getPersonnelFileByEmployee(organizationId: number, employeeId: number): Promise<PersonnelFile | null> {
   const [row] = await db
     .select()

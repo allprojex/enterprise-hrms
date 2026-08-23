@@ -263,6 +263,57 @@ export const REPORT_DEFINITIONS: readonly ReportDefinition[] = [
     category: "asset_management",
     requiredPermissionKey: "asset_management.reports.read",
   },
+  // Phase 3H, W119 — Reporting & Legacy Import (frozen plan Decision 18).
+  // Registered here for catalog discoverability via the existing GET
+  // /reports (ADR-016), but — like every dedicated-route module above — NOT
+  // executed through the generic GET .../reports/:reportKey/run route
+  // (lib/reporting.ts's RUNNERS map has no entries for these keys, so that
+  // route safely 404s "Unknown report" for any of them). Execution is a
+  // dedicated route instead (GET .../personnel-records/reports/:reportKey,
+  // artifacts/api-server/src/routes/personnelReporting.ts), gated
+  // personnel_file.read — the frozen plan's own §13 permission for viewing
+  // a personnel record's PIF number/physical location/movement history,
+  // reused here rather than minting a 7th permission, since every one of
+  // these five reports is exactly that kind of read. Never gated by the
+  // broad employee.read, per the frozen plan's own least-privilege
+  // instruction (Decision 20/§13). Report keys are this session's own
+  // faithful snake_case rendering of Decision 18's five literal descriptive
+  // names — no machine key was frozen verbatim.
+  {
+    key: "personnel_current_staff_number_allocations",
+    label: "Current Staff-Number Allocations",
+    description: "Every currently-open staff-number allocation (CURRENT — resolved from employee_number_allocations where still open, never a live employees.employeeNumber join).",
+    category: "personnel_records",
+    requiredPermissionKey: "personnel_file.read",
+  },
+  {
+    key: "personnel_historical_staff_number_allocations",
+    label: "Historical Staff-Number Allocations",
+    description: "Every staff-number allocation ever recorded, current and historical alike (HISTORICAL — a reused number always appears as separate, clearly labeled rows, never collapsed to its current holder).",
+    category: "personnel_records",
+    requiredPermissionKey: "personnel_file.read",
+  },
+  {
+    key: "personnel_files_by_location",
+    label: "Personnel Files by Physical Location",
+    description: "Every personnel file (and volume, where in use) and its current physical location (CURRENT — reflects personnel_files'/personnel_file_volumes' own current-location cache, never derived from movement history).",
+    category: "personnel_records",
+    requiredPermissionKey: "personnel_file.read",
+  },
+  {
+    key: "personnel_checked_out_overdue_files",
+    label: "Checked-Out / Overdue Personnel Files",
+    description: "Every personnel file or volume not currently in the registry (checked out or missing), with overdue always computed live against the current unresolved checkout's own expected return date — never a stored status.",
+    category: "personnel_records",
+    requiredPermissionKey: "personnel_file.read",
+  },
+  {
+    key: "personnel_separated_unreleased_numbers",
+    label: "Separated Employees with Unreleased Staff Numbers",
+    description: "Terminated employees who still hold an open staff-number allocation. Informational only — never blocks separation, never auto-releases a number.",
+    category: "personnel_records",
+    requiredPermissionKey: "personnel_file.read",
+  },
 ] as const;
 
 /** Throws on a duplicate key — the only integrity rule this registry has (no dependency graph, unlike modules). */

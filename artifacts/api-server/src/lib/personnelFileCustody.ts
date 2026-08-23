@@ -10,7 +10,7 @@
  * in isOverdue()/getCustodyDetail() from the current unresolved checked_out
  * event's own expectedReturnDate.
  */
-import { and, eq, isNull, desc } from "drizzle-orm";
+import { and, eq, isNull, desc, inArray } from "drizzle-orm";
 import {
   db,
   personnelFilesTable,
@@ -451,4 +451,54 @@ export async function getFileCustodyDetail(file: PersonnelFile): Promise<Custody
 export async function getVolumeCustodyDetail(volume: PersonnelFileVolume): Promise<CustodyDetail> {
   const overdue = await isOverdue(volume.organizationId, volume.personnelFileId, volume.id, volume.currentCustodyState as CustodyState);
   return { currentCustodyState: volume.currentCustodyState as CustodyState, currentLocationId: volume.currentLocationId, overdue };
+}
+
+export interface LastCheckoutDetail {
+  destination: string | null;
+  expectedReturnDate: Date | null;
+  occurredAt: Date;
+}
+
+/**
+ * Batched sibling of isOverdue (Phase 3H, W119, §9/§38) — the Checked-Out /
+ * Overdue Personnel Files report needs the current checked_out event's own
+ * destination/expectedReturnDate for every checked-out file/volume in one
+ * pass, never one isOverdue() round-trip per row. Returns the most recent
+ * checked_out event's own details for each (personnelFileId, volumeId)
+ * target that has one — the caller compares expectedReturnDate against
+ * "now" itself, so this stays a pure data-fetch, not a second overdue-
+ * computation copy.
+ */
+export async function resolveLastCheckoutDetails(
+  organizationId: number,
+  personnelFileIds: number[],
+): Promise<Map<string, LastCheckoutDetail>> {
+  const result = new Map<string, LastCheckoutDetail>();
+  if (personnelFileIds.length === 0) return result;
+
+  const rows = await db
+    .select({
+      personnelFileId: personnelFileMovementsTable.personnelFileId,
+      volumeId: personnelFileMovementsTable.volumeId,
+      destination: personnelFileMovementsTable.destination,
+      expectedReturnDate: personnelFileMovementsTable.expectedReturnDate,
+      occurredAt: personnelFileMovementsTable.occurredAt,
+    })
+    .from(personnelFileMovementsTable)
+    .where(
+      and(
+        eq(personnelFileMovementsTable.organizationId, organizationId),
+        eq(personnelFileMovementsTable.eventType, "checked_out"),
+        inArray(personnelFileMovementsTable.personnelFileId, personnelFileIds),
+      ),
+    )
+    .orderBy(personnelFileMovementsTable.occurredAt);
+
+  for (const row of rows) {
+    const key = `${row.personnelFileId}:${row.volumeId ?? "null"}`;
+    // Rows are already ordered by occurredAt ascending, so the last write
+    // for a given key is always the most recent checked_out event.
+    result.set(key, { destination: row.destination, expectedReturnDate: row.expectedReturnDate, occurredAt: row.occurredAt });
+  }
+  return result;
 }

@@ -72,6 +72,7 @@ import type {
   CandidateNote,
   CandidateTag,
   CheckoutPersonnelFileInput,
+  CommitPersonnelImportBody,
   CompleteLearningEnrollmentInput,
   ConfirmEmployeeInput,
   ConversionResult,
@@ -227,10 +228,13 @@ import type {
   PersonnelFileCustodyDetail,
   PersonnelFileMovement,
   PersonnelFileVolume,
+  PersonnelImportCommitResult,
+  PersonnelImportValidationSummary,
   PersonnelSearchResult,
   Position,
   PreEmploymentRequirement,
   PreEmploymentRequirementListResponse,
+  PreviewPersonnelImportBody,
   PrimaryHrAssignment,
   PrimaryHrAssignmentOrNull,
   PromoteEmployeeInput,
@@ -276,6 +280,7 @@ import type {
   RunAttendanceReportParams,
   RunLearningReportParams,
   RunPerformanceReportParams,
+  RunPersonnelReportParams,
   RunRecruitmentReportParams,
   RunReportParams,
   SaveInterviewScorecardInput,
@@ -27786,6 +27791,329 @@ export function useRunAssetReport<TData = Awaited<ReturnType<typeof runAssetRepo
 
 
 
+
+export const getRunPersonnelReportUrl = (organizationId: number,
+    reportKey: string,
+    params?: RunPersonnelReportParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/personnel-records/reports/${reportKey}?${stringifiedParams}` : `/api/organizations/${organizationId}/personnel-records/reports/${reportKey}`
+}
+
+/**
+ * Computes one of the five frozen Personnel Records reports (see GET /reports, category "personnel_records": current/historical staff-number allocations, files by location, checked-out/overdue files, separated employees with unreleased numbers). Gated personnel_file.read — never the broad employee.read. Historical staff numbers are always resolved from employee_number_allocations, never a live employees.employeeNumber join; a reused number's separate allocations are never collapsed into one row. Pass ?format=csv for a CSV download instead of JSON, identical scope/filters/rows to JSON.
+ * @summary Run a Personnel Records report (Phase 3H, W119)
+ */
+export const runPersonnelReport = async (organizationId: number,
+    reportKey: string,
+    params?: RunPersonnelReportParams, options?: RequestInit): Promise<ReportRunResult | string> => {
+
+  return customFetch<ReportRunResult | string>(getRunPersonnelReportUrl(organizationId,reportKey,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getRunPersonnelReportQueryKey = (organizationId: number,
+    reportKey: string,
+    params?: RunPersonnelReportParams,) => {
+    return [
+    `/api/organizations/${organizationId}/personnel-records/reports/${reportKey}`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getRunPersonnelReportQueryOptions = <TData = Awaited<ReturnType<typeof runPersonnelReport>>, TError = ErrorType<ApiError>>(organizationId: number,
+    reportKey: string,
+    params?: RunPersonnelReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runPersonnelReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getRunPersonnelReportQueryKey(organizationId,reportKey,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof runPersonnelReport>>> = ({ signal }) => runPersonnelReport(organizationId,reportKey,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && reportKey !== null && reportKey !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof runPersonnelReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type RunPersonnelReportQueryResult = NonNullable<Awaited<ReturnType<typeof runPersonnelReport>>>
+export type RunPersonnelReportQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Run a Personnel Records report (Phase 3H, W119)
+ */
+
+export function useRunPersonnelReport<TData = Awaited<ReturnType<typeof runPersonnelReport>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    reportKey: string,
+    params?: RunPersonnelReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runPersonnelReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getRunPersonnelReportQueryOptions(organizationId,reportKey,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPersonnelImportTemplateUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/personnel-records/import/template`
+}
+
+/**
+ * A generic, platform-defined CSV template — not modeled on any specific organization's own legacy spreadsheet. See PersonnelImportRow for which fields are required, optional, or conditionally required (separationDate when employmentStatus is terminated).
+ * @summary Download the legacy-import CSV template (Phase 3H, W119)
+ */
+export const getPersonnelImportTemplate = async (organizationId: number, options?: RequestInit): Promise<string> => {
+
+  return customFetch<string>(getGetPersonnelImportTemplateUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPersonnelImportTemplateQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/personnel-records/import/template`
+    ] as const;
+    }
+
+
+export const getGetPersonnelImportTemplateQueryOptions = <TData = Awaited<ReturnType<typeof getPersonnelImportTemplate>>, TError = ErrorType<ApiError>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPersonnelImportTemplate>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPersonnelImportTemplateQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPersonnelImportTemplate>>> = ({ signal }) => getPersonnelImportTemplate(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPersonnelImportTemplate>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPersonnelImportTemplateQueryResult = NonNullable<Awaited<ReturnType<typeof getPersonnelImportTemplate>>>
+export type GetPersonnelImportTemplateQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Download the legacy-import CSV template (Phase 3H, W119)
+ */
+
+export function useGetPersonnelImportTemplate<TData = Awaited<ReturnType<typeof getPersonnelImportTemplate>>, TError = ErrorType<ApiError>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPersonnelImportTemplate>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPersonnelImportTemplateQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getPreviewPersonnelImportUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/personnel-records/import/preview`
+}
+
+/**
+ * multipart/form-data upload, field "file", CSV only, 2MB max. Read-only — every row is validated against this organization's own reference data and the batch's own internal consistency, but nothing is written. Call /commit with the same file to actually import.
+ * @summary Validate a legacy-import CSV without writing anything (Phase 3H, W119)
+ */
+export const previewPersonnelImport = async (organizationId: number,
+    previewPersonnelImportBody: PreviewPersonnelImportBody, options?: RequestInit): Promise<PersonnelImportValidationSummary> => {
+    const formData = new FormData();
+formData.append(`file`, previewPersonnelImportBody.file);
+
+  return customFetch<PersonnelImportValidationSummary>(getPreviewPersonnelImportUrl(organizationId),
+  {
+    ...options,
+    method: 'POST'
+    ,
+    body: formData
+  }
+);}
+
+
+
+
+
+export const getPreviewPersonnelImportMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewPersonnelImport>>, TError,{organizationId: number;data: BodyType<PreviewPersonnelImportBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof previewPersonnelImport>>, TError,{organizationId: number;data: BodyType<PreviewPersonnelImportBody>}, TContext> => {
+
+const mutationKey = ['previewPersonnelImport'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof previewPersonnelImport>>, {organizationId: number;data: BodyType<PreviewPersonnelImportBody>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  previewPersonnelImport(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PreviewPersonnelImportMutationResult = NonNullable<Awaited<ReturnType<typeof previewPersonnelImport>>>
+    export type PreviewPersonnelImportMutationBody = BodyType<PreviewPersonnelImportBody>
+    export type PreviewPersonnelImportMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Validate a legacy-import CSV without writing anything (Phase 3H, W119)
+ */
+export const usePreviewPersonnelImport = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewPersonnelImport>>, TError,{organizationId: number;data: BodyType<PreviewPersonnelImportBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof previewPersonnelImport>>,
+        TError,
+        {organizationId: number;data: BodyType<PreviewPersonnelImportBody>},
+        TContext
+      > => {
+      return useMutation(getPreviewPersonnelImportMutationOptions(options));
+    }
+
+export const getCommitPersonnelImportUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/personnel-records/import/commit`
+}
+
+/**
+ * multipart/form-data upload, field "file" — re-validates the file server-side (never trusts a prior /preview result) and, only if every row is valid, creates every employee/staff-number allocation/personnel-file in one all-or-nothing transaction through the same authoritative services live employee creation uses. Legacy staff/PIF numbers are preserved exactly as supplied, recorded with allocationMethod "migrated". A single invalid row rejects the whole file with the same row-level detail /preview returns — nothing is partially imported.
+ * @summary Commit a validated legacy-import CSV (Phase 3H, W119)
+ */
+export const commitPersonnelImport = async (organizationId: number,
+    commitPersonnelImportBody: CommitPersonnelImportBody, options?: RequestInit): Promise<PersonnelImportCommitResult> => {
+    const formData = new FormData();
+formData.append(`file`, commitPersonnelImportBody.file);
+
+  return customFetch<PersonnelImportCommitResult>(getCommitPersonnelImportUrl(organizationId),
+  {
+    ...options,
+    method: 'POST'
+    ,
+    body: formData
+  }
+);}
+
+
+
+
+
+export const getCommitPersonnelImportMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof commitPersonnelImport>>, TError,{organizationId: number;data: BodyType<CommitPersonnelImportBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof commitPersonnelImport>>, TError,{organizationId: number;data: BodyType<CommitPersonnelImportBody>}, TContext> => {
+
+const mutationKey = ['commitPersonnelImport'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof commitPersonnelImport>>, {organizationId: number;data: BodyType<CommitPersonnelImportBody>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  commitPersonnelImport(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CommitPersonnelImportMutationResult = NonNullable<Awaited<ReturnType<typeof commitPersonnelImport>>>
+    export type CommitPersonnelImportMutationBody = BodyType<CommitPersonnelImportBody>
+    export type CommitPersonnelImportMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Commit a validated legacy-import CSV (Phase 3H, W119)
+ */
+export const useCommitPersonnelImport = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof commitPersonnelImport>>, TError,{organizationId: number;data: BodyType<CommitPersonnelImportBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof commitPersonnelImport>>,
+        TError,
+        {organizationId: number;data: BodyType<CommitPersonnelImportBody>},
+        TContext
+      > => {
+      return useMutation(getCommitPersonnelImportMutationOptions(options));
+    }
 
 export const getGetManagerPortalTeamUrl = (organizationId: number,) => {
 

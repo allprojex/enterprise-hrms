@@ -11624,6 +11624,93 @@ export const RunAssetReportResponse = zod.object({
 
 
 /**
+ * Computes one of the five frozen Personnel Records reports (see GET /reports, category "personnel_records": current/historical staff-number allocations, files by location, checked-out/overdue files, separated employees with unreleased numbers). Gated personnel_file.read — never the broad employee.read. Historical staff numbers are always resolved from employee_number_allocations, never a live employees.employeeNumber join; a reused number's separate allocations are never collapsed into one row. Pass ?format=csv for a CSV download instead of JSON, identical scope/filters/rows to JSON.
+ * @summary Run a Personnel Records report (Phase 3H, W119)
+ */
+export const RunPersonnelReportParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "reportKey": zod.coerce.string()
+})
+
+export const RunPersonnelReportQueryParams = zod.object({
+  "employeeId": zod.coerce.number().optional(),
+  "format": zod.enum(['json', 'csv']).optional()
+})
+
+export const RunPersonnelReportResponse = zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "description": zod.string(),
+  "generatedAt": zod.coerce.date(),
+  "columns": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string()
+})),
+  "rows": zod.array(zod.record(zod.string(), zod.unknown()))
+})
+
+
+/**
+ * A generic, platform-defined CSV template — not modeled on any specific organization's own legacy spreadsheet. See PersonnelImportRow for which fields are required, optional, or conditionally required (separationDate when employmentStatus is terminated).
+ * @summary Download the legacy-import CSV template (Phase 3H, W119)
+ */
+export const GetPersonnelImportTemplateParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetPersonnelImportTemplateResponse = zod.unknown()
+
+
+/**
+ * multipart/form-data upload, field "file", CSV only, 2MB max. Read-only — every row is validated against this organization's own reference data and the batch's own internal consistency, but nothing is written. Call /commit with the same file to actually import.
+ * @summary Validate a legacy-import CSV without writing anything (Phase 3H, W119)
+ */
+export const PreviewPersonnelImportParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const PreviewPersonnelImportBody = zod.object({
+  "file": zod.instanceof(File)
+})
+
+export const PreviewPersonnelImportResponse = zod.object({
+  "totalRows": zod.number(),
+  "validCount": zod.number(),
+  "warningCount": zod.number(),
+  "invalidCount": zod.number(),
+  "rows": zod.array(zod.object({
+  "rowNumber": zod.number().describe('1-based, header row excluded.'),
+  "status": zod.enum(['valid', 'warning', 'invalid']),
+  "errors": zod.array(zod.string()),
+  "warnings": zod.array(zod.string())
+}).describe('One CSV row\'s validation outcome (Phase 3H, W119). \"invalid\" rows block the whole file at commit time (all-or-nothing); \"warning\" rows (e.g. a staff number that reuses a previously-released one) do not.'))
+})
+
+
+/**
+ * multipart/form-data upload, field "file" — re-validates the file server-side (never trusts a prior /preview result) and, only if every row is valid, creates every employee/staff-number allocation/personnel-file in one all-or-nothing transaction through the same authoritative services live employee creation uses. Legacy staff/PIF numbers are preserved exactly as supplied, recorded with allocationMethod "migrated". A single invalid row rejects the whole file with the same row-level detail /preview returns — nothing is partially imported.
+ * @summary Commit a validated legacy-import CSV (Phase 3H, W119)
+ */
+export const CommitPersonnelImportParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const CommitPersonnelImportBody = zod.object({
+  "file": zod.instanceof(File)
+})
+
+export const CommitPersonnelImportResponse = zod.object({
+  "count": zod.number(),
+  "created": zod.array(zod.object({
+  "rowNumber": zod.number(),
+  "employeeId": zod.number(),
+  "employeeNumber": zod.string().nullable(),
+  "pifNumber": zod.string().nullable()
+}))
+})
+
+
+/**
  * Requires the manager_portal module only — deliberately no permission key (frozen plan §13/§37: zero new permissions), mirroring GET /me/employee's own zero-permission precedent. Identity is server-resolved from the session, never a client-supplied employeeId/organizationId. Direct-report-based even for HR/admin callers (frozen plan §27, Decision 4/27) — this endpoint never returns an organization-wide employee list; Employee Management already serves that purpose. The reportingManagerId relationship is resolved live on every call, never snapshotted. A caller with no linked employee record, or with zero current direct reports, gets a valid empty result, never a 403/404. Excludes employmentStatus "terminated" direct reports (a former employee's reportingManagerId is never automatically cleared elsewhere in this system). Read-only, audit-silent. Returns a deliberately narrow DTO — never the full Employee shape.
  * @summary The caller's own live direct reports (Manager Portal Team Overview, Phase 3G, W109)
  */

@@ -21,7 +21,7 @@
  * index (`WHERE valid_to IS NULL`) at the database level — the same
  * isUniqueViolation()/dbErrors.ts pattern used throughout this codebase.
  */
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, inArray } from "drizzle-orm";
 import {
   db,
   employeesTable,
@@ -483,6 +483,145 @@ export async function listEmployeeNumberAllocationsForEmployee(
     .from(employeeNumberAllocationsTable)
     .where(and(eq(employeeNumberAllocationsTable.organizationId, organizationId), eq(employeeNumberAllocationsTable.employeeId, employeeId)))
     .orderBy(employeeNumberAllocationsTable.validFrom);
+}
+
+/**
+ * Batched sibling of listEmployeeNumberAllocationsForEmployee — one query
+ * for many employees, grouped in memory (Phase 3H, W119, §38: reporting/
+ * historical-resolution consumers must never resolve one employee's
+ * allocation history per row). Used by both the personnel reports
+ * (lib/personnelReporting.ts) and the Learning reporting historical fix
+ * (lib/learningReporting.ts) instead of each calling
+ * resolveEmployeeNumberAsOf per row.
+ */
+export async function listEmployeeNumberAllocationsForEmployees(
+  organizationId: number,
+  employeeIds: number[],
+): Promise<Map<number, EmployeeNumberAllocation[]>> {
+  const byEmployee = new Map<number, EmployeeNumberAllocation[]>();
+  if (employeeIds.length === 0) return byEmployee;
+
+  const rows = await db
+    .select()
+    .from(employeeNumberAllocationsTable)
+    .where(and(eq(employeeNumberAllocationsTable.organizationId, organizationId), inArray(employeeNumberAllocationsTable.employeeId, employeeIds)))
+    .orderBy(employeeNumberAllocationsTable.validFrom);
+
+  for (const row of rows) {
+    const list = byEmployee.get(row.employeeId) ?? [];
+    list.push(row);
+    byEmployee.set(row.employeeId, list);
+  }
+  return byEmployee;
+}
+
+/**
+ * Pure range-pick — the exact resolution rule resolveEmployeeNumberAsOf
+ * applies for one employee, factored out so a batched caller (which already
+ * has every employee's allocations in memory via
+ * listEmployeeNumberAllocationsForEmployees) can resolve each row's own
+ * as-of date without a second round-trip per row.
+ */
+export function pickAllocationAsOf(allocations: EmployeeNumberAllocation[], asOfDate: Date): string | null {
+  const at = asOfDate.getTime();
+  for (const row of allocations) {
+    const from = row.validFrom.getTime();
+    const to = row.validTo ? row.validTo.getTime() : Infinity;
+    if (at >= from && at < to) return row.employeeNumber;
+  }
+  return null;
+}
+
+/**
+ * Legacy-import allocation (Phase 3H, W119, §19). Mirrors
+ * allocateManualEmployeeNumber's own validation exactly (active-collision
+ * check, the reuse-policy gate) — a legacy import never bypasses an
+ * organization's own reuse-eligibility policy just because the channel is
+ * different — but records `allocationMethod: "migrated"` (the same
+ * established value the W114 one-time backfill script already uses for
+ * "this row's number came from outside the normal generate/manual-at-
+ * creation flow"), never "manual"/"reused". Deliberately a separate
+ * function rather than adding an allocationMethod override parameter to the
+ * already-shipped, already-tested allocateManualEmployeeNumber — that
+ * function backs the live "add employee"/"allocate number" UI flows and is
+ * not touched here.
+ */
+export async function allocateLegacyEmployeeNumber(
+  client: QueryClient,
+  params: { organizationId: number; employeeId: number; employeeNumber: string; actorMembershipId: number | null },
+): Promise<{ employee: Employee; allocation: EmployeeNumberAllocation }> {
+  const employeeNumber = params.employeeNumber.trim();
+  if (!employeeNumber) throw new InvalidManualEmployeeNumberError();
+
+  return client.transaction(async (tx) => {
+    const [employee] = await tx
+      .select()
+      .from(employeesTable)
+      .where(and(eq(employeesTable.id, params.employeeId), eq(employeesTable.organizationId, params.organizationId)))
+      .for("update");
+    if (!employee) throw new EmployeeNotFoundForNumberingError();
+
+    const [openAllocation] = await tx
+      .select({ id: employeeNumberAllocationsTable.id })
+      .from(employeeNumberAllocationsTable)
+      .where(and(eq(employeeNumberAllocationsTable.employeeId, params.employeeId), isNull(employeeNumberAllocationsTable.validTo)))
+      .limit(1);
+    if (openAllocation) throw new EmployeeNumberAlreadyActiveError();
+
+    const [openAllocationOfThisNumber] = await tx
+      .select({ id: employeeNumberAllocationsTable.id })
+      .from(employeeNumberAllocationsTable)
+      .where(
+        and(
+          eq(employeeNumberAllocationsTable.organizationId, params.organizationId),
+          eq(employeeNumberAllocationsTable.employeeNumber, employeeNumber),
+          isNull(employeeNumberAllocationsTable.validTo),
+        ),
+      )
+      .limit(1);
+    if (openAllocationOfThisNumber) throw new EmployeeNumberCollisionError();
+
+    const [priorAllocationOfThisNumber] = await tx
+      .select({ id: employeeNumberAllocationsTable.id })
+      .from(employeeNumberAllocationsTable)
+      .where(
+        and(
+          eq(employeeNumberAllocationsTable.organizationId, params.organizationId),
+          eq(employeeNumberAllocationsTable.employeeNumber, employeeNumber),
+        ),
+      )
+      .limit(1);
+
+    if (priorAllocationOfThisNumber) {
+      const config = await getEmployeeNumberFormatConfig(params.organizationId);
+      if (config.reuseEnabled !== true) throw new EmployeeNumberReuseDisabledError();
+    }
+
+    let allocation: EmployeeNumberAllocation;
+    try {
+      [allocation] = await tx
+        .insert(employeeNumberAllocationsTable)
+        .values({
+          organizationId: params.organizationId,
+          employeeId: params.employeeId,
+          employeeNumber,
+          allocationMethod: "migrated",
+          allocatedByMembershipId: params.actorMembershipId,
+        })
+        .returning();
+    } catch (err) {
+      if (isUniqueViolation(err)) throw new EmployeeNumberCollisionError();
+      throw err;
+    }
+
+    const [updatedEmployee] = await tx
+      .update(employeesTable)
+      .set({ employeeNumber })
+      .where(eq(employeesTable.id, params.employeeId))
+      .returning();
+
+    return { employee: updatedEmployee, allocation };
+  });
 }
 
 /** Every allocation (any employee) that has ever held a given number, most recent first — needed to show a reused number's full ownership chain without ambiguity. */

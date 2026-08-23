@@ -22,6 +22,7 @@ const {
   modulesTable,
   organizationModulesTable,
   employeesTable,
+  employeeNumberAllocationsTable,
   employeeUserLinksTable,
   departmentsTable,
   positionsTable,
@@ -45,6 +46,7 @@ const {
       moduleRows: [] as Record<string, unknown>[],
       organizationModuleRows: [] as Record<string, unknown>[],
       employeeRows: [] as Record<string, unknown>[],
+      employeeNumberAllocationRows: [] as Record<string, unknown>[],
       employeeUserLinkRows: [] as Record<string, unknown>[],
       departmentRows: [] as Record<string, unknown>[],
       positionRows: [] as Record<string, unknown>[],
@@ -63,6 +65,7 @@ const {
     modulesTable: mockTable("modules", ["id", "key", "status", "defaultEnabled", "requiredModuleKeys"]),
     organizationModulesTable: mockTable("organization_modules", ["id", "organizationId", "moduleId", "enabled"]),
     employeesTable: mockTable("employees", ["id", "organizationId", "firstName", "lastName", "employeeNumber"]),
+    employeeNumberAllocationsTable: mockTable("employee_number_allocations", ["id", "organizationId", "employeeId", "employeeNumber", "allocationMethod", "validFrom", "validTo"]),
     employeeUserLinksTable: mockTable("employee_user_links", ["employeeId", "applicationUserId"]),
     departmentsTable: mockTable("departments", ["id", "organizationId", "name"]),
     positionsTable: mockTable("positions", ["id", "organizationId", "title"]),
@@ -115,6 +118,7 @@ vi.mock("@workspace/db", () => ({
   modulesTable,
   organizationModulesTable,
   employeesTable,
+  employeeNumberAllocationsTable,
   employeeUserLinksTable,
   departmentsTable,
   positionsTable,
@@ -161,6 +165,7 @@ vi.mock("@workspace/db", () => ({
         if (table === organizationMembershipsTable) rows = fixtures.membershipRows as Record<string, unknown>[];
         else if (table === organizationModulesTable) rows = fixtures.organizationModuleRows;
         else if (table === employeesTable) rows = fixtures.employeeRows;
+        else if (table === employeeNumberAllocationsTable) rows = fixtures.employeeNumberAllocationRows;
         else if (table === employeeUserLinksTable) rows = fixtures.employeeUserLinkRows;
         else if (table === departmentsTable) rows = fixtures.departmentRows;
         else if (table === positionsTable) rows = fixtures.positionRows;
@@ -264,6 +269,16 @@ beforeEach(() => {
     { id: MANAGER_ID, organizationId: ORG_ID, firstName: "Mona", lastName: "Manager", employeeNumber: "E002" },
     { id: EMPLOYEE_ID, organizationId: ORG_ID, firstName: "Eli", lastName: "Employee", employeeNumber: "E003" },
     { id: UNRELATED_ID, organizationId: ORG_ID, firstName: "Uma", lastName: "Unrelated", employeeNumber: "E004" },
+  ];
+  // Phase 3H, W119 — the historical-resolution fix reads
+  // employee_number_allocations, never employees.employeeNumber directly;
+  // an early, still-open validFrom safely predates every fixture
+  // enrollment/certificate date used across this file's own existing tests.
+  fixtures.employeeNumberAllocationRows = [
+    { id: 1, organizationId: ORG_ID, employeeId: HR_ID, employeeNumber: "E001", allocationMethod: "generated", validFrom: new Date("2000-01-01"), validTo: null },
+    { id: 2, organizationId: ORG_ID, employeeId: MANAGER_ID, employeeNumber: "E002", allocationMethod: "generated", validFrom: new Date("2000-01-01"), validTo: null },
+    { id: 3, organizationId: ORG_ID, employeeId: EMPLOYEE_ID, employeeNumber: "E003", allocationMethod: "generated", validFrom: new Date("2000-01-01"), validTo: null },
+    { id: 4, organizationId: ORG_ID, employeeId: UNRELATED_ID, employeeNumber: "E004", allocationMethod: "generated", validFrom: new Date("2000-01-01"), validTo: null },
   ];
   fixtures.employeeUserLinkRows = [];
   fixtures.departmentRows = [];
@@ -458,6 +473,44 @@ describe("GET /api/organizations/:organizationId/learning/reports/:reportKey", (
     expect(row.approvalStatus).toBe("auto_approved");
   });
 
+  describe("historical staff-number resolution (Phase 3H, W119, frozen plan §6)", () => {
+    it("shows an enrollment's own historical staff number as of its assignment date, not the live employees.employeeNumber cache", async () => {
+      mockPermissions(["learning.manage", "learning.reports.read"]);
+      // The employee's OWN employeeNumber cache is deliberately set to
+      // something different from the allocation history — proving the
+      // report reads employee_number_allocations, never the cache.
+      fixtures.employeeRows = [{ id: EMPLOYEE_ID, organizationId: ORG_ID, firstName: "Eli", lastName: "Employee", employeeNumber: "STALE-CACHE-VALUE" }];
+      fixtures.employeeNumberAllocationRows = [
+        { id: 1, organizationId: ORG_ID, employeeId: EMPLOYEE_ID, employeeNumber: "OLD-0003", allocationMethod: "generated", validFrom: new Date("2020-01-01"), validTo: new Date("2027-01-01") },
+      ];
+      // The enrollment's own createdAt (2026-01-01, this file's own fixture
+      // default) falls inside OLD-0003's own valid window.
+      fixtures.enrollmentRows = [enrollment({ id: 1 })];
+      const res = await report("learning_enrollment_status");
+      expect(res.status).toBe(200);
+      expect(res.body.rows[0].employeeNumber).toBe("OLD-0003");
+    });
+
+    it("does not let a since-reused number's new holder overwrite an old enrollment's own historical display", async () => {
+      mockPermissions(["learning.manage", "learning.reports.read"]);
+      fixtures.employeeRows = [{ id: EMPLOYEE_ID, organizationId: ORG_ID, firstName: "Eli", lastName: "Employee", employeeNumber: null }];
+      fixtures.employeeNumberAllocationRows = [
+        // Eli's own historical holding of EMP-0007 — closed when reused.
+        { id: 1, organizationId: ORG_ID, employeeId: EMPLOYEE_ID, employeeNumber: "EMP-0007", allocationMethod: "generated", validFrom: new Date("2020-01-01"), validTo: new Date("2025-01-01") },
+        // A different employee now currently holds the same, reused number.
+        { id: 2, organizationId: ORG_ID, employeeId: UNRELATED_ID, employeeNumber: "EMP-0007", allocationMethod: "manual", validFrom: new Date("2025-06-01"), validTo: null },
+      ];
+      // Eli's enrollment predates the reuse (createdAt 2026-01-01 is AFTER
+      // Eli's own window closed on 2025-01-01 in this scenario — use an
+      // enrollment createdAt inside Eli's own window instead).
+      fixtures.enrollmentRows = [enrollment({ id: 1, createdAt: new Date("2024-06-01") })];
+      const res = await report("learning_enrollment_status");
+      expect(res.status).toBe(200);
+      expect(res.body.rows[0].employee).toBe("Eli Employee");
+      expect(res.body.rows[0].employeeNumber).toBe("EMP-0007"); // Eli's own historical number, not overwritten by the new holder.
+    });
+  });
+
   it("department/position snapshot filters narrow correctly, not by current department", async () => {
     mockPermissions(["learning.manage", "learning.reports.read"]);
     fixtures.enrollmentRows = [
@@ -528,6 +581,20 @@ describe("GET /api/organizations/:organizationId/learning/reports/:reportKey", (
     expect(byNumber.C1).toBe("active");
     expect(byNumber.C2).toBe("expired");
     expect(byNumber.C3).toBe("revoked");
+  });
+
+  it("learning_certificate_expiry: shows the employee's staff number as of the certificate's own issue date, never the live cache (Phase 3H, W119, frozen plan §6)", async () => {
+    mockPermissions(["learning.manage", "learning.reports.read"]);
+    fixtures.employeeRows = [{ id: EMPLOYEE_ID, organizationId: ORG_ID, firstName: "Eli", lastName: "Employee", employeeNumber: "STALE-CACHE-VALUE" }];
+    fixtures.employeeNumberAllocationRows = [
+      { id: 1, organizationId: ORG_ID, employeeId: EMPLOYEE_ID, employeeNumber: "OLD-0003", allocationMethod: "generated", validFrom: new Date("2020-01-01"), validTo: new Date("2027-01-01") },
+    ];
+    fixtures.certificateRows = [
+      { id: 1, organizationId: ORG_ID, employeeId: EMPLOYEE_ID, courseTitleSnapshot: "Fire Safety", certificateNumber: "C1", issuedAt: new Date("2024-01-01"), expiresAt: null, status: "active", revokeReason: null },
+    ];
+    const res = await report("learning_certificate_expiry");
+    expect(res.status).toBe(200);
+    expect(res.body.rows[0].employeeNumber).toBe("OLD-0003");
   });
 
   it("learning_certificate_expiry: manager scope resolves visibility transitively through the issuing enrollment", async () => {
