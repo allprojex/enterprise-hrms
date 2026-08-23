@@ -2151,9 +2151,11 @@ export const CreatePersonnelFileResponse = zod.object({
   "pifNumber": zod.string(),
   "allocationMethod": zod.enum(['generated', 'manual']),
   "allocatedByMembershipId": zod.number().nullish(),
+  "currentLocationId": zod.number().nullish(),
+  "currentCustodyState": zod.enum(['in_registry', 'checked_out', 'missing']),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('A permanent, organization-owned personnel-record identity, strictly 1:1 with an employee (frozen plan §7a) — unlike EmployeeNumberAllocation, there is no history: pifNumber is never released, reassigned, or reused (Decision 4).')
+}).describe('A permanent, organization-owned personnel-record identity, strictly 1:1 with an employee (frozen plan §7a) — unlike EmployeeNumberAllocation, there is no history: pifNumber is never released, reassigned, or reused (Decision 4). currentLocationId\/currentCustodyState (W116) are used only when this organization does not use volumes for this file — see PersonnelFileVolume otherwise.')
 
 
 /**
@@ -2172,9 +2174,11 @@ export const GetPersonnelFileByEmployeeResponse = zod.object({
   "pifNumber": zod.string(),
   "allocationMethod": zod.enum(['generated', 'manual']),
   "allocatedByMembershipId": zod.number().nullish(),
+  "currentLocationId": zod.number().nullish(),
+  "currentCustodyState": zod.enum(['in_registry', 'checked_out', 'missing']),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('A permanent, organization-owned personnel-record identity, strictly 1:1 with an employee (frozen plan §7a) — unlike EmployeeNumberAllocation, there is no history: pifNumber is never released, reassigned, or reused (Decision 4).')
+}).describe('A permanent, organization-owned personnel-record identity, strictly 1:1 with an employee (frozen plan §7a) — unlike EmployeeNumberAllocation, there is no history: pifNumber is never released, reassigned, or reused (Decision 4). currentLocationId\/currentCustodyState (W116) are used only when this organization does not use volumes for this file — see PersonnelFileVolume otherwise.')
 
 
 /**
@@ -2193,9 +2197,11 @@ export const GetPersonnelFileByIdResponse = zod.object({
   "pifNumber": zod.string(),
   "allocationMethod": zod.enum(['generated', 'manual']),
   "allocatedByMembershipId": zod.number().nullish(),
+  "currentLocationId": zod.number().nullish(),
+  "currentCustodyState": zod.enum(['in_registry', 'checked_out', 'missing']),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('A permanent, organization-owned personnel-record identity, strictly 1:1 with an employee (frozen plan §7a) — unlike EmployeeNumberAllocation, there is no history: pifNumber is never released, reassigned, or reused (Decision 4).')
+}).describe('A permanent, organization-owned personnel-record identity, strictly 1:1 with an employee (frozen plan §7a) — unlike EmployeeNumberAllocation, there is no history: pifNumber is never released, reassigned, or reused (Decision 4). currentLocationId\/currentCustodyState (W116) are used only when this organization does not use volumes for this file — see PersonnelFileVolume otherwise.')
 
 
 /**
@@ -2224,6 +2230,350 @@ export const SearchPersonnelRecordsResponseItem = zod.object({
   "pifNumber": zod.string().nullable()
 }).describe('One HR\/records search match (frozen plan §10) — a reused staff number never collapses to \"the current holder\": a historical and a current allocation matching the same term appear as two distinct, clearly-labeled results.')
 export const SearchPersonnelRecordsResponse = zod.array(SearchPersonnelRecordsResponseItem)
+
+
+/**
+ * Requires personnel_file.read. Flat list — the caller reconstructs the hierarchy from parentId.
+ * @summary List an organization's physical records locations (Phase 3H, W116)
+ */
+export const ListRecordsLocationsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListRecordsLocationsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "parentId": zod.number().nullable(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['active', 'retired']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A dedicated, self-referencing, organization-owned physical-storage hierarchy (Phase 3H, W116, Decision 6) — not a Master Data extension. Every level is optional and organization-defined.')
+export const ListRecordsLocationsResponse = zod.array(ListRecordsLocationsResponseItem)
+
+
+/**
+ * Requires personnel_file.manage. parentId (if given) must belong to this organization and must not create a cycle.
+ * @summary Create a records location (Phase 3H, W116)
+ */
+export const CreateRecordsLocationParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+
+
+export const CreateRecordsLocationBody = zod.object({
+  "name": zod.string().min(1),
+  "description": zod.string().nullish(),
+  "parentId": zod.number().nullish()
+})
+
+export const CreateRecordsLocationResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "parentId": zod.number().nullable(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['active', 'retired']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A dedicated, self-referencing, organization-owned physical-storage hierarchy (Phase 3H, W116, Decision 6) — not a Master Data extension. Every level is optional and organization-defined.')
+
+
+/**
+ * Requires personnel_file.manage.
+ * @summary Update a records location's name, description, or parent (Phase 3H, W116)
+ */
+export const UpdateRecordsLocationParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const UpdateRecordsLocationBody = zod.object({
+  "name": zod.string().min(1).optional(),
+  "description": zod.string().nullish(),
+  "parentId": zod.number().nullish()
+})
+
+export const UpdateRecordsLocationResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "parentId": zod.number().nullable(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['active', 'retired']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A dedicated, self-referencing, organization-owned physical-storage hierarchy (Phase 3H, W116, Decision 6) — not a Master Data extension. Every level is optional and organization-defined.')
+
+
+/**
+ * Requires personnel_file.manage. Never cascades — existing occupants are untouched; retirement only blocks this location from being chosen for a NEW custody assignment going forward.
+ * @summary Retire a records location (Phase 3H, W116)
+ */
+export const RetireRecordsLocationParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const RetireRecordsLocationResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "parentId": zod.number().nullable(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['active', 'retired']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A dedicated, self-referencing, organization-owned physical-storage hierarchy (Phase 3H, W116, Decision 6) — not a Master Data extension. Every level is optional and organization-defined.')
+
+
+/**
+ * Requires personnel_file.manage.
+ * @summary Reactivate a retired records location (Phase 3H, W116)
+ */
+export const ReactivateRecordsLocationParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ReactivateRecordsLocationResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "parentId": zod.number().nullable(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['active', 'retired']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A dedicated, self-referencing, organization-owned physical-storage hierarchy (Phase 3H, W116, Decision 6) — not a Master Data extension. Every level is optional and organization-defined.')
+
+
+/**
+ * Requires personnel_file.read. currentCustodyState/currentLocationId are the file-level cache (used only when this organization does not use volumes for this file); overdue is always computed live, never stored.
+ * @summary Live-derived current custody state for a personnel file (Phase 3H, W116)
+ */
+export const GetPersonnelFileCustodyParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "personnelFileId": zod.coerce.number()
+})
+
+export const GetPersonnelFileCustodyResponse = zod.object({
+  "currentCustodyState": zod.enum(['in_registry', 'checked_out', 'missing']),
+  "currentLocationId": zod.number().nullable(),
+  "overdue": zod.boolean()
+}).describe('Live-derived current custody snapshot for a personnel file (no volumes) — overdue is computed, never stored.')
+
+
+/**
+ * Requires personnel_file.read. Empty if this organization does not use volumes for this file.
+ * @summary List a personnel file's physical volumes (Phase 3H, W116)
+ */
+export const ListPersonnelFileVolumesParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "personnelFileId": zod.coerce.number()
+})
+
+export const ListPersonnelFileVolumesResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "personnelFileId": zod.number(),
+  "volumeNumber": zod.number(),
+  "status": zod.enum(['open', 'closed']),
+  "currentLocationId": zod.number().nullish(),
+  "currentCustodyState": zod.enum(['in_registry', 'checked_out', 'missing']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A physical volume of a personnel file (Phase 3H, W116, Decision 8) — a child of the personnel-file identity, never a sibling; never a new employee, PIF, or personnel-file identity of its own.')
+export const ListPersonnelFileVolumesResponse = zod.array(ListPersonnelFileVolumesResponseItem)
+
+
+/**
+ * Requires personnel_file.manage. volumeNumber is assigned automatically, concurrency-safe.
+ * @summary Create the next sequential volume for a personnel file (Phase 3H, W116)
+ */
+export const CreatePersonnelFileVolumeParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "personnelFileId": zod.coerce.number()
+})
+
+export const CreatePersonnelFileVolumeResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "personnelFileId": zod.number(),
+  "volumeNumber": zod.number(),
+  "status": zod.enum(['open', 'closed']),
+  "currentLocationId": zod.number().nullish(),
+  "currentCustodyState": zod.enum(['in_registry', 'checked_out', 'missing']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A physical volume of a personnel file (Phase 3H, W116, Decision 8) — a child of the personnel-file identity, never a sibling; never a new employee, PIF, or personnel-file identity of its own.')
+
+
+/**
+ * Requires personnel_file.read. Append-only, immutable, most recent first. Pass volumeId to scope to one volume's own history.
+ * @summary A personnel file's full custody/movement history (Phase 3H, W116)
+ */
+export const ListPersonnelFileMovementsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "personnelFileId": zod.coerce.number()
+})
+
+export const ListPersonnelFileMovementsQueryParams = zod.object({
+  "volumeId": zod.coerce.number().optional()
+})
+
+export const ListPersonnelFileMovementsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "personnelFileId": zod.number(),
+  "volumeId": zod.number().nullable(),
+  "eventType": zod.enum(['checked_out', 'returned', 'marked_missing', 'recovered']),
+  "occurredAt": zod.coerce.date(),
+  "actorMembershipId": zod.number().nullish(),
+  "purpose": zod.string().nullish(),
+  "destination": zod.string().nullish(),
+  "expectedReturnDate": zod.coerce.date().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+}).describe('One immutable, append-only custody event (frozen plan §7b) — never edited or deleted. \"Overdue\" is deliberately absent here: it is always derived live (see PersonnelFileCustodyDetail), never stored.')
+export const ListPersonnelFileMovementsResponse = zod.array(ListPersonnelFileMovementsResponseItem)
+
+
+/**
+ * Requires personnel_file.movement.write (separate from personnel_file.read/.manage — viewing or managing the registry does not by itself grant the ability to move files). Valid only from in_registry.
+ * @summary Check out a personnel file or volume (Phase 3H, W116)
+ */
+export const CheckoutPersonnelFileParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "personnelFileId": zod.coerce.number()
+})
+
+
+
+
+export const CheckoutPersonnelFileBody = zod.object({
+  "volumeId": zod.number().nullish(),
+  "purpose": zod.string().nullish(),
+  "destination": zod.string().min(1),
+  "expectedReturnDate": zod.coerce.date().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CheckoutPersonnelFileResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "personnelFileId": zod.number(),
+  "volumeId": zod.number().nullable(),
+  "eventType": zod.enum(['checked_out', 'returned', 'marked_missing', 'recovered']),
+  "occurredAt": zod.coerce.date(),
+  "actorMembershipId": zod.number().nullish(),
+  "purpose": zod.string().nullish(),
+  "destination": zod.string().nullish(),
+  "expectedReturnDate": zod.coerce.date().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+}).describe('One immutable, append-only custody event (frozen plan §7b) — never edited or deleted. \"Overdue\" is deliberately absent here: it is always derived live (see PersonnelFileCustodyDetail), never stored.')
+
+
+/**
+ * Requires personnel_file.movement.write. Valid from checked_out (the ordinary case) or missing (found and brought back by the person who had it).
+ * @summary Return a checked-out (or missing) personnel file or volume (Phase 3H, W116)
+ */
+export const ReturnPersonnelFileParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "personnelFileId": zod.coerce.number()
+})
+
+export const ReturnPersonnelFileBody = zod.object({
+  "volumeId": zod.number().nullish(),
+  "locationId": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const ReturnPersonnelFileResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "personnelFileId": zod.number(),
+  "volumeId": zod.number().nullable(),
+  "eventType": zod.enum(['checked_out', 'returned', 'marked_missing', 'recovered']),
+  "occurredAt": zod.coerce.date(),
+  "actorMembershipId": zod.number().nullish(),
+  "purpose": zod.string().nullish(),
+  "destination": zod.string().nullish(),
+  "expectedReturnDate": zod.coerce.date().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+}).describe('One immutable, append-only custody event (frozen plan §7b) — never edited or deleted. \"Overdue\" is deliberately absent here: it is always derived live (see PersonnelFileCustodyDetail), never stored.')
+
+
+/**
+ * Requires personnel_file.movement.write. Valid only from checked_out. A reason is mandatory.
+ * @summary Mark a checked-out personnel file or volume missing (Phase 3H, W116)
+ */
+export const MarkPersonnelFileMissingParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "personnelFileId": zod.coerce.number()
+})
+
+
+
+
+export const MarkPersonnelFileMissingBody = zod.object({
+  "volumeId": zod.number().nullish(),
+  "notes": zod.string().min(1).describe('Mandatory reason for marking the file missing.')
+})
+
+export const MarkPersonnelFileMissingResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "personnelFileId": zod.number(),
+  "volumeId": zod.number().nullable(),
+  "eventType": zod.enum(['checked_out', 'returned', 'marked_missing', 'recovered']),
+  "occurredAt": zod.coerce.date(),
+  "actorMembershipId": zod.number().nullish(),
+  "purpose": zod.string().nullish(),
+  "destination": zod.string().nullish(),
+  "expectedReturnDate": zod.coerce.date().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+}).describe('One immutable, append-only custody event (frozen plan §7b) — never edited or deleted. \"Overdue\" is deliberately absent here: it is always derived live (see PersonnelFileCustodyDetail), never stored.')
+
+
+/**
+ * Requires personnel_file.movement.write. Valid only from missing — found independently of the holder (e.g. in the wrong location), distinct from a direct return by the original holder.
+ * @summary Recover a missing personnel file or volume (Phase 3H, W116)
+ */
+export const RecoverPersonnelFileParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "personnelFileId": zod.coerce.number()
+})
+
+export const RecoverPersonnelFileBody = zod.object({
+  "volumeId": zod.number().nullish(),
+  "locationId": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const RecoverPersonnelFileResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "personnelFileId": zod.number(),
+  "volumeId": zod.number().nullable(),
+  "eventType": zod.enum(['checked_out', 'returned', 'marked_missing', 'recovered']),
+  "occurredAt": zod.coerce.date(),
+  "actorMembershipId": zod.number().nullish(),
+  "purpose": zod.string().nullish(),
+  "destination": zod.string().nullish(),
+  "expectedReturnDate": zod.coerce.date().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+}).describe('One immutable, append-only custody event (frozen plan §7b) — never edited or deleted. \"Overdue\" is deliberately absent here: it is always derived live (see PersonnelFileCustodyDetail), never stored.')
 
 
 /**

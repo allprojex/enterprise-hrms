@@ -1,0 +1,10 @@
+ALTER TABLE "personnel_files" DROP CONSTRAINT IF EXISTS "personnel_files_current_location_id_records_locations_id_fk";
+ALTER TABLE "personnel_files" DROP COLUMN IF EXISTS "current_custody_state";
+ALTER TABLE "personnel_files" DROP COLUMN IF EXISTS "current_location_id";
+DROP TABLE IF EXISTS "personnel_file_movements";
+DROP TABLE IF EXISTS "personnel_file_volumes";
+DROP TABLE IF EXISTS "records_locations";
+DROP TYPE IF EXISTS "public"."personnel_file_movement_event_type";
+DROP TYPE IF EXISTS "public"."personnel_file_volume_status";
+DROP TYPE IF EXISTS "public"."custody_state";
+DROP TYPE IF EXISTS "public"."records_location_status";

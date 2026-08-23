@@ -71,6 +71,7 @@ import type {
   CandidateListResponse,
   CandidateNote,
   CandidateTag,
+  CheckoutPersonnelFileInput,
   CompleteLearningEnrollmentInput,
   ConfirmEmployeeInput,
   ConversionResult,
@@ -101,6 +102,7 @@ import type {
   CreatePositionInput,
   CreatePreEmploymentRequirementInput,
   CreatePublicHolidayInput,
+  CreateRecordsLocationInput,
   CreateRecruitmentStageInput,
   CreateRecruitmentWorkflowInput,
   CreateReferenceCheckInput,
@@ -170,6 +172,7 @@ import type {
   ListLeaveCalendarParams,
   ListOffersParams,
   ListPerformanceReviewsParams,
+  ListPersonnelFileMovementsParams,
   ListPublicHolidaysParams,
   ListPublicVacanciesParams,
   ListVacanciesParams,
@@ -179,6 +182,7 @@ import type {
   ManagerPortalTeamOverview,
   MarkAssetLostInput,
   MarkLearningEnrollmentAttendanceInput,
+  MarkPersonnelFileMissingInput,
   MasterDataDomain,
   MasterDataItem,
   MembershipSummary,
@@ -220,6 +224,9 @@ import type {
   PerformanceTemplateCompetency,
   Permission,
   PersonnelFile,
+  PersonnelFileCustodyDetail,
+  PersonnelFileMovement,
+  PersonnelFileVolume,
   PersonnelSearchResult,
   Position,
   PreEmploymentRequirement,
@@ -235,7 +242,9 @@ import type {
   ReadinessStatus,
   RecordAttendanceAdjustmentInput,
   RecordAttendanceEventInput,
+  RecordsLocation,
   RecoverAssetInput,
+  RecoverPersonnelFileInput,
   RecruitmentDashboard,
   RecruitmentSettings,
   RecruitmentStage,
@@ -259,6 +268,7 @@ import type {
   RestructurePositionInput,
   RetireAssetInput,
   ReturnAssetInput,
+  ReturnPersonnelFileInput,
   ReviewAssetIncidentInput,
   RevokeLearningCertificateInput,
   Role,
@@ -309,6 +319,7 @@ import type {
   UpdatePositionInput,
   UpdatePreEmploymentRequirementStatusInput,
   UpdatePublicHolidayInput,
+  UpdateRecordsLocationInput,
   UpdateRecruitmentSettingsInput,
   UpdateRecruitmentStageInput,
   UpdateRecruitmentWorkflowInput,
@@ -5957,6 +5968,1015 @@ export function useSearchPersonnelRecords<TData = Awaited<ReturnType<typeof sear
 
 
 
+
+export const getListRecordsLocationsUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/records-locations`
+}
+
+/**
+ * Requires personnel_file.read. Flat list — the caller reconstructs the hierarchy from parentId.
+ * @summary List an organization's physical records locations (Phase 3H, W116)
+ */
+export const listRecordsLocations = async (organizationId: number, options?: RequestInit): Promise<RecordsLocation[]> => {
+
+  return customFetch<RecordsLocation[]>(getListRecordsLocationsUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListRecordsLocationsQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/records-locations`
+    ] as const;
+    }
+
+
+export const getListRecordsLocationsQueryOptions = <TData = Awaited<ReturnType<typeof listRecordsLocations>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listRecordsLocations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListRecordsLocationsQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listRecordsLocations>>> = ({ signal }) => listRecordsLocations(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listRecordsLocations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListRecordsLocationsQueryResult = NonNullable<Awaited<ReturnType<typeof listRecordsLocations>>>
+export type ListRecordsLocationsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List an organization's physical records locations (Phase 3H, W116)
+ */
+
+export function useListRecordsLocations<TData = Awaited<ReturnType<typeof listRecordsLocations>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listRecordsLocations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListRecordsLocationsQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateRecordsLocationUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/records-locations`
+}
+
+/**
+ * Requires personnel_file.manage. parentId (if given) must belong to this organization and must not create a cycle.
+ * @summary Create a records location (Phase 3H, W116)
+ */
+export const createRecordsLocation = async (organizationId: number,
+    createRecordsLocationInput: CreateRecordsLocationInput, options?: RequestInit): Promise<RecordsLocation> => {
+
+  return customFetch<RecordsLocation>(getCreateRecordsLocationUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createRecordsLocationInput)
+  }
+);}
+
+
+
+
+
+export const getCreateRecordsLocationMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRecordsLocation>>, TError,{organizationId: number;data: BodyType<CreateRecordsLocationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createRecordsLocation>>, TError,{organizationId: number;data: BodyType<CreateRecordsLocationInput>}, TContext> => {
+
+const mutationKey = ['createRecordsLocation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createRecordsLocation>>, {organizationId: number;data: BodyType<CreateRecordsLocationInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createRecordsLocation(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateRecordsLocationMutationResult = NonNullable<Awaited<ReturnType<typeof createRecordsLocation>>>
+    export type CreateRecordsLocationMutationBody = BodyType<CreateRecordsLocationInput>
+    export type CreateRecordsLocationMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Create a records location (Phase 3H, W116)
+ */
+export const useCreateRecordsLocation = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRecordsLocation>>, TError,{organizationId: number;data: BodyType<CreateRecordsLocationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createRecordsLocation>>,
+        TError,
+        {organizationId: number;data: BodyType<CreateRecordsLocationInput>},
+        TContext
+      > => {
+      return useMutation(getCreateRecordsLocationMutationOptions(options));
+    }
+
+export const getUpdateRecordsLocationUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/records-locations/${id}`
+}
+
+/**
+ * Requires personnel_file.manage.
+ * @summary Update a records location's name, description, or parent (Phase 3H, W116)
+ */
+export const updateRecordsLocation = async (organizationId: number,
+    id: number,
+    updateRecordsLocationInput: UpdateRecordsLocationInput, options?: RequestInit): Promise<RecordsLocation> => {
+
+  return customFetch<RecordsLocation>(getUpdateRecordsLocationUrl(organizationId,id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateRecordsLocationInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateRecordsLocationMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateRecordsLocation>>, TError,{organizationId: number;id: number;data: BodyType<UpdateRecordsLocationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateRecordsLocation>>, TError,{organizationId: number;id: number;data: BodyType<UpdateRecordsLocationInput>}, TContext> => {
+
+const mutationKey = ['updateRecordsLocation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateRecordsLocation>>, {organizationId: number;id: number;data: BodyType<UpdateRecordsLocationInput>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  updateRecordsLocation(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateRecordsLocationMutationResult = NonNullable<Awaited<ReturnType<typeof updateRecordsLocation>>>
+    export type UpdateRecordsLocationMutationBody = BodyType<UpdateRecordsLocationInput>
+    export type UpdateRecordsLocationMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update a records location's name, description, or parent (Phase 3H, W116)
+ */
+export const useUpdateRecordsLocation = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateRecordsLocation>>, TError,{organizationId: number;id: number;data: BodyType<UpdateRecordsLocationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateRecordsLocation>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<UpdateRecordsLocationInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateRecordsLocationMutationOptions(options));
+    }
+
+export const getRetireRecordsLocationUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/records-locations/${id}/retire`
+}
+
+/**
+ * Requires personnel_file.manage. Never cascades — existing occupants are untouched; retirement only blocks this location from being chosen for a NEW custody assignment going forward.
+ * @summary Retire a records location (Phase 3H, W116)
+ */
+export const retireRecordsLocation = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<RecordsLocation> => {
+
+  return customFetch<RecordsLocation>(getRetireRecordsLocationUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRetireRecordsLocationMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retireRecordsLocation>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof retireRecordsLocation>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['retireRecordsLocation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof retireRecordsLocation>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  retireRecordsLocation(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RetireRecordsLocationMutationResult = NonNullable<Awaited<ReturnType<typeof retireRecordsLocation>>>
+
+    export type RetireRecordsLocationMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Retire a records location (Phase 3H, W116)
+ */
+export const useRetireRecordsLocation = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retireRecordsLocation>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof retireRecordsLocation>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getRetireRecordsLocationMutationOptions(options));
+    }
+
+export const getReactivateRecordsLocationUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/records-locations/${id}/reactivate`
+}
+
+/**
+ * Requires personnel_file.manage.
+ * @summary Reactivate a retired records location (Phase 3H, W116)
+ */
+export const reactivateRecordsLocation = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<RecordsLocation> => {
+
+  return customFetch<RecordsLocation>(getReactivateRecordsLocationUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getReactivateRecordsLocationMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateRecordsLocation>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reactivateRecordsLocation>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['reactivateRecordsLocation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reactivateRecordsLocation>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  reactivateRecordsLocation(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReactivateRecordsLocationMutationResult = NonNullable<Awaited<ReturnType<typeof reactivateRecordsLocation>>>
+
+    export type ReactivateRecordsLocationMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Reactivate a retired records location (Phase 3H, W116)
+ */
+export const useReactivateRecordsLocation = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateRecordsLocation>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reactivateRecordsLocation>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getReactivateRecordsLocationMutationOptions(options));
+    }
+
+export const getGetPersonnelFileCustodyUrl = (organizationId: number,
+    personnelFileId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/personnel-files/${personnelFileId}/custody`
+}
+
+/**
+ * Requires personnel_file.read. currentCustodyState/currentLocationId are the file-level cache (used only when this organization does not use volumes for this file); overdue is always computed live, never stored.
+ * @summary Live-derived current custody state for a personnel file (Phase 3H, W116)
+ */
+export const getPersonnelFileCustody = async (organizationId: number,
+    personnelFileId: number, options?: RequestInit): Promise<PersonnelFileCustodyDetail> => {
+
+  return customFetch<PersonnelFileCustodyDetail>(getGetPersonnelFileCustodyUrl(organizationId,personnelFileId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPersonnelFileCustodyQueryKey = (organizationId: number,
+    personnelFileId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/personnel-files/${personnelFileId}/custody`
+    ] as const;
+    }
+
+
+export const getGetPersonnelFileCustodyQueryOptions = <TData = Awaited<ReturnType<typeof getPersonnelFileCustody>>, TError = ErrorType<ApiError>>(organizationId: number,
+    personnelFileId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPersonnelFileCustody>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPersonnelFileCustodyQueryKey(organizationId,personnelFileId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPersonnelFileCustody>>> = ({ signal }) => getPersonnelFileCustody(organizationId,personnelFileId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && personnelFileId !== null && personnelFileId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPersonnelFileCustody>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPersonnelFileCustodyQueryResult = NonNullable<Awaited<ReturnType<typeof getPersonnelFileCustody>>>
+export type GetPersonnelFileCustodyQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Live-derived current custody state for a personnel file (Phase 3H, W116)
+ */
+
+export function useGetPersonnelFileCustody<TData = Awaited<ReturnType<typeof getPersonnelFileCustody>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    personnelFileId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPersonnelFileCustody>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPersonnelFileCustodyQueryOptions(organizationId,personnelFileId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListPersonnelFileVolumesUrl = (organizationId: number,
+    personnelFileId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/personnel-files/${personnelFileId}/volumes`
+}
+
+/**
+ * Requires personnel_file.read. Empty if this organization does not use volumes for this file.
+ * @summary List a personnel file's physical volumes (Phase 3H, W116)
+ */
+export const listPersonnelFileVolumes = async (organizationId: number,
+    personnelFileId: number, options?: RequestInit): Promise<PersonnelFileVolume[]> => {
+
+  return customFetch<PersonnelFileVolume[]>(getListPersonnelFileVolumesUrl(organizationId,personnelFileId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPersonnelFileVolumesQueryKey = (organizationId: number,
+    personnelFileId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/personnel-files/${personnelFileId}/volumes`
+    ] as const;
+    }
+
+
+export const getListPersonnelFileVolumesQueryOptions = <TData = Awaited<ReturnType<typeof listPersonnelFileVolumes>>, TError = ErrorType<ApiError>>(organizationId: number,
+    personnelFileId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPersonnelFileVolumes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPersonnelFileVolumesQueryKey(organizationId,personnelFileId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPersonnelFileVolumes>>> = ({ signal }) => listPersonnelFileVolumes(organizationId,personnelFileId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && personnelFileId !== null && personnelFileId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPersonnelFileVolumes>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPersonnelFileVolumesQueryResult = NonNullable<Awaited<ReturnType<typeof listPersonnelFileVolumes>>>
+export type ListPersonnelFileVolumesQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List a personnel file's physical volumes (Phase 3H, W116)
+ */
+
+export function useListPersonnelFileVolumes<TData = Awaited<ReturnType<typeof listPersonnelFileVolumes>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    personnelFileId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPersonnelFileVolumes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPersonnelFileVolumesQueryOptions(organizationId,personnelFileId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreatePersonnelFileVolumeUrl = (organizationId: number,
+    personnelFileId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/personnel-files/${personnelFileId}/volumes`
+}
+
+/**
+ * Requires personnel_file.manage. volumeNumber is assigned automatically, concurrency-safe.
+ * @summary Create the next sequential volume for a personnel file (Phase 3H, W116)
+ */
+export const createPersonnelFileVolume = async (organizationId: number,
+    personnelFileId: number, options?: RequestInit): Promise<PersonnelFileVolume> => {
+
+  return customFetch<PersonnelFileVolume>(getCreatePersonnelFileVolumeUrl(organizationId,personnelFileId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreatePersonnelFileVolumeMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPersonnelFileVolume>>, TError,{organizationId: number;personnelFileId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPersonnelFileVolume>>, TError,{organizationId: number;personnelFileId: number}, TContext> => {
+
+const mutationKey = ['createPersonnelFileVolume'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPersonnelFileVolume>>, {organizationId: number;personnelFileId: number}> = (props) => {
+          const {organizationId,personnelFileId} = props ?? {};
+
+          return  createPersonnelFileVolume(organizationId,personnelFileId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePersonnelFileVolumeMutationResult = NonNullable<Awaited<ReturnType<typeof createPersonnelFileVolume>>>
+
+    export type CreatePersonnelFileVolumeMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Create the next sequential volume for a personnel file (Phase 3H, W116)
+ */
+export const useCreatePersonnelFileVolume = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPersonnelFileVolume>>, TError,{organizationId: number;personnelFileId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createPersonnelFileVolume>>,
+        TError,
+        {organizationId: number;personnelFileId: number},
+        TContext
+      > => {
+      return useMutation(getCreatePersonnelFileVolumeMutationOptions(options));
+    }
+
+export const getListPersonnelFileMovementsUrl = (organizationId: number,
+    personnelFileId: number,
+    params?: ListPersonnelFileMovementsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/personnel-files/${personnelFileId}/movements?${stringifiedParams}` : `/api/organizations/${organizationId}/personnel-files/${personnelFileId}/movements`
+}
+
+/**
+ * Requires personnel_file.read. Append-only, immutable, most recent first. Pass volumeId to scope to one volume's own history.
+ * @summary A personnel file's full custody/movement history (Phase 3H, W116)
+ */
+export const listPersonnelFileMovements = async (organizationId: number,
+    personnelFileId: number,
+    params?: ListPersonnelFileMovementsParams, options?: RequestInit): Promise<PersonnelFileMovement[]> => {
+
+  return customFetch<PersonnelFileMovement[]>(getListPersonnelFileMovementsUrl(organizationId,personnelFileId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPersonnelFileMovementsQueryKey = (organizationId: number,
+    personnelFileId: number,
+    params?: ListPersonnelFileMovementsParams,) => {
+    return [
+    `/api/organizations/${organizationId}/personnel-files/${personnelFileId}/movements`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListPersonnelFileMovementsQueryOptions = <TData = Awaited<ReturnType<typeof listPersonnelFileMovements>>, TError = ErrorType<ApiError>>(organizationId: number,
+    personnelFileId: number,
+    params?: ListPersonnelFileMovementsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPersonnelFileMovements>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPersonnelFileMovementsQueryKey(organizationId,personnelFileId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPersonnelFileMovements>>> = ({ signal }) => listPersonnelFileMovements(organizationId,personnelFileId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && personnelFileId !== null && personnelFileId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPersonnelFileMovements>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPersonnelFileMovementsQueryResult = NonNullable<Awaited<ReturnType<typeof listPersonnelFileMovements>>>
+export type ListPersonnelFileMovementsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary A personnel file's full custody/movement history (Phase 3H, W116)
+ */
+
+export function useListPersonnelFileMovements<TData = Awaited<ReturnType<typeof listPersonnelFileMovements>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    personnelFileId: number,
+    params?: ListPersonnelFileMovementsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPersonnelFileMovements>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPersonnelFileMovementsQueryOptions(organizationId,personnelFileId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCheckoutPersonnelFileUrl = (organizationId: number,
+    personnelFileId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/personnel-files/${personnelFileId}/checkout`
+}
+
+/**
+ * Requires personnel_file.movement.write (separate from personnel_file.read/.manage — viewing or managing the registry does not by itself grant the ability to move files). Valid only from in_registry.
+ * @summary Check out a personnel file or volume (Phase 3H, W116)
+ */
+export const checkoutPersonnelFile = async (organizationId: number,
+    personnelFileId: number,
+    checkoutPersonnelFileInput: CheckoutPersonnelFileInput, options?: RequestInit): Promise<PersonnelFileMovement> => {
+
+  return customFetch<PersonnelFileMovement>(getCheckoutPersonnelFileUrl(organizationId,personnelFileId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(checkoutPersonnelFileInput)
+  }
+);}
+
+
+
+
+
+export const getCheckoutPersonnelFileMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkoutPersonnelFile>>, TError,{organizationId: number;personnelFileId: number;data: BodyType<CheckoutPersonnelFileInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof checkoutPersonnelFile>>, TError,{organizationId: number;personnelFileId: number;data: BodyType<CheckoutPersonnelFileInput>}, TContext> => {
+
+const mutationKey = ['checkoutPersonnelFile'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof checkoutPersonnelFile>>, {organizationId: number;personnelFileId: number;data: BodyType<CheckoutPersonnelFileInput>}> = (props) => {
+          const {organizationId,personnelFileId,data} = props ?? {};
+
+          return  checkoutPersonnelFile(organizationId,personnelFileId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CheckoutPersonnelFileMutationResult = NonNullable<Awaited<ReturnType<typeof checkoutPersonnelFile>>>
+    export type CheckoutPersonnelFileMutationBody = BodyType<CheckoutPersonnelFileInput>
+    export type CheckoutPersonnelFileMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Check out a personnel file or volume (Phase 3H, W116)
+ */
+export const useCheckoutPersonnelFile = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkoutPersonnelFile>>, TError,{organizationId: number;personnelFileId: number;data: BodyType<CheckoutPersonnelFileInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof checkoutPersonnelFile>>,
+        TError,
+        {organizationId: number;personnelFileId: number;data: BodyType<CheckoutPersonnelFileInput>},
+        TContext
+      > => {
+      return useMutation(getCheckoutPersonnelFileMutationOptions(options));
+    }
+
+export const getReturnPersonnelFileUrl = (organizationId: number,
+    personnelFileId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/personnel-files/${personnelFileId}/return`
+}
+
+/**
+ * Requires personnel_file.movement.write. Valid from checked_out (the ordinary case) or missing (found and brought back by the person who had it).
+ * @summary Return a checked-out (or missing) personnel file or volume (Phase 3H, W116)
+ */
+export const returnPersonnelFile = async (organizationId: number,
+    personnelFileId: number,
+    returnPersonnelFileInput: ReturnPersonnelFileInput, options?: RequestInit): Promise<PersonnelFileMovement> => {
+
+  return customFetch<PersonnelFileMovement>(getReturnPersonnelFileUrl(organizationId,personnelFileId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(returnPersonnelFileInput)
+  }
+);}
+
+
+
+
+
+export const getReturnPersonnelFileMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof returnPersonnelFile>>, TError,{organizationId: number;personnelFileId: number;data: BodyType<ReturnPersonnelFileInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof returnPersonnelFile>>, TError,{organizationId: number;personnelFileId: number;data: BodyType<ReturnPersonnelFileInput>}, TContext> => {
+
+const mutationKey = ['returnPersonnelFile'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof returnPersonnelFile>>, {organizationId: number;personnelFileId: number;data: BodyType<ReturnPersonnelFileInput>}> = (props) => {
+          const {organizationId,personnelFileId,data} = props ?? {};
+
+          return  returnPersonnelFile(organizationId,personnelFileId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReturnPersonnelFileMutationResult = NonNullable<Awaited<ReturnType<typeof returnPersonnelFile>>>
+    export type ReturnPersonnelFileMutationBody = BodyType<ReturnPersonnelFileInput>
+    export type ReturnPersonnelFileMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Return a checked-out (or missing) personnel file or volume (Phase 3H, W116)
+ */
+export const useReturnPersonnelFile = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof returnPersonnelFile>>, TError,{organizationId: number;personnelFileId: number;data: BodyType<ReturnPersonnelFileInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof returnPersonnelFile>>,
+        TError,
+        {organizationId: number;personnelFileId: number;data: BodyType<ReturnPersonnelFileInput>},
+        TContext
+      > => {
+      return useMutation(getReturnPersonnelFileMutationOptions(options));
+    }
+
+export const getMarkPersonnelFileMissingUrl = (organizationId: number,
+    personnelFileId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/personnel-files/${personnelFileId}/mark-missing`
+}
+
+/**
+ * Requires personnel_file.movement.write. Valid only from checked_out. A reason is mandatory.
+ * @summary Mark a checked-out personnel file or volume missing (Phase 3H, W116)
+ */
+export const markPersonnelFileMissing = async (organizationId: number,
+    personnelFileId: number,
+    markPersonnelFileMissingInput: MarkPersonnelFileMissingInput, options?: RequestInit): Promise<PersonnelFileMovement> => {
+
+  return customFetch<PersonnelFileMovement>(getMarkPersonnelFileMissingUrl(organizationId,personnelFileId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(markPersonnelFileMissingInput)
+  }
+);}
+
+
+
+
+
+export const getMarkPersonnelFileMissingMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markPersonnelFileMissing>>, TError,{organizationId: number;personnelFileId: number;data: BodyType<MarkPersonnelFileMissingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markPersonnelFileMissing>>, TError,{organizationId: number;personnelFileId: number;data: BodyType<MarkPersonnelFileMissingInput>}, TContext> => {
+
+const mutationKey = ['markPersonnelFileMissing'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markPersonnelFileMissing>>, {organizationId: number;personnelFileId: number;data: BodyType<MarkPersonnelFileMissingInput>}> = (props) => {
+          const {organizationId,personnelFileId,data} = props ?? {};
+
+          return  markPersonnelFileMissing(organizationId,personnelFileId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkPersonnelFileMissingMutationResult = NonNullable<Awaited<ReturnType<typeof markPersonnelFileMissing>>>
+    export type MarkPersonnelFileMissingMutationBody = BodyType<MarkPersonnelFileMissingInput>
+    export type MarkPersonnelFileMissingMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Mark a checked-out personnel file or volume missing (Phase 3H, W116)
+ */
+export const useMarkPersonnelFileMissing = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markPersonnelFileMissing>>, TError,{organizationId: number;personnelFileId: number;data: BodyType<MarkPersonnelFileMissingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof markPersonnelFileMissing>>,
+        TError,
+        {organizationId: number;personnelFileId: number;data: BodyType<MarkPersonnelFileMissingInput>},
+        TContext
+      > => {
+      return useMutation(getMarkPersonnelFileMissingMutationOptions(options));
+    }
+
+export const getRecoverPersonnelFileUrl = (organizationId: number,
+    personnelFileId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/personnel-files/${personnelFileId}/recover`
+}
+
+/**
+ * Requires personnel_file.movement.write. Valid only from missing — found independently of the holder (e.g. in the wrong location), distinct from a direct return by the original holder.
+ * @summary Recover a missing personnel file or volume (Phase 3H, W116)
+ */
+export const recoverPersonnelFile = async (organizationId: number,
+    personnelFileId: number,
+    recoverPersonnelFileInput: RecoverPersonnelFileInput, options?: RequestInit): Promise<PersonnelFileMovement> => {
+
+  return customFetch<PersonnelFileMovement>(getRecoverPersonnelFileUrl(organizationId,personnelFileId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(recoverPersonnelFileInput)
+  }
+);}
+
+
+
+
+
+export const getRecoverPersonnelFileMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recoverPersonnelFile>>, TError,{organizationId: number;personnelFileId: number;data: BodyType<RecoverPersonnelFileInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recoverPersonnelFile>>, TError,{organizationId: number;personnelFileId: number;data: BodyType<RecoverPersonnelFileInput>}, TContext> => {
+
+const mutationKey = ['recoverPersonnelFile'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recoverPersonnelFile>>, {organizationId: number;personnelFileId: number;data: BodyType<RecoverPersonnelFileInput>}> = (props) => {
+          const {organizationId,personnelFileId,data} = props ?? {};
+
+          return  recoverPersonnelFile(organizationId,personnelFileId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecoverPersonnelFileMutationResult = NonNullable<Awaited<ReturnType<typeof recoverPersonnelFile>>>
+    export type RecoverPersonnelFileMutationBody = BodyType<RecoverPersonnelFileInput>
+    export type RecoverPersonnelFileMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Recover a missing personnel file or volume (Phase 3H, W116)
+ */
+export const useRecoverPersonnelFile = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recoverPersonnelFile>>, TError,{organizationId: number;personnelFileId: number;data: BodyType<RecoverPersonnelFileInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recoverPersonnelFile>>,
+        TError,
+        {organizationId: number;personnelFileId: number;data: BodyType<RecoverPersonnelFileInput>},
+        TContext
+      > => {
+      return useMutation(getRecoverPersonnelFileMutationOptions(options));
+    }
 
 export const getListLeaveRequestsUrl = (organizationId: number,
     employeeId: number,) => {

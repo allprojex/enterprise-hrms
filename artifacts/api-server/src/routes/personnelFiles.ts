@@ -36,6 +36,8 @@ function formatPersonnelFile(p: PersonnelFile) {
     pifNumber: p.pifNumber,
     allocationMethod: p.allocationMethod,
     allocatedByMembershipId: p.allocatedByMembershipId,
+    currentLocationId: p.currentLocationId,
+    currentCustodyState: p.currentCustodyState,
     createdAt: p.createdAt,
     updatedAt: p.updatedAt,
   };

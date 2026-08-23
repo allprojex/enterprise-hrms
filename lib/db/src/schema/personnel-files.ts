@@ -1,19 +1,33 @@
-import { pgTable, serial, integer, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, timestamp, uniqueIndex, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { organizationsTable } from "./organizations";
 import { employeesTable } from "./employees";
 import { organizationMembershipsTable } from "./organization-memberships";
+import { recordsLocationsTable } from "./records-locations";
+
+// Phase 3H, W116 — the denormalized "current custody state" cache (frozen
+// plan §7b's own Concurrency section) — never a stored "overdue"; overdue is
+// always derived live. Shared with personnel_file_volumes (both need the
+// identical three-state cache, kept transactionally consistent with
+// personnel_file_movements via SELECT ... FOR UPDATE on the owning row,
+// mirroring the numbering_sequences locking pattern from W114 rather than
+// reinventing one).
+export const custodyStateEnum = pgEnum("custody_state", ["in_registry", "checked_out", "missing"]);
 
 // Phase 3H, W115 — Personnel File Registry & PIF Linkage (frozen plan §7a).
 // A permanent, organization-owned personnel-record identity, strictly 1:1
 // with an employee, forever — unlike employee_number_allocations (W114),
 // there is no history table here: a PIF number is never released,
 // reassigned, or reused (Decision 4), so there is no "previous holder"
-// concept to track, only ever the one, permanent holder. Physical filing
-// (location/volumes/movement) is deliberately NOT modeled on this table —
-// that is W116's own additive migration, not a placeholder column here
-// ahead of its own workstream.
+// concept to track, only ever the one, permanent holder.
+//
+// W116 adds currentLocationId/currentCustodyState — used only when this
+// organization does NOT use volumes for this file (§7a step 6: "a reference
+// from personnel_files (or from the currently-open volume, if volumes are
+// in use)"); when volumes are in use, custody lives on
+// personnel_file_volumes instead, and these two columns stay at their
+// defaults (null / "in_registry").
 export const personnelFilesTable = pgTable(
   "personnel_files",
   {
@@ -39,6 +53,8 @@ export const personnelFilesTable = pgTable(
       () => organizationMembershipsTable.id,
       { onDelete: "set null" },
     ),
+    currentLocationId: integer("current_location_id").references(() => recordsLocationsTable.id, { onDelete: "set null" }),
+    currentCustodyState: custodyStateEnum("current_custody_state").notNull().default("in_registry"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()

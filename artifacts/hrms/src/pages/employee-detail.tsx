@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'wouter';
-import { ArrowLeft, Loader2, Mail, Phone, Building, Network, Briefcase, Camera, UserPlus, UserCheck, UserX, RotateCcw, FileText, Upload, Trash2, Award, GraduationCap, Sparkles, Plus, ArrowLeftRight, TrendingUp, BadgeCheck, ShieldAlert, LogOut, IdCard, History } from 'lucide-react';
+import { ArrowLeft, Loader2, Mail, Phone, Building, Network, Briefcase, Camera, UserPlus, UserCheck, UserX, RotateCcw, FileText, Upload, Trash2, Award, GraduationCap, Sparkles, Plus, ArrowLeftRight, TrendingUp, BadgeCheck, ShieldAlert, LogOut, IdCard, History, MapPin, AlertTriangle, PackageSearch } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,6 +66,17 @@ import {
   useCreatePersonnelFile,
   useListEmployeeNumberHistory,
   getListEmployeeNumberHistoryQueryKey,
+  useGetPersonnelFileCustody,
+  getGetPersonnelFileCustodyQueryKey,
+  useListPersonnelFileMovements,
+  getListPersonnelFileMovementsQueryKey,
+  useListRecordsLocations,
+  getListRecordsLocationsQueryKey,
+  useCreateRecordsLocation,
+  useCheckoutPersonnelFile,
+  useReturnPersonnelFile,
+  useMarkPersonnelFileMissing,
+  useRecoverPersonnelFile,
 } from '@workspace/api-client-react';
 import type { CreatePersonnelFileInputMode } from '@workspace/api-client-react';
 import type { UpdateEmployeeInputEmploymentStatus } from '@workspace/api-client-react';
@@ -217,6 +228,25 @@ export default function EmployeeDetail() {
     },
   });
 
+  // Phase 3H, W116 — Physical Filing, Locations & Movement. Custody/overdue
+  // are only meaningful once a personnel file exists — every query below is
+  // gated on personnelFile?.id, not merely on the employee id.
+  const { data: custody, isLoading: custodyLoading } = useGetPersonnelFileCustody(organizationId, personnelFile?.id ?? 0, {
+    query: {
+      queryKey: getGetPersonnelFileCustodyQueryKey(organizationId, personnelFile?.id ?? 0),
+      enabled: organizationId > 0 && !!personnelFile?.id,
+    },
+  });
+  const { data: movements, isLoading: movementsLoading } = useListPersonnelFileMovements(organizationId, personnelFile?.id ?? 0, undefined, {
+    query: {
+      queryKey: getListPersonnelFileMovementsQueryKey(organizationId, personnelFile?.id ?? 0),
+      enabled: organizationId > 0 && !!personnelFile?.id,
+    },
+  });
+  const { data: recordsLocations } = useListRecordsLocations(organizationId, {
+    query: { queryKey: getListRecordsLocationsQueryKey(organizationId), enabled: organizationId > 0 && !!personnelFile?.id },
+  });
+
   const { data: departments } = useListDepartments(organizationId, {
     query: { queryKey: getListDepartmentsQueryKey(organizationId), enabled: organizationId > 0 },
   });
@@ -258,6 +288,11 @@ export default function EmployeeDetail() {
   const transferMutation = useTransferEmployee();
   const promoteMutation = usePromoteEmployee();
   const createPersonnelFileMutation = useCreatePersonnelFile();
+  const createRecordsLocationMutation = useCreateRecordsLocation();
+  const checkoutMutation = useCheckoutPersonnelFile();
+  const returnMutation = useReturnPersonnelFile();
+  const markMissingMutation = useMarkPersonnelFileMissing();
+  const recoverMutation = useRecoverPersonnelFile();
   const confirmMutation = useConfirmEmployee();
   const addDisciplinaryRecordMutation = useAddEmployeeDisciplinaryRecord();
   const createExitProcessMutation = useCreateEmployeeExitProcess();
@@ -299,6 +334,21 @@ export default function EmployeeDetail() {
   const [personnelFileMode, setPersonnelFileMode] = useState<CreatePersonnelFileInputMode>('generate');
   const [manualPifNumber, setManualPifNumber] = useState('');
   const [showStaffNumberHistory, setShowStaffNumberHistory] = useState(false);
+
+  const [showMovementHistory, setShowMovementHistory] = useState(false);
+  const [isCheckoutDialogOpen, setIsCheckoutDialogOpen] = useState(false);
+  const [checkoutDestination, setCheckoutDestination] = useState('');
+  const [checkoutPurpose, setCheckoutPurpose] = useState('');
+  const [checkoutExpectedReturnDate, setCheckoutExpectedReturnDate] = useState('');
+  const [isReturnDialogOpen, setIsReturnDialogOpen] = useState(false);
+  const [returnLocationId, setReturnLocationId] = useState('');
+  const [isMissingDialogOpen, setIsMissingDialogOpen] = useState(false);
+  const [missingReason, setMissingReason] = useState('');
+  const [isRecoverDialogOpen, setIsRecoverDialogOpen] = useState(false);
+  const [recoverLocationId, setRecoverLocationId] = useState('');
+  const [isLocationsDialogOpen, setIsLocationsDialogOpen] = useState(false);
+  const [newLocationName, setNewLocationName] = useState('');
+  const [newLocationParentId, setNewLocationParentId] = useState('');
 
   const [prevEmployee, setPrevEmployee] = useState(employee);
   if (employee && employee !== prevEmployee) {
@@ -571,6 +621,106 @@ export default function EmployeeDetail() {
             err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
           toast({ title: 'Could not create personnel file', description: message ?? 'Please try again.', variant: 'destructive' });
         },
+      },
+    );
+  };
+
+  const invalidateCustody = () => {
+    queryClient.invalidateQueries({ queryKey: getGetPersonnelFileCustodyQueryKey(organizationId, personnelFile?.id ?? 0) });
+    queryClient.invalidateQueries({ queryKey: getListPersonnelFileMovementsQueryKey(organizationId, personnelFile?.id ?? 0) });
+  };
+
+  const onCustodyError = (title: string) => (err: unknown) => {
+    const message = err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
+    toast({ title, description: message ?? 'Please try again.', variant: 'destructive' });
+  };
+
+  const handleCheckout = () => {
+    if (!personnelFile || !checkoutDestination.trim()) return;
+    checkoutMutation.mutate(
+      {
+        organizationId,
+        personnelFileId: personnelFile.id,
+        data: {
+          destination: checkoutDestination.trim(),
+          purpose: checkoutPurpose.trim() || undefined,
+          expectedReturnDate: checkoutExpectedReturnDate || undefined,
+        },
+      },
+      {
+        onSuccess: () => {
+          invalidateCustody();
+          setIsCheckoutDialogOpen(false);
+          setCheckoutDestination('');
+          setCheckoutPurpose('');
+          setCheckoutExpectedReturnDate('');
+          toast({ title: 'Personnel file checked out' });
+        },
+        onError: onCustodyError('Could not check out personnel file'),
+      },
+    );
+  };
+
+  const handleReturn = () => {
+    if (!personnelFile) return;
+    returnMutation.mutate(
+      { organizationId, personnelFileId: personnelFile.id, data: { locationId: returnLocationId ? Number(returnLocationId) : undefined } },
+      {
+        onSuccess: () => {
+          invalidateCustody();
+          setIsReturnDialogOpen(false);
+          setReturnLocationId('');
+          toast({ title: 'Personnel file returned' });
+        },
+        onError: onCustodyError('Could not return personnel file'),
+      },
+    );
+  };
+
+  const handleMarkMissing = () => {
+    if (!personnelFile || !missingReason.trim()) return;
+    markMissingMutation.mutate(
+      { organizationId, personnelFileId: personnelFile.id, data: { notes: missingReason.trim() } },
+      {
+        onSuccess: () => {
+          invalidateCustody();
+          setIsMissingDialogOpen(false);
+          setMissingReason('');
+          toast({ title: 'Personnel file marked missing' });
+        },
+        onError: onCustodyError('Could not mark personnel file missing'),
+      },
+    );
+  };
+
+  const handleRecover = () => {
+    if (!personnelFile) return;
+    recoverMutation.mutate(
+      { organizationId, personnelFileId: personnelFile.id, data: { locationId: recoverLocationId ? Number(recoverLocationId) : undefined } },
+      {
+        onSuccess: () => {
+          invalidateCustody();
+          setIsRecoverDialogOpen(false);
+          setRecoverLocationId('');
+          toast({ title: 'Personnel file recovered' });
+        },
+        onError: onCustodyError('Could not recover personnel file'),
+      },
+    );
+  };
+
+  const handleCreateRecordsLocation = () => {
+    if (!newLocationName.trim()) return;
+    createRecordsLocationMutation.mutate(
+      { organizationId, data: { name: newLocationName.trim(), parentId: newLocationParentId ? Number(newLocationParentId) : undefined } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListRecordsLocationsQueryKey(organizationId) });
+          setNewLocationName('');
+          setNewLocationParentId('');
+          toast({ title: 'Location created' });
+        },
+        onError: onCustodyError('Could not create location'),
       },
     );
   };
@@ -1801,6 +1951,225 @@ export default function EmployeeDetail() {
                 <p className="text-sm text-muted-foreground" data-testid="text-no-personnel-file">
                   No personnel file yet.
                 </p>
+              )}
+
+              {personnelFile && (
+                <div className="space-y-3 border-t border-border pt-4" data-testid="physical-custody-section">
+                  {custodyLoading ? (
+                    <Skeleton className="h-10 w-full" data-testid="loading-custody" />
+                  ) : custody ? (
+                    <>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs text-muted-foreground">Physical Custody:</span>
+                        <Badge
+                          variant={custody.currentCustodyState === 'missing' ? 'destructive' : custody.currentCustodyState === 'checked_out' ? 'secondary' : 'outline'}
+                          data-testid="badge-custody-state"
+                        >
+                          {custody.currentCustodyState === 'in_registry' ? 'In Registry' : custody.currentCustodyState === 'checked_out' ? 'Checked Out' : 'Missing'}
+                        </Badge>
+                        {custody.overdue && (
+                          <Badge variant="destructive" data-testid="badge-overdue" className="flex items-center gap-1">
+                            <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                            Overdue (computed)
+                          </Badge>
+                        )}
+                        {custody.currentLocationId != null && (
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <MapPin className="h-3 w-3" aria-hidden="true" />
+                            {(recordsLocations ?? []).find((l) => l.id === custody.currentLocationId)?.name ?? `Location #${custody.currentLocationId}`}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        {custody.currentCustodyState === 'in_registry' && (
+                          <Dialog open={isCheckoutDialogOpen} onOpenChange={setIsCheckoutDialogOpen}>
+                            <DialogTrigger asChild>
+                              <Button type="button" variant="outline" size="sm" data-testid="button-checkout">Check Out</Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader><DialogTitle>Check Out Personnel File</DialogTitle></DialogHeader>
+                              <div className="space-y-4">
+                                <div className="space-y-2">
+                                  <Label htmlFor="checkout-destination">Checked Out To *</Label>
+                                  <Input id="checkout-destination" value={checkoutDestination} onChange={(e) => setCheckoutDestination(e.target.value)} placeholder="e.g. Jane Doe (HR)" data-testid="input-checkout-destination" />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="checkout-purpose">Purpose</Label>
+                                  <Input id="checkout-purpose" value={checkoutPurpose} onChange={(e) => setCheckoutPurpose(e.target.value)} placeholder="e.g. Audit review" />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="checkout-expected-return">Expected Return Date</Label>
+                                  <Input id="checkout-expected-return" type="date" value={checkoutExpectedReturnDate} onChange={(e) => setCheckoutExpectedReturnDate(e.target.value)} />
+                                </div>
+                              </div>
+                              <DialogFooter>
+                                <Button type="button" onClick={handleCheckout} disabled={checkoutMutation.isPending || !checkoutDestination.trim()} data-testid="button-confirm-checkout">
+                                  {checkoutMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+                                  Check Out
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                        )}
+
+                        {(custody.currentCustodyState === 'checked_out' || custody.currentCustodyState === 'missing') && (
+                          <Dialog open={isReturnDialogOpen} onOpenChange={setIsReturnDialogOpen}>
+                            <DialogTrigger asChild>
+                              <Button type="button" variant="outline" size="sm" data-testid="button-return">Return</Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader><DialogTitle>Return Personnel File</DialogTitle></DialogHeader>
+                              <div className="space-y-2">
+                                <Label htmlFor="return-location">Return To Location</Label>
+                                <Select value={returnLocationId} onValueChange={setReturnLocationId}>
+                                  <SelectTrigger id="return-location"><SelectValue placeholder="Select a location" /></SelectTrigger>
+                                  <SelectContent>
+                                    {(recordsLocations ?? []).filter((l) => l.status === 'active').map((l) => (
+                                      <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <DialogFooter>
+                                <Button type="button" onClick={handleReturn} disabled={returnMutation.isPending} data-testid="button-confirm-return">
+                                  {returnMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+                                  Return
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                        )}
+
+                        {custody.currentCustodyState === 'checked_out' && (
+                          <Dialog open={isMissingDialogOpen} onOpenChange={setIsMissingDialogOpen}>
+                            <DialogTrigger asChild>
+                              <Button type="button" variant="outline" size="sm" data-testid="button-mark-missing">Mark Missing</Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader><DialogTitle>Mark Personnel File Missing</DialogTitle></DialogHeader>
+                              <div className="space-y-2">
+                                <Label htmlFor="missing-reason">Reason *</Label>
+                                <Input id="missing-reason" value={missingReason} onChange={(e) => setMissingReason(e.target.value)} placeholder="e.g. Not found during audit" data-testid="input-missing-reason" />
+                              </div>
+                              <DialogFooter>
+                                <Button type="button" variant="destructive" onClick={handleMarkMissing} disabled={markMissingMutation.isPending || !missingReason.trim()} data-testid="button-confirm-mark-missing">
+                                  {markMissingMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+                                  Mark Missing
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                        )}
+
+                        {custody.currentCustodyState === 'missing' && (
+                          <Dialog open={isRecoverDialogOpen} onOpenChange={setIsRecoverDialogOpen}>
+                            <DialogTrigger asChild>
+                              <Button type="button" variant="outline" size="sm" data-testid="button-recover">Recover</Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader><DialogTitle>Recover Personnel File</DialogTitle></DialogHeader>
+                              <div className="space-y-2">
+                                <Label htmlFor="recover-location">Found At Location</Label>
+                                <Select value={recoverLocationId} onValueChange={setRecoverLocationId}>
+                                  <SelectTrigger id="recover-location"><SelectValue placeholder="Select a location" /></SelectTrigger>
+                                  <SelectContent>
+                                    {(recordsLocations ?? []).filter((l) => l.status === 'active').map((l) => (
+                                      <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <DialogFooter>
+                                <Button type="button" onClick={handleRecover} disabled={recoverMutation.isPending} data-testid="button-confirm-recover">
+                                  {recoverMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+                                  Recover
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                        )}
+
+                        <Dialog open={isLocationsDialogOpen} onOpenChange={setIsLocationsDialogOpen}>
+                          <DialogTrigger asChild>
+                            <Button type="button" variant="ghost" size="sm" data-testid="button-manage-locations">
+                              <PackageSearch className="mr-2 h-4 w-4" aria-hidden="true" />
+                              Manage Locations
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader><DialogTitle>Records Locations</DialogTitle></DialogHeader>
+                            <div className="space-y-4">
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                <div className="space-y-2">
+                                  <Label htmlFor="new-location-name">Name *</Label>
+                                  <Input id="new-location-name" value={newLocationName} onChange={(e) => setNewLocationName(e.target.value)} placeholder="e.g. Cabinet 2" data-testid="input-new-location-name" />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="new-location-parent">Parent (optional)</Label>
+                                  <Select value={newLocationParentId} onValueChange={setNewLocationParentId}>
+                                    <SelectTrigger id="new-location-parent"><SelectValue placeholder="None (root)" /></SelectTrigger>
+                                    <SelectContent>
+                                      {(recordsLocations ?? []).map((l) => (
+                                        <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                              <Button type="button" size="sm" onClick={handleCreateRecordsLocation} disabled={createRecordsLocationMutation.isPending || !newLocationName.trim()} data-testid="button-add-location">
+                                <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                                Add Location
+                              </Button>
+                              <ul className="divide-y divide-border max-h-64 overflow-y-auto" data-testid="list-records-locations">
+                                {(recordsLocations ?? []).map((l) => (
+                                  <li key={l.id} className="py-2 flex items-center justify-between gap-2">
+                                    <span className="text-sm">
+                                      {l.name}
+                                      {l.parentId != null && (
+                                        <span className="text-xs text-muted-foreground"> (in {(recordsLocations ?? []).find((p) => p.id === l.parentId)?.name ?? `#${l.parentId}`})</span>
+                                      )}
+                                    </span>
+                                    <Badge variant={l.status === 'retired' ? 'outline' : 'default'}>{l.status}</Badge>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
+                    </>
+                  ) : null}
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowMovementHistory((v) => !v)}
+                    data-testid="button-toggle-movement-history"
+                  >
+                    <History className="mr-2 h-4 w-4" aria-hidden="true" />
+                    {showMovementHistory ? 'Hide' : 'View'} movement history
+                  </Button>
+                  {showMovementHistory && (
+                    <div>
+                      {movementsLoading ? (
+                        <Skeleton className="h-10 w-full" />
+                      ) : (movements ?? []).length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No movement history recorded yet.</p>
+                      ) : (
+                        <ul className="divide-y divide-border" data-testid="list-movement-history">
+                          {(movements ?? []).map((m) => (
+                            <li key={m.id} className="py-2 flex items-center justify-between gap-4" data-testid={`row-movement-${m.id}`}>
+                              <Badge variant="outline" className="capitalize">{m.eventType.replace('_', ' ')}</Badge>
+                              <span className="text-xs text-muted-foreground">{new Date(m.occurredAt).toLocaleString()}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </div>
               )}
 
               <div>

@@ -2659,6 +2659,491 @@ paths:
                 items:
                   $ref: "#/components/schemas/PersonnelSearchResult"
 
+  /organizations/{organizationId}/records-locations:
+    get:
+      operationId: listRecordsLocations
+      tags: [records-locations]
+      summary: List an organization's physical records locations (Phase 3H, W116)
+      description: Requires personnel_file.read. Flat list — the caller reconstructs the hierarchy from parentId.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: All records locations in this organization
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RecordsLocation"
+    post:
+      operationId: createRecordsLocation
+      tags: [records-locations]
+      summary: Create a records location (Phase 3H, W116)
+      description: Requires personnel_file.manage. parentId (if given) must belong to this organization and must not create a cycle.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRecordsLocationInput"
+      responses:
+        "201":
+          description: The newly created records location
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordsLocation"
+        "400":
+          description: Invalid parent (cross-organization or would create a cycle)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/records-locations/{id}:
+    patch:
+      operationId: updateRecordsLocation
+      tags: [records-locations]
+      summary: Update a records location's name, description, or parent (Phase 3H, W116)
+      description: Requires personnel_file.manage.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRecordsLocationInput"
+      responses:
+        "200":
+          description: The updated records location
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordsLocation"
+        "400":
+          description: Invalid parent (cross-organization, self-parent, or would create a cycle)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Records location not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/records-locations/{id}/retire:
+    post:
+      operationId: retireRecordsLocation
+      tags: [records-locations]
+      summary: Retire a records location (Phase 3H, W116)
+      description: >-
+        Requires personnel_file.manage. Never cascades — existing occupants
+        are untouched; retirement only blocks this location from being
+        chosen for a NEW custody assignment going forward.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The retired records location
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordsLocation"
+        "404":
+          description: Records location not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/records-locations/{id}/reactivate:
+    post:
+      operationId: reactivateRecordsLocation
+      tags: [records-locations]
+      summary: Reactivate a retired records location (Phase 3H, W116)
+      description: Requires personnel_file.manage.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The reactivated records location
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordsLocation"
+        "404":
+          description: Records location not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/personnel-files/{personnelFileId}/custody:
+    get:
+      operationId: getPersonnelFileCustody
+      tags: [personnel-file-custody]
+      summary: Live-derived current custody state for a personnel file (Phase 3H, W116)
+      description: >-
+        Requires personnel_file.read. currentCustodyState/currentLocationId
+        are the file-level cache (used only when this organization does not
+        use volumes for this file); overdue is always computed live, never
+        stored.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: personnelFileId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The current custody snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonnelFileCustodyDetail"
+        "404":
+          description: Personnel file not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/personnel-files/{personnelFileId}/volumes:
+    get:
+      operationId: listPersonnelFileVolumes
+      tags: [personnel-file-custody]
+      summary: List a personnel file's physical volumes (Phase 3H, W116)
+      description: Requires personnel_file.read. Empty if this organization does not use volumes for this file.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: personnelFileId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: This file's volumes, ordered by volume number
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PersonnelFileVolume"
+        "404":
+          description: Personnel file not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createPersonnelFileVolume
+      tags: [personnel-file-custody]
+      summary: Create the next sequential volume for a personnel file (Phase 3H, W116)
+      description: Requires personnel_file.manage. volumeNumber is assigned automatically, concurrency-safe.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: personnelFileId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "201":
+          description: The newly created volume
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonnelFileVolume"
+        "404":
+          description: Personnel file not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/personnel-files/{personnelFileId}/movements:
+    get:
+      operationId: listPersonnelFileMovements
+      tags: [personnel-file-custody]
+      summary: A personnel file's full custody/movement history (Phase 3H, W116)
+      description: >-
+        Requires personnel_file.read. Append-only, immutable, most recent
+        first. Pass volumeId to scope to one volume's own history.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: personnelFileId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: volumeId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: This file's (or volume's) movement history, most recent first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PersonnelFileMovement"
+        "404":
+          description: Personnel file not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/personnel-files/{personnelFileId}/checkout:
+    post:
+      operationId: checkoutPersonnelFile
+      tags: [personnel-file-custody]
+      summary: Check out a personnel file or volume (Phase 3H, W116)
+      description: >-
+        Requires personnel_file.movement.write (separate from
+        personnel_file.read/.manage — viewing or managing the registry does
+        not by itself grant the ability to move files). Valid only from
+        in_registry.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: personnelFileId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckoutPersonnelFileInput"
+      responses:
+        "201":
+          description: The checked_out movement event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonnelFileMovement"
+        "404":
+          description: Personnel file, volume, or the given location was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Illegal transition — the file/volume is not currently in_registry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/personnel-files/{personnelFileId}/return:
+    post:
+      operationId: returnPersonnelFile
+      tags: [personnel-file-custody]
+      summary: Return a checked-out (or missing) personnel file or volume (Phase 3H, W116)
+      description: >-
+        Requires personnel_file.movement.write. Valid from checked_out (the
+        ordinary case) or missing (found and brought back by the person who
+        had it).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: personnelFileId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnPersonnelFileInput"
+      responses:
+        "201":
+          description: The returned movement event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonnelFileMovement"
+        "404":
+          description: Personnel file, volume, or the given location was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Illegal transition — the file/volume is not currently checked_out or missing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/personnel-files/{personnelFileId}/mark-missing:
+    post:
+      operationId: markPersonnelFileMissing
+      tags: [personnel-file-custody]
+      summary: Mark a checked-out personnel file or volume missing (Phase 3H, W116)
+      description: Requires personnel_file.movement.write. Valid only from checked_out. A reason is mandatory.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: personnelFileId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MarkPersonnelFileMissingInput"
+      responses:
+        "201":
+          description: The marked_missing movement event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonnelFileMovement"
+        "400":
+          description: A reason is required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Personnel file or volume not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Illegal transition — the file/volume is not currently checked_out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/personnel-files/{personnelFileId}/recover:
+    post:
+      operationId: recoverPersonnelFile
+      tags: [personnel-file-custody]
+      summary: Recover a missing personnel file or volume (Phase 3H, W116)
+      description: >-
+        Requires personnel_file.movement.write. Valid only from missing —
+        found independently of the holder (e.g. in the wrong location),
+        distinct from a direct return by the original holder.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: personnelFileId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecoverPersonnelFileInput"
+      responses:
+        "201":
+          description: The recovered movement event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonnelFileMovement"
+        "404":
+          description: Personnel file, volume, or the given location was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Illegal transition — the file/volume is not currently missing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /organizations/{organizationId}/employees/{employeeId}/leave-requests:
     get:
       operationId: listLeaveRequests
@@ -17695,8 +18180,10 @@ components:
         A permanent, organization-owned personnel-record identity, strictly
         1:1 with an employee (frozen plan §7a) — unlike EmployeeNumberAllocation,
         there is no history: pifNumber is never released, reassigned, or
-        reused (Decision 4).
-      required: [id, organizationId, employeeId, pifNumber, allocationMethod, createdAt, updatedAt]
+        reused (Decision 4). currentLocationId/currentCustodyState (W116)
+        are used only when this organization does not use volumes for this
+        file — see PersonnelFileVolume otherwise.
+      required: [id, organizationId, employeeId, pifNumber, allocationMethod, currentCustodyState, createdAt, updatedAt]
       properties:
         id:
           type: integer
@@ -17711,6 +18198,11 @@ components:
           enum: [generated, manual]
         allocatedByMembershipId:
           type: ["integer", "null"]
+        currentLocationId:
+          type: ["integer", "null"]
+        currentCustodyState:
+          type: string
+          enum: [in_registry, checked_out, missing]
         createdAt:
           type: string
           format: date-time
@@ -17753,6 +18245,186 @@ components:
         currentEmployeeNumber:
           type: ["string", "null"]
         pifNumber:
+          type: ["string", "null"]
+
+    RecordsLocation:
+      type: object
+      description: >-
+        A dedicated, self-referencing, organization-owned physical-storage
+        hierarchy (Phase 3H, W116, Decision 6) — not a Master Data
+        extension. Every level is optional and organization-defined.
+      required: [id, organizationId, parentId, name, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        parentId:
+          type: ["integer", "null"]
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, retired]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateRecordsLocationInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: ["string", "null"]
+        parentId:
+          type: ["integer", "null"]
+
+    UpdateRecordsLocationInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: ["string", "null"]
+        parentId:
+          type: ["integer", "null"]
+
+    PersonnelFileVolume:
+      type: object
+      description: >-
+        A physical volume of a personnel file (Phase 3H, W116, Decision 8) —
+        a child of the personnel-file identity, never a sibling; never a new
+        employee, PIF, or personnel-file identity of its own.
+      required: [id, organizationId, personnelFileId, volumeNumber, status, currentCustodyState, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        personnelFileId:
+          type: integer
+        volumeNumber:
+          type: integer
+        status:
+          type: string
+          enum: [open, closed]
+        currentLocationId:
+          type: ["integer", "null"]
+        currentCustodyState:
+          type: string
+          enum: [in_registry, checked_out, missing]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PersonnelFileMovement:
+      type: object
+      description: >-
+        One immutable, append-only custody event (frozen plan §7b) — never
+        edited or deleted. "Overdue" is deliberately absent here: it is
+        always derived live (see PersonnelFileCustodyDetail), never stored.
+      required: [id, organizationId, personnelFileId, volumeId, eventType, occurredAt, createdAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        personnelFileId:
+          type: integer
+        volumeId:
+          type: ["integer", "null"]
+        eventType:
+          type: string
+          enum: [checked_out, returned, marked_missing, recovered]
+        occurredAt:
+          type: string
+          format: date-time
+        actorMembershipId:
+          type: ["integer", "null"]
+        purpose:
+          type: ["string", "null"]
+        destination:
+          type: ["string", "null"]
+        expectedReturnDate:
+          type: ["string", "null"]
+          format: date-time
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    PersonnelFileCustodyDetail:
+      type: object
+      description: Live-derived current custody snapshot for a personnel file (no volumes) — overdue is computed, never stored.
+      required: [currentCustodyState, currentLocationId, overdue]
+      properties:
+        currentCustodyState:
+          type: string
+          enum: [in_registry, checked_out, missing]
+        currentLocationId:
+          type: ["integer", "null"]
+        overdue:
+          type: boolean
+
+    CheckoutPersonnelFileInput:
+      type: object
+      required: [destination]
+      properties:
+        volumeId:
+          type: ["integer", "null"]
+        purpose:
+          type: ["string", "null"]
+        destination:
+          type: string
+          minLength: 1
+        expectedReturnDate:
+          type: ["string", "null"]
+          format: date-time
+        notes:
+          type: ["string", "null"]
+
+    ReturnPersonnelFileInput:
+      type: object
+      properties:
+        volumeId:
+          type: ["integer", "null"]
+        locationId:
+          type: ["integer", "null"]
+        notes:
+          type: ["string", "null"]
+
+    MarkPersonnelFileMissingInput:
+      type: object
+      required: [notes]
+      properties:
+        volumeId:
+          type: ["integer", "null"]
+        notes:
+          type: string
+          minLength: 1
+          description: Mandatory reason for marking the file missing.
+
+    RecoverPersonnelFileInput:
+      type: object
+      properties:
+        volumeId:
+          type: ["integer", "null"]
+        locationId:
+          type: ["integer", "null"]
+        notes:
           type: ["string", "null"]
 
     EmployeeListResponse:

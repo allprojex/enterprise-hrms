@@ -319,6 +319,12 @@ const PERMISSIONS = [
   // employee — no ESS or Manager Portal visibility, per the frozen plan.
   { key: "personnel_file.read", resource: "personnel_file", action: "read" },
   { key: "personnel_file.manage", resource: "personnel_file", action: "manage" },
+  // Phase 3H, W116 — Physical Filing, Locations & Movement. The third of the
+  // frozen plan §13's six personnel_file.* keys — kept separable from
+  // .manage on purpose (frozen plan §22/current prompt §23): a user who can
+  // only view/manage the registry does not automatically gain the ability
+  // to check files in/out. org_admin/hr_manager only, never employee.
+  { key: "personnel_file.movement.write", resource: "personnel_file", action: "movement.write" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -407,6 +413,7 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "employee_number.allocate",
     "personnel_file.read",
     "personnel_file.manage",
+    "personnel_file.movement.write",
   ],
   hr_manager: [
     "organization.read",
@@ -485,6 +492,7 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "employee_number.allocate",
     "personnel_file.read",
     "personnel_file.manage",
+    "personnel_file.movement.write",
   ],
   employee: [
     "organization.read",

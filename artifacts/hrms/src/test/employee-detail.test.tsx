@@ -18,7 +18,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Router, Route } from 'wouter';
 import { memoryLocation } from 'wouter/memory-location';
 import EmployeeDetail from '@/pages/employee-detail';
-import type { Employee, EmploymentPeriodSummary, PersonnelFile, EmployeeNumberAllocation } from '@workspace/api-client-react';
+import type { Employee, EmploymentPeriodSummary, PersonnelFile, EmployeeNumberAllocation, PersonnelFileCustodyDetail, PersonnelFileMovement, RecordsLocation } from '@workspace/api-client-react';
 
 const { state } = vi.hoisted(() => ({
   state: {
@@ -38,6 +38,22 @@ const { state } = vi.hoisted(() => ({
     createPersonnelFilePending: false,
     staffNumberHistory: undefined as EmployeeNumberAllocation[] | undefined,
     staffNumberHistoryLoading: false,
+    // Phase 3H, W116 — Physical Filing, Locations & Movement.
+    custody: undefined as PersonnelFileCustodyDetail | undefined,
+    custodyLoading: false,
+    movements: undefined as PersonnelFileMovement[] | undefined,
+    movementsLoading: false,
+    recordsLocations: [] as RecordsLocation[],
+    checkoutMutate: vi.fn(),
+    checkoutPending: false,
+    returnMutate: vi.fn(),
+    returnPending: false,
+    markMissingMutate: vi.fn(),
+    markMissingPending: false,
+    recoverMutate: vi.fn(),
+    recoverPending: false,
+    createRecordsLocationMutate: vi.fn(),
+    createRecordsLocationPending: false,
   },
 }));
 
@@ -127,6 +143,19 @@ vi.mock('@workspace/api-client-react', () => ({
     isLoading: state.staffNumberHistoryLoading,
   }),
   getListEmployeeNumberHistoryQueryKey: (orgId: number, empId: number) => ['employeeNumberHistory', orgId, empId],
+
+  // Physical Filing, Locations & Movement (Phase 3H, W116) — the feature under test.
+  useGetPersonnelFileCustody: () => ({ data: state.custody, isLoading: state.custodyLoading }),
+  getGetPersonnelFileCustodyQueryKey: (orgId: number, fileId: number) => ['personnelFileCustody', orgId, fileId],
+  useListPersonnelFileMovements: () => ({ data: state.movements, isLoading: state.movementsLoading }),
+  getListPersonnelFileMovementsQueryKey: (orgId: number, fileId: number) => ['personnelFileMovements', orgId, fileId],
+  useListRecordsLocations: () => ({ data: state.recordsLocations }),
+  getListRecordsLocationsQueryKey: (orgId: number) => ['recordsLocations', orgId],
+  useCreateRecordsLocation: () => ({ mutate: state.createRecordsLocationMutate, isPending: state.createRecordsLocationPending }),
+  useCheckoutPersonnelFile: () => ({ mutate: state.checkoutMutate, isPending: state.checkoutPending }),
+  useReturnPersonnelFile: () => ({ mutate: state.returnMutate, isPending: state.returnPending }),
+  useMarkPersonnelFileMissing: () => ({ mutate: state.markMissingMutate, isPending: state.markMissingPending }),
+  useRecoverPersonnelFile: () => ({ mutate: state.recoverMutate, isPending: state.recoverPending }),
 }));
 
 vi.mock('@/lib/auth', () => ({ getStoredToken: () => 'test-token' }));
@@ -178,6 +207,8 @@ function personnelFileRow(overrides: Partial<PersonnelFile> = {}): PersonnelFile
     pifNumber: 'PIF-001',
     allocationMethod: 'generated',
     allocatedByMembershipId: null,
+    currentLocationId: null,
+    currentCustodyState: 'in_registry',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     ...overrides,
@@ -216,6 +247,57 @@ function resetState() {
   state.createPersonnelFilePending = false;
   state.staffNumberHistory = [];
   state.staffNumberHistoryLoading = false;
+  state.custody = undefined;
+  state.custodyLoading = false;
+  state.movements = [];
+  state.movementsLoading = false;
+  state.recordsLocations = [];
+  state.checkoutMutate = vi.fn();
+  state.checkoutPending = false;
+  state.returnMutate = vi.fn();
+  state.returnPending = false;
+  state.markMissingMutate = vi.fn();
+  state.markMissingPending = false;
+  state.recoverMutate = vi.fn();
+  state.recoverPending = false;
+  state.createRecordsLocationMutate = vi.fn();
+  state.createRecordsLocationPending = false;
+}
+
+function custodyDetail(overrides: Partial<PersonnelFileCustodyDetail> = {}): PersonnelFileCustodyDetail {
+  return { currentCustodyState: 'in_registry', currentLocationId: null, overdue: false, ...overrides };
+}
+
+function movementRow(overrides: Partial<PersonnelFileMovement> = {}): PersonnelFileMovement {
+  return {
+    id: 1,
+    organizationId: 10,
+    personnelFileId: 1,
+    volumeId: null,
+    eventType: 'checked_out',
+    occurredAt: new Date().toISOString(),
+    actorMembershipId: null,
+    purpose: null,
+    destination: 'Jane Doe',
+    expectedReturnDate: null,
+    notes: null,
+    createdAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+function locationRow(overrides: Partial<RecordsLocation> = {}): RecordsLocation {
+  return {
+    id: 1,
+    organizationId: 10,
+    parentId: null,
+    name: 'HR Office',
+    description: null,
+    status: 'active',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    ...overrides,
+  };
 }
 
 function renderPage() {
@@ -353,6 +435,142 @@ describe('Employee detail page', () => {
       const list = screen.getByTestId('list-staff-number-history');
       expect(within(list).getByText('Released')).toBeInTheDocument();
       expect(within(list).getByText('Current')).toBeInTheDocument();
+    });
+  });
+
+  describe('Physical custody section (Phase 3H, W116)', () => {
+    it('does not render when there is no personnel file', () => {
+      resetState();
+      renderPage();
+      expect(screen.queryByTestId('physical-custody-section')).not.toBeInTheDocument();
+    });
+
+    it('shows In Registry state with a Check Out control, no Return/Missing/Recover', () => {
+      resetState();
+      state.personnelFile = personnelFileRow();
+      state.custody = custodyDetail({ currentCustodyState: 'in_registry' });
+      renderPage();
+      expect(screen.getByTestId('badge-custody-state')).toHaveTextContent('In Registry');
+      expect(screen.getByTestId('button-checkout')).toBeInTheDocument();
+      expect(screen.queryByTestId('button-return')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-mark-missing')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-recover')).not.toBeInTheDocument();
+    });
+
+    it('shows Checked Out state with Return and Mark Missing controls', () => {
+      resetState();
+      state.personnelFile = personnelFileRow();
+      state.custody = custodyDetail({ currentCustodyState: 'checked_out' });
+      renderPage();
+      expect(screen.getByTestId('badge-custody-state')).toHaveTextContent('Checked Out');
+      expect(screen.getByTestId('button-return')).toBeInTheDocument();
+      expect(screen.getByTestId('button-mark-missing')).toBeInTheDocument();
+      expect(screen.queryByTestId('button-checkout')).not.toBeInTheDocument();
+    });
+
+    it('shows Missing state with Return and Recover controls, and a clearly-labeled Overdue badge separate from color alone', () => {
+      resetState();
+      state.personnelFile = personnelFileRow();
+      state.custody = custodyDetail({ currentCustodyState: 'missing' });
+      renderPage();
+      expect(screen.getByTestId('badge-custody-state')).toHaveTextContent('Missing');
+      expect(screen.getByTestId('button-recover')).toBeInTheDocument();
+      expect(screen.getByTestId('button-return')).toBeInTheDocument();
+    });
+
+    it('shows an Overdue badge with explicit text when overdue is true, derived not stored', () => {
+      resetState();
+      state.personnelFile = personnelFileRow();
+      state.custody = custodyDetail({ currentCustodyState: 'checked_out', overdue: true });
+      renderPage();
+      expect(screen.getByTestId('badge-overdue')).toHaveTextContent('Overdue');
+    });
+
+    it('resolves and displays the current location name', () => {
+      resetState();
+      state.personnelFile = personnelFileRow();
+      state.custody = custodyDetail({ currentCustodyState: 'in_registry', currentLocationId: 7 });
+      state.recordsLocations = [locationRow({ id: 7, name: 'Cabinet 2' })];
+      renderPage();
+      expect(screen.getByText('Cabinet 2')).toBeInTheDocument();
+    });
+
+    it('toggles and lists movement history', async () => {
+      resetState();
+      state.personnelFile = personnelFileRow();
+      state.custody = custodyDetail();
+      state.movements = [movementRow({ id: 1, eventType: 'checked_out' }), movementRow({ id: 2, eventType: 'returned' })];
+      renderPage();
+
+      const user = userEvent.setup();
+      await user.click(screen.getByTestId('button-toggle-movement-history'));
+
+      const rows = screen.getAllByTestId(/^row-movement-\d+$/);
+      expect(rows).toHaveLength(2);
+    });
+
+    it('submits a checkout with the entered destination', async () => {
+      resetState();
+      state.personnelFile = personnelFileRow();
+      state.custody = custodyDetail({ currentCustodyState: 'in_registry' });
+      renderPage();
+
+      const user = userEvent.setup();
+      await user.click(screen.getByTestId('button-checkout'));
+      await user.type(screen.getByTestId('input-checkout-destination'), 'Jane Doe (HR)');
+      await user.click(screen.getByTestId('button-confirm-checkout'));
+
+      expect(state.checkoutMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ destination: 'Jane Doe (HR)' }) }),
+        expect.anything(),
+      );
+    });
+
+    it('requires a reason before submitting mark-missing', async () => {
+      resetState();
+      state.personnelFile = personnelFileRow();
+      state.custody = custodyDetail({ currentCustodyState: 'checked_out' });
+      renderPage();
+
+      const user = userEvent.setup();
+      await user.click(screen.getByTestId('button-mark-missing'));
+      expect(screen.getByTestId('button-confirm-mark-missing')).toBeDisabled();
+      await user.type(screen.getByTestId('input-missing-reason'), 'Not found during audit');
+      expect(screen.getByTestId('button-confirm-mark-missing')).not.toBeDisabled();
+    });
+  });
+
+  describe('Records Locations manager (Phase 3H, W116)', () => {
+    it('lists existing locations with their parent and status', async () => {
+      resetState();
+      state.personnelFile = personnelFileRow();
+      state.custody = custodyDetail();
+      state.recordsLocations = [locationRow({ id: 1, name: 'HR Office' }), locationRow({ id: 2, name: 'Cabinet 2', parentId: 1 })];
+      renderPage();
+
+      const user = userEvent.setup();
+      await user.click(screen.getByTestId('button-manage-locations'));
+
+      const list = screen.getByTestId('list-records-locations');
+      expect(within(list).getByText('HR Office')).toBeInTheDocument();
+      expect(within(list).getByText('Cabinet 2')).toBeInTheDocument();
+    });
+
+    it('creates a new location with the entered name', async () => {
+      resetState();
+      state.personnelFile = personnelFileRow();
+      state.custody = custodyDetail();
+      renderPage();
+
+      const user = userEvent.setup();
+      await user.click(screen.getByTestId('button-manage-locations'));
+      await user.type(screen.getByTestId('input-new-location-name'), 'Drawer 4');
+      await user.click(screen.getByTestId('button-add-location'));
+
+      expect(state.createRecordsLocationMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ name: 'Drawer 4' }) }),
+        expect.anything(),
+      );
     });
   });
 });

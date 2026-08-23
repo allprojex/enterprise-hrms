@@ -3702,8 +3702,17 @@ export const PersonnelFileAllocationMethod = {
   manual: 'manual',
 } as const;
 
+export type PersonnelFileCurrentCustodyState = typeof PersonnelFileCurrentCustodyState[keyof typeof PersonnelFileCurrentCustodyState];
+
+
+export const PersonnelFileCurrentCustodyState = {
+  in_registry: 'in_registry',
+  checked_out: 'checked_out',
+  missing: 'missing',
+} as const;
+
 /**
- * A permanent, organization-owned personnel-record identity, strictly 1:1 with an employee (frozen plan §7a) — unlike EmployeeNumberAllocation, there is no history: pifNumber is never released, reassigned, or reused (Decision 4).
+ * A permanent, organization-owned personnel-record identity, strictly 1:1 with an employee (frozen plan §7a) — unlike EmployeeNumberAllocation, there is no history: pifNumber is never released, reassigned, or reused (Decision 4). currentLocationId/currentCustodyState (W116) are used only when this organization does not use volumes for this file — see PersonnelFileVolume otherwise.
  */
 export interface PersonnelFile {
   id: number;
@@ -3713,6 +3722,9 @@ export interface PersonnelFile {
   allocationMethod: PersonnelFileAllocationMethod;
   /** @nullable */
   allocatedByMembershipId?: number | null;
+  /** @nullable */
+  currentLocationId?: number | null;
+  currentCustodyState: PersonnelFileCurrentCustodyState;
   createdAt: string;
   updatedAt: string;
 }
@@ -3757,6 +3769,175 @@ export interface PersonnelSearchResult {
   currentEmployeeNumber: string | null;
   /** @nullable */
   pifNumber: string | null;
+}
+
+export type RecordsLocationStatus = typeof RecordsLocationStatus[keyof typeof RecordsLocationStatus];
+
+
+export const RecordsLocationStatus = {
+  active: 'active',
+  retired: 'retired',
+} as const;
+
+/**
+ * A dedicated, self-referencing, organization-owned physical-storage hierarchy (Phase 3H, W116, Decision 6) — not a Master Data extension. Every level is optional and organization-defined.
+ */
+export interface RecordsLocation {
+  id: number;
+  organizationId: number;
+  /** @nullable */
+  parentId: number | null;
+  name: string;
+  /** @nullable */
+  description?: string | null;
+  status: RecordsLocationStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateRecordsLocationInput {
+  /** @minLength 1 */
+  name: string;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  parentId?: number | null;
+}
+
+export interface UpdateRecordsLocationInput {
+  /** @minLength 1 */
+  name?: string;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  parentId?: number | null;
+}
+
+export type PersonnelFileVolumeStatus = typeof PersonnelFileVolumeStatus[keyof typeof PersonnelFileVolumeStatus];
+
+
+export const PersonnelFileVolumeStatus = {
+  open: 'open',
+  closed: 'closed',
+} as const;
+
+export type PersonnelFileVolumeCurrentCustodyState = typeof PersonnelFileVolumeCurrentCustodyState[keyof typeof PersonnelFileVolumeCurrentCustodyState];
+
+
+export const PersonnelFileVolumeCurrentCustodyState = {
+  in_registry: 'in_registry',
+  checked_out: 'checked_out',
+  missing: 'missing',
+} as const;
+
+/**
+ * A physical volume of a personnel file (Phase 3H, W116, Decision 8) — a child of the personnel-file identity, never a sibling; never a new employee, PIF, or personnel-file identity of its own.
+ */
+export interface PersonnelFileVolume {
+  id: number;
+  organizationId: number;
+  personnelFileId: number;
+  volumeNumber: number;
+  status: PersonnelFileVolumeStatus;
+  /** @nullable */
+  currentLocationId?: number | null;
+  currentCustodyState: PersonnelFileVolumeCurrentCustodyState;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type PersonnelFileMovementEventType = typeof PersonnelFileMovementEventType[keyof typeof PersonnelFileMovementEventType];
+
+
+export const PersonnelFileMovementEventType = {
+  checked_out: 'checked_out',
+  returned: 'returned',
+  marked_missing: 'marked_missing',
+  recovered: 'recovered',
+} as const;
+
+/**
+ * One immutable, append-only custody event (frozen plan §7b) — never edited or deleted. "Overdue" is deliberately absent here: it is always derived live (see PersonnelFileCustodyDetail), never stored.
+ */
+export interface PersonnelFileMovement {
+  id: number;
+  organizationId: number;
+  personnelFileId: number;
+  /** @nullable */
+  volumeId: number | null;
+  eventType: PersonnelFileMovementEventType;
+  occurredAt: string;
+  /** @nullable */
+  actorMembershipId?: number | null;
+  /** @nullable */
+  purpose?: string | null;
+  /** @nullable */
+  destination?: string | null;
+  /** @nullable */
+  expectedReturnDate?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+}
+
+export type PersonnelFileCustodyDetailCurrentCustodyState = typeof PersonnelFileCustodyDetailCurrentCustodyState[keyof typeof PersonnelFileCustodyDetailCurrentCustodyState];
+
+
+export const PersonnelFileCustodyDetailCurrentCustodyState = {
+  in_registry: 'in_registry',
+  checked_out: 'checked_out',
+  missing: 'missing',
+} as const;
+
+/**
+ * Live-derived current custody snapshot for a personnel file (no volumes) — overdue is computed, never stored.
+ */
+export interface PersonnelFileCustodyDetail {
+  currentCustodyState: PersonnelFileCustodyDetailCurrentCustodyState;
+  /** @nullable */
+  currentLocationId: number | null;
+  overdue: boolean;
+}
+
+export interface CheckoutPersonnelFileInput {
+  /** @nullable */
+  volumeId?: number | null;
+  /** @nullable */
+  purpose?: string | null;
+  /** @minLength 1 */
+  destination: string;
+  /** @nullable */
+  expectedReturnDate?: string | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface ReturnPersonnelFileInput {
+  /** @nullable */
+  volumeId?: number | null;
+  /** @nullable */
+  locationId?: number | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface MarkPersonnelFileMissingInput {
+  /** @nullable */
+  volumeId?: number | null;
+  /**
+     * Mandatory reason for marking the file missing.
+     * @minLength 1
+     */
+  notes: string;
+}
+
+export interface RecoverPersonnelFileInput {
+  /** @nullable */
+  volumeId?: number | null;
+  /** @nullable */
+  locationId?: number | null;
+  /** @nullable */
+  notes?: string | null;
 }
 
 export interface EmployeeListResponse {
@@ -6200,6 +6381,10 @@ export type UploadEmployeeDocumentBody = {
 
 export type SearchPersonnelRecordsParams = {
 search?: string;
+};
+
+export type ListPersonnelFileMovementsParams = {
+volumeId?: number;
 };
 
 export type ListLeaveCalendarParams = {
