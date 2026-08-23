@@ -325,6 +325,41 @@ const PERMISSIONS = [
   // only view/manage the registry does not automatically gain the ability
   // to check files in/out. org_admin/hr_manager only, never employee.
   { key: "personnel_file.movement.write", resource: "personnel_file", action: "movement.write" },
+  // Payroll, Workstream 1 (docs/PAYROLL_IMPLEMENTATION_PLAN.md §13/§14). The
+  // full frozen payroll permission namespace is registered here in one pass
+  // (the frozen plan explicitly assigns "all payroll.* permission keys" to
+  // Workstream 1) even though only payroll.statutory.manage/.approve are
+  // actually enforced by any route this workstream ships — every other key
+  // is reserved for its own owning future workstream, the same "register
+  // once, wire up as each workstream lands" precedent already used for
+  // several Recruitment permissions (see the recruitment_settings comment
+  // above). Deliberately NOT added to ANY existing ROLE_PERMISSIONS array
+  // below (org_admin, hr_manager, employee) — per the Owner Review's own
+  // explicit instruction that ordinary HR authority must not automatically
+  // imply payroll authority. super_admin still receives every one of these
+  // through the pre-existing `PERMISSIONS.map((p) => p.key)` blanket-grant
+  // every permission in this file already receives — not a payroll-specific
+  // broadening, and the Owner Review's "do not broaden" instruction named
+  // org_admin/hr_manager/employee specifically, not super_admin. A payroll
+  // administrator role must be explicitly created and assigned these keys
+  // per organization before anyone can use them — no such assignment is
+  // made by this workstream, for any organization, including WWM.
+  { key: "payroll.statutory.manage", resource: "payroll", action: "statutory.manage" },
+  { key: "payroll.statutory.approve", resource: "payroll", action: "statutory.approve" },
+  { key: "payroll.compensation.read", resource: "payroll", action: "compensation.read" },
+  { key: "payroll.compensation.manage", resource: "payroll", action: "compensation.manage" },
+  { key: "payroll.banking.read", resource: "payroll", action: "banking.read" },
+  { key: "payroll.banking.manage", resource: "payroll", action: "banking.manage" },
+  { key: "payroll.statutory_identifiers.read", resource: "payroll", action: "statutory_identifiers.read" },
+  { key: "payroll.statutory_identifiers.manage", resource: "payroll", action: "statutory_identifiers.manage" },
+  { key: "payroll.run.prepare", resource: "payroll", action: "run.prepare" },
+  { key: "payroll.run.approve", resource: "payroll", action: "run.approve" },
+  { key: "payroll.run.lock", resource: "payroll", action: "run.lock" },
+  { key: "payroll.run.correct", resource: "payroll", action: "run.correct" },
+  { key: "payroll.payment.manage", resource: "payroll", action: "payment.manage" },
+  { key: "payroll.report.read", resource: "payroll", action: "report.read" },
+  { key: "payroll.payslip.read", resource: "payroll", action: "payslip.read" },
+  { key: "payroll.payslip.read.own", resource: "payroll", action: "payslip.read.own" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {

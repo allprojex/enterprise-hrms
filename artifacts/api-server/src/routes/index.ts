@@ -78,6 +78,7 @@ import learningReportingRouter from "./learningReporting";
 import assetsRouter from "./assets";
 import assetReportingRouter from "./assetReporting";
 import managerPortalRouter from "./managerPortal";
+import payrollStatutoryRulesRouter from "./payrollStatutoryRules";
 
 const router: IRouter = Router();
 
@@ -165,5 +166,6 @@ router.use(learningReportingRouter);
 router.use(assetReportingRouter);
 router.use(assetsRouter);
 router.use(managerPortalRouter);
+router.use(payrollStatutoryRulesRouter);
 
 export default router;

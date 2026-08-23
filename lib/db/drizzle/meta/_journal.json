@@ -316,6 +316,13 @@
       "when": 1787458594591,
       "tag": "0044_graceful_starhawk",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1787487432683,
+      "tag": "0045_abnormal_jigsaw",
+      "breakpoints": true
     }
   ]
 }

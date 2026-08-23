@@ -4611,6 +4611,156 @@ export interface PersonnelImportCommitResult {
   created: PersonnelImportCommitResultRow[];
 }
 
+export type PayrollPayeBandTaxpayerCategory = typeof PayrollPayeBandTaxpayerCategory[keyof typeof PayrollPayeBandTaxpayerCategory];
+
+
+export const PayrollPayeBandTaxpayerCategory = {
+  resident: 'resident',
+  non_resident: 'non_resident',
+} as const;
+
+export interface PayrollPayeBand {
+  id: number;
+  statutoryRuleVersionId: number;
+  bandOrder: number;
+  taxpayerCategory: PayrollPayeBandTaxpayerCategory;
+  /**
+     * Null only for the final, open-ended band.
+     * @nullable
+     */
+  thresholdAmount: string | null;
+  ratePercent: string;
+}
+
+export interface PayrollPensionRate {
+  id: number;
+  statutoryRuleVersionId: number;
+  employeeRatePercent: string;
+  employerRatePercent: string;
+  tier1AllocationPercent: string;
+  tier2AllocationPercent: string;
+}
+
+export interface PayrollPensionEarningsCeiling {
+  id: number;
+  statutoryRuleVersionId: number;
+  /** @nullable */
+  minimumInsurableEarnings: string | null;
+  /** @nullable */
+  maximumInsurableEarnings: string | null;
+}
+
+export type PayrollStatutoryRuleVersionRuleType = typeof PayrollStatutoryRuleVersionRuleType[keyof typeof PayrollStatutoryRuleVersionRuleType];
+
+
+export const PayrollStatutoryRuleVersionRuleType = {
+  paye_bands: 'paye_bands',
+  pension_rates: 'pension_rates',
+  pension_earnings_ceiling: 'pension_earnings_ceiling',
+} as const;
+
+export type PayrollStatutoryRuleVersionStatus = typeof PayrollStatutoryRuleVersionStatus[keyof typeof PayrollStatutoryRuleVersionStatus];
+
+
+export const PayrollStatutoryRuleVersionStatus = {
+  draft: 'draft',
+  validated: 'validated',
+  approved: 'approved',
+} as const;
+
+/**
+ * Platform-global — not organization-scoped. "active"/"superseded" are never stored; a version is in force purely because effectiveFrom has arrived and no later approved version of the same ruleType has superseded it (effectiveTo set).
+ */
+export interface PayrollStatutoryRuleVersion {
+  id: number;
+  ruleType: PayrollStatutoryRuleVersionRuleType;
+  status: PayrollStatutoryRuleVersionStatus;
+  effectiveFrom: string;
+  /** @nullable */
+  effectiveTo: string | null;
+  createdByMembershipId: number;
+  /** @nullable */
+  approvedByMembershipId: number | null;
+  /** @nullable */
+  approvedAt: string | null;
+  /** @nullable */
+  sourceUrl: string | null;
+  /** @nullable */
+  sourceDescription: string | null;
+  /** @nullable */
+  sourceRetrievedAt: string | null;
+  /** @nullable */
+  confirmedBy: string | null;
+  /** @nullable */
+  confirmedAt: string | null;
+  /** @nullable */
+  reasonNote: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PayrollStatutoryRuleVersionDetail {
+  version: PayrollStatutoryRuleVersion;
+  payeBands: PayrollPayeBand[];
+  pensionRates: PayrollPensionRate | null;
+  pensionEarningsCeiling: PayrollPensionEarningsCeiling | null;
+}
+
+export type CreatePayrollPayeBandInputTaxpayerCategory = typeof CreatePayrollPayeBandInputTaxpayerCategory[keyof typeof CreatePayrollPayeBandInputTaxpayerCategory];
+
+
+export const CreatePayrollPayeBandInputTaxpayerCategory = {
+  resident: 'resident',
+  non_resident: 'non_resident',
+} as const;
+
+export interface CreatePayrollPayeBandInput {
+  /** @minimum 1 */
+  bandOrder: number;
+  taxpayerCategory: CreatePayrollPayeBandInputTaxpayerCategory;
+  /** @nullable */
+  thresholdAmount: string | null;
+  ratePercent: string;
+}
+
+export interface CreatePayrollPensionRatesInput {
+  employeeRatePercent: string;
+  employerRatePercent: string;
+  tier1AllocationPercent: string;
+  tier2AllocationPercent: string;
+}
+
+export interface CreatePayrollPensionEarningsCeilingInput {
+  /** @nullable */
+  minimumInsurableEarnings?: string | null;
+  /** @nullable */
+  maximumInsurableEarnings?: string | null;
+}
+
+export type CreatePayrollStatutoryRuleVersionBodyRuleType = typeof CreatePayrollStatutoryRuleVersionBodyRuleType[keyof typeof CreatePayrollStatutoryRuleVersionBodyRuleType];
+
+
+export const CreatePayrollStatutoryRuleVersionBodyRuleType = {
+  paye_bands: 'paye_bands',
+  pension_rates: 'pension_rates',
+  pension_earnings_ceiling: 'pension_earnings_ceiling',
+} as const;
+
+/**
+ * Exactly one of payeBands/pensionRates/pensionEarningsCeiling must be supplied, matching ruleType — enforced server-side, not merely by this shape. No numeric Ghana figures should be supplied here except by an explicitly authorized, verified data-entry action; this endpoint itself performs no statutory verification.
+ */
+export interface CreatePayrollStatutoryRuleVersionBody {
+  ruleType: CreatePayrollStatutoryRuleVersionBodyRuleType;
+  effectiveFrom: string;
+  sourceUrl?: string;
+  sourceDescription?: string;
+  sourceRetrievedAt?: string;
+  reasonNote?: string;
+  payeBands?: CreatePayrollPayeBandInput[];
+  pensionRates?: CreatePayrollPensionRatesInput;
+  pensionEarningsCeiling?: CreatePayrollPensionEarningsCeilingInput;
+}
+
 export type RecruitmentStageBreakdownItemCategory = typeof RecruitmentStageBreakdownItemCategory[keyof typeof RecruitmentStageBreakdownItemCategory];
 
 
@@ -6978,4 +7128,17 @@ export type PreviewPersonnelImportBody = {
 export type CommitPersonnelImportBody = {
   file: Blob;
 };
+
+export type ListPayrollStatutoryRuleVersionsParams = {
+ruleType?: ListPayrollStatutoryRuleVersionsRuleType;
+};
+
+export type ListPayrollStatutoryRuleVersionsRuleType = typeof ListPayrollStatutoryRuleVersionsRuleType[keyof typeof ListPayrollStatutoryRuleVersionsRuleType];
+
+
+export const ListPayrollStatutoryRuleVersionsRuleType = {
+  paye_bands: 'paye_bands',
+  pension_rates: 'pension_rates',
+  pension_earnings_ceiling: 'pension_earnings_ceiling',
+} as const;
 

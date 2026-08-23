@@ -11779,3 +11779,226 @@ export const GetManagerPortalPendingActionsResponse = zod.object({
 }).describe('Manager Portal Pending Actions (Phase 3G, W110). `linked: false` mirrors Team Overview\'s\/Dashboard\'s own not-linked semantics — Leave items still resolve independently for an org-wide HR\/admin caller even when unlinked. Sorted by createdAt descending.')
 
 
+/**
+ * Platform-global statutory rule versions (not organization-scoped — Ghana law does not vary per organization), most recent effectiveFrom first. Gated payroll.statutory.manage or payroll.statutory.approve (either may read). No numeric Ghana figures are seeded by this workstream; rows returned here are whatever versions have been created for QA/verification purposes only.
+ * @summary List Payroll statutory-rule versions (Payroll, Workstream 1)
+ */
+export const ListPayrollStatutoryRuleVersionsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListPayrollStatutoryRuleVersionsQueryParams = zod.object({
+  "ruleType": zod.enum(['paye_bands', 'pension_rates', 'pension_earnings_ceiling']).optional()
+})
+
+export const ListPayrollStatutoryRuleVersionsResponseItem = zod.object({
+  "id": zod.number(),
+  "ruleType": zod.enum(['paye_bands', 'pension_rates', 'pension_earnings_ceiling']),
+  "status": zod.enum(['draft', 'validated', 'approved']),
+  "effectiveFrom": zod.coerce.date(),
+  "effectiveTo": zod.coerce.date().nullable(),
+  "createdByMembershipId": zod.number(),
+  "approvedByMembershipId": zod.number().nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
+  "sourceUrl": zod.string().nullable(),
+  "sourceDescription": zod.string().nullable(),
+  "sourceRetrievedAt": zod.coerce.date().nullable(),
+  "confirmedBy": zod.string().nullable(),
+  "confirmedAt": zod.coerce.date().nullable(),
+  "reasonNote": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Platform-global — not organization-scoped. \"active\"\/\"superseded\" are never stored; a version is in force purely because effectiveFrom has arrived and no later approved version of the same ruleType has superseded it (effectiveTo set).')
+export const ListPayrollStatutoryRuleVersionsResponse = zod.array(ListPayrollStatutoryRuleVersionsResponseItem)
+
+
+/**
+ * Creates a new version in "draft" status. Exactly one of payeBands (ruleType paye_bands), pensionRates (ruleType pension_rates), or pensionEarningsCeiling (ruleType pension_earnings_ceiling) must be supplied, matching ruleType. Gated payroll.statutory.manage.
+ * @summary Create a draft Payroll statutory-rule version (Payroll, Workstream 1)
+ */
+export const CreatePayrollStatutoryRuleVersionParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+
+
+export const CreatePayrollStatutoryRuleVersionBody = zod.object({
+  "ruleType": zod.enum(['paye_bands', 'pension_rates', 'pension_earnings_ceiling']),
+  "effectiveFrom": zod.coerce.date(),
+  "sourceUrl": zod.string().optional(),
+  "sourceDescription": zod.string().optional(),
+  "sourceRetrievedAt": zod.coerce.date().optional(),
+  "reasonNote": zod.string().optional(),
+  "payeBands": zod.array(zod.object({
+  "bandOrder": zod.number().min(1),
+  "taxpayerCategory": zod.enum(['resident', 'non_resident']),
+  "thresholdAmount": zod.string().nullable(),
+  "ratePercent": zod.string()
+})).optional(),
+  "pensionRates": zod.object({
+  "employeeRatePercent": zod.string(),
+  "employerRatePercent": zod.string(),
+  "tier1AllocationPercent": zod.string(),
+  "tier2AllocationPercent": zod.string()
+}).optional(),
+  "pensionEarningsCeiling": zod.object({
+  "minimumInsurableEarnings": zod.string().nullish(),
+  "maximumInsurableEarnings": zod.string().nullish()
+}).optional()
+}).describe('Exactly one of payeBands\/pensionRates\/pensionEarningsCeiling must be supplied, matching ruleType — enforced server-side, not merely by this shape. No numeric Ghana figures should be supplied here except by an explicitly authorized, verified data-entry action; this endpoint itself performs no statutory verification.')
+
+export const CreatePayrollStatutoryRuleVersionResponse = zod.object({
+  "version": zod.object({
+  "id": zod.number(),
+  "ruleType": zod.enum(['paye_bands', 'pension_rates', 'pension_earnings_ceiling']),
+  "status": zod.enum(['draft', 'validated', 'approved']),
+  "effectiveFrom": zod.coerce.date(),
+  "effectiveTo": zod.coerce.date().nullable(),
+  "createdByMembershipId": zod.number(),
+  "approvedByMembershipId": zod.number().nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
+  "sourceUrl": zod.string().nullable(),
+  "sourceDescription": zod.string().nullable(),
+  "sourceRetrievedAt": zod.coerce.date().nullable(),
+  "confirmedBy": zod.string().nullable(),
+  "confirmedAt": zod.coerce.date().nullable(),
+  "reasonNote": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Platform-global — not organization-scoped. \"active\"\/\"superseded\" are never stored; a version is in force purely because effectiveFrom has arrived and no later approved version of the same ruleType has superseded it (effectiveTo set).'),
+  "payeBands": zod.array(zod.object({
+  "id": zod.number(),
+  "statutoryRuleVersionId": zod.number(),
+  "bandOrder": zod.number(),
+  "taxpayerCategory": zod.enum(['resident', 'non_resident']),
+  "thresholdAmount": zod.string().nullable().describe('Null only for the final, open-ended band.'),
+  "ratePercent": zod.string()
+})),
+  "pensionRates": zod.union([zod.object({
+  "id": zod.number(),
+  "statutoryRuleVersionId": zod.number(),
+  "employeeRatePercent": zod.string(),
+  "employerRatePercent": zod.string(),
+  "tier1AllocationPercent": zod.string(),
+  "tier2AllocationPercent": zod.string()
+}),zod.null()]),
+  "pensionEarningsCeiling": zod.union([zod.object({
+  "id": zod.number(),
+  "statutoryRuleVersionId": zod.number(),
+  "minimumInsurableEarnings": zod.string().nullable(),
+  "maximumInsurableEarnings": zod.string().nullable()
+}),zod.null()])
+})
+
+
+/**
+ * @summary Get one Payroll statutory-rule version with its structured values (Payroll, Workstream 1)
+ */
+export const GetPayrollStatutoryRuleVersionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const GetPayrollStatutoryRuleVersionResponse = zod.object({
+  "version": zod.object({
+  "id": zod.number(),
+  "ruleType": zod.enum(['paye_bands', 'pension_rates', 'pension_earnings_ceiling']),
+  "status": zod.enum(['draft', 'validated', 'approved']),
+  "effectiveFrom": zod.coerce.date(),
+  "effectiveTo": zod.coerce.date().nullable(),
+  "createdByMembershipId": zod.number(),
+  "approvedByMembershipId": zod.number().nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
+  "sourceUrl": zod.string().nullable(),
+  "sourceDescription": zod.string().nullable(),
+  "sourceRetrievedAt": zod.coerce.date().nullable(),
+  "confirmedBy": zod.string().nullable(),
+  "confirmedAt": zod.coerce.date().nullable(),
+  "reasonNote": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Platform-global — not organization-scoped. \"active\"\/\"superseded\" are never stored; a version is in force purely because effectiveFrom has arrived and no later approved version of the same ruleType has superseded it (effectiveTo set).'),
+  "payeBands": zod.array(zod.object({
+  "id": zod.number(),
+  "statutoryRuleVersionId": zod.number(),
+  "bandOrder": zod.number(),
+  "taxpayerCategory": zod.enum(['resident', 'non_resident']),
+  "thresholdAmount": zod.string().nullable().describe('Null only for the final, open-ended band.'),
+  "ratePercent": zod.string()
+})),
+  "pensionRates": zod.union([zod.object({
+  "id": zod.number(),
+  "statutoryRuleVersionId": zod.number(),
+  "employeeRatePercent": zod.string(),
+  "employerRatePercent": zod.string(),
+  "tier1AllocationPercent": zod.string(),
+  "tier2AllocationPercent": zod.string()
+}),zod.null()]),
+  "pensionEarningsCeiling": zod.union([zod.object({
+  "id": zod.number(),
+  "statutoryRuleVersionId": zod.number(),
+  "minimumInsurableEarnings": zod.string().nullable(),
+  "maximumInsurableEarnings": zod.string().nullable()
+}),zod.null()])
+})
+
+
+/**
+ * Gated payroll.statutory.manage. Requires the version to currently be "draft".
+ * @summary Move a draft statutory-rule version to "validated" (Payroll, Workstream 1)
+ */
+export const ValidatePayrollStatutoryRuleVersionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ValidatePayrollStatutoryRuleVersionResponse = zod.object({
+  "id": zod.number(),
+  "ruleType": zod.enum(['paye_bands', 'pension_rates', 'pension_earnings_ceiling']),
+  "status": zod.enum(['draft', 'validated', 'approved']),
+  "effectiveFrom": zod.coerce.date(),
+  "effectiveTo": zod.coerce.date().nullable(),
+  "createdByMembershipId": zod.number(),
+  "approvedByMembershipId": zod.number().nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
+  "sourceUrl": zod.string().nullable(),
+  "sourceDescription": zod.string().nullable(),
+  "sourceRetrievedAt": zod.coerce.date().nullable(),
+  "confirmedBy": zod.string().nullable(),
+  "confirmedAt": zod.coerce.date().nullable(),
+  "reasonNote": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Platform-global — not organization-scoped. \"active\"\/\"superseded\" are never stored; a version is in force purely because effectiveFrom has arrived and no later approved version of the same ruleType has superseded it (effectiveTo set).')
+
+
+/**
+ * Gated payroll.statutory.approve. Requires the version to currently be "validated". Maker-checker enforced server-side: the approving membership must differ from the version's own createdByMembershipId, rejected with 409 otherwise. Approving closes the previously-open approved version of the same ruleType (if any) by setting its effectiveTo to this version's effectiveFrom. A concurrent approval of another overlapping version of the same ruleType is rejected with 409 (database-enforced, not just a race in application code).
+ * @summary Approve a validated statutory-rule version (Payroll, Workstream 1)
+ */
+export const ApprovePayrollStatutoryRuleVersionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ApprovePayrollStatutoryRuleVersionResponse = zod.object({
+  "id": zod.number(),
+  "ruleType": zod.enum(['paye_bands', 'pension_rates', 'pension_earnings_ceiling']),
+  "status": zod.enum(['draft', 'validated', 'approved']),
+  "effectiveFrom": zod.coerce.date(),
+  "effectiveTo": zod.coerce.date().nullable(),
+  "createdByMembershipId": zod.number(),
+  "approvedByMembershipId": zod.number().nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
+  "sourceUrl": zod.string().nullable(),
+  "sourceDescription": zod.string().nullable(),
+  "sourceRetrievedAt": zod.coerce.date().nullable(),
+  "confirmedBy": zod.string().nullable(),
+  "confirmedAt": zod.coerce.date().nullable(),
+  "reasonNote": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Platform-global — not organization-scoped. \"active\"\/\"superseded\" are never stored; a version is in force purely because effectiveFrom has arrived and no later approved version of the same ruleType has superseded it (effectiveTo set).')
+
+

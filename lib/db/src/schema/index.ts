@@ -93,3 +93,7 @@ export * from "./asset-assignments";
 export * from "./asset-maintenance";
 export * from "./asset-evidence";
 export * from "./asset-incidents";
+export * from "./payroll-statutory-rule-versions";
+export * from "./payroll-paye-bands";
+export * from "./payroll-pension-rates";
+export * from "./payroll-pension-earnings-ceiling";

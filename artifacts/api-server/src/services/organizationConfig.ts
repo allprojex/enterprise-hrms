@@ -106,6 +106,25 @@ const numberingConfigSchema = z
   })
   .passthrough();
 
+// Payroll, Workstream 1 (docs/PAYROLL_IMPLEMENTATION_PLAN.md §6.1, §9.1,
+// §F — Owner Review's explicit statutory-vs-organization-config separation
+// invariant). Organization PAYROLL POLICY only — pay frequency, default
+// currency, rounding rule. Deliberately contains no field that could be
+// mistaken for or used to represent an official Ghana PAYE/SSNIT parameter;
+// those live exclusively in payroll_statutory_rule_versions and its child
+// tables (lib/db/src/schema/payroll-statutory-rule-versions.ts), a
+// completely separate, non-organization-scoped table family an organization
+// has no route to write to via this namespace. moduleKey: "payroll" — this
+// namespace's routes are unreachable for any organization that has not
+// deliberately enabled the payroll module (none are, by this workstream).
+const payrollConfigSchema = z
+  .object({
+    payFrequency: z.enum(["monthly", "bi_weekly", "weekly"]).optional(),
+    defaultCurrency: z.string().length(3).optional(),
+    roundingRule: z.enum(["round", "floor", "ceil"]).optional(),
+  })
+  .passthrough();
+
 interface NamespaceDefinition {
   schemaVersion: number;
   schema: z.ZodType;
@@ -203,6 +222,16 @@ export const CONFIG_NAMESPACES: Record<string, NamespaceDefinition> = {
         resetPolicy: "never",
       },
     }),
+  },
+  payroll: {
+    schemaVersion: 1,
+    schema: payrollConfigSchema,
+    defaults: () => ({
+      payFrequency: "monthly",
+      defaultCurrency: "GHS",
+      roundingRule: "round",
+    }),
+    moduleKey: "payroll",
   },
 };
 

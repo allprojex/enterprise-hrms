@@ -14512,6 +14512,216 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/payroll/statutory-rules:
+    get:
+      operationId: listPayrollStatutoryRuleVersions
+      tags: [payroll-statutory-rules]
+      summary: List Payroll statutory-rule versions (Payroll, Workstream 1)
+      description: >-
+        Platform-global statutory rule versions (not organization-scoped —
+        Ghana law does not vary per organization), most recent effectiveFrom
+        first. Gated payroll.statutory.manage or payroll.statutory.approve
+        (either may read). No numeric Ghana figures are seeded by this
+        workstream; rows returned here are whatever versions have been
+        created for QA/verification purposes only.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: ruleType
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [paye_bands, pension_rates, pension_earnings_ceiling]
+      responses:
+        "200":
+          description: Statutory rule versions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PayrollStatutoryRuleVersion"
+        "403":
+          description: Forbidden — requires payroll.statutory.manage or payroll.statutory.approve
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createPayrollStatutoryRuleVersion
+      tags: [payroll-statutory-rules]
+      summary: Create a draft Payroll statutory-rule version (Payroll, Workstream 1)
+      description: >-
+        Creates a new version in "draft" status. Exactly one of payeBands
+        (ruleType paye_bands), pensionRates (ruleType pension_rates), or
+        pensionEarningsCeiling (ruleType pension_earnings_ceiling) must be
+        supplied, matching ruleType. Gated payroll.statutory.manage.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePayrollStatutoryRuleVersionBody"
+      responses:
+        "201":
+          description: Created draft version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollStatutoryRuleVersionDetail"
+        "400":
+          description: Invalid or ruleType-mismatched payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires payroll.statutory.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/payroll/statutory-rules/{id}:
+    get:
+      operationId: getPayrollStatutoryRuleVersion
+      tags: [payroll-statutory-rules]
+      summary: Get one Payroll statutory-rule version with its structured values (Payroll, Workstream 1)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Statutory rule version detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollStatutoryRuleVersionDetail"
+        "403":
+          description: Forbidden — requires payroll.statutory.manage or payroll.statutory.approve
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Statutory rule version not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/payroll/statutory-rules/{id}/validate:
+    post:
+      operationId: validatePayrollStatutoryRuleVersion
+      tags: [payroll-statutory-rules]
+      summary: Move a draft statutory-rule version to "validated" (Payroll, Workstream 1)
+      description: Gated payroll.statutory.manage. Requires the version to currently be "draft".
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Validated version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollStatutoryRuleVersion"
+        "403":
+          description: Forbidden — requires payroll.statutory.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Statutory rule version not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Version is not currently "draft"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/payroll/statutory-rules/{id}/approve:
+    post:
+      operationId: approvePayrollStatutoryRuleVersion
+      tags: [payroll-statutory-rules]
+      summary: Approve a validated statutory-rule version (Payroll, Workstream 1)
+      description: >-
+        Gated payroll.statutory.approve. Requires the version to currently be
+        "validated". Maker-checker enforced server-side: the approving
+        membership must differ from the version's own createdByMembershipId,
+        rejected with 409 otherwise. Approving closes the previously-open
+        approved version of the same ruleType (if any) by setting its
+        effectiveTo to this version's effectiveFrom. A concurrent approval of
+        another overlapping version of the same ruleType is rejected with
+        409 (database-enforced, not just a race in application code).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Approved version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollStatutoryRuleVersion"
+        "403":
+          description: Forbidden — requires payroll.statutory.approve
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Statutory rule version not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Version is not currently "validated", the creator attempted to self-approve, or a collision with another overlapping approved version of the same ruleType
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -19617,6 +19827,195 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PersonnelImportCommitResultRow"
+
+    PayrollPayeBand:
+      type: object
+      required: [id, statutoryRuleVersionId, bandOrder, taxpayerCategory, thresholdAmount, ratePercent]
+      properties:
+        id:
+          type: integer
+        statutoryRuleVersionId:
+          type: integer
+        bandOrder:
+          type: integer
+        taxpayerCategory:
+          type: string
+          enum: [resident, non_resident]
+        thresholdAmount:
+          type: ["string", "null"]
+          description: Null only for the final, open-ended band.
+        ratePercent:
+          type: string
+
+    PayrollPensionRate:
+      type: object
+      required: [id, statutoryRuleVersionId, employeeRatePercent, employerRatePercent, tier1AllocationPercent, tier2AllocationPercent]
+      properties:
+        id:
+          type: integer
+        statutoryRuleVersionId:
+          type: integer
+        employeeRatePercent:
+          type: string
+        employerRatePercent:
+          type: string
+        tier1AllocationPercent:
+          type: string
+        tier2AllocationPercent:
+          type: string
+
+    PayrollPensionEarningsCeiling:
+      type: object
+      required: [id, statutoryRuleVersionId, minimumInsurableEarnings, maximumInsurableEarnings]
+      properties:
+        id:
+          type: integer
+        statutoryRuleVersionId:
+          type: integer
+        minimumInsurableEarnings:
+          type: ["string", "null"]
+        maximumInsurableEarnings:
+          type: ["string", "null"]
+
+    PayrollStatutoryRuleVersion:
+      type: object
+      description: >-
+        Platform-global — not organization-scoped. "active"/"superseded" are
+        never stored; a version is in force purely because effectiveFrom has
+        arrived and no later approved version of the same ruleType has
+        superseded it (effectiveTo set).
+      required: [id, ruleType, status, effectiveFrom, effectiveTo, createdByMembershipId, approvedByMembershipId, approvedAt, sourceUrl, sourceDescription, sourceRetrievedAt, confirmedBy, confirmedAt, reasonNote, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        ruleType:
+          type: string
+          enum: [paye_bands, pension_rates, pension_earnings_ceiling]
+        status:
+          type: string
+          enum: [draft, validated, approved]
+        effectiveFrom:
+          type: string
+          format: date-time
+        effectiveTo:
+          type: ["string", "null"]
+          format: date-time
+        createdByMembershipId:
+          type: integer
+        approvedByMembershipId:
+          type: ["integer", "null"]
+        approvedAt:
+          type: ["string", "null"]
+          format: date-time
+        sourceUrl:
+          type: ["string", "null"]
+        sourceDescription:
+          type: ["string", "null"]
+        sourceRetrievedAt:
+          type: ["string", "null"]
+          format: date-time
+        confirmedBy:
+          type: ["string", "null"]
+        confirmedAt:
+          type: ["string", "null"]
+          format: date-time
+        reasonNote:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PayrollStatutoryRuleVersionDetail:
+      type: object
+      required: [version, payeBands, pensionRates, pensionEarningsCeiling]
+      properties:
+        version:
+          $ref: "#/components/schemas/PayrollStatutoryRuleVersion"
+        payeBands:
+          type: array
+          items:
+            $ref: "#/components/schemas/PayrollPayeBand"
+        pensionRates:
+          oneOf:
+            - $ref: "#/components/schemas/PayrollPensionRate"
+            - type: "null"
+        pensionEarningsCeiling:
+          oneOf:
+            - $ref: "#/components/schemas/PayrollPensionEarningsCeiling"
+            - type: "null"
+
+    CreatePayrollPayeBandInput:
+      type: object
+      required: [bandOrder, taxpayerCategory, thresholdAmount, ratePercent]
+      properties:
+        bandOrder:
+          type: integer
+          minimum: 1
+        taxpayerCategory:
+          type: string
+          enum: [resident, non_resident]
+        thresholdAmount:
+          type: ["string", "null"]
+        ratePercent:
+          type: string
+
+    CreatePayrollPensionRatesInput:
+      type: object
+      required: [employeeRatePercent, employerRatePercent, tier1AllocationPercent, tier2AllocationPercent]
+      properties:
+        employeeRatePercent:
+          type: string
+        employerRatePercent:
+          type: string
+        tier1AllocationPercent:
+          type: string
+        tier2AllocationPercent:
+          type: string
+
+    CreatePayrollPensionEarningsCeilingInput:
+      type: object
+      properties:
+        minimumInsurableEarnings:
+          type: ["string", "null"]
+        maximumInsurableEarnings:
+          type: ["string", "null"]
+
+    CreatePayrollStatutoryRuleVersionBody:
+      type: object
+      description: >-
+        Exactly one of payeBands/pensionRates/pensionEarningsCeiling must be
+        supplied, matching ruleType — enforced server-side, not merely by
+        this shape. No numeric Ghana figures should be supplied here except
+        by an explicitly authorized, verified data-entry action; this
+        endpoint itself performs no statutory verification.
+      required: [ruleType, effectiveFrom]
+      properties:
+        ruleType:
+          type: string
+          enum: [paye_bands, pension_rates, pension_earnings_ceiling]
+        effectiveFrom:
+          type: string
+          format: date-time
+        sourceUrl:
+          type: string
+        sourceDescription:
+          type: string
+        sourceRetrievedAt:
+          type: string
+          format: date-time
+        reasonNote:
+          type: string
+        payeBands:
+          type: array
+          items:
+            $ref: "#/components/schemas/CreatePayrollPayeBandInput"
+        pensionRates:
+          $ref: "#/components/schemas/CreatePayrollPensionRatesInput"
+        pensionEarningsCeiling:
+          $ref: "#/components/schemas/CreatePayrollPensionEarningsCeilingInput"
 
     RecruitmentStageBreakdownItem:
       type: object

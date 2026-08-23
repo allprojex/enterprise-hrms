@@ -140,6 +140,29 @@ export const MODULE_DEFINITIONS: readonly ModuleDefinition[] = [
     requiredModuleKeys: [],
     optionalModuleKeys: [],
   },
+  {
+    key: "payroll",
+    name: "Payroll",
+    description: "Ghana statutory payroll: compensation, PAYE/SSNIT calculation, runs, payslips.",
+    category: "financial-operations",
+    version: "1.0.0",
+    // Payroll, Workstream 1 (docs/PAYROLL_IMPLEMENTATION_PLAN.md §6.1,
+    // Decision 7 — new category rather than folded into hr-operations,
+    // since compensation/statutory/banking data is conceptually distinct
+    // from personnel-record HR operations). "hidden": this workstream ships
+    // only the statutory-rule engine foundation — no compensation, no
+    // calculation, no runs exist yet, so there is nothing an organization
+    // could meaningfully use even if enabled. defaultEnabled: false and no
+    // organization_modules override is created for any organization by this
+    // workstream — building this platform-wide grants zero access to any
+    // organization, including WWM, until a future, separate, deliberate
+    // per-organization enablement decision (frozen plan §14/§Owner Review
+    // WWM boundary).
+    status: "hidden",
+    defaultEnabled: false,
+    requiredModuleKeys: [],
+    optionalModuleKeys: [],
+  },
 ] as const;
 
 /**

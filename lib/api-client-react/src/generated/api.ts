@@ -95,6 +95,7 @@ import type {
   CreateOfferInput,
   CreateOrganizationDomainInput,
   CreateOrganizationInput,
+  CreatePayrollStatutoryRuleVersionBody,
   CreatePerformanceCycleInput,
   CreatePerformanceRatingScaleInput,
   CreatePerformanceReviewGoalInput,
@@ -172,6 +173,7 @@ import type {
   ListLeaveBalanceLedgerParams,
   ListLeaveCalendarParams,
   ListOffersParams,
+  ListPayrollStatutoryRuleVersionsParams,
   ListPerformanceReviewsParams,
   ListPersonnelFileMovementsParams,
   ListPublicHolidaysParams,
@@ -209,6 +211,8 @@ import type {
   OrganizationModule,
   OrganizationRole,
   PasswordResetStatus,
+  PayrollStatutoryRuleVersion,
+  PayrollStatutoryRuleVersionDetail,
   PerformanceCycle,
   PerformanceDashboard,
   PerformanceGoal,
@@ -28348,4 +28352,397 @@ export function useGetManagerPortalPendingActions<TData = Awaited<ReturnType<typ
 
 
 
+
+export const getListPayrollStatutoryRuleVersionsUrl = (organizationId: number,
+    params?: ListPayrollStatutoryRuleVersionsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/payroll/statutory-rules?${stringifiedParams}` : `/api/organizations/${organizationId}/payroll/statutory-rules`
+}
+
+/**
+ * Platform-global statutory rule versions (not organization-scoped — Ghana law does not vary per organization), most recent effectiveFrom first. Gated payroll.statutory.manage or payroll.statutory.approve (either may read). No numeric Ghana figures are seeded by this workstream; rows returned here are whatever versions have been created for QA/verification purposes only.
+ * @summary List Payroll statutory-rule versions (Payroll, Workstream 1)
+ */
+export const listPayrollStatutoryRuleVersions = async (organizationId: number,
+    params?: ListPayrollStatutoryRuleVersionsParams, options?: RequestInit): Promise<PayrollStatutoryRuleVersion[]> => {
+
+  return customFetch<PayrollStatutoryRuleVersion[]>(getListPayrollStatutoryRuleVersionsUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPayrollStatutoryRuleVersionsQueryKey = (organizationId: number,
+    params?: ListPayrollStatutoryRuleVersionsParams,) => {
+    return [
+    `/api/organizations/${organizationId}/payroll/statutory-rules`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListPayrollStatutoryRuleVersionsQueryOptions = <TData = Awaited<ReturnType<typeof listPayrollStatutoryRuleVersions>>, TError = ErrorType<ApiError>>(organizationId: number,
+    params?: ListPayrollStatutoryRuleVersionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPayrollStatutoryRuleVersions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPayrollStatutoryRuleVersionsQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPayrollStatutoryRuleVersions>>> = ({ signal }) => listPayrollStatutoryRuleVersions(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPayrollStatutoryRuleVersions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPayrollStatutoryRuleVersionsQueryResult = NonNullable<Awaited<ReturnType<typeof listPayrollStatutoryRuleVersions>>>
+export type ListPayrollStatutoryRuleVersionsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List Payroll statutory-rule versions (Payroll, Workstream 1)
+ */
+
+export function useListPayrollStatutoryRuleVersions<TData = Awaited<ReturnType<typeof listPayrollStatutoryRuleVersions>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    params?: ListPayrollStatutoryRuleVersionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPayrollStatutoryRuleVersions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPayrollStatutoryRuleVersionsQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreatePayrollStatutoryRuleVersionUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/statutory-rules`
+}
+
+/**
+ * Creates a new version in "draft" status. Exactly one of payeBands (ruleType paye_bands), pensionRates (ruleType pension_rates), or pensionEarningsCeiling (ruleType pension_earnings_ceiling) must be supplied, matching ruleType. Gated payroll.statutory.manage.
+ * @summary Create a draft Payroll statutory-rule version (Payroll, Workstream 1)
+ */
+export const createPayrollStatutoryRuleVersion = async (organizationId: number,
+    createPayrollStatutoryRuleVersionBody: CreatePayrollStatutoryRuleVersionBody, options?: RequestInit): Promise<PayrollStatutoryRuleVersionDetail> => {
+
+  return customFetch<PayrollStatutoryRuleVersionDetail>(getCreatePayrollStatutoryRuleVersionUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createPayrollStatutoryRuleVersionBody)
+  }
+);}
+
+
+
+
+
+export const getCreatePayrollStatutoryRuleVersionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPayrollStatutoryRuleVersion>>, TError,{organizationId: number;data: BodyType<CreatePayrollStatutoryRuleVersionBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPayrollStatutoryRuleVersion>>, TError,{organizationId: number;data: BodyType<CreatePayrollStatutoryRuleVersionBody>}, TContext> => {
+
+const mutationKey = ['createPayrollStatutoryRuleVersion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPayrollStatutoryRuleVersion>>, {organizationId: number;data: BodyType<CreatePayrollStatutoryRuleVersionBody>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createPayrollStatutoryRuleVersion(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePayrollStatutoryRuleVersionMutationResult = NonNullable<Awaited<ReturnType<typeof createPayrollStatutoryRuleVersion>>>
+    export type CreatePayrollStatutoryRuleVersionMutationBody = BodyType<CreatePayrollStatutoryRuleVersionBody>
+    export type CreatePayrollStatutoryRuleVersionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Create a draft Payroll statutory-rule version (Payroll, Workstream 1)
+ */
+export const useCreatePayrollStatutoryRuleVersion = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPayrollStatutoryRuleVersion>>, TError,{organizationId: number;data: BodyType<CreatePayrollStatutoryRuleVersionBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createPayrollStatutoryRuleVersion>>,
+        TError,
+        {organizationId: number;data: BodyType<CreatePayrollStatutoryRuleVersionBody>},
+        TContext
+      > => {
+      return useMutation(getCreatePayrollStatutoryRuleVersionMutationOptions(options));
+    }
+
+export const getGetPayrollStatutoryRuleVersionUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/statutory-rules/${id}`
+}
+
+/**
+ * @summary Get one Payroll statutory-rule version with its structured values (Payroll, Workstream 1)
+ */
+export const getPayrollStatutoryRuleVersion = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<PayrollStatutoryRuleVersionDetail> => {
+
+  return customFetch<PayrollStatutoryRuleVersionDetail>(getGetPayrollStatutoryRuleVersionUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPayrollStatutoryRuleVersionQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/payroll/statutory-rules/${id}`
+    ] as const;
+    }
+
+
+export const getGetPayrollStatutoryRuleVersionQueryOptions = <TData = Awaited<ReturnType<typeof getPayrollStatutoryRuleVersion>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayrollStatutoryRuleVersion>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPayrollStatutoryRuleVersionQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPayrollStatutoryRuleVersion>>> = ({ signal }) => getPayrollStatutoryRuleVersion(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPayrollStatutoryRuleVersion>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPayrollStatutoryRuleVersionQueryResult = NonNullable<Awaited<ReturnType<typeof getPayrollStatutoryRuleVersion>>>
+export type GetPayrollStatutoryRuleVersionQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get one Payroll statutory-rule version with its structured values (Payroll, Workstream 1)
+ */
+
+export function useGetPayrollStatutoryRuleVersion<TData = Awaited<ReturnType<typeof getPayrollStatutoryRuleVersion>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayrollStatutoryRuleVersion>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPayrollStatutoryRuleVersionQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getValidatePayrollStatutoryRuleVersionUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/statutory-rules/${id}/validate`
+}
+
+/**
+ * Gated payroll.statutory.manage. Requires the version to currently be "draft".
+ * @summary Move a draft statutory-rule version to "validated" (Payroll, Workstream 1)
+ */
+export const validatePayrollStatutoryRuleVersion = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<PayrollStatutoryRuleVersion> => {
+
+  return customFetch<PayrollStatutoryRuleVersion>(getValidatePayrollStatutoryRuleVersionUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getValidatePayrollStatutoryRuleVersionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof validatePayrollStatutoryRuleVersion>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof validatePayrollStatutoryRuleVersion>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['validatePayrollStatutoryRuleVersion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof validatePayrollStatutoryRuleVersion>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  validatePayrollStatutoryRuleVersion(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ValidatePayrollStatutoryRuleVersionMutationResult = NonNullable<Awaited<ReturnType<typeof validatePayrollStatutoryRuleVersion>>>
+
+    export type ValidatePayrollStatutoryRuleVersionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Move a draft statutory-rule version to "validated" (Payroll, Workstream 1)
+ */
+export const useValidatePayrollStatutoryRuleVersion = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof validatePayrollStatutoryRuleVersion>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof validatePayrollStatutoryRuleVersion>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getValidatePayrollStatutoryRuleVersionMutationOptions(options));
+    }
+
+export const getApprovePayrollStatutoryRuleVersionUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/statutory-rules/${id}/approve`
+}
+
+/**
+ * Gated payroll.statutory.approve. Requires the version to currently be "validated". Maker-checker enforced server-side: the approving membership must differ from the version's own createdByMembershipId, rejected with 409 otherwise. Approving closes the previously-open approved version of the same ruleType (if any) by setting its effectiveTo to this version's effectiveFrom. A concurrent approval of another overlapping version of the same ruleType is rejected with 409 (database-enforced, not just a race in application code).
+ * @summary Approve a validated statutory-rule version (Payroll, Workstream 1)
+ */
+export const approvePayrollStatutoryRuleVersion = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<PayrollStatutoryRuleVersion> => {
+
+  return customFetch<PayrollStatutoryRuleVersion>(getApprovePayrollStatutoryRuleVersionUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getApprovePayrollStatutoryRuleVersionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approvePayrollStatutoryRuleVersion>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approvePayrollStatutoryRuleVersion>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['approvePayrollStatutoryRuleVersion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approvePayrollStatutoryRuleVersion>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  approvePayrollStatutoryRuleVersion(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApprovePayrollStatutoryRuleVersionMutationResult = NonNullable<Awaited<ReturnType<typeof approvePayrollStatutoryRuleVersion>>>
+
+    export type ApprovePayrollStatutoryRuleVersionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Approve a validated statutory-rule version (Payroll, Workstream 1)
+ */
+export const useApprovePayrollStatutoryRuleVersion = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approvePayrollStatutoryRuleVersion>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approvePayrollStatutoryRuleVersion>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getApprovePayrollStatutoryRuleVersionMutationOptions(options));
+    }
 
