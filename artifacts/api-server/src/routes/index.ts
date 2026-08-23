@@ -81,6 +81,8 @@ import managerPortalRouter from "./managerPortal";
 import payrollStatutoryRulesRouter from "./payrollStatutoryRules";
 import payrollCompensationRouter from "./payrollCompensation";
 import payrollSensitiveRecordsRouter from "./payrollSensitiveRecords";
+import payrollPeriodsRouter from "./payrollPeriods";
+import payrollRunsRouter from "./payrollRuns";
 
 const router: IRouter = Router();
 
@@ -171,5 +173,7 @@ router.use(managerPortalRouter);
 router.use(payrollStatutoryRulesRouter);
 router.use(payrollCompensationRouter);
 router.use(payrollSensitiveRecordsRouter);
+router.use(payrollPeriodsRouter);
+router.use(payrollRunsRouter);
 
 export default router;

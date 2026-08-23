@@ -49,8 +49,8 @@ const CATEGORY_TO_DOMAIN: Record<string, string> = {
   deduction: "payroll_deduction_component_type",
 };
 
-/** Free-text componentTypeCode validated against master_data_items (system row or this org's own), mirroring separationReason's own established precedent — never FK-enforced. */
-async function assertComponentTypeKnown(organizationId: number, category: string, componentTypeCode: string): Promise<void> {
+/** Free-text componentTypeCode validated against master_data_items (system row or this org's own), mirroring separationReason's own established precedent — never FK-enforced. Exported for reuse by payrollInputReferences.ts (W3), which validates one-off inputs against the same catalogue. */
+export async function assertComponentTypeKnown(organizationId: number, category: string, componentTypeCode: string): Promise<void> {
   const domain = CATEGORY_TO_DOMAIN[category];
   const [row] = await db
     .select()

@@ -4886,6 +4886,228 @@ export interface CreateEmployeeStatutoryIdentifierBody {
   validFrom: string;
 }
 
+export type PayrollPeriodFrequency = typeof PayrollPeriodFrequency[keyof typeof PayrollPeriodFrequency];
+
+
+export const PayrollPeriodFrequency = {
+  monthly: 'monthly',
+  bi_weekly: 'bi_weekly',
+  weekly: 'weekly',
+} as const;
+
+export interface PayrollPeriod {
+  id: number;
+  organizationId: number;
+  frequency: PayrollPeriodFrequency;
+  periodKey: string;
+  startDate: string;
+  endDate: string;
+  payDate: string;
+  /** @nullable */
+  createdByMembershipId: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CreatePayrollPeriodBodyFrequency = typeof CreatePayrollPeriodBodyFrequency[keyof typeof CreatePayrollPeriodBodyFrequency];
+
+
+export const CreatePayrollPeriodBodyFrequency = {
+  monthly: 'monthly',
+  bi_weekly: 'bi_weekly',
+  weekly: 'weekly',
+} as const;
+
+export interface CreatePayrollPeriodBody {
+  frequency: CreatePayrollPeriodBodyFrequency;
+  startDate: string;
+  endDate: string;
+  payDate: string;
+}
+
+export type PayrollRunStatus = typeof PayrollRunStatus[keyof typeof PayrollRunStatus];
+
+
+export const PayrollRunStatus = {
+  draft: 'draft',
+  calculated: 'calculated',
+} as const;
+
+export interface PayrollRun {
+  id: number;
+  organizationId: number;
+  payrollPeriodId: number;
+  status: PayrollRunStatus;
+  /** @nullable */
+  preparedByMembershipId: number | null;
+  /** @nullable */
+  approvedByMembershipId: number | null;
+  /** @nullable */
+  lockedAt: string | null;
+  /** @nullable */
+  calculatedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePayrollRunBody {
+  payrollPeriodId: number;
+}
+
+export interface PayrollRunLine {
+  id: number;
+  organizationId: number;
+  payrollRunId: number;
+  employeeId: number;
+  /** @nullable */
+  staffNumberSnapshot: string | null;
+  /** @nullable */
+  payeBandsVersionId: number | null;
+  /** @nullable */
+  pensionRatesVersionId: number | null;
+  /** @nullable */
+  pensionEarningsCeilingVersionId: number | null;
+  grossEarnings: string;
+  pensionableEarnings: string;
+  employeePensionDeduction: string;
+  employerPensionContribution: string;
+  tier1Amount: string;
+  tier2Amount: string;
+  taxableIncome: string;
+  payeAmount: string;
+  otherDeductions: string;
+  netPay: string;
+  currency: string;
+  calculatedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type PayrollRunLineComponentCategory = typeof PayrollRunLineComponentCategory[keyof typeof PayrollRunLineComponentCategory];
+
+
+export const PayrollRunLineComponentCategory = {
+  earning: 'earning',
+  deduction: 'deduction',
+} as const;
+
+export type PayrollRunLineComponentTaxableTreatment = typeof PayrollRunLineComponentTaxableTreatment[keyof typeof PayrollRunLineComponentTaxableTreatment];
+
+
+export const PayrollRunLineComponentTaxableTreatment = {
+  ordinary: 'ordinary',
+  benefit_in_kind: 'benefit_in_kind',
+  bonus: 'bonus',
+  overtime: 'overtime',
+} as const;
+
+export type PayrollRunLineComponentSource = typeof PayrollRunLineComponentSource[keyof typeof PayrollRunLineComponentSource];
+
+
+export const PayrollRunLineComponentSource = {
+  recurring: 'recurring',
+  one_off: 'one_off',
+} as const;
+
+export interface PayrollRunLineComponent {
+  id: number;
+  payrollRunLineId: number;
+  category: PayrollRunLineComponentCategory;
+  componentTypeCode: string;
+  amount: string;
+  taxableTreatment: PayrollRunLineComponentTaxableTreatment;
+  pensionable: boolean;
+  source: PayrollRunLineComponentSource;
+}
+
+export interface PayrollRunLineWithTrace {
+  line: PayrollRunLine;
+  components: PayrollRunLineComponent[];
+}
+
+export interface PayrollRunCalculationSummary {
+  run: PayrollRun;
+  employeeCount: number;
+}
+
+export type PayrollRunValidationErrorBodyEmployeeErrorsItem = {
+  employeeId: number;
+  error: string;
+};
+
+export interface PayrollRunValidationErrorBody {
+  error: string;
+  employeeErrors: PayrollRunValidationErrorBodyEmployeeErrorsItem[];
+}
+
+export type PayrollInputReferenceCategory = typeof PayrollInputReferenceCategory[keyof typeof PayrollInputReferenceCategory];
+
+
+export const PayrollInputReferenceCategory = {
+  earning: 'earning',
+  deduction: 'deduction',
+} as const;
+
+export type PayrollInputReferenceTaxableTreatment = typeof PayrollInputReferenceTaxableTreatment[keyof typeof PayrollInputReferenceTaxableTreatment];
+
+
+export const PayrollInputReferenceTaxableTreatment = {
+  ordinary: 'ordinary',
+  benefit_in_kind: 'benefit_in_kind',
+  bonus: 'bonus',
+  overtime: 'overtime',
+} as const;
+
+export interface PayrollInputReference {
+  id: number;
+  organizationId: number;
+  payrollPeriodId: number;
+  employeeId: number;
+  sourceType: string;
+  /** @nullable */
+  sourceId: number | null;
+  category: PayrollInputReferenceCategory;
+  componentTypeCode: string;
+  amount: string;
+  currency: string;
+  taxableTreatment: PayrollInputReferenceTaxableTreatment;
+  /** @nullable */
+  description: string | null;
+  /** @nullable */
+  createdByMembershipId: number | null;
+  /** @nullable */
+  approvedByMembershipId: number | null;
+  createdAt: string;
+}
+
+export type CreatePayrollInputReferenceBodyCategory = typeof CreatePayrollInputReferenceBodyCategory[keyof typeof CreatePayrollInputReferenceBodyCategory];
+
+
+export const CreatePayrollInputReferenceBodyCategory = {
+  earning: 'earning',
+  deduction: 'deduction',
+} as const;
+
+export type CreatePayrollInputReferenceBodyTaxableTreatment = typeof CreatePayrollInputReferenceBodyTaxableTreatment[keyof typeof CreatePayrollInputReferenceBodyTaxableTreatment];
+
+
+export const CreatePayrollInputReferenceBodyTaxableTreatment = {
+  ordinary: 'ordinary',
+  benefit_in_kind: 'benefit_in_kind',
+  bonus: 'bonus',
+  overtime: 'overtime',
+} as const;
+
+export interface CreatePayrollInputReferenceBody {
+  employeeId: number;
+  category: CreatePayrollInputReferenceBodyCategory;
+  componentTypeCode: string;
+  amount: string;
+  currency: string;
+  taxableTreatment?: CreatePayrollInputReferenceBodyTaxableTreatment;
+  description?: string;
+}
+
 export type RecruitmentStageBreakdownItemCategory = typeof RecruitmentStageBreakdownItemCategory[keyof typeof RecruitmentStageBreakdownItemCategory];
 
 
@@ -7273,5 +7495,9 @@ asOf?: string;
 
 export type EndEmployeeCompensationComponentBody = {
   endDate: string;
+};
+
+export type ListPayrollInputReferencesParams = {
+employeeId?: number;
 };
 

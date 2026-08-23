@@ -98,6 +98,9 @@ import type {
   CreateOfferInput,
   CreateOrganizationDomainInput,
   CreateOrganizationInput,
+  CreatePayrollInputReferenceBody,
+  CreatePayrollPeriodBody,
+  CreatePayrollRunBody,
   CreatePayrollStatutoryRuleVersionBody,
   CreatePerformanceCycleInput,
   CreatePerformanceRatingScaleInput,
@@ -181,6 +184,7 @@ import type {
   ListLeaveBalanceLedgerParams,
   ListLeaveCalendarParams,
   ListOffersParams,
+  ListPayrollInputReferencesParams,
   ListPayrollStatutoryRuleVersionsParams,
   ListPerformanceReviewsParams,
   ListPersonnelFileMovementsParams,
@@ -219,6 +223,12 @@ import type {
   OrganizationModule,
   OrganizationRole,
   PasswordResetStatus,
+  PayrollInputReference,
+  PayrollPeriod,
+  PayrollRun,
+  PayrollRunCalculationSummary,
+  PayrollRunLineWithTrace,
+  PayrollRunValidationErrorBody,
   PayrollStatutoryRuleVersion,
   PayrollStatutoryRuleVersionDetail,
   PerformanceCycle,
@@ -29565,4 +29575,875 @@ export function useListEmployeeStatutoryIdentifierHistory<TData = Awaited<Return
 
 
 
+
+export const getListPayrollPeriodsUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/periods`
+}
+
+/**
+ * Gated payroll.run.prepare.
+ * @summary List payroll periods for this organization (Payroll, Workstream 3)
+ */
+export const listPayrollPeriods = async (organizationId: number, options?: RequestInit): Promise<PayrollPeriod[]> => {
+
+  return customFetch<PayrollPeriod[]>(getListPayrollPeriodsUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPayrollPeriodsQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/payroll/periods`
+    ] as const;
+    }
+
+
+export const getListPayrollPeriodsQueryOptions = <TData = Awaited<ReturnType<typeof listPayrollPeriods>>, TError = ErrorType<ApiError>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPayrollPeriods>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPayrollPeriodsQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPayrollPeriods>>> = ({ signal }) => listPayrollPeriods(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPayrollPeriods>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPayrollPeriodsQueryResult = NonNullable<Awaited<ReturnType<typeof listPayrollPeriods>>>
+export type ListPayrollPeriodsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List payroll periods for this organization (Payroll, Workstream 3)
+ */
+
+export function useListPayrollPeriods<TData = Awaited<ReturnType<typeof listPayrollPeriods>>, TError = ErrorType<ApiError>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPayrollPeriods>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPayrollPeriodsQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreatePayrollPeriodUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/periods`
+}
+
+/**
+ * Gated payroll.run.prepare. periodKey is computed server-side from frequency + startDate — never client-supplied. Rejected with 409 if this organization/frequency already has a period covering an overlapping date range (enforced by an advisory lock plus a unique index, not merely a read-then-write check).
+ * @summary Create a payroll period (Payroll, Workstream 3)
+ */
+export const createPayrollPeriod = async (organizationId: number,
+    createPayrollPeriodBody: CreatePayrollPeriodBody, options?: RequestInit): Promise<PayrollPeriod> => {
+
+  return customFetch<PayrollPeriod>(getCreatePayrollPeriodUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createPayrollPeriodBody)
+  }
+);}
+
+
+
+
+
+export const getCreatePayrollPeriodMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPayrollPeriod>>, TError,{organizationId: number;data: BodyType<CreatePayrollPeriodBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPayrollPeriod>>, TError,{organizationId: number;data: BodyType<CreatePayrollPeriodBody>}, TContext> => {
+
+const mutationKey = ['createPayrollPeriod'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPayrollPeriod>>, {organizationId: number;data: BodyType<CreatePayrollPeriodBody>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createPayrollPeriod(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePayrollPeriodMutationResult = NonNullable<Awaited<ReturnType<typeof createPayrollPeriod>>>
+    export type CreatePayrollPeriodMutationBody = BodyType<CreatePayrollPeriodBody>
+    export type CreatePayrollPeriodMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Create a payroll period (Payroll, Workstream 3)
+ */
+export const useCreatePayrollPeriod = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPayrollPeriod>>, TError,{organizationId: number;data: BodyType<CreatePayrollPeriodBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createPayrollPeriod>>,
+        TError,
+        {organizationId: number;data: BodyType<CreatePayrollPeriodBody>},
+        TContext
+      > => {
+      return useMutation(getCreatePayrollPeriodMutationOptions(options));
+    }
+
+export const getGetPayrollPeriodUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/periods/${id}`
+}
+
+/**
+ * Gated payroll.run.prepare.
+ * @summary Get one payroll period (Payroll, Workstream 3)
+ */
+export const getPayrollPeriod = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<PayrollPeriod> => {
+
+  return customFetch<PayrollPeriod>(getGetPayrollPeriodUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPayrollPeriodQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/payroll/periods/${id}`
+    ] as const;
+    }
+
+
+export const getGetPayrollPeriodQueryOptions = <TData = Awaited<ReturnType<typeof getPayrollPeriod>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayrollPeriod>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPayrollPeriodQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPayrollPeriod>>> = ({ signal }) => getPayrollPeriod(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPayrollPeriod>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPayrollPeriodQueryResult = NonNullable<Awaited<ReturnType<typeof getPayrollPeriod>>>
+export type GetPayrollPeriodQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get one payroll period (Payroll, Workstream 3)
+ */
+
+export function useGetPayrollPeriod<TData = Awaited<ReturnType<typeof getPayrollPeriod>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayrollPeriod>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPayrollPeriodQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListPayrollInputReferencesUrl = (organizationId: number,
+    periodId: number,
+    params?: ListPayrollInputReferencesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/payroll/periods/${periodId}/inputs?${stringifiedParams}` : `/api/organizations/${organizationId}/payroll/periods/${periodId}/inputs`
+}
+
+/**
+ * Gated payroll.run.prepare. Optional ?employeeId= narrows to one employee.
+ * @summary List one-off payroll inputs for a period (Payroll, Workstream 3)
+ */
+export const listPayrollInputReferences = async (organizationId: number,
+    periodId: number,
+    params?: ListPayrollInputReferencesParams, options?: RequestInit): Promise<PayrollInputReference[]> => {
+
+  return customFetch<PayrollInputReference[]>(getListPayrollInputReferencesUrl(organizationId,periodId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPayrollInputReferencesQueryKey = (organizationId: number,
+    periodId: number,
+    params?: ListPayrollInputReferencesParams,) => {
+    return [
+    `/api/organizations/${organizationId}/payroll/periods/${periodId}/inputs`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListPayrollInputReferencesQueryOptions = <TData = Awaited<ReturnType<typeof listPayrollInputReferences>>, TError = ErrorType<ApiError>>(organizationId: number,
+    periodId: number,
+    params?: ListPayrollInputReferencesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPayrollInputReferences>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPayrollInputReferencesQueryKey(organizationId,periodId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPayrollInputReferences>>> = ({ signal }) => listPayrollInputReferences(organizationId,periodId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && periodId !== null && periodId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPayrollInputReferences>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPayrollInputReferencesQueryResult = NonNullable<Awaited<ReturnType<typeof listPayrollInputReferences>>>
+export type ListPayrollInputReferencesQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List one-off payroll inputs for a period (Payroll, Workstream 3)
+ */
+
+export function useListPayrollInputReferences<TData = Awaited<ReturnType<typeof listPayrollInputReferences>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    periodId: number,
+    params?: ListPayrollInputReferencesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPayrollInputReferences>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPayrollInputReferencesQueryOptions(organizationId,periodId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreatePayrollInputReferenceUrl = (organizationId: number,
+    periodId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/periods/${periodId}/inputs`
+}
+
+/**
+ * Gated payroll.run.prepare. componentTypeCode is validated against the same master-data component-type catalogue used for recurring compensation. Never automatically populated from Attendance/Leave or any other module — every row here is explicit and attributable.
+ * @summary Add a one-off payroll input for one employee in this period (Payroll, Workstream 3)
+ */
+export const createPayrollInputReference = async (organizationId: number,
+    periodId: number,
+    createPayrollInputReferenceBody: CreatePayrollInputReferenceBody, options?: RequestInit): Promise<PayrollInputReference> => {
+
+  return customFetch<PayrollInputReference>(getCreatePayrollInputReferenceUrl(organizationId,periodId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createPayrollInputReferenceBody)
+  }
+);}
+
+
+
+
+
+export const getCreatePayrollInputReferenceMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPayrollInputReference>>, TError,{organizationId: number;periodId: number;data: BodyType<CreatePayrollInputReferenceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPayrollInputReference>>, TError,{organizationId: number;periodId: number;data: BodyType<CreatePayrollInputReferenceBody>}, TContext> => {
+
+const mutationKey = ['createPayrollInputReference'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPayrollInputReference>>, {organizationId: number;periodId: number;data: BodyType<CreatePayrollInputReferenceBody>}> = (props) => {
+          const {organizationId,periodId,data} = props ?? {};
+
+          return  createPayrollInputReference(organizationId,periodId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePayrollInputReferenceMutationResult = NonNullable<Awaited<ReturnType<typeof createPayrollInputReference>>>
+    export type CreatePayrollInputReferenceMutationBody = BodyType<CreatePayrollInputReferenceBody>
+    export type CreatePayrollInputReferenceMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Add a one-off payroll input for one employee in this period (Payroll, Workstream 3)
+ */
+export const useCreatePayrollInputReference = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPayrollInputReference>>, TError,{organizationId: number;periodId: number;data: BodyType<CreatePayrollInputReferenceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createPayrollInputReference>>,
+        TError,
+        {organizationId: number;periodId: number;data: BodyType<CreatePayrollInputReferenceBody>},
+        TContext
+      > => {
+      return useMutation(getCreatePayrollInputReferenceMutationOptions(options));
+    }
+
+export const getDeletePayrollInputReferenceUrl = (organizationId: number,
+    periodId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/periods/${periodId}/inputs/${id}`
+}
+
+/**
+ * Gated payroll.run.prepare. Deletion is audited with the removed row's before-state.
+ * @summary Remove a one-off payroll input (Payroll, Workstream 3)
+ */
+export const deletePayrollInputReference = async (organizationId: number,
+    periodId: number,
+    id: number, options?: RequestInit): Promise<PayrollInputReference> => {
+
+  return customFetch<PayrollInputReference>(getDeletePayrollInputReferenceUrl(organizationId,periodId,id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeletePayrollInputReferenceMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePayrollInputReference>>, TError,{organizationId: number;periodId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deletePayrollInputReference>>, TError,{organizationId: number;periodId: number;id: number}, TContext> => {
+
+const mutationKey = ['deletePayrollInputReference'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deletePayrollInputReference>>, {organizationId: number;periodId: number;id: number}> = (props) => {
+          const {organizationId,periodId,id} = props ?? {};
+
+          return  deletePayrollInputReference(organizationId,periodId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeletePayrollInputReferenceMutationResult = NonNullable<Awaited<ReturnType<typeof deletePayrollInputReference>>>
+
+    export type DeletePayrollInputReferenceMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Remove a one-off payroll input (Payroll, Workstream 3)
+ */
+export const useDeletePayrollInputReference = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePayrollInputReference>>, TError,{organizationId: number;periodId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deletePayrollInputReference>>,
+        TError,
+        {organizationId: number;periodId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getDeletePayrollInputReferenceMutationOptions(options));
+    }
+
+export const getListPayrollRunsUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/runs`
+}
+
+/**
+ * Gated payroll.run.prepare.
+ * @summary List payroll runs for this organization (Payroll, Workstream 3)
+ */
+export const listPayrollRuns = async (organizationId: number, options?: RequestInit): Promise<PayrollRun[]> => {
+
+  return customFetch<PayrollRun[]>(getListPayrollRunsUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPayrollRunsQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/payroll/runs`
+    ] as const;
+    }
+
+
+export const getListPayrollRunsQueryOptions = <TData = Awaited<ReturnType<typeof listPayrollRuns>>, TError = ErrorType<ApiError>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPayrollRuns>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPayrollRunsQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPayrollRuns>>> = ({ signal }) => listPayrollRuns(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPayrollRuns>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPayrollRunsQueryResult = NonNullable<Awaited<ReturnType<typeof listPayrollRuns>>>
+export type ListPayrollRunsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List payroll runs for this organization (Payroll, Workstream 3)
+ */
+
+export function useListPayrollRuns<TData = Awaited<ReturnType<typeof listPayrollRuns>>, TError = ErrorType<ApiError>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPayrollRuns>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPayrollRunsQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreatePayrollRunUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/runs`
+}
+
+/**
+ * Gated payroll.run.prepare. One run per (organization, period) — rejected with 409 if a run already exists for this period. Never reaches "approved"/"locked" in this workstream — those are reserved for Workstream 4.
+ * @summary Create a draft payroll run for a period (Payroll, Workstream 3)
+ */
+export const createPayrollRun = async (organizationId: number,
+    createPayrollRunBody: CreatePayrollRunBody, options?: RequestInit): Promise<PayrollRun> => {
+
+  return customFetch<PayrollRun>(getCreatePayrollRunUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createPayrollRunBody)
+  }
+);}
+
+
+
+
+
+export const getCreatePayrollRunMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPayrollRun>>, TError,{organizationId: number;data: BodyType<CreatePayrollRunBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPayrollRun>>, TError,{organizationId: number;data: BodyType<CreatePayrollRunBody>}, TContext> => {
+
+const mutationKey = ['createPayrollRun'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPayrollRun>>, {organizationId: number;data: BodyType<CreatePayrollRunBody>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createPayrollRun(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePayrollRunMutationResult = NonNullable<Awaited<ReturnType<typeof createPayrollRun>>>
+    export type CreatePayrollRunMutationBody = BodyType<CreatePayrollRunBody>
+    export type CreatePayrollRunMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Create a draft payroll run for a period (Payroll, Workstream 3)
+ */
+export const useCreatePayrollRun = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPayrollRun>>, TError,{organizationId: number;data: BodyType<CreatePayrollRunBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createPayrollRun>>,
+        TError,
+        {organizationId: number;data: BodyType<CreatePayrollRunBody>},
+        TContext
+      > => {
+      return useMutation(getCreatePayrollRunMutationOptions(options));
+    }
+
+export const getGetPayrollRunUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/runs/${id}`
+}
+
+/**
+ * Gated payroll.run.prepare.
+ * @summary Get one payroll run (Payroll, Workstream 3)
+ */
+export const getPayrollRun = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<PayrollRun> => {
+
+  return customFetch<PayrollRun>(getGetPayrollRunUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPayrollRunQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/payroll/runs/${id}`
+    ] as const;
+    }
+
+
+export const getGetPayrollRunQueryOptions = <TData = Awaited<ReturnType<typeof getPayrollRun>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayrollRun>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPayrollRunQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPayrollRun>>> = ({ signal }) => getPayrollRun(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPayrollRun>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPayrollRunQueryResult = NonNullable<Awaited<ReturnType<typeof getPayrollRun>>>
+export type GetPayrollRunQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get one payroll run (Payroll, Workstream 3)
+ */
+
+export function useGetPayrollRun<TData = Awaited<ReturnType<typeof getPayrollRun>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayrollRun>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPayrollRunQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPayrollRunLinesUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/runs/${id}/lines`
+}
+
+/**
+ * Gated payroll.run.prepare. Each line's components array is the exact calculation trace persisted at calculation time — never recomputed/re-joined live.
+ * @summary Get the calculated lines and itemized trace for a payroll run (Payroll, Workstream 3)
+ */
+export const getPayrollRunLines = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<PayrollRunLineWithTrace[]> => {
+
+  return customFetch<PayrollRunLineWithTrace[]>(getGetPayrollRunLinesUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPayrollRunLinesQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/payroll/runs/${id}/lines`
+    ] as const;
+    }
+
+
+export const getGetPayrollRunLinesQueryOptions = <TData = Awaited<ReturnType<typeof getPayrollRunLines>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayrollRunLines>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPayrollRunLinesQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPayrollRunLines>>> = ({ signal }) => getPayrollRunLines(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPayrollRunLines>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPayrollRunLinesQueryResult = NonNullable<Awaited<ReturnType<typeof getPayrollRunLines>>>
+export type GetPayrollRunLinesQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get the calculated lines and itemized trace for a payroll run (Payroll, Workstream 3)
+ */
+
+export function useGetPayrollRunLines<TData = Awaited<ReturnType<typeof getPayrollRunLines>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayrollRunLines>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPayrollRunLinesQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCalculatePayrollRunUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/runs/${id}/calculate`
+}
+
+/**
+ * Gated payroll.run.prepare. Atomically discards and replaces any prior calculation for this run. If any included employee fails validation, the entire attempt is rolled back and every per-employee error is returned together (422) — a run never ends up partially calculated.
+ * @summary (Re)calculate every eligible employee for this payroll run (Payroll, Workstream 3)
+ */
+export const calculatePayrollRun = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<PayrollRunCalculationSummary> => {
+
+  return customFetch<PayrollRunCalculationSummary>(getCalculatePayrollRunUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCalculatePayrollRunMutationOptions = <TError = ErrorType<ApiError | PayrollRunValidationErrorBody>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof calculatePayrollRun>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof calculatePayrollRun>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['calculatePayrollRun'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof calculatePayrollRun>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  calculatePayrollRun(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CalculatePayrollRunMutationResult = NonNullable<Awaited<ReturnType<typeof calculatePayrollRun>>>
+
+    export type CalculatePayrollRunMutationError = ErrorType<ApiError | PayrollRunValidationErrorBody>
+
+    /**
+ * @summary (Re)calculate every eligible employee for this payroll run (Payroll, Workstream 3)
+ */
+export const useCalculatePayrollRun = <TError = ErrorType<ApiError | PayrollRunValidationErrorBody>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof calculatePayrollRun>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof calculatePayrollRun>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getCalculatePayrollRunMutationOptions(options));
+    }
 

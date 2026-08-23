@@ -100,3 +100,8 @@ export * from "./payroll-pension-earnings-ceiling";
 export * from "./employee-compensation-components";
 export * from "./employee-banking-details";
 export * from "./employee-statutory-identifiers";
+export * from "./payroll-periods";
+export * from "./payroll-runs";
+export * from "./payroll-run-lines";
+export * from "./payroll-run-line-components";
+export * from "./payroll-input-references";

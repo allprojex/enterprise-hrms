@@ -12306,3 +12306,324 @@ export const ListEmployeeStatutoryIdentifierHistoryResponseItem = zod.object({
 export const ListEmployeeStatutoryIdentifierHistoryResponse = zod.array(ListEmployeeStatutoryIdentifierHistoryResponseItem)
 
 
+/**
+ * Gated payroll.run.prepare.
+ * @summary List payroll periods for this organization (Payroll, Workstream 3)
+ */
+export const ListPayrollPeriodsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListPayrollPeriodsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "frequency": zod.enum(['monthly', 'bi_weekly', 'weekly']),
+  "periodKey": zod.string(),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date(),
+  "payDate": zod.coerce.date(),
+  "createdByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListPayrollPeriodsResponse = zod.array(ListPayrollPeriodsResponseItem)
+
+
+/**
+ * Gated payroll.run.prepare. periodKey is computed server-side from frequency + startDate — never client-supplied. Rejected with 409 if this organization/frequency already has a period covering an overlapping date range (enforced by an advisory lock plus a unique index, not merely a read-then-write check).
+ * @summary Create a payroll period (Payroll, Workstream 3)
+ */
+export const CreatePayrollPeriodParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const CreatePayrollPeriodBody = zod.object({
+  "frequency": zod.enum(['monthly', 'bi_weekly', 'weekly']),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date(),
+  "payDate": zod.coerce.date()
+})
+
+export const CreatePayrollPeriodResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "frequency": zod.enum(['monthly', 'bi_weekly', 'weekly']),
+  "periodKey": zod.string(),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date(),
+  "payDate": zod.coerce.date(),
+  "createdByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Gated payroll.run.prepare.
+ * @summary Get one payroll period (Payroll, Workstream 3)
+ */
+export const GetPayrollPeriodParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const GetPayrollPeriodResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "frequency": zod.enum(['monthly', 'bi_weekly', 'weekly']),
+  "periodKey": zod.string(),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date(),
+  "payDate": zod.coerce.date(),
+  "createdByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Gated payroll.run.prepare. Optional ?employeeId= narrows to one employee.
+ * @summary List one-off payroll inputs for a period (Payroll, Workstream 3)
+ */
+export const ListPayrollInputReferencesParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "periodId": zod.coerce.number()
+})
+
+export const ListPayrollInputReferencesQueryParams = zod.object({
+  "employeeId": zod.coerce.number().optional()
+})
+
+export const ListPayrollInputReferencesResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "payrollPeriodId": zod.number(),
+  "employeeId": zod.number(),
+  "sourceType": zod.string(),
+  "sourceId": zod.number().nullable(),
+  "category": zod.enum(['earning', 'deduction']),
+  "componentTypeCode": zod.string(),
+  "amount": zod.string(),
+  "currency": zod.string(),
+  "taxableTreatment": zod.enum(['ordinary', 'benefit_in_kind', 'bonus', 'overtime']),
+  "description": zod.string().nullable(),
+  "createdByMembershipId": zod.number().nullable(),
+  "approvedByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date()
+})
+export const ListPayrollInputReferencesResponse = zod.array(ListPayrollInputReferencesResponseItem)
+
+
+/**
+ * Gated payroll.run.prepare. componentTypeCode is validated against the same master-data component-type catalogue used for recurring compensation. Never automatically populated from Attendance/Leave or any other module — every row here is explicit and attributable.
+ * @summary Add a one-off payroll input for one employee in this period (Payroll, Workstream 3)
+ */
+export const CreatePayrollInputReferenceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "periodId": zod.coerce.number()
+})
+
+export const CreatePayrollInputReferenceBody = zod.object({
+  "employeeId": zod.number(),
+  "category": zod.enum(['earning', 'deduction']),
+  "componentTypeCode": zod.string(),
+  "amount": zod.string(),
+  "currency": zod.string(),
+  "taxableTreatment": zod.enum(['ordinary', 'benefit_in_kind', 'bonus', 'overtime']).optional(),
+  "description": zod.string().optional()
+})
+
+export const CreatePayrollInputReferenceResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "payrollPeriodId": zod.number(),
+  "employeeId": zod.number(),
+  "sourceType": zod.string(),
+  "sourceId": zod.number().nullable(),
+  "category": zod.enum(['earning', 'deduction']),
+  "componentTypeCode": zod.string(),
+  "amount": zod.string(),
+  "currency": zod.string(),
+  "taxableTreatment": zod.enum(['ordinary', 'benefit_in_kind', 'bonus', 'overtime']),
+  "description": zod.string().nullable(),
+  "createdByMembershipId": zod.number().nullable(),
+  "approvedByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * Gated payroll.run.prepare. Deletion is audited with the removed row's before-state.
+ * @summary Remove a one-off payroll input (Payroll, Workstream 3)
+ */
+export const DeletePayrollInputReferenceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "periodId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const DeletePayrollInputReferenceResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "payrollPeriodId": zod.number(),
+  "employeeId": zod.number(),
+  "sourceType": zod.string(),
+  "sourceId": zod.number().nullable(),
+  "category": zod.enum(['earning', 'deduction']),
+  "componentTypeCode": zod.string(),
+  "amount": zod.string(),
+  "currency": zod.string(),
+  "taxableTreatment": zod.enum(['ordinary', 'benefit_in_kind', 'bonus', 'overtime']),
+  "description": zod.string().nullable(),
+  "createdByMembershipId": zod.number().nullable(),
+  "approvedByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * Gated payroll.run.prepare.
+ * @summary List payroll runs for this organization (Payroll, Workstream 3)
+ */
+export const ListPayrollRunsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListPayrollRunsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "payrollPeriodId": zod.number(),
+  "status": zod.enum(['draft', 'calculated']),
+  "preparedByMembershipId": zod.number().nullable(),
+  "approvedByMembershipId": zod.number().nullable(),
+  "lockedAt": zod.coerce.date().nullable(),
+  "calculatedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListPayrollRunsResponse = zod.array(ListPayrollRunsResponseItem)
+
+
+/**
+ * Gated payroll.run.prepare. One run per (organization, period) — rejected with 409 if a run already exists for this period. Never reaches "approved"/"locked" in this workstream — those are reserved for Workstream 4.
+ * @summary Create a draft payroll run for a period (Payroll, Workstream 3)
+ */
+export const CreatePayrollRunParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const CreatePayrollRunBody = zod.object({
+  "payrollPeriodId": zod.number()
+})
+
+export const CreatePayrollRunResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "payrollPeriodId": zod.number(),
+  "status": zod.enum(['draft', 'calculated']),
+  "preparedByMembershipId": zod.number().nullable(),
+  "approvedByMembershipId": zod.number().nullable(),
+  "lockedAt": zod.coerce.date().nullable(),
+  "calculatedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Gated payroll.run.prepare.
+ * @summary Get one payroll run (Payroll, Workstream 3)
+ */
+export const GetPayrollRunParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const GetPayrollRunResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "payrollPeriodId": zod.number(),
+  "status": zod.enum(['draft', 'calculated']),
+  "preparedByMembershipId": zod.number().nullable(),
+  "approvedByMembershipId": zod.number().nullable(),
+  "lockedAt": zod.coerce.date().nullable(),
+  "calculatedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Gated payroll.run.prepare. Each line's components array is the exact calculation trace persisted at calculation time — never recomputed/re-joined live.
+ * @summary Get the calculated lines and itemized trace for a payroll run (Payroll, Workstream 3)
+ */
+export const GetPayrollRunLinesParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const GetPayrollRunLinesResponseItem = zod.object({
+  "line": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "payrollRunId": zod.number(),
+  "employeeId": zod.number(),
+  "staffNumberSnapshot": zod.string().nullable(),
+  "payeBandsVersionId": zod.number().nullable(),
+  "pensionRatesVersionId": zod.number().nullable(),
+  "pensionEarningsCeilingVersionId": zod.number().nullable(),
+  "grossEarnings": zod.string(),
+  "pensionableEarnings": zod.string(),
+  "employeePensionDeduction": zod.string(),
+  "employerPensionContribution": zod.string(),
+  "tier1Amount": zod.string(),
+  "tier2Amount": zod.string(),
+  "taxableIncome": zod.string(),
+  "payeAmount": zod.string(),
+  "otherDeductions": zod.string(),
+  "netPay": zod.string(),
+  "currency": zod.string(),
+  "calculatedAt": zod.coerce.date(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "components": zod.array(zod.object({
+  "id": zod.number(),
+  "payrollRunLineId": zod.number(),
+  "category": zod.enum(['earning', 'deduction']),
+  "componentTypeCode": zod.string(),
+  "amount": zod.string(),
+  "taxableTreatment": zod.enum(['ordinary', 'benefit_in_kind', 'bonus', 'overtime']),
+  "pensionable": zod.boolean(),
+  "source": zod.enum(['recurring', 'one_off'])
+}))
+})
+export const GetPayrollRunLinesResponse = zod.array(GetPayrollRunLinesResponseItem)
+
+
+/**
+ * Gated payroll.run.prepare. Atomically discards and replaces any prior calculation for this run. If any included employee fails validation, the entire attempt is rolled back and every per-employee error is returned together (422) — a run never ends up partially calculated.
+ * @summary (Re)calculate every eligible employee for this payroll run (Payroll, Workstream 3)
+ */
+export const CalculatePayrollRunParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const CalculatePayrollRunResponse = zod.object({
+  "run": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "payrollPeriodId": zod.number(),
+  "status": zod.enum(['draft', 'calculated']),
+  "preparedByMembershipId": zod.number().nullable(),
+  "approvedByMembershipId": zod.number().nullable(),
+  "lockedAt": zod.coerce.date().nullable(),
+  "calculatedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "employeeCount": zod.number()
+})
+
+

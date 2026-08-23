@@ -15193,6 +15193,444 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/payroll/periods:
+    get:
+      operationId: listPayrollPeriods
+      tags: [payroll-periods]
+      summary: List payroll periods for this organization (Payroll, Workstream 3)
+      description: Gated payroll.run.prepare.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Payroll periods, ordered by startDate
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PayrollPeriod"
+        "403":
+          description: Forbidden — requires payroll.run.prepare
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createPayrollPeriod
+      tags: [payroll-periods]
+      summary: Create a payroll period (Payroll, Workstream 3)
+      description: >-
+        Gated payroll.run.prepare. periodKey is computed server-side from
+        frequency + startDate — never client-supplied. Rejected with 409 if
+        this organization/frequency already has a period covering an
+        overlapping date range (enforced by an advisory lock plus a unique
+        index, not merely a read-then-write check).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePayrollPeriodBody"
+      responses:
+        "201":
+          description: Created payroll period
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollPeriod"
+        "400":
+          description: Invalid period dates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires payroll.run.prepare
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Overlapping payroll period already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/payroll/periods/{id}:
+    get:
+      operationId: getPayrollPeriod
+      tags: [payroll-periods]
+      summary: Get one payroll period (Payroll, Workstream 3)
+      description: Gated payroll.run.prepare.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Payroll period
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollPeriod"
+        "403":
+          description: Forbidden — requires payroll.run.prepare
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Payroll period not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/payroll/periods/{periodId}/inputs:
+    get:
+      operationId: listPayrollInputReferences
+      tags: [payroll-periods]
+      summary: List one-off payroll inputs for a period (Payroll, Workstream 3)
+      description: Gated payroll.run.prepare. Optional ?employeeId= narrows to one employee.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: periodId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: One-off payroll inputs for this period
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PayrollInputReference"
+        "403":
+          description: Forbidden — requires payroll.run.prepare
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createPayrollInputReference
+      tags: [payroll-periods]
+      summary: Add a one-off payroll input for one employee in this period (Payroll, Workstream 3)
+      description: >-
+        Gated payroll.run.prepare. componentTypeCode is validated against the
+        same master-data component-type catalogue used for recurring
+        compensation. Never automatically populated from Attendance/Leave or
+        any other module — every row here is explicit and attributable.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: periodId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePayrollInputReferenceBody"
+      responses:
+        "201":
+          description: Created one-off payroll input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollInputReference"
+        "400":
+          description: Unknown component type, or payroll period not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires payroll.run.prepare
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/payroll/periods/{periodId}/inputs/{id}:
+    delete:
+      operationId: deletePayrollInputReference
+      tags: [payroll-periods]
+      summary: Remove a one-off payroll input (Payroll, Workstream 3)
+      description: Gated payroll.run.prepare. Deletion is audited with the removed row's before-state.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: periodId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Removed one-off payroll input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollInputReference"
+        "403":
+          description: Forbidden — requires payroll.run.prepare
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Payroll input reference not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/payroll/runs:
+    get:
+      operationId: listPayrollRuns
+      tags: [payroll-runs]
+      summary: List payroll runs for this organization (Payroll, Workstream 3)
+      description: Gated payroll.run.prepare.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Payroll runs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PayrollRun"
+        "403":
+          description: Forbidden — requires payroll.run.prepare
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createPayrollRun
+      tags: [payroll-runs]
+      summary: Create a draft payroll run for a period (Payroll, Workstream 3)
+      description: >-
+        Gated payroll.run.prepare. One run per (organization, period) —
+        rejected with 409 if a run already exists for this period. Never
+        reaches "approved"/"locked" in this workstream — those are reserved
+        for Workstream 4.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePayrollRunBody"
+      responses:
+        "201":
+          description: Created draft payroll run
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollRun"
+        "403":
+          description: Forbidden — requires payroll.run.prepare
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Payroll period not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: A payroll run already exists for this period
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/payroll/runs/{id}:
+    get:
+      operationId: getPayrollRun
+      tags: [payroll-runs]
+      summary: Get one payroll run (Payroll, Workstream 3)
+      description: Gated payroll.run.prepare.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Payroll run
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollRun"
+        "403":
+          description: Forbidden — requires payroll.run.prepare
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Payroll run not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/payroll/runs/{id}/lines:
+    get:
+      operationId: getPayrollRunLines
+      tags: [payroll-runs]
+      summary: Get the calculated lines and itemized trace for a payroll run (Payroll, Workstream 3)
+      description: >-
+        Gated payroll.run.prepare. Each line's components array is the exact
+        calculation trace persisted at calculation time — never
+        recomputed/re-joined live.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Payroll run lines with their itemized component trace
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PayrollRunLineWithTrace"
+        "403":
+          description: Forbidden — requires payroll.run.prepare
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/payroll/runs/{id}/calculate:
+    post:
+      operationId: calculatePayrollRun
+      tags: [payroll-runs]
+      summary: (Re)calculate every eligible employee for this payroll run (Payroll, Workstream 3)
+      description: >-
+        Gated payroll.run.prepare. Atomically discards and replaces any
+        prior calculation for this run. If any included employee fails
+        validation, the entire attempt is rolled back and every per-employee
+        error is returned together (422) — a run never ends up partially
+        calculated.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Calculation summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollRunCalculationSummary"
+        "400":
+          description: No eligible employees for this period
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires payroll.run.prepare
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Payroll run not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: One or more employees failed calculation validation — nothing was persisted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollRunValidationErrorBody"
+
 components:
   schemas:
     HealthStatus:
@@ -20654,6 +21092,263 @@ components:
         validFrom:
           type: string
           format: date-time
+
+    PayrollPeriod:
+      type: object
+      required: [id, organizationId, frequency, periodKey, startDate, endDate, payDate, createdByMembershipId, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        frequency:
+          type: string
+          enum: [monthly, bi_weekly, weekly]
+        periodKey:
+          type: string
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
+        payDate:
+          type: string
+          format: date-time
+        createdByMembershipId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreatePayrollPeriodBody:
+      type: object
+      required: [frequency, startDate, endDate, payDate]
+      properties:
+        frequency:
+          type: string
+          enum: [monthly, bi_weekly, weekly]
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
+        payDate:
+          type: string
+          format: date-time
+
+    PayrollRun:
+      type: object
+      required: [id, organizationId, payrollPeriodId, status, preparedByMembershipId, approvedByMembershipId, lockedAt, calculatedAt, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        payrollPeriodId:
+          type: integer
+        status:
+          type: string
+          enum: [draft, calculated]
+        preparedByMembershipId:
+          type: ["integer", "null"]
+        approvedByMembershipId:
+          type: ["integer", "null"]
+        lockedAt:
+          type: ["string", "null"]
+          format: date-time
+        calculatedAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreatePayrollRunBody:
+      type: object
+      required: [payrollPeriodId]
+      properties:
+        payrollPeriodId:
+          type: integer
+
+    PayrollRunLine:
+      type: object
+      required: [id, organizationId, payrollRunId, employeeId, staffNumberSnapshot, payeBandsVersionId, pensionRatesVersionId, pensionEarningsCeilingVersionId, grossEarnings, pensionableEarnings, employeePensionDeduction, employerPensionContribution, tier1Amount, tier2Amount, taxableIncome, payeAmount, otherDeductions, netPay, currency, calculatedAt, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        payrollRunId:
+          type: integer
+        employeeId:
+          type: integer
+        staffNumberSnapshot:
+          type: ["string", "null"]
+        payeBandsVersionId:
+          type: ["integer", "null"]
+        pensionRatesVersionId:
+          type: ["integer", "null"]
+        pensionEarningsCeilingVersionId:
+          type: ["integer", "null"]
+        grossEarnings:
+          type: string
+        pensionableEarnings:
+          type: string
+        employeePensionDeduction:
+          type: string
+        employerPensionContribution:
+          type: string
+        tier1Amount:
+          type: string
+        tier2Amount:
+          type: string
+        taxableIncome:
+          type: string
+        payeAmount:
+          type: string
+        otherDeductions:
+          type: string
+        netPay:
+          type: string
+        currency:
+          type: string
+        calculatedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PayrollRunLineComponent:
+      type: object
+      required: [id, payrollRunLineId, category, componentTypeCode, amount, taxableTreatment, pensionable, source]
+      properties:
+        id:
+          type: integer
+        payrollRunLineId:
+          type: integer
+        category:
+          type: string
+          enum: [earning, deduction]
+        componentTypeCode:
+          type: string
+        amount:
+          type: string
+        taxableTreatment:
+          type: string
+          enum: [ordinary, benefit_in_kind, bonus, overtime]
+        pensionable:
+          type: boolean
+        source:
+          type: string
+          enum: [recurring, one_off]
+
+    PayrollRunLineWithTrace:
+      type: object
+      required: [line, components]
+      properties:
+        line:
+          $ref: "#/components/schemas/PayrollRunLine"
+        components:
+          type: array
+          items:
+            $ref: "#/components/schemas/PayrollRunLineComponent"
+
+    PayrollRunCalculationSummary:
+      type: object
+      required: [run, employeeCount]
+      properties:
+        run:
+          $ref: "#/components/schemas/PayrollRun"
+        employeeCount:
+          type: integer
+
+    PayrollRunValidationErrorBody:
+      type: object
+      required: [error, employeeErrors]
+      properties:
+        error:
+          type: string
+        employeeErrors:
+          type: array
+          items:
+            type: object
+            required: [employeeId, error]
+            properties:
+              employeeId:
+                type: integer
+              error:
+                type: string
+
+    PayrollInputReference:
+      type: object
+      required: [id, organizationId, payrollPeriodId, employeeId, sourceType, sourceId, category, componentTypeCode, amount, currency, taxableTreatment, description, createdByMembershipId, approvedByMembershipId, createdAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        payrollPeriodId:
+          type: integer
+        employeeId:
+          type: integer
+        sourceType:
+          type: string
+        sourceId:
+          type: ["integer", "null"]
+        category:
+          type: string
+          enum: [earning, deduction]
+        componentTypeCode:
+          type: string
+        amount:
+          type: string
+        currency:
+          type: string
+        taxableTreatment:
+          type: string
+          enum: [ordinary, benefit_in_kind, bonus, overtime]
+        description:
+          type: ["string", "null"]
+        createdByMembershipId:
+          type: ["integer", "null"]
+        approvedByMembershipId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    CreatePayrollInputReferenceBody:
+      type: object
+      required: [employeeId, category, componentTypeCode, amount, currency]
+      properties:
+        employeeId:
+          type: integer
+        category:
+          type: string
+          enum: [earning, deduction]
+        componentTypeCode:
+          type: string
+        amount:
+          type: string
+        currency:
+          type: string
+        taxableTreatment:
+          type: string
+          enum: [ordinary, benefit_in_kind, bonus, overtime]
+        description:
+          type: string
 
     RecruitmentStageBreakdownItem:
       type: object
