@@ -18,7 +18,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Router, Route } from 'wouter';
 import { memoryLocation } from 'wouter/memory-location';
 import EmployeeDetail from '@/pages/employee-detail';
-import type { Employee, EmploymentPeriodSummary, PersonnelFile, EmployeeNumberAllocation, PersonnelFileCustodyDetail, PersonnelFileMovement, RecordsLocation } from '@workspace/api-client-react';
+import type { Employee, EmploymentPeriodSummary, PersonnelFile, EmployeeNumberAllocation, PersonnelFileCustodyDetail, PersonnelFileMovement, RecordsLocation, PerformanceCycle, PerformanceReviewListResponse, ReportRunResult } from '@workspace/api-client-react';
 
 const { state } = vi.hoisted(() => ({
   state: {
@@ -54,6 +54,10 @@ const { state } = vi.hoisted(() => ({
     recoverPending: false,
     createRecordsLocationMutate: vi.fn(),
     createRecordsLocationPending: false,
+    // Phase 3H, W118 — Search, Automation & HR Workspace.
+    performanceCycles: undefined as PerformanceCycle[] | undefined,
+    performanceReviews: undefined as PerformanceReviewListResponse | undefined,
+    unreturnedAssetsReport: undefined as ReportRunResult | undefined,
   },
 }));
 
@@ -156,6 +160,14 @@ vi.mock('@workspace/api-client-react', () => ({
   useReturnPersonnelFile: () => ({ mutate: state.returnMutate, isPending: state.returnPending }),
   useMarkPersonnelFileMissing: () => ({ mutate: state.markMissingMutate, isPending: state.markMissingPending }),
   useRecoverPersonnelFile: () => ({ mutate: state.recoverMutate, isPending: state.recoverPending }),
+
+  // Search, Automation & HR Workspace (Phase 3H, W118) — the feature under test.
+  useListPerformanceCycles: () => ({ data: state.performanceCycles }),
+  getListPerformanceCyclesQueryKey: (orgId: number) => ['performanceCycles', orgId],
+  useListPerformanceReviews: () => ({ data: state.performanceReviews }),
+  getListPerformanceReviewsQueryKey: (orgId: number, params: unknown) => ['performanceReviews', orgId, params],
+  useRunAssetReport: () => ({ data: state.unreturnedAssetsReport }),
+  getRunAssetReportQueryKey: (orgId: number, key: string, params: unknown) => ['runAssetReport', orgId, key, params],
 }));
 
 vi.mock('@/lib/auth', () => ({ getStoredToken: () => 'test-token' }));
@@ -262,6 +274,9 @@ function resetState() {
   state.recoverPending = false;
   state.createRecordsLocationMutate = vi.fn();
   state.createRecordsLocationPending = false;
+  state.performanceCycles = undefined;
+  state.performanceReviews = undefined;
+  state.unreturnedAssetsReport = undefined;
 }
 
 function custodyDetail(overrides: Partial<PersonnelFileCustodyDetail> = {}): PersonnelFileCustodyDetail {
@@ -571,6 +586,91 @@ describe('Employee detail page', () => {
         expect.objectContaining({ data: expect.objectContaining({ name: 'Drawer 4' }) }),
         expect.anything(),
       );
+    });
+  });
+
+  describe('Confirm dialog — probation-review prepopulation (Phase 3H, W118)', () => {
+    it('does not render a picker when no probation-cycle review exists for this employee', async () => {
+      resetState();
+      state.employee = baseEmployee({ employmentStatus: 'probation' });
+      state.performanceCycles = [];
+      state.performanceReviews = { items: [], total: 0, page: 1, pageSize: 20 };
+      renderPage();
+
+      const user = userEvent.setup();
+      await user.click(screen.getByTestId('button-confirm-employee-probation'));
+
+      expect(screen.queryByTestId('select-confirm-probation-review-id')).not.toBeInTheDocument();
+    });
+
+    it('offers only this employee\'s probation-cycle reviews, not reviews from a normal cycle', async () => {
+      resetState();
+      state.employee = baseEmployee({ employmentStatus: 'probation' });
+      state.performanceCycles = [
+        { id: 1, organizationId: 10, name: 'Annual Cycle', cycleType: 'annual', startDate: '2026-01-01', endDate: '2026-12-31', templateId: 1, ratingScaleId: 1, applicabilityScope: 'all_active', status: 'open', createdAt: new Date().toISOString() },
+        { id: 2, organizationId: 10, name: 'Probation Cycle', cycleType: 'probation', startDate: '2026-01-01', endDate: '2026-12-31', templateId: 1, ratingScaleId: 1, applicabilityScope: 'manual', status: 'open', createdAt: new Date().toISOString() },
+      ];
+      state.performanceReviews = {
+        items: [
+          { id: 10, organizationId: 10, cycleId: 1, templateId: 1, ratingScaleId: 1, employeeId: 42, reviewerEmployeeId: null, departmentIdSnapshot: null, positionIdSnapshot: null, goalsWeight: 60, competenciesWeight: 40, scoringPrecisionSnapshot: 0, acknowledgementRequiredSnapshot: true, status: 'finalized', selfAssessmentSubmittedAt: null, managerReviewSubmittedAt: null, hrFinalizedAt: null, acknowledgedAt: null, employeeFinalComment: null, computedOverallScore: null, hrOverrideScore: null, hrOverrideReason: null, revisionNumber: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          { id: 11, organizationId: 10, cycleId: 2, templateId: 1, ratingScaleId: 1, employeeId: 42, reviewerEmployeeId: null, departmentIdSnapshot: null, positionIdSnapshot: null, goalsWeight: 60, competenciesWeight: 40, scoringPrecisionSnapshot: 0, acknowledgementRequiredSnapshot: true, status: 'finalized', selfAssessmentSubmittedAt: null, managerReviewSubmittedAt: null, hrFinalizedAt: null, acknowledgedAt: null, employeeFinalComment: null, computedOverallScore: null, hrOverrideScore: null, hrOverrideReason: null, revisionNumber: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+        ],
+        total: 2,
+        page: 1,
+        pageSize: 20,
+      };
+      renderPage();
+
+      const user = userEvent.setup();
+      await user.click(screen.getByTestId('button-confirm-employee-probation'));
+      const select = screen.getByTestId('select-confirm-probation-review-id');
+      await user.click(select);
+
+      expect(screen.getByRole('option', { name: 'Probation Cycle · finalized' })).toBeInTheDocument();
+      expect(screen.queryByRole('option', { name: 'Annual Cycle · finalized' })).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Separate dialog — non-blocking warnings (Phase 3H, W118, §11)', () => {
+    it('shows no warning banner when nothing is outstanding', async () => {
+      resetState();
+      state.employee = baseEmployee({ employmentStatus: 'active', employeeNumber: null });
+      state.custody = undefined;
+      state.unreturnedAssetsReport = undefined;
+      renderPage();
+
+      const user = userEvent.setup();
+      await user.click(screen.getByTestId('button-separate-employee'));
+
+      expect(screen.queryByTestId('alert-separation-warnings')).not.toBeInTheDocument();
+    });
+
+    it('warns about a checked-out personnel file, an allocated staff number, and unreturned assets — all non-blocking', async () => {
+      resetState();
+      state.employee = baseEmployee({ employmentStatus: 'active', employeeNumber: 'EMP-0001' });
+      state.custody = custodyDetail({ currentCustodyState: 'checked_out' });
+      state.unreturnedAssetsReport = {
+        key: 'asset_unreturned_by_employee',
+        label: 'Unreturned Assets',
+        description: '',
+        generatedAt: new Date().toISOString(),
+        columns: [],
+        rows: [{ assetTag: 'AST-1' }, { assetTag: 'AST-2' }],
+      };
+      renderPage();
+
+      const user = userEvent.setup();
+      await user.click(screen.getByTestId('button-separate-employee'));
+
+      const alert = screen.getByTestId('alert-separation-warnings');
+      expect(within(alert).getByText(/still checked out/)).toBeInTheDocument();
+      expect(within(alert).getByText(/EMP-0001 is still allocated/)).toBeInTheDocument();
+      expect(within(alert).getByText(/2 assets still assigned/)).toBeInTheDocument();
+
+      // Non-blocking: the submit control is still enabled purely on the date requirement, unaffected by the warnings.
+      expect(screen.getByTestId('button-confirm-separate')).toBeDisabled(); // no separation date typed yet — the ONLY reason
+      await user.type(screen.getByTestId('input-separation-date'), '2026-06-01');
+      expect(screen.getByTestId('button-confirm-separate')).toBeEnabled();
     });
   });
 });

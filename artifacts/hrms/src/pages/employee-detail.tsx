@@ -77,6 +77,12 @@ import {
   useReturnPersonnelFile,
   useMarkPersonnelFileMissing,
   useRecoverPersonnelFile,
+  useListPerformanceCycles,
+  getListPerformanceCyclesQueryKey,
+  useListPerformanceReviews,
+  getListPerformanceReviewsQueryKey,
+  useRunAssetReport,
+  getRunAssetReportQueryKey,
 } from '@workspace/api-client-react';
 import type { CreatePersonnelFileInputMode } from '@workspace/api-client-react';
 import type { UpdateEmployeeInputEmploymentStatus } from '@workspace/api-client-react';
@@ -84,6 +90,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { getStoredToken } from '@/lib/auth';
 import { QueryError } from '@/components/query-error';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+
+const NONE_PROBATION_REVIEW = '__none__';
 
 const STATUS_OPTIONS: UpdateEmployeeInputEmploymentStatus[] = [
   'active',
@@ -326,7 +335,7 @@ export default function EmployeeDetail() {
   const [promotePositionId, setPromotePositionId] = useState('');
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [confirmEffectiveDate, setConfirmEffectiveDate] = useState('');
-  const [confirmProbationReviewId, setConfirmProbationReviewId] = useState('');
+  const [confirmProbationReviewId, setConfirmProbationReviewId] = useState(NONE_PROBATION_REVIEW);
   const [newDisciplinaryActionType, setNewDisciplinaryActionType] = useState('');
   const [newDisciplinaryDescription, setNewDisciplinaryDescription] = useState('');
   const [newDisciplinaryActionDate, setNewDisciplinaryActionDate] = useState('');
@@ -350,6 +359,50 @@ export default function EmployeeDetail() {
   const [isLocationsDialogOpen, setIsLocationsDialogOpen] = useState(false);
   const [newLocationName, setNewLocationName] = useState('');
   const [newLocationParentId, setNewLocationParentId] = useState('');
+
+  // Phase 3H, W118 (Decision 14 — prepopulation). Only fetched while the
+  // Confirm dialog is open, since a probation review can only be linked
+  // from there. If the caller lacks performance.manage (or Performance is
+  // disabled) these silently 403/empty and the picker just doesn't
+  // render — the plain "confirm with no review" path underneath is
+  // completely unaffected, exactly as it was before W118.
+  const { data: probationCandidateCycles } = useListPerformanceCycles(organizationId, {
+    query: { queryKey: getListPerformanceCyclesQueryKey(organizationId), enabled: isConfirmOpen && organizationId > 0, retry: false },
+  });
+  const { data: probationCandidateReviews } = useListPerformanceReviews(organizationId, { employeeId }, {
+    query: { queryKey: getListPerformanceReviewsQueryKey(organizationId, { employeeId }), enabled: isConfirmOpen && organizationId > 0 && !isNaN(employeeId), retry: false },
+  });
+  const probationReviewOptions = (probationCandidateReviews?.items ?? [])
+    .filter((r) => (probationCandidateCycles ?? []).some((c) => c.id === r.cycleId && c.cycleType === 'probation'))
+    .map((r) => ({
+      review: r,
+      cycleName: (probationCandidateCycles ?? []).find((c) => c.id === r.cycleId)?.name ?? `Cycle #${r.cycleId}`,
+    }));
+
+  // Phase 3H, W118 (§11 — separation warnings). Only fetched while the
+  // Separate dialog is open; reuses Assets' own existing, unmodified
+  // asset_unreturned_by_employee report (never a new report or a second
+  // source of truth) scoped to this one employee. A 403 (Assets module
+  // disabled, or the caller lacks asset_management.reports.read) simply
+  // means this one warning source is unavailable — never blocks
+  // separation, and the other two warning sources are unaffected.
+  const { data: unreturnedAssetsReport } = useRunAssetReport(organizationId, 'asset_unreturned_by_employee', { employeeId }, {
+    query: { queryKey: getRunAssetReportQueryKey(organizationId, 'asset_unreturned_by_employee', { employeeId }), enabled: isSeparateOpen && organizationId > 0 && !isNaN(employeeId), retry: false },
+  });
+  const unreturnedAssetCount =
+    unreturnedAssetsReport && typeof unreturnedAssetsReport === 'object' && 'rows' in unreturnedAssetsReport
+      ? unreturnedAssetsReport.rows.length
+      : 0;
+  const separationWarnings: string[] = [];
+  if (custody?.currentCustodyState === 'checked_out') {
+    separationWarnings.push('The personnel file is still checked out — it is not required to be returned before separating, but remains open until it is.');
+  }
+  if (employee?.employeeNumber) {
+    separationWarnings.push(`Staff number ${employee.employeeNumber} is still allocated. Release is a separate, deliberate action — it is not required before separating.`);
+  }
+  if (unreturnedAssetCount > 0) {
+    separationWarnings.push(`${unreturnedAssetCount} asset${unreturnedAssetCount === 1 ? '' : 's'} still assigned to this employee — not yet returned.`);
+  }
 
   const [prevEmployee, setPrevEmployee] = useState(employee);
   if (employee && employee !== prevEmployee) {
@@ -559,7 +612,7 @@ export default function EmployeeDetail() {
         employeeId,
         data: {
           effectiveDate: confirmEffectiveDate,
-          probationReviewId: confirmProbationReviewId.trim() ? Number(confirmProbationReviewId.trim()) : undefined,
+          probationReviewId: confirmProbationReviewId === NONE_PROBATION_REVIEW ? undefined : Number(confirmProbationReviewId),
         },
       },
       {
@@ -567,7 +620,7 @@ export default function EmployeeDetail() {
           queryClient.setQueryData(getGetEmployeeQueryKey(organizationId, employeeId), updated);
           setIsConfirmOpen(false);
           setConfirmEffectiveDate('');
-          setConfirmProbationReviewId('');
+          setConfirmProbationReviewId(NONE_PROBATION_REVIEW);
           toast({ title: 'Employee confirmed' });
         },
         onError: (err) => {
@@ -1190,18 +1243,24 @@ export default function EmployeeDetail() {
                                 data-testid="input-confirm-effective-date"
                               />
                             </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="confirm-probation-review-id">Probation Review ID (optional)</Label>
-                              <Input
-                                id="confirm-probation-review-id"
-                                type="number"
-                                min={1}
-                                value={confirmProbationReviewId}
-                                onChange={(e) => setConfirmProbationReviewId(e.target.value)}
-                                placeholder="Link the completed probation review, if any"
-                                data-testid="input-confirm-probation-review-id"
-                              />
-                            </div>
+                            {probationReviewOptions.length > 0 && (
+                              <div className="space-y-2">
+                                <Label htmlFor="confirm-probation-review-id">Probation Review (optional)</Label>
+                                <Select value={confirmProbationReviewId} onValueChange={setConfirmProbationReviewId}>
+                                  <SelectTrigger id="confirm-probation-review-id" data-testid="select-confirm-probation-review-id">
+                                    <SelectValue placeholder="No review linked" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value={NONE_PROBATION_REVIEW}>No review linked</SelectItem>
+                                    {probationReviewOptions.map(({ review, cycleName }) => (
+                                      <SelectItem key={review.id} value={String(review.id)}>
+                                        {cycleName} · {review.status.replace(/_/g, ' ')}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
                           </div>
                           <DialogFooter>
                             <Button
@@ -1237,6 +1296,19 @@ export default function EmployeeDetail() {
                           <DialogTitle>Separate Employee</DialogTitle>
                         </DialogHeader>
                         <div className="space-y-4 py-4">
+                          {separationWarnings.length > 0 && (
+                            <Alert data-testid="alert-separation-warnings">
+                              <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+                              <AlertTitle>Nothing here blocks separation — for your awareness:</AlertTitle>
+                              <AlertDescription>
+                                <ul className="list-disc space-y-1 pl-4">
+                                  {separationWarnings.map((warning) => (
+                                    <li key={warning}>{warning}</li>
+                                  ))}
+                                </ul>
+                              </AlertDescription>
+                            </Alert>
+                          )}
                           <div className="space-y-2">
                             <Label htmlFor="separation-date">Separation Date *</Label>
                             <Input

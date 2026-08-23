@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'wouter';
-import { Users, Plus, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Users, Plus, Search, ChevronLeft, ChevronRight, IdCard } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -26,9 +26,17 @@ import {
   getListDepartmentsQueryKey,
   useGetMe,
   getGetMeQueryKey,
+  useSearchPersonnelRecords,
+  getSearchPersonnelRecordsQueryKey,
 } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
 import { QueryError } from '@/components/query-error';
+
+const MATCH_TYPE_LABEL: Record<string, string> = {
+  name: 'Name',
+  employee_number: 'Staff number',
+  pif_number: 'PIF number',
+};
 
 const NONE = '__none__';
 const PAGE_SIZE = 20;
@@ -48,6 +56,30 @@ export default function Employees() {
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+
+  // Phase 3H, W118 — Personnel Records Search (frozen plan §10): name plus
+  // current AND historical staff numbers plus PIF numbers, deliberately a
+  // separate surface from the directory search above (never folded into
+  // the broad employee.read-gated listEmployees query) since it's gated by
+  // the narrower personnel_file.read. Only fires once HR types into its
+  // own input; a 403 (no personnel_file.read) just means this panel never
+  // renders for this user — the ordinary directory above is unaffected.
+  const [personnelSearch, setPersonnelSearch] = useState('');
+  const {
+    data: personnelResults,
+    error: personnelSearchError,
+    isFetching: personnelSearchFetching,
+  } = useSearchPersonnelRecords(organizationId, { search: personnelSearch }, {
+    query: {
+      queryKey: getSearchPersonnelRecordsQueryKey(organizationId, { search: personnelSearch }),
+      enabled: organizationId > 0 && personnelSearch.trim().length > 0,
+      retry: false,
+    },
+  });
+  const personnelSearchForbidden =
+    personnelSearchError && typeof personnelSearchError === 'object' && 'status' in personnelSearchError
+      ? (personnelSearchError as { status: number }).status === 403
+      : false;
 
   const params = { search: search || undefined, page, pageSize: PAGE_SIZE };
   const {
@@ -206,6 +238,64 @@ export default function Employees() {
           aria-label="Search employees"
         />
       </div>
+
+      {!personnelSearchForbidden && (
+        <Card>
+          <CardContent className="space-y-3 py-4">
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-foreground">Personnel Records Search</p>
+              <p className="text-xs text-muted-foreground">
+                Search by name, PIF number, or a staff number — current or historical. A reused staff number shows every holder, clearly labeled.
+              </p>
+            </div>
+            <div className="relative max-w-sm">
+              <IdCard className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <Input
+                type="search"
+                placeholder="Search personnel records…"
+                className="pl-9"
+                value={personnelSearch}
+                onChange={(e) => setPersonnelSearch(e.target.value)}
+                data-testid="input-personnel-search"
+                aria-label="Search personnel records"
+              />
+            </div>
+            {personnelSearch.trim() && (
+              personnelSearchFetching ? (
+                <p className="text-sm text-muted-foreground">Searching…</p>
+              ) : !personnelResults || personnelResults.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No personnel records match.</p>
+              ) : (
+                <ul className="divide-y divide-border rounded-md border border-border" data-testid="list-personnel-search-results">
+                  {personnelResults.map((r, i) => (
+                    <li
+                      key={`${r.employeeId}-${r.matchType}-${r.matchedValue}-${i}`}
+                      className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"
+                      data-testid={`row-personnel-result-${r.employeeId}-${r.matchType}`}
+                    >
+                      <Link
+                        href={`/employees/${r.employeeId}`}
+                        className="font-medium text-foreground hover:underline"
+                      >
+                        {r.firstName} {r.lastName}
+                      </Link>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">{MATCH_TYPE_LABEL[r.matchType] ?? r.matchType}</Badge>
+                        <span className="font-mono text-muted-foreground">{r.matchedValue}</span>
+                        {r.matchType === 'employee_number' && (
+                          <Badge variant={r.isCurrentHolder ? 'secondary' : 'outline'} className={r.isCurrentHolder ? 'bg-chart-3/10 text-chart-3' : ''}>
+                            {r.isCurrentHolder ? 'Current holder' : 'Historical holder'}
+                          </Badge>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {isLoading ? (
         <div className="space-y-3" aria-busy="true" aria-label="Loading employees">
