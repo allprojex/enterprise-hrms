@@ -3,6 +3,11 @@ import { db, employeesTable, departmentsTable, branchesTable, positionsTable, ty
 import { assertBelongsToOrganization } from "./orgScopedRefs";
 import { recordAuditEvent } from "./auditLog";
 import { recordEmploymentPeriodEvent } from "./employmentLifecycleService";
+import {
+  allocateGeneratedEmployeeNumber,
+  allocateManualEmployeeNumber,
+  auditEmployeeNumberAllocated,
+} from "./numbering";
 
 export class EmployeeNotFoundError extends Error {
   constructor() {
@@ -67,22 +72,6 @@ export async function assertEmployeeReferencesValid(
   await assertBelongsToOrganization(employeesTable, refs.reportingManagerId, organizationId, "Reporting manager");
 }
 
-/**
- * Simple org-scoped sequential numbering (EMP-0001, EMP-0002, ...) based on
- * how many employees the org already has. Safe against duplicates because
- * of the (organizationId, employeeNumber) unique constraint — a race
- * between two simultaneous creations would surface as a 409, not silent
- * corruption — but isn't retried automatically; see known limitations.
- */
-export async function generateEmployeeNumber(organizationId: number): Promise<string> {
-  const [row] = await db
-    .select({ value: count() })
-    .from(employeesTable)
-    .where(eq(employeesTable.organizationId, organizationId));
-  const sequence = (row?.value ?? 0) + 1;
-  return `EMP-${String(sequence).padStart(4, "0")}`;
-}
-
 // Structurally accepts either the global `db` or a `db.transaction(...)`
 // callback's `tx` — lets employee creation run inside a caller's own
 // transaction (e.g. employeeConversion.ts's convert-to-employee) without a
@@ -128,6 +117,18 @@ export interface EmployeeCreateFields {
  * `QueryClient` so a caller (like convert-to-employee) can run this inside
  * its own transaction; the existing HTTP route continues to call it with
  * the plain `db`.
+ *
+ * Phase 3H, W114: the row insert and the staff-number allocation
+ * (lib/numbering.ts) now happen inside one transaction (a savepoint when
+ * `client` is already a transaction) — an allocation failure (e.g. a
+ * manually-supplied number colliding with an active allocation) rolls back
+ * the employee insert too, rather than leaving behind a numberless orphan
+ * row. `fields.employeeNumber`, if supplied, is a manual override routed
+ * through allocateManualEmployeeNumber (which itself decides, from
+ * allocation history, whether this is a fresh assignment or a deliberate
+ * reuse); otherwise a number is engine-generated. Never written to the
+ * `employees` row directly — createEmployee is the only place besides
+ * lib/numbering.ts itself that touches employeeNumber at all.
  */
 export async function createEmployee(
   client: QueryClient,
@@ -135,22 +136,48 @@ export async function createEmployee(
     organizationId: number;
     fields: EmployeeCreateFields;
     actorApplicationUserId: number;
+    actorMembershipId: number | null;
   },
 ): Promise<Employee> {
   await assertEmployeeReferencesValid(params.organizationId, params.fields);
 
-  const employeeNumber = params.fields.employeeNumber ?? (await generateEmployeeNumber(params.organizationId));
+  const { employeeNumber: manualEmployeeNumber, ...fieldsWithoutNumber } = params.fields;
 
-  const [employee] = await client
-    .insert(employeesTable)
-    .values({
-      ...params.fields,
-      employeeNumber,
-      organizationId: params.organizationId,
-      createdBy: params.actorApplicationUserId,
-      updatedBy: params.actorApplicationUserId,
-    })
-    .returning();
+  const { employee, allocation } = await client.transaction(async (tx) => {
+    const [inserted] = await tx
+      .insert(employeesTable)
+      .values({
+        ...fieldsWithoutNumber,
+        employeeNumber: null,
+        organizationId: params.organizationId,
+        createdBy: params.actorApplicationUserId,
+        updatedBy: params.actorApplicationUserId,
+      })
+      .returning();
+
+    const result = manualEmployeeNumber
+      ? await allocateManualEmployeeNumber(tx, {
+          organizationId: params.organizationId,
+          employeeId: inserted.id,
+          employeeNumber: manualEmployeeNumber,
+          actorMembershipId: params.actorMembershipId,
+        })
+      : await allocateGeneratedEmployeeNumber(tx, {
+          organizationId: params.organizationId,
+          employeeId: inserted.id,
+          actorMembershipId: params.actorMembershipId,
+        });
+
+    return result;
+  });
+
+  await auditEmployeeNumberAllocated({
+    organizationId: params.organizationId,
+    employeeId: employee.id,
+    allocation,
+    actorApplicationUserId: params.actorApplicationUserId,
+    actorMembershipId: params.actorMembershipId,
+  });
 
   return employee;
 }

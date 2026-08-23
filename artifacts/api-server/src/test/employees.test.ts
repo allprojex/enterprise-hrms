@@ -25,6 +25,9 @@ const {
   employeeUserLinksTable,
   auditEventsTable,
   employmentPeriodsTable,
+  organizationSettingsTable,
+  numberingSequencesTable,
+  employeeNumberAllocationsTable,
 } = vi.hoisted(() => {
   return {
     fixtures: {
@@ -34,11 +37,18 @@ const {
       permissionRows: [] as { key: string }[],
       departmentRows: [] as { organizationId: number }[],
       positionRows: [] as { organizationId: number }[],
-      employeeRows: [{ value: 0 }] as unknown[],
+      employeeRows: [] as Record<string, unknown>[],
       linkRows: [] as { employeeId: number; applicationUserId: number }[],
       inserted: [] as { table: string; values: unknown }[],
       deleted: [] as { table: string }[],
       idCounters: new Map<string, number>(),
+      // Phase 3H, W114 — always empty for this file's tests, which exercises
+      // getNamespaceConfig's own "no saved row" default path (the numbering
+      // engine's defaults reproduce the pre-W114 hardcoded EMP-0001 format
+      // byte-for-byte, so the pre-existing test assertion needs no change).
+      organizationSettingsRows: [] as Record<string, unknown>[],
+      numberingSequenceRows: [] as Record<string, unknown>[],
+      employeeNumberAllocationRows: [] as Record<string, unknown>[],
     },
     usersTable: { __name: "users" },
     sessionsTable: { __name: "sessions" },
@@ -53,6 +63,9 @@ const {
     employeeUserLinksTable: { __name: "employee_user_links" },
     auditEventsTable: { __name: "audit_events" },
     employmentPeriodsTable: { __name: "employment_periods" },
+    organizationSettingsTable: { __name: "organization_settings" },
+    numberingSequencesTable: { __name: "numbering_sequences" },
+    employeeNumberAllocationsTable: { __name: "employee_number_allocations" },
   };
 });
 
@@ -62,6 +75,92 @@ function nextId(table: { __name: string }): number {
   fixtures.idCounters.set(table.__name, id);
   return id;
 }
+
+const dbMock: Record<string, unknown> = {
+  select: () => ({
+    from(table: { __name: string }) {
+      let rows: unknown[] = [];
+      if (table === organizationMembershipsTable) rows = fixtures.membershipRows;
+      else if (table === membershipRolesTable) rows = fixtures.membershipRoleRows;
+      else if (table === rolePermissionsTable) rows = fixtures.permissionRows;
+      else if (table === departmentsTable) rows = fixtures.departmentRows;
+      else if (table === positionsTable) rows = fixtures.positionRows;
+      else if (table === employeesTable) rows = fixtures.employeeRows;
+      else if (table === employeeUserLinksTable) rows = fixtures.linkRows;
+      else if (table === organizationSettingsTable) rows = fixtures.organizationSettingsRows;
+      else if (table === numberingSequencesTable) rows = fixtures.numberingSequenceRows;
+      else if (table === employeeNumberAllocationsTable) rows = fixtures.employeeNumberAllocationRows;
+      else rows = fixtures.sessionRows;
+
+      const builder = {
+        innerJoin: () => builder,
+        where: () => builder,
+        limit: () => Promise.resolve(rows),
+        orderBy: () => builder,
+        offset: () => Promise.resolve(rows),
+        for: () => builder,
+        then: (resolve: (v: unknown) => void, reject?: (e: unknown) => void) =>
+          Promise.resolve(rows).then(resolve, reject),
+      };
+      return builder;
+    },
+  }),
+  insert: (table: { __name: string }) => ({
+    values: (v: Record<string, unknown>) => {
+      fixtures.inserted.push({ table: table.__name, values: v });
+      const row = { id: nextId(table), ...v };
+      // Phase 3H, W114: unlike the flat `inserted` log above (assertion-only),
+      // employeesTable/numbering tables' own per-table fixture arrays must
+      // actually reflect the insert — createEmployee's new transactional flow
+      // immediately re-selects (`.for("update")`) the just-inserted employee
+      // row and appends to the allocation-history table, which the older,
+      // simpler mock this file previously used never needed to support.
+      if (table === employeesTable) fixtures.employeeRows = [row];
+      else if (table === numberingSequencesTable) fixtures.numberingSequenceRows = [...fixtures.numberingSequenceRows, row];
+      else if (table === employeeNumberAllocationsTable) fixtures.employeeNumberAllocationRows = [...fixtures.employeeNumberAllocationRows, row];
+      return {
+        returning: () => Promise.resolve([row]),
+      };
+    },
+  }),
+  delete: (table: { __name: string }) => ({
+    where: () => {
+      fixtures.deleted.push({ table: table.__name });
+      return Promise.resolve(undefined);
+    },
+  }),
+  update: (table: { __name: string }) => ({
+    set: (v: Record<string, unknown>) => ({
+      where: () => {
+        if (table === employeesTable) {
+          const current = (fixtures.employeeRows[0] as Record<string, unknown>) ?? {};
+          const updated = { ...current, ...v };
+          fixtures.employeeRows = [updated];
+          return { returning: () => Promise.resolve([updated]) };
+        }
+        if (table === numberingSequencesTable) {
+          const current = (fixtures.numberingSequenceRows[0] as Record<string, unknown>) ?? {};
+          const updated = { ...current, ...v };
+          fixtures.numberingSequenceRows = [updated];
+          return { returning: () => Promise.resolve([updated]) };
+        }
+        if (table === employeeNumberAllocationsTable) {
+          const current = (fixtures.employeeNumberAllocationRows[0] as Record<string, unknown>) ?? {};
+          const updated = { ...current, ...v };
+          fixtures.employeeNumberAllocationRows = [updated];
+          return { returning: () => Promise.resolve([updated]) };
+        }
+        return { returning: () => Promise.resolve([]) };
+      },
+    }),
+  }),
+  // Phase 3H, W114: numbering.ts's allocation functions call
+  // `client.transaction(...)` (nested savepoints in real Postgres) — this
+  // mock just invokes the callback with the same client, matching
+  // learningEnrollments.test.ts's own established "no real transaction
+  // semantics needed here; real atomicity is verified in live QA" precedent.
+  transaction: async (cb: (tx: unknown) => Promise<unknown>) => cb(dbMock),
+};
 
 vi.mock("@workspace/db", () => ({
   usersTable,
@@ -77,59 +176,10 @@ vi.mock("@workspace/db", () => ({
   employeeUserLinksTable,
   auditEventsTable,
   employmentPeriodsTable,
-  db: {
-    select: () => ({
-      from(table: { __name: string }) {
-        let rows: unknown[] = [];
-        if (table === organizationMembershipsTable) rows = fixtures.membershipRows;
-        else if (table === membershipRolesTable) rows = fixtures.membershipRoleRows;
-        else if (table === rolePermissionsTable) rows = fixtures.permissionRows;
-        else if (table === departmentsTable) rows = fixtures.departmentRows;
-        else if (table === positionsTable) rows = fixtures.positionRows;
-        else if (table === employeesTable) rows = fixtures.employeeRows;
-        else if (table === employeeUserLinksTable) rows = fixtures.linkRows;
-        else rows = fixtures.sessionRows;
-
-        const builder = {
-          innerJoin: () => builder,
-          where: () => builder,
-          limit: () => Promise.resolve(rows),
-          orderBy: () => builder,
-          offset: () => Promise.resolve(rows),
-          then: (resolve: (v: unknown) => void, reject?: (e: unknown) => void) =>
-            Promise.resolve(rows).then(resolve, reject),
-        };
-        return builder;
-      },
-    }),
-    insert: (table: { __name: string }) => ({
-      values: (v: Record<string, unknown>) => {
-        fixtures.inserted.push({ table: table.__name, values: v });
-        return {
-          returning: () => Promise.resolve([{ id: nextId(table), ...v }]),
-        };
-      },
-    }),
-    delete: (table: { __name: string }) => ({
-      where: () => {
-        fixtures.deleted.push({ table: table.__name });
-        return Promise.resolve(undefined);
-      },
-    }),
-    update: (table: { __name: string }) => ({
-      set: (v: Record<string, unknown>) => ({
-        where: () => {
-          if (table === employeesTable) {
-            const current = (fixtures.employeeRows[0] as Record<string, unknown>) ?? {};
-            const updated = { ...current, ...v };
-            fixtures.employeeRows = [updated];
-            return { returning: () => Promise.resolve([updated]) };
-          }
-          return { returning: () => Promise.resolve([]) };
-        },
-      }),
-    }),
-  },
+  organizationSettingsTable,
+  numberingSequencesTable,
+  employeeNumberAllocationsTable,
+  db: dbMock,
 }));
 
 vi.mock("drizzle-orm", () => ({

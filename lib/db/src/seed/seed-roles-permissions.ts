@@ -301,6 +301,15 @@ const PERMISSIONS = [
   { key: "asset_management.write.own", resource: "asset_management", action: "write.own" },
   { key: "asset_management.manage", resource: "asset_management", action: "manage" },
   { key: "asset_management.reports.read", resource: "asset_management", action: "reports.read" },
+  // Phase 3H, W114 — Numbering & Identifier History. The sole permission
+  // this workstream introduces (frozen plan §13's other five
+  // personnel_file.* keys belong to W115/W116, not seeded until those
+  // workstreams land). Gates allocate/release/reuse of a staff number —
+  // org_admin/hr_manager only, never employee, per the frozen plan's
+  // explicit "no ESS self-service, no Manager Portal integration" boundary.
+  // Numbering *configuration* (the "numbering" config namespace) reuses the
+  // pre-existing organization.update permission instead of a new key here.
+  { key: "employee_number.allocate", resource: "employee_number", action: "allocate" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -386,6 +395,7 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "asset_management.write.own",
     "asset_management.manage",
     "asset_management.reports.read",
+    "employee_number.allocate",
   ],
   hr_manager: [
     "organization.read",
@@ -461,6 +471,7 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "asset_management.write.own",
     "asset_management.manage",
     "asset_management.reports.read",
+    "employee_number.allocate",
   ],
   employee: [
     "organization.read",

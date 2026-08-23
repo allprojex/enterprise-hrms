@@ -11,6 +11,7 @@ import {
   InvalidNamespaceConfigError,
   CONFIG_NAMESPACES,
 } from "../services/organizationConfig";
+import { recordAuditEvent } from "../lib/auditLog";
 
 const router = Router();
 
@@ -69,7 +70,27 @@ router.patch(
     }
 
     try {
+      const before = await getNamespaceConfig(req.membership!.organizationId, namespace);
       const config = await updateNamespaceConfig(req.membership!.organizationId, namespace, parsed.data.data);
+
+      // Phase 3H, W114: numbering configuration changes are audited even
+      // though this generic config route otherwise is not — existing
+      // namespaces (general/terminology/attendance/performance) are left
+      // exactly as they were, per the frozen plan's own "audit only what
+      // existing infrastructure does not already audit" instruction.
+      if (namespace === "numbering") {
+        await recordAuditEvent({
+          actorApplicationUserId: req.userId!,
+          actorMembershipId: req.membership!.id,
+          organizationId: req.membership!.organizationId,
+          eventType: "numbering_config.updated",
+          targetType: "organization_settings",
+          targetId: namespace,
+          beforeState: before.data,
+          afterState: config.data,
+        });
+      }
+
       res.json(config);
     } catch (err) {
       if (err instanceof InvalidNamespaceConfigError) {

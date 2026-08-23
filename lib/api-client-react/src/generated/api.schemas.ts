@@ -3559,9 +3559,10 @@ export const UpdateEmployeeInputEmploymentStatus = {
   terminated: 'terminated',
 } as const;
 
+/**
+ * Phase 3H, W114: employeeNumber is deliberately absent — a staff number is never mutated through the generic employee update path. Use POST .../employees/:employeeId/number/allocate, .../number/release, or the deliberate-reuse path instead (all gated by employee_number.allocate, all fully audited via employee_number_allocations) — closing what was previously an unaudited, arbitrary employeeNumber mutation reachable through this endpoint.
+ */
 export interface UpdateEmployeeInput {
-  /** @nullable */
-  employeeNumber?: string | null;
   /** @minLength 1 */
   firstName?: string;
   /** @nullable */
@@ -3612,6 +3613,65 @@ export interface UpdateEmployeeInput {
   workLocation?: string | null;
   /** @nullable */
   notes?: string | null;
+}
+
+export type AllocateEmployeeNumberInputMode = typeof AllocateEmployeeNumberInputMode[keyof typeof AllocateEmployeeNumberInputMode];
+
+
+export const AllocateEmployeeNumberInputMode = {
+  generate: 'generate',
+  manual: 'manual',
+} as const;
+
+/**
+ * Phase 3H, W114. "generate" uses the organization's numbering-format engine (config namespace "numbering", key employeeNumber). "manual" requires employeeNumber and is validated identically to a generated value — including the deliberate-reuse check against this organization's allocation history and reuse policy.
+ */
+export interface AllocateEmployeeNumberInput {
+  mode: AllocateEmployeeNumberInputMode;
+  /**
+     * Required when mode is "manual"; ignored when mode is "generate".
+     * @nullable
+     */
+  employeeNumber?: string | null;
+}
+
+/**
+ * "migrated" is written only by the one-time backfill script for employees that already had an employeeNumber before this workstream — never produced by the allocate/release/reuse routes.
+ */
+export type EmployeeNumberAllocationAllocationMethod = typeof EmployeeNumberAllocationAllocationMethod[keyof typeof EmployeeNumberAllocationAllocationMethod];
+
+
+export const EmployeeNumberAllocationAllocationMethod = {
+  generated: 'generated',
+  manual: 'manual',
+  reused: 'reused',
+  migrated: 'migrated',
+} as const;
+
+/**
+ * One row of the authoritative staff-number allocation history (frozen plan Decision 1) — append-only, never edited. validTo null means this is the currently-active allocation for this employee.
+ */
+export interface EmployeeNumberAllocation {
+  id: number;
+  organizationId: number;
+  employeeId: number;
+  employeeNumber: string;
+  /** "migrated" is written only by the one-time backfill script for employees that already had an employeeNumber before this workstream — never produced by the allocate/release/reuse routes. */
+  allocationMethod: EmployeeNumberAllocationAllocationMethod;
+  validFrom: string;
+  /** @nullable */
+  validTo?: string | null;
+  /** @nullable */
+  allocatedByMembershipId?: number | null;
+  /** @nullable */
+  releasedByMembershipId?: number | null;
+  createdAt: string;
+}
+
+export interface EmployeeNumberAllocationResult {
+  /** @nullable */
+  employeeNumber: string | null;
+  allocation: EmployeeNumberAllocation;
 }
 
 export interface EmployeeListResponse {

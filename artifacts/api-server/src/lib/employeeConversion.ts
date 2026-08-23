@@ -227,6 +227,7 @@ export async function convertApplicationToEmployee(params: {
         const employee = await createEmployee(tx, {
           organizationId: params.organizationId,
           actorApplicationUserId: params.actorApplicationUserId,
+          actorMembershipId: params.actorMembershipId,
           fields: {
             firstName: candidate.firstName,
             lastName: candidate.lastName,

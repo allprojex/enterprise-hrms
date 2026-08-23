@@ -43,6 +43,12 @@ import {
   EmployeePromotionNoChangeError,
   EmployeeNotOnProbationError,
 } from "../lib/employees";
+import {
+  EmployeeNumberReuseDisabledError,
+  EmployeeNumberCollisionError,
+  EmployeeNumberMissingTokenDataError,
+  InvalidManualEmployeeNumberError,
+} from "../lib/numbering";
 import { listEmploymentPeriods } from "../lib/employmentLifecycleService";
 import { recordAuditEvent } from "../lib/auditLog";
 import { validateImageUpload, processAvatarImage, InvalidImageError } from "../lib/imageProcessing";
@@ -218,6 +224,7 @@ router.post(
         organizationId,
         fields: parsed.data,
         actorApplicationUserId: req.userId!,
+        actorMembershipId: req.membership!.id,
       });
 
       const labels = await resolveEmployeeLabels([employee]);
@@ -227,7 +234,11 @@ router.post(
         res.status(400).json({ error: err.message });
         return;
       }
-      if (isUniqueViolation(err)) {
+      if (err instanceof EmployeeNumberReuseDisabledError || err instanceof InvalidManualEmployeeNumberError || err instanceof EmployeeNumberMissingTokenDataError) {
+        res.status(400).json({ error: err.message });
+        return;
+      }
+      if (err instanceof EmployeeNumberCollisionError || isUniqueViolation(err)) {
         res.status(409).json({ error: "An employee with this employee number already exists in the organization" });
         return;
       }

@@ -37,6 +37,9 @@ const {
   positionsTable,
   candidateEmployeeLinksTable,
   auditEventsTable,
+  organizationSettingsTable,
+  numberingSequencesTable,
+  employeeNumberAllocationsTable,
 } = vi.hoisted(() => {
   function mockTable(name: string, columns: string[]) {
     const table: Record<string, string> & { __name: string } = { __name: name } as never;
@@ -65,6 +68,12 @@ const {
       positionRows: [] as Record<string, unknown>[],
       candidateEmployeeLinkRows: [] as Record<string, unknown>[],
       idCounters: new Map<string, number>(),
+      // Phase 3H, W114 — always empty for this file's tests: getNamespaceConfig's
+      // "no saved row" default path reproduces the pre-existing hardcoded
+      // EMP-0001 format exactly, so no existing assertion needs to change.
+      organizationSettingsRows: [] as Record<string, unknown>[],
+      numberingSequenceRows: [] as Record<string, unknown>[],
+      employeeNumberAllocationRows: [] as Record<string, unknown>[],
     },
     usersTable: mockTable("users", ["id", "email"]),
     sessionsTable: mockTable("sessions", ["token", "userId", "expiresAt"]),
@@ -88,6 +97,12 @@ const {
     positionsTable: mockTable("positions", ["id", "organizationId"]),
     candidateEmployeeLinksTable: mockTable("candidate_employee_links", ["id", "organizationId", "candidateId", "applicationId", "employeeId", "convertedAt", "convertedByMembershipId"]),
     auditEventsTable: mockTable("audit_events", []),
+    organizationSettingsTable: mockTable("organization_settings", ["id", "organizationId", "namespace", "schemaVersion", "settings"]),
+    numberingSequencesTable: mockTable("numbering_sequences", ["id", "organizationId", "sequenceKey", "periodKey", "currentValue"]),
+    employeeNumberAllocationsTable: mockTable("employee_number_allocations", [
+      "id", "organizationId", "employeeId", "employeeNumber", "allocationMethod", "validFrom", "validTo",
+      "allocatedByMembershipId", "releasedByMembershipId",
+    ]),
   };
 });
 
@@ -124,6 +139,9 @@ function getRowsFor(table: { __name: string }): Record<string, unknown>[] {
   if (table === positionsTable) return fixtures.positionRows;
   if (table === candidateEmployeeLinksTable) return fixtures.candidateEmployeeLinkRows;
   if (table === candidatesTable) return fixtures.candidateRows;
+  if (table === organizationSettingsTable) return fixtures.organizationSettingsRows;
+  if (table === numberingSequencesTable) return fixtures.numberingSequenceRows;
+  if (table === employeeNumberAllocationsTable) return fixtures.employeeNumberAllocationRows;
   return [];
 }
 
@@ -131,6 +149,8 @@ function setRowsFor(table: { __name: string }, rows: Record<string, unknown>[]) 
   if (table === employeesTable) fixtures.employeeRows = rows;
   else if (table === candidateEmployeeLinksTable) fixtures.candidateEmployeeLinkRows = rows;
   else if (table === candidatesTable) fixtures.candidateRows = rows;
+  else if (table === numberingSequencesTable) fixtures.numberingSequenceRows = rows;
+  else if (table === employeeNumberAllocationsTable) fixtures.employeeNumberAllocationRows = rows;
 }
 
 function updateRow(table: { __name: string }, cond: Cond, v: Record<string, unknown>) {
@@ -190,6 +210,10 @@ function selectBuilder(table: { __name: string }, projection?: Record<string, un
     },
     limit: (n: number) => Promise.resolve((isCount ? [{ value: filtered.length }] : filtered).slice(0, n)),
     orderBy: () => Promise.resolve(isCount ? [{ value: filtered.length }] : filtered),
+    // Phase 3H, W114: `.for("update")` as a chainable no-op passthrough —
+    // real row-locking behavior is exercised only in live QA, matching
+    // learningEnrollments.test.ts's own established precedent for this.
+    for: () => builder,
     then: (resolve: (v: unknown) => void, reject?: (e: unknown) => void) =>
       Promise.resolve(isCount ? [{ value: filtered.length }] : filtered).then(resolve, reject),
   };
@@ -226,8 +250,15 @@ function thenableResult(resultPromise: Promise<unknown>) {
   };
 }
 
-function makeQueryClient() {
-  return {
+interface MockQueryClient {
+  select: (projection?: Record<string, unknown>) => { from: (table: { __name: string }) => unknown };
+  insert: (table: { __name: string }) => { values: (v: Record<string, unknown> | Record<string, unknown>[]) => unknown };
+  update: (table: { __name: string }) => { set: (v: Record<string, unknown>) => { where: (cond: Cond) => unknown } };
+  transaction: (cb: (tx: MockQueryClient) => Promise<unknown>) => Promise<unknown>;
+}
+
+function makeQueryClient(): MockQueryClient {
+  const client: MockQueryClient = {
     select: (projection?: Record<string, unknown>) => ({ from: (table: { __name: string }) => selectBuilder(table, projection) }),
     insert: (table: { __name: string }) => ({ values: (v: Record<string, unknown> | Record<string, unknown>[]) => insertRow(table, v) }),
     update: (table: { __name: string }) => ({
@@ -235,7 +266,15 @@ function makeQueryClient() {
         where: (cond: Cond) => thenableResult(Promise.resolve(updateRow(table, cond, v))),
       }),
     }),
+    // Phase 3H, W114: createEmployee/lib/numbering.ts call `client.transaction(...)`
+    // (a savepoint in real Postgres) even when `client` is already the `tx`
+    // this file's own outer db.transaction mock hands to convertApplicationToEmployee
+    // — this file's rollback-on-error semantics already live one level up (the
+    // outer db.transaction below), so nesting just needs to run the callback
+    // against the same client, matching learningEnrollments.test.ts's precedent.
+    transaction: async (cb: (tx: MockQueryClient) => Promise<unknown>) => cb(client),
   };
+  return client;
 }
 
 vi.mock("@workspace/db", () => ({
@@ -261,16 +300,27 @@ vi.mock("@workspace/db", () => ({
   positionsTable,
   candidateEmployeeLinksTable,
   auditEventsTable,
+  organizationSettingsTable,
+  numberingSequencesTable,
+  employeeNumberAllocationsTable,
   db: {
     ...makeQueryClient(),
     transaction: async (cb: (tx: ReturnType<typeof makeQueryClient>) => Promise<unknown>) => {
-      const snapshot = { employeeRows: fixtures.employeeRows, candidateEmployeeLinkRows: fixtures.candidateEmployeeLinkRows, candidateRows: fixtures.candidateRows };
+      const snapshot = {
+        employeeRows: fixtures.employeeRows,
+        candidateEmployeeLinkRows: fixtures.candidateEmployeeLinkRows,
+        candidateRows: fixtures.candidateRows,
+        numberingSequenceRows: fixtures.numberingSequenceRows,
+        employeeNumberAllocationRows: fixtures.employeeNumberAllocationRows,
+      };
       try {
         return await cb(makeQueryClient());
       } catch (err) {
         fixtures.employeeRows = snapshot.employeeRows;
         fixtures.candidateEmployeeLinkRows = snapshot.candidateEmployeeLinkRows;
         fixtures.candidateRows = snapshot.candidateRows;
+        fixtures.numberingSequenceRows = snapshot.numberingSequenceRows;
+        fixtures.employeeNumberAllocationRows = snapshot.employeeNumberAllocationRows;
         throw err;
       }
     },
@@ -357,6 +407,9 @@ beforeEach(() => {
   fixtures.branchRows = [];
   fixtures.positionRows = [];
   fixtures.candidateEmployeeLinkRows = [];
+  fixtures.organizationSettingsRows = [];
+  fixtures.numberingSequenceRows = [];
+  fixtures.employeeNumberAllocationRows = [];
   fixtures.idCounters = new Map();
 
   mockSession();

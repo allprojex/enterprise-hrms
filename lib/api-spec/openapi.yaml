@@ -2352,6 +2352,168 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/employees/{employeeId}/number/allocate:
+    post:
+      operationId: allocateEmployeeNumber
+      tags: [employees]
+      summary: Allocate a staff number to an employee (Phase 3H, W114)
+      description: >-
+        Generates a number via the organization's numbering-format engine,
+        or accepts a manual override — either path is validated against
+        employee_number_allocations' history and this organization's reuse
+        policy. Requires employee_number.allocate. Fails with 400 if this
+        employee already has an active allocation (release it first).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AllocateEmployeeNumberInput"
+      responses:
+        "201":
+          description: The newly allocated staff number
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeNumberAllocationResult"
+        "400":
+          description: Invalid request, already has an active number, or reuse disabled for this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: This staff number is already actively allocated to another employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}/number/release:
+    post:
+      operationId: releaseEmployeeNumber
+      tags: [employees]
+      summary: Release an employee's active staff number (Phase 3H, W114)
+      description: >-
+        Explicit HR action, never automatic on separation. Requires
+        employee_number.allocate. Blocked (400) while the employee is still
+        actively employed (anything other than employmentStatus terminated).
+        Closes the allocation historically — never deletes it — and clears
+        the employee's current employeeNumber.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The released allocation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeNumberAllocationResult"
+        "400":
+          description: Employee still actively employed, or no active allocation to release
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}/number/history:
+    get:
+      operationId: listEmployeeNumberHistory
+      tags: [employees]
+      summary: An employee's full staff-number allocation history (Phase 3H, W114)
+      description: >-
+        The authoritative historical source (frozen plan §6) — never
+        employees.employeeNumber alone. Requires employee.write, matching
+        the same HR-authoritative floor listEmployeeEmploymentHistory uses.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: This employee's allocation history, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmployeeNumberAllocation"
+        "404":
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employee-numbers/{employeeNumber}/history:
+    get:
+      operationId: listEmployeeNumberOwnershipHistory
+      tags: [employees]
+      summary: Every employee who has ever held this exact staff number (Phase 3H, W114)
+      description: >-
+        The reuse-ambiguity-safe view (frozen plan §10) — a reused number
+        must always show every past and present holder, clearly labeled,
+        never silently collapsed to the current one. Requires employee.write.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeNumber
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Every allocation of this exact number, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmployeeNumberAllocation"
+
   /organizations/{organizationId}/employees/{employeeId}/leave-requests:
     get:
       operationId: listLeaveRequests
@@ -17226,9 +17388,16 @@ components:
 
     UpdateEmployeeInput:
       type: object
+      description: >-
+        Phase 3H, W114: employeeNumber is deliberately absent — a staff
+        number is never mutated through the generic employee update path.
+        Use POST .../employees/:employeeId/number/allocate,
+        .../number/release, or the deliberate-reuse path instead (all gated
+        by employee_number.allocate, all fully audited via
+        employee_number_allocations) — closing what was previously an
+        unaudited, arbitrary employeeNumber mutation reachable through this
+        endpoint.
       properties:
-        employeeNumber:
-          type: ["string", "null"]
         firstName:
           type: string
           minLength: 1
@@ -17294,6 +17463,69 @@ components:
           type: ["string", "null"]
         notes:
           type: ["string", "null"]
+
+    AllocateEmployeeNumberInput:
+      type: object
+      description: >-
+        Phase 3H, W114. "generate" uses the organization's numbering-format
+        engine (config namespace "numbering", key employeeNumber). "manual"
+        requires employeeNumber and is validated identically to a generated
+        value — including the deliberate-reuse check against this
+        organization's allocation history and reuse policy.
+      required: [mode]
+      properties:
+        mode:
+          type: string
+          enum: [generate, manual]
+        employeeNumber:
+          type: ["string", "null"]
+          description: Required when mode is "manual"; ignored when mode is "generate".
+
+    EmployeeNumberAllocation:
+      type: object
+      description: >-
+        One row of the authoritative staff-number allocation history
+        (frozen plan Decision 1) — append-only, never edited. validTo null
+        means this is the currently-active allocation for this employee.
+      required: [id, organizationId, employeeId, employeeNumber, allocationMethod, validFrom, createdAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        employeeId:
+          type: integer
+        employeeNumber:
+          type: string
+        allocationMethod:
+          type: string
+          enum: [generated, manual, reused, migrated]
+          description: >-
+            "migrated" is written only by the one-time backfill script for
+            employees that already had an employeeNumber before this
+            workstream — never produced by the allocate/release/reuse routes.
+        validFrom:
+          type: string
+          format: date-time
+        validTo:
+          type: ["string", "null"]
+          format: date-time
+        allocatedByMembershipId:
+          type: ["integer", "null"]
+        releasedByMembershipId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    EmployeeNumberAllocationResult:
+      type: object
+      required: [employeeNumber, allocation]
+      properties:
+        employeeNumber:
+          type: ["string", "null"]
+        allocation:
+          $ref: "#/components/schemas/EmployeeNumberAllocation"
 
     EmployeeListResponse:
       type: object

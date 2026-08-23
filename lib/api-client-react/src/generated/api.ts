@@ -36,6 +36,7 @@ import type {
   AddTalentPoolMemberInput,
   AdjustLeaveBalanceInput,
   AdvanceLearningEnrollmentProgressInput,
+  AllocateEmployeeNumberInput,
   ApiError,
   ApplicationDetail,
   ApplicationListResponse,
@@ -114,6 +115,8 @@ import type {
   EmployeeDocument,
   EmployeeExitProcess,
   EmployeeListResponse,
+  EmployeeNumberAllocation,
+  EmployeeNumberAllocationResult,
   EmployeeQualification,
   EmployeeSkill,
   EmploymentPeriodSummary,
@@ -5293,6 +5296,321 @@ export function useListEmployeeEmploymentHistory<TData = Awaited<ReturnType<type
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListEmployeeEmploymentHistoryQueryOptions(organizationId,employeeId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAllocateEmployeeNumberUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/number/allocate`
+}
+
+/**
+ * Generates a number via the organization's numbering-format engine, or accepts a manual override — either path is validated against employee_number_allocations' history and this organization's reuse policy. Requires employee_number.allocate. Fails with 400 if this employee already has an active allocation (release it first).
+ * @summary Allocate a staff number to an employee (Phase 3H, W114)
+ */
+export const allocateEmployeeNumber = async (organizationId: number,
+    employeeId: number,
+    allocateEmployeeNumberInput: AllocateEmployeeNumberInput, options?: RequestInit): Promise<EmployeeNumberAllocationResult> => {
+
+  return customFetch<EmployeeNumberAllocationResult>(getAllocateEmployeeNumberUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(allocateEmployeeNumberInput)
+  }
+);}
+
+
+
+
+
+export const getAllocateEmployeeNumberMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof allocateEmployeeNumber>>, TError,{organizationId: number;employeeId: number;data: BodyType<AllocateEmployeeNumberInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof allocateEmployeeNumber>>, TError,{organizationId: number;employeeId: number;data: BodyType<AllocateEmployeeNumberInput>}, TContext> => {
+
+const mutationKey = ['allocateEmployeeNumber'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof allocateEmployeeNumber>>, {organizationId: number;employeeId: number;data: BodyType<AllocateEmployeeNumberInput>}> = (props) => {
+          const {organizationId,employeeId,data} = props ?? {};
+
+          return  allocateEmployeeNumber(organizationId,employeeId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AllocateEmployeeNumberMutationResult = NonNullable<Awaited<ReturnType<typeof allocateEmployeeNumber>>>
+    export type AllocateEmployeeNumberMutationBody = BodyType<AllocateEmployeeNumberInput>
+    export type AllocateEmployeeNumberMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Allocate a staff number to an employee (Phase 3H, W114)
+ */
+export const useAllocateEmployeeNumber = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof allocateEmployeeNumber>>, TError,{organizationId: number;employeeId: number;data: BodyType<AllocateEmployeeNumberInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof allocateEmployeeNumber>>,
+        TError,
+        {organizationId: number;employeeId: number;data: BodyType<AllocateEmployeeNumberInput>},
+        TContext
+      > => {
+      return useMutation(getAllocateEmployeeNumberMutationOptions(options));
+    }
+
+export const getReleaseEmployeeNumberUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/number/release`
+}
+
+/**
+ * Explicit HR action, never automatic on separation. Requires employee_number.allocate. Blocked (400) while the employee is still actively employed (anything other than employmentStatus terminated). Closes the allocation historically — never deletes it — and clears the employee's current employeeNumber.
+ * @summary Release an employee's active staff number (Phase 3H, W114)
+ */
+export const releaseEmployeeNumber = async (organizationId: number,
+    employeeId: number, options?: RequestInit): Promise<EmployeeNumberAllocationResult> => {
+
+  return customFetch<EmployeeNumberAllocationResult>(getReleaseEmployeeNumberUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getReleaseEmployeeNumberMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof releaseEmployeeNumber>>, TError,{organizationId: number;employeeId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof releaseEmployeeNumber>>, TError,{organizationId: number;employeeId: number}, TContext> => {
+
+const mutationKey = ['releaseEmployeeNumber'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof releaseEmployeeNumber>>, {organizationId: number;employeeId: number}> = (props) => {
+          const {organizationId,employeeId} = props ?? {};
+
+          return  releaseEmployeeNumber(organizationId,employeeId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReleaseEmployeeNumberMutationResult = NonNullable<Awaited<ReturnType<typeof releaseEmployeeNumber>>>
+
+    export type ReleaseEmployeeNumberMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Release an employee's active staff number (Phase 3H, W114)
+ */
+export const useReleaseEmployeeNumber = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof releaseEmployeeNumber>>, TError,{organizationId: number;employeeId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof releaseEmployeeNumber>>,
+        TError,
+        {organizationId: number;employeeId: number},
+        TContext
+      > => {
+      return useMutation(getReleaseEmployeeNumberMutationOptions(options));
+    }
+
+export const getListEmployeeNumberHistoryUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/number/history`
+}
+
+/**
+ * The authoritative historical source (frozen plan §6) — never employees.employeeNumber alone. Requires employee.write, matching the same HR-authoritative floor listEmployeeEmploymentHistory uses.
+ * @summary An employee's full staff-number allocation history (Phase 3H, W114)
+ */
+export const listEmployeeNumberHistory = async (organizationId: number,
+    employeeId: number, options?: RequestInit): Promise<EmployeeNumberAllocation[]> => {
+
+  return customFetch<EmployeeNumberAllocation[]>(getListEmployeeNumberHistoryUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListEmployeeNumberHistoryQueryKey = (organizationId: number,
+    employeeId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/employees/${employeeId}/number/history`
+    ] as const;
+    }
+
+
+export const getListEmployeeNumberHistoryQueryOptions = <TData = Awaited<ReturnType<typeof listEmployeeNumberHistory>>, TError = ErrorType<ApiError>>(organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmployeeNumberHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListEmployeeNumberHistoryQueryKey(organizationId,employeeId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEmployeeNumberHistory>>> = ({ signal }) => listEmployeeNumberHistory(organizationId,employeeId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && employeeId !== null && employeeId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEmployeeNumberHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListEmployeeNumberHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof listEmployeeNumberHistory>>>
+export type ListEmployeeNumberHistoryQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary An employee's full staff-number allocation history (Phase 3H, W114)
+ */
+
+export function useListEmployeeNumberHistory<TData = Awaited<ReturnType<typeof listEmployeeNumberHistory>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmployeeNumberHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListEmployeeNumberHistoryQueryOptions(organizationId,employeeId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListEmployeeNumberOwnershipHistoryUrl = (organizationId: number,
+    employeeNumber: string,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employee-numbers/${employeeNumber}/history`
+}
+
+/**
+ * The reuse-ambiguity-safe view (frozen plan §10) — a reused number must always show every past and present holder, clearly labeled, never silently collapsed to the current one. Requires employee.write.
+ * @summary Every employee who has ever held this exact staff number (Phase 3H, W114)
+ */
+export const listEmployeeNumberOwnershipHistory = async (organizationId: number,
+    employeeNumber: string, options?: RequestInit): Promise<EmployeeNumberAllocation[]> => {
+
+  return customFetch<EmployeeNumberAllocation[]>(getListEmployeeNumberOwnershipHistoryUrl(organizationId,employeeNumber),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListEmployeeNumberOwnershipHistoryQueryKey = (organizationId: number,
+    employeeNumber: string,) => {
+    return [
+    `/api/organizations/${organizationId}/employee-numbers/${employeeNumber}/history`
+    ] as const;
+    }
+
+
+export const getListEmployeeNumberOwnershipHistoryQueryOptions = <TData = Awaited<ReturnType<typeof listEmployeeNumberOwnershipHistory>>, TError = ErrorType<unknown>>(organizationId: number,
+    employeeNumber: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmployeeNumberOwnershipHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListEmployeeNumberOwnershipHistoryQueryKey(organizationId,employeeNumber);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEmployeeNumberOwnershipHistory>>> = ({ signal }) => listEmployeeNumberOwnershipHistory(organizationId,employeeNumber, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && employeeNumber !== null && employeeNumber !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEmployeeNumberOwnershipHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListEmployeeNumberOwnershipHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof listEmployeeNumberOwnershipHistory>>>
+export type ListEmployeeNumberOwnershipHistoryQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Every employee who has ever held this exact staff number (Phase 3H, W114)
+ */
+
+export function useListEmployeeNumberOwnershipHistory<TData = Awaited<ReturnType<typeof listEmployeeNumberOwnershipHistory>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    employeeNumber: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmployeeNumberOwnershipHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListEmployeeNumberOwnershipHistoryQueryOptions(organizationId,employeeNumber,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

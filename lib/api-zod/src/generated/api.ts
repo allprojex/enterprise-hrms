@@ -922,7 +922,6 @@ export const UpdateEmployeeParams = zod.object({
 
 
 export const UpdateEmployeeBody = zod.object({
-  "employeeNumber": zod.string().nullish(),
   "firstName": zod.string().min(1).optional(),
   "middleName": zod.string().nullish(),
   "lastName": zod.string().min(1).optional(),
@@ -960,7 +959,7 @@ export const UpdateEmployeeBody = zod.object({
   "employmentStatus": zod.enum(['active', 'probation', 'on_leave', 'suspended', 'terminated']).optional(),
   "workLocation": zod.string().nullish(),
   "notes": zod.string().nullish()
-})
+}).describe('Phase 3H, W114: employeeNumber is deliberately absent — a staff number is never mutated through the generic employee update path. Use POST ...\/employees\/:employeeId\/number\/allocate, ...\/number\/release, or the deliberate-reuse path instead (all gated by employee_number.allocate, all fully audited via employee_number_allocations) — closing what was previously an unaudited, arbitrary employeeNumber mutation reachable through this endpoint.')
 
 export const UpdateEmployeeResponse = zod.object({
   "id": zod.number(),
@@ -2024,6 +2023,111 @@ export const ListEmployeeEmploymentHistoryResponseItem = zod.object({
   "createdAt": zod.coerce.date()
 }).describe('One employment_periods row (Phase 2A, W22) — append-only, never edited or deleted. previousState\/newState snapshot the raw ids that changed at the time of the event; they are never resolved to current department\/branch\/position names, since that would silently replace historical meaning with present-day meaning.')
 export const ListEmployeeEmploymentHistoryResponse = zod.array(ListEmployeeEmploymentHistoryResponseItem)
+
+
+/**
+ * Generates a number via the organization's numbering-format engine, or accepts a manual override — either path is validated against employee_number_allocations' history and this organization's reuse policy. Requires employee_number.allocate. Fails with 400 if this employee already has an active allocation (release it first).
+ * @summary Allocate a staff number to an employee (Phase 3H, W114)
+ */
+export const AllocateEmployeeNumberParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const AllocateEmployeeNumberBody = zod.object({
+  "mode": zod.enum(['generate', 'manual']),
+  "employeeNumber": zod.string().nullish().describe('Required when mode is \"manual\"; ignored when mode is \"generate\".')
+}).describe('Phase 3H, W114. \"generate\" uses the organization\'s numbering-format engine (config namespace \"numbering\", key employeeNumber). \"manual\" requires employeeNumber and is validated identically to a generated value — including the deliberate-reuse check against this organization\'s allocation history and reuse policy.')
+
+export const AllocateEmployeeNumberResponse = zod.object({
+  "employeeNumber": zod.string().nullable(),
+  "allocation": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "employeeNumber": zod.string(),
+  "allocationMethod": zod.enum(['generated', 'manual', 'reused', 'migrated']).describe('\"migrated\" is written only by the one-time backfill script for employees that already had an employeeNumber before this workstream — never produced by the allocate\/release\/reuse routes.'),
+  "validFrom": zod.coerce.date(),
+  "validTo": zod.coerce.date().nullish(),
+  "allocatedByMembershipId": zod.number().nullish(),
+  "releasedByMembershipId": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+}).describe('One row of the authoritative staff-number allocation history (frozen plan Decision 1) — append-only, never edited. validTo null means this is the currently-active allocation for this employee.')
+})
+
+
+/**
+ * Explicit HR action, never automatic on separation. Requires employee_number.allocate. Blocked (400) while the employee is still actively employed (anything other than employmentStatus terminated). Closes the allocation historically — never deletes it — and clears the employee's current employeeNumber.
+ * @summary Release an employee's active staff number (Phase 3H, W114)
+ */
+export const ReleaseEmployeeNumberParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const ReleaseEmployeeNumberResponse = zod.object({
+  "employeeNumber": zod.string().nullable(),
+  "allocation": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "employeeNumber": zod.string(),
+  "allocationMethod": zod.enum(['generated', 'manual', 'reused', 'migrated']).describe('\"migrated\" is written only by the one-time backfill script for employees that already had an employeeNumber before this workstream — never produced by the allocate\/release\/reuse routes.'),
+  "validFrom": zod.coerce.date(),
+  "validTo": zod.coerce.date().nullish(),
+  "allocatedByMembershipId": zod.number().nullish(),
+  "releasedByMembershipId": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+}).describe('One row of the authoritative staff-number allocation history (frozen plan Decision 1) — append-only, never edited. validTo null means this is the currently-active allocation for this employee.')
+})
+
+
+/**
+ * The authoritative historical source (frozen plan §6) — never employees.employeeNumber alone. Requires employee.write, matching the same HR-authoritative floor listEmployeeEmploymentHistory uses.
+ * @summary An employee's full staff-number allocation history (Phase 3H, W114)
+ */
+export const ListEmployeeNumberHistoryParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const ListEmployeeNumberHistoryResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "employeeNumber": zod.string(),
+  "allocationMethod": zod.enum(['generated', 'manual', 'reused', 'migrated']).describe('\"migrated\" is written only by the one-time backfill script for employees that already had an employeeNumber before this workstream — never produced by the allocate\/release\/reuse routes.'),
+  "validFrom": zod.coerce.date(),
+  "validTo": zod.coerce.date().nullish(),
+  "allocatedByMembershipId": zod.number().nullish(),
+  "releasedByMembershipId": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+}).describe('One row of the authoritative staff-number allocation history (frozen plan Decision 1) — append-only, never edited. validTo null means this is the currently-active allocation for this employee.')
+export const ListEmployeeNumberHistoryResponse = zod.array(ListEmployeeNumberHistoryResponseItem)
+
+
+/**
+ * The reuse-ambiguity-safe view (frozen plan §10) — a reused number must always show every past and present holder, clearly labeled, never silently collapsed to the current one. Requires employee.write.
+ * @summary Every employee who has ever held this exact staff number (Phase 3H, W114)
+ */
+export const ListEmployeeNumberOwnershipHistoryParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeNumber": zod.coerce.string()
+})
+
+export const ListEmployeeNumberOwnershipHistoryResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "employeeNumber": zod.string(),
+  "allocationMethod": zod.enum(['generated', 'manual', 'reused', 'migrated']).describe('\"migrated\" is written only by the one-time backfill script for employees that already had an employeeNumber before this workstream — never produced by the allocate\/release\/reuse routes.'),
+  "validFrom": zod.coerce.date(),
+  "validTo": zod.coerce.date().nullish(),
+  "allocatedByMembershipId": zod.number().nullish(),
+  "releasedByMembershipId": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+}).describe('One row of the authoritative staff-number allocation history (frozen plan Decision 1) — append-only, never edited. validTo null means this is the currently-active allocation for this employee.')
+export const ListEmployeeNumberOwnershipHistoryResponse = zod.array(ListEmployeeNumberOwnershipHistoryResponseItem)
 
 
 /**

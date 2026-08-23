@@ -76,6 +76,36 @@ const performanceConfigSchema = z
   })
   .passthrough();
 
+// Phase 3H, W114 — Numbering & Identifier History (frozen plan §4, Decision
+// 5). One shared token-based format engine, reused for every identifier type
+// this platform allocates — employeeNumber today, pifNumber reserved for
+// W115 (Personnel File). Each identifier type's config lives under its own
+// key so updating one never disturbs the other ("never shared state", per
+// the frozen plan). `reuseEnabled` lives only under employeeNumber — PIF
+// numbers are never reusable by design (Decision 4), so no such flag exists
+// for pifNumber at all, not merely defaulted off.
+const numberingIdentifierConfigSchema = z
+  .object({
+    prefix: z.string().max(20).optional(),
+    suffix: z.string().max(20).optional(),
+    separator: z.string().max(5).optional(),
+    sequenceLength: z.number().int().min(1).max(10).optional(),
+    startingSequence: z.number().int().min(0).optional(),
+    includeBranchToken: z.boolean().optional(),
+    includeDepartmentToken: z.boolean().optional(),
+    includeYearToken: z.boolean().optional(),
+    includeMonthToken: z.boolean().optional(),
+    resetPolicy: z.enum(["never", "yearly", "monthly"]).optional(),
+  })
+  .passthrough();
+
+const numberingConfigSchema = z
+  .object({
+    employeeNumber: numberingIdentifierConfigSchema.extend({ reuseEnabled: z.boolean().optional() }).optional(),
+    pifNumber: numberingIdentifierConfigSchema.optional(),
+  })
+  .passthrough();
+
 interface NamespaceDefinition {
   schemaVersion: number;
   schema: z.ZodType;
@@ -133,6 +163,30 @@ export const CONFIG_NAMESPACES: Record<string, NamespaceDefinition> = {
       acknowledgementRequired: true,
     }),
     moduleKey: "performance",
+  },
+  // Phase 3H, W114 — Numbering & Identifier History. No moduleKey: staff
+  // numbering is part of the always-on Employee Management foundation, never
+  // a toggleable module (mirrors general/terminology, not
+  // attendance/performance). Defaults reproduce the exact pre-existing
+  // hardcoded EMP-0001 format byte-for-byte, so an organization that never
+  // touches this namespace sees zero behavioral change from before W114.
+  numbering: {
+    schemaVersion: 1,
+    schema: numberingConfigSchema,
+    defaults: () => ({
+      employeeNumber: {
+        prefix: "EMP",
+        separator: "-",
+        sequenceLength: 4,
+        startingSequence: 1,
+        includeBranchToken: false,
+        includeDepartmentToken: false,
+        includeYearToken: false,
+        includeMonthToken: false,
+        resetPolicy: "never",
+        reuseEnabled: false,
+      },
+    }),
   },
 };
 
@@ -192,6 +246,33 @@ export class InvalidNamespaceConfigError extends Error {
   }
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/**
+ * Recursive JSON-merge-patch-style merge (RFC 7386 shape, minus null-means-
+ * delete, which no namespace here needs): a plain-object value in `patch` is
+ * merged key-by-key into the matching plain-object value in `base`; every
+ * other value type — including arrays — replaces the base value outright.
+ * Needed because `numbering` (Phase 3H, W114) is this engine's first
+ * namespace with a nested sub-object (employeeNumber/pifNumber) — every
+ * prior namespace (general/terminology/attendance/performance) is flat, so a
+ * plain shallow `{...base, ...patch}` merge was indistinguishable from this
+ * for all of them. Without this, `PATCH .../config/numbering` with
+ * `{employeeNumber: {reuseEnabled: true}}` would silently discard
+ * employeeNumber's own already-configured prefix/separator/sequenceLength/
+ * etc. — a genuine defect this workstream's own live QA caught, not a
+ * hypothetical one.
+ */
+function deepMergeConfig(base: Record<string, unknown>, patch: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = { ...base };
+  for (const [key, value] of Object.entries(patch)) {
+    result[key] = isPlainObject(value) && isPlainObject(base[key]) ? deepMergeConfig(base[key], value) : value;
+  }
+  return result;
+}
+
 /**
  * Merges `patch` into the namespace's existing data (or its defaults) and
  * validates the *merged result* — not just the patch — against the
@@ -205,7 +286,7 @@ export async function updateNamespaceConfig(
 ): Promise<OrganizationConfigResult> {
   const definition = CONFIG_NAMESPACES[namespace];
   const existing = await getNamespaceConfig(organizationId, namespace);
-  const merged = { ...existing.data, ...patch };
+  const merged = deepMergeConfig(existing.data, patch);
 
   const parsed = definition.schema.safeParse(merged);
   if (!parsed.success) {
