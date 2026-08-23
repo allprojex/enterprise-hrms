@@ -16977,6 +16977,425 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/office-inventory/requests:
+    get:
+      operationId: listOfficeInventoryMyRequests
+      tags: [office-inventory-requests]
+      summary: List the caller's own submitted Office Inventory requests (Workstream 3)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Requests submitted by the caller
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OfficeInventoryRequest"
+        "403":
+          description: Forbidden — requires office_inventory.request, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createOfficeInventoryRequest
+      tags: [office-inventory-requests]
+      summary: Submit an employee or department stock request — gated office_inventory.request
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOfficeInventoryRequestBody"
+      responses:
+        "201":
+          description: Created request with its lines
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryRequestWithLines"
+        "400":
+          description: No lines, invalid quantity, item not found, no current department, or (department request) caller does not belong to the target department
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires office_inventory.request, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/requests/{id}:
+    get:
+      operationId: getOfficeInventoryRequest
+      tags: [office-inventory-requests]
+      summary: Get one request with its lines — own request, or a department the caller has approval authority over
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Request with lines
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryRequestWithLines"
+        "403":
+          description: Forbidden — not the requester and not an approval authority for this department
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Request not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/requests/{id}/cancel:
+    post:
+      operationId: cancelOfficeInventoryRequest
+      tags: [office-inventory-requests]
+      summary: Cancel a request — only the original requester, only while every line is still pending
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Cancelled request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryRequest"
+        "403":
+          description: Forbidden — requires office_inventory.request, or not the original requester
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Request not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: A decision has already been recorded on at least one line — no longer cancellable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/requests/{id}/approval-context:
+    get:
+      operationId: getOfficeInventoryRequestApprovalContext
+      tags: [office-inventory-requests]
+      summary: Full approval-screen context — request, lines, current store availability, and the repeat-request warning per line
+      description: Gated to the department's current Head or a currently-valid delegate — docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §34.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Approval context
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryRequestApprovalContext"
+        "403":
+          description: Forbidden — requires office_inventory.approve and current Department Head/delegate authority for this request's department
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Request not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/departments/{departmentId}/requests:
+    get:
+      operationId: listOfficeInventoryDepartmentRequests
+      tags: [office-inventory-requests]
+      summary: List every request for a department — the approval queue, gated to its current Head or a currently-valid delegate
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: departmentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Requests for this department
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OfficeInventoryRequest"
+        "403":
+          description: Forbidden — requires office_inventory.approve and current Department Head/delegate authority for this department
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/request-lines/{lineId}/approve:
+    post:
+      operationId: approveOfficeInventoryRequestLine
+      tags: [office-inventory-requests]
+      summary: Approve a request line, in full or in part — Department Head self-approval is permanently valid (§14)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: lineId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApproveOfficeInventoryRequestLineBody"
+      responses:
+        "200":
+          description: Updated line and its parent request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryRequestWithLines"
+        "400":
+          description: Approved quantity must be > 0 and <= quantity requested
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires office_inventory.approve and current Department Head/delegate authority for this request's department
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Request line not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: This line has already been decided
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/request-lines/{lineId}/reject:
+    post:
+      operationId: rejectOfficeInventoryRequestLine
+      tags: [office-inventory-requests]
+      summary: Reject a request line — a reason is required
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: lineId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RejectOfficeInventoryRequestLineBody"
+      responses:
+        "200":
+          description: Updated line and its parent request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryRequestWithLines"
+        "403":
+          description: Forbidden — requires office_inventory.approve and current Department Head/delegate authority for this request's department
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Request line not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: This line has already been decided
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/departments/{departmentId}/delegations:
+    get:
+      operationId: listOfficeInventoryDelegations
+      tags: [office-inventory-delegations]
+      summary: Current and historical approval delegations for a department — the current Head only
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: departmentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Delegations, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OfficeInventoryApprovalDelegation"
+        "403":
+          description: Forbidden — requires office_inventory.delegate.manage and being this department's current Head
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createOfficeInventoryDelegation
+      tags: [office-inventory-delegations]
+      summary: Delegate approval authority for this department — only the department's current Head may call this
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: departmentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOfficeInventoryDelegationBody"
+      responses:
+        "201":
+          description: Created delegation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryApprovalDelegation"
+        "403":
+          description: Forbidden — requires office_inventory.delegate.manage and being this department's current Head
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Department not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/delegations/{id}/revoke:
+    post:
+      operationId: revokeOfficeInventoryDelegation
+      tags: [office-inventory-delegations]
+      summary: Revoke an open delegation — only the department's current Head may call this
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The now-closed delegation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryApprovalDelegation"
+        "403":
+          description: Forbidden — requires office_inventory.delegate.manage and being this department's current Head
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Delegation not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -25704,3 +26123,224 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/OfficeInventoryStoreBalance"
+
+    OfficeInventoryRequestLine:
+      type: object
+      description: >-
+        Office Inventory, Workstream 3
+        (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.4). Approval never
+        touches the stock ledger — only Workstream 4's own Issue/Fulfilment
+        action ever does.
+      required: [id, organizationId, requestId, itemId, quantityRequested, approvalStatus, approvedQuantity, approvedByMembershipId, actedAsDelegate, delegatorHeadMembershipId, delegationId, approvedAt, rejectionReason, quantityIssuedSoFar]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        requestId:
+          type: integer
+        itemId:
+          type: integer
+        quantityRequested:
+          type: string
+        approvalStatus:
+          type: string
+          enum: [pending, approved, rejected]
+        approvedQuantity:
+          type: ["string", "null"]
+        approvedByMembershipId:
+          type: ["integer", "null"]
+        actedAsDelegate:
+          type: boolean
+        delegatorHeadMembershipId:
+          type: ["integer", "null"]
+        delegationId:
+          type: ["integer", "null"]
+        approvedAt:
+          type: ["string", "null"]
+          format: date-time
+        rejectionReason:
+          type: ["string", "null"]
+        quantityIssuedSoFar:
+          type: string
+
+    OfficeInventoryRequest:
+      type: object
+      required: [id, organizationId, requestReference, requestedByMembershipId, requestType, forEmployeeId, forDepartmentId, reason, submittedAt, status, cancelledAt, cancelledByMembershipId]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        requestReference:
+          type: string
+        requestedByMembershipId:
+          type: integer
+        requestType:
+          type: string
+          enum: [employee, department]
+        forEmployeeId:
+          type: ["integer", "null"]
+        forDepartmentId:
+          type: integer
+        reason:
+          type: ["string", "null"]
+        submittedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [pending, partially_approved, approved, rejected, fulfilled, partially_fulfilled, cancelled]
+        cancelledAt:
+          type: ["string", "null"]
+          format: date-time
+        cancelledByMembershipId:
+          type: ["integer", "null"]
+
+    OfficeInventoryRequestWithLines:
+      type: object
+      required: [request, lines]
+      properties:
+        request:
+          $ref: "#/components/schemas/OfficeInventoryRequest"
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/OfficeInventoryRequestLine"
+
+    OfficeInventoryRequestLineInput:
+      type: object
+      required: [itemId, quantityRequested]
+      properties:
+        itemId:
+          type: integer
+        quantityRequested:
+          type: string
+          description: Positive numeric(12,2)-shaped string.
+
+    CreateOfficeInventoryRequestBody:
+      type: object
+      description: >-
+        For `requestType: employee`, `forEmployeeId` is always the caller's
+        own employee identity, resolved server-side — never client-supplied
+        (`forDepartmentId` must not be sent; it is resolved from the
+        employee's own current department). For `requestType: department`,
+        `forDepartmentId` is required and the caller must themselves belong
+        to that department.
+      required: [requestType, lines]
+      properties:
+        requestType:
+          type: string
+          enum: [employee, department]
+        forDepartmentId:
+          type: integer
+          description: Required only for requestType "department".
+        reason:
+          type: string
+        lines:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/OfficeInventoryRequestLineInput"
+
+    ApproveOfficeInventoryRequestLineBody:
+      type: object
+      required: [approvedQuantity]
+      properties:
+        approvedQuantity:
+          type: string
+          description: Must be > 0 and <= the line's quantityRequested.
+
+    RejectOfficeInventoryRequestLineBody:
+      type: object
+      required: [rejectionReason]
+      properties:
+        rejectionReason:
+          type: string
+
+    OfficeInventoryRepeatRequestWarning:
+      type: object
+      description: >-
+        Query-time only, never a stored flag (§15). Deliberately does not
+        include issued/custody fields — those require Workstream 4's data,
+        which does not exist yet; this shape is designed to be extended
+        additively once it does, without a breaking change.
+      required: [itemId, windowDays, recentEmployeeRequests, recentDepartmentRequests]
+      properties:
+        itemId:
+          type: integer
+        windowDays:
+          type: integer
+        recentEmployeeRequests:
+          type: array
+          items:
+            $ref: "#/components/schemas/OfficeInventoryRequest"
+        recentDepartmentRequests:
+          type: array
+          items:
+            $ref: "#/components/schemas/OfficeInventoryRequest"
+
+    OfficeInventoryRequestLineApprovalContext:
+      type: object
+      required: [line, storeAvailability, repeatRequestWarning]
+      properties:
+        line:
+          $ref: "#/components/schemas/OfficeInventoryRequestLine"
+        storeAvailability:
+          $ref: "#/components/schemas/OfficeInventoryItemBalance"
+        repeatRequestWarning:
+          $ref: "#/components/schemas/OfficeInventoryRepeatRequestWarning"
+
+    OfficeInventoryRequestApprovalContext:
+      type: object
+      required: [request, lines]
+      properties:
+        request:
+          $ref: "#/components/schemas/OfficeInventoryRequest"
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/OfficeInventoryRequestLineApprovalContext"
+
+    OfficeInventoryApprovalDelegation:
+      type: object
+      description: >-
+        Office Inventory, Workstream 3
+        (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §6, §5.3). A row
+        surviving the delegating Head's own replacement remains open and
+        fully historically queryable, but becomes functionally inert for
+        NEW approvals the instant that membership is no longer the
+        department's actual current Head — re-checked fresh on every
+        approval, never assumed from this row's own existence.
+      required: [id, organizationId, departmentId, delegatingHeadMembershipId, delegateMembershipId, validFrom, validTo, createdByMembershipId, revokedByMembershipId, createdAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        departmentId:
+          type: integer
+        delegatingHeadMembershipId:
+          type: integer
+        delegateMembershipId:
+          type: integer
+        validFrom:
+          type: string
+          format: date-time
+        validTo:
+          type: ["string", "null"]
+          format: date-time
+        createdByMembershipId:
+          type: ["integer", "null"]
+        revokedByMembershipId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateOfficeInventoryDelegationBody:
+      type: object
+      required: [delegateMembershipId]
+      properties:
+        delegateMembershipId:
+          type: integer

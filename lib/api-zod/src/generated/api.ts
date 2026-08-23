@@ -13766,3 +13766,421 @@ export const ListOfficeInventoryStockMovementsResponseItem = zod.object({
 export const ListOfficeInventoryStockMovementsResponse = zod.array(ListOfficeInventoryStockMovementsResponseItem)
 
 
+/**
+ * @summary List the caller's own submitted Office Inventory requests (Workstream 3)
+ */
+export const ListOfficeInventoryMyRequestsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListOfficeInventoryMyRequestsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "requestReference": zod.string(),
+  "requestedByMembershipId": zod.number(),
+  "requestType": zod.enum(['employee', 'department']),
+  "forEmployeeId": zod.number().nullable(),
+  "forDepartmentId": zod.number(),
+  "reason": zod.string().nullable(),
+  "submittedAt": zod.coerce.date(),
+  "status": zod.enum(['pending', 'partially_approved', 'approved', 'rejected', 'fulfilled', 'partially_fulfilled', 'cancelled']),
+  "cancelledAt": zod.coerce.date().nullable(),
+  "cancelledByMembershipId": zod.number().nullable()
+})
+export const ListOfficeInventoryMyRequestsResponse = zod.array(ListOfficeInventoryMyRequestsResponseItem)
+
+
+/**
+ * @summary Submit an employee or department stock request — gated office_inventory.request
+ */
+export const CreateOfficeInventoryRequestParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+
+
+export const CreateOfficeInventoryRequestBody = zod.object({
+  "requestType": zod.enum(['employee', 'department']),
+  "forDepartmentId": zod.number().optional().describe('Required only for requestType \"department\".'),
+  "reason": zod.string().optional(),
+  "lines": zod.array(zod.object({
+  "itemId": zod.number(),
+  "quantityRequested": zod.string().describe('Positive numeric(12,2)-shaped string.')
+})).min(1)
+}).describe('For `requestType: employee`, `forEmployeeId` is always the caller\'s own employee identity, resolved server-side — never client-supplied (`forDepartmentId` must not be sent; it is resolved from the employee\'s own current department). For `requestType: department`, `forDepartmentId` is required and the caller must themselves belong to that department.')
+
+export const CreateOfficeInventoryRequestResponse = zod.object({
+  "request": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "requestReference": zod.string(),
+  "requestedByMembershipId": zod.number(),
+  "requestType": zod.enum(['employee', 'department']),
+  "forEmployeeId": zod.number().nullable(),
+  "forDepartmentId": zod.number(),
+  "reason": zod.string().nullable(),
+  "submittedAt": zod.coerce.date(),
+  "status": zod.enum(['pending', 'partially_approved', 'approved', 'rejected', 'fulfilled', 'partially_fulfilled', 'cancelled']),
+  "cancelledAt": zod.coerce.date().nullable(),
+  "cancelledByMembershipId": zod.number().nullable()
+}),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "requestId": zod.number(),
+  "itemId": zod.number(),
+  "quantityRequested": zod.string(),
+  "approvalStatus": zod.enum(['pending', 'approved', 'rejected']),
+  "approvedQuantity": zod.string().nullable(),
+  "approvedByMembershipId": zod.number().nullable(),
+  "actedAsDelegate": zod.boolean(),
+  "delegatorHeadMembershipId": zod.number().nullable(),
+  "delegationId": zod.number().nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
+  "rejectionReason": zod.string().nullable(),
+  "quantityIssuedSoFar": zod.string()
+}).describe('Office Inventory, Workstream 3 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.4). Approval never touches the stock ledger — only Workstream 4\'s own Issue\/Fulfilment action ever does.'))
+})
+
+
+/**
+ * @summary Get one request with its lines — own request, or a department the caller has approval authority over
+ */
+export const GetOfficeInventoryRequestParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const GetOfficeInventoryRequestResponse = zod.object({
+  "request": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "requestReference": zod.string(),
+  "requestedByMembershipId": zod.number(),
+  "requestType": zod.enum(['employee', 'department']),
+  "forEmployeeId": zod.number().nullable(),
+  "forDepartmentId": zod.number(),
+  "reason": zod.string().nullable(),
+  "submittedAt": zod.coerce.date(),
+  "status": zod.enum(['pending', 'partially_approved', 'approved', 'rejected', 'fulfilled', 'partially_fulfilled', 'cancelled']),
+  "cancelledAt": zod.coerce.date().nullable(),
+  "cancelledByMembershipId": zod.number().nullable()
+}),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "requestId": zod.number(),
+  "itemId": zod.number(),
+  "quantityRequested": zod.string(),
+  "approvalStatus": zod.enum(['pending', 'approved', 'rejected']),
+  "approvedQuantity": zod.string().nullable(),
+  "approvedByMembershipId": zod.number().nullable(),
+  "actedAsDelegate": zod.boolean(),
+  "delegatorHeadMembershipId": zod.number().nullable(),
+  "delegationId": zod.number().nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
+  "rejectionReason": zod.string().nullable(),
+  "quantityIssuedSoFar": zod.string()
+}).describe('Office Inventory, Workstream 3 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.4). Approval never touches the stock ledger — only Workstream 4\'s own Issue\/Fulfilment action ever does.'))
+})
+
+
+/**
+ * @summary Cancel a request — only the original requester, only while every line is still pending
+ */
+export const CancelOfficeInventoryRequestParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const CancelOfficeInventoryRequestResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "requestReference": zod.string(),
+  "requestedByMembershipId": zod.number(),
+  "requestType": zod.enum(['employee', 'department']),
+  "forEmployeeId": zod.number().nullable(),
+  "forDepartmentId": zod.number(),
+  "reason": zod.string().nullable(),
+  "submittedAt": zod.coerce.date(),
+  "status": zod.enum(['pending', 'partially_approved', 'approved', 'rejected', 'fulfilled', 'partially_fulfilled', 'cancelled']),
+  "cancelledAt": zod.coerce.date().nullable(),
+  "cancelledByMembershipId": zod.number().nullable()
+})
+
+
+/**
+ * Gated to the department's current Head or a currently-valid delegate — docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §34.
+ * @summary Full approval-screen context — request, lines, current store availability, and the repeat-request warning per line
+ */
+export const GetOfficeInventoryRequestApprovalContextParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const GetOfficeInventoryRequestApprovalContextResponse = zod.object({
+  "request": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "requestReference": zod.string(),
+  "requestedByMembershipId": zod.number(),
+  "requestType": zod.enum(['employee', 'department']),
+  "forEmployeeId": zod.number().nullable(),
+  "forDepartmentId": zod.number(),
+  "reason": zod.string().nullable(),
+  "submittedAt": zod.coerce.date(),
+  "status": zod.enum(['pending', 'partially_approved', 'approved', 'rejected', 'fulfilled', 'partially_fulfilled', 'cancelled']),
+  "cancelledAt": zod.coerce.date().nullable(),
+  "cancelledByMembershipId": zod.number().nullable()
+}),
+  "lines": zod.array(zod.object({
+  "line": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "requestId": zod.number(),
+  "itemId": zod.number(),
+  "quantityRequested": zod.string(),
+  "approvalStatus": zod.enum(['pending', 'approved', 'rejected']),
+  "approvedQuantity": zod.string().nullable(),
+  "approvedByMembershipId": zod.number().nullable(),
+  "actedAsDelegate": zod.boolean(),
+  "delegatorHeadMembershipId": zod.number().nullable(),
+  "delegationId": zod.number().nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
+  "rejectionReason": zod.string().nullable(),
+  "quantityIssuedSoFar": zod.string()
+}).describe('Office Inventory, Workstream 3 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.4). Approval never touches the stock ledger — only Workstream 4\'s own Issue\/Fulfilment action ever does.'),
+  "storeAvailability": zod.object({
+  "itemId": zod.number(),
+  "storeId": zod.number().nullish(),
+  "total": zod.string(),
+  "byStore": zod.array(zod.object({
+  "storeId": zod.number(),
+  "balance": zod.string()
+}))
+}).describe('Either a single store\'s balance (when `storeId` was supplied) or the organization-wide total plus a per-store breakdown (when it was not).'),
+  "repeatRequestWarning": zod.object({
+  "itemId": zod.number(),
+  "windowDays": zod.number(),
+  "recentEmployeeRequests": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "requestReference": zod.string(),
+  "requestedByMembershipId": zod.number(),
+  "requestType": zod.enum(['employee', 'department']),
+  "forEmployeeId": zod.number().nullable(),
+  "forDepartmentId": zod.number(),
+  "reason": zod.string().nullable(),
+  "submittedAt": zod.coerce.date(),
+  "status": zod.enum(['pending', 'partially_approved', 'approved', 'rejected', 'fulfilled', 'partially_fulfilled', 'cancelled']),
+  "cancelledAt": zod.coerce.date().nullable(),
+  "cancelledByMembershipId": zod.number().nullable()
+})),
+  "recentDepartmentRequests": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "requestReference": zod.string(),
+  "requestedByMembershipId": zod.number(),
+  "requestType": zod.enum(['employee', 'department']),
+  "forEmployeeId": zod.number().nullable(),
+  "forDepartmentId": zod.number(),
+  "reason": zod.string().nullable(),
+  "submittedAt": zod.coerce.date(),
+  "status": zod.enum(['pending', 'partially_approved', 'approved', 'rejected', 'fulfilled', 'partially_fulfilled', 'cancelled']),
+  "cancelledAt": zod.coerce.date().nullable(),
+  "cancelledByMembershipId": zod.number().nullable()
+}))
+}).describe('Query-time only, never a stored flag (§15). Deliberately does not include issued\/custody fields — those require Workstream 4\'s data, which does not exist yet; this shape is designed to be extended additively once it does, without a breaking change.')
+}))
+})
+
+
+/**
+ * @summary List every request for a department — the approval queue, gated to its current Head or a currently-valid delegate
+ */
+export const ListOfficeInventoryDepartmentRequestsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "departmentId": zod.coerce.number()
+})
+
+export const ListOfficeInventoryDepartmentRequestsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "requestReference": zod.string(),
+  "requestedByMembershipId": zod.number(),
+  "requestType": zod.enum(['employee', 'department']),
+  "forEmployeeId": zod.number().nullable(),
+  "forDepartmentId": zod.number(),
+  "reason": zod.string().nullable(),
+  "submittedAt": zod.coerce.date(),
+  "status": zod.enum(['pending', 'partially_approved', 'approved', 'rejected', 'fulfilled', 'partially_fulfilled', 'cancelled']),
+  "cancelledAt": zod.coerce.date().nullable(),
+  "cancelledByMembershipId": zod.number().nullable()
+})
+export const ListOfficeInventoryDepartmentRequestsResponse = zod.array(ListOfficeInventoryDepartmentRequestsResponseItem)
+
+
+/**
+ * @summary Approve a request line, in full or in part — Department Head self-approval is permanently valid (§14)
+ */
+export const ApproveOfficeInventoryRequestLineParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "lineId": zod.coerce.number()
+})
+
+export const ApproveOfficeInventoryRequestLineBody = zod.object({
+  "approvedQuantity": zod.string().describe('Must be > 0 and <= the line\'s quantityRequested.')
+})
+
+export const ApproveOfficeInventoryRequestLineResponse = zod.object({
+  "request": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "requestReference": zod.string(),
+  "requestedByMembershipId": zod.number(),
+  "requestType": zod.enum(['employee', 'department']),
+  "forEmployeeId": zod.number().nullable(),
+  "forDepartmentId": zod.number(),
+  "reason": zod.string().nullable(),
+  "submittedAt": zod.coerce.date(),
+  "status": zod.enum(['pending', 'partially_approved', 'approved', 'rejected', 'fulfilled', 'partially_fulfilled', 'cancelled']),
+  "cancelledAt": zod.coerce.date().nullable(),
+  "cancelledByMembershipId": zod.number().nullable()
+}),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "requestId": zod.number(),
+  "itemId": zod.number(),
+  "quantityRequested": zod.string(),
+  "approvalStatus": zod.enum(['pending', 'approved', 'rejected']),
+  "approvedQuantity": zod.string().nullable(),
+  "approvedByMembershipId": zod.number().nullable(),
+  "actedAsDelegate": zod.boolean(),
+  "delegatorHeadMembershipId": zod.number().nullable(),
+  "delegationId": zod.number().nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
+  "rejectionReason": zod.string().nullable(),
+  "quantityIssuedSoFar": zod.string()
+}).describe('Office Inventory, Workstream 3 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.4). Approval never touches the stock ledger — only Workstream 4\'s own Issue\/Fulfilment action ever does.'))
+})
+
+
+/**
+ * @summary Reject a request line — a reason is required
+ */
+export const RejectOfficeInventoryRequestLineParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "lineId": zod.coerce.number()
+})
+
+export const RejectOfficeInventoryRequestLineBody = zod.object({
+  "rejectionReason": zod.string()
+})
+
+export const RejectOfficeInventoryRequestLineResponse = zod.object({
+  "request": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "requestReference": zod.string(),
+  "requestedByMembershipId": zod.number(),
+  "requestType": zod.enum(['employee', 'department']),
+  "forEmployeeId": zod.number().nullable(),
+  "forDepartmentId": zod.number(),
+  "reason": zod.string().nullable(),
+  "submittedAt": zod.coerce.date(),
+  "status": zod.enum(['pending', 'partially_approved', 'approved', 'rejected', 'fulfilled', 'partially_fulfilled', 'cancelled']),
+  "cancelledAt": zod.coerce.date().nullable(),
+  "cancelledByMembershipId": zod.number().nullable()
+}),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "requestId": zod.number(),
+  "itemId": zod.number(),
+  "quantityRequested": zod.string(),
+  "approvalStatus": zod.enum(['pending', 'approved', 'rejected']),
+  "approvedQuantity": zod.string().nullable(),
+  "approvedByMembershipId": zod.number().nullable(),
+  "actedAsDelegate": zod.boolean(),
+  "delegatorHeadMembershipId": zod.number().nullable(),
+  "delegationId": zod.number().nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
+  "rejectionReason": zod.string().nullable(),
+  "quantityIssuedSoFar": zod.string()
+}).describe('Office Inventory, Workstream 3 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.4). Approval never touches the stock ledger — only Workstream 4\'s own Issue\/Fulfilment action ever does.'))
+})
+
+
+/**
+ * @summary Current and historical approval delegations for a department — the current Head only
+ */
+export const ListOfficeInventoryDelegationsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "departmentId": zod.coerce.number()
+})
+
+export const ListOfficeInventoryDelegationsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "departmentId": zod.number(),
+  "delegatingHeadMembershipId": zod.number(),
+  "delegateMembershipId": zod.number(),
+  "validFrom": zod.coerce.date(),
+  "validTo": zod.coerce.date().nullable(),
+  "createdByMembershipId": zod.number().nullable(),
+  "revokedByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 3 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §6, §5.3). A row surviving the delegating Head\'s own replacement remains open and fully historically queryable, but becomes functionally inert for NEW approvals the instant that membership is no longer the department\'s actual current Head — re-checked fresh on every approval, never assumed from this row\'s own existence.')
+export const ListOfficeInventoryDelegationsResponse = zod.array(ListOfficeInventoryDelegationsResponseItem)
+
+
+/**
+ * @summary Delegate approval authority for this department — only the department's current Head may call this
+ */
+export const CreateOfficeInventoryDelegationParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "departmentId": zod.coerce.number()
+})
+
+export const CreateOfficeInventoryDelegationBody = zod.object({
+  "delegateMembershipId": zod.number()
+})
+
+export const CreateOfficeInventoryDelegationResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "departmentId": zod.number(),
+  "delegatingHeadMembershipId": zod.number(),
+  "delegateMembershipId": zod.number(),
+  "validFrom": zod.coerce.date(),
+  "validTo": zod.coerce.date().nullable(),
+  "createdByMembershipId": zod.number().nullable(),
+  "revokedByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 3 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §6, §5.3). A row surviving the delegating Head\'s own replacement remains open and fully historically queryable, but becomes functionally inert for NEW approvals the instant that membership is no longer the department\'s actual current Head — re-checked fresh on every approval, never assumed from this row\'s own existence.')
+
+
+/**
+ * @summary Revoke an open delegation — only the department's current Head may call this
+ */
+export const RevokeOfficeInventoryDelegationParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const RevokeOfficeInventoryDelegationResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "departmentId": zod.number(),
+  "delegatingHeadMembershipId": zod.number(),
+  "delegateMembershipId": zod.number(),
+  "validFrom": zod.coerce.date(),
+  "validTo": zod.coerce.date().nullable(),
+  "createdByMembershipId": zod.number().nullable(),
+  "revokedByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 3 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §6, §5.3). A row surviving the delegating Head\'s own replacement remains open and fully historically queryable, but becomes functionally inert for NEW approvals the instant that membership is no longer the department\'s actual current Head — re-checked fresh on every approval, never assumed from this row\'s own existence.')
+
+

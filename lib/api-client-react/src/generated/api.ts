@@ -45,6 +45,7 @@ import type {
   ApplyToPublicVacancyBody,
   ApproveJobRequisitionInput,
   ApproveOfferVersionInput,
+  ApproveOfficeInventoryRequestLineBody,
   Asset,
   AssetAssignment,
   AssetDashboard,
@@ -97,8 +98,10 @@ import type {
   CreateLeaveTypeInput,
   CreateMasterDataItemInput,
   CreateOfferInput,
+  CreateOfficeInventoryDelegationBody,
   CreateOfficeInventoryItemBody,
   CreateOfficeInventoryReceiptBody,
+  CreateOfficeInventoryRequestBody,
   CreateOfficeInventoryStoreBody,
   CreateOrganizationDomainInput,
   CreateOrganizationInput,
@@ -225,10 +228,14 @@ import type {
   OfferDetail,
   OfferListResponse,
   OfferVersion,
+  OfficeInventoryApprovalDelegation,
   OfficeInventoryItem,
   OfficeInventoryItemBalance,
   OfficeInventoryReceipt,
   OfficeInventoryReceiptSummary,
+  OfficeInventoryRequest,
+  OfficeInventoryRequestApprovalContext,
+  OfficeInventoryRequestWithLines,
   OfficeInventoryStockMovement,
   OfficeInventoryStore,
   Organization,
@@ -302,6 +309,7 @@ import type {
   RejectApplicationInput,
   RejectJobRequisitionInput,
   RejectLeaveRequestInput,
+  RejectOfficeInventoryRequestLineBody,
   RejectPerformanceReviewGoalInput,
   ReopenApplicationInput,
   ReopenPerformanceReviewInput,
@@ -33104,4 +33112,850 @@ export function useListOfficeInventoryStockMovements<TData = Awaited<ReturnType<
 
 
 
+
+export const getListOfficeInventoryMyRequestsUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/requests`
+}
+
+/**
+ * @summary List the caller's own submitted Office Inventory requests (Workstream 3)
+ */
+export const listOfficeInventoryMyRequests = async (organizationId: number, options?: RequestInit): Promise<OfficeInventoryRequest[]> => {
+
+  return customFetch<OfficeInventoryRequest[]>(getListOfficeInventoryMyRequestsUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOfficeInventoryMyRequestsQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/office-inventory/requests`
+    ] as const;
+    }
+
+
+export const getListOfficeInventoryMyRequestsQueryOptions = <TData = Awaited<ReturnType<typeof listOfficeInventoryMyRequests>>, TError = ErrorType<ApiError>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOfficeInventoryMyRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOfficeInventoryMyRequestsQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOfficeInventoryMyRequests>>> = ({ signal }) => listOfficeInventoryMyRequests(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOfficeInventoryMyRequests>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOfficeInventoryMyRequestsQueryResult = NonNullable<Awaited<ReturnType<typeof listOfficeInventoryMyRequests>>>
+export type ListOfficeInventoryMyRequestsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List the caller's own submitted Office Inventory requests (Workstream 3)
+ */
+
+export function useListOfficeInventoryMyRequests<TData = Awaited<ReturnType<typeof listOfficeInventoryMyRequests>>, TError = ErrorType<ApiError>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOfficeInventoryMyRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOfficeInventoryMyRequestsQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateOfficeInventoryRequestUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/requests`
+}
+
+/**
+ * @summary Submit an employee or department stock request — gated office_inventory.request
+ */
+export const createOfficeInventoryRequest = async (organizationId: number,
+    createOfficeInventoryRequestBody: CreateOfficeInventoryRequestBody, options?: RequestInit): Promise<OfficeInventoryRequestWithLines> => {
+
+  return customFetch<OfficeInventoryRequestWithLines>(getCreateOfficeInventoryRequestUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createOfficeInventoryRequestBody)
+  }
+);}
+
+
+
+
+
+export const getCreateOfficeInventoryRequestMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryRequest>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryRequestBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryRequest>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryRequestBody>}, TContext> => {
+
+const mutationKey = ['createOfficeInventoryRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createOfficeInventoryRequest>>, {organizationId: number;data: BodyType<CreateOfficeInventoryRequestBody>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createOfficeInventoryRequest(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateOfficeInventoryRequestMutationResult = NonNullable<Awaited<ReturnType<typeof createOfficeInventoryRequest>>>
+    export type CreateOfficeInventoryRequestMutationBody = BodyType<CreateOfficeInventoryRequestBody>
+    export type CreateOfficeInventoryRequestMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Submit an employee or department stock request — gated office_inventory.request
+ */
+export const useCreateOfficeInventoryRequest = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryRequest>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryRequestBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createOfficeInventoryRequest>>,
+        TError,
+        {organizationId: number;data: BodyType<CreateOfficeInventoryRequestBody>},
+        TContext
+      > => {
+      return useMutation(getCreateOfficeInventoryRequestMutationOptions(options));
+    }
+
+export const getGetOfficeInventoryRequestUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/requests/${id}`
+}
+
+/**
+ * @summary Get one request with its lines — own request, or a department the caller has approval authority over
+ */
+export const getOfficeInventoryRequest = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<OfficeInventoryRequestWithLines> => {
+
+  return customFetch<OfficeInventoryRequestWithLines>(getGetOfficeInventoryRequestUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOfficeInventoryRequestQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/office-inventory/requests/${id}`
+    ] as const;
+    }
+
+
+export const getGetOfficeInventoryRequestQueryOptions = <TData = Awaited<ReturnType<typeof getOfficeInventoryRequest>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryRequest>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOfficeInventoryRequestQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOfficeInventoryRequest>>> = ({ signal }) => getOfficeInventoryRequest(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryRequest>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOfficeInventoryRequestQueryResult = NonNullable<Awaited<ReturnType<typeof getOfficeInventoryRequest>>>
+export type GetOfficeInventoryRequestQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get one request with its lines — own request, or a department the caller has approval authority over
+ */
+
+export function useGetOfficeInventoryRequest<TData = Awaited<ReturnType<typeof getOfficeInventoryRequest>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryRequest>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOfficeInventoryRequestQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCancelOfficeInventoryRequestUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/requests/${id}/cancel`
+}
+
+/**
+ * @summary Cancel a request — only the original requester, only while every line is still pending
+ */
+export const cancelOfficeInventoryRequest = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<OfficeInventoryRequest> => {
+
+  return customFetch<OfficeInventoryRequest>(getCancelOfficeInventoryRequestUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCancelOfficeInventoryRequestMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelOfficeInventoryRequest>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelOfficeInventoryRequest>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['cancelOfficeInventoryRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelOfficeInventoryRequest>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  cancelOfficeInventoryRequest(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelOfficeInventoryRequestMutationResult = NonNullable<Awaited<ReturnType<typeof cancelOfficeInventoryRequest>>>
+
+    export type CancelOfficeInventoryRequestMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Cancel a request — only the original requester, only while every line is still pending
+ */
+export const useCancelOfficeInventoryRequest = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelOfficeInventoryRequest>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelOfficeInventoryRequest>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getCancelOfficeInventoryRequestMutationOptions(options));
+    }
+
+export const getGetOfficeInventoryRequestApprovalContextUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/requests/${id}/approval-context`
+}
+
+/**
+ * Gated to the department's current Head or a currently-valid delegate — docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §34.
+ * @summary Full approval-screen context — request, lines, current store availability, and the repeat-request warning per line
+ */
+export const getOfficeInventoryRequestApprovalContext = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<OfficeInventoryRequestApprovalContext> => {
+
+  return customFetch<OfficeInventoryRequestApprovalContext>(getGetOfficeInventoryRequestApprovalContextUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOfficeInventoryRequestApprovalContextQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/office-inventory/requests/${id}/approval-context`
+    ] as const;
+    }
+
+
+export const getGetOfficeInventoryRequestApprovalContextQueryOptions = <TData = Awaited<ReturnType<typeof getOfficeInventoryRequestApprovalContext>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryRequestApprovalContext>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOfficeInventoryRequestApprovalContextQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOfficeInventoryRequestApprovalContext>>> = ({ signal }) => getOfficeInventoryRequestApprovalContext(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryRequestApprovalContext>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOfficeInventoryRequestApprovalContextQueryResult = NonNullable<Awaited<ReturnType<typeof getOfficeInventoryRequestApprovalContext>>>
+export type GetOfficeInventoryRequestApprovalContextQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Full approval-screen context — request, lines, current store availability, and the repeat-request warning per line
+ */
+
+export function useGetOfficeInventoryRequestApprovalContext<TData = Awaited<ReturnType<typeof getOfficeInventoryRequestApprovalContext>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryRequestApprovalContext>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOfficeInventoryRequestApprovalContextQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListOfficeInventoryDepartmentRequestsUrl = (organizationId: number,
+    departmentId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/departments/${departmentId}/requests`
+}
+
+/**
+ * @summary List every request for a department — the approval queue, gated to its current Head or a currently-valid delegate
+ */
+export const listOfficeInventoryDepartmentRequests = async (organizationId: number,
+    departmentId: number, options?: RequestInit): Promise<OfficeInventoryRequest[]> => {
+
+  return customFetch<OfficeInventoryRequest[]>(getListOfficeInventoryDepartmentRequestsUrl(organizationId,departmentId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOfficeInventoryDepartmentRequestsQueryKey = (organizationId: number,
+    departmentId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/office-inventory/departments/${departmentId}/requests`
+    ] as const;
+    }
+
+
+export const getListOfficeInventoryDepartmentRequestsQueryOptions = <TData = Awaited<ReturnType<typeof listOfficeInventoryDepartmentRequests>>, TError = ErrorType<ApiError>>(organizationId: number,
+    departmentId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOfficeInventoryDepartmentRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOfficeInventoryDepartmentRequestsQueryKey(organizationId,departmentId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOfficeInventoryDepartmentRequests>>> = ({ signal }) => listOfficeInventoryDepartmentRequests(organizationId,departmentId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && departmentId !== null && departmentId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOfficeInventoryDepartmentRequests>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOfficeInventoryDepartmentRequestsQueryResult = NonNullable<Awaited<ReturnType<typeof listOfficeInventoryDepartmentRequests>>>
+export type ListOfficeInventoryDepartmentRequestsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List every request for a department — the approval queue, gated to its current Head or a currently-valid delegate
+ */
+
+export function useListOfficeInventoryDepartmentRequests<TData = Awaited<ReturnType<typeof listOfficeInventoryDepartmentRequests>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    departmentId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOfficeInventoryDepartmentRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOfficeInventoryDepartmentRequestsQueryOptions(organizationId,departmentId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getApproveOfficeInventoryRequestLineUrl = (organizationId: number,
+    lineId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/request-lines/${lineId}/approve`
+}
+
+/**
+ * @summary Approve a request line, in full or in part — Department Head self-approval is permanently valid (§14)
+ */
+export const approveOfficeInventoryRequestLine = async (organizationId: number,
+    lineId: number,
+    approveOfficeInventoryRequestLineBody: ApproveOfficeInventoryRequestLineBody, options?: RequestInit): Promise<OfficeInventoryRequestWithLines> => {
+
+  return customFetch<OfficeInventoryRequestWithLines>(getApproveOfficeInventoryRequestLineUrl(organizationId,lineId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(approveOfficeInventoryRequestLineBody)
+  }
+);}
+
+
+
+
+
+export const getApproveOfficeInventoryRequestLineMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveOfficeInventoryRequestLine>>, TError,{organizationId: number;lineId: number;data: BodyType<ApproveOfficeInventoryRequestLineBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveOfficeInventoryRequestLine>>, TError,{organizationId: number;lineId: number;data: BodyType<ApproveOfficeInventoryRequestLineBody>}, TContext> => {
+
+const mutationKey = ['approveOfficeInventoryRequestLine'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveOfficeInventoryRequestLine>>, {organizationId: number;lineId: number;data: BodyType<ApproveOfficeInventoryRequestLineBody>}> = (props) => {
+          const {organizationId,lineId,data} = props ?? {};
+
+          return  approveOfficeInventoryRequestLine(organizationId,lineId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveOfficeInventoryRequestLineMutationResult = NonNullable<Awaited<ReturnType<typeof approveOfficeInventoryRequestLine>>>
+    export type ApproveOfficeInventoryRequestLineMutationBody = BodyType<ApproveOfficeInventoryRequestLineBody>
+    export type ApproveOfficeInventoryRequestLineMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Approve a request line, in full or in part — Department Head self-approval is permanently valid (§14)
+ */
+export const useApproveOfficeInventoryRequestLine = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveOfficeInventoryRequestLine>>, TError,{organizationId: number;lineId: number;data: BodyType<ApproveOfficeInventoryRequestLineBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveOfficeInventoryRequestLine>>,
+        TError,
+        {organizationId: number;lineId: number;data: BodyType<ApproveOfficeInventoryRequestLineBody>},
+        TContext
+      > => {
+      return useMutation(getApproveOfficeInventoryRequestLineMutationOptions(options));
+    }
+
+export const getRejectOfficeInventoryRequestLineUrl = (organizationId: number,
+    lineId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/request-lines/${lineId}/reject`
+}
+
+/**
+ * @summary Reject a request line — a reason is required
+ */
+export const rejectOfficeInventoryRequestLine = async (organizationId: number,
+    lineId: number,
+    rejectOfficeInventoryRequestLineBody: RejectOfficeInventoryRequestLineBody, options?: RequestInit): Promise<OfficeInventoryRequestWithLines> => {
+
+  return customFetch<OfficeInventoryRequestWithLines>(getRejectOfficeInventoryRequestLineUrl(organizationId,lineId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(rejectOfficeInventoryRequestLineBody)
+  }
+);}
+
+
+
+
+
+export const getRejectOfficeInventoryRequestLineMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectOfficeInventoryRequestLine>>, TError,{organizationId: number;lineId: number;data: BodyType<RejectOfficeInventoryRequestLineBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectOfficeInventoryRequestLine>>, TError,{organizationId: number;lineId: number;data: BodyType<RejectOfficeInventoryRequestLineBody>}, TContext> => {
+
+const mutationKey = ['rejectOfficeInventoryRequestLine'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectOfficeInventoryRequestLine>>, {organizationId: number;lineId: number;data: BodyType<RejectOfficeInventoryRequestLineBody>}> = (props) => {
+          const {organizationId,lineId,data} = props ?? {};
+
+          return  rejectOfficeInventoryRequestLine(organizationId,lineId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectOfficeInventoryRequestLineMutationResult = NonNullable<Awaited<ReturnType<typeof rejectOfficeInventoryRequestLine>>>
+    export type RejectOfficeInventoryRequestLineMutationBody = BodyType<RejectOfficeInventoryRequestLineBody>
+    export type RejectOfficeInventoryRequestLineMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Reject a request line — a reason is required
+ */
+export const useRejectOfficeInventoryRequestLine = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectOfficeInventoryRequestLine>>, TError,{organizationId: number;lineId: number;data: BodyType<RejectOfficeInventoryRequestLineBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rejectOfficeInventoryRequestLine>>,
+        TError,
+        {organizationId: number;lineId: number;data: BodyType<RejectOfficeInventoryRequestLineBody>},
+        TContext
+      > => {
+      return useMutation(getRejectOfficeInventoryRequestLineMutationOptions(options));
+    }
+
+export const getListOfficeInventoryDelegationsUrl = (organizationId: number,
+    departmentId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/departments/${departmentId}/delegations`
+}
+
+/**
+ * @summary Current and historical approval delegations for a department — the current Head only
+ */
+export const listOfficeInventoryDelegations = async (organizationId: number,
+    departmentId: number, options?: RequestInit): Promise<OfficeInventoryApprovalDelegation[]> => {
+
+  return customFetch<OfficeInventoryApprovalDelegation[]>(getListOfficeInventoryDelegationsUrl(organizationId,departmentId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOfficeInventoryDelegationsQueryKey = (organizationId: number,
+    departmentId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/office-inventory/departments/${departmentId}/delegations`
+    ] as const;
+    }
+
+
+export const getListOfficeInventoryDelegationsQueryOptions = <TData = Awaited<ReturnType<typeof listOfficeInventoryDelegations>>, TError = ErrorType<ApiError>>(organizationId: number,
+    departmentId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOfficeInventoryDelegations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOfficeInventoryDelegationsQueryKey(organizationId,departmentId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOfficeInventoryDelegations>>> = ({ signal }) => listOfficeInventoryDelegations(organizationId,departmentId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && departmentId !== null && departmentId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOfficeInventoryDelegations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOfficeInventoryDelegationsQueryResult = NonNullable<Awaited<ReturnType<typeof listOfficeInventoryDelegations>>>
+export type ListOfficeInventoryDelegationsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Current and historical approval delegations for a department — the current Head only
+ */
+
+export function useListOfficeInventoryDelegations<TData = Awaited<ReturnType<typeof listOfficeInventoryDelegations>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    departmentId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOfficeInventoryDelegations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOfficeInventoryDelegationsQueryOptions(organizationId,departmentId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateOfficeInventoryDelegationUrl = (organizationId: number,
+    departmentId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/departments/${departmentId}/delegations`
+}
+
+/**
+ * @summary Delegate approval authority for this department — only the department's current Head may call this
+ */
+export const createOfficeInventoryDelegation = async (organizationId: number,
+    departmentId: number,
+    createOfficeInventoryDelegationBody: CreateOfficeInventoryDelegationBody, options?: RequestInit): Promise<OfficeInventoryApprovalDelegation> => {
+
+  return customFetch<OfficeInventoryApprovalDelegation>(getCreateOfficeInventoryDelegationUrl(organizationId,departmentId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createOfficeInventoryDelegationBody)
+  }
+);}
+
+
+
+
+
+export const getCreateOfficeInventoryDelegationMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryDelegation>>, TError,{organizationId: number;departmentId: number;data: BodyType<CreateOfficeInventoryDelegationBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryDelegation>>, TError,{organizationId: number;departmentId: number;data: BodyType<CreateOfficeInventoryDelegationBody>}, TContext> => {
+
+const mutationKey = ['createOfficeInventoryDelegation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createOfficeInventoryDelegation>>, {organizationId: number;departmentId: number;data: BodyType<CreateOfficeInventoryDelegationBody>}> = (props) => {
+          const {organizationId,departmentId,data} = props ?? {};
+
+          return  createOfficeInventoryDelegation(organizationId,departmentId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateOfficeInventoryDelegationMutationResult = NonNullable<Awaited<ReturnType<typeof createOfficeInventoryDelegation>>>
+    export type CreateOfficeInventoryDelegationMutationBody = BodyType<CreateOfficeInventoryDelegationBody>
+    export type CreateOfficeInventoryDelegationMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Delegate approval authority for this department — only the department's current Head may call this
+ */
+export const useCreateOfficeInventoryDelegation = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryDelegation>>, TError,{organizationId: number;departmentId: number;data: BodyType<CreateOfficeInventoryDelegationBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createOfficeInventoryDelegation>>,
+        TError,
+        {organizationId: number;departmentId: number;data: BodyType<CreateOfficeInventoryDelegationBody>},
+        TContext
+      > => {
+      return useMutation(getCreateOfficeInventoryDelegationMutationOptions(options));
+    }
+
+export const getRevokeOfficeInventoryDelegationUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/delegations/${id}/revoke`
+}
+
+/**
+ * @summary Revoke an open delegation — only the department's current Head may call this
+ */
+export const revokeOfficeInventoryDelegation = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<OfficeInventoryApprovalDelegation> => {
+
+  return customFetch<OfficeInventoryApprovalDelegation>(getRevokeOfficeInventoryDelegationUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRevokeOfficeInventoryDelegationMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeOfficeInventoryDelegation>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revokeOfficeInventoryDelegation>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['revokeOfficeInventoryDelegation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeOfficeInventoryDelegation>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  revokeOfficeInventoryDelegation(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokeOfficeInventoryDelegationMutationResult = NonNullable<Awaited<ReturnType<typeof revokeOfficeInventoryDelegation>>>
+
+    export type RevokeOfficeInventoryDelegationMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Revoke an open delegation — only the department's current Head may call this
+ */
+export const useRevokeOfficeInventoryDelegation = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeOfficeInventoryDelegation>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof revokeOfficeInventoryDelegation>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getRevokeOfficeInventoryDelegationMutationOptions(options));
+    }
 

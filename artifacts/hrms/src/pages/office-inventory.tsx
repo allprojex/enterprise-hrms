@@ -9,7 +9,7 @@
  * and lives on the existing Departments page instead.
  */
 import { useState } from 'react';
-import { Boxes, Warehouse, Settings2, Plus, Pencil, Truck, Trash2, PackageSearch } from 'lucide-react';
+import { Boxes, Warehouse, Settings2, Plus, Pencil, Truck, Trash2, PackageSearch, ClipboardList, CheckCircle2, XCircle, UserCog, X, Ban } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -18,7 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
@@ -46,10 +46,29 @@ import {
   getGetOfficeInventoryReceiptQueryKey,
   useGetOfficeInventoryStockBalance,
   getGetOfficeInventoryStockBalanceQueryKey,
+  useListOfficeInventoryMyRequests,
+  getListOfficeInventoryMyRequestsQueryKey,
+  useCreateOfficeInventoryRequest,
+  useGetOfficeInventoryRequest,
+  getGetOfficeInventoryRequestQueryKey,
+  useCancelOfficeInventoryRequest,
+  useGetOfficeInventoryRequestApprovalContext,
+  getGetOfficeInventoryRequestApprovalContextQueryKey,
+  useListOfficeInventoryDepartmentRequests,
+  getListOfficeInventoryDepartmentRequestsQueryKey,
+  useApproveOfficeInventoryRequestLine,
+  useRejectOfficeInventoryRequestLine,
+  useListOfficeInventoryDelegations,
+  getListOfficeInventoryDelegationsQueryKey,
+  useCreateOfficeInventoryDelegation,
+  useRevokeOfficeInventoryDelegation,
+  useListDepartments,
+  getListDepartmentsQueryKey,
   OfficeInventoryItemClassification,
   type OfficeInventoryItem,
   type OfficeInventoryStore,
   type ReceiveLineInput,
+  type OfficeInventoryRequestLineInput,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -858,6 +877,632 @@ function StockTab({ organizationId }: { organizationId: number }) {
   );
 }
 
+// --- Requests (Workstream 3) — employee/department stock requests. Never
+// itself a stock movement; approval never touches the ledger. No
+// issue/fulfilment exists yet — that is Workstream 4. ---
+
+const REQUEST_STATUS_LABEL: Record<string, string> = {
+  pending: 'Pending',
+  partially_approved: 'Partially Approved',
+  approved: 'Approved',
+  rejected: 'Rejected',
+  fulfilled: 'Fulfilled',
+  partially_fulfilled: 'Partially Fulfilled',
+  cancelled: 'Cancelled',
+};
+const REQUEST_STATUS_VARIANT: Record<string, 'secondary' | 'outline' | 'destructive'> = {
+  pending: 'outline',
+  partially_approved: 'secondary',
+  approved: 'secondary',
+  rejected: 'destructive',
+  fulfilled: 'secondary',
+  partially_fulfilled: 'secondary',
+  cancelled: 'destructive',
+};
+
+function CreateRequestDialog({ organizationId, onCreated }: { organizationId: number; onCreated: () => void }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [requestType, setRequestType] = useState<'employee' | 'department'>('employee');
+  const [forDepartmentId, setForDepartmentId] = useState('');
+  const [reason, setReason] = useState('');
+  const [lines, setLines] = useState<{ itemId: string; quantityRequested: string }[]>([{ itemId: '', quantityRequested: '' }]);
+  const mutation = useCreateOfficeInventoryRequest();
+
+  const { data: items } = useListOfficeInventoryItems(organizationId, {
+    query: { queryKey: getListOfficeInventoryItemsQueryKey(organizationId), enabled: organizationId > 0 && open },
+  });
+  const { data: departments } = useListDepartments(organizationId, {
+    query: { queryKey: getListDepartmentsQueryKey(organizationId), enabled: organizationId > 0 && open && requestType === 'department' },
+  });
+
+  const reset = () => {
+    setRequestType('employee');
+    setForDepartmentId('');
+    setReason('');
+    setLines([{ itemId: '', quantityRequested: '' }]);
+  };
+
+  const updateLine = (index: number, patch: Partial<{ itemId: string; quantityRequested: string }>) => {
+    setLines((prev) => prev.map((l, i) => (i === index ? { ...l, ...patch } : l)));
+  };
+  const addLine = () => setLines((prev) => [...prev, { itemId: '', quantityRequested: '' }]);
+  const removeLine = (index: number) => setLines((prev) => prev.filter((_, i) => i !== index));
+
+  const validLines: OfficeInventoryRequestLineInput[] = lines
+    .filter((l) => l.itemId && l.quantityRequested)
+    .map((l) => ({ itemId: Number(l.itemId), quantityRequested: l.quantityRequested }));
+
+  const handle = () => {
+    if (validLines.length === 0) return;
+    if (requestType === 'department' && !forDepartmentId) return;
+    mutation.mutate(
+      {
+        organizationId,
+        data: {
+          requestType,
+          forDepartmentId: requestType === 'department' ? Number(forDepartmentId) : undefined,
+          reason: reason.trim() || undefined,
+          lines: validLines,
+        },
+      },
+      {
+        onSuccess: (result) => {
+          setOpen(false);
+          reset();
+          onCreated();
+          toast({ title: `Request submitted — ${result.request.requestReference}` });
+        },
+        onError: (err) => toast({ title: 'Could not submit request', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
+      <DialogTrigger asChild>
+        <Button data-testid="button-create-request">
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          New Request
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>New Office Inventory Request</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="request-type">Request Type</Label>
+            <Select value={requestType} onValueChange={(v) => setRequestType(v as 'employee' | 'department')}>
+              <SelectTrigger id="request-type" data-testid="select-request-type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="employee">For Myself</SelectItem>
+                <SelectItem value="department">For My Department</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {requestType === 'department' && (
+            <div className="space-y-2">
+              <Label htmlFor="request-department">Department</Label>
+              <Select value={forDepartmentId} onValueChange={setForDepartmentId}>
+                <SelectTrigger id="request-department" data-testid="select-request-department">
+                  <SelectValue placeholder="Choose your department" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(departments ?? []).map((d) => (
+                    <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label>Lines</Label>
+            {lines.map((line, index) => (
+              <div key={index} className="flex items-end gap-2" data-testid={`row-request-line-${index}`}>
+                <div className="flex-1 space-y-1">
+                  <Select value={line.itemId} onValueChange={(v) => updateLine(index, { itemId: v })}>
+                    <SelectTrigger data-testid={`select-request-item-${index}`}>
+                      <SelectValue placeholder="Item" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(items ?? []).map((i) => (
+                        <SelectItem key={i.id} value={String(i.id)}>{i.name} ({i.itemCode})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Input type="number" min={0} step="0.01" placeholder="Quantity" className="w-28" value={line.quantityRequested} onChange={(e) => updateLine(index, { quantityRequested: e.target.value })} data-testid={`input-request-quantity-${index}`} />
+                <Button type="button" size="icon" variant="ghost" onClick={() => removeLine(index)} disabled={lines.length === 1} aria-label="Remove line" data-testid={`button-remove-request-line-${index}`}>
+                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                </Button>
+              </div>
+            ))}
+            <Button type="button" size="sm" variant="outline" onClick={addLine} data-testid="button-add-request-line">
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+              Add Line
+            </Button>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="request-reason">Reason (optional)</Label>
+            <Textarea id="request-reason" value={reason} onChange={(e) => setReason(e.target.value)} data-testid="textarea-request-reason" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={handle} disabled={mutation.isPending || validLines.length === 0 || (requestType === 'department' && !forDepartmentId)} data-testid="button-confirm-request">
+            {mutation.isPending ? 'Submitting…' : 'Submit Request'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RequestDetailDialog({ organizationId, requestId, onChanged }: { organizationId: number; requestId: number; onChanged: () => void }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const { data, isLoading } = useGetOfficeInventoryRequest(organizationId, requestId, {
+    query: { queryKey: getGetOfficeInventoryRequestQueryKey(organizationId, requestId), enabled: organizationId > 0 && open },
+  });
+  const cancelMutation = useCancelOfficeInventoryRequest();
+
+  const handleCancel = () => {
+    cancelMutation.mutate(
+      { organizationId, id: requestId },
+      {
+        onSuccess: () => {
+          onChanged();
+          toast({ title: 'Request cancelled' });
+        },
+        onError: (err) => toast({ title: 'Could not cancel request', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  const canCancel = data?.request.status === 'pending' && (data?.lines ?? []).every((l) => l.approvalStatus === 'pending');
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" data-testid={`button-view-request-${requestId}`}>View</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Request {data?.request.requestReference}</DialogTitle>
+        </DialogHeader>
+        {isLoading ? (
+          <Skeleton className="h-32 w-full" />
+        ) : (
+          <div className="space-y-3 py-2">
+            {(data?.lines ?? []).map((line) => (
+              <div key={line.id} className="rounded-md border border-border p-2 text-sm space-y-1" data-testid={`row-request-detail-line-${line.id}`}>
+                <div className="flex items-center justify-between">
+                  <span>Item #{line.itemId} — requested {line.quantityRequested}</span>
+                  <Badge variant={line.approvalStatus === 'approved' ? 'secondary' : line.approvalStatus === 'rejected' ? 'destructive' : 'outline'} className="capitalize">{line.approvalStatus}</Badge>
+                </div>
+                {line.approvedQuantity && <p className="text-muted-foreground">Approved: {line.approvedQuantity}{line.actedAsDelegate ? ' (via delegate)' : ''}</p>}
+                {line.rejectionReason && <p className="text-muted-foreground">Reason: {line.rejectionReason}</p>}
+              </div>
+            ))}
+            {canCancel && (
+              <Button size="sm" variant="destructive" onClick={handleCancel} disabled={cancelMutation.isPending} data-testid={`button-cancel-request-${requestId}`}>
+                <Ban className="h-3.5 w-3.5" aria-hidden="true" />
+                Cancel Request
+              </Button>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RequestsTab({ organizationId }: { organizationId: number }) {
+  const queryClient = useQueryClient();
+  const { data: requests, isLoading, error, refetch } = useListOfficeInventoryMyRequests(organizationId, {
+    query: { queryKey: getListOfficeInventoryMyRequestsQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+
+  const handleChanged = () => {
+    queryClient.invalidateQueries({ queryKey: getListOfficeInventoryMyRequestsQueryKey(organizationId) });
+    refetch();
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-end">
+        <CreateRequestDialog organizationId={organizationId} onCreated={handleChanged} />
+      </div>
+
+      {isLoading ? (
+        <Skeleton className="h-40 w-full" />
+      ) : error ? (
+        <QueryError title="Could not load your requests" message={errorMessage(error) ?? 'Please try again.'} onRetry={() => refetch()} />
+      ) : !requests || requests.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <ClipboardList className="h-8 w-8 text-muted-foreground mb-4" aria-hidden="true" />
+            <h3 className="text-lg font-semibold text-foreground mb-2">No requests yet</h3>
+            <p className="text-sm text-muted-foreground max-w-sm">Submit a request for yourself or your department.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <Table aria-label="My Requests">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Reference</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Submitted</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {requests.map((r) => (
+                <TableRow key={r.id} data-testid={`row-my-request-${r.id}`}>
+                  <TableCell className="font-mono text-sm">{r.requestReference}</TableCell>
+                  <TableCell className="capitalize">{r.requestType}</TableCell>
+                  <TableCell className="text-muted-foreground">{new Date(r.submittedAt).toLocaleString()}</TableCell>
+                  <TableCell>
+                    <Badge variant={REQUEST_STATUS_VARIANT[r.status] ?? 'outline'}>{REQUEST_STATUS_LABEL[r.status] ?? r.status}</Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <RequestDetailDialog organizationId={organizationId} requestId={r.id} onChanged={handleChanged} />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// --- Approvals (Workstream 3) — Department Head/delegate approval queue.
+// Self-approval is permanently valid (§14) — no special-casing anywhere in
+// this UI. Future custody context is not fabricated; only what is
+// currently derivable (recent request history) is shown. ---
+
+function ApproveLineDialog({ organizationId, lineId, quantityRequested, onDecided }: { organizationId: number; lineId: number; quantityRequested: string; onDecided: () => void }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [approvedQuantity, setApprovedQuantity] = useState(quantityRequested);
+  const mutation = useApproveOfficeInventoryRequestLine();
+
+  const handle = () => {
+    mutation.mutate(
+      { organizationId, lineId, data: { approvedQuantity } },
+      {
+        onSuccess: () => {
+          setOpen(false);
+          onDecided();
+          toast({ title: 'Line approved' });
+        },
+        onError: (err) => toast({ title: 'Could not approve line', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setApprovedQuantity(quantityRequested); }}>
+      <DialogTrigger asChild>
+        <Button size="sm" data-testid={`button-open-approve-${lineId}`}>
+          <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+          Approve…
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Approve Line</DialogTitle>
+          <DialogDescription>Requested: {quantityRequested}. Approve in full or in part.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2 py-2">
+          <Label htmlFor={`approve-qty-${lineId}`}>Approved Quantity</Label>
+          <Input id={`approve-qty-${lineId}`} type="number" min={0} step="0.01" value={approvedQuantity} onChange={(e) => setApprovedQuantity(e.target.value)} data-testid={`input-approve-quantity-${lineId}`} />
+        </div>
+        <DialogFooter>
+          <Button onClick={handle} disabled={mutation.isPending || !approvedQuantity} data-testid={`button-confirm-approve-${lineId}`}>
+            {mutation.isPending ? 'Approving…' : 'Confirm Approve'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RejectLineDialog({ organizationId, lineId, onDecided }: { organizationId: number; lineId: number; onDecided: () => void }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const mutation = useRejectOfficeInventoryRequestLine();
+
+  const handle = () => {
+    if (!rejectionReason.trim()) return;
+    mutation.mutate(
+      { organizationId, lineId, data: { rejectionReason: rejectionReason.trim() } },
+      {
+        onSuccess: () => {
+          setOpen(false);
+          setRejectionReason('');
+          onDecided();
+          toast({ title: 'Line rejected' });
+        },
+        onError: (err) => toast({ title: 'Could not reject line', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setRejectionReason(''); }}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" data-testid={`button-open-reject-${lineId}`}>
+          <XCircle className="h-3.5 w-3.5" aria-hidden="true" />
+          Reject…
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Reject Line</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-2 py-2">
+          <Label htmlFor={`reject-reason-${lineId}`}>Reason (required)</Label>
+          <Textarea id={`reject-reason-${lineId}`} value={rejectionReason} onChange={(e) => setRejectionReason(e.target.value)} data-testid={`textarea-reject-reason-${lineId}`} />
+        </div>
+        <DialogFooter>
+          <Button variant="destructive" onClick={handle} disabled={mutation.isPending || !rejectionReason.trim()} data-testid={`button-confirm-reject-${lineId}`}>
+            {mutation.isPending ? 'Rejecting…' : 'Confirm Reject'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ApprovalContextDialog({ organizationId, requestId, onDecided }: { organizationId: number; requestId: number; onDecided: () => void }) {
+  const [open, setOpen] = useState(false);
+  const { data, isLoading } = useGetOfficeInventoryRequestApprovalContext(organizationId, requestId, {
+    query: { queryKey: getGetOfficeInventoryRequestApprovalContextQueryKey(organizationId, requestId), enabled: organizationId > 0 && open },
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" data-testid={`button-open-context-${requestId}`}>Review</Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Request {data?.request.requestReference}</DialogTitle>
+          <DialogDescription>Requested for department #{data?.request.forDepartmentId}{data?.request.forEmployeeId ? `, employee #${data.request.forEmployeeId}` : ''}. Reason: {data?.request.reason ?? '—'}</DialogDescription>
+        </DialogHeader>
+        {isLoading ? (
+          <Skeleton className="h-40 w-full" />
+        ) : (
+          <div className="space-y-3 py-2">
+            {(data?.lines ?? []).map((entry) => (
+              <div key={entry.line.id} className="rounded-md border border-border p-3 space-y-2 text-sm" data-testid={`row-approval-line-${entry.line.id}`}>
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-foreground">Item #{entry.line.itemId} — requested {entry.line.quantityRequested}</span>
+                  <Badge variant={entry.line.approvalStatus === 'approved' ? 'secondary' : entry.line.approvalStatus === 'rejected' ? 'destructive' : 'outline'} className="capitalize">{entry.line.approvalStatus}</Badge>
+                </div>
+                <p className="text-muted-foreground">Current stock available: {entry.storeAvailability.total}</p>
+                {(entry.repeatRequestWarning.recentEmployeeRequests.length > 0 || entry.repeatRequestWarning.recentDepartmentRequests.length > 0) && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400" data-testid={`text-repeat-warning-${entry.line.id}`}>
+                    Repeat request: {entry.repeatRequestWarning.recentEmployeeRequests.length} recent request(s) by this employee and {entry.repeatRequestWarning.recentDepartmentRequests.length} by this department for the same item within the last {entry.repeatRequestWarning.windowDays} days. You may still approve.
+                  </p>
+                )}
+                {entry.line.approvalStatus === 'pending' && (
+                  <div className="flex gap-2 pt-1">
+                    <ApproveLineDialog organizationId={organizationId} lineId={entry.line.id} quantityRequested={entry.line.quantityRequested} onDecided={onDecided} />
+                    <RejectLineDialog organizationId={organizationId} lineId={entry.line.id} onDecided={onDecided} />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DelegationPanel({ organizationId, departmentId }: { organizationId: number; departmentId: number }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [delegateMembershipId, setDelegateMembershipId] = useState('');
+
+  const { data: delegations, refetch } = useListOfficeInventoryDelegations(organizationId, departmentId, {
+    query: { queryKey: getListOfficeInventoryDelegationsQueryKey(organizationId, departmentId), enabled: organizationId > 0 },
+  });
+  const { data: members } = useListMembers(organizationId, {
+    query: { queryKey: getListMembersQueryKey(organizationId), enabled: organizationId > 0 && pickerOpen },
+  });
+  const createMutation = useCreateOfficeInventoryDelegation();
+  const revokeMutation = useRevokeOfficeInventoryDelegation();
+
+  const current = (delegations ?? []).find((d) => d.validTo === null);
+  const memberById = new Map((members ?? []).map((m) => [m.membershipId, m]));
+
+  const handleChanged = () => {
+    queryClient.invalidateQueries({ queryKey: getListOfficeInventoryDelegationsQueryKey(organizationId, departmentId) });
+    refetch();
+  };
+
+  const handleCreate = () => {
+    if (!delegateMembershipId) return;
+    createMutation.mutate(
+      { organizationId, departmentId, data: { delegateMembershipId: Number(delegateMembershipId) } },
+      {
+        onSuccess: () => {
+          setPickerOpen(false);
+          setDelegateMembershipId('');
+          handleChanged();
+          toast({ title: 'Delegate assigned' });
+        },
+        onError: (err) => toast({ title: 'Could not create delegation', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  const handleRevoke = (id: number) => {
+    revokeMutation.mutate(
+      { organizationId, id },
+      {
+        onSuccess: () => {
+          handleChanged();
+          toast({ title: 'Delegation revoked' });
+        },
+        onError: (err) => toast({ title: 'Could not revoke delegation', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      {current ? (
+        <>
+          <span className="text-sm text-foreground" data-testid={`text-current-delegate-${departmentId}`}>
+            Delegate: {memberById.get(current.delegateMembershipId) ? `${memberById.get(current.delegateMembershipId)!.firstName} ${memberById.get(current.delegateMembershipId)!.lastName}` : `Membership #${current.delegateMembershipId}`}
+          </span>
+          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleRevoke(current.id)} disabled={revokeMutation.isPending} aria-label="Revoke delegation" data-testid={`button-revoke-delegation-${departmentId}`}>
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
+          </Button>
+        </>
+      ) : (
+        <span className="text-sm text-muted-foreground">No delegate assigned</span>
+      )}
+      <Dialog open={pickerOpen} onOpenChange={(o) => { setPickerOpen(o); if (!o) setDelegateMembershipId(''); }}>
+        <DialogTrigger asChild>
+          <Button size="icon" variant="ghost" className="h-6 w-6" aria-label="Assign delegate" data-testid={`button-open-delegate-${departmentId}`}>
+            <UserCog className="h-3.5 w-3.5" aria-hidden="true" />
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delegate Approval Authority</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor={`delegate-select-${departmentId}`}>Delegate</Label>
+            <Select value={delegateMembershipId} onValueChange={setDelegateMembershipId}>
+              <SelectTrigger id={`delegate-select-${departmentId}`} data-testid={`select-delegate-${departmentId}`}>
+                <SelectValue placeholder="Choose a member" />
+              </SelectTrigger>
+              <SelectContent>
+                {(members ?? []).filter((m) => m.status === 'active').map((m) => (
+                  <SelectItem key={m.membershipId} value={String(m.membershipId)}>{m.firstName} {m.lastName}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleCreate} disabled={!delegateMembershipId || createMutation.isPending} data-testid={`button-confirm-delegate-${departmentId}`}>
+              {createMutation.isPending ? 'Saving…' : 'Assign'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function ApprovalsTab({ organizationId }: { organizationId: number }) {
+  const queryClient = useQueryClient();
+  const { data: departments } = useListDepartments(organizationId, {
+    query: { queryKey: getListDepartmentsQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+  const [departmentId, setDepartmentId] = useState('');
+
+  const { data: requests, isLoading, error, refetch } = useListOfficeInventoryDepartmentRequests(organizationId, Number(departmentId), {
+    query: { queryKey: getListOfficeInventoryDepartmentRequestsQueryKey(organizationId, Number(departmentId)), enabled: organizationId > 0 && !!departmentId },
+  });
+
+  const handleChanged = () => {
+    if (!departmentId) return;
+    queryClient.invalidateQueries({ queryKey: getListOfficeInventoryDepartmentRequestsQueryKey(organizationId, Number(departmentId)) });
+    refetch();
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="max-w-sm space-y-2">
+        <Label htmlFor="approvals-department">Department</Label>
+        <Select value={departmentId} onValueChange={setDepartmentId}>
+          <SelectTrigger id="approvals-department" data-testid="select-approvals-department">
+            <SelectValue placeholder="Choose a department you head" />
+          </SelectTrigger>
+          <SelectContent>
+            {(departments ?? []).map((d) => (
+              <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {!departmentId ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <ClipboardList className="h-8 w-8 text-muted-foreground mb-4" aria-hidden="true" />
+            <p className="text-sm text-muted-foreground">Choose a department above to review its request queue.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          <Card>
+            <CardContent className="py-4 flex items-center justify-between">
+              <Label>Delegation</Label>
+              <DelegationPanel organizationId={organizationId} departmentId={Number(departmentId)} />
+            </CardContent>
+          </Card>
+
+          {isLoading ? (
+            <Skeleton className="h-40 w-full" />
+          ) : error ? (
+            <QueryError title="Could not load requests" message={errorMessage(error) ?? 'You may not have approval authority for this department.'} onRetry={() => refetch()} />
+          ) : !requests || requests.length === 0 ? (
+            <p className="text-sm text-muted-foreground" data-testid="text-no-department-requests">No requests for this department.</p>
+          ) : (
+            <Card>
+              <Table aria-label="Department Requests">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Reference</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Submitted</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {requests.map((r) => (
+                    <TableRow key={r.id} data-testid={`row-department-request-${r.id}`}>
+                      <TableCell className="font-mono text-sm">{r.requestReference}</TableCell>
+                      <TableCell className="capitalize">{r.requestType}</TableCell>
+                      <TableCell className="text-muted-foreground">{new Date(r.submittedAt).toLocaleString()}</TableCell>
+                      <TableCell>
+                        <Badge variant={REQUEST_STATUS_VARIANT[r.status] ?? 'outline'}>{REQUEST_STATUS_LABEL[r.status] ?? r.status}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <ApprovalContextDialog organizationId={organizationId} requestId={r.id} onDecided={handleChanged} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // --- Configuration ---
 
 function ConfigurationTab({ organizationId }: { organizationId: number }) {
@@ -948,6 +1593,8 @@ export default function OfficeInventory() {
           <TabsTrigger value="stores" data-testid="tab-stores">Stores</TabsTrigger>
           <TabsTrigger value="receiving" data-testid="tab-receiving">Receiving</TabsTrigger>
           <TabsTrigger value="stock" data-testid="tab-stock">Stock</TabsTrigger>
+          <TabsTrigger value="requests" data-testid="tab-requests">My Requests</TabsTrigger>
+          <TabsTrigger value="approvals" data-testid="tab-approvals">Approvals</TabsTrigger>
           <TabsTrigger value="configuration" data-testid="tab-configuration">Configuration</TabsTrigger>
         </TabsList>
         <TabsContent value="items">
@@ -961,6 +1608,12 @@ export default function OfficeInventory() {
         </TabsContent>
         <TabsContent value="stock">
           <StockTab organizationId={organizationId} />
+        </TabsContent>
+        <TabsContent value="requests">
+          <RequestsTab organizationId={organizationId} />
+        </TabsContent>
+        <TabsContent value="approvals">
+          <ApprovalsTab organizationId={organizationId} />
         </TabsContent>
         <TabsContent value="configuration">
           <ConfigurationTab organizationId={organizationId} />

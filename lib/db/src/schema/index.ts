@@ -113,3 +113,5 @@ export * from "./department-heads";
 export * from "./office-inventory-items";
 export * from "./office-inventory-stores";
 export * from "./office-inventory-stock-movements";
+export * from "./office-inventory-approval-delegations";
+export * from "./office-inventory-requests";

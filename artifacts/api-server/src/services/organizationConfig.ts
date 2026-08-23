@@ -158,6 +158,9 @@ const officeInventoryConfigSchema = z
     // numbering engine's own multi-sequenceKey design), not a second
     // numbering system.
     receiptNumber: officeInventoryItemNumberConfigSchema.optional(),
+    // Office Inventory, Workstream 3 — a third independent number series
+    // via the same numbering-engine shape, for office_inventory_requests.
+    requestNumber: officeInventoryItemNumberConfigSchema.optional(),
     repeatRequestReviewWindowDays: z.number().int().min(0).max(365).optional(),
     costTrackingEnabled: z.boolean().optional(),
     directIssueEnabled: z.boolean().optional(),
@@ -286,6 +289,13 @@ export const CONFIG_NAMESPACES: Record<string, NamespaceDefinition> = {
       },
       receiptNumber: {
         prefix: "RCV",
+        separator: "-",
+        sequenceLength: 5,
+        startingSequence: 1,
+        resetPolicy: "never",
+      },
+      requestNumber: {
+        prefix: "REQ",
         separator: "-",
         sequenceLength: 5,
         startingSequence: 1,

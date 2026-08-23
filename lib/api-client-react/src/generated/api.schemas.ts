@@ -7546,6 +7546,165 @@ export interface OfficeInventoryItemBalance {
   byStore: OfficeInventoryStoreBalance[];
 }
 
+export type OfficeInventoryRequestLineApprovalStatus = typeof OfficeInventoryRequestLineApprovalStatus[keyof typeof OfficeInventoryRequestLineApprovalStatus];
+
+
+export const OfficeInventoryRequestLineApprovalStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+/**
+ * Office Inventory, Workstream 3 (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.4). Approval never touches the stock ledger — only Workstream 4's own Issue/Fulfilment action ever does.
+ */
+export interface OfficeInventoryRequestLine {
+  id: number;
+  organizationId: number;
+  requestId: number;
+  itemId: number;
+  quantityRequested: string;
+  approvalStatus: OfficeInventoryRequestLineApprovalStatus;
+  /** @nullable */
+  approvedQuantity: string | null;
+  /** @nullable */
+  approvedByMembershipId: number | null;
+  actedAsDelegate: boolean;
+  /** @nullable */
+  delegatorHeadMembershipId: number | null;
+  /** @nullable */
+  delegationId: number | null;
+  /** @nullable */
+  approvedAt: string | null;
+  /** @nullable */
+  rejectionReason: string | null;
+  quantityIssuedSoFar: string;
+}
+
+export type OfficeInventoryRequestRequestType = typeof OfficeInventoryRequestRequestType[keyof typeof OfficeInventoryRequestRequestType];
+
+
+export const OfficeInventoryRequestRequestType = {
+  employee: 'employee',
+  department: 'department',
+} as const;
+
+export type OfficeInventoryRequestStatus = typeof OfficeInventoryRequestStatus[keyof typeof OfficeInventoryRequestStatus];
+
+
+export const OfficeInventoryRequestStatus = {
+  pending: 'pending',
+  partially_approved: 'partially_approved',
+  approved: 'approved',
+  rejected: 'rejected',
+  fulfilled: 'fulfilled',
+  partially_fulfilled: 'partially_fulfilled',
+  cancelled: 'cancelled',
+} as const;
+
+export interface OfficeInventoryRequest {
+  id: number;
+  organizationId: number;
+  requestReference: string;
+  requestedByMembershipId: number;
+  requestType: OfficeInventoryRequestRequestType;
+  /** @nullable */
+  forEmployeeId: number | null;
+  forDepartmentId: number;
+  /** @nullable */
+  reason: string | null;
+  submittedAt: string;
+  status: OfficeInventoryRequestStatus;
+  /** @nullable */
+  cancelledAt: string | null;
+  /** @nullable */
+  cancelledByMembershipId: number | null;
+}
+
+export interface OfficeInventoryRequestWithLines {
+  request: OfficeInventoryRequest;
+  lines: OfficeInventoryRequestLine[];
+}
+
+export interface OfficeInventoryRequestLineInput {
+  itemId: number;
+  /** Positive numeric(12,2)-shaped string. */
+  quantityRequested: string;
+}
+
+export type CreateOfficeInventoryRequestBodyRequestType = typeof CreateOfficeInventoryRequestBodyRequestType[keyof typeof CreateOfficeInventoryRequestBodyRequestType];
+
+
+export const CreateOfficeInventoryRequestBodyRequestType = {
+  employee: 'employee',
+  department: 'department',
+} as const;
+
+/**
+ * For `requestType: employee`, `forEmployeeId` is always the caller's own employee identity, resolved server-side — never client-supplied (`forDepartmentId` must not be sent; it is resolved from the employee's own current department). For `requestType: department`, `forDepartmentId` is required and the caller must themselves belong to that department.
+ */
+export interface CreateOfficeInventoryRequestBody {
+  requestType: CreateOfficeInventoryRequestBodyRequestType;
+  /** Required only for requestType "department". */
+  forDepartmentId?: number;
+  reason?: string;
+  /** @minItems 1 */
+  lines: OfficeInventoryRequestLineInput[];
+}
+
+export interface ApproveOfficeInventoryRequestLineBody {
+  /** Must be > 0 and <= the line's quantityRequested. */
+  approvedQuantity: string;
+}
+
+export interface RejectOfficeInventoryRequestLineBody {
+  rejectionReason: string;
+}
+
+/**
+ * Query-time only, never a stored flag (§15). Deliberately does not include issued/custody fields — those require Workstream 4's data, which does not exist yet; this shape is designed to be extended additively once it does, without a breaking change.
+ */
+export interface OfficeInventoryRepeatRequestWarning {
+  itemId: number;
+  windowDays: number;
+  recentEmployeeRequests: OfficeInventoryRequest[];
+  recentDepartmentRequests: OfficeInventoryRequest[];
+}
+
+export interface OfficeInventoryRequestLineApprovalContext {
+  line: OfficeInventoryRequestLine;
+  storeAvailability: OfficeInventoryItemBalance;
+  repeatRequestWarning: OfficeInventoryRepeatRequestWarning;
+}
+
+export interface OfficeInventoryRequestApprovalContext {
+  request: OfficeInventoryRequest;
+  lines: OfficeInventoryRequestLineApprovalContext[];
+}
+
+/**
+ * Office Inventory, Workstream 3 (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §6, §5.3). A row surviving the delegating Head's own replacement remains open and fully historically queryable, but becomes functionally inert for NEW approvals the instant that membership is no longer the department's actual current Head — re-checked fresh on every approval, never assumed from this row's own existence.
+ */
+export interface OfficeInventoryApprovalDelegation {
+  id: number;
+  organizationId: number;
+  departmentId: number;
+  delegatingHeadMembershipId: number;
+  delegateMembershipId: number;
+  validFrom: string;
+  /** @nullable */
+  validTo: string | null;
+  /** @nullable */
+  createdByMembershipId: number | null;
+  /** @nullable */
+  revokedByMembershipId: number | null;
+  createdAt: string;
+}
+
+export interface CreateOfficeInventoryDelegationBody {
+  delegateMembershipId: number;
+}
+
 export type ListEmployeesParams = {
 search?: string;
 departmentId?: number;
