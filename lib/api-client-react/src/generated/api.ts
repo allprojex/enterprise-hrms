@@ -97,6 +97,7 @@ import type {
   CreatePerformanceRatingScaleInput,
   CreatePerformanceReviewGoalInput,
   CreatePerformanceReviewTemplateInput,
+  CreatePersonnelFileInput,
   CreatePositionInput,
   CreatePreEmploymentRequirementInput,
   CreatePublicHolidayInput,
@@ -218,6 +219,8 @@ import type {
   PerformanceReviewWithCompetencies,
   PerformanceTemplateCompetency,
   Permission,
+  PersonnelFile,
+  PersonnelSearchResult,
   Position,
   PreEmploymentRequirement,
   PreEmploymentRequirementListResponse,
@@ -267,6 +270,7 @@ import type {
   RunReportParams,
   SaveInterviewScorecardInput,
   ScheduleInterviewInput,
+  SearchPersonnelRecordsParams,
   SelfAssessmentNotReadyError,
   SeparateEmployeeInput,
   SetPrimaryHrInput,
@@ -5611,6 +5615,337 @@ export function useListEmployeeNumberOwnershipHistory<TData = Awaited<ReturnType
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListEmployeeNumberOwnershipHistoryQueryOptions(organizationId,employeeNumber,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreatePersonnelFileUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/personnel-file`
+}
+
+/**
+ * Requires personnel_file.manage. Fails with 400 if this employee already has a personnel file — exactly one exists per employee, permanently (frozen plan §7a); the database's own unique index on employeeId is the final authority, not merely this pre-check.
+ * @summary Create the employee's permanent personnel file / PIF (Phase 3H, W115)
+ */
+export const createPersonnelFile = async (organizationId: number,
+    employeeId: number,
+    createPersonnelFileInput: CreatePersonnelFileInput, options?: RequestInit): Promise<PersonnelFile> => {
+
+  return customFetch<PersonnelFile>(getCreatePersonnelFileUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createPersonnelFileInput)
+  }
+);}
+
+
+
+
+
+export const getCreatePersonnelFileMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPersonnelFile>>, TError,{organizationId: number;employeeId: number;data: BodyType<CreatePersonnelFileInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPersonnelFile>>, TError,{organizationId: number;employeeId: number;data: BodyType<CreatePersonnelFileInput>}, TContext> => {
+
+const mutationKey = ['createPersonnelFile'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPersonnelFile>>, {organizationId: number;employeeId: number;data: BodyType<CreatePersonnelFileInput>}> = (props) => {
+          const {organizationId,employeeId,data} = props ?? {};
+
+          return  createPersonnelFile(organizationId,employeeId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePersonnelFileMutationResult = NonNullable<Awaited<ReturnType<typeof createPersonnelFile>>>
+    export type CreatePersonnelFileMutationBody = BodyType<CreatePersonnelFileInput>
+    export type CreatePersonnelFileMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Create the employee's permanent personnel file / PIF (Phase 3H, W115)
+ */
+export const useCreatePersonnelFile = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPersonnelFile>>, TError,{organizationId: number;employeeId: number;data: BodyType<CreatePersonnelFileInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createPersonnelFile>>,
+        TError,
+        {organizationId: number;employeeId: number;data: BodyType<CreatePersonnelFileInput>},
+        TContext
+      > => {
+      return useMutation(getCreatePersonnelFileMutationOptions(options));
+    }
+
+export const getGetPersonnelFileByEmployeeUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/personnel-file`
+}
+
+/**
+ * Requires personnel_file.read. 404s if this employee has no personnel file yet.
+ * @summary Get an employee's personnel file (Phase 3H, W115)
+ */
+export const getPersonnelFileByEmployee = async (organizationId: number,
+    employeeId: number, options?: RequestInit): Promise<PersonnelFile> => {
+
+  return customFetch<PersonnelFile>(getGetPersonnelFileByEmployeeUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPersonnelFileByEmployeeQueryKey = (organizationId: number,
+    employeeId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/employees/${employeeId}/personnel-file`
+    ] as const;
+    }
+
+
+export const getGetPersonnelFileByEmployeeQueryOptions = <TData = Awaited<ReturnType<typeof getPersonnelFileByEmployee>>, TError = ErrorType<ApiError>>(organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPersonnelFileByEmployee>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPersonnelFileByEmployeeQueryKey(organizationId,employeeId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPersonnelFileByEmployee>>> = ({ signal }) => getPersonnelFileByEmployee(organizationId,employeeId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && employeeId !== null && employeeId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPersonnelFileByEmployee>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPersonnelFileByEmployeeQueryResult = NonNullable<Awaited<ReturnType<typeof getPersonnelFileByEmployee>>>
+export type GetPersonnelFileByEmployeeQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get an employee's personnel file (Phase 3H, W115)
+ */
+
+export function useGetPersonnelFileByEmployee<TData = Awaited<ReturnType<typeof getPersonnelFileByEmployee>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPersonnelFileByEmployee>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPersonnelFileByEmployeeQueryOptions(organizationId,employeeId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPersonnelFileByIdUrl = (organizationId: number,
+    personnelFileId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/personnel-files/${personnelFileId}`
+}
+
+/**
+ * Requires personnel_file.read.
+ * @summary Get a personnel file by id (Phase 3H, W115)
+ */
+export const getPersonnelFileById = async (organizationId: number,
+    personnelFileId: number, options?: RequestInit): Promise<PersonnelFile> => {
+
+  return customFetch<PersonnelFile>(getGetPersonnelFileByIdUrl(organizationId,personnelFileId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPersonnelFileByIdQueryKey = (organizationId: number,
+    personnelFileId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/personnel-files/${personnelFileId}`
+    ] as const;
+    }
+
+
+export const getGetPersonnelFileByIdQueryOptions = <TData = Awaited<ReturnType<typeof getPersonnelFileById>>, TError = ErrorType<ApiError>>(organizationId: number,
+    personnelFileId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPersonnelFileById>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPersonnelFileByIdQueryKey(organizationId,personnelFileId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPersonnelFileById>>> = ({ signal }) => getPersonnelFileById(organizationId,personnelFileId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && personnelFileId !== null && personnelFileId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPersonnelFileById>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPersonnelFileByIdQueryResult = NonNullable<Awaited<ReturnType<typeof getPersonnelFileById>>>
+export type GetPersonnelFileByIdQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get a personnel file by id (Phase 3H, W115)
+ */
+
+export function useGetPersonnelFileById<TData = Awaited<ReturnType<typeof getPersonnelFileById>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    personnelFileId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPersonnelFileById>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPersonnelFileByIdQueryOptions(organizationId,personnelFileId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSearchPersonnelRecordsUrl = (organizationId: number,
+    params?: SearchPersonnelRecordsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/personnel-records/search?${stringifiedParams}` : `/api/organizations/${organizationId}/personnel-records/search`
+}
+
+/**
+ * Requires personnel_file.read — deliberately separate from GET .../employees (employee.read), which is never extended to expose PIF or historical-number data (frozen plan §10/§13). A reused staff number never collapses to the current holder: matches are returned one per allocation, each labeled current or historical.
+ * @summary HR/records search by name, current or historical staff number, or PIF number (Phase 3H, W115)
+ */
+export const searchPersonnelRecords = async (organizationId: number,
+    params?: SearchPersonnelRecordsParams, options?: RequestInit): Promise<PersonnelSearchResult[]> => {
+
+  return customFetch<PersonnelSearchResult[]>(getSearchPersonnelRecordsUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getSearchPersonnelRecordsQueryKey = (organizationId: number,
+    params?: SearchPersonnelRecordsParams,) => {
+    return [
+    `/api/organizations/${organizationId}/personnel-records/search`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getSearchPersonnelRecordsQueryOptions = <TData = Awaited<ReturnType<typeof searchPersonnelRecords>>, TError = ErrorType<unknown>>(organizationId: number,
+    params?: SearchPersonnelRecordsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchPersonnelRecords>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getSearchPersonnelRecordsQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof searchPersonnelRecords>>> = ({ signal }) => searchPersonnelRecords(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof searchPersonnelRecords>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type SearchPersonnelRecordsQueryResult = NonNullable<Awaited<ReturnType<typeof searchPersonnelRecords>>>
+export type SearchPersonnelRecordsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary HR/records search by name, current or historical staff number, or PIF number (Phase 3H, W115)
+ */
+
+export function useSearchPersonnelRecords<TData = Awaited<ReturnType<typeof searchPersonnelRecords>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    params?: SearchPersonnelRecordsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchPersonnelRecords>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getSearchPersonnelRecordsQueryOptions(organizationId,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

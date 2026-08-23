@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'wouter';
-import { ArrowLeft, Loader2, Mail, Phone, Building, Network, Briefcase, Camera, UserPlus, UserCheck, UserX, RotateCcw, FileText, Upload, Trash2, Award, GraduationCap, Sparkles, Plus, ArrowLeftRight, TrendingUp, BadgeCheck, ShieldAlert, LogOut } from 'lucide-react';
+import { ArrowLeft, Loader2, Mail, Phone, Building, Network, Briefcase, Camera, UserPlus, UserCheck, UserX, RotateCcw, FileText, Upload, Trash2, Award, GraduationCap, Sparkles, Plus, ArrowLeftRight, TrendingUp, BadgeCheck, ShieldAlert, LogOut, IdCard, History } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -61,7 +61,13 @@ import {
   getListEmployeeExitProcessesQueryKey,
   useCreateEmployeeExitProcess,
   useUpdateEmployeeExitProcess,
+  useGetPersonnelFileByEmployee,
+  getGetPersonnelFileByEmployeeQueryKey,
+  useCreatePersonnelFile,
+  useListEmployeeNumberHistory,
+  getListEmployeeNumberHistoryQueryKey,
 } from '@workspace/api-client-react';
+import type { CreatePersonnelFileInputMode } from '@workspace/api-client-react';
 import type { UpdateEmployeeInputEmploymentStatus } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -179,6 +185,38 @@ export default function EmployeeDetail() {
     query: { queryKey: getListEmployeeEmploymentHistoryQueryKey(organizationId, employeeId), enabled: organizationId > 0 && !isNaN(employeeId) },
   });
 
+  // Phase 3H, W115 — Personnel File / PIF. A 404 here just means "no
+  // personnel file yet" (a normal, expected state, not an error to hide the
+  // section for) — only a permission-denied (403, from lacking
+  // personnel_file.read) hides the whole card, mirroring
+  // disciplinaryRecordsError's own reactive-to-403 pattern below.
+  const {
+    data: personnelFile,
+    error: personnelFileError,
+    isLoading: personnelFileLoading,
+  } = useGetPersonnelFileByEmployee(organizationId, employeeId, {
+    query: {
+      queryKey: getGetPersonnelFileByEmployeeQueryKey(organizationId, employeeId),
+      enabled: organizationId > 0 && !isNaN(employeeId),
+      retry: false,
+    },
+  });
+  const personnelFileErrorStatus =
+    personnelFileError && typeof personnelFileError === 'object' && 'status' in personnelFileError
+      ? (personnelFileError as { status: number }).status
+      : undefined;
+  const personnelFileForbidden = personnelFileErrorStatus === 403;
+
+  const {
+    data: staffNumberHistory,
+    isLoading: staffNumberHistoryLoading,
+  } = useListEmployeeNumberHistory(organizationId, employeeId, {
+    query: {
+      queryKey: getListEmployeeNumberHistoryQueryKey(organizationId, employeeId),
+      enabled: organizationId > 0 && !isNaN(employeeId) && !personnelFileForbidden,
+    },
+  });
+
   const { data: departments } = useListDepartments(organizationId, {
     query: { queryKey: getListDepartmentsQueryKey(organizationId), enabled: organizationId > 0 },
   });
@@ -219,6 +257,7 @@ export default function EmployeeDetail() {
   const removeCertificationMutation = useRemoveEmployeeCertification();
   const transferMutation = useTransferEmployee();
   const promoteMutation = usePromoteEmployee();
+  const createPersonnelFileMutation = useCreatePersonnelFile();
   const confirmMutation = useConfirmEmployee();
   const addDisciplinaryRecordMutation = useAddEmployeeDisciplinaryRecord();
   const createExitProcessMutation = useCreateEmployeeExitProcess();
@@ -255,6 +294,11 @@ export default function EmployeeDetail() {
   const [newDisciplinaryActionType, setNewDisciplinaryActionType] = useState('');
   const [newDisciplinaryDescription, setNewDisciplinaryDescription] = useState('');
   const [newDisciplinaryActionDate, setNewDisciplinaryActionDate] = useState('');
+
+  const [isPersonnelFileDialogOpen, setIsPersonnelFileDialogOpen] = useState(false);
+  const [personnelFileMode, setPersonnelFileMode] = useState<CreatePersonnelFileInputMode>('generate');
+  const [manualPifNumber, setManualPifNumber] = useState('');
+  const [showStaffNumberHistory, setShowStaffNumberHistory] = useState(false);
 
   const [prevEmployee, setPrevEmployee] = useState(employee);
   if (employee && employee !== prevEmployee) {
@@ -501,6 +545,31 @@ export default function EmployeeDetail() {
           const message =
             err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
           toast({ title: 'Could not add disciplinary record', description: message ?? 'Please try again.', variant: 'destructive' });
+        },
+      },
+    );
+  };
+
+  const handleCreatePersonnelFile = () => {
+    if (personnelFileMode === 'manual' && !manualPifNumber.trim()) return;
+    createPersonnelFileMutation.mutate(
+      {
+        organizationId,
+        employeeId,
+        data: personnelFileMode === 'manual' ? { mode: 'manual', pifNumber: manualPifNumber.trim() } : { mode: 'generate' },
+      },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetPersonnelFileByEmployeeQueryKey(organizationId, employeeId) });
+          setIsPersonnelFileDialogOpen(false);
+          setManualPifNumber('');
+          setPersonnelFileMode('generate');
+          toast({ title: 'Personnel file created' });
+        },
+        onError: (err) => {
+          const message =
+            err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
+          toast({ title: 'Could not create personnel file', description: message ?? 'Please try again.', variant: 'destructive' });
         },
       },
     );
@@ -1636,6 +1705,142 @@ export default function EmployeeDetail() {
             )}
           </CardContent>
         </Card>
+
+        {!personnelFileForbidden && (
+          <Card className="lg:col-span-3">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <IdCard className="h-5 w-5" aria-hidden="true" />
+                    Personnel File
+                  </CardTitle>
+                  <CardDescription>
+                    The permanent personnel record (PIF) — never released or reassigned, independent of staff-number reuse.
+                  </CardDescription>
+                </div>
+                {!personnelFileLoading && !personnelFile && (
+                  <Dialog open={isPersonnelFileDialogOpen} onOpenChange={setIsPersonnelFileDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button type="button" variant="outline" size="sm" data-testid="button-create-personnel-file">
+                        <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                        Create Personnel File
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Create Personnel File</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <p className="text-sm text-muted-foreground">
+                          For {employee?.firstName} {employee?.lastName}
+                          {employee?.employeeNumber ? ` (${employee.employeeNumber})` : ''} — a permanent PIF number will be
+                          assigned and can never be reassigned to anyone else.
+                        </p>
+                        <div className="space-y-2">
+                          <Label htmlFor="personnel-file-mode">PIF Number</Label>
+                          <Select value={personnelFileMode} onValueChange={(v) => setPersonnelFileMode(v as CreatePersonnelFileInputMode)}>
+                            <SelectTrigger id="personnel-file-mode" data-testid="select-personnel-file-mode">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="generate">Generate automatically</SelectItem>
+                              <SelectItem value="manual">Enter manually</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {personnelFileMode === 'manual' && (
+                          <div className="space-y-2">
+                            <Label htmlFor="manual-pif-number">PIF Number *</Label>
+                            <Input
+                              id="manual-pif-number"
+                              value={manualPifNumber}
+                              onChange={(e) => setManualPifNumber(e.target.value)}
+                              placeholder="e.g. PIF-001"
+                              data-testid="input-manual-pif-number"
+                            />
+                          </div>
+                        )}
+                      </div>
+                      <DialogFooter>
+                        <Button
+                          type="button"
+                          onClick={handleCreatePersonnelFile}
+                          disabled={createPersonnelFileMutation.isPending || (personnelFileMode === 'manual' && !manualPifNumber.trim())}
+                          data-testid="button-confirm-create-personnel-file"
+                        >
+                          {createPersonnelFileMutation.isPending ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                          ) : null}
+                          Create
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {personnelFileLoading ? (
+                <Skeleton className="h-10 w-full" data-testid="loading-personnel-file" />
+              ) : personnelFile ? (
+                <div className="grid gap-4 sm:grid-cols-2" data-testid="personnel-file-summary">
+                  <div>
+                    <p className="text-xs text-muted-foreground">PIF Number</p>
+                    <p className="font-mono text-sm font-medium" data-testid="text-pif-number">{personnelFile.pifNumber}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Current Staff Number</p>
+                    <p className="font-mono text-sm font-medium">{employee?.employeeNumber ?? '—'}</p>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Badge variant="outline" className="capitalize">{personnelFile.allocationMethod}</Badge>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground" data-testid="text-no-personnel-file">
+                  No personnel file yet.
+                </p>
+              )}
+
+              <div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowStaffNumberHistory((v) => !v)}
+                  data-testid="button-toggle-staff-number-history"
+                >
+                  <History className="mr-2 h-4 w-4" aria-hidden="true" />
+                  {showStaffNumberHistory ? 'Hide' : 'View'} staff-number history
+                </Button>
+                {showStaffNumberHistory && (
+                  <div className="mt-2">
+                    {staffNumberHistoryLoading ? (
+                      <Skeleton className="h-10 w-full" />
+                    ) : (staffNumberHistory ?? []).length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No staff-number allocations recorded yet.</p>
+                    ) : (
+                      <ul className="divide-y divide-border" data-testid="list-staff-number-history">
+                        {(staffNumberHistory ?? []).map((allocation) => (
+                          <li key={allocation.id} className="py-2 flex items-center justify-between gap-4" data-testid={`row-staff-number-history-${allocation.id}`}>
+                            <span className="font-mono text-sm">{allocation.employeeNumber}</span>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={allocation.validTo === null ? 'default' : 'outline'}>
+                                {allocation.validTo === null ? 'Current' : 'Released'}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">{allocation.allocationMethod}</span>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {!disciplinaryRecordsError && (
           <Card className="lg:col-span-3">

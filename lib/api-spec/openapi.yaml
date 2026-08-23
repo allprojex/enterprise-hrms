@@ -2514,6 +2514,151 @@ paths:
                 items:
                   $ref: "#/components/schemas/EmployeeNumberAllocation"
 
+  /organizations/{organizationId}/employees/{employeeId}/personnel-file:
+    post:
+      operationId: createPersonnelFile
+      tags: [personnel-files]
+      summary: Create the employee's permanent personnel file / PIF (Phase 3H, W115)
+      description: >-
+        Requires personnel_file.manage. Fails with 400 if this employee
+        already has a personnel file — exactly one exists per employee,
+        permanently (frozen plan §7a); the database's own unique index on
+        employeeId is the final authority, not merely this pre-check.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePersonnelFileInput"
+      responses:
+        "201":
+          description: The newly created personnel file
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonnelFile"
+        "400":
+          description: Invalid request or this employee already has a personnel file
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: This PIF number is already in use in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    get:
+      operationId: getPersonnelFileByEmployee
+      tags: [personnel-files]
+      summary: Get an employee's personnel file (Phase 3H, W115)
+      description: Requires personnel_file.read. 404s if this employee has no personnel file yet.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The employee's personnel file
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonnelFile"
+        "404":
+          description: Employee not found, or this employee has no personnel file yet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/personnel-files/{personnelFileId}:
+    get:
+      operationId: getPersonnelFileById
+      tags: [personnel-files]
+      summary: Get a personnel file by id (Phase 3H, W115)
+      description: Requires personnel_file.read.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: personnelFileId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The personnel file
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonnelFile"
+        "404":
+          description: Personnel file not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/personnel-records/search:
+    get:
+      operationId: searchPersonnelRecords
+      tags: [personnel-files]
+      summary: HR/records search by name, current or historical staff number, or PIF number (Phase 3H, W115)
+      description: >-
+        Requires personnel_file.read — deliberately separate from
+        GET .../employees (employee.read), which is never extended to
+        expose PIF or historical-number data (frozen plan §10/§13). A
+        reused staff number never collapses to the current holder: matches
+        are returned one per allocation, each labeled current or historical.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Matching personnel records, one row per match reason
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PersonnelSearchResult"
+
   /organizations/{organizationId}/employees/{employeeId}/leave-requests:
     get:
       operationId: listLeaveRequests
@@ -17526,6 +17671,89 @@ components:
           type: ["string", "null"]
         allocation:
           $ref: "#/components/schemas/EmployeeNumberAllocation"
+
+    CreatePersonnelFileInput:
+      type: object
+      description: >-
+        Phase 3H, W115. "generate" uses the organization's PIF numbering-
+        format engine (config namespace "numbering", key pifNumber —
+        independent from employeeNumber's own config/sequence). "manual"
+        requires pifNumber, validated for organization-scoped uniqueness
+        identically to a generated value.
+      required: [mode]
+      properties:
+        mode:
+          type: string
+          enum: [generate, manual]
+        pifNumber:
+          type: ["string", "null"]
+          description: Required when mode is "manual"; ignored when mode is "generate".
+
+    PersonnelFile:
+      type: object
+      description: >-
+        A permanent, organization-owned personnel-record identity, strictly
+        1:1 with an employee (frozen plan §7a) — unlike EmployeeNumberAllocation,
+        there is no history: pifNumber is never released, reassigned, or
+        reused (Decision 4).
+      required: [id, organizationId, employeeId, pifNumber, allocationMethod, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        employeeId:
+          type: integer
+        pifNumber:
+          type: string
+        allocationMethod:
+          type: string
+          enum: [generated, manual]
+        allocatedByMembershipId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PersonnelSearchResult:
+      type: object
+      description: >-
+        One HR/records search match (frozen plan §10) — a reused staff
+        number never collapses to "the current holder": a historical and a
+        current allocation matching the same term appear as two distinct,
+        clearly-labeled results.
+      required: [employeeId, firstName, lastName, employmentStatus, matchType, matchedValue, isCurrentHolder, currentEmployeeNumber, pifNumber]
+      properties:
+        employeeId:
+          type: integer
+        firstName:
+          type: string
+        lastName:
+          type: string
+        employmentStatus:
+          type: string
+          enum: [active, probation, on_leave, suspended, terminated]
+        matchType:
+          type: string
+          enum: [name, employee_number, pif_number]
+        matchedValue:
+          type: string
+        isCurrentHolder:
+          type: boolean
+          description: For matchType employee_number, false means this is a historical (released/reused-away) allocation, not the current holder.
+        validFrom:
+          type: ["string", "null"]
+          format: date-time
+        validTo:
+          type: ["string", "null"]
+          format: date-time
+        currentEmployeeNumber:
+          type: ["string", "null"]
+        pifNumber:
+          type: ["string", "null"]
 
     EmployeeListResponse:
       type: object

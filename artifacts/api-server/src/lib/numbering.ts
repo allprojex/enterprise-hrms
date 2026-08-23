@@ -120,13 +120,13 @@ export interface EmployeeNumberFormatConfig {
 const EMPLOYEE_NUMBER_SEQUENCE_KEY = "employee_number";
 
 /** "" for "never" (a single lifetime counter — never NULL, see the schema's own note on why), "2026" for yearly, "2026-08" for monthly. */
-function resolvePeriodKey(resetPolicy: EmployeeNumberFormatConfig["resetPolicy"], now: Date): string {
+export function resolvePeriodKey(resetPolicy: EmployeeNumberFormatConfig["resetPolicy"], now: Date): string {
   if (resetPolicy === "yearly") return String(now.getUTCFullYear());
   if (resetPolicy === "monthly") return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
   return "";
 }
 
-function formatGeneratedNumber(
+export function formatGeneratedNumber(
   config: EmployeeNumberFormatConfig,
   sequenceValue: number,
   tokens: { branchCode: string | null; departmentCode: string | null; year: number; month: number },
@@ -206,13 +206,13 @@ async function lockAndIncrementSequenceIn(
  * too, and every retry would recompute the exact same (still-colliding)
  * value forever.
  */
-async function lockAndIncrementSequence(
+export async function lockAndIncrementSequence(
   params: { organizationId: number; sequenceKey: string; periodKey: string; startingSequence: number },
 ): Promise<number> {
   return db.transaction((tx) => lockAndIncrementSequenceIn(tx, params));
 }
 
-async function resolveTokenCodes(
+export async function resolveTokenCodes(
   tx: QueryClient,
   employee: Pick<Employee, "branchId" | "departmentId">,
 ): Promise<{ branchCode: string | null; departmentCode: string | null }> {

@@ -2131,6 +2131,102 @@ export const ListEmployeeNumberOwnershipHistoryResponse = zod.array(ListEmployee
 
 
 /**
+ * Requires personnel_file.manage. Fails with 400 if this employee already has a personnel file — exactly one exists per employee, permanently (frozen plan §7a); the database's own unique index on employeeId is the final authority, not merely this pre-check.
+ * @summary Create the employee's permanent personnel file / PIF (Phase 3H, W115)
+ */
+export const CreatePersonnelFileParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const CreatePersonnelFileBody = zod.object({
+  "mode": zod.enum(['generate', 'manual']),
+  "pifNumber": zod.string().nullish().describe('Required when mode is \"manual\"; ignored when mode is \"generate\".')
+}).describe('Phase 3H, W115. \"generate\" uses the organization\'s PIF numbering- format engine (config namespace \"numbering\", key pifNumber — independent from employeeNumber\'s own config\/sequence). \"manual\" requires pifNumber, validated for organization-scoped uniqueness identically to a generated value.')
+
+export const CreatePersonnelFileResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "pifNumber": zod.string(),
+  "allocationMethod": zod.enum(['generated', 'manual']),
+  "allocatedByMembershipId": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A permanent, organization-owned personnel-record identity, strictly 1:1 with an employee (frozen plan §7a) — unlike EmployeeNumberAllocation, there is no history: pifNumber is never released, reassigned, or reused (Decision 4).')
+
+
+/**
+ * Requires personnel_file.read. 404s if this employee has no personnel file yet.
+ * @summary Get an employee's personnel file (Phase 3H, W115)
+ */
+export const GetPersonnelFileByEmployeeParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const GetPersonnelFileByEmployeeResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "pifNumber": zod.string(),
+  "allocationMethod": zod.enum(['generated', 'manual']),
+  "allocatedByMembershipId": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A permanent, organization-owned personnel-record identity, strictly 1:1 with an employee (frozen plan §7a) — unlike EmployeeNumberAllocation, there is no history: pifNumber is never released, reassigned, or reused (Decision 4).')
+
+
+/**
+ * Requires personnel_file.read.
+ * @summary Get a personnel file by id (Phase 3H, W115)
+ */
+export const GetPersonnelFileByIdParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "personnelFileId": zod.coerce.number()
+})
+
+export const GetPersonnelFileByIdResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "pifNumber": zod.string(),
+  "allocationMethod": zod.enum(['generated', 'manual']),
+  "allocatedByMembershipId": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A permanent, organization-owned personnel-record identity, strictly 1:1 with an employee (frozen plan §7a) — unlike EmployeeNumberAllocation, there is no history: pifNumber is never released, reassigned, or reused (Decision 4).')
+
+
+/**
+ * Requires personnel_file.read — deliberately separate from GET .../employees (employee.read), which is never extended to expose PIF or historical-number data (frozen plan §10/§13). A reused staff number never collapses to the current holder: matches are returned one per allocation, each labeled current or historical.
+ * @summary HR/records search by name, current or historical staff number, or PIF number (Phase 3H, W115)
+ */
+export const SearchPersonnelRecordsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const SearchPersonnelRecordsQueryParams = zod.object({
+  "search": zod.coerce.string().optional()
+})
+
+export const SearchPersonnelRecordsResponseItem = zod.object({
+  "employeeId": zod.number(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "employmentStatus": zod.enum(['active', 'probation', 'on_leave', 'suspended', 'terminated']),
+  "matchType": zod.enum(['name', 'employee_number', 'pif_number']),
+  "matchedValue": zod.string(),
+  "isCurrentHolder": zod.boolean().describe('For matchType employee_number, false means this is a historical (released\/reused-away) allocation, not the current holder.'),
+  "validFrom": zod.coerce.date().nullish(),
+  "validTo": zod.coerce.date().nullish(),
+  "currentEmployeeNumber": zod.string().nullable(),
+  "pifNumber": zod.string().nullable()
+}).describe('One HR\/records search match (frozen plan §10) — a reused staff number never collapses to \"the current holder\": a historical and a current allocation matching the same term appear as two distinct, clearly-labeled results.')
+export const SearchPersonnelRecordsResponse = zod.array(SearchPersonnelRecordsResponseItem)
+
+
+/**
  * Own resource, manager-scoped, or leave_request.manage (organization- wide) — gated by leave_request.read.own at the route level, refined by an authorization check against the specific employee. Gated by the "leave" module.
  * @summary List an employee's leave requests
  */

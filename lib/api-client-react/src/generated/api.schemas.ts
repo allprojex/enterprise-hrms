@@ -3674,6 +3674,91 @@ export interface EmployeeNumberAllocationResult {
   allocation: EmployeeNumberAllocation;
 }
 
+export type CreatePersonnelFileInputMode = typeof CreatePersonnelFileInputMode[keyof typeof CreatePersonnelFileInputMode];
+
+
+export const CreatePersonnelFileInputMode = {
+  generate: 'generate',
+  manual: 'manual',
+} as const;
+
+/**
+ * Phase 3H, W115. "generate" uses the organization's PIF numbering- format engine (config namespace "numbering", key pifNumber — independent from employeeNumber's own config/sequence). "manual" requires pifNumber, validated for organization-scoped uniqueness identically to a generated value.
+ */
+export interface CreatePersonnelFileInput {
+  mode: CreatePersonnelFileInputMode;
+  /**
+     * Required when mode is "manual"; ignored when mode is "generate".
+     * @nullable
+     */
+  pifNumber?: string | null;
+}
+
+export type PersonnelFileAllocationMethod = typeof PersonnelFileAllocationMethod[keyof typeof PersonnelFileAllocationMethod];
+
+
+export const PersonnelFileAllocationMethod = {
+  generated: 'generated',
+  manual: 'manual',
+} as const;
+
+/**
+ * A permanent, organization-owned personnel-record identity, strictly 1:1 with an employee (frozen plan §7a) — unlike EmployeeNumberAllocation, there is no history: pifNumber is never released, reassigned, or reused (Decision 4).
+ */
+export interface PersonnelFile {
+  id: number;
+  organizationId: number;
+  employeeId: number;
+  pifNumber: string;
+  allocationMethod: PersonnelFileAllocationMethod;
+  /** @nullable */
+  allocatedByMembershipId?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type PersonnelSearchResultEmploymentStatus = typeof PersonnelSearchResultEmploymentStatus[keyof typeof PersonnelSearchResultEmploymentStatus];
+
+
+export const PersonnelSearchResultEmploymentStatus = {
+  active: 'active',
+  probation: 'probation',
+  on_leave: 'on_leave',
+  suspended: 'suspended',
+  terminated: 'terminated',
+} as const;
+
+export type PersonnelSearchResultMatchType = typeof PersonnelSearchResultMatchType[keyof typeof PersonnelSearchResultMatchType];
+
+
+export const PersonnelSearchResultMatchType = {
+  name: 'name',
+  employee_number: 'employee_number',
+  pif_number: 'pif_number',
+} as const;
+
+/**
+ * One HR/records search match (frozen plan §10) — a reused staff number never collapses to "the current holder": a historical and a current allocation matching the same term appear as two distinct, clearly-labeled results.
+ */
+export interface PersonnelSearchResult {
+  employeeId: number;
+  firstName: string;
+  lastName: string;
+  employmentStatus: PersonnelSearchResultEmploymentStatus;
+  matchType: PersonnelSearchResultMatchType;
+  matchedValue: string;
+  /** For matchType employee_number, false means this is a historical (released/reused-away) allocation, not the current holder. */
+  isCurrentHolder: boolean;
+  /** @nullable */
+  validFrom?: string | null;
+  /** @nullable */
+  validTo?: string | null;
+  /** @nullable */
+  currentEmployeeNumber: string | null;
+  /** @nullable */
+  pifNumber: string | null;
+}
+
 export interface EmployeeListResponse {
   items: Employee[];
   total: number;
@@ -6111,6 +6196,10 @@ export type UploadEmployeeDocumentBody = {
   file: Blob;
   /** Code from the "document_category" Master Data domain. */
   categoryCode: string;
+};
+
+export type SearchPersonnelRecordsParams = {
+search?: string;
 };
 
 export type ListLeaveCalendarParams = {

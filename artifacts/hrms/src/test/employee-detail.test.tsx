@@ -13,11 +13,12 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Router, Route } from 'wouter';
 import { memoryLocation } from 'wouter/memory-location';
 import EmployeeDetail from '@/pages/employee-detail';
-import type { Employee, EmploymentPeriodSummary } from '@workspace/api-client-react';
+import type { Employee, EmploymentPeriodSummary, PersonnelFile, EmployeeNumberAllocation } from '@workspace/api-client-react';
 
 const { state } = vi.hoisted(() => ({
   state: {
@@ -29,6 +30,14 @@ const { state } = vi.hoisted(() => ({
     employmentHistoryError: false,
     refetchEmploymentHistory: vi.fn(),
     disciplinaryRecordsError: undefined as unknown,
+    // Phase 3H, W115 — Personnel File / PIF card.
+    personnelFile: undefined as PersonnelFile | undefined,
+    personnelFileLoading: false,
+    personnelFileError: undefined as unknown,
+    createPersonnelFileMutate: vi.fn(),
+    createPersonnelFilePending: false,
+    staffNumberHistory: undefined as EmployeeNumberAllocation[] | undefined,
+    staffNumberHistoryLoading: false,
   },
 }));
 
@@ -104,6 +113,20 @@ vi.mock('@workspace/api-client-react', () => ({
   getListEmployeeExitProcessesQueryKey: (orgId: number, empId: number) => ['employeeExitProcesses', orgId, empId],
   useCreateEmployeeExitProcess: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdateEmployeeExitProcess: () => ({ mutate: vi.fn(), isPending: false }),
+
+  // Personnel File / PIF (Phase 3H, W115) — the feature under test.
+  useGetPersonnelFileByEmployee: () => ({
+    data: state.personnelFile,
+    isLoading: state.personnelFileLoading,
+    error: state.personnelFileError,
+  }),
+  getGetPersonnelFileByEmployeeQueryKey: (orgId: number, empId: number) => ['personnelFile', orgId, empId],
+  useCreatePersonnelFile: () => ({ mutate: state.createPersonnelFileMutate, isPending: state.createPersonnelFilePending }),
+  useListEmployeeNumberHistory: () => ({
+    data: state.staffNumberHistory,
+    isLoading: state.staffNumberHistoryLoading,
+  }),
+  getListEmployeeNumberHistoryQueryKey: (orgId: number, empId: number) => ['employeeNumberHistory', orgId, empId],
 }));
 
 vi.mock('@/lib/auth', () => ({ getStoredToken: () => 'test-token' }));
@@ -147,6 +170,36 @@ function historyRow(overrides: Partial<EmploymentPeriodSummary> = {}): Employmen
   };
 }
 
+function personnelFileRow(overrides: Partial<PersonnelFile> = {}): PersonnelFile {
+  return {
+    id: 1,
+    organizationId: 10,
+    employeeId: 42,
+    pifNumber: 'PIF-001',
+    allocationMethod: 'generated',
+    allocatedByMembershipId: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+function allocationRow(overrides: Partial<EmployeeNumberAllocation> = {}): EmployeeNumberAllocation {
+  return {
+    id: 1,
+    organizationId: 10,
+    employeeId: 42,
+    employeeNumber: 'EMP-0001',
+    allocationMethod: 'generated',
+    validFrom: new Date().toISOString(),
+    validTo: null,
+    allocatedByMembershipId: null,
+    releasedByMembershipId: null,
+    createdAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
 function resetState() {
   state.employee = baseEmployee();
   state.employeeLoading = false;
@@ -156,6 +209,13 @@ function resetState() {
   state.employmentHistoryError = false;
   state.refetchEmploymentHistory = vi.fn();
   state.disciplinaryRecordsError = undefined;
+  state.personnelFile = undefined;
+  state.personnelFileLoading = false;
+  state.personnelFileError = undefined;
+  state.createPersonnelFileMutate = vi.fn();
+  state.createPersonnelFilePending = false;
+  state.staffNumberHistory = [];
+  state.staffNumberHistoryLoading = false;
 }
 
 function renderPage() {
@@ -236,6 +296,63 @@ describe('Employee detail page', () => {
       const card = list.closest('.rounded-xl');
       expect(card).not.toBeNull();
       expect(within(card as HTMLElement).queryAllByRole('button')).toHaveLength(0);
+    });
+  });
+
+  describe('Personnel File card (Phase 3H, W115)', () => {
+    it('shows a loading state', () => {
+      resetState();
+      state.personnelFileLoading = true;
+      renderPage();
+      expect(screen.getByTestId('loading-personnel-file')).toBeInTheDocument();
+    });
+
+    it('shows an empty state with a create button when the employee has no personnel file yet', () => {
+      resetState();
+      renderPage();
+      expect(screen.getByTestId('text-no-personnel-file')).toBeInTheDocument();
+      expect(screen.getByTestId('button-create-personnel-file')).toBeInTheDocument();
+    });
+
+    it('shows the PIF number and allocation method once a personnel file exists, and hides the create button', () => {
+      resetState();
+      state.personnelFile = personnelFileRow({ pifNumber: 'PIF-042', allocationMethod: 'manual' });
+      renderPage();
+      const summary = screen.getByTestId('personnel-file-summary');
+      expect(within(summary).getByTestId('text-pif-number')).toHaveTextContent('PIF-042');
+      expect(within(summary).getByText('manual')).toBeInTheDocument();
+      expect(screen.queryByTestId('button-create-personnel-file')).not.toBeInTheDocument();
+    });
+
+    it('hides the entire card when the caller lacks personnel_file.read (403)', () => {
+      resetState();
+      state.personnelFileError = { status: 403, message: 'Forbidden' };
+      renderPage();
+      expect(screen.queryByText('Personnel File')).not.toBeInTheDocument();
+    });
+
+    it('does not treat a 404 (no personnel file yet) as a reason to hide the card', () => {
+      resetState();
+      state.personnelFileError = { status: 404, message: 'This employee has no personnel file yet' };
+      renderPage();
+      expect(screen.getByText('Personnel File')).toBeInTheDocument();
+    });
+
+    it('toggles and lists staff-number history, distinguishing current from released allocations', async () => {
+      resetState();
+      state.personnelFile = personnelFileRow();
+      state.staffNumberHistory = [
+        allocationRow({ id: 1, employeeNumber: 'EMP-0001', validTo: '2025-01-01T00:00:00.000Z' }),
+        allocationRow({ id: 2, employeeNumber: 'EMP-0002', validTo: null }),
+      ];
+      renderPage();
+
+      const user = userEvent.setup();
+      await user.click(screen.getByTestId('button-toggle-staff-number-history'));
+
+      const list = screen.getByTestId('list-staff-number-history');
+      expect(within(list).getByText('Released')).toBeInTheDocument();
+      expect(within(list).getByText('Current')).toBeInTheDocument();
     });
   });
 });

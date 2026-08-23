@@ -310,6 +310,15 @@ const PERMISSIONS = [
   // Numbering *configuration* (the "numbering" config namespace) reuses the
   // pre-existing organization.update permission instead of a new key here.
   { key: "employee_number.allocate", resource: "employee_number", action: "allocate" },
+  // Phase 3H, W115 — Personnel File Registry & PIF Linkage. Two of the
+  // frozen plan §13's six personnel_file.* keys — the two W115 actually
+  // uses; .movement.write/.sensitive.read/.sensitive.write remain unseeded
+  // until W116/a future sensitive-fields decision, per the "seed exactly
+  // what the current workstream uses" convention every prior phase in this
+  // codebase already established. org_admin/hr_manager only, never
+  // employee — no ESS or Manager Portal visibility, per the frozen plan.
+  { key: "personnel_file.read", resource: "personnel_file", action: "read" },
+  { key: "personnel_file.manage", resource: "personnel_file", action: "manage" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -396,6 +405,8 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "asset_management.manage",
     "asset_management.reports.read",
     "employee_number.allocate",
+    "personnel_file.read",
+    "personnel_file.manage",
   ],
   hr_manager: [
     "organization.read",
@@ -472,6 +483,8 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "asset_management.manage",
     "asset_management.reports.read",
     "employee_number.allocate",
+    "personnel_file.read",
+    "personnel_file.manage",
   ],
   employee: [
     "organization.read",

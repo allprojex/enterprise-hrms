@@ -186,6 +186,22 @@ export const CONFIG_NAMESPACES: Record<string, NamespaceDefinition> = {
         resetPolicy: "never",
         reuseEnabled: false,
       },
+      // Phase 3H, W115 — Personnel File Registry & PIF Linkage. Independent
+      // of employeeNumber's own config (frozen plan §6): changing one never
+      // affects the other's format or already-issued values. No
+      // `reuseEnabled` field exists here at all — PIF numbers are never
+      // reusable by design (Decision 4), not merely defaulted off.
+      pifNumber: {
+        prefix: "PIF",
+        separator: "-",
+        sequenceLength: 3,
+        startingSequence: 1,
+        includeBranchToken: false,
+        includeDepartmentToken: false,
+        includeYearToken: false,
+        includeMonthToken: false,
+        resetPolicy: "never",
+      },
     }),
   },
 };

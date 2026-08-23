@@ -18,6 +18,7 @@ export * from "./employees";
 export * from "./employment-periods";
 export * from "./numbering-sequences";
 export * from "./employee-number-allocations";
+export * from "./personnel-files";
 export * from "./employee-documents";
 export * from "./employee-skills";
 export * from "./employee-qualifications";
