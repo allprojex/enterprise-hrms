@@ -326,6 +326,7 @@ export default function EmployeeDetail() {
   const [promotePositionId, setPromotePositionId] = useState('');
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [confirmEffectiveDate, setConfirmEffectiveDate] = useState('');
+  const [confirmProbationReviewId, setConfirmProbationReviewId] = useState('');
   const [newDisciplinaryActionType, setNewDisciplinaryActionType] = useState('');
   const [newDisciplinaryDescription, setNewDisciplinaryDescription] = useState('');
   const [newDisciplinaryActionDate, setNewDisciplinaryActionDate] = useState('');
@@ -553,12 +554,20 @@ export default function EmployeeDetail() {
     e.preventDefault();
     if (!confirmEffectiveDate) return;
     confirmMutation.mutate(
-      { organizationId, employeeId, data: { effectiveDate: confirmEffectiveDate } },
+      {
+        organizationId,
+        employeeId,
+        data: {
+          effectiveDate: confirmEffectiveDate,
+          probationReviewId: confirmProbationReviewId.trim() ? Number(confirmProbationReviewId.trim()) : undefined,
+        },
+      },
       {
         onSuccess: (updated) => {
           queryClient.setQueryData(getGetEmployeeQueryKey(organizationId, employeeId), updated);
           setIsConfirmOpen(false);
           setConfirmEffectiveDate('');
+          setConfirmProbationReviewId('');
           toast({ title: 'Employee confirmed' });
         },
         onError: (err) => {
@@ -1179,6 +1188,18 @@ export default function EmployeeDetail() {
                                 onChange={(e) => setConfirmEffectiveDate(e.target.value)}
                                 required
                                 data-testid="input-confirm-effective-date"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="confirm-probation-review-id">Probation Review ID (optional)</Label>
+                              <Input
+                                id="confirm-probation-review-id"
+                                type="number"
+                                min={1}
+                                value={confirmProbationReviewId}
+                                onChange={(e) => setConfirmProbationReviewId(e.target.value)}
+                                placeholder="Link the completed probation review, if any"
+                                data-testid="input-confirm-probation-review-id"
                               />
                             </div>
                           </div>

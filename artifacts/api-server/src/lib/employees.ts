@@ -1,5 +1,14 @@
 import { and, eq, ilike, or, count, desc, type SQL } from "drizzle-orm";
-import { db, employeesTable, departmentsTable, branchesTable, positionsTable, type Employee } from "@workspace/db";
+import {
+  db,
+  employeesTable,
+  departmentsTable,
+  branchesTable,
+  positionsTable,
+  performanceReviewsTable,
+  performanceCyclesTable,
+  type Employee,
+} from "@workspace/db";
 import { assertBelongsToOrganization } from "./orgScopedRefs";
 import { recordAuditEvent } from "./auditLog";
 import { recordEmploymentPeriodEvent } from "./employmentLifecycleService";
@@ -41,6 +50,13 @@ export class EmployeePromotionNoChangeError extends Error {
   constructor() {
     super("Promotion must change the employee's position");
     this.name = "EmployeePromotionNoChangeError";
+  }
+}
+
+export class InvalidProbationReviewReferenceError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidProbationReviewReferenceError";
   }
 }
 
@@ -429,17 +445,43 @@ export async function promoteEmployee(params: {
  * value already exist on `employees`, W1) into an audited, permission-gated,
  * dated action — mirroring separateEmployee/rehireEmployee's shape. History
  * preserved via W22's `employment_periods`, never overwritten.
+ *
+ * Phase 3H, W117 (frozen plan Decision 13): an optional `probationReviewId`
+ * — when supplied, must reference a real performance_reviews row belonging
+ * to this employee and to a `cycleType = 'probation'` cycle in this
+ * organization; recorded directly inside this same confirmation event's own
+ * `newState` (`employment_periods.newState` is free-form jsonb, already the
+ * established per-event-type mechanism — zero schema change). Review
+ * completion never auto-confirms — this remains the one, single authoritative
+ * confirmation action; HR decides whether and when to call it.
  */
 export async function confirmEmployee(params: {
   organizationId: number;
   employeeId: number;
   effectiveDate: Date;
+  probationReviewId?: number | null;
   actorApplicationUserId: number;
   actorMembershipId: number;
 }) {
   const before = await getEmployeeById(params.organizationId, params.employeeId);
   if (!before) throw new EmployeeNotFoundError();
   if (before.employmentStatus !== "probation") throw new EmployeeNotOnProbationError();
+
+  if (params.probationReviewId != null) {
+    const [review] = await db
+      .select({ employeeId: performanceReviewsTable.employeeId, cycleType: performanceCyclesTable.cycleType })
+      .from(performanceReviewsTable)
+      .innerJoin(performanceCyclesTable, eq(performanceReviewsTable.cycleId, performanceCyclesTable.id))
+      .where(and(eq(performanceReviewsTable.id, params.probationReviewId), eq(performanceReviewsTable.organizationId, params.organizationId)))
+      .limit(1);
+    if (!review) throw new InvalidProbationReviewReferenceError("Referenced performance review not found in this organization");
+    if (review.employeeId !== params.employeeId) {
+      throw new InvalidProbationReviewReferenceError("Referenced performance review does not belong to this employee");
+    }
+    if (review.cycleType !== "probation") {
+      throw new InvalidProbationReviewReferenceError("Referenced performance review is not part of a probation cycle");
+    }
+  }
 
   const [updated] = await db
     .update(employeesTable)
@@ -453,7 +495,10 @@ export async function confirmEmployee(params: {
     eventType: "confirmation",
     effectiveDate: params.effectiveDate,
     previousState: { employmentStatus: before.employmentStatus },
-    newState: { employmentStatus: updated.employmentStatus },
+    newState:
+      params.probationReviewId != null
+        ? { employmentStatus: updated.employmentStatus, probationReviewId: params.probationReviewId }
+        : { employmentStatus: updated.employmentStatus },
     actorApplicationUserId: params.actorApplicationUserId,
     actorMembershipId: params.actorMembershipId,
   });

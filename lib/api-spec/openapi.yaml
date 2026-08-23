@@ -17556,6 +17556,13 @@ components:
           type: ["string", "null"]
         noticePeriodDays:
           type: ["integer", "null"]
+        noticePeriodCountsWorkingDaysOnly:
+          type: ["boolean", "null"]
+          description: >-
+            Phase 3H, W117. Null/false (the default) means the existing
+            calendar-day notice-period behavior — completely unchanged. True
+            means noticePeriodDays counts only working days (weekends
+            skipped, organization holidays optionally skipped).
         attachmentRequired:
           type: boolean
         countWeekends:
@@ -17627,6 +17634,8 @@ components:
           type: number
         noticePeriodDays:
           type: integer
+        noticePeriodCountsWorkingDaysOnly:
+          type: boolean
         attachmentRequired:
           type: boolean
         countWeekends:
@@ -17688,6 +17697,8 @@ components:
           type: ["number", "null"]
         noticePeriodDays:
           type: ["integer", "null"]
+        noticePeriodCountsWorkingDaysOnly:
+          type: ["boolean", "null"]
         attachmentRequired:
           type: boolean
         countWeekends:
@@ -18491,6 +18502,16 @@ components:
         effectiveDate:
           type: string
           format: date-time
+        probationReviewId:
+          type: ["integer", "null"]
+          description: >-
+            Phase 3H, W117. Optional — when supplied, must reference a
+            performance review belonging to this employee and to a
+            cycleType='probation' cycle in this organization. Recorded
+            inside this confirmation's own employment_periods.newState
+            (frozen plan Decision 13) — no schema change, no second review
+            engine. Review completion never auto-confirms; this remains
+            HR's own deliberate decision.
 
     EmployeeDisciplinaryRecord:
       type: object

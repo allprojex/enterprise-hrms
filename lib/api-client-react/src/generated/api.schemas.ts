@@ -2987,6 +2987,11 @@ export interface LeavePolicy {
   maxRequestDurationDays?: string | null;
   /** @nullable */
   noticePeriodDays?: number | null;
+  /**
+     * Phase 3H, W117. Null/false (the default) means the existing calendar-day notice-period behavior — completely unchanged. True means noticePeriodDays counts only working days (weekends skipped, organization holidays optionally skipped).
+     * @nullable
+     */
+  noticePeriodCountsWorkingDaysOnly?: boolean | null;
   attachmentRequired: boolean;
   countWeekends: boolean;
   countPublicHolidays: boolean;
@@ -3059,6 +3064,7 @@ export interface CreateLeavePolicyInput {
   minRequestDurationDays?: number;
   maxRequestDurationDays?: number;
   noticePeriodDays?: number;
+  noticePeriodCountsWorkingDaysOnly?: boolean;
   attachmentRequired?: boolean;
   countWeekends?: boolean;
   countPublicHolidays?: boolean;
@@ -3145,6 +3151,8 @@ export interface UpdateLeavePolicyInput {
   maxRequestDurationDays?: number | null;
   /** @nullable */
   noticePeriodDays?: number | null;
+  /** @nullable */
+  noticePeriodCountsWorkingDaysOnly?: boolean | null;
   attachmentRequired?: boolean;
   countWeekends?: boolean;
   countPublicHolidays?: boolean;
@@ -3974,6 +3982,11 @@ export interface PromoteEmployeeInput {
 
 export interface ConfirmEmployeeInput {
   effectiveDate: string;
+  /**
+     * Phase 3H, W117. Optional — when supplied, must reference a performance review belonging to this employee and to a cycleType='probation' cycle in this organization. Recorded inside this confirmation's own employment_periods.newState (frozen plan Decision 13) — no schema change, no second review engine. Review completion never auto-confirms; this remains HR's own deliberate decision.
+     * @nullable
+     */
+  probationReviewId?: number | null;
 }
 
 export interface EmployeeDisciplinaryRecord {

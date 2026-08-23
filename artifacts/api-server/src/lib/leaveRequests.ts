@@ -86,6 +86,41 @@ export function calculateLeaveDays(
   return count;
 }
 
+/**
+ * Phase 3H, W117 (frozen plan Decision 11). Calendar-day mode (the
+ * pre-existing, unchanged default): `today + noticePeriodDays` calendar
+ * days, exactly as before. Working-day mode (only when
+ * `policy.noticePeriodCountsWorkingDaysOnly === true`): walks forward from
+ * today one calendar day at a time, counting a day toward the threshold
+ * only when it is neither a weekend (Saturday/Sunday — the frozen plan's
+ * own literal "weekends skipped," not this codebase's separate,
+ * Attendance-module-scoped configurable workDays, which would make Leave's
+ * own hard-block depend on a different module being enabled) nor an
+ * organization holiday. The returned date is the earliest allowed start
+ * date either way — the caller's own `<` comparison is unchanged.
+ */
+export function resolveEarliestAllowedStartDate(
+  today: string,
+  noticePeriodDays: number,
+  countWorkingDaysOnly: boolean,
+  holidayDates: ReadonlySet<string> = new Set(),
+): string {
+  const d = new Date(`${today}T00:00:00Z`);
+  if (!countWorkingDaysOnly) {
+    d.setUTCDate(d.getUTCDate() + noticePeriodDays);
+    return toIsoDate(d);
+  }
+
+  let counted = 0;
+  while (counted < noticePeriodDays) {
+    d.setUTCDate(d.getUTCDate() + 1);
+    const dayOfWeek = d.getUTCDay();
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    if (!isWeekend && !holidayDates.has(toIsoDate(d))) counted++;
+  }
+  return toIsoDate(d);
+}
+
 function policySpecificity(policy: LeavePolicy): number {
   let score = 0;
   if (policy.positionId != null) score += 8;
@@ -188,10 +223,18 @@ export async function createLeaveRequest(params: {
   }
 
   if (policy.noticePeriodDays != null && policy.noticePeriodDays > 0) {
-    const earliestAllowed = new Date(`${today}T00:00:00Z`);
-    earliestAllowed.setUTCDate(earliestAllowed.getUTCDate() + policy.noticePeriodDays);
-    if (params.startDate < toIsoDate(earliestAllowed)) {
-      throw new InvalidLeaveRequestError(`This leave type requires at least ${policy.noticePeriodDays} day(s) notice`);
+    const countWorkingDaysOnly = policy.noticePeriodCountsWorkingDaysOnly === true;
+    // Working-day mode needs holiday coverage across the whole notice
+    // window, not just [startDate, endDate] — a generous, cheap-to-fetch
+    // year-plus lookahead from today comfortably covers any realistic
+    // noticePeriodDays value; calendar-day mode never needs this at all.
+    const noticeHolidayDates = countWorkingDaysOnly
+      ? await resolveHolidayDatesInRange(params.organizationId, today, toIsoDate(new Date(Date.now() + 400 * 86400000)))
+      : new Set<string>();
+    const earliestAllowedIso = resolveEarliestAllowedStartDate(today, policy.noticePeriodDays, countWorkingDaysOnly, noticeHolidayDates);
+    if (params.startDate < earliestAllowedIso) {
+      const unit = countWorkingDaysOnly ? "working day(s)" : "day(s)";
+      throw new InvalidLeaveRequestError(`This leave type requires at least ${policy.noticePeriodDays} ${unit} notice`);
     }
   }
 

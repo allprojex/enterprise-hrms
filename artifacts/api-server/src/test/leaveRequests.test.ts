@@ -7,7 +7,7 @@
  * target) against the same table — a fixture-array-only mock can't
  * distinguish them. No real database connection is made.
  */
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import request from "supertest";
 
 function mockTable(name: string, columns: string[]) {
@@ -529,6 +529,122 @@ describe("POST /api/organizations/:organizationId/employees/:employeeId/leave-re
       .send({ leaveTypeId: LEAVE_TYPE_ID, startDate: "2030-06-12", endDate: "2030-06-10" });
 
     expect(res.status).toBe(400);
+  });
+});
+
+describe("POST .../leave-requests — notice period (Phase 3H, W117, frozen plan Decision 11)", () => {
+  // "Today" is pinned to Mon 2030-06-10 (the same reference Monday already
+  // used throughout this file's other date-math tests) so working-day/
+  // holiday boundaries are deterministic instead of depending on the real
+  // clock at test-run time.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2030-06-10T12:00:00Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function mockPolicyWithNotice(overrides: Record<string, unknown> = {}) {
+    fixtures.leaveTypeRows = [{ id: LEAVE_TYPE_ID, organizationId: ORG_ID, name: "Annual", code: "ANNUAL", status: "active" }];
+    fixtures.leavePolicyRows = [
+      {
+        id: LEAVE_POLICY_ID,
+        organizationId: ORG_ID,
+        leaveTypeId: LEAVE_TYPE_ID,
+        name: "Org-wide",
+        status: "active",
+        employmentType: null,
+        branchId: null,
+        departmentId: null,
+        positionId: null,
+        gender: null,
+        minimumServiceMonths: null,
+        probationRestricted: false,
+        countWeekends: false,
+        countPublicHolidays: false,
+        attachmentRequired: false,
+        minRequestDurationDays: null,
+        maxRequestDurationDays: null,
+        noticePeriodDays: 5,
+        effectiveFrom: new Date("2020-01-01"),
+        effectiveTo: null,
+        ...overrides,
+      },
+    ];
+  }
+
+  it("preserves calendar-day notice-period behavior when noticePeriodCountsWorkingDaysOnly is unset (existing policy default)", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["leave_request.write.own"]);
+    mockLeaveModuleEnabled();
+    mockOwnEmployeeLinked();
+    mockEligibleEmployee();
+    mockPolicyWithNotice(); // noticePeriodCountsWorkingDaysOnly not present, mirrors a pre-W117 DB row (null)
+
+    // Earliest allowed = 2030-06-10 + 5 calendar days = 2030-06-15.
+    const tooSoon = await request(app)
+      .post(`/api/organizations/${ORG_ID}/employees/${EMPLOYEE_ID}/leave-requests`)
+      .set("Authorization", "Bearer valid-token")
+      .send({ leaveTypeId: LEAVE_TYPE_ID, startDate: "2030-06-14", endDate: "2030-06-16" });
+    expect(tooSoon.status).toBe(400);
+
+    const exact = await request(app)
+      .post(`/api/organizations/${ORG_ID}/employees/${EMPLOYEE_ID}/leave-requests`)
+      .set("Authorization", "Bearer valid-token")
+      .send({ leaveTypeId: LEAVE_TYPE_ID, startDate: "2030-06-15", endDate: "2030-06-17" });
+    expect(exact.status).toBe(201);
+  });
+
+  it("counts only working days when noticePeriodCountsWorkingDaysOnly is true", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["leave_request.write.own"]);
+    mockLeaveModuleEnabled();
+    mockOwnEmployeeLinked();
+    mockEligibleEmployee();
+    mockPolicyWithNotice({ noticePeriodCountsWorkingDaysOnly: true });
+
+    // Earliest allowed = 2030-06-10 + 5 working days (weekends skipped) = 2030-06-17.
+    const belowThreshold = await request(app)
+      .post(`/api/organizations/${ORG_ID}/employees/${EMPLOYEE_ID}/leave-requests`)
+      .set("Authorization", "Bearer valid-token")
+      .send({ leaveTypeId: LEAVE_TYPE_ID, startDate: "2030-06-16", endDate: "2030-06-18" });
+    expect(belowThreshold.status).toBe(400);
+
+    const exactBoundary = await request(app)
+      .post(`/api/organizations/${ORG_ID}/employees/${EMPLOYEE_ID}/leave-requests`)
+      .set("Authorization", "Bearer valid-token")
+      .send({ leaveTypeId: LEAVE_TYPE_ID, startDate: "2030-06-17", endDate: "2030-06-19" });
+    expect(exactBoundary.status).toBe(201);
+  });
+
+  it("also skips public holidays in working-day mode, reusing resolveHolidayDatesInRange", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["leave_request.write.own"]);
+    mockLeaveModuleEnabled();
+    mockOwnEmployeeLinked();
+    mockEligibleEmployee();
+    mockPolicyWithNotice({ noticePeriodCountsWorkingDaysOnly: true });
+    // Wed 2030-06-12 is a holiday, pushing the working-day boundary out by one: 2030-06-18.
+    fixtures.publicHolidayRows = [
+      { id: 1, organizationId: ORG_ID, status: "active", recurring: false, date: "2030-06-12", observedDate: null },
+    ];
+
+    const tooSoon = await request(app)
+      .post(`/api/organizations/${ORG_ID}/employees/${EMPLOYEE_ID}/leave-requests`)
+      .set("Authorization", "Bearer valid-token")
+      .send({ leaveTypeId: LEAVE_TYPE_ID, startDate: "2030-06-17", endDate: "2030-06-19" });
+    expect(tooSoon.status).toBe(400);
+
+    const onBoundary = await request(app)
+      .post(`/api/organizations/${ORG_ID}/employees/${EMPLOYEE_ID}/leave-requests`)
+      .set("Authorization", "Bearer valid-token")
+      .send({ leaveTypeId: LEAVE_TYPE_ID, startDate: "2030-06-18", endDate: "2030-06-20" });
+    expect(onBoundary.status).toBe(201);
   });
 });
 

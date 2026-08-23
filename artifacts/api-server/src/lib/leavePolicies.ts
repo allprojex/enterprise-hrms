@@ -52,6 +52,10 @@ export interface LeavePolicyFields {
   minRequestDurationDays?: string | null;
   maxRequestDurationDays?: string | null;
   noticePeriodDays?: number | null;
+  // Phase 3H, W117 (frozen plan Decision 11) — nullable, defaulting to
+  // unset/calendar-days behavior. See leaveRequests.ts's
+  // resolveEarliestAllowedStartDate for the actual working-day calculation.
+  noticePeriodCountsWorkingDaysOnly?: boolean | null;
   attachmentRequired?: boolean;
   countWeekends?: boolean;
   countPublicHolidays?: boolean;

@@ -28,6 +28,8 @@ const {
   organizationSettingsTable,
   numberingSequencesTable,
   employeeNumberAllocationsTable,
+  performanceReviewsTable,
+  performanceCyclesTable,
 } = vi.hoisted(() => {
   return {
     fixtures: {
@@ -49,6 +51,11 @@ const {
       organizationSettingsRows: [] as Record<string, unknown>[],
       numberingSequenceRows: [] as Record<string, unknown>[],
       employeeNumberAllocationRows: [] as Record<string, unknown>[],
+      // Phase 3H, W117 — flat, pre-joined rows: this mock's innerJoin() is a
+      // no-op passthrough (see the from() builder below), so a row must
+      // already carry both employeeId and cycleType for confirmEmployee's
+      // probationReviewId validation query to see the shape it expects.
+      performanceReviewRows: [] as Record<string, unknown>[],
     },
     usersTable: { __name: "users" },
     sessionsTable: { __name: "sessions" },
@@ -66,6 +73,8 @@ const {
     organizationSettingsTable: { __name: "organization_settings" },
     numberingSequencesTable: { __name: "numbering_sequences" },
     employeeNumberAllocationsTable: { __name: "employee_number_allocations" },
+    performanceReviewsTable: { __name: "performance_reviews" },
+    performanceCyclesTable: { __name: "performance_cycles" },
   };
 });
 
@@ -90,6 +99,8 @@ const dbMock: Record<string, unknown> = {
       else if (table === organizationSettingsTable) rows = fixtures.organizationSettingsRows;
       else if (table === numberingSequencesTable) rows = fixtures.numberingSequenceRows;
       else if (table === employeeNumberAllocationsTable) rows = fixtures.employeeNumberAllocationRows;
+      else if (table === performanceReviewsTable) rows = fixtures.performanceReviewRows;
+      else if (table === performanceCyclesTable) rows = fixtures.performanceReviewRows;
       else rows = fixtures.sessionRows;
 
       const builder = {
@@ -179,6 +190,8 @@ vi.mock("@workspace/db", () => ({
   organizationSettingsTable,
   numberingSequencesTable,
   employeeNumberAllocationsTable,
+  performanceReviewsTable,
+  performanceCyclesTable,
   db: dbMock,
 }));
 
@@ -714,6 +727,7 @@ describe("POST /api/organizations/:organizationId/employees/:employeeId/confirm"
     fixtures.permissionRows = [];
     fixtures.employeeRows = [];
     fixtures.inserted = [];
+    fixtures.performanceReviewRows = [];
   });
 
   it("returns 403 when the membership's role lacks employee.write", async () => {
@@ -776,5 +790,95 @@ describe("POST /api/organizations/:organizationId/employees/:employeeId/confirm"
     expect(fixtures.inserted.find((i) => i.table === "employment_periods")).toBeDefined();
     const auditInsert = fixtures.inserted.find((i) => i.table === "audit_events");
     expect((auditInsert!.values as Record<string, unknown>).eventType).toBe("employment_period.confirmation");
+  });
+
+  it("confirms with a valid probationReviewId and records it in the employment_periods newState (Phase 3H, W117)", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.write"]);
+    fixtures.employeeRows = [
+      { id: 42, organizationId: 10, firstName: "Ada", lastName: "Lovelace", employmentStatus: "probation" },
+    ];
+    fixtures.performanceReviewRows = [{ id: 99, employeeId: 42, organizationId: 10, cycleType: "probation" }];
+
+    const res = await request(app)
+      .post("/api/organizations/10/employees/42/confirm")
+      .set("Authorization", "Bearer valid-token")
+      .send({ effectiveDate: "2026-01-01", probationReviewId: 99 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.employmentStatus).toBe("active");
+    const periodInsert = fixtures.inserted.find((i) => i.table === "employment_periods");
+    expect((periodInsert!.values as Record<string, unknown>).newState).toEqual({ employmentStatus: "active", probationReviewId: 99 });
+  });
+
+  it("returns 400 when probationReviewId does not belong to this employee", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.write"]);
+    fixtures.employeeRows = [
+      { id: 42, organizationId: 10, firstName: "Ada", lastName: "Lovelace", employmentStatus: "probation" },
+    ];
+    fixtures.performanceReviewRows = [{ id: 99, employeeId: 7, organizationId: 10, cycleType: "probation" }];
+
+    const res = await request(app)
+      .post("/api/organizations/10/employees/42/confirm")
+      .set("Authorization", "Bearer valid-token")
+      .send({ effectiveDate: "2026-01-01", probationReviewId: 99 });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when probationReviewId references a non-probation cycle", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.write"]);
+    fixtures.employeeRows = [
+      { id: 42, organizationId: 10, firstName: "Ada", lastName: "Lovelace", employmentStatus: "probation" },
+    ];
+    fixtures.performanceReviewRows = [{ id: 99, employeeId: 42, organizationId: 10, cycleType: "annual" }];
+
+    const res = await request(app)
+      .post("/api/organizations/10/employees/42/confirm")
+      .set("Authorization", "Bearer valid-token")
+      .send({ effectiveDate: "2026-01-01", probationReviewId: 99 });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when probationReviewId does not exist", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.write"]);
+    fixtures.employeeRows = [
+      { id: 42, organizationId: 10, firstName: "Ada", lastName: "Lovelace", employmentStatus: "probation" },
+    ];
+    fixtures.performanceReviewRows = [];
+
+    const res = await request(app)
+      .post("/api/organizations/10/employees/42/confirm")
+      .set("Authorization", "Bearer valid-token")
+      .send({ effectiveDate: "2026-01-01", probationReviewId: 99 });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("confirmation remains a separate, distinct action from probation-review completion (no auto-confirm)", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.write"]);
+    fixtures.employeeRows = [
+      { id: 42, organizationId: 10, firstName: "Ada", lastName: "Lovelace", employmentStatus: "probation" },
+    ];
+    // No probationReviewId supplied at all — confirmation must still succeed
+    // on its own, exactly as it did before W117 (backward compatible).
+    const res = await request(app)
+      .post("/api/organizations/10/employees/42/confirm")
+      .set("Authorization", "Bearer valid-token")
+      .send({ effectiveDate: "2026-01-01" });
+
+    expect(res.status).toBe(200);
+    const periodInsert = fixtures.inserted.find((i) => i.table === "employment_periods");
+    expect((periodInsert!.values as Record<string, unknown>).newState).toEqual({ employmentStatus: "active" });
   });
 });

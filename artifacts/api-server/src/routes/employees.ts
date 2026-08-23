@@ -42,6 +42,7 @@ import {
   EmployeeTransferNoChangeError,
   EmployeePromotionNoChangeError,
   EmployeeNotOnProbationError,
+  InvalidProbationReviewReferenceError,
 } from "../lib/employees";
 import {
   EmployeeNumberReuseDisabledError,
@@ -787,6 +788,7 @@ router.post(
         organizationId: req.membership!.organizationId,
         employeeId,
         effectiveDate: parsed.data.effectiveDate,
+        probationReviewId: parsed.data.probationReviewId,
         actorApplicationUserId: req.userId!,
         actorMembershipId: req.membership!.id,
       });
@@ -798,7 +800,7 @@ router.post(
         res.status(404).json({ error: err.message });
         return;
       }
-      if (err instanceof EmployeeNotOnProbationError) {
+      if (err instanceof EmployeeNotOnProbationError || err instanceof InvalidProbationReviewReferenceError) {
         res.status(400).json({ error: err.message });
         return;
       }

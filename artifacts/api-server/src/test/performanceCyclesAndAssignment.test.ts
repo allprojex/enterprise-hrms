@@ -378,6 +378,7 @@ beforeEach(() => {
     { id: 2, organizationId: ORG_ID, departmentId: 5, positionId: 8, reportingManagerId: null, employmentStatus: "active" },
     { id: 3, organizationId: ORG_ID, departmentId: 6, positionId: 7, reportingManagerId: null, employmentStatus: "terminated" },
     { id: 4, organizationId: OTHER_ORG_ID, departmentId: null, positionId: null, reportingManagerId: null, employmentStatus: "active" },
+    { id: 5, organizationId: ORG_ID, departmentId: 5, positionId: 7, reportingManagerId: 2, employmentStatus: "probation" },
   ];
   state.departmentRows = [{ id: 5, organizationId: ORG_ID, name: "Engineering" }, { id: 6, organizationId: ORG_ID, name: "Sales" }];
   state.positionRows = [{ id: 7, organizationId: ORG_ID, name: "Engineer" }];
@@ -593,6 +594,101 @@ describe("Performance Cycles — generate-reviews (assignment)", () => {
     expect(res.status).toBe(201);
     expect(res.body.reviewsCreated).toBe(1);
     expect(res.body.reviews[0].employeeId).toBe(1);
+  });
+});
+
+describe("Performance Cycles — probation-cycle dedicated assignment path (Phase 3H, W117)", () => {
+  it("accepts a probation-status employee for 'manual' scope ONLY when cycleType is 'probation'", async () => {
+    const create = await request(app)
+      .post(`/api/organizations/${ORG_ID}/performance/cycles`)
+      .set(auth(HR_USER_ID))
+      .send(baseCyclePayload({ cycleType: "probation", applicabilityScope: "manual" }));
+    const res = await request(app)
+      .post(`/api/organizations/${ORG_ID}/performance/cycles/${create.body.id}/generate-reviews`)
+      .set(auth(HR_USER_ID))
+      .send({ employeeIds: [5] });
+    expect(res.status).toBe(201);
+    expect(res.body.reviewsCreated).toBe(1);
+    expect(res.body.reviews[0].employeeId).toBe(5);
+  });
+
+  it("still accepts an active employee for 'manual' scope on a probation cycle (probation is additive, not exclusive)", async () => {
+    const create = await request(app)
+      .post(`/api/organizations/${ORG_ID}/performance/cycles`)
+      .set(auth(HR_USER_ID))
+      .send(baseCyclePayload({ cycleType: "probation", applicabilityScope: "manual" }));
+    const res = await request(app)
+      .post(`/api/organizations/${ORG_ID}/performance/cycles/${create.body.id}/generate-reviews`)
+      .set(auth(HR_USER_ID))
+      .send({ employeeIds: [1, 5] });
+    expect(res.status).toBe(201);
+    expect(res.body.reviewsCreated).toBe(2);
+  });
+
+  it("rejects a probation-status employee for 'manual' scope on a normal (non-probation) cycle", async () => {
+    const create = await request(app)
+      .post(`/api/organizations/${ORG_ID}/performance/cycles`)
+      .set(auth(HR_USER_ID))
+      .send(baseCyclePayload({ cycleType: "annual", applicabilityScope: "manual" }));
+    const res = await request(app)
+      .post(`/api/organizations/${ORG_ID}/performance/cycles/${create.body.id}/generate-reviews`)
+      .set(auth(HR_USER_ID))
+      .send({ employeeIds: [5] });
+    expect(res.status).toBe(400);
+  });
+
+  it("does NOT widen 'all_active' scope to include probation employees, even on a probation-type cycle", async () => {
+    const create = await request(app)
+      .post(`/api/organizations/${ORG_ID}/performance/cycles`)
+      .set(auth(HR_USER_ID))
+      .send(baseCyclePayload({ cycleType: "probation", applicabilityScope: "all_active" }));
+    const res = await request(app)
+      .post(`/api/organizations/${ORG_ID}/performance/cycles/${create.body.id}/generate-reviews`)
+      .set(auth(HR_USER_ID))
+      .send({});
+    expect(res.status).toBe(201);
+    // Only employees 1 and 2 (active) — employee 5 (probation) must NOT be swept in.
+    expect(res.body.reviewsCreated).toBe(2);
+    expect(res.body.reviews.some((r: { employeeId: number }) => r.employeeId === 5)).toBe(false);
+  });
+
+  it("does NOT widen 'department' scope to include probation employees on a probation-type cycle", async () => {
+    const create = await request(app)
+      .post(`/api/organizations/${ORG_ID}/performance/cycles`)
+      .set(auth(HR_USER_ID))
+      .send(baseCyclePayload({ cycleType: "probation", applicabilityScope: "department", applicabilityDepartmentIds: [5] }));
+    const res = await request(app)
+      .post(`/api/organizations/${ORG_ID}/performance/cycles/${create.body.id}/generate-reviews`)
+      .set(auth(HR_USER_ID))
+      .send({});
+    expect(res.status).toBe(201);
+    // Department 5 has employees 1, 2 (active) and 5 (probation) — only 1 and 2 are eligible.
+    expect(res.body.reviewsCreated).toBe(2);
+    expect(res.body.reviews.some((r: { employeeId: number }) => r.employeeId === 5)).toBe(false);
+  });
+
+  it("rejects a cross-organization employee for 'manual' scope on a probation cycle", async () => {
+    const create = await request(app)
+      .post(`/api/organizations/${ORG_ID}/performance/cycles`)
+      .set(auth(HR_USER_ID))
+      .send(baseCyclePayload({ cycleType: "probation", applicabilityScope: "manual" }));
+    const res = await request(app)
+      .post(`/api/organizations/${ORG_ID}/performance/cycles/${create.body.id}/generate-reviews`)
+      .set(auth(HR_USER_ID))
+      .send({ employeeIds: [4] });
+    expect(res.status).toBe(400);
+  });
+
+  it("still rejects a terminated employee for 'manual' scope on a probation cycle", async () => {
+    const create = await request(app)
+      .post(`/api/organizations/${ORG_ID}/performance/cycles`)
+      .set(auth(HR_USER_ID))
+      .send(baseCyclePayload({ cycleType: "probation", applicabilityScope: "manual" }));
+    const res = await request(app)
+      .post(`/api/organizations/${ORG_ID}/performance/cycles/${create.body.id}/generate-reviews`)
+      .set(auth(HR_USER_ID))
+      .send({ employeeIds: [3] });
+    expect(res.status).toBe(400);
   });
 });
 

@@ -64,6 +64,14 @@ export const leavePoliciesTable = pgTable(
     minRequestDurationDays: numeric("min_request_duration_days", { precision: 6, scale: 2 }),
     maxRequestDurationDays: numeric("max_request_duration_days", { precision: 6, scale: 2 }),
     noticePeriodDays: integer("notice_period_days"),
+    // Phase 3H, W117 (frozen plan Decision 11). Nullable, defaulting to unset
+    // — every existing policy's calendar-day notice-period behavior is
+    // completely unchanged until an organization explicitly sets this. When
+    // true, createLeaveRequest's noticePeriodDays hard-block counts only
+    // working days (weekends skipped, organization holidays optionally
+    // skipped via the same resolveHolidayDatesInRange helper Leave already
+    // uses for calculateLeaveDays) rather than calendar days.
+    noticePeriodCountsWorkingDaysOnly: boolean("notice_period_counts_working_days_only"),
     attachmentRequired: boolean("attachment_required").notNull().default(false),
 
     // Day-counting rules (applied server-side by a future workstream, not W32)

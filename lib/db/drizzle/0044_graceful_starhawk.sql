@@ -1,0 +1,1 @@
+ALTER TABLE "leave_policies" ADD COLUMN "notice_period_counts_working_days_only" boolean;

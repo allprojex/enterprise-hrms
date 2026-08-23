@@ -391,6 +391,7 @@ export async function updateCycle(params: UpdatePerformanceCycleParams): Promise
 async function resolveEligibleEmployees(params: {
   organizationId: number;
   scope: ApplicabilityScope;
+  cycleType: string;
   departmentIds: number[] | null;
   positionIds: number[] | null;
   manualEmployeeIds: number[] | undefined;
@@ -409,10 +410,26 @@ async function resolveEligibleEmployees(params: {
     if (missing.length > 0) {
       throw new CrossOrganizationReferenceError(`Employee id(s) ${missing.join(", ")}`);
     }
-    const inactive = rows.filter((r) => r.employmentStatus !== "active");
-    if (inactive.length > 0) {
+
+    // Phase 3H, W117 (frozen plan Decision 13) — the dedicated probation-
+    // assignment path: a narrow, additive branch scoped exclusively to
+    // manual assignment on a cycleType='probation' cycle. Every other
+    // combination (all_active/department/position scopes, or manual
+    // assignment on any non-probation cycle type) keeps the exact
+    // pre-existing "must be active" rule, byte-for-byte unchanged — a
+    // probationary employee is never reachable through any auto-resolved
+    // scope, regardless of cycleType, and never through manual assignment
+    // on a normal cycle either.
+    const isProbationCycle = params.cycleType === "probation";
+    const ineligible = rows.filter((r) => {
+      if (r.employmentStatus === "active") return false;
+      if (isProbationCycle && r.employmentStatus === "probation") return false;
+      return true;
+    });
+    if (ineligible.length > 0) {
+      const requirement = isProbationCycle ? "active, or probation (this is a probation cycle)" : "active";
       throw new InvalidPerformanceReviewAssignmentError(
-        `Employee id(s) ${inactive.map((r) => r.id).join(", ")} are not active and cannot be assigned a review`,
+        `Employee id(s) ${ineligible.map((r) => r.id).join(", ")} are not eligible for assignment (must be ${requirement})`,
       );
     }
     return rows;
@@ -460,6 +477,7 @@ export async function generateReviews(params: GenerateReviewsParams): Promise<Ge
   const eligibleEmployees = await resolveEligibleEmployees({
     organizationId: params.organizationId,
     scope,
+    cycleType: cycle.cycleType,
     departmentIds: cycle.applicabilityDepartmentIds as number[] | null,
     positionIds: cycle.applicabilityPositionIds as number[] | null,
     manualEmployeeIds: params.employeeIds,

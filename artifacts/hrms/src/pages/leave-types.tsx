@@ -88,6 +88,7 @@ function PoliciesPanel({ organizationId, leaveTypeId }: { organizationId: number
   const [attachmentRequired, setAttachmentRequired] = useState(false);
   const [countWeekends, setCountWeekends] = useState(false);
   const [countPublicHolidays, setCountPublicHolidays] = useState(false);
+  const [noticePeriodCountsWorkingDaysOnly, setNoticePeriodCountsWorkingDaysOnly] = useState(false);
   const [allowNegativeBalance, setAllowNegativeBalance] = useState(false);
   const [effectiveFrom, setEffectiveFrom] = useState('');
   const [effectiveTo, setEffectiveTo] = useState('');
@@ -138,6 +139,7 @@ function PoliciesPanel({ organizationId, leaveTypeId }: { organizationId: number
           minRequestDurationDays: minRequestDurationDays ? Number(minRequestDurationDays) : undefined,
           maxRequestDurationDays: maxRequestDurationDays ? Number(maxRequestDurationDays) : undefined,
           noticePeriodDays: noticePeriodDays ? Number(noticePeriodDays) : undefined,
+          noticePeriodCountsWorkingDaysOnly,
           attachmentRequired,
           countWeekends,
           countPublicHolidays,
@@ -328,6 +330,10 @@ function PoliciesPanel({ organizationId, leaveTypeId }: { organizationId: number
                       <Input type="number" min="0" value={noticePeriodDays} onChange={(e) => setNoticePeriodDays(e.target.value)} />
                     </div>
                   </div>
+                  <label className="flex items-center gap-2 text-sm">
+                    <Checkbox checked={noticePeriodCountsWorkingDaysOnly} onCheckedChange={(c) => setNoticePeriodCountsWorkingDaysOnly(c === true)} />
+                    Count notice period in working days only (skip weekends and holidays)
+                  </label>
                   <label className="flex items-center gap-2 text-sm">
                     <Checkbox checked={attachmentRequired} onCheckedChange={(c) => setAttachmentRequired(c === true)} />
                     Require supporting document

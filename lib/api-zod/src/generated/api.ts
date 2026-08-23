@@ -1468,7 +1468,8 @@ export const ConfirmEmployeeParams = zod.object({
 })
 
 export const ConfirmEmployeeBody = zod.object({
-  "effectiveDate": zod.coerce.date()
+  "effectiveDate": zod.coerce.date(),
+  "probationReviewId": zod.number().nullish().describe('Phase 3H, W117. Optional — when supplied, must reference a performance review belonging to this employee and to a cycleType=\'probation\' cycle in this organization. Recorded inside this confirmation\'s own employment_periods.newState (frozen plan Decision 13) — no schema change, no second review engine. Review completion never auto-confirms; this remains HR\'s own deliberate decision.')
 })
 
 export const ConfirmEmployeeResponse = zod.object({
@@ -6940,6 +6941,7 @@ export const ListLeavePoliciesResponseItem = zod.object({
   "minRequestDurationDays": zod.string().nullish(),
   "maxRequestDurationDays": zod.string().nullish(),
   "noticePeriodDays": zod.number().nullish(),
+  "noticePeriodCountsWorkingDaysOnly": zod.boolean().nullish().describe('Phase 3H, W117. Null\/false (the default) means the existing calendar-day notice-period behavior — completely unchanged. True means noticePeriodDays counts only working days (weekends skipped, organization holidays optionally skipped).'),
   "attachmentRequired": zod.boolean(),
   "countWeekends": zod.boolean(),
   "countPublicHolidays": zod.boolean(),
@@ -6984,6 +6986,7 @@ export const CreateLeavePolicyBody = zod.object({
   "minRequestDurationDays": zod.number().optional(),
   "maxRequestDurationDays": zod.number().optional(),
   "noticePeriodDays": zod.number().optional(),
+  "noticePeriodCountsWorkingDaysOnly": zod.boolean().optional(),
   "attachmentRequired": zod.boolean().optional(),
   "countWeekends": zod.boolean().optional(),
   "countPublicHolidays": zod.boolean().optional(),
@@ -7015,6 +7018,7 @@ export const CreateLeavePolicyResponse = zod.object({
   "minRequestDurationDays": zod.string().nullish(),
   "maxRequestDurationDays": zod.string().nullish(),
   "noticePeriodDays": zod.number().nullish(),
+  "noticePeriodCountsWorkingDaysOnly": zod.boolean().nullish().describe('Phase 3H, W117. Null\/false (the default) means the existing calendar-day notice-period behavior — completely unchanged. True means noticePeriodDays counts only working days (weekends skipped, organization holidays optionally skipped).'),
   "attachmentRequired": zod.boolean(),
   "countWeekends": zod.boolean(),
   "countPublicHolidays": zod.boolean(),
@@ -7059,6 +7063,7 @@ export const UpdateLeavePolicyBody = zod.object({
   "minRequestDurationDays": zod.number().nullish(),
   "maxRequestDurationDays": zod.number().nullish(),
   "noticePeriodDays": zod.number().nullish(),
+  "noticePeriodCountsWorkingDaysOnly": zod.boolean().nullish(),
   "attachmentRequired": zod.boolean().optional(),
   "countWeekends": zod.boolean().optional(),
   "countPublicHolidays": zod.boolean().optional(),
@@ -7090,6 +7095,7 @@ export const UpdateLeavePolicyResponse = zod.object({
   "minRequestDurationDays": zod.string().nullish(),
   "maxRequestDurationDays": zod.string().nullish(),
   "noticePeriodDays": zod.number().nullish(),
+  "noticePeriodCountsWorkingDaysOnly": zod.boolean().nullish().describe('Phase 3H, W117. Null\/false (the default) means the existing calendar-day notice-period behavior — completely unchanged. True means noticePeriodDays counts only working days (weekends skipped, organization holidays optionally skipped).'),
   "attachmentRequired": zod.boolean(),
   "countWeekends": zod.boolean(),
   "countPublicHolidays": zod.boolean(),
@@ -7135,6 +7141,7 @@ export const ArchiveLeavePolicyResponse = zod.object({
   "minRequestDurationDays": zod.string().nullish(),
   "maxRequestDurationDays": zod.string().nullish(),
   "noticePeriodDays": zod.number().nullish(),
+  "noticePeriodCountsWorkingDaysOnly": zod.boolean().nullish().describe('Phase 3H, W117. Null\/false (the default) means the existing calendar-day notice-period behavior — completely unchanged. True means noticePeriodDays counts only working days (weekends skipped, organization holidays optionally skipped).'),
   "attachmentRequired": zod.boolean(),
   "countWeekends": zod.boolean(),
   "countPublicHolidays": zod.boolean(),
@@ -7179,6 +7186,7 @@ export const ReactivateLeavePolicyResponse = zod.object({
   "minRequestDurationDays": zod.string().nullish(),
   "maxRequestDurationDays": zod.string().nullish(),
   "noticePeriodDays": zod.number().nullish(),
+  "noticePeriodCountsWorkingDaysOnly": zod.boolean().nullish().describe('Phase 3H, W117. Null\/false (the default) means the existing calendar-day notice-period behavior — completely unchanged. True means noticePeriodDays counts only working days (weekends skipped, organization holidays optionally skipped).'),
   "attachmentRequired": zod.boolean(),
   "countWeekends": zod.boolean(),
   "countPublicHolidays": zod.boolean(),
