@@ -30,6 +30,12 @@ const SYSTEM_ITEMS: Record<string, { code: string; label: string; sortOrder: num
   // A system-wide default item, visible to every organization, matching
   // this file's own established organizationId: null convention.
   document_category: [{ code: "performance_evidence", label: "Performance Evidence", sortOrder: 1 }],
+  // Payroll, Workstream 2 (docs/PAYROLL_IMPLEMENTATION_PLAN.md §D — basic
+  // salary is a distinguished, system-seeded component type, not a second
+  // competing salary source). Deliberately the only default seeded here —
+  // no allowance/deduction is assumed for any organization; each org adds
+  // its own via the existing organization-overridable master-data route.
+  payroll_earning_component_type: [{ code: "basic_salary", label: "Basic Salary", sortOrder: 1 }],
 };
 
 async function main() {

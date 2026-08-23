@@ -12002,3 +12002,307 @@ export const ApprovePayrollStatutoryRuleVersionResponse = zod.object({
 }).describe('Platform-global — not organization-scoped. \"active\"\/\"superseded\" are never stored; a version is in force purely because effectiveFrom has arrived and no later approved version of the same ruleType has superseded it (effectiveTo set).')
 
 
+/**
+ * Gated payroll.compensation.read — never employee.read, never personnel_file.*, never exposed through the generic employee GET/list or ESS/Manager Portal. Returns only currently-open (validTo null) rows; see .../history for the full effective-dated record.
+ * @summary List an employee's currently-open compensation components (Payroll, Workstream 2)
+ */
+export const ListEmployeeCompensationParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const ListEmployeeCompensationResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "category": zod.enum(['earning', 'deduction']),
+  "componentTypeCode": zod.string(),
+  "amount": zod.string(),
+  "currency": zod.string(),
+  "recurring": zod.boolean(),
+  "taxableTreatment": zod.enum(['ordinary', 'benefit_in_kind', 'bonus', 'overtime']),
+  "pensionable": zod.boolean(),
+  "sourceReferenceType": zod.string().nullable(),
+  "sourceReferenceId": zod.number().nullable(),
+  "validFrom": zod.coerce.date(),
+  "validTo": zod.coerce.date().nullable(),
+  "createdByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('employeeId always references employees.id — never a staff\/PIF number, so a reused staff number never carries a former holder\'s compensation to its new holder.')
+export const ListEmployeeCompensationResponse = zod.array(ListEmployeeCompensationResponseItem)
+
+
+/**
+ * Gated payroll.compensation.manage. If an open component already exists for this (employee, category, componentTypeCode), it is closed (validTo set to the new component's validFrom) rather than overwritten — full history is always preserved. Rejected with 409 if the new validFrom does not strictly follow the existing open component's own validFrom, or if a genuine concurrent collision occurs.
+ * @summary Assign a new effective-dated compensation component (Payroll, Workstream 2)
+ */
+export const CreateEmployeeCompensationComponentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const CreateEmployeeCompensationComponentBody = zod.object({
+  "category": zod.enum(['earning', 'deduction']),
+  "componentTypeCode": zod.string(),
+  "amount": zod.string(),
+  "currency": zod.string(),
+  "recurring": zod.boolean().optional(),
+  "taxableTreatment": zod.enum(['ordinary', 'benefit_in_kind', 'bonus', 'overtime']).optional(),
+  "pensionable": zod.boolean().optional(),
+  "sourceReferenceType": zod.string().optional(),
+  "sourceReferenceId": zod.number().optional(),
+  "validFrom": zod.coerce.date()
+})
+
+export const CreateEmployeeCompensationComponentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "category": zod.enum(['earning', 'deduction']),
+  "componentTypeCode": zod.string(),
+  "amount": zod.string(),
+  "currency": zod.string(),
+  "recurring": zod.boolean(),
+  "taxableTreatment": zod.enum(['ordinary', 'benefit_in_kind', 'bonus', 'overtime']),
+  "pensionable": zod.boolean(),
+  "sourceReferenceType": zod.string().nullable(),
+  "sourceReferenceId": zod.number().nullable(),
+  "validFrom": zod.coerce.date(),
+  "validTo": zod.coerce.date().nullable(),
+  "createdByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('employeeId always references employees.id — never a staff\/PIF number, so a reused staff number never carries a former holder\'s compensation to its new holder.')
+
+
+/**
+ * Gated payroll.compensation.read. Optional ?asOf= resolves only the components in force on that date (the same historical-resolution discipline already proven for staff numbers and statutory-rule versions) — omit for the full history, most recent first.
+ * @summary Full effective-dated compensation history for an employee (Payroll, Workstream 2)
+ */
+export const ListEmployeeCompensationHistoryParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const ListEmployeeCompensationHistoryQueryParams = zod.object({
+  "asOf": zod.date().optional()
+})
+
+export const ListEmployeeCompensationHistoryResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "category": zod.enum(['earning', 'deduction']),
+  "componentTypeCode": zod.string(),
+  "amount": zod.string(),
+  "currency": zod.string(),
+  "recurring": zod.boolean(),
+  "taxableTreatment": zod.enum(['ordinary', 'benefit_in_kind', 'bonus', 'overtime']),
+  "pensionable": zod.boolean(),
+  "sourceReferenceType": zod.string().nullable(),
+  "sourceReferenceId": zod.number().nullable(),
+  "validFrom": zod.coerce.date(),
+  "validTo": zod.coerce.date().nullable(),
+  "createdByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('employeeId always references employees.id — never a staff\/PIF number, so a reused staff number never carries a former holder\'s compensation to its new holder.')
+export const ListEmployeeCompensationHistoryResponse = zod.array(ListEmployeeCompensationHistoryResponseItem)
+
+
+/**
+ * Gated payroll.compensation.manage. Sets validTo — never deletes the row.
+ * @summary End an open compensation component with no successor (Payroll, Workstream 2)
+ */
+export const EndEmployeeCompensationComponentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const EndEmployeeCompensationComponentBody = zod.object({
+  "endDate": zod.coerce.date()
+})
+
+export const EndEmployeeCompensationComponentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "category": zod.enum(['earning', 'deduction']),
+  "componentTypeCode": zod.string(),
+  "amount": zod.string(),
+  "currency": zod.string(),
+  "recurring": zod.boolean(),
+  "taxableTreatment": zod.enum(['ordinary', 'benefit_in_kind', 'bonus', 'overtime']),
+  "pensionable": zod.boolean(),
+  "sourceReferenceType": zod.string().nullable(),
+  "sourceReferenceId": zod.number().nullable(),
+  "validFrom": zod.coerce.date(),
+  "validTo": zod.coerce.date().nullable(),
+  "createdByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('employeeId always references employees.id — never a staff\/PIF number, so a reused staff number never carries a former holder\'s compensation to its new holder.')
+
+
+/**
+ * Gated payroll.banking.read — narrower than payroll.compensation.read by design. Reads of this route are audit-logged (frozen plan Decision 9), a deliberate exception to the platform's usual read-silence convention.
+ * @summary Get an employee's current banking details (Payroll, Workstream 2)
+ */
+export const GetEmployeeBankingDetailParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const GetEmployeeBankingDetailResponse = zod.union([zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "bankCode": zod.string(),
+  "accountNumber": zod.string(),
+  "accountName": zod.string(),
+  "branch": zod.string().nullable(),
+  "validFrom": zod.coerce.date(),
+  "validTo": zod.coerce.date().nullable(),
+  "createdByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),zod.null()])
+
+
+/**
+ * Gated payroll.banking.manage. Closes any existing open record rather than overwriting it.
+ * @summary Set an employee's banking details, effective-dated (Payroll, Workstream 2)
+ */
+export const CreateEmployeeBankingDetailParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const CreateEmployeeBankingDetailBody = zod.object({
+  "bankCode": zod.string(),
+  "accountNumber": zod.string(),
+  "accountName": zod.string(),
+  "branch": zod.string().optional(),
+  "validFrom": zod.coerce.date()
+})
+
+export const CreateEmployeeBankingDetailResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "bankCode": zod.string(),
+  "accountNumber": zod.string(),
+  "accountName": zod.string(),
+  "branch": zod.string().nullable(),
+  "validFrom": zod.coerce.date(),
+  "validTo": zod.coerce.date().nullable(),
+  "createdByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Gated payroll.banking.read. Read-audited, same as the current-detail route.
+ * @summary Full banking-detail history for an employee (Payroll, Workstream 2)
+ */
+export const ListEmployeeBankingHistoryParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const ListEmployeeBankingHistoryResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "bankCode": zod.string(),
+  "accountNumber": zod.string(),
+  "accountName": zod.string(),
+  "branch": zod.string().nullable(),
+  "validFrom": zod.coerce.date(),
+  "validTo": zod.coerce.date().nullable(),
+  "createdByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListEmployeeBankingHistoryResponse = zod.array(ListEmployeeBankingHistoryResponseItem)
+
+
+/**
+ * Gated payroll.statutory_identifiers.read. Reads are audit-logged (frozen plan Decision 9).
+ * @summary Get an employee's current statutory identifiers (SSNIT/TIN) (Payroll, Workstream 2)
+ */
+export const GetEmployeeStatutoryIdentifierParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const GetEmployeeStatutoryIdentifierResponse = zod.union([zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "ssnitNumber": zod.string().nullable(),
+  "tin": zod.string().nullable(),
+  "validFrom": zod.coerce.date(),
+  "validTo": zod.coerce.date().nullable(),
+  "createdByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),zod.null()])
+
+
+/**
+ * Gated payroll.statutory_identifiers.manage. Closes any existing open record rather than overwriting it.
+ * @summary Set an employee's statutory identifiers, effective-dated (Payroll, Workstream 2)
+ */
+export const CreateEmployeeStatutoryIdentifierParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const CreateEmployeeStatutoryIdentifierBody = zod.object({
+  "ssnitNumber": zod.string().optional(),
+  "tin": zod.string().optional(),
+  "validFrom": zod.coerce.date()
+})
+
+export const CreateEmployeeStatutoryIdentifierResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "ssnitNumber": zod.string().nullable(),
+  "tin": zod.string().nullable(),
+  "validFrom": zod.coerce.date(),
+  "validTo": zod.coerce.date().nullable(),
+  "createdByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Gated payroll.statutory_identifiers.read. Read-audited, same as the current-record route.
+ * @summary Full statutory-identifier history for an employee (Payroll, Workstream 2)
+ */
+export const ListEmployeeStatutoryIdentifierHistoryParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const ListEmployeeStatutoryIdentifierHistoryResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "ssnitNumber": zod.string().nullable(),
+  "tin": zod.string().nullable(),
+  "validFrom": zod.coerce.date(),
+  "validTo": zod.coerce.date().nullable(),
+  "createdByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListEmployeeStatutoryIdentifierHistoryResponse = zod.array(ListEmployeeStatutoryIdentifierHistoryResponseItem)
+
+

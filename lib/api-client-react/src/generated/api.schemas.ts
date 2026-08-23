@@ -4761,6 +4761,131 @@ export interface CreatePayrollStatutoryRuleVersionBody {
   pensionEarningsCeiling?: CreatePayrollPensionEarningsCeilingInput;
 }
 
+export type EmployeeCompensationComponentCategory = typeof EmployeeCompensationComponentCategory[keyof typeof EmployeeCompensationComponentCategory];
+
+
+export const EmployeeCompensationComponentCategory = {
+  earning: 'earning',
+  deduction: 'deduction',
+} as const;
+
+export type EmployeeCompensationComponentTaxableTreatment = typeof EmployeeCompensationComponentTaxableTreatment[keyof typeof EmployeeCompensationComponentTaxableTreatment];
+
+
+export const EmployeeCompensationComponentTaxableTreatment = {
+  ordinary: 'ordinary',
+  benefit_in_kind: 'benefit_in_kind',
+  bonus: 'bonus',
+  overtime: 'overtime',
+} as const;
+
+/**
+ * employeeId always references employees.id — never a staff/PIF number, so a reused staff number never carries a former holder's compensation to its new holder.
+ */
+export interface EmployeeCompensationComponent {
+  id: number;
+  organizationId: number;
+  employeeId: number;
+  category: EmployeeCompensationComponentCategory;
+  componentTypeCode: string;
+  amount: string;
+  currency: string;
+  recurring: boolean;
+  taxableTreatment: EmployeeCompensationComponentTaxableTreatment;
+  pensionable: boolean;
+  /** @nullable */
+  sourceReferenceType: string | null;
+  /** @nullable */
+  sourceReferenceId: number | null;
+  validFrom: string;
+  /** @nullable */
+  validTo: string | null;
+  /** @nullable */
+  createdByMembershipId: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CreateEmployeeCompensationComponentBodyCategory = typeof CreateEmployeeCompensationComponentBodyCategory[keyof typeof CreateEmployeeCompensationComponentBodyCategory];
+
+
+export const CreateEmployeeCompensationComponentBodyCategory = {
+  earning: 'earning',
+  deduction: 'deduction',
+} as const;
+
+export type CreateEmployeeCompensationComponentBodyTaxableTreatment = typeof CreateEmployeeCompensationComponentBodyTaxableTreatment[keyof typeof CreateEmployeeCompensationComponentBodyTaxableTreatment];
+
+
+export const CreateEmployeeCompensationComponentBodyTaxableTreatment = {
+  ordinary: 'ordinary',
+  benefit_in_kind: 'benefit_in_kind',
+  bonus: 'bonus',
+  overtime: 'overtime',
+} as const;
+
+export interface CreateEmployeeCompensationComponentBody {
+  category: CreateEmployeeCompensationComponentBodyCategory;
+  componentTypeCode: string;
+  amount: string;
+  currency: string;
+  recurring?: boolean;
+  taxableTreatment?: CreateEmployeeCompensationComponentBodyTaxableTreatment;
+  pensionable?: boolean;
+  sourceReferenceType?: string;
+  sourceReferenceId?: number;
+  validFrom: string;
+}
+
+export interface EmployeeBankingDetail {
+  id: number;
+  organizationId: number;
+  employeeId: number;
+  bankCode: string;
+  accountNumber: string;
+  accountName: string;
+  /** @nullable */
+  branch: string | null;
+  validFrom: string;
+  /** @nullable */
+  validTo: string | null;
+  /** @nullable */
+  createdByMembershipId: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateEmployeeBankingDetailBody {
+  bankCode: string;
+  accountNumber: string;
+  accountName: string;
+  branch?: string;
+  validFrom: string;
+}
+
+export interface EmployeeStatutoryIdentifier {
+  id: number;
+  organizationId: number;
+  employeeId: number;
+  /** @nullable */
+  ssnitNumber: string | null;
+  /** @nullable */
+  tin: string | null;
+  validFrom: string;
+  /** @nullable */
+  validTo: string | null;
+  /** @nullable */
+  createdByMembershipId: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateEmployeeStatutoryIdentifierBody {
+  ssnitNumber?: string;
+  tin?: string;
+  validFrom: string;
+}
+
 export type RecruitmentStageBreakdownItemCategory = typeof RecruitmentStageBreakdownItemCategory[keyof typeof RecruitmentStageBreakdownItemCategory];
 
 
@@ -7141,4 +7266,12 @@ export const ListPayrollStatutoryRuleVersionsRuleType = {
   pension_rates: 'pension_rates',
   pension_earnings_ceiling: 'pension_earnings_ceiling',
 } as const;
+
+export type ListEmployeeCompensationHistoryParams = {
+asOf?: string;
+};
+
+export type EndEmployeeCompensationComponentBody = {
+  endDate: string;
+};
 

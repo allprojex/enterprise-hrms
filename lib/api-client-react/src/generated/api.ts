@@ -83,7 +83,10 @@ import type {
   CreateBranchInput,
   CreateCandidateNoteInput,
   CreateDepartmentInput,
+  CreateEmployeeBankingDetailBody,
+  CreateEmployeeCompensationComponentBody,
   CreateEmployeeInput,
+  CreateEmployeeStatutoryIdentifierBody,
   CreateInvitationInput,
   CreateJobRequisitionInput,
   CreateLearningCourseInput,
@@ -115,7 +118,9 @@ import type {
   Department,
   DismissAssetIncidentInput,
   Employee,
+  EmployeeBankingDetail,
   EmployeeCertification,
+  EmployeeCompensationComponent,
   EmployeeDisciplinaryRecord,
   EmployeeDocument,
   EmployeeExitProcess,
@@ -124,7 +129,9 @@ import type {
   EmployeeNumberAllocationResult,
   EmployeeQualification,
   EmployeeSkill,
+  EmployeeStatutoryIdentifier,
   EmploymentPeriodSummary,
+  EndEmployeeCompensationComponentBody,
   FinalizePerformanceReviewInput,
   ForgotPasswordInput,
   GeneratePerformanceReviewsInput,
@@ -165,6 +172,7 @@ import type {
   ListAttendanceRegisterParams,
   ListAuditEventsParams,
   ListCandidatesParams,
+  ListEmployeeCompensationHistoryParams,
   ListEmployeesParams,
   ListInterviewsParams,
   ListJobRequisitionsParams,
@@ -28745,4 +28753,816 @@ export const useApprovePayrollStatutoryRuleVersion = <TError = ErrorType<ApiErro
       > => {
       return useMutation(getApprovePayrollStatutoryRuleVersionMutationOptions(options));
     }
+
+export const getListEmployeeCompensationUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/payroll/compensation`
+}
+
+/**
+ * Gated payroll.compensation.read — never employee.read, never personnel_file.*, never exposed through the generic employee GET/list or ESS/Manager Portal. Returns only currently-open (validTo null) rows; see .../history for the full effective-dated record.
+ * @summary List an employee's currently-open compensation components (Payroll, Workstream 2)
+ */
+export const listEmployeeCompensation = async (organizationId: number,
+    employeeId: number, options?: RequestInit): Promise<EmployeeCompensationComponent[]> => {
+
+  return customFetch<EmployeeCompensationComponent[]>(getListEmployeeCompensationUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListEmployeeCompensationQueryKey = (organizationId: number,
+    employeeId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/employees/${employeeId}/payroll/compensation`
+    ] as const;
+    }
+
+
+export const getListEmployeeCompensationQueryOptions = <TData = Awaited<ReturnType<typeof listEmployeeCompensation>>, TError = ErrorType<ApiError>>(organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmployeeCompensation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListEmployeeCompensationQueryKey(organizationId,employeeId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEmployeeCompensation>>> = ({ signal }) => listEmployeeCompensation(organizationId,employeeId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && employeeId !== null && employeeId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEmployeeCompensation>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListEmployeeCompensationQueryResult = NonNullable<Awaited<ReturnType<typeof listEmployeeCompensation>>>
+export type ListEmployeeCompensationQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List an employee's currently-open compensation components (Payroll, Workstream 2)
+ */
+
+export function useListEmployeeCompensation<TData = Awaited<ReturnType<typeof listEmployeeCompensation>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmployeeCompensation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListEmployeeCompensationQueryOptions(organizationId,employeeId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateEmployeeCompensationComponentUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/payroll/compensation`
+}
+
+/**
+ * Gated payroll.compensation.manage. If an open component already exists for this (employee, category, componentTypeCode), it is closed (validTo set to the new component's validFrom) rather than overwritten — full history is always preserved. Rejected with 409 if the new validFrom does not strictly follow the existing open component's own validFrom, or if a genuine concurrent collision occurs.
+ * @summary Assign a new effective-dated compensation component (Payroll, Workstream 2)
+ */
+export const createEmployeeCompensationComponent = async (organizationId: number,
+    employeeId: number,
+    createEmployeeCompensationComponentBody: CreateEmployeeCompensationComponentBody, options?: RequestInit): Promise<EmployeeCompensationComponent> => {
+
+  return customFetch<EmployeeCompensationComponent>(getCreateEmployeeCompensationComponentUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createEmployeeCompensationComponentBody)
+  }
+);}
+
+
+
+
+
+export const getCreateEmployeeCompensationComponentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createEmployeeCompensationComponent>>, TError,{organizationId: number;employeeId: number;data: BodyType<CreateEmployeeCompensationComponentBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createEmployeeCompensationComponent>>, TError,{organizationId: number;employeeId: number;data: BodyType<CreateEmployeeCompensationComponentBody>}, TContext> => {
+
+const mutationKey = ['createEmployeeCompensationComponent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createEmployeeCompensationComponent>>, {organizationId: number;employeeId: number;data: BodyType<CreateEmployeeCompensationComponentBody>}> = (props) => {
+          const {organizationId,employeeId,data} = props ?? {};
+
+          return  createEmployeeCompensationComponent(organizationId,employeeId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateEmployeeCompensationComponentMutationResult = NonNullable<Awaited<ReturnType<typeof createEmployeeCompensationComponent>>>
+    export type CreateEmployeeCompensationComponentMutationBody = BodyType<CreateEmployeeCompensationComponentBody>
+    export type CreateEmployeeCompensationComponentMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Assign a new effective-dated compensation component (Payroll, Workstream 2)
+ */
+export const useCreateEmployeeCompensationComponent = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createEmployeeCompensationComponent>>, TError,{organizationId: number;employeeId: number;data: BodyType<CreateEmployeeCompensationComponentBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createEmployeeCompensationComponent>>,
+        TError,
+        {organizationId: number;employeeId: number;data: BodyType<CreateEmployeeCompensationComponentBody>},
+        TContext
+      > => {
+      return useMutation(getCreateEmployeeCompensationComponentMutationOptions(options));
+    }
+
+export const getListEmployeeCompensationHistoryUrl = (organizationId: number,
+    employeeId: number,
+    params?: ListEmployeeCompensationHistoryParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/employees/${employeeId}/payroll/compensation/history?${stringifiedParams}` : `/api/organizations/${organizationId}/employees/${employeeId}/payroll/compensation/history`
+}
+
+/**
+ * Gated payroll.compensation.read. Optional ?asOf= resolves only the components in force on that date (the same historical-resolution discipline already proven for staff numbers and statutory-rule versions) — omit for the full history, most recent first.
+ * @summary Full effective-dated compensation history for an employee (Payroll, Workstream 2)
+ */
+export const listEmployeeCompensationHistory = async (organizationId: number,
+    employeeId: number,
+    params?: ListEmployeeCompensationHistoryParams, options?: RequestInit): Promise<EmployeeCompensationComponent[]> => {
+
+  return customFetch<EmployeeCompensationComponent[]>(getListEmployeeCompensationHistoryUrl(organizationId,employeeId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListEmployeeCompensationHistoryQueryKey = (organizationId: number,
+    employeeId: number,
+    params?: ListEmployeeCompensationHistoryParams,) => {
+    return [
+    `/api/organizations/${organizationId}/employees/${employeeId}/payroll/compensation/history`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListEmployeeCompensationHistoryQueryOptions = <TData = Awaited<ReturnType<typeof listEmployeeCompensationHistory>>, TError = ErrorType<ApiError>>(organizationId: number,
+    employeeId: number,
+    params?: ListEmployeeCompensationHistoryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmployeeCompensationHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListEmployeeCompensationHistoryQueryKey(organizationId,employeeId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEmployeeCompensationHistory>>> = ({ signal }) => listEmployeeCompensationHistory(organizationId,employeeId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && employeeId !== null && employeeId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEmployeeCompensationHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListEmployeeCompensationHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof listEmployeeCompensationHistory>>>
+export type ListEmployeeCompensationHistoryQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Full effective-dated compensation history for an employee (Payroll, Workstream 2)
+ */
+
+export function useListEmployeeCompensationHistory<TData = Awaited<ReturnType<typeof listEmployeeCompensationHistory>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    employeeId: number,
+    params?: ListEmployeeCompensationHistoryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmployeeCompensationHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListEmployeeCompensationHistoryQueryOptions(organizationId,employeeId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getEndEmployeeCompensationComponentUrl = (organizationId: number,
+    employeeId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/payroll/compensation/${id}/end`
+}
+
+/**
+ * Gated payroll.compensation.manage. Sets validTo — never deletes the row.
+ * @summary End an open compensation component with no successor (Payroll, Workstream 2)
+ */
+export const endEmployeeCompensationComponent = async (organizationId: number,
+    employeeId: number,
+    id: number,
+    endEmployeeCompensationComponentBody: EndEmployeeCompensationComponentBody, options?: RequestInit): Promise<EmployeeCompensationComponent> => {
+
+  return customFetch<EmployeeCompensationComponent>(getEndEmployeeCompensationComponentUrl(organizationId,employeeId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(endEmployeeCompensationComponentBody)
+  }
+);}
+
+
+
+
+
+export const getEndEmployeeCompensationComponentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endEmployeeCompensationComponent>>, TError,{organizationId: number;employeeId: number;id: number;data: BodyType<EndEmployeeCompensationComponentBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof endEmployeeCompensationComponent>>, TError,{organizationId: number;employeeId: number;id: number;data: BodyType<EndEmployeeCompensationComponentBody>}, TContext> => {
+
+const mutationKey = ['endEmployeeCompensationComponent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof endEmployeeCompensationComponent>>, {organizationId: number;employeeId: number;id: number;data: BodyType<EndEmployeeCompensationComponentBody>}> = (props) => {
+          const {organizationId,employeeId,id,data} = props ?? {};
+
+          return  endEmployeeCompensationComponent(organizationId,employeeId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EndEmployeeCompensationComponentMutationResult = NonNullable<Awaited<ReturnType<typeof endEmployeeCompensationComponent>>>
+    export type EndEmployeeCompensationComponentMutationBody = BodyType<EndEmployeeCompensationComponentBody>
+    export type EndEmployeeCompensationComponentMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary End an open compensation component with no successor (Payroll, Workstream 2)
+ */
+export const useEndEmployeeCompensationComponent = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endEmployeeCompensationComponent>>, TError,{organizationId: number;employeeId: number;id: number;data: BodyType<EndEmployeeCompensationComponentBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof endEmployeeCompensationComponent>>,
+        TError,
+        {organizationId: number;employeeId: number;id: number;data: BodyType<EndEmployeeCompensationComponentBody>},
+        TContext
+      > => {
+      return useMutation(getEndEmployeeCompensationComponentMutationOptions(options));
+    }
+
+export const getGetEmployeeBankingDetailUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/payroll/banking`
+}
+
+/**
+ * Gated payroll.banking.read — narrower than payroll.compensation.read by design. Reads of this route are audit-logged (frozen plan Decision 9), a deliberate exception to the platform's usual read-silence convention.
+ * @summary Get an employee's current banking details (Payroll, Workstream 2)
+ */
+export const getEmployeeBankingDetail = async (organizationId: number,
+    employeeId: number, options?: RequestInit): Promise<EmployeeBankingDetail | null> => {
+
+  return customFetch<EmployeeBankingDetail | null>(getGetEmployeeBankingDetailUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetEmployeeBankingDetailQueryKey = (organizationId: number,
+    employeeId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/employees/${employeeId}/payroll/banking`
+    ] as const;
+    }
+
+
+export const getGetEmployeeBankingDetailQueryOptions = <TData = Awaited<ReturnType<typeof getEmployeeBankingDetail>>, TError = ErrorType<ApiError>>(organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmployeeBankingDetail>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetEmployeeBankingDetailQueryKey(organizationId,employeeId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEmployeeBankingDetail>>> = ({ signal }) => getEmployeeBankingDetail(organizationId,employeeId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && employeeId !== null && employeeId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getEmployeeBankingDetail>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetEmployeeBankingDetailQueryResult = NonNullable<Awaited<ReturnType<typeof getEmployeeBankingDetail>>>
+export type GetEmployeeBankingDetailQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get an employee's current banking details (Payroll, Workstream 2)
+ */
+
+export function useGetEmployeeBankingDetail<TData = Awaited<ReturnType<typeof getEmployeeBankingDetail>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmployeeBankingDetail>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetEmployeeBankingDetailQueryOptions(organizationId,employeeId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateEmployeeBankingDetailUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/payroll/banking`
+}
+
+/**
+ * Gated payroll.banking.manage. Closes any existing open record rather than overwriting it.
+ * @summary Set an employee's banking details, effective-dated (Payroll, Workstream 2)
+ */
+export const createEmployeeBankingDetail = async (organizationId: number,
+    employeeId: number,
+    createEmployeeBankingDetailBody: CreateEmployeeBankingDetailBody, options?: RequestInit): Promise<EmployeeBankingDetail> => {
+
+  return customFetch<EmployeeBankingDetail>(getCreateEmployeeBankingDetailUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createEmployeeBankingDetailBody)
+  }
+);}
+
+
+
+
+
+export const getCreateEmployeeBankingDetailMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createEmployeeBankingDetail>>, TError,{organizationId: number;employeeId: number;data: BodyType<CreateEmployeeBankingDetailBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createEmployeeBankingDetail>>, TError,{organizationId: number;employeeId: number;data: BodyType<CreateEmployeeBankingDetailBody>}, TContext> => {
+
+const mutationKey = ['createEmployeeBankingDetail'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createEmployeeBankingDetail>>, {organizationId: number;employeeId: number;data: BodyType<CreateEmployeeBankingDetailBody>}> = (props) => {
+          const {organizationId,employeeId,data} = props ?? {};
+
+          return  createEmployeeBankingDetail(organizationId,employeeId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateEmployeeBankingDetailMutationResult = NonNullable<Awaited<ReturnType<typeof createEmployeeBankingDetail>>>
+    export type CreateEmployeeBankingDetailMutationBody = BodyType<CreateEmployeeBankingDetailBody>
+    export type CreateEmployeeBankingDetailMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Set an employee's banking details, effective-dated (Payroll, Workstream 2)
+ */
+export const useCreateEmployeeBankingDetail = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createEmployeeBankingDetail>>, TError,{organizationId: number;employeeId: number;data: BodyType<CreateEmployeeBankingDetailBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createEmployeeBankingDetail>>,
+        TError,
+        {organizationId: number;employeeId: number;data: BodyType<CreateEmployeeBankingDetailBody>},
+        TContext
+      > => {
+      return useMutation(getCreateEmployeeBankingDetailMutationOptions(options));
+    }
+
+export const getListEmployeeBankingHistoryUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/payroll/banking/history`
+}
+
+/**
+ * Gated payroll.banking.read. Read-audited, same as the current-detail route.
+ * @summary Full banking-detail history for an employee (Payroll, Workstream 2)
+ */
+export const listEmployeeBankingHistory = async (organizationId: number,
+    employeeId: number, options?: RequestInit): Promise<EmployeeBankingDetail[]> => {
+
+  return customFetch<EmployeeBankingDetail[]>(getListEmployeeBankingHistoryUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListEmployeeBankingHistoryQueryKey = (organizationId: number,
+    employeeId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/employees/${employeeId}/payroll/banking/history`
+    ] as const;
+    }
+
+
+export const getListEmployeeBankingHistoryQueryOptions = <TData = Awaited<ReturnType<typeof listEmployeeBankingHistory>>, TError = ErrorType<ApiError>>(organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmployeeBankingHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListEmployeeBankingHistoryQueryKey(organizationId,employeeId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEmployeeBankingHistory>>> = ({ signal }) => listEmployeeBankingHistory(organizationId,employeeId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && employeeId !== null && employeeId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEmployeeBankingHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListEmployeeBankingHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof listEmployeeBankingHistory>>>
+export type ListEmployeeBankingHistoryQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Full banking-detail history for an employee (Payroll, Workstream 2)
+ */
+
+export function useListEmployeeBankingHistory<TData = Awaited<ReturnType<typeof listEmployeeBankingHistory>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmployeeBankingHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListEmployeeBankingHistoryQueryOptions(organizationId,employeeId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetEmployeeStatutoryIdentifierUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/payroll/statutory-identifiers`
+}
+
+/**
+ * Gated payroll.statutory_identifiers.read. Reads are audit-logged (frozen plan Decision 9).
+ * @summary Get an employee's current statutory identifiers (SSNIT/TIN) (Payroll, Workstream 2)
+ */
+export const getEmployeeStatutoryIdentifier = async (organizationId: number,
+    employeeId: number, options?: RequestInit): Promise<EmployeeStatutoryIdentifier | null> => {
+
+  return customFetch<EmployeeStatutoryIdentifier | null>(getGetEmployeeStatutoryIdentifierUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetEmployeeStatutoryIdentifierQueryKey = (organizationId: number,
+    employeeId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/employees/${employeeId}/payroll/statutory-identifiers`
+    ] as const;
+    }
+
+
+export const getGetEmployeeStatutoryIdentifierQueryOptions = <TData = Awaited<ReturnType<typeof getEmployeeStatutoryIdentifier>>, TError = ErrorType<ApiError>>(organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmployeeStatutoryIdentifier>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetEmployeeStatutoryIdentifierQueryKey(organizationId,employeeId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEmployeeStatutoryIdentifier>>> = ({ signal }) => getEmployeeStatutoryIdentifier(organizationId,employeeId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && employeeId !== null && employeeId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getEmployeeStatutoryIdentifier>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetEmployeeStatutoryIdentifierQueryResult = NonNullable<Awaited<ReturnType<typeof getEmployeeStatutoryIdentifier>>>
+export type GetEmployeeStatutoryIdentifierQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get an employee's current statutory identifiers (SSNIT/TIN) (Payroll, Workstream 2)
+ */
+
+export function useGetEmployeeStatutoryIdentifier<TData = Awaited<ReturnType<typeof getEmployeeStatutoryIdentifier>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmployeeStatutoryIdentifier>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetEmployeeStatutoryIdentifierQueryOptions(organizationId,employeeId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateEmployeeStatutoryIdentifierUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/payroll/statutory-identifiers`
+}
+
+/**
+ * Gated payroll.statutory_identifiers.manage. Closes any existing open record rather than overwriting it.
+ * @summary Set an employee's statutory identifiers, effective-dated (Payroll, Workstream 2)
+ */
+export const createEmployeeStatutoryIdentifier = async (organizationId: number,
+    employeeId: number,
+    createEmployeeStatutoryIdentifierBody: CreateEmployeeStatutoryIdentifierBody, options?: RequestInit): Promise<EmployeeStatutoryIdentifier> => {
+
+  return customFetch<EmployeeStatutoryIdentifier>(getCreateEmployeeStatutoryIdentifierUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createEmployeeStatutoryIdentifierBody)
+  }
+);}
+
+
+
+
+
+export const getCreateEmployeeStatutoryIdentifierMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createEmployeeStatutoryIdentifier>>, TError,{organizationId: number;employeeId: number;data: BodyType<CreateEmployeeStatutoryIdentifierBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createEmployeeStatutoryIdentifier>>, TError,{organizationId: number;employeeId: number;data: BodyType<CreateEmployeeStatutoryIdentifierBody>}, TContext> => {
+
+const mutationKey = ['createEmployeeStatutoryIdentifier'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createEmployeeStatutoryIdentifier>>, {organizationId: number;employeeId: number;data: BodyType<CreateEmployeeStatutoryIdentifierBody>}> = (props) => {
+          const {organizationId,employeeId,data} = props ?? {};
+
+          return  createEmployeeStatutoryIdentifier(organizationId,employeeId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateEmployeeStatutoryIdentifierMutationResult = NonNullable<Awaited<ReturnType<typeof createEmployeeStatutoryIdentifier>>>
+    export type CreateEmployeeStatutoryIdentifierMutationBody = BodyType<CreateEmployeeStatutoryIdentifierBody>
+    export type CreateEmployeeStatutoryIdentifierMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Set an employee's statutory identifiers, effective-dated (Payroll, Workstream 2)
+ */
+export const useCreateEmployeeStatutoryIdentifier = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createEmployeeStatutoryIdentifier>>, TError,{organizationId: number;employeeId: number;data: BodyType<CreateEmployeeStatutoryIdentifierBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createEmployeeStatutoryIdentifier>>,
+        TError,
+        {organizationId: number;employeeId: number;data: BodyType<CreateEmployeeStatutoryIdentifierBody>},
+        TContext
+      > => {
+      return useMutation(getCreateEmployeeStatutoryIdentifierMutationOptions(options));
+    }
+
+export const getListEmployeeStatutoryIdentifierHistoryUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/payroll/statutory-identifiers/history`
+}
+
+/**
+ * Gated payroll.statutory_identifiers.read. Read-audited, same as the current-record route.
+ * @summary Full statutory-identifier history for an employee (Payroll, Workstream 2)
+ */
+export const listEmployeeStatutoryIdentifierHistory = async (organizationId: number,
+    employeeId: number, options?: RequestInit): Promise<EmployeeStatutoryIdentifier[]> => {
+
+  return customFetch<EmployeeStatutoryIdentifier[]>(getListEmployeeStatutoryIdentifierHistoryUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListEmployeeStatutoryIdentifierHistoryQueryKey = (organizationId: number,
+    employeeId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/employees/${employeeId}/payroll/statutory-identifiers/history`
+    ] as const;
+    }
+
+
+export const getListEmployeeStatutoryIdentifierHistoryQueryOptions = <TData = Awaited<ReturnType<typeof listEmployeeStatutoryIdentifierHistory>>, TError = ErrorType<ApiError>>(organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmployeeStatutoryIdentifierHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListEmployeeStatutoryIdentifierHistoryQueryKey(organizationId,employeeId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEmployeeStatutoryIdentifierHistory>>> = ({ signal }) => listEmployeeStatutoryIdentifierHistory(organizationId,employeeId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && employeeId !== null && employeeId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEmployeeStatutoryIdentifierHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListEmployeeStatutoryIdentifierHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof listEmployeeStatutoryIdentifierHistory>>>
+export type ListEmployeeStatutoryIdentifierHistoryQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Full statutory-identifier history for an employee (Payroll, Workstream 2)
+ */
+
+export function useListEmployeeStatutoryIdentifierHistory<TData = Awaited<ReturnType<typeof listEmployeeStatutoryIdentifierHistory>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmployeeStatutoryIdentifierHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListEmployeeStatutoryIdentifierHistoryQueryOptions(organizationId,employeeId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 

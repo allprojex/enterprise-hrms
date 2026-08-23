@@ -33,6 +33,7 @@ import AttendanceDashboard from '@/pages/attendance-dashboard';
 import AttendanceReports from '@/pages/attendance-reports';
 import PerformanceRatingScales from '@/pages/performance-rating-scales';
 import PayrollStatutoryRules from '@/pages/payroll-statutory-rules';
+import PayrollEmployeeCompensation from '@/pages/payroll-employee-compensation';
 import PerformanceTemplates from '@/pages/performance-templates';
 import PerformanceCycles from '@/pages/performance-cycles';
 import PerformanceTeam from '@/pages/performance-team';
@@ -187,6 +188,9 @@ function Router() {
       </Route>
       <Route path="/payroll-statutory-rules">
         {() => <SecureRoute component={PayrollStatutoryRules} moduleKey="payroll" />}
+      </Route>
+      <Route path="/payroll-employee-compensation">
+        {() => <SecureRoute component={PayrollEmployeeCompensation} moduleKey="payroll" />}
       </Route>
       <Route path="/performance-templates">
         {() => <SecureRoute component={PerformanceTemplates} moduleKey="performance" />}

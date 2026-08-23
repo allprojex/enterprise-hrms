@@ -97,3 +97,6 @@ export * from "./payroll-statutory-rule-versions";
 export * from "./payroll-paye-bands";
 export * from "./payroll-pension-rates";
 export * from "./payroll-pension-earnings-ceiling";
+export * from "./employee-compensation-components";
+export * from "./employee-banking-details";
+export * from "./employee-statutory-identifiers";

@@ -14722,6 +14722,477 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/employees/{employeeId}/payroll/compensation:
+    get:
+      operationId: listEmployeeCompensation
+      tags: [payroll-compensation]
+      summary: List an employee's currently-open compensation components (Payroll, Workstream 2)
+      description: >-
+        Gated payroll.compensation.read — never employee.read, never
+        personnel_file.*, never exposed through the generic employee GET/list
+        or ESS/Manager Portal. Returns only currently-open (validTo null)
+        rows; see .../history for the full effective-dated record.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Currently-open compensation components
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmployeeCompensationComponent"
+        "403":
+          description: Forbidden — requires payroll.compensation.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Employee not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createEmployeeCompensationComponent
+      tags: [payroll-compensation]
+      summary: Assign a new effective-dated compensation component (Payroll, Workstream 2)
+      description: >-
+        Gated payroll.compensation.manage. If an open component already
+        exists for this (employee, category, componentTypeCode), it is
+        closed (validTo set to the new component's validFrom) rather than
+        overwritten — full history is always preserved. Rejected with 409 if
+        the new validFrom does not strictly follow the existing open
+        component's own validFrom, or if a genuine concurrent collision
+        occurs.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEmployeeCompensationComponentBody"
+      responses:
+        "201":
+          description: Created compensation component
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeCompensationComponent"
+        "400":
+          description: Unknown component type for this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires payroll.compensation.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Employee not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Overlapping effective period with the existing open component
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}/payroll/compensation/history:
+    get:
+      operationId: listEmployeeCompensationHistory
+      tags: [payroll-compensation]
+      summary: Full effective-dated compensation history for an employee (Payroll, Workstream 2)
+      description: >-
+        Gated payroll.compensation.read. Optional ?asOf= resolves only the
+        components in force on that date (the same historical-resolution
+        discipline already proven for staff numbers and statutory-rule
+        versions) — omit for the full history, most recent first.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: asOf
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Compensation component history (or as-of resolution)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmployeeCompensationComponent"
+        "403":
+          description: Forbidden — requires payroll.compensation.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Employee not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}/payroll/compensation/{id}/end:
+    post:
+      operationId: endEmployeeCompensationComponent
+      tags: [payroll-compensation]
+      summary: End an open compensation component with no successor (Payroll, Workstream 2)
+      description: Gated payroll.compensation.manage. Sets validTo — never deletes the row.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [endDate]
+              properties:
+                endDate:
+                  type: string
+                  format: date-time
+      responses:
+        "200":
+          description: Ended compensation component
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeCompensationComponent"
+        "403":
+          description: Forbidden — requires payroll.compensation.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Component not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Component already ended
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}/payroll/banking:
+    get:
+      operationId: getEmployeeBankingDetail
+      tags: [payroll-banking]
+      summary: Get an employee's current banking details (Payroll, Workstream 2)
+      description: >-
+        Gated payroll.banking.read — narrower than payroll.compensation.read
+        by design. Reads of this route are audit-logged (frozen plan
+        Decision 9), a deliberate exception to the platform's usual
+        read-silence convention.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Current banking detail, or null if none on file
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/EmployeeBankingDetail"
+                  - type: "null"
+        "403":
+          description: Forbidden — requires payroll.banking.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Employee not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createEmployeeBankingDetail
+      tags: [payroll-banking]
+      summary: Set an employee's banking details, effective-dated (Payroll, Workstream 2)
+      description: Gated payroll.banking.manage. Closes any existing open record rather than overwriting it.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEmployeeBankingDetailBody"
+      responses:
+        "201":
+          description: Created banking detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeBankingDetail"
+        "400":
+          description: Unknown bank for this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires payroll.banking.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Employee not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Overlapping effective period with the existing open record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}/payroll/banking/history:
+    get:
+      operationId: listEmployeeBankingHistory
+      tags: [payroll-banking]
+      summary: Full banking-detail history for an employee (Payroll, Workstream 2)
+      description: Gated payroll.banking.read. Read-audited, same as the current-detail route.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Banking-detail history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmployeeBankingDetail"
+        "403":
+          description: Forbidden — requires payroll.banking.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Employee not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}/payroll/statutory-identifiers:
+    get:
+      operationId: getEmployeeStatutoryIdentifier
+      tags: [payroll-statutory-identifiers]
+      summary: Get an employee's current statutory identifiers (SSNIT/TIN) (Payroll, Workstream 2)
+      description: Gated payroll.statutory_identifiers.read. Reads are audit-logged (frozen plan Decision 9).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Current statutory identifier record, or null if none on file
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/EmployeeStatutoryIdentifier"
+                  - type: "null"
+        "403":
+          description: Forbidden — requires payroll.statutory_identifiers.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Employee not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createEmployeeStatutoryIdentifier
+      tags: [payroll-statutory-identifiers]
+      summary: Set an employee's statutory identifiers, effective-dated (Payroll, Workstream 2)
+      description: Gated payroll.statutory_identifiers.manage. Closes any existing open record rather than overwriting it.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEmployeeStatutoryIdentifierBody"
+      responses:
+        "201":
+          description: Created statutory identifier record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeStatutoryIdentifier"
+        "403":
+          description: Forbidden — requires payroll.statutory_identifiers.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Employee not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Overlapping effective period with the existing open record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}/payroll/statutory-identifiers/history:
+    get:
+      operationId: listEmployeeStatutoryIdentifierHistory
+      tags: [payroll-statutory-identifiers]
+      summary: Full statutory-identifier history for an employee (Payroll, Workstream 2)
+      description: Gated payroll.statutory_identifiers.read. Read-audited, same as the current-record route.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Statutory-identifier history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmployeeStatutoryIdentifier"
+        "403":
+          description: Forbidden — requires payroll.statutory_identifiers.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Employee not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -20016,6 +20487,173 @@ components:
           $ref: "#/components/schemas/CreatePayrollPensionRatesInput"
         pensionEarningsCeiling:
           $ref: "#/components/schemas/CreatePayrollPensionEarningsCeilingInput"
+
+    EmployeeCompensationComponent:
+      type: object
+      description: >-
+        employeeId always references employees.id — never a staff/PIF
+        number, so a reused staff number never carries a former holder's
+        compensation to its new holder.
+      required: [id, organizationId, employeeId, category, componentTypeCode, amount, currency, recurring, taxableTreatment, pensionable, sourceReferenceType, sourceReferenceId, validFrom, validTo, createdByMembershipId, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        employeeId:
+          type: integer
+        category:
+          type: string
+          enum: [earning, deduction]
+        componentTypeCode:
+          type: string
+        amount:
+          type: string
+        currency:
+          type: string
+        recurring:
+          type: boolean
+        taxableTreatment:
+          type: string
+          enum: [ordinary, benefit_in_kind, bonus, overtime]
+        pensionable:
+          type: boolean
+        sourceReferenceType:
+          type: ["string", "null"]
+        sourceReferenceId:
+          type: ["integer", "null"]
+        validFrom:
+          type: string
+          format: date-time
+        validTo:
+          type: ["string", "null"]
+          format: date-time
+        createdByMembershipId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateEmployeeCompensationComponentBody:
+      type: object
+      required: [category, componentTypeCode, amount, currency, validFrom]
+      properties:
+        category:
+          type: string
+          enum: [earning, deduction]
+        componentTypeCode:
+          type: string
+        amount:
+          type: string
+        currency:
+          type: string
+        recurring:
+          type: boolean
+        taxableTreatment:
+          type: string
+          enum: [ordinary, benefit_in_kind, bonus, overtime]
+        pensionable:
+          type: boolean
+        sourceReferenceType:
+          type: string
+        sourceReferenceId:
+          type: integer
+        validFrom:
+          type: string
+          format: date-time
+
+    EmployeeBankingDetail:
+      type: object
+      required: [id, organizationId, employeeId, bankCode, accountNumber, accountName, branch, validFrom, validTo, createdByMembershipId, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        employeeId:
+          type: integer
+        bankCode:
+          type: string
+        accountNumber:
+          type: string
+        accountName:
+          type: string
+        branch:
+          type: ["string", "null"]
+        validFrom:
+          type: string
+          format: date-time
+        validTo:
+          type: ["string", "null"]
+          format: date-time
+        createdByMembershipId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateEmployeeBankingDetailBody:
+      type: object
+      required: [bankCode, accountNumber, accountName, validFrom]
+      properties:
+        bankCode:
+          type: string
+        accountNumber:
+          type: string
+        accountName:
+          type: string
+        branch:
+          type: string
+        validFrom:
+          type: string
+          format: date-time
+
+    EmployeeStatutoryIdentifier:
+      type: object
+      required: [id, organizationId, employeeId, ssnitNumber, tin, validFrom, validTo, createdByMembershipId, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        employeeId:
+          type: integer
+        ssnitNumber:
+          type: ["string", "null"]
+        tin:
+          type: ["string", "null"]
+        validFrom:
+          type: string
+          format: date-time
+        validTo:
+          type: ["string", "null"]
+          format: date-time
+        createdByMembershipId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateEmployeeStatutoryIdentifierBody:
+      type: object
+      required: [validFrom]
+      properties:
+        ssnitNumber:
+          type: string
+        tin:
+          type: string
+        validFrom:
+          type: string
+          format: date-time
 
     RecruitmentStageBreakdownItem:
       type: object

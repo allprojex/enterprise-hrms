@@ -79,6 +79,8 @@ import assetsRouter from "./assets";
 import assetReportingRouter from "./assetReporting";
 import managerPortalRouter from "./managerPortal";
 import payrollStatutoryRulesRouter from "./payrollStatutoryRules";
+import payrollCompensationRouter from "./payrollCompensation";
+import payrollSensitiveRecordsRouter from "./payrollSensitiveRecords";
 
 const router: IRouter = Router();
 
@@ -167,5 +169,7 @@ router.use(assetReportingRouter);
 router.use(assetsRouter);
 router.use(managerPortalRouter);
 router.use(payrollStatutoryRulesRouter);
+router.use(payrollCompensationRouter);
+router.use(payrollSensitiveRecordsRouter);
 
 export default router;

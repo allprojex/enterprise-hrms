@@ -42,6 +42,24 @@ export const MASTER_DATA_DOMAINS: readonly MasterDataDomainDefinition[] = [
   // same shape/precedent as document_category. No default items are frozen
   // for this domain; only the domain itself is registered here.
   { key: "training_category", label: "Training Category", classification: "organization-defined" },
+  // Payroll, Workstream 2 (docs/PAYROLL_IMPLEMENTATION_PLAN.md §9.3). Reuses
+  // this existing domain mechanism exactly as the frozen plan requires
+  // ("not new bespoke tables") — a component TYPE is a plain code/label
+  // classification, carrying zero financial figures; the sensitive per-
+  // employee assignment (amount, effective dates) lives entirely in
+  // employee_compensation_components, gated by the new narrow
+  // payroll.compensation.* permissions, never by master_data.manage.
+  // organization-overridable: a system default ("Basic Salary") is seeded
+  // for every organization, and each organization may add its own further
+  // earning/deduction component types (allowances, bonuses, etc.) without
+  // a code change — no WWM-specific or otherwise organization-specific
+  // component is hardcoded here.
+  { key: "payroll_earning_component_type", label: "Payroll Earning Component Type", classification: "organization-overridable" },
+  { key: "payroll_deduction_component_type", label: "Payroll Deduction Component Type", classification: "organization-overridable" },
+  // Payroll, Workstream 2 (frozen plan §9.8). No default items seeded —
+  // which banks are relevant varies entirely by organization/market; never
+  // guessed here.
+  { key: "payroll_bank", label: "Bank", classification: "organization-defined" },
 ] as const;
 
 /** Throws on: duplicate domain keys. Called before every seed insert. */

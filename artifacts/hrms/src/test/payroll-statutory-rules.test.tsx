@@ -119,7 +119,7 @@ describe('Payroll Statutory Rules page', () => {
     await userEvent.type(screen.getByTestId('input-tier2-rate'), '5');
     await userEvent.click(screen.getByTestId('button-submit-statutory-rule'));
     expect(state.createMutate).toHaveBeenCalled();
-    const [payload] = state.createMutate.mock.calls[0] as [{ organizationId: number; data: Record<string, unknown> }];
+    const [payload] = vi.mocked(state.createMutate).mock.calls[0] as [{ organizationId: number; data: Record<string, unknown> }];
     expect(payload.organizationId).toBe(10);
     expect(payload.data.pensionRates).toEqual({ employeeRatePercent: '5.5', employerRatePercent: '13', tier1AllocationPercent: '13.5', tier2AllocationPercent: '5' });
   });
