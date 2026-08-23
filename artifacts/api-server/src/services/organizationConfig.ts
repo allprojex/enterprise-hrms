@@ -125,6 +125,41 @@ const payrollConfigSchema = z
   })
   .passthrough();
 
+// Office Inventory, Workstream 1
+// (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §41, Owner Decision 5/22).
+// itemNumber's format config is deliberately kept HERE (module-gated) rather
+// than added to the always-on `numbering` namespace above — unlike
+// employeeNumber/pifNumber (foundational to every organization), an item
+// reference number only ever matters to an organization that has actually
+// enabled Office Inventory, so it does not belong in a namespace every
+// organization's config read touches regardless of module state.
+// `repeatRequestReviewWindowDays`/`costTrackingEnabled`/`directIssueEnabled`/
+// `receiptConfirmationRequired` are registered now, per the frozen plan's own
+// "register once, wire up as each workstream lands" convention (mirroring
+// Payroll's own W1 permission-registration precedent) — none of these four
+// fields is read by any W1 route; each is consumed by its own later,
+// separately-authorized workstream.
+const officeInventoryItemNumberConfigSchema = z
+  .object({
+    prefix: z.string().max(20).optional(),
+    suffix: z.string().max(20).optional(),
+    separator: z.string().max(5).optional(),
+    sequenceLength: z.number().int().min(1).max(10).optional(),
+    startingSequence: z.number().int().min(0).optional(),
+    resetPolicy: z.enum(["never", "yearly", "monthly"]).optional(),
+  })
+  .passthrough();
+
+const officeInventoryConfigSchema = z
+  .object({
+    itemNumber: officeInventoryItemNumberConfigSchema.optional(),
+    repeatRequestReviewWindowDays: z.number().int().min(0).max(365).optional(),
+    costTrackingEnabled: z.boolean().optional(),
+    directIssueEnabled: z.boolean().optional(),
+    receiptConfirmationRequired: z.boolean().optional(),
+  })
+  .passthrough();
+
 interface NamespaceDefinition {
   schemaVersion: number;
   schema: z.ZodType;
@@ -232,6 +267,24 @@ export const CONFIG_NAMESPACES: Record<string, NamespaceDefinition> = {
       roundingRule: "round",
     }),
     moduleKey: "payroll",
+  },
+  office_inventory: {
+    schemaVersion: 1,
+    schema: officeInventoryConfigSchema,
+    defaults: () => ({
+      itemNumber: {
+        prefix: "INV",
+        separator: "-",
+        sequenceLength: 5,
+        startingSequence: 1,
+        resetPolicy: "never",
+      },
+      repeatRequestReviewWindowDays: 30,
+      costTrackingEnabled: false,
+      directIssueEnabled: false,
+      receiptConfirmationRequired: true,
+    }),
+    moduleKey: "office_inventory",
   },
 };
 

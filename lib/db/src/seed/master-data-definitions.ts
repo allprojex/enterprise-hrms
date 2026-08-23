@@ -60,6 +60,12 @@ export const MASTER_DATA_DOMAINS: readonly MasterDataDomainDefinition[] = [
   // which banks are relevant varies entirely by organization/market; never
   // guessed here.
   { key: "payroll_bank", label: "Bank", classification: "organization-defined" },
+  // Office Inventory, Workstream 1
+  // (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.1). Item categories —
+  // no default items are seeded (organization-defined, same precedent as
+  // `asset_category`); which categories are relevant varies entirely by
+  // organization and is never guessed here.
+  { key: "office_inventory_category", label: "Office Inventory Category", classification: "organization-defined" },
 ] as const;
 
 /** Throws on: duplicate domain keys. Called before every seed insert. */

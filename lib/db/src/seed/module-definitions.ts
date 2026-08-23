@@ -163,6 +163,31 @@ export const MODULE_DEFINITIONS: readonly ModuleDefinition[] = [
     requiredModuleKeys: [],
     optionalModuleKeys: [],
   },
+  {
+    key: "office_inventory",
+    name: "Office Inventory",
+    description: "Organizational stock/store accountability: items, receiving, requests, custody, and movement history.",
+    category: "hr-operations",
+    version: "1.0.0",
+    // Office Inventory, Workstream 1
+    // (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §50). "hidden": this
+    // workstream ships only the catalog/store/Department-Head foundation —
+    // no stock ledger, no requests, no movement of any kind exists yet, so
+    // there is nothing an organization could meaningfully use even if
+    // enabled — the frozen plan's own literal Workstream 1 text names
+    // "hidden" explicitly, a deliberate choice, not an oversight (this
+    // module does not follow the "flip to active the instant foundation
+    // ships" convention some earlier modules used). defaultEnabled: false
+    // and no organization_modules override is created for any organization
+    // by this workstream — building this platform-wide grants zero access
+    // to any organization, including WWM, until a future, separate,
+    // deliberate per-organization enablement decision. No Payroll or
+    // Procurement dependency of any kind.
+    status: "hidden",
+    defaultEnabled: false,
+    requiredModuleKeys: [],
+    optionalModuleKeys: [],
+  },
 ] as const;
 
 /**

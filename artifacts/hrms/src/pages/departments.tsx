@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Network, Plus, Pencil } from 'lucide-react';
+import { Network, Plus, Pencil, UserCog, X } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -11,6 +11,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
   DialogTrigger,
 } from '@/components/ui/dialog';
@@ -26,6 +27,12 @@ import {
   useRestructureDepartment,
   useListBranches,
   getListBranchesQueryKey,
+  useListMembers,
+  getListMembersQueryKey,
+  useGetCurrentDepartmentHead,
+  getGetCurrentDepartmentHeadQueryKey,
+  useAssignDepartmentHead,
+  useRevokeDepartmentHead,
   useGetMe,
   getGetMeQueryKey,
 } from '@workspace/api-client-react';
@@ -34,6 +41,123 @@ import { useToast } from '@/hooks/use-toast';
 import { QueryError } from '@/components/query-error';
 
 const NONE = '__none__';
+
+function errorMessage(err: unknown): string | undefined {
+  return err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
+}
+
+// Office Inventory, Workstream 1 — Department Head is a general
+// organizational-authority primitive (docs/OFFICE_INVENTORY_IMPLEMENTATION_
+// PLAN.md §5), deliberately NOT namespaced under office_inventory and NOT
+// gated by that module — it lives here on the existing Departments page,
+// gated only by department.head.manage, independent of Office Inventory's
+// own enablement state for the organization.
+function DepartmentHeadCell({ organizationId, departmentId }: { organizationId: number; departmentId: number }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [selectedMembershipId, setSelectedMembershipId] = useState('');
+
+  const { data: currentHead, isLoading } = useGetCurrentDepartmentHead(organizationId, departmentId, {
+    query: { queryKey: getGetCurrentDepartmentHeadQueryKey(organizationId, departmentId), enabled: organizationId > 0 },
+  });
+  const { data: members } = useListMembers(organizationId, {
+    query: { queryKey: getListMembersQueryKey(organizationId), enabled: organizationId > 0 && pickerOpen },
+  });
+  const assignMutation = useAssignDepartmentHead();
+  const revokeMutation = useRevokeDepartmentHead();
+
+  const memberById = new Map((members ?? []).map((m) => [m.membershipId, m]));
+  const currentHeadMember = currentHead ? memberById.get(currentHead.headMembershipId) : undefined;
+
+  const handleAssign = () => {
+    if (!selectedMembershipId) return;
+    assignMutation.mutate(
+      { organizationId, departmentId, data: { headMembershipId: Number(selectedMembershipId) } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetCurrentDepartmentHeadQueryKey(organizationId, departmentId) });
+          setPickerOpen(false);
+          setSelectedMembershipId('');
+          toast({ title: 'Department Head assigned' });
+        },
+        onError: (err) => toast({ title: 'Could not assign Department Head', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  const handleRevoke = () => {
+    revokeMutation.mutate(
+      { organizationId, departmentId },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetCurrentDepartmentHeadQueryKey(organizationId, departmentId) });
+          toast({ title: 'Department Head revoked — department is now vacant' });
+        },
+        onError: (err) => toast({ title: 'Could not revoke Department Head', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  if (isLoading) return <Skeleton className="h-6 w-32" />;
+
+  return (
+    <div className="flex items-center gap-2">
+      {currentHead ? (
+        <>
+          <span className="text-sm text-foreground" data-testid={`text-department-head-${departmentId}`}>
+            {currentHeadMember ? `${currentHeadMember.firstName} ${currentHeadMember.lastName}` : `Membership #${currentHead.headMembershipId}`}
+          </span>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-6 w-6"
+            onClick={handleRevoke}
+            disabled={revokeMutation.isPending}
+            aria-label="Revoke Department Head"
+            data-testid={`button-revoke-head-${departmentId}`}
+          >
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
+          </Button>
+        </>
+      ) : (
+        <span className="text-sm text-muted-foreground" data-testid={`text-department-head-vacant-${departmentId}`}>Vacant</span>
+      )}
+
+      <Dialog open={pickerOpen} onOpenChange={(o) => { setPickerOpen(o); if (!o) setSelectedMembershipId(''); }}>
+        <DialogTrigger asChild>
+          <Button size="icon" variant="ghost" className="h-6 w-6" aria-label={currentHead ? 'Replace Department Head' : 'Assign Department Head'} data-testid={`button-open-assign-head-${departmentId}`}>
+            <UserCog className="h-3.5 w-3.5" aria-hidden="true" />
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{currentHead ? 'Replace Department Head' : 'Assign Department Head'}</DialogTitle>
+            <DialogDescription>The previous assignment, if any, is preserved as history — never overwritten.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor={`assign-head-select-${departmentId}`}>Member</Label>
+            <Select value={selectedMembershipId} onValueChange={setSelectedMembershipId}>
+              <SelectTrigger id={`assign-head-select-${departmentId}`} data-testid={`select-assign-head-${departmentId}`}>
+                <SelectValue placeholder="Choose a member" />
+              </SelectTrigger>
+              <SelectContent>
+                {(members ?? []).filter((m) => m.status === 'active').map((m) => (
+                  <SelectItem key={m.membershipId} value={String(m.membershipId)}>{m.firstName} {m.lastName}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleAssign} disabled={!selectedMembershipId || assignMutation.isPending} data-testid={`button-confirm-assign-head-${departmentId}`}>
+              {assignMutation.isPending ? 'Saving…' : currentHead ? 'Replace' : 'Assign'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
 
 export default function Departments() {
   const queryClient = useQueryClient();
@@ -264,6 +388,7 @@ export default function Departments() {
                 <TableHead>Name</TableHead>
                 <TableHead>Code</TableHead>
                 <TableHead>Branch</TableHead>
+                <TableHead>Head</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -290,6 +415,9 @@ export default function Departments() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </TableCell>
+                  <TableCell>
+                    <DepartmentHeadCell organizationId={organizationId} departmentId={department.id} />
                   </TableCell>
                   <TableCell>
                     <Badge variant={department.status === 'active' ? 'secondary' : 'outline'} className="capitalize">

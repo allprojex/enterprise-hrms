@@ -360,6 +360,48 @@ const PERMISSIONS = [
   { key: "payroll.report.read", resource: "payroll", action: "report.read" },
   { key: "payroll.payslip.read", resource: "payroll", action: "payslip.read" },
   { key: "payroll.payslip.read.own", resource: "payroll", action: "payslip.read.own" },
+  // Office Inventory, Workstream 1
+  // (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §38/§39). All 22 frozen
+  // keys registered in one pass (mirroring Payroll's own W1 "register once,
+  // wire up as each workstream lands" precedent) even though this
+  // workstream only enforces item/store/Department-Head management —
+  // every other key is reserved for its own owning future workstream.
+  // `department.head.manage` is deliberately namespaced under the general
+  // "department" resource, not "office_inventory" (§5.1) — a future module
+  // could be granted the identical authority-reading/writing capability
+  // without a rename. Deliberately NOT added to ANY existing
+  // ROLE_PERMISSIONS array below (org_admin, hr_manager, employee) — per
+  // the frozen plan's own explicit instruction that ordinary HR/org-admin
+  // authority must not automatically imply Inventory (or Department Head)
+  // authority. super_admin still receives every one of these through the
+  // pre-existing `PERMISSIONS.map((p) => p.key)` blanket grant — not an
+  // Inventory-specific broadening. An Inventory administrator role must be
+  // explicitly created and assigned these keys per organization before
+  // anyone can use them — no such assignment is made by this workstream,
+  // for any organization, including WWM.
+  { key: "department.head.manage", resource: "department", action: "head.manage" },
+  { key: "office_inventory.configure", resource: "office_inventory", action: "configure" },
+  { key: "office_inventory.item.manage", resource: "office_inventory", action: "item.manage" },
+  { key: "office_inventory.store.manage", resource: "office_inventory", action: "store.manage" },
+  { key: "office_inventory.receive", resource: "office_inventory", action: "receive" },
+  { key: "office_inventory.request", resource: "office_inventory", action: "request" },
+  { key: "office_inventory.approve", resource: "office_inventory", action: "approve" },
+  { key: "office_inventory.delegate.manage", resource: "office_inventory", action: "delegate.manage" },
+  { key: "office_inventory.issue", resource: "office_inventory", action: "issue" },
+  { key: "office_inventory.issue.direct", resource: "office_inventory", action: "issue.direct" },
+  { key: "office_inventory.receipt.confirm.own", resource: "office_inventory", action: "receipt.confirm.own" },
+  { key: "office_inventory.custody.read", resource: "office_inventory", action: "custody.read" },
+  { key: "office_inventory.return", resource: "office_inventory", action: "return" },
+  { key: "office_inventory.transfer", resource: "office_inventory", action: "transfer" },
+  { key: "office_inventory.handover", resource: "office_inventory", action: "handover" },
+  { key: "office_inventory.report_issue.own", resource: "office_inventory", action: "report_issue.own" },
+  { key: "office_inventory.incident.review", resource: "office_inventory", action: "incident.review" },
+  { key: "office_inventory.recover", resource: "office_inventory", action: "recover" },
+  { key: "office_inventory.adjust", resource: "office_inventory", action: "adjust" },
+  { key: "office_inventory.writeoff", resource: "office_inventory", action: "writeoff" },
+  { key: "office_inventory.stocktake", resource: "office_inventory", action: "stocktake" },
+  { key: "office_inventory.asset_handoff", resource: "office_inventory", action: "asset_handoff" },
+  { key: "office_inventory.reports.read", resource: "office_inventory", action: "reports.read" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {

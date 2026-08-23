@@ -13233,3 +13233,353 @@ export const ExportPaymentBatchParams = zod.object({
 export const ExportPaymentBatchResponse = zod.unknown()
 
 
+/**
+ * General organizational-authority primitive (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §5) — not Inventory-specific. Returns 200 with a null body when the department is vacant; vacancy is never auto-resolved.
+ * @summary Get the current Department Head, if any (Office Inventory Workstream 1)
+ */
+export const GetCurrentDepartmentHeadParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "departmentId": zod.coerce.number()
+})
+
+export const GetCurrentDepartmentHeadResponse = zod.union([zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "departmentId": zod.number(),
+  "headMembershipId": zod.number(),
+  "validFrom": zod.coerce.date(),
+  "validTo": zod.coerce.date().nullable(),
+  "assignedByMembershipId": zod.number().nullable(),
+  "revokedByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 1 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §5). A general, non-Inventory-specific organizational-authority assignment — effective-dated; `validTo: null` means this row is the department\'s current Head.'),zod.null()])
+
+
+/**
+ * Closes whatever assignment was previously open (if any) and opens a new one, in the same transaction. Works uniformly for first assignment or replacement.
+ * @summary Assign (or replace) the Department Head — gated department.head.manage
+ */
+export const AssignDepartmentHeadParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "departmentId": zod.coerce.number()
+})
+
+export const AssignDepartmentHeadBody = zod.object({
+  "headMembershipId": zod.number()
+})
+
+export const AssignDepartmentHeadResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "departmentId": zod.number(),
+  "headMembershipId": zod.number(),
+  "validFrom": zod.coerce.date(),
+  "validTo": zod.coerce.date().nullable(),
+  "assignedByMembershipId": zod.number().nullable(),
+  "revokedByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 1 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §5). A general, non-Inventory-specific organizational-authority assignment — effective-dated; `validTo: null` means this row is the department\'s current Head.')
+
+
+/**
+ * @summary Revoke the current Department Head, leaving the department vacant — gated department.head.manage
+ */
+export const RevokeDepartmentHeadParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "departmentId": zod.coerce.number()
+})
+
+export const RevokeDepartmentHeadResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "departmentId": zod.number(),
+  "headMembershipId": zod.number(),
+  "validFrom": zod.coerce.date(),
+  "validTo": zod.coerce.date().nullable(),
+  "assignedByMembershipId": zod.number().nullable(),
+  "revokedByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 1 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §5). A general, non-Inventory-specific organizational-authority assignment — effective-dated; `validTo: null` means this row is the department\'s current Head.')
+
+
+/**
+ * @summary Full Department Head assignment history, oldest first
+ */
+export const ListDepartmentHeadHistoryParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "departmentId": zod.coerce.number()
+})
+
+export const ListDepartmentHeadHistoryResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "departmentId": zod.number(),
+  "headMembershipId": zod.number(),
+  "validFrom": zod.coerce.date(),
+  "validTo": zod.coerce.date().nullable(),
+  "assignedByMembershipId": zod.number().nullable(),
+  "revokedByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 1 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §5). A general, non-Inventory-specific organizational-authority assignment — effective-dated; `validTo: null` means this row is the department\'s current Head.')
+export const ListDepartmentHeadHistoryResponse = zod.array(ListDepartmentHeadHistoryResponseItem)
+
+
+/**
+ * @summary Who was the Department Head on a given date? (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §5.3)
+ */
+export const ResolveDepartmentHeadAsOfParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "departmentId": zod.coerce.number()
+})
+
+export const ResolveDepartmentHeadAsOfQueryParams = zod.object({
+  "date": zod.date().describe('ISO 8601 date-time to resolve authority as of')
+})
+
+export const ResolveDepartmentHeadAsOfResponse = zod.union([zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "departmentId": zod.number(),
+  "headMembershipId": zod.number(),
+  "validFrom": zod.coerce.date(),
+  "validTo": zod.coerce.date().nullable(),
+  "assignedByMembershipId": zod.number().nullable(),
+  "revokedByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 1 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §5). A general, non-Inventory-specific organizational-authority assignment — effective-dated; `validTo: null` means this row is the department\'s current Head.'),zod.null()])
+
+
+/**
+ * @summary List Office Inventory catalog items
+ */
+export const ListOfficeInventoryItemsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListOfficeInventoryItemsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "itemCode": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullable(),
+  "categoryCode": zod.string(),
+  "unitOfMeasure": zod.string(),
+  "classification": zod.enum(['consumable', 'returnable']),
+  "reorderLevel": zod.string().nullable(),
+  "unitCost": zod.string().nullable(),
+  "currency": zod.string().nullable(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 1 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.1). The catalog — one row per distinct item type, never a physical unit or a quantity.')
+export const ListOfficeInventoryItemsResponse = zod.array(ListOfficeInventoryItemsResponseItem)
+
+
+/**
+ * itemCode is always server-generated (never client-supplied), permanent, and never released or reused.
+ * @summary Create an Office Inventory catalog item — gated office_inventory.item.manage
+ */
+export const CreateOfficeInventoryItemParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const CreateOfficeInventoryItemBody = zod.object({
+  "name": zod.string(),
+  "description": zod.string().optional(),
+  "categoryCode": zod.string(),
+  "unitOfMeasure": zod.string(),
+  "classification": zod.enum(['consumable', 'returnable']),
+  "reorderLevel": zod.string().optional(),
+  "unitCost": zod.string().optional(),
+  "currency": zod.string().optional()
+})
+
+export const CreateOfficeInventoryItemResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "itemCode": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullable(),
+  "categoryCode": zod.string(),
+  "unitOfMeasure": zod.string(),
+  "classification": zod.enum(['consumable', 'returnable']),
+  "reorderLevel": zod.string().nullable(),
+  "unitCost": zod.string().nullable(),
+  "currency": zod.string().nullable(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 1 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.1). The catalog — one row per distinct item type, never a physical unit or a quantity.')
+
+
+/**
+ * @summary Get an Office Inventory catalog item
+ */
+export const GetOfficeInventoryItemParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const GetOfficeInventoryItemResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "itemCode": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullable(),
+  "categoryCode": zod.string(),
+  "unitOfMeasure": zod.string(),
+  "classification": zod.enum(['consumable', 'returnable']),
+  "reorderLevel": zod.string().nullable(),
+  "unitCost": zod.string().nullable(),
+  "currency": zod.string().nullable(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 1 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.1). The catalog — one row per distinct item type, never a physical unit or a quantity.')
+
+
+/**
+ * Never accepts itemCode (permanent) or classification (fixed at creation).
+ * @summary Update an Office Inventory catalog item — gated office_inventory.item.manage
+ */
+export const UpdateOfficeInventoryItemParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const UpdateOfficeInventoryItemBody = zod.object({
+  "name": zod.string().optional(),
+  "description": zod.string().nullish(),
+  "categoryCode": zod.string().optional(),
+  "unitOfMeasure": zod.string().optional(),
+  "reorderLevel": zod.string().nullish(),
+  "unitCost": zod.string().nullish(),
+  "currency": zod.string().nullish(),
+  "status": zod.enum(['active', 'inactive']).optional()
+}).describe('Never accepts itemCode (permanent) or classification (fixed at creation).')
+
+export const UpdateOfficeInventoryItemResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "itemCode": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullable(),
+  "categoryCode": zod.string(),
+  "unitOfMeasure": zod.string(),
+  "classification": zod.enum(['consumable', 'returnable']),
+  "reorderLevel": zod.string().nullable(),
+  "unitCost": zod.string().nullable(),
+  "currency": zod.string().nullable(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 1 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.1). The catalog — one row per distinct item type, never a physical unit or a quantity.')
+
+
+/**
+ * @summary List Office Inventory stores
+ */
+export const ListOfficeInventoryStoresParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListOfficeInventoryStoresResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "code": zod.string(),
+  "branchId": zod.number().nullable(),
+  "responsibleMembershipId": zod.number().nullable(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 1 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.2). Flat — no hierarchy in V1.')
+export const ListOfficeInventoryStoresResponse = zod.array(ListOfficeInventoryStoresResponseItem)
+
+
+/**
+ * Flat — no hierarchy in V1. `code` is stable and permanent.
+ * @summary Create an Office Inventory store — gated office_inventory.store.manage
+ */
+export const CreateOfficeInventoryStoreParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const CreateOfficeInventoryStoreBody = zod.object({
+  "name": zod.string(),
+  "code": zod.string(),
+  "branchId": zod.number().optional(),
+  "responsibleMembershipId": zod.number().optional()
+})
+
+export const CreateOfficeInventoryStoreResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "code": zod.string(),
+  "branchId": zod.number().nullable(),
+  "responsibleMembershipId": zod.number().nullable(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 1 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.2). Flat — no hierarchy in V1.')
+
+
+/**
+ * @summary Get an Office Inventory store
+ */
+export const GetOfficeInventoryStoreParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const GetOfficeInventoryStoreResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "code": zod.string(),
+  "branchId": zod.number().nullable(),
+  "responsibleMembershipId": zod.number().nullable(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 1 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.2). Flat — no hierarchy in V1.')
+
+
+/**
+ * Never accepts `code` — the store's stable, permanent identity.
+ * @summary Update an Office Inventory store — gated office_inventory.store.manage
+ */
+export const UpdateOfficeInventoryStoreParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const UpdateOfficeInventoryStoreBody = zod.object({
+  "name": zod.string().optional(),
+  "branchId": zod.number().nullish(),
+  "responsibleMembershipId": zod.number().nullish(),
+  "status": zod.enum(['active', 'inactive']).optional()
+}).describe('Never accepts `code` — the store\'s stable, permanent identity.')
+
+export const UpdateOfficeInventoryStoreResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "code": zod.string(),
+  "branchId": zod.number().nullable(),
+  "responsibleMembershipId": zod.number().nullable(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 1 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.2). Flat — no hierarchy in V1.')
+
+

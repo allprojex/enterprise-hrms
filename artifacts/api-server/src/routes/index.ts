@@ -87,6 +87,8 @@ import payrollCorrectionsRouter from "./payrollCorrections";
 import payrollPayslipsRouter from "./payrollPayslips";
 import payrollReportsRouter from "./payrollReports";
 import payrollPaymentBatchesRouter from "./payrollPaymentBatches";
+import departmentHeadsRouter from "./departmentHeads";
+import officeInventoryCatalogRouter from "./officeInventoryCatalog";
 
 const router: IRouter = Router();
 
@@ -183,5 +185,7 @@ router.use(payrollCorrectionsRouter);
 router.use(payrollPayslipsRouter);
 router.use(payrollReportsRouter);
 router.use(payrollPaymentBatchesRouter);
+router.use(departmentHeadsRouter);
+router.use(officeInventoryCatalogRouter);
 
 export default router;

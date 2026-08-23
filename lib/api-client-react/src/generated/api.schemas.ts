@@ -7227,6 +7227,169 @@ export interface ManagerPortalPendingActions {
   items: ManagerPortalPendingActionItem[];
 }
 
+/**
+ * Office Inventory, Workstream 1 (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §5). A general, non-Inventory-specific organizational-authority assignment — effective-dated; `validTo: null` means this row is the department's current Head.
+ */
+export interface DepartmentHead {
+  id: number;
+  organizationId: number;
+  departmentId: number;
+  headMembershipId: number;
+  validFrom: string;
+  /** @nullable */
+  validTo: string | null;
+  /** @nullable */
+  assignedByMembershipId: number | null;
+  /** @nullable */
+  revokedByMembershipId: number | null;
+  createdAt: string;
+}
+
+export interface AssignDepartmentHeadBody {
+  headMembershipId: number;
+}
+
+export type OfficeInventoryItemClassification = typeof OfficeInventoryItemClassification[keyof typeof OfficeInventoryItemClassification];
+
+
+export const OfficeInventoryItemClassification = {
+  consumable: 'consumable',
+  returnable: 'returnable',
+} as const;
+
+export type OfficeInventoryItemStatus = typeof OfficeInventoryItemStatus[keyof typeof OfficeInventoryItemStatus];
+
+
+export const OfficeInventoryItemStatus = {
+  active: 'active',
+  inactive: 'inactive',
+} as const;
+
+/**
+ * Office Inventory, Workstream 1 (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.1). The catalog — one row per distinct item type, never a physical unit or a quantity.
+ */
+export interface OfficeInventoryItem {
+  id: number;
+  organizationId: number;
+  itemCode: string;
+  name: string;
+  /** @nullable */
+  description: string | null;
+  categoryCode: string;
+  unitOfMeasure: string;
+  classification: OfficeInventoryItemClassification;
+  /** @nullable */
+  reorderLevel: string | null;
+  /** @nullable */
+  unitCost: string | null;
+  /** @nullable */
+  currency: string | null;
+  status: OfficeInventoryItemStatus;
+  /** @nullable */
+  createdByMembershipId: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CreateOfficeInventoryItemBodyClassification = typeof CreateOfficeInventoryItemBodyClassification[keyof typeof CreateOfficeInventoryItemBodyClassification];
+
+
+export const CreateOfficeInventoryItemBodyClassification = {
+  consumable: 'consumable',
+  returnable: 'returnable',
+} as const;
+
+export interface CreateOfficeInventoryItemBody {
+  name: string;
+  description?: string;
+  categoryCode: string;
+  unitOfMeasure: string;
+  classification: CreateOfficeInventoryItemBodyClassification;
+  reorderLevel?: string;
+  unitCost?: string;
+  currency?: string;
+}
+
+export type UpdateOfficeInventoryItemBodyStatus = typeof UpdateOfficeInventoryItemBodyStatus[keyof typeof UpdateOfficeInventoryItemBodyStatus];
+
+
+export const UpdateOfficeInventoryItemBodyStatus = {
+  active: 'active',
+  inactive: 'inactive',
+} as const;
+
+/**
+ * Never accepts itemCode (permanent) or classification (fixed at creation).
+ */
+export interface UpdateOfficeInventoryItemBody {
+  name?: string;
+  /** @nullable */
+  description?: string | null;
+  categoryCode?: string;
+  unitOfMeasure?: string;
+  /** @nullable */
+  reorderLevel?: string | null;
+  /** @nullable */
+  unitCost?: string | null;
+  /** @nullable */
+  currency?: string | null;
+  status?: UpdateOfficeInventoryItemBodyStatus;
+}
+
+export type OfficeInventoryStoreStatus = typeof OfficeInventoryStoreStatus[keyof typeof OfficeInventoryStoreStatus];
+
+
+export const OfficeInventoryStoreStatus = {
+  active: 'active',
+  inactive: 'inactive',
+} as const;
+
+/**
+ * Office Inventory, Workstream 1 (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.2). Flat — no hierarchy in V1.
+ */
+export interface OfficeInventoryStore {
+  id: number;
+  organizationId: number;
+  name: string;
+  code: string;
+  /** @nullable */
+  branchId: number | null;
+  /** @nullable */
+  responsibleMembershipId: number | null;
+  status: OfficeInventoryStoreStatus;
+  /** @nullable */
+  createdByMembershipId: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateOfficeInventoryStoreBody {
+  name: string;
+  code: string;
+  branchId?: number;
+  responsibleMembershipId?: number;
+}
+
+export type UpdateOfficeInventoryStoreBodyStatus = typeof UpdateOfficeInventoryStoreBodyStatus[keyof typeof UpdateOfficeInventoryStoreBodyStatus];
+
+
+export const UpdateOfficeInventoryStoreBodyStatus = {
+  active: 'active',
+  inactive: 'inactive',
+} as const;
+
+/**
+ * Never accepts `code` — the store's stable, permanent identity.
+ */
+export interface UpdateOfficeInventoryStoreBody {
+  name?: string;
+  /** @nullable */
+  branchId?: number | null;
+  /** @nullable */
+  responsibleMembershipId?: number | null;
+  status?: UpdateOfficeInventoryStoreBodyStatus;
+}
+
 export type ListEmployeesParams = {
 search?: string;
 departmentId?: number;
@@ -7838,4 +8001,11 @@ export type GetPayrollReportFormat = typeof GetPayrollReportFormat[keyof typeof 
 export const GetPayrollReportFormat = {
   csv: 'csv',
 } as const;
+
+export type ResolveDepartmentHeadAsOfParams = {
+/**
+ * ISO 8601 date-time to resolve authority as of
+ */
+date: string;
+};
 

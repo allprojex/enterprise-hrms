@@ -351,6 +351,13 @@
       "when": 1787506097760,
       "tag": "0049_magenta_slayback",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1787517255356,
+      "tag": "0050_superb_serpent_society",
+      "breakpoints": true
     }
   ]
 }

@@ -53,6 +53,7 @@ import type {
   AssetListResponse,
   AssetMaintenance,
   AssignAssetInput,
+  AssignDepartmentHeadBody,
   AssignLearningEnrollmentsInput,
   AssignLearningEnrollmentsResult,
   AssignRoleInput,
@@ -96,6 +97,8 @@ import type {
   CreateLeaveTypeInput,
   CreateMasterDataItemInput,
   CreateOfferInput,
+  CreateOfficeInventoryItemBody,
+  CreateOfficeInventoryStoreBody,
   CreateOrganizationDomainInput,
   CreateOrganizationInput,
   CreatePayrollCorrectionBody,
@@ -120,6 +123,7 @@ import type {
   DailyAttendanceSummary,
   DashboardSummary,
   Department,
+  DepartmentHead,
   DismissAssetIncidentInput,
   Employee,
   EmployeeBankingDetail,
@@ -218,6 +222,8 @@ import type {
   OfferDetail,
   OfferListResponse,
   OfferVersion,
+  OfficeInventoryItem,
+  OfficeInventoryStore,
   Organization,
   OrganizationConfig,
   OrganizationDomain,
@@ -300,6 +306,7 @@ import type {
   RequestLearningEnrollmentInput,
   RequisitionApproval,
   ResetPasswordInput,
+  ResolveDepartmentHeadAsOfParams,
   RestructureDepartmentInput,
   RestructurePositionInput,
   RetireAssetInput,
@@ -346,6 +353,8 @@ import type {
   UpdateLeavePolicyInput,
   UpdateLeaveTypeInput,
   UpdateOfferVersionInput,
+  UpdateOfficeInventoryItemBody,
+  UpdateOfficeInventoryStoreBody,
   UpdateOrganizationConfigInput,
   UpdateOrganizationInput,
   UpdateOrganizationModuleInput,
@@ -31655,5 +31664,1026 @@ export const useExportPaymentBatch = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getExportPaymentBatchMutationOptions(options));
+    }
+
+export const getGetCurrentDepartmentHeadUrl = (organizationId: number,
+    departmentId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/departments/${departmentId}/head`
+}
+
+/**
+ * General organizational-authority primitive (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §5) — not Inventory-specific. Returns 200 with a null body when the department is vacant; vacancy is never auto-resolved.
+ * @summary Get the current Department Head, if any (Office Inventory Workstream 1)
+ */
+export const getCurrentDepartmentHead = async (organizationId: number,
+    departmentId: number, options?: RequestInit): Promise<DepartmentHead | null> => {
+
+  return customFetch<DepartmentHead | null>(getGetCurrentDepartmentHeadUrl(organizationId,departmentId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCurrentDepartmentHeadQueryKey = (organizationId: number,
+    departmentId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/departments/${departmentId}/head`
+    ] as const;
+    }
+
+
+export const getGetCurrentDepartmentHeadQueryOptions = <TData = Awaited<ReturnType<typeof getCurrentDepartmentHead>>, TError = ErrorType<ApiError>>(organizationId: number,
+    departmentId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCurrentDepartmentHead>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCurrentDepartmentHeadQueryKey(organizationId,departmentId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCurrentDepartmentHead>>> = ({ signal }) => getCurrentDepartmentHead(organizationId,departmentId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && departmentId !== null && departmentId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCurrentDepartmentHead>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCurrentDepartmentHeadQueryResult = NonNullable<Awaited<ReturnType<typeof getCurrentDepartmentHead>>>
+export type GetCurrentDepartmentHeadQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get the current Department Head, if any (Office Inventory Workstream 1)
+ */
+
+export function useGetCurrentDepartmentHead<TData = Awaited<ReturnType<typeof getCurrentDepartmentHead>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    departmentId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCurrentDepartmentHead>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCurrentDepartmentHeadQueryOptions(organizationId,departmentId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAssignDepartmentHeadUrl = (organizationId: number,
+    departmentId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/departments/${departmentId}/head`
+}
+
+/**
+ * Closes whatever assignment was previously open (if any) and opens a new one, in the same transaction. Works uniformly for first assignment or replacement.
+ * @summary Assign (or replace) the Department Head — gated department.head.manage
+ */
+export const assignDepartmentHead = async (organizationId: number,
+    departmentId: number,
+    assignDepartmentHeadBody: AssignDepartmentHeadBody, options?: RequestInit): Promise<DepartmentHead> => {
+
+  return customFetch<DepartmentHead>(getAssignDepartmentHeadUrl(organizationId,departmentId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(assignDepartmentHeadBody)
+  }
+);}
+
+
+
+
+
+export const getAssignDepartmentHeadMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof assignDepartmentHead>>, TError,{organizationId: number;departmentId: number;data: BodyType<AssignDepartmentHeadBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof assignDepartmentHead>>, TError,{organizationId: number;departmentId: number;data: BodyType<AssignDepartmentHeadBody>}, TContext> => {
+
+const mutationKey = ['assignDepartmentHead'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof assignDepartmentHead>>, {organizationId: number;departmentId: number;data: BodyType<AssignDepartmentHeadBody>}> = (props) => {
+          const {organizationId,departmentId,data} = props ?? {};
+
+          return  assignDepartmentHead(organizationId,departmentId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AssignDepartmentHeadMutationResult = NonNullable<Awaited<ReturnType<typeof assignDepartmentHead>>>
+    export type AssignDepartmentHeadMutationBody = BodyType<AssignDepartmentHeadBody>
+    export type AssignDepartmentHeadMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Assign (or replace) the Department Head — gated department.head.manage
+ */
+export const useAssignDepartmentHead = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof assignDepartmentHead>>, TError,{organizationId: number;departmentId: number;data: BodyType<AssignDepartmentHeadBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof assignDepartmentHead>>,
+        TError,
+        {organizationId: number;departmentId: number;data: BodyType<AssignDepartmentHeadBody>},
+        TContext
+      > => {
+      return useMutation(getAssignDepartmentHeadMutationOptions(options));
+    }
+
+export const getRevokeDepartmentHeadUrl = (organizationId: number,
+    departmentId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/departments/${departmentId}/head`
+}
+
+/**
+ * @summary Revoke the current Department Head, leaving the department vacant — gated department.head.manage
+ */
+export const revokeDepartmentHead = async (organizationId: number,
+    departmentId: number, options?: RequestInit): Promise<DepartmentHead> => {
+
+  return customFetch<DepartmentHead>(getRevokeDepartmentHeadUrl(organizationId,departmentId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRevokeDepartmentHeadMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeDepartmentHead>>, TError,{organizationId: number;departmentId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revokeDepartmentHead>>, TError,{organizationId: number;departmentId: number}, TContext> => {
+
+const mutationKey = ['revokeDepartmentHead'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeDepartmentHead>>, {organizationId: number;departmentId: number}> = (props) => {
+          const {organizationId,departmentId} = props ?? {};
+
+          return  revokeDepartmentHead(organizationId,departmentId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokeDepartmentHeadMutationResult = NonNullable<Awaited<ReturnType<typeof revokeDepartmentHead>>>
+
+    export type RevokeDepartmentHeadMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Revoke the current Department Head, leaving the department vacant — gated department.head.manage
+ */
+export const useRevokeDepartmentHead = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeDepartmentHead>>, TError,{organizationId: number;departmentId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof revokeDepartmentHead>>,
+        TError,
+        {organizationId: number;departmentId: number},
+        TContext
+      > => {
+      return useMutation(getRevokeDepartmentHeadMutationOptions(options));
+    }
+
+export const getListDepartmentHeadHistoryUrl = (organizationId: number,
+    departmentId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/departments/${departmentId}/head/history`
+}
+
+/**
+ * @summary Full Department Head assignment history, oldest first
+ */
+export const listDepartmentHeadHistory = async (organizationId: number,
+    departmentId: number, options?: RequestInit): Promise<DepartmentHead[]> => {
+
+  return customFetch<DepartmentHead[]>(getListDepartmentHeadHistoryUrl(organizationId,departmentId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListDepartmentHeadHistoryQueryKey = (organizationId: number,
+    departmentId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/departments/${departmentId}/head/history`
+    ] as const;
+    }
+
+
+export const getListDepartmentHeadHistoryQueryOptions = <TData = Awaited<ReturnType<typeof listDepartmentHeadHistory>>, TError = ErrorType<ApiError>>(organizationId: number,
+    departmentId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDepartmentHeadHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListDepartmentHeadHistoryQueryKey(organizationId,departmentId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDepartmentHeadHistory>>> = ({ signal }) => listDepartmentHeadHistory(organizationId,departmentId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && departmentId !== null && departmentId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listDepartmentHeadHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListDepartmentHeadHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof listDepartmentHeadHistory>>>
+export type ListDepartmentHeadHistoryQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Full Department Head assignment history, oldest first
+ */
+
+export function useListDepartmentHeadHistory<TData = Awaited<ReturnType<typeof listDepartmentHeadHistory>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    departmentId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDepartmentHeadHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListDepartmentHeadHistoryQueryOptions(organizationId,departmentId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getResolveDepartmentHeadAsOfUrl = (organizationId: number,
+    departmentId: number,
+    params: ResolveDepartmentHeadAsOfParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/departments/${departmentId}/head/as-of?${stringifiedParams}` : `/api/organizations/${organizationId}/departments/${departmentId}/head/as-of`
+}
+
+/**
+ * @summary Who was the Department Head on a given date? (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §5.3)
+ */
+export const resolveDepartmentHeadAsOf = async (organizationId: number,
+    departmentId: number,
+    params: ResolveDepartmentHeadAsOfParams, options?: RequestInit): Promise<DepartmentHead | null> => {
+
+  return customFetch<DepartmentHead | null>(getResolveDepartmentHeadAsOfUrl(organizationId,departmentId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getResolveDepartmentHeadAsOfQueryKey = (organizationId: number,
+    departmentId: number,
+    params?: ResolveDepartmentHeadAsOfParams,) => {
+    return [
+    `/api/organizations/${organizationId}/departments/${departmentId}/head/as-of`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getResolveDepartmentHeadAsOfQueryOptions = <TData = Awaited<ReturnType<typeof resolveDepartmentHeadAsOf>>, TError = ErrorType<ApiError>>(organizationId: number,
+    departmentId: number,
+    params: ResolveDepartmentHeadAsOfParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof resolveDepartmentHeadAsOf>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getResolveDepartmentHeadAsOfQueryKey(organizationId,departmentId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof resolveDepartmentHeadAsOf>>> = ({ signal }) => resolveDepartmentHeadAsOf(organizationId,departmentId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && departmentId !== null && departmentId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof resolveDepartmentHeadAsOf>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ResolveDepartmentHeadAsOfQueryResult = NonNullable<Awaited<ReturnType<typeof resolveDepartmentHeadAsOf>>>
+export type ResolveDepartmentHeadAsOfQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Who was the Department Head on a given date? (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §5.3)
+ */
+
+export function useResolveDepartmentHeadAsOf<TData = Awaited<ReturnType<typeof resolveDepartmentHeadAsOf>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    departmentId: number,
+    params: ResolveDepartmentHeadAsOfParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof resolveDepartmentHeadAsOf>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getResolveDepartmentHeadAsOfQueryOptions(organizationId,departmentId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListOfficeInventoryItemsUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/items`
+}
+
+/**
+ * @summary List Office Inventory catalog items
+ */
+export const listOfficeInventoryItems = async (organizationId: number, options?: RequestInit): Promise<OfficeInventoryItem[]> => {
+
+  return customFetch<OfficeInventoryItem[]>(getListOfficeInventoryItemsUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOfficeInventoryItemsQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/office-inventory/items`
+    ] as const;
+    }
+
+
+export const getListOfficeInventoryItemsQueryOptions = <TData = Awaited<ReturnType<typeof listOfficeInventoryItems>>, TError = ErrorType<ApiError>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOfficeInventoryItems>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOfficeInventoryItemsQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOfficeInventoryItems>>> = ({ signal }) => listOfficeInventoryItems(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOfficeInventoryItems>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOfficeInventoryItemsQueryResult = NonNullable<Awaited<ReturnType<typeof listOfficeInventoryItems>>>
+export type ListOfficeInventoryItemsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List Office Inventory catalog items
+ */
+
+export function useListOfficeInventoryItems<TData = Awaited<ReturnType<typeof listOfficeInventoryItems>>, TError = ErrorType<ApiError>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOfficeInventoryItems>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOfficeInventoryItemsQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateOfficeInventoryItemUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/items`
+}
+
+/**
+ * itemCode is always server-generated (never client-supplied), permanent, and never released or reused.
+ * @summary Create an Office Inventory catalog item — gated office_inventory.item.manage
+ */
+export const createOfficeInventoryItem = async (organizationId: number,
+    createOfficeInventoryItemBody: CreateOfficeInventoryItemBody, options?: RequestInit): Promise<OfficeInventoryItem> => {
+
+  return customFetch<OfficeInventoryItem>(getCreateOfficeInventoryItemUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createOfficeInventoryItemBody)
+  }
+);}
+
+
+
+
+
+export const getCreateOfficeInventoryItemMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryItem>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryItemBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryItem>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryItemBody>}, TContext> => {
+
+const mutationKey = ['createOfficeInventoryItem'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createOfficeInventoryItem>>, {organizationId: number;data: BodyType<CreateOfficeInventoryItemBody>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createOfficeInventoryItem(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateOfficeInventoryItemMutationResult = NonNullable<Awaited<ReturnType<typeof createOfficeInventoryItem>>>
+    export type CreateOfficeInventoryItemMutationBody = BodyType<CreateOfficeInventoryItemBody>
+    export type CreateOfficeInventoryItemMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Create an Office Inventory catalog item — gated office_inventory.item.manage
+ */
+export const useCreateOfficeInventoryItem = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryItem>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryItemBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createOfficeInventoryItem>>,
+        TError,
+        {organizationId: number;data: BodyType<CreateOfficeInventoryItemBody>},
+        TContext
+      > => {
+      return useMutation(getCreateOfficeInventoryItemMutationOptions(options));
+    }
+
+export const getGetOfficeInventoryItemUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/items/${id}`
+}
+
+/**
+ * @summary Get an Office Inventory catalog item
+ */
+export const getOfficeInventoryItem = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<OfficeInventoryItem> => {
+
+  return customFetch<OfficeInventoryItem>(getGetOfficeInventoryItemUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOfficeInventoryItemQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/office-inventory/items/${id}`
+    ] as const;
+    }
+
+
+export const getGetOfficeInventoryItemQueryOptions = <TData = Awaited<ReturnType<typeof getOfficeInventoryItem>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryItem>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOfficeInventoryItemQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOfficeInventoryItem>>> = ({ signal }) => getOfficeInventoryItem(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryItem>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOfficeInventoryItemQueryResult = NonNullable<Awaited<ReturnType<typeof getOfficeInventoryItem>>>
+export type GetOfficeInventoryItemQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get an Office Inventory catalog item
+ */
+
+export function useGetOfficeInventoryItem<TData = Awaited<ReturnType<typeof getOfficeInventoryItem>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryItem>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOfficeInventoryItemQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateOfficeInventoryItemUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/items/${id}`
+}
+
+/**
+ * Never accepts itemCode (permanent) or classification (fixed at creation).
+ * @summary Update an Office Inventory catalog item — gated office_inventory.item.manage
+ */
+export const updateOfficeInventoryItem = async (organizationId: number,
+    id: number,
+    updateOfficeInventoryItemBody: UpdateOfficeInventoryItemBody, options?: RequestInit): Promise<OfficeInventoryItem> => {
+
+  return customFetch<OfficeInventoryItem>(getUpdateOfficeInventoryItemUrl(organizationId,id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateOfficeInventoryItemBody)
+  }
+);}
+
+
+
+
+
+export const getUpdateOfficeInventoryItemMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateOfficeInventoryItem>>, TError,{organizationId: number;id: number;data: BodyType<UpdateOfficeInventoryItemBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateOfficeInventoryItem>>, TError,{organizationId: number;id: number;data: BodyType<UpdateOfficeInventoryItemBody>}, TContext> => {
+
+const mutationKey = ['updateOfficeInventoryItem'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateOfficeInventoryItem>>, {organizationId: number;id: number;data: BodyType<UpdateOfficeInventoryItemBody>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  updateOfficeInventoryItem(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateOfficeInventoryItemMutationResult = NonNullable<Awaited<ReturnType<typeof updateOfficeInventoryItem>>>
+    export type UpdateOfficeInventoryItemMutationBody = BodyType<UpdateOfficeInventoryItemBody>
+    export type UpdateOfficeInventoryItemMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update an Office Inventory catalog item — gated office_inventory.item.manage
+ */
+export const useUpdateOfficeInventoryItem = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateOfficeInventoryItem>>, TError,{organizationId: number;id: number;data: BodyType<UpdateOfficeInventoryItemBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateOfficeInventoryItem>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<UpdateOfficeInventoryItemBody>},
+        TContext
+      > => {
+      return useMutation(getUpdateOfficeInventoryItemMutationOptions(options));
+    }
+
+export const getListOfficeInventoryStoresUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/stores`
+}
+
+/**
+ * @summary List Office Inventory stores
+ */
+export const listOfficeInventoryStores = async (organizationId: number, options?: RequestInit): Promise<OfficeInventoryStore[]> => {
+
+  return customFetch<OfficeInventoryStore[]>(getListOfficeInventoryStoresUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOfficeInventoryStoresQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/office-inventory/stores`
+    ] as const;
+    }
+
+
+export const getListOfficeInventoryStoresQueryOptions = <TData = Awaited<ReturnType<typeof listOfficeInventoryStores>>, TError = ErrorType<ApiError>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOfficeInventoryStores>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOfficeInventoryStoresQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOfficeInventoryStores>>> = ({ signal }) => listOfficeInventoryStores(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOfficeInventoryStores>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOfficeInventoryStoresQueryResult = NonNullable<Awaited<ReturnType<typeof listOfficeInventoryStores>>>
+export type ListOfficeInventoryStoresQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List Office Inventory stores
+ */
+
+export function useListOfficeInventoryStores<TData = Awaited<ReturnType<typeof listOfficeInventoryStores>>, TError = ErrorType<ApiError>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOfficeInventoryStores>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOfficeInventoryStoresQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateOfficeInventoryStoreUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/stores`
+}
+
+/**
+ * Flat — no hierarchy in V1. `code` is stable and permanent.
+ * @summary Create an Office Inventory store — gated office_inventory.store.manage
+ */
+export const createOfficeInventoryStore = async (organizationId: number,
+    createOfficeInventoryStoreBody: CreateOfficeInventoryStoreBody, options?: RequestInit): Promise<OfficeInventoryStore> => {
+
+  return customFetch<OfficeInventoryStore>(getCreateOfficeInventoryStoreUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createOfficeInventoryStoreBody)
+  }
+);}
+
+
+
+
+
+export const getCreateOfficeInventoryStoreMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryStore>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryStoreBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryStore>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryStoreBody>}, TContext> => {
+
+const mutationKey = ['createOfficeInventoryStore'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createOfficeInventoryStore>>, {organizationId: number;data: BodyType<CreateOfficeInventoryStoreBody>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createOfficeInventoryStore(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateOfficeInventoryStoreMutationResult = NonNullable<Awaited<ReturnType<typeof createOfficeInventoryStore>>>
+    export type CreateOfficeInventoryStoreMutationBody = BodyType<CreateOfficeInventoryStoreBody>
+    export type CreateOfficeInventoryStoreMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Create an Office Inventory store — gated office_inventory.store.manage
+ */
+export const useCreateOfficeInventoryStore = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryStore>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryStoreBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createOfficeInventoryStore>>,
+        TError,
+        {organizationId: number;data: BodyType<CreateOfficeInventoryStoreBody>},
+        TContext
+      > => {
+      return useMutation(getCreateOfficeInventoryStoreMutationOptions(options));
+    }
+
+export const getGetOfficeInventoryStoreUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/stores/${id}`
+}
+
+/**
+ * @summary Get an Office Inventory store
+ */
+export const getOfficeInventoryStore = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<OfficeInventoryStore> => {
+
+  return customFetch<OfficeInventoryStore>(getGetOfficeInventoryStoreUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOfficeInventoryStoreQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/office-inventory/stores/${id}`
+    ] as const;
+    }
+
+
+export const getGetOfficeInventoryStoreQueryOptions = <TData = Awaited<ReturnType<typeof getOfficeInventoryStore>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryStore>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOfficeInventoryStoreQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOfficeInventoryStore>>> = ({ signal }) => getOfficeInventoryStore(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryStore>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOfficeInventoryStoreQueryResult = NonNullable<Awaited<ReturnType<typeof getOfficeInventoryStore>>>
+export type GetOfficeInventoryStoreQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get an Office Inventory store
+ */
+
+export function useGetOfficeInventoryStore<TData = Awaited<ReturnType<typeof getOfficeInventoryStore>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryStore>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOfficeInventoryStoreQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateOfficeInventoryStoreUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/stores/${id}`
+}
+
+/**
+ * Never accepts `code` — the store's stable, permanent identity.
+ * @summary Update an Office Inventory store — gated office_inventory.store.manage
+ */
+export const updateOfficeInventoryStore = async (organizationId: number,
+    id: number,
+    updateOfficeInventoryStoreBody: UpdateOfficeInventoryStoreBody, options?: RequestInit): Promise<OfficeInventoryStore> => {
+
+  return customFetch<OfficeInventoryStore>(getUpdateOfficeInventoryStoreUrl(organizationId,id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateOfficeInventoryStoreBody)
+  }
+);}
+
+
+
+
+
+export const getUpdateOfficeInventoryStoreMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateOfficeInventoryStore>>, TError,{organizationId: number;id: number;data: BodyType<UpdateOfficeInventoryStoreBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateOfficeInventoryStore>>, TError,{organizationId: number;id: number;data: BodyType<UpdateOfficeInventoryStoreBody>}, TContext> => {
+
+const mutationKey = ['updateOfficeInventoryStore'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateOfficeInventoryStore>>, {organizationId: number;id: number;data: BodyType<UpdateOfficeInventoryStoreBody>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  updateOfficeInventoryStore(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateOfficeInventoryStoreMutationResult = NonNullable<Awaited<ReturnType<typeof updateOfficeInventoryStore>>>
+    export type UpdateOfficeInventoryStoreMutationBody = BodyType<UpdateOfficeInventoryStoreBody>
+    export type UpdateOfficeInventoryStoreMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update an Office Inventory store — gated office_inventory.store.manage
+ */
+export const useUpdateOfficeInventoryStore = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateOfficeInventoryStore>>, TError,{organizationId: number;id: number;data: BodyType<UpdateOfficeInventoryStoreBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateOfficeInventoryStore>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<UpdateOfficeInventoryStoreBody>},
+        TContext
+      > => {
+      return useMutation(getUpdateOfficeInventoryStoreMutationOptions(options));
     }
 

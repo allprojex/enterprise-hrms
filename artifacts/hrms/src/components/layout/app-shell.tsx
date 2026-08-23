@@ -39,6 +39,7 @@ import {
   FileText,
   GraduationCap,
   Boxes,
+  Warehouse,
   Compass,
   Upload,
 } from 'lucide-react';
@@ -429,6 +430,15 @@ export function AppShell({ children }: AppShellProps) {
     // visibility — a manager's own Team Assets relationship never widens
     // to this page.
     ...(isHrCapable ? [{ href: '/asset-workspace', label: 'Asset Workspace', icon: LayoutGrid } satisfies NavItem] : []),
+    // Office Inventory, Workstream 1 — module is registered "hidden"
+    // (disabled by default, WWM included) and this nav entry is
+    // isHrCapable-gated like every other HR configuration page above; the
+    // real authorization boundary is /office-inventory's own
+    // requireModuleEnabled("office_inventory") + office_inventory.*.manage
+    // gating on the backend, so nav visibility alone never grants access —
+    // for a disabled org the ModuleGate wrapping this route shows its own
+    // "module not enabled" state rather than the page underneath.
+    ...(isHrCapable ? [{ href: '/office-inventory', label: 'Office Inventory', icon: Warehouse } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisitions', label: 'Job Requisitions', icon: ClipboardList } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/requisition-approvals', label: 'Requisition Approvals', icon: Stamp } satisfies NavItem] : []),
     ...(isHrCapable ? [{ href: '/vacancies', label: 'Vacancies', icon: Megaphone } satisfies NavItem] : []),

@@ -109,3 +109,6 @@ export * from "./payroll-corrections";
 export * from "./payroll-correction-components";
 export * from "./payroll-payment-batches";
 export * from "./payroll-payment-batch-lines";
+export * from "./department-heads";
+export * from "./office-inventory-items";
+export * from "./office-inventory-stores";
