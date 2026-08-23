@@ -1,9 +1,10 @@
 /**
- * Payroll, Workstream 3 — Payroll Run Foundation
+ * Payroll, Workstream 3/4 — Payroll Run Foundation, Approval & Locking
  * (docs/PAYROLL_IMPLEMENTATION_PLAN.md §9.5, §10, §13). Every route
- * requires the payroll module enabled AND payroll.run.prepare. No route
- * here can move a run past "calculated" — approval/finalization/locking
- * are reserved for Workstream 4.
+ * requires the payroll module enabled AND a frozen permission —
+ * `payroll.run.prepare` for creation/calculation/reads, `payroll.run.approve`
+ * for approval, `payroll.run.lock` for finalization — each distinct, none
+ * inherited from another.
  */
 import { Router } from "express";
 import { CreatePayrollRunBody } from "@workspace/api-zod";
@@ -17,11 +18,18 @@ import {
   getPayrollRun,
   getPayrollRunLines,
   calculatePayrollRun,
+  approvePayrollRun,
+  lockPayrollRun,
   PayrollRunCollisionError,
   PayrollRunNotFoundError,
   PayrollPeriodNotFoundError,
   NoEligibleEmployeesError,
   PayrollRunValidationError,
+  PayrollRunNotEditableError,
+  PayrollRunNotCalculatedError,
+  PayrollRunNotApprovedError,
+  PayrollRunNoLinesError,
+  PayrollRunSelfApprovalError,
 } from "../lib/payrollRuns";
 import { getNamespaceConfig } from "../services/organizationConfig";
 import { recordAuditEvent } from "../lib/auditLog";
@@ -177,6 +185,104 @@ router.post(
       }
       if (err instanceof PayrollRunValidationError) {
         res.status(422).json({ error: err.message, employeeErrors: err.employeeErrors });
+        return;
+      }
+      if (err instanceof PayrollRunNotEditableError) {
+        res.status(409).json({ error: err.message });
+        return;
+      }
+      throw err;
+    }
+  },
+);
+
+// POST /organizations/:organizationId/payroll/runs/:id/approve
+router.post(
+  "/organizations/:organizationId/payroll/runs/:id/approve",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requireModuleEnabled("payroll"),
+  requirePermission("payroll.run.approve"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const id = parseId(req.params.id);
+    if (isNaN(id)) {
+      res.status(400).json({ error: "Invalid run ID" });
+      return;
+    }
+    const organizationId = req.membership!.organizationId;
+
+    try {
+      const run = await approvePayrollRun({ organizationId, payrollRunId: id, approverMembershipId: req.membership!.id });
+
+      await recordAuditEvent({
+        actorApplicationUserId: req.userId!,
+        actorMembershipId: req.membership!.id,
+        organizationId,
+        eventType: "payroll_run.approved",
+        targetType: "payroll_run",
+        targetId: String(run.id),
+        afterState: { status: run.status, approvedByMembershipId: run.approvedByMembershipId },
+      });
+
+      res.json(run);
+    } catch (err) {
+      if (err instanceof PayrollRunNotFoundError) {
+        res.status(404).json({ error: err.message });
+        return;
+      }
+      if (err instanceof PayrollRunNotCalculatedError || err instanceof PayrollRunNoLinesError) {
+        res.status(409).json({ error: err.message });
+        return;
+      }
+      if (err instanceof PayrollRunSelfApprovalError) {
+        res.status(409).json({ error: err.message });
+        return;
+      }
+      throw err;
+    }
+  },
+);
+
+// POST /organizations/:organizationId/payroll/runs/:id/lock
+router.post(
+  "/organizations/:organizationId/payroll/runs/:id/lock",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requireModuleEnabled("payroll"),
+  requirePermission("payroll.run.lock"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const id = parseId(req.params.id);
+    if (isNaN(id)) {
+      res.status(400).json({ error: "Invalid run ID" });
+      return;
+    }
+    const organizationId = req.membership!.organizationId;
+
+    try {
+      const run = await lockPayrollRun({ organizationId, payrollRunId: id, actorMembershipId: req.membership!.id });
+
+      await recordAuditEvent({
+        actorApplicationUserId: req.userId!,
+        actorMembershipId: req.membership!.id,
+        organizationId,
+        eventType: "payroll_run.locked",
+        targetType: "payroll_run",
+        targetId: String(run.id),
+        afterState: { status: run.status, lockedAt: run.lockedAt },
+      });
+
+      res.json(run);
+    } catch (err) {
+      if (err instanceof PayrollRunNotFoundError) {
+        res.status(404).json({ error: err.message });
+        return;
+      }
+      if (err instanceof PayrollRunNotApprovedError) {
+        res.status(409).json({ error: err.message });
+        return;
+      }
+      if (err instanceof PayrollRunSelfApprovalError) {
+        res.status(409).json({ error: err.message });
         return;
       }
       throw err;

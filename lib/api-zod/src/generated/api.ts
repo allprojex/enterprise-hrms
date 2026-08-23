@@ -12493,7 +12493,7 @@ export const ListPayrollRunsResponseItem = zod.object({
   "id": zod.number(),
   "organizationId": zod.number(),
   "payrollPeriodId": zod.number(),
-  "status": zod.enum(['draft', 'calculated']),
+  "status": zod.enum(['draft', 'calculated', 'approved', 'locked']),
   "preparedByMembershipId": zod.number().nullable(),
   "approvedByMembershipId": zod.number().nullable(),
   "lockedAt": zod.coerce.date().nullable(),
@@ -12520,7 +12520,7 @@ export const CreatePayrollRunResponse = zod.object({
   "id": zod.number(),
   "organizationId": zod.number(),
   "payrollPeriodId": zod.number(),
-  "status": zod.enum(['draft', 'calculated']),
+  "status": zod.enum(['draft', 'calculated', 'approved', 'locked']),
   "preparedByMembershipId": zod.number().nullable(),
   "approvedByMembershipId": zod.number().nullable(),
   "lockedAt": zod.coerce.date().nullable(),
@@ -12543,7 +12543,7 @@ export const GetPayrollRunResponse = zod.object({
   "id": zod.number(),
   "organizationId": zod.number(),
   "payrollPeriodId": zod.number(),
-  "status": zod.enum(['draft', 'calculated']),
+  "status": zod.enum(['draft', 'calculated', 'approved', 'locked']),
   "preparedByMembershipId": zod.number().nullable(),
   "approvedByMembershipId": zod.number().nullable(),
   "lockedAt": zod.coerce.date().nullable(),
@@ -12615,7 +12615,7 @@ export const CalculatePayrollRunResponse = zod.object({
   "id": zod.number(),
   "organizationId": zod.number(),
   "payrollPeriodId": zod.number(),
-  "status": zod.enum(['draft', 'calculated']),
+  "status": zod.enum(['draft', 'calculated', 'approved', 'locked']),
   "preparedByMembershipId": zod.number().nullable(),
   "approvedByMembershipId": zod.number().nullable(),
   "lockedAt": zod.coerce.date().nullable(),
@@ -12624,6 +12624,230 @@ export const CalculatePayrollRunResponse = zod.object({
   "updatedAt": zod.coerce.date()
 }),
   "employeeCount": zod.number()
+})
+
+
+/**
+ * Gated payroll.run.approve. Requires the run to be exactly "calculated" with at least one line. The approving membership must differ from the run's own preparedByMembershipId (server-side maker-checker) — rejected with 409 on self-approval.
+ * @summary Approve a calculated payroll run (Payroll, Workstream 4)
+ */
+export const ApprovePayrollRunParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ApprovePayrollRunResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "payrollPeriodId": zod.number(),
+  "status": zod.enum(['draft', 'calculated', 'approved', 'locked']),
+  "preparedByMembershipId": zod.number().nullable(),
+  "approvedByMembershipId": zod.number().nullable(),
+  "lockedAt": zod.coerce.date().nullable(),
+  "calculatedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Gated payroll.run.lock. Requires the run to be exactly "approved". The locking membership must differ from the run's own preparedByMembershipId. Locking is the terminal, immutable financial-integrity boundary — from this point the run's result may only be adjusted through a payroll_corrections record, never edited in place.
+ * @summary Finalize/lock an approved payroll run (Payroll, Workstream 4)
+ */
+export const LockPayrollRunParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const LockPayrollRunResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "payrollPeriodId": zod.number(),
+  "status": zod.enum(['draft', 'calculated', 'approved', 'locked']),
+  "preparedByMembershipId": zod.number().nullable(),
+  "approvedByMembershipId": zod.number().nullable(),
+  "lockedAt": zod.coerce.date().nullable(),
+  "calculatedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Gated payroll.run.correct.
+ * @summary List corrections for a payroll run (Payroll, Workstream 4)
+ */
+export const ListPayrollCorrectionsForRunParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "runId": zod.coerce.number()
+})
+
+export const ListPayrollCorrectionsForRunResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "originalRunId": zod.number(),
+  "originalRunLineId": zod.number(),
+  "employeeId": zod.number(),
+  "status": zod.enum(['draft', 'approved']),
+  "reason": zod.string(),
+  "staffNumberSnapshot": zod.string().nullable(),
+  "payeBandsVersionId": zod.number().nullable(),
+  "pensionRatesVersionId": zod.number().nullable(),
+  "pensionEarningsCeilingVersionId": zod.number().nullable(),
+  "grossEarnings": zod.string(),
+  "pensionableEarnings": zod.string(),
+  "employeePensionDeduction": zod.string(),
+  "employerPensionContribution": zod.string(),
+  "tier1Amount": zod.string(),
+  "tier2Amount": zod.string(),
+  "taxableIncome": zod.string(),
+  "payeAmount": zod.string(),
+  "otherDeductions": zod.string(),
+  "netPay": zod.string(),
+  "netPayDelta": zod.string(),
+  "currency": zod.string(),
+  "createdByMembershipId": zod.number().nullable(),
+  "approvedByMembershipId": zod.number().nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date()
+})
+export const ListPayrollCorrectionsForRunResponse = zod.array(ListPayrollCorrectionsForRunResponseItem)
+
+
+/**
+ * Gated payroll.run.correct. The original run must be "locked". The original run line is never edited — this re-invokes the calculation engine for the original period's payDate and persists the result as a new, separately-approved draft correction. Rejected with 409 if a draft correction is already open for this line.
+ * @summary Create a draft correction against a locked run's line (Payroll, Workstream 4)
+ */
+export const CreatePayrollCorrectionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "runId": zod.coerce.number()
+})
+
+export const CreatePayrollCorrectionBody = zod.object({
+  "originalRunLineId": zod.number(),
+  "reason": zod.string()
+})
+
+export const CreatePayrollCorrectionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "originalRunId": zod.number(),
+  "originalRunLineId": zod.number(),
+  "employeeId": zod.number(),
+  "status": zod.enum(['draft', 'approved']),
+  "reason": zod.string(),
+  "staffNumberSnapshot": zod.string().nullable(),
+  "payeBandsVersionId": zod.number().nullable(),
+  "pensionRatesVersionId": zod.number().nullable(),
+  "pensionEarningsCeilingVersionId": zod.number().nullable(),
+  "grossEarnings": zod.string(),
+  "pensionableEarnings": zod.string(),
+  "employeePensionDeduction": zod.string(),
+  "employerPensionContribution": zod.string(),
+  "tier1Amount": zod.string(),
+  "tier2Amount": zod.string(),
+  "taxableIncome": zod.string(),
+  "payeAmount": zod.string(),
+  "otherDeductions": zod.string(),
+  "netPay": zod.string(),
+  "netPayDelta": zod.string(),
+  "currency": zod.string(),
+  "createdByMembershipId": zod.number().nullable(),
+  "approvedByMembershipId": zod.number().nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * Gated payroll.run.correct.
+ * @summary Get one correction with its itemized component trace (Payroll, Workstream 4)
+ */
+export const GetPayrollCorrectionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const GetPayrollCorrectionResponse = zod.object({
+  "correction": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "originalRunId": zod.number(),
+  "originalRunLineId": zod.number(),
+  "employeeId": zod.number(),
+  "status": zod.enum(['draft', 'approved']),
+  "reason": zod.string(),
+  "staffNumberSnapshot": zod.string().nullable(),
+  "payeBandsVersionId": zod.number().nullable(),
+  "pensionRatesVersionId": zod.number().nullable(),
+  "pensionEarningsCeilingVersionId": zod.number().nullable(),
+  "grossEarnings": zod.string(),
+  "pensionableEarnings": zod.string(),
+  "employeePensionDeduction": zod.string(),
+  "employerPensionContribution": zod.string(),
+  "tier1Amount": zod.string(),
+  "tier2Amount": zod.string(),
+  "taxableIncome": zod.string(),
+  "payeAmount": zod.string(),
+  "otherDeductions": zod.string(),
+  "netPay": zod.string(),
+  "netPayDelta": zod.string(),
+  "currency": zod.string(),
+  "createdByMembershipId": zod.number().nullable(),
+  "approvedByMembershipId": zod.number().nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date()
+}),
+  "components": zod.array(zod.object({
+  "id": zod.number(),
+  "payrollCorrectionId": zod.number(),
+  "category": zod.enum(['earning', 'deduction']),
+  "componentTypeCode": zod.string(),
+  "amount": zod.string(),
+  "taxableTreatment": zod.enum(['ordinary', 'benefit_in_kind', 'bonus', 'overtime']),
+  "pensionable": zod.boolean(),
+  "source": zod.enum(['recurring', 'one_off'])
+}))
+})
+
+
+/**
+ * Gated payroll.run.correct. The approving membership must differ from the correction's own createdByMembershipId — rejected with 409 on self-approval, mirroring W1's statutory-rule maker-checker. Terminal: an approved correction is immutable.
+ * @summary Approve a draft correction (Payroll, Workstream 4)
+ */
+export const ApprovePayrollCorrectionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ApprovePayrollCorrectionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "originalRunId": zod.number(),
+  "originalRunLineId": zod.number(),
+  "employeeId": zod.number(),
+  "status": zod.enum(['draft', 'approved']),
+  "reason": zod.string(),
+  "staffNumberSnapshot": zod.string().nullable(),
+  "payeBandsVersionId": zod.number().nullable(),
+  "pensionRatesVersionId": zod.number().nullable(),
+  "pensionEarningsCeilingVersionId": zod.number().nullable(),
+  "grossEarnings": zod.string(),
+  "pensionableEarnings": zod.string(),
+  "employeePensionDeduction": zod.string(),
+  "employerPensionContribution": zod.string(),
+  "tier1Amount": zod.string(),
+  "tier2Amount": zod.string(),
+  "taxableIncome": zod.string(),
+  "payeAmount": zod.string(),
+  "otherDeductions": zod.string(),
+  "netPay": zod.string(),
+  "netPayDelta": zod.string(),
+  "currency": zod.string(),
+  "createdByMembershipId": zod.number().nullable(),
+  "approvedByMembershipId": zod.number().nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date()
 })
 
 

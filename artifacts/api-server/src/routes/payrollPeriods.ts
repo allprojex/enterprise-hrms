@@ -26,6 +26,7 @@ import {
   UnknownComponentTypeError,
   PayrollInputReferencePeriodNotFoundError,
   PayrollInputReferenceNotFoundError,
+  PayrollRunNotEditableError,
 } from "../lib/payrollInputReferences";
 import { recordAuditEvent } from "../lib/auditLog";
 
@@ -191,6 +192,10 @@ router.post(
         res.status(400).json({ error: err.message });
         return;
       }
+      if (err instanceof PayrollRunNotEditableError) {
+        res.status(409).json({ error: err.message });
+        return;
+      }
       throw err;
     }
   },
@@ -226,6 +231,10 @@ router.delete(
     } catch (err) {
       if (err instanceof PayrollInputReferenceNotFoundError) {
         res.status(404).json({ error: err.message });
+        return;
+      }
+      if (err instanceof PayrollRunNotEditableError) {
+        res.status(409).json({ error: err.message });
         return;
       }
       throw err;

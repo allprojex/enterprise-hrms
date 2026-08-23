@@ -4931,6 +4931,8 @@ export type PayrollRunStatus = typeof PayrollRunStatus[keyof typeof PayrollRunSt
 export const PayrollRunStatus = {
   draft: 'draft',
   calculated: 'calculated',
+  approved: 'approved',
+  locked: 'locked',
 } as const;
 
 export interface PayrollRun {
@@ -5106,6 +5108,98 @@ export interface CreatePayrollInputReferenceBody {
   currency: string;
   taxableTreatment?: CreatePayrollInputReferenceBodyTaxableTreatment;
   description?: string;
+}
+
+export type PayrollCorrectionStatus = typeof PayrollCorrectionStatus[keyof typeof PayrollCorrectionStatus];
+
+
+export const PayrollCorrectionStatus = {
+  draft: 'draft',
+  approved: 'approved',
+} as const;
+
+export interface PayrollCorrection {
+  id: number;
+  organizationId: number;
+  originalRunId: number;
+  originalRunLineId: number;
+  employeeId: number;
+  status: PayrollCorrectionStatus;
+  reason: string;
+  /** @nullable */
+  staffNumberSnapshot: string | null;
+  /** @nullable */
+  payeBandsVersionId: number | null;
+  /** @nullable */
+  pensionRatesVersionId: number | null;
+  /** @nullable */
+  pensionEarningsCeilingVersionId: number | null;
+  grossEarnings: string;
+  pensionableEarnings: string;
+  employeePensionDeduction: string;
+  employerPensionContribution: string;
+  tier1Amount: string;
+  tier2Amount: string;
+  taxableIncome: string;
+  payeAmount: string;
+  otherDeductions: string;
+  netPay: string;
+  netPayDelta: string;
+  currency: string;
+  /** @nullable */
+  createdByMembershipId: number | null;
+  /** @nullable */
+  approvedByMembershipId: number | null;
+  /** @nullable */
+  approvedAt: string | null;
+  createdAt: string;
+}
+
+export interface CreatePayrollCorrectionBody {
+  originalRunLineId: number;
+  reason: string;
+}
+
+export type PayrollCorrectionComponentCategory = typeof PayrollCorrectionComponentCategory[keyof typeof PayrollCorrectionComponentCategory];
+
+
+export const PayrollCorrectionComponentCategory = {
+  earning: 'earning',
+  deduction: 'deduction',
+} as const;
+
+export type PayrollCorrectionComponentTaxableTreatment = typeof PayrollCorrectionComponentTaxableTreatment[keyof typeof PayrollCorrectionComponentTaxableTreatment];
+
+
+export const PayrollCorrectionComponentTaxableTreatment = {
+  ordinary: 'ordinary',
+  benefit_in_kind: 'benefit_in_kind',
+  bonus: 'bonus',
+  overtime: 'overtime',
+} as const;
+
+export type PayrollCorrectionComponentSource = typeof PayrollCorrectionComponentSource[keyof typeof PayrollCorrectionComponentSource];
+
+
+export const PayrollCorrectionComponentSource = {
+  recurring: 'recurring',
+  one_off: 'one_off',
+} as const;
+
+export interface PayrollCorrectionComponent {
+  id: number;
+  payrollCorrectionId: number;
+  category: PayrollCorrectionComponentCategory;
+  componentTypeCode: string;
+  amount: string;
+  taxableTreatment: PayrollCorrectionComponentTaxableTreatment;
+  pensionable: boolean;
+  source: PayrollCorrectionComponentSource;
+}
+
+export interface PayrollCorrectionWithTrace {
+  correction: PayrollCorrection;
+  components: PayrollCorrectionComponent[];
 }
 
 export type RecruitmentStageBreakdownItemCategory = typeof RecruitmentStageBreakdownItemCategory[keyof typeof RecruitmentStageBreakdownItemCategory];

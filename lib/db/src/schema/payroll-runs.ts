@@ -5,17 +5,27 @@ import { organizationsTable } from "./organizations";
 import { payrollPeriodsTable } from "./payroll-periods";
 import { organizationMembershipsTable } from "./organization-memberships";
 
-// Payroll, Workstream 3 (docs/PAYROLL_IMPLEMENTATION_PLAN.md §9.5, §10, §13).
-// One run per (organization, period) — enforced by the unique index below,
-// the exact frozen requirement. W3 only ever produces "draft"/"calculated";
-// "approved"/"locked"/"cancelled" are reserved for Workstream 4 and
-// deliberately not added to the enum yet (Postgres enums accept new values
-// added later without disruption) — no route in this workstream can move a
-// run past "calculated". `approvedByMembershipId`/`lockedAt` columns are
-// reserved now (not populated by anything in W3) so W4 can enforce its own
-// distinct-actor maker-checker without a later schema change disturbing
-// already-calculated data.
-export const payrollRunStatusEnum = pgEnum("payroll_run_status", ["draft", "calculated"]);
+// Payroll, Workstream 3/4 (docs/PAYROLL_IMPLEMENTATION_PLAN.md §9.5, §10,
+// §13). One run per (organization, period) — enforced by the unique index
+// below, the exact frozen requirement.
+//
+// Workstream 4 extends the enum with "approved"/"locked" (Postgres enums
+// accept new values added later without disruption to existing rows).
+// "calculated" is the only state from which recalculation or one-off-input
+// mutation is permitted — once "approved", both are rejected (§B/§G/§O).
+// "locked" is the terminal, immutable financial-integrity boundary; a
+// locked run is never edited in place — see payroll-corrections.ts for the
+// only sanctioned path to adjust a locked run's result.
+//
+// `approvedByMembershipId`/`lockedAt`, reserved unused by W3, are now
+// populated by Workstream 4: approving requires a membership distinct from
+// `preparedByMembershipId` (server-side maker-checker, mirroring W1's
+// statutory-rule self-approval block exactly), and locking requires the
+// same distinct-actor check against the preparer. No `lockedByMembershipId`
+// column is added — `lockedAt` plus the audit_events row already created
+// for the lock transition is the frozen-plan-sufficient record (§E: "do not
+// add schema merely because a field is convenient").
+export const payrollRunStatusEnum = pgEnum("payroll_run_status", ["draft", "calculated", "approved", "locked"]);
 
 export const payrollRunsTable = pgTable(
   "payroll_runs",
@@ -31,7 +41,7 @@ export const payrollRunsTable = pgTable(
     preparedByMembershipId: integer("prepared_by_membership_id").references(() => organizationMembershipsTable.id, {
       onDelete: "set null",
     }),
-    // Reserved for Workstream 4 — never set by any W3 route.
+    // Set by Workstream 4's approve action — must differ from preparedByMembershipId.
     approvedByMembershipId: integer("approved_by_membership_id").references(() => organizationMembershipsTable.id, {
       onDelete: "set null",
     }),

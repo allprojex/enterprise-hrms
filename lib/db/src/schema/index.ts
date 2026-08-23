@@ -105,3 +105,5 @@ export * from "./payroll-runs";
 export * from "./payroll-run-lines";
 export * from "./payroll-run-line-components";
 export * from "./payroll-input-references";
+export * from "./payroll-corrections";
+export * from "./payroll-correction-components";

@@ -15624,12 +15624,283 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Run is approved/locked — calculation inputs can no longer be changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "422":
           description: One or more employees failed calculation validation — nothing was persisted
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/PayrollRunValidationErrorBody"
+
+  /organizations/{organizationId}/payroll/runs/{id}/approve:
+    post:
+      operationId: approvePayrollRun
+      tags: [payroll-runs]
+      summary: Approve a calculated payroll run (Payroll, Workstream 4)
+      description: >-
+        Gated payroll.run.approve. Requires the run to be exactly
+        "calculated" with at least one line. The approving membership must
+        differ from the run's own preparedByMembershipId (server-side
+        maker-checker) — rejected with 409 on self-approval.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Approved payroll run
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollRun"
+        "403":
+          description: Forbidden — requires payroll.run.approve
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Payroll run not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Run is not "calculated", has no lines, or the approver is the same membership that prepared it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/payroll/runs/{id}/lock:
+    post:
+      operationId: lockPayrollRun
+      tags: [payroll-runs]
+      summary: Finalize/lock an approved payroll run (Payroll, Workstream 4)
+      description: >-
+        Gated payroll.run.lock. Requires the run to be exactly "approved".
+        The locking membership must differ from the run's own
+        preparedByMembershipId. Locking is the terminal, immutable
+        financial-integrity boundary — from this point the run's result may
+        only be adjusted through a payroll_corrections record, never edited
+        in place.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Locked payroll run
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollRun"
+        "403":
+          description: Forbidden — requires payroll.run.lock
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Payroll run not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Run is not "approved", or the locking actor is the same membership that prepared it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/payroll/runs/{runId}/corrections:
+    get:
+      operationId: listPayrollCorrectionsForRun
+      tags: [payroll-corrections]
+      summary: List corrections for a payroll run (Payroll, Workstream 4)
+      description: Gated payroll.run.correct.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Corrections referencing this run
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PayrollCorrection"
+        "403":
+          description: Forbidden — requires payroll.run.correct
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createPayrollCorrection
+      tags: [payroll-corrections]
+      summary: Create a draft correction against a locked run's line (Payroll, Workstream 4)
+      description: >-
+        Gated payroll.run.correct. The original run must be "locked". The
+        original run line is never edited — this re-invokes the calculation
+        engine for the original period's payDate and persists the result as
+        a new, separately-approved draft correction. Rejected with 409 if a
+        draft correction is already open for this line.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePayrollCorrectionBody"
+      responses:
+        "201":
+          description: Created draft correction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollCorrection"
+        "403":
+          description: Forbidden — requires payroll.run.correct
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Payroll run or run line not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Run is not locked, or a draft correction is already open for this line
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/payroll/corrections/{id}:
+    get:
+      operationId: getPayrollCorrection
+      tags: [payroll-corrections]
+      summary: Get one correction with its itemized component trace (Payroll, Workstream 4)
+      description: Gated payroll.run.correct.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Correction with its component trace
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollCorrectionWithTrace"
+        "403":
+          description: Forbidden — requires payroll.run.correct
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Payroll correction not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/payroll/corrections/{id}/approve:
+    post:
+      operationId: approvePayrollCorrection
+      tags: [payroll-corrections]
+      summary: Approve a draft correction (Payroll, Workstream 4)
+      description: >-
+        Gated payroll.run.correct. The approving membership must differ
+        from the correction's own createdByMembershipId — rejected with 409
+        on self-approval, mirroring W1's statutory-rule maker-checker.
+        Terminal: an approved correction is immutable.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Approved correction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollCorrection"
+        "403":
+          description: Forbidden — requires payroll.run.correct
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Payroll correction not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Correction is not "draft", or the approver is the same membership that created it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
 components:
   schemas:
@@ -21153,7 +21424,7 @@ components:
           type: integer
         status:
           type: string
-          enum: [draft, calculated]
+          enum: [draft, calculated, approved, locked]
         preparedByMembershipId:
           type: ["integer", "null"]
         approvedByMembershipId:
@@ -21349,6 +21620,112 @@ components:
           enum: [ordinary, benefit_in_kind, bonus, overtime]
         description:
           type: string
+
+    PayrollCorrection:
+      type: object
+      required: [id, organizationId, originalRunId, originalRunLineId, employeeId, status, reason, staffNumberSnapshot, payeBandsVersionId, pensionRatesVersionId, pensionEarningsCeilingVersionId, grossEarnings, pensionableEarnings, employeePensionDeduction, employerPensionContribution, tier1Amount, tier2Amount, taxableIncome, payeAmount, otherDeductions, netPay, netPayDelta, currency, createdByMembershipId, approvedByMembershipId, approvedAt, createdAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        originalRunId:
+          type: integer
+        originalRunLineId:
+          type: integer
+        employeeId:
+          type: integer
+        status:
+          type: string
+          enum: [draft, approved]
+        reason:
+          type: string
+        staffNumberSnapshot:
+          type: ["string", "null"]
+        payeBandsVersionId:
+          type: ["integer", "null"]
+        pensionRatesVersionId:
+          type: ["integer", "null"]
+        pensionEarningsCeilingVersionId:
+          type: ["integer", "null"]
+        grossEarnings:
+          type: string
+        pensionableEarnings:
+          type: string
+        employeePensionDeduction:
+          type: string
+        employerPensionContribution:
+          type: string
+        tier1Amount:
+          type: string
+        tier2Amount:
+          type: string
+        taxableIncome:
+          type: string
+        payeAmount:
+          type: string
+        otherDeductions:
+          type: string
+        netPay:
+          type: string
+        netPayDelta:
+          type: string
+        currency:
+          type: string
+        createdByMembershipId:
+          type: ["integer", "null"]
+        approvedByMembershipId:
+          type: ["integer", "null"]
+        approvedAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    CreatePayrollCorrectionBody:
+      type: object
+      required: [originalRunLineId, reason]
+      properties:
+        originalRunLineId:
+          type: integer
+        reason:
+          type: string
+
+    PayrollCorrectionComponent:
+      type: object
+      required: [id, payrollCorrectionId, category, componentTypeCode, amount, taxableTreatment, pensionable, source]
+      properties:
+        id:
+          type: integer
+        payrollCorrectionId:
+          type: integer
+        category:
+          type: string
+          enum: [earning, deduction]
+        componentTypeCode:
+          type: string
+        amount:
+          type: string
+        taxableTreatment:
+          type: string
+          enum: [ordinary, benefit_in_kind, bonus, overtime]
+        pensionable:
+          type: boolean
+        source:
+          type: string
+          enum: [recurring, one_off]
+
+    PayrollCorrectionWithTrace:
+      type: object
+      required: [correction, components]
+      properties:
+        correction:
+          $ref: "#/components/schemas/PayrollCorrection"
+        components:
+          type: array
+          items:
+            $ref: "#/components/schemas/PayrollCorrectionComponent"
 
     RecruitmentStageBreakdownItem:
       type: object

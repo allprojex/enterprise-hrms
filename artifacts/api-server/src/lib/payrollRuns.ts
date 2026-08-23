@@ -1,12 +1,9 @@
 /**
- * Payroll, Workstream 3 — Payroll Run Foundation
+ * Payroll, Workstream 3/4 — Payroll Run Foundation, Approval & Locking
  * (docs/PAYROLL_IMPLEMENTATION_PLAN.md §9.5, §10, §13). One run per
- * (organization, period) — enforced by payroll_runs' own unique index. This
- * workstream only ever produces "draft"/"calculated"; "approved"/"locked"
- * are reserved for Workstream 4 and are not reachable from any function
- * here — `approvedByMembershipId`/`lockedAt` are never set by this file.
+ * (organization, period) — enforced by payroll_runs' own unique index.
  *
- * Orchestrates: employee-inclusion resolution (§L, respecting
+ * Workstream 3 orchestrates: employee-inclusion resolution (§L, respecting
  * hireDate/separationDate — never assuming every employees row belongs in
  * every period, never depending on staff-number availability) ->
  * per-employee calculation (payrollCalculation.ts) -> persistence of both
@@ -15,6 +12,22 @@
  * (§W): if ANY included employee fails validation, the entire attempt is
  * rolled back and every per-employee error is reported together — a run
  * never ends up partially calculated.
+ *
+ * Workstream 4 adds approve/lock. Legal transitions only:
+ * draft/calculated -> approved -> locked. Recalculation is permitted only
+ * while status is "draft"/"calculated" — once "approved", calculation-
+ * affecting mutation (recalculation, one-off inputs) is rejected, closing
+ * the loophole where a post-approval edit could sit silently unused.
+ * "locked" is the terminal, immutable financial-integrity boundary; a
+ * locked run's result may only be adjusted through payrollCorrections.ts,
+ * never edited in place. Approve/lock both require a distinct membership
+ * from `preparedByMembershipId` (server-side maker-checker, mirroring W1's
+ * statutory-rule self-approval block exactly) — the frozen plan's Decision
+ * 3, now resolved explicitly for run-level approval by this workstream's
+ * own instruction. Every run-row read in this file uses `.for("update")`
+ * inside a transaction, so concurrent approve/lock/calculate attempts on
+ * the same run serialize naturally through Postgres row locking — no
+ * separate mechanism needed.
  */
 import { and, eq, sql } from "drizzle-orm";
 import {
@@ -57,6 +70,33 @@ export class PayrollRunValidationError extends Error {
   constructor(employeeErrors: Array<{ employeeId: number; error: string }>) {
     super(`Calculation failed for ${employeeErrors.length} employee(s) — no run data was persisted`);
     this.employeeErrors = employeeErrors;
+  }
+}
+// Workstream 4 — approval/locking.
+export class PayrollRunNotCalculatedError extends Error {
+  constructor(status: string) {
+    super(`This action requires the run to be in "calculated" status (currently "${status}")`);
+  }
+}
+export class PayrollRunNotApprovedError extends Error {
+  constructor(status: string) {
+    super(`This action requires the run to be in "approved" status (currently "${status}")`);
+  }
+}
+export class PayrollRunNoLinesError extends Error {
+  constructor() {
+    super("This run has no calculated lines to approve");
+  }
+}
+export class PayrollRunSelfApprovalError extends Error {
+  constructor() {
+    super("The membership that prepared this payroll run may not also approve or finalize it");
+  }
+}
+/** Thrown by calculate/recalculate and by one-off-input mutation once a run has passed "calculated" (§B/§G/§O). */
+export class PayrollRunNotEditableError extends Error {
+  constructor(status: string) {
+    super(`This payroll run is "${status}" and its calculation inputs can no longer be changed`);
   }
 }
 
@@ -172,9 +212,9 @@ export interface PayrollRunCalculationSummary {
 /**
  * (Re)calculates every eligible employee for this run's period, atomically.
  * Any prior lines/components for this run are discarded and replaced —
- * explicit, permitted while the run has not passed "calculated" (no later
- * state is reachable in this workstream), never silent (the caller must
- * invoke this explicitly; nothing recalculates on its own).
+ * explicit, permitted only while status is "draft"/"calculated" (§B/§G),
+ * never silent (the caller must invoke this explicitly; nothing
+ * recalculates on its own). Rejected once "approved"/"locked".
  */
 export async function calculatePayrollRun(params: CalculatePayrollRunParams): Promise<PayrollRunCalculationSummary> {
   return db.transaction(async (tx) => {
@@ -184,6 +224,7 @@ export async function calculatePayrollRun(params: CalculatePayrollRunParams): Pr
       .where(and(eq(payrollRunsTable.id, params.payrollRunId), eq(payrollRunsTable.organizationId, params.organizationId)))
       .for("update");
     if (!run) throw new PayrollRunNotFoundError();
+    if (run.status === "approved" || run.status === "locked") throw new PayrollRunNotEditableError(run.status);
 
     const [period] = await tx.select().from(payrollPeriodsTable).where(eq(payrollPeriodsTable.id, run.payrollPeriodId));
     if (!period) throw new PayrollPeriodNotFoundError();
@@ -264,4 +305,94 @@ export async function calculatePayrollRun(params: CalculatePayrollRunParams): Pr
 
     return { run: updatedRun, employeeCount: eligible.length };
   });
+}
+
+/**
+ * Pre-approval validation + the calculated -> approved transition (§B/§C).
+ * Requires: status exactly "calculated" (never draft, never already
+ * approved/locked), at least one calculated line, and an approver whose
+ * membership differs from the run's own preparedByMembershipId — the
+ * frozen plan's Decision 3, resolved for run-level approval by this
+ * workstream. The `.for("update")` row lock means two concurrent approval
+ * attempts on the same run serialize naturally: whichever transaction
+ * commits first wins, the second re-reads status="approved" and correctly
+ * rejects via PayrollRunNotCalculatedError.
+ */
+export async function approvePayrollRun(params: {
+  organizationId: number;
+  payrollRunId: number;
+  approverMembershipId: number;
+}): Promise<PayrollRun> {
+  return db.transaction(async (tx) => {
+    const [run] = await tx
+      .select()
+      .from(payrollRunsTable)
+      .where(and(eq(payrollRunsTable.id, params.payrollRunId), eq(payrollRunsTable.organizationId, params.organizationId)))
+      .for("update");
+    if (!run) throw new PayrollRunNotFoundError();
+    if (run.status !== "calculated") throw new PayrollRunNotCalculatedError(run.status);
+    if (run.preparedByMembershipId === params.approverMembershipId) throw new PayrollRunSelfApprovalError();
+
+    const [{ count }] = await tx
+      .select({ count: sql<number>`count(*)` })
+      .from(payrollRunLinesTable)
+      .where(eq(payrollRunLinesTable.payrollRunId, run.id));
+    if (Number(count) === 0) throw new PayrollRunNoLinesError();
+
+    const [updated] = await tx
+      .update(payrollRunsTable)
+      .set({ status: "approved", approvedByMembershipId: params.approverMembershipId })
+      .where(eq(payrollRunsTable.id, run.id))
+      .returning();
+    return updated;
+  });
+}
+
+/**
+ * The approved -> locked transition (§F/§G) — the terminal, immutable
+ * financial-integrity boundary. From this point, payrollCorrections.ts is
+ * the only sanctioned path to adjust this run's result; the original
+ * lines/components are never edited in place. Same distinct-actor check
+ * against the preparer as approval, and the same row-lock-based
+ * concurrency guarantee.
+ */
+export async function lockPayrollRun(params: { organizationId: number; payrollRunId: number; actorMembershipId: number }): Promise<PayrollRun> {
+  return db.transaction(async (tx) => {
+    const [run] = await tx
+      .select()
+      .from(payrollRunsTable)
+      .where(and(eq(payrollRunsTable.id, params.payrollRunId), eq(payrollRunsTable.organizationId, params.organizationId)))
+      .for("update");
+    if (!run) throw new PayrollRunNotFoundError();
+    if (run.status !== "approved") throw new PayrollRunNotApprovedError(run.status);
+    if (run.preparedByMembershipId === params.actorMembershipId) throw new PayrollRunSelfApprovalError();
+
+    const [updated] = await tx
+      .update(payrollRunsTable)
+      .set({ status: "locked", lockedAt: new Date() })
+      .where(eq(payrollRunsTable.id, run.id))
+      .returning();
+    return updated;
+  });
+}
+
+/**
+ * §G/§O lock-invariant hardening for routes that mutate a period's one-off
+ * inputs rather than the run itself: locks (via `.for("update")`, inside
+ * the caller's own transaction) and returns the run for `payrollPeriodId`,
+ * if one exists — null if this period has no run yet (inputs are freely
+ * editable before a run is even created). Callers reject the mutation if
+ * the returned run's status is "approved" or "locked".
+ */
+export async function lockRunForPeriodIfExists(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  organizationId: number,
+  payrollPeriodId: number,
+): Promise<PayrollRun | null> {
+  const [run] = await tx
+    .select()
+    .from(payrollRunsTable)
+    .where(and(eq(payrollRunsTable.organizationId, organizationId), eq(payrollRunsTable.payrollPeriodId, payrollPeriodId)))
+    .for("update");
+  return run ?? null;
 }

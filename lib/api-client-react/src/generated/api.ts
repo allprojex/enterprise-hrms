@@ -98,6 +98,7 @@ import type {
   CreateOfferInput,
   CreateOrganizationDomainInput,
   CreateOrganizationInput,
+  CreatePayrollCorrectionBody,
   CreatePayrollInputReferenceBody,
   CreatePayrollPeriodBody,
   CreatePayrollRunBody,
@@ -223,6 +224,8 @@ import type {
   OrganizationModule,
   OrganizationRole,
   PasswordResetStatus,
+  PayrollCorrection,
+  PayrollCorrectionWithTrace,
   PayrollInputReference,
   PayrollPeriod,
   PayrollRun,
@@ -30445,5 +30448,468 @@ export const useCalculatePayrollRun = <TError = ErrorType<ApiError | PayrollRunV
         TContext
       > => {
       return useMutation(getCalculatePayrollRunMutationOptions(options));
+    }
+
+export const getApprovePayrollRunUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/runs/${id}/approve`
+}
+
+/**
+ * Gated payroll.run.approve. Requires the run to be exactly "calculated" with at least one line. The approving membership must differ from the run's own preparedByMembershipId (server-side maker-checker) — rejected with 409 on self-approval.
+ * @summary Approve a calculated payroll run (Payroll, Workstream 4)
+ */
+export const approvePayrollRun = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<PayrollRun> => {
+
+  return customFetch<PayrollRun>(getApprovePayrollRunUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getApprovePayrollRunMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approvePayrollRun>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approvePayrollRun>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['approvePayrollRun'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approvePayrollRun>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  approvePayrollRun(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApprovePayrollRunMutationResult = NonNullable<Awaited<ReturnType<typeof approvePayrollRun>>>
+
+    export type ApprovePayrollRunMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Approve a calculated payroll run (Payroll, Workstream 4)
+ */
+export const useApprovePayrollRun = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approvePayrollRun>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approvePayrollRun>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getApprovePayrollRunMutationOptions(options));
+    }
+
+export const getLockPayrollRunUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/runs/${id}/lock`
+}
+
+/**
+ * Gated payroll.run.lock. Requires the run to be exactly "approved". The locking membership must differ from the run's own preparedByMembershipId. Locking is the terminal, immutable financial-integrity boundary — from this point the run's result may only be adjusted through a payroll_corrections record, never edited in place.
+ * @summary Finalize/lock an approved payroll run (Payroll, Workstream 4)
+ */
+export const lockPayrollRun = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<PayrollRun> => {
+
+  return customFetch<PayrollRun>(getLockPayrollRunUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getLockPayrollRunMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof lockPayrollRun>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof lockPayrollRun>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['lockPayrollRun'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof lockPayrollRun>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  lockPayrollRun(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LockPayrollRunMutationResult = NonNullable<Awaited<ReturnType<typeof lockPayrollRun>>>
+
+    export type LockPayrollRunMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Finalize/lock an approved payroll run (Payroll, Workstream 4)
+ */
+export const useLockPayrollRun = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof lockPayrollRun>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof lockPayrollRun>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getLockPayrollRunMutationOptions(options));
+    }
+
+export const getListPayrollCorrectionsForRunUrl = (organizationId: number,
+    runId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/runs/${runId}/corrections`
+}
+
+/**
+ * Gated payroll.run.correct.
+ * @summary List corrections for a payroll run (Payroll, Workstream 4)
+ */
+export const listPayrollCorrectionsForRun = async (organizationId: number,
+    runId: number, options?: RequestInit): Promise<PayrollCorrection[]> => {
+
+  return customFetch<PayrollCorrection[]>(getListPayrollCorrectionsForRunUrl(organizationId,runId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPayrollCorrectionsForRunQueryKey = (organizationId: number,
+    runId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/payroll/runs/${runId}/corrections`
+    ] as const;
+    }
+
+
+export const getListPayrollCorrectionsForRunQueryOptions = <TData = Awaited<ReturnType<typeof listPayrollCorrectionsForRun>>, TError = ErrorType<ApiError>>(organizationId: number,
+    runId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPayrollCorrectionsForRun>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPayrollCorrectionsForRunQueryKey(organizationId,runId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPayrollCorrectionsForRun>>> = ({ signal }) => listPayrollCorrectionsForRun(organizationId,runId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && runId !== null && runId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPayrollCorrectionsForRun>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPayrollCorrectionsForRunQueryResult = NonNullable<Awaited<ReturnType<typeof listPayrollCorrectionsForRun>>>
+export type ListPayrollCorrectionsForRunQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List corrections for a payroll run (Payroll, Workstream 4)
+ */
+
+export function useListPayrollCorrectionsForRun<TData = Awaited<ReturnType<typeof listPayrollCorrectionsForRun>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    runId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPayrollCorrectionsForRun>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPayrollCorrectionsForRunQueryOptions(organizationId,runId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreatePayrollCorrectionUrl = (organizationId: number,
+    runId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/runs/${runId}/corrections`
+}
+
+/**
+ * Gated payroll.run.correct. The original run must be "locked". The original run line is never edited — this re-invokes the calculation engine for the original period's payDate and persists the result as a new, separately-approved draft correction. Rejected with 409 if a draft correction is already open for this line.
+ * @summary Create a draft correction against a locked run's line (Payroll, Workstream 4)
+ */
+export const createPayrollCorrection = async (organizationId: number,
+    runId: number,
+    createPayrollCorrectionBody: CreatePayrollCorrectionBody, options?: RequestInit): Promise<PayrollCorrection> => {
+
+  return customFetch<PayrollCorrection>(getCreatePayrollCorrectionUrl(organizationId,runId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createPayrollCorrectionBody)
+  }
+);}
+
+
+
+
+
+export const getCreatePayrollCorrectionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPayrollCorrection>>, TError,{organizationId: number;runId: number;data: BodyType<CreatePayrollCorrectionBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPayrollCorrection>>, TError,{organizationId: number;runId: number;data: BodyType<CreatePayrollCorrectionBody>}, TContext> => {
+
+const mutationKey = ['createPayrollCorrection'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPayrollCorrection>>, {organizationId: number;runId: number;data: BodyType<CreatePayrollCorrectionBody>}> = (props) => {
+          const {organizationId,runId,data} = props ?? {};
+
+          return  createPayrollCorrection(organizationId,runId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePayrollCorrectionMutationResult = NonNullable<Awaited<ReturnType<typeof createPayrollCorrection>>>
+    export type CreatePayrollCorrectionMutationBody = BodyType<CreatePayrollCorrectionBody>
+    export type CreatePayrollCorrectionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Create a draft correction against a locked run's line (Payroll, Workstream 4)
+ */
+export const useCreatePayrollCorrection = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPayrollCorrection>>, TError,{organizationId: number;runId: number;data: BodyType<CreatePayrollCorrectionBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createPayrollCorrection>>,
+        TError,
+        {organizationId: number;runId: number;data: BodyType<CreatePayrollCorrectionBody>},
+        TContext
+      > => {
+      return useMutation(getCreatePayrollCorrectionMutationOptions(options));
+    }
+
+export const getGetPayrollCorrectionUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/corrections/${id}`
+}
+
+/**
+ * Gated payroll.run.correct.
+ * @summary Get one correction with its itemized component trace (Payroll, Workstream 4)
+ */
+export const getPayrollCorrection = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<PayrollCorrectionWithTrace> => {
+
+  return customFetch<PayrollCorrectionWithTrace>(getGetPayrollCorrectionUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPayrollCorrectionQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/payroll/corrections/${id}`
+    ] as const;
+    }
+
+
+export const getGetPayrollCorrectionQueryOptions = <TData = Awaited<ReturnType<typeof getPayrollCorrection>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayrollCorrection>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPayrollCorrectionQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPayrollCorrection>>> = ({ signal }) => getPayrollCorrection(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPayrollCorrection>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPayrollCorrectionQueryResult = NonNullable<Awaited<ReturnType<typeof getPayrollCorrection>>>
+export type GetPayrollCorrectionQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get one correction with its itemized component trace (Payroll, Workstream 4)
+ */
+
+export function useGetPayrollCorrection<TData = Awaited<ReturnType<typeof getPayrollCorrection>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayrollCorrection>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPayrollCorrectionQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getApprovePayrollCorrectionUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/corrections/${id}/approve`
+}
+
+/**
+ * Gated payroll.run.correct. The approving membership must differ from the correction's own createdByMembershipId — rejected with 409 on self-approval, mirroring W1's statutory-rule maker-checker. Terminal: an approved correction is immutable.
+ * @summary Approve a draft correction (Payroll, Workstream 4)
+ */
+export const approvePayrollCorrection = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<PayrollCorrection> => {
+
+  return customFetch<PayrollCorrection>(getApprovePayrollCorrectionUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getApprovePayrollCorrectionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approvePayrollCorrection>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approvePayrollCorrection>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['approvePayrollCorrection'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approvePayrollCorrection>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  approvePayrollCorrection(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApprovePayrollCorrectionMutationResult = NonNullable<Awaited<ReturnType<typeof approvePayrollCorrection>>>
+
+    export type ApprovePayrollCorrectionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Approve a draft correction (Payroll, Workstream 4)
+ */
+export const useApprovePayrollCorrection = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approvePayrollCorrection>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approvePayrollCorrection>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getApprovePayrollCorrectionMutationOptions(options));
     }
 

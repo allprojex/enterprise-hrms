@@ -8,7 +8,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import PayrollPeriods from '@/pages/payroll-periods';
-import type { PayrollPeriod, PayrollRun, PayrollRunLineWithTrace, PayrollInputReference } from '@workspace/api-client-react';
+import type { PayrollPeriod, PayrollRun, PayrollRunLineWithTrace, PayrollInputReference, PayrollCorrection } from '@workspace/api-client-react';
 
 const { state } = vi.hoisted(() => ({
   state: {
@@ -18,11 +18,16 @@ const { state } = vi.hoisted(() => ({
     runs: [] as PayrollRun[],
     runLines: [] as PayrollRunLineWithTrace[],
     inputReferences: [] as PayrollInputReference[],
+    corrections: [] as PayrollCorrection[],
     createPeriodMutate: vi.fn() as (...args: unknown[]) => void,
     createRunMutate: vi.fn() as (...args: unknown[]) => void,
     calculateMutate: vi.fn() as (...args: unknown[]) => void,
+    approveRunMutate: vi.fn() as (...args: unknown[]) => void,
+    lockRunMutate: vi.fn() as (...args: unknown[]) => void,
     createInputMutate: vi.fn() as (...args: unknown[]) => void,
     deleteInputMutate: vi.fn() as (...args: unknown[]) => void,
+    createCorrectionMutate: vi.fn() as (...args: unknown[]) => void,
+    approveCorrectionMutate: vi.fn() as (...args: unknown[]) => void,
   },
 }));
 
@@ -36,12 +41,18 @@ vi.mock('@workspace/api-client-react', () => ({
   getListPayrollRunsQueryKey: () => ['payrollRuns'],
   useCreatePayrollRun: () => ({ mutate: state.createRunMutate, isPending: false }),
   useCalculatePayrollRun: () => ({ mutate: state.calculateMutate, isPending: false }),
+  useApprovePayrollRun: () => ({ mutate: state.approveRunMutate, isPending: false }),
+  useLockPayrollRun: () => ({ mutate: state.lockRunMutate, isPending: false }),
   useGetPayrollRunLines: () => ({ data: state.runLines }),
   getGetPayrollRunLinesQueryKey: () => ['payrollRunLines'],
   useListPayrollInputReferences: () => ({ data: state.inputReferences }),
   getListPayrollInputReferencesQueryKey: () => ['payrollInputReferences'],
   useCreatePayrollInputReference: () => ({ mutate: state.createInputMutate, isPending: false }),
   useDeletePayrollInputReference: () => ({ mutate: state.deleteInputMutate, isPending: false }),
+  useListPayrollCorrectionsForRun: () => ({ data: state.corrections }),
+  getListPayrollCorrectionsForRunQueryKey: () => ['payrollCorrections'],
+  useCreatePayrollCorrection: () => ({ mutate: state.createCorrectionMutate, isPending: false }),
+  useApprovePayrollCorrection: () => ({ mutate: state.approveCorrectionMutate, isPending: false }),
 }));
 
 function renderPage() {
@@ -60,11 +71,16 @@ function resetState() {
   state.runs = [];
   state.runLines = [];
   state.inputReferences = [];
+  state.corrections = [];
   state.createPeriodMutate = vi.fn();
   state.createRunMutate = vi.fn();
   state.calculateMutate = vi.fn();
+  state.approveRunMutate = vi.fn();
+  state.lockRunMutate = vi.fn();
   state.createInputMutate = vi.fn();
   state.deleteInputMutate = vi.fn();
+  state.createCorrectionMutate = vi.fn();
+  state.approveCorrectionMutate = vi.fn();
 }
 
 const PERIOD: PayrollPeriod = {
@@ -190,5 +206,104 @@ describe('Payroll Periods page', () => {
     expect(screen.getByTestId('row-oneoff-input-9')).toHaveTextContent('bonus_oneoff');
     await userEvent.click(screen.getByTestId('button-delete-oneoff-9'));
     expect(state.deleteInputMutate).toHaveBeenCalledWith({ organizationId: 10, periodId: 1, id: 9 }, expect.anything());
+  });
+
+  it('a calculated run shows an Approve action that invokes the mutation', async () => {
+    resetState();
+    state.periods = [PERIOD];
+    state.runs = [{ id: 7, organizationId: 10, payrollPeriodId: 1, status: 'calculated', preparedByMembershipId: 5, approvedByMembershipId: null, lockedAt: null, calculatedAt: '2026-01-31T00:00:00.000Z', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-31T00:00:00.000Z' }];
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-select-period-1'));
+    expect(screen.queryByTestId('button-lock-run')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('button-approve-run'));
+    expect(state.approveRunMutate).toHaveBeenCalledWith({ organizationId: 10, id: 7 }, expect.anything());
+  });
+
+  it('an approved run shows a Lock action (not Calculate/Approve) and invokes the mutation', async () => {
+    resetState();
+    state.periods = [PERIOD];
+    state.runs = [{ id: 7, organizationId: 10, payrollPeriodId: 1, status: 'approved', preparedByMembershipId: 5, approvedByMembershipId: 8, lockedAt: null, calculatedAt: '2026-01-31T00:00:00.000Z', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-31T00:00:00.000Z' }];
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-select-period-1'));
+    expect(screen.queryByTestId('button-calculate-run')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('button-approve-run')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('button-lock-run'));
+    expect(state.lockRunMutate).toHaveBeenCalledWith({ organizationId: 10, id: 7 }, expect.anything());
+  });
+
+  it('a locked run shows neither Calculate/Approve/Lock, and a Correct action per line', async () => {
+    resetState();
+    state.periods = [PERIOD];
+    state.runs = [{ id: 7, organizationId: 10, payrollPeriodId: 1, status: 'locked', preparedByMembershipId: 5, approvedByMembershipId: 8, lockedAt: '2026-02-01T00:00:00.000Z', calculatedAt: '2026-01-31T00:00:00.000Z', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-02-01T00:00:00.000Z' }];
+    state.runLines = [
+      {
+        line: {
+          id: 1, organizationId: 10, payrollRunId: 7, employeeId: 501, staffNumberSnapshot: 'EMP-501',
+          payeBandsVersionId: 1, pensionRatesVersionId: 2, pensionEarningsCeilingVersionId: null,
+          grossEarnings: '1000.00', pensionableEarnings: '1000.00', employeePensionDeduction: '55.00',
+          employerPensionContribution: '130.00', tier1Amount: '135.00', tier2Amount: '50.00',
+          taxableIncome: '945.00', payeAmount: '22.25', otherDeductions: '0.00', netPay: '922.75',
+          currency: 'GHS', calculatedAt: '2026-01-31T00:00:00.000Z', createdAt: '2026-01-31T00:00:00.000Z', updatedAt: '2026-01-31T00:00:00.000Z',
+        },
+        components: [],
+      },
+    ];
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-select-period-1'));
+    expect(screen.queryByTestId('button-calculate-run')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('button-approve-run')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('button-lock-run')).not.toBeInTheDocument();
+    expect(screen.getByTestId('button-correct-line-501')).toBeInTheDocument();
+  });
+
+  it('creates a correction with a reason via the dialog', async () => {
+    resetState();
+    state.periods = [PERIOD];
+    state.runs = [{ id: 7, organizationId: 10, payrollPeriodId: 1, status: 'locked', preparedByMembershipId: 5, approvedByMembershipId: 8, lockedAt: '2026-02-01T00:00:00.000Z', calculatedAt: '2026-01-31T00:00:00.000Z', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-02-01T00:00:00.000Z' }];
+    state.runLines = [
+      {
+        line: {
+          id: 1, organizationId: 10, payrollRunId: 7, employeeId: 501, staffNumberSnapshot: 'EMP-501',
+          payeBandsVersionId: 1, pensionRatesVersionId: 2, pensionEarningsCeilingVersionId: null,
+          grossEarnings: '1000.00', pensionableEarnings: '1000.00', employeePensionDeduction: '55.00',
+          employerPensionContribution: '130.00', tier1Amount: '135.00', tier2Amount: '50.00',
+          taxableIncome: '945.00', payeAmount: '22.25', otherDeductions: '0.00', netPay: '922.75',
+          currency: 'GHS', calculatedAt: '2026-01-31T00:00:00.000Z', createdAt: '2026-01-31T00:00:00.000Z', updatedAt: '2026-01-31T00:00:00.000Z',
+        },
+        components: [],
+      },
+    ];
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-select-period-1'));
+    await userEvent.click(screen.getByTestId('button-correct-line-501'));
+    await userEvent.type(screen.getByTestId('input-correction-reason'), 'salary was under-entered');
+    await userEvent.click(screen.getByTestId('button-submit-correction'));
+    expect(state.createCorrectionMutate).toHaveBeenCalledWith(
+      { organizationId: 10, runId: 7, data: { originalRunLineId: 1, reason: 'salary was under-entered' } },
+      expect.anything(),
+    );
+  });
+
+  it('shows a draft correction with an Approve action, and approves it', async () => {
+    resetState();
+    state.periods = [PERIOD];
+    state.runs = [{ id: 7, organizationId: 10, payrollPeriodId: 1, status: 'locked', preparedByMembershipId: 5, approvedByMembershipId: 8, lockedAt: '2026-02-01T00:00:00.000Z', calculatedAt: '2026-01-31T00:00:00.000Z', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-02-01T00:00:00.000Z' }];
+    state.corrections = [
+      {
+        id: 3, organizationId: 10, originalRunId: 7, originalRunLineId: 1, employeeId: 501, status: 'draft', reason: 'salary was under-entered',
+        staffNumberSnapshot: 'EMP-501', payeBandsVersionId: 1, pensionRatesVersionId: 2, pensionEarningsCeilingVersionId: null,
+        grossEarnings: '1500.00', pensionableEarnings: '1500.00', employeePensionDeduction: '82.50', employerPensionContribution: '195.00',
+        tier1Amount: '202.50', tier2Amount: '75.00', taxableIncome: '1417.50', payeAmount: '91.75', otherDeductions: '0.00',
+        netPay: '1325.75', netPayDelta: '403.00', currency: 'GHS', createdByMembershipId: 5, approvedByMembershipId: null, approvedAt: null,
+        createdAt: '2026-02-02T00:00:00.000Z',
+      },
+    ];
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-select-period-1'));
+    const row = screen.getByTestId('row-correction-3');
+    expect(row).toHaveTextContent('1325.75');
+    expect(row).toHaveTextContent('403.00');
+    await userEvent.click(screen.getByTestId('button-approve-correction-3'));
+    expect(state.approveCorrectionMutate).toHaveBeenCalledWith({ organizationId: 10, id: 3 }, expect.anything());
   });
 });

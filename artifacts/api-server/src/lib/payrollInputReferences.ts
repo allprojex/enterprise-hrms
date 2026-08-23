@@ -11,13 +11,21 @@
  * against the same master-data catalogue W2 established for recurring
  * compensation. `approvedByMembershipId` on the underlying row stays null
  * throughout this workstream (resolved, Owner Review/W2 report) — the run's
- * own future approval (Workstream 4) covers every input transitively.
+ * own approval (Workstream 4) covers every input transitively.
+ *
+ * Workstream 4 lock-invariant hardening (§G/§O): once this period's run (if
+ * any) has passed "calculated" (i.e. is "approved" or "locked"), no input
+ * may be added, deleted, or replaced — enforced here via
+ * `lockRunForPeriodIfExists`, which row-locks the run (if one exists) for
+ * the lifetime of this same transaction, so a concurrent lock() call and a
+ * concurrent input mutation serialize correctly against each other.
  */
 import { and, eq } from "drizzle-orm";
 import { db, payrollInputReferencesTable, payrollPeriodsTable, type PayrollInputReference } from "@workspace/db";
 import { assertComponentTypeKnown, UnknownComponentTypeError } from "./payrollCompensation";
+import { lockRunForPeriodIfExists, PayrollRunNotEditableError } from "./payrollRuns";
 
-export { UnknownComponentTypeError };
+export { UnknownComponentTypeError, PayrollRunNotEditableError };
 
 export class PayrollInputReferencePeriodNotFoundError extends Error {
   constructor() {
@@ -46,32 +54,37 @@ export interface CreatePayrollInputReferenceParams {
 export async function createPayrollInputReference(
   params: CreatePayrollInputReferenceParams,
 ): Promise<PayrollInputReference> {
-  const [period] = await db
-    .select()
-    .from(payrollPeriodsTable)
-    .where(and(eq(payrollPeriodsTable.id, params.payrollPeriodId), eq(payrollPeriodsTable.organizationId, params.organizationId)));
-  if (!period) throw new PayrollInputReferencePeriodNotFoundError();
-
   await assertComponentTypeKnown(params.organizationId, params.category, params.componentTypeCode);
 
-  const [created] = await db
-    .insert(payrollInputReferencesTable)
-    .values({
-      organizationId: params.organizationId,
-      payrollPeriodId: params.payrollPeriodId,
-      employeeId: params.employeeId,
-      sourceType: "manual",
-      sourceId: null,
-      category: params.category,
-      componentTypeCode: params.componentTypeCode,
-      amount: params.amount,
-      currency: params.currency,
-      taxableTreatment: params.taxableTreatment ?? "ordinary",
-      description: params.description ?? null,
-      createdByMembershipId: params.actorMembershipId,
-    })
-    .returning();
-  return created;
+  return db.transaction(async (tx) => {
+    const [period] = await tx
+      .select()
+      .from(payrollPeriodsTable)
+      .where(and(eq(payrollPeriodsTable.id, params.payrollPeriodId), eq(payrollPeriodsTable.organizationId, params.organizationId)));
+    if (!period) throw new PayrollInputReferencePeriodNotFoundError();
+
+    const run = await lockRunForPeriodIfExists(tx, params.organizationId, params.payrollPeriodId);
+    if (run && (run.status === "approved" || run.status === "locked")) throw new PayrollRunNotEditableError(run.status);
+
+    const [created] = await tx
+      .insert(payrollInputReferencesTable)
+      .values({
+        organizationId: params.organizationId,
+        payrollPeriodId: params.payrollPeriodId,
+        employeeId: params.employeeId,
+        sourceType: "manual",
+        sourceId: null,
+        category: params.category,
+        componentTypeCode: params.componentTypeCode,
+        amount: params.amount,
+        currency: params.currency,
+        taxableTreatment: params.taxableTreatment ?? "ordinary",
+        description: params.description ?? null,
+        createdByMembershipId: params.actorMembershipId,
+      })
+      .returning();
+    return created;
+  });
 }
 
 export async function listPayrollInputReferences(
@@ -91,12 +104,17 @@ export async function listPayrollInputReferences(
 }
 
 export async function deletePayrollInputReference(organizationId: number, id: number): Promise<PayrollInputReference> {
-  const [row] = await db
-    .select()
-    .from(payrollInputReferencesTable)
-    .where(and(eq(payrollInputReferencesTable.id, id), eq(payrollInputReferencesTable.organizationId, organizationId)));
-  if (!row) throw new PayrollInputReferenceNotFoundError();
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(payrollInputReferencesTable)
+      .where(and(eq(payrollInputReferencesTable.id, id), eq(payrollInputReferencesTable.organizationId, organizationId)));
+    if (!row) throw new PayrollInputReferenceNotFoundError();
 
-  await db.delete(payrollInputReferencesTable).where(eq(payrollInputReferencesTable.id, id));
-  return row;
+    const run = await lockRunForPeriodIfExists(tx, organizationId, row.payrollPeriodId);
+    if (run && (run.status === "approved" || run.status === "locked")) throw new PayrollRunNotEditableError(run.status);
+
+    await tx.delete(payrollInputReferencesTable).where(eq(payrollInputReferencesTable.id, id));
+    return row;
+  });
 }

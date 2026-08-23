@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CalendarClock, Plus, Play, RefreshCw, Trash2 } from 'lucide-react';
+import { CalendarClock, Plus, Play, RefreshCw, Trash2, CheckCircle2, Lock, GitCommitHorizontal } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -20,12 +20,18 @@ import {
   getListPayrollRunsQueryKey,
   useCreatePayrollRun,
   useCalculatePayrollRun,
+  useApprovePayrollRun,
+  useLockPayrollRun,
   useGetPayrollRunLines,
   getGetPayrollRunLinesQueryKey,
   useListPayrollInputReferences,
   getListPayrollInputReferencesQueryKey,
   useCreatePayrollInputReference,
   useDeletePayrollInputReference,
+  useListPayrollCorrectionsForRun,
+  getListPayrollCorrectionsForRunQueryKey,
+  useCreatePayrollCorrection,
+  useApprovePayrollCorrection,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -71,11 +77,19 @@ export default function PayrollPeriods() {
   const [inputCurrency, setInputCurrency] = useState('GHS');
   const [inputDescription, setInputDescription] = useState('');
 
+  const [correctionOpen, setCorrectionOpen] = useState(false);
+  const [correctionLineId, setCorrectionLineId] = useState<number | null>(null);
+  const [correctionReason, setCorrectionReason] = useState('');
+
   const createPeriodMutation = useCreatePayrollPeriod();
   const createRunMutation = useCreatePayrollRun();
   const calculateMutation = useCalculatePayrollRun();
+  const approveRunMutation = useApprovePayrollRun();
+  const lockRunMutation = useLockPayrollRun();
   const createInputMutation = useCreatePayrollInputReference();
   const deleteInputMutation = useDeletePayrollInputReference();
+  const createCorrectionMutation = useCreatePayrollCorrection();
+  const approveCorrectionMutation = useApprovePayrollCorrection();
 
   const selectedRun = runs?.find((r) => r.payrollPeriodId === selectedPeriodId) ?? null;
 
@@ -85,6 +99,10 @@ export default function PayrollPeriods() {
 
   const { data: inputReferences } = useListPayrollInputReferences(organizationId, selectedPeriodId ?? 0, {}, {
     query: { queryKey: getListPayrollInputReferencesQueryKey(organizationId, selectedPeriodId ?? 0), enabled: !!selectedPeriodId, retry: false },
+  });
+
+  const { data: corrections } = useListPayrollCorrectionsForRun(organizationId, selectedRun?.id ?? 0, {
+    query: { queryKey: getListPayrollCorrectionsForRunQueryKey(organizationId, selectedRun?.id ?? 0), enabled: !!selectedRun && selectedRun.status === 'locked', retry: false },
   });
 
   const resetCreateForm = () => {
@@ -143,6 +161,66 @@ export default function PayrollPeriods() {
     );
   };
 
+  const handleApproveRun = () => {
+    if (!selectedRun) return;
+    approveRunMutation.mutate(
+      { organizationId, id: selectedRun.id },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListPayrollRunsQueryKey(organizationId) });
+          toast({ title: 'Payroll run approved' });
+        },
+        onError: (err) => toast({ title: 'Could not approve run', description: errorMessage(err) ?? 'The membership that prepared this run may not also approve it.', variant: 'destructive' }),
+      },
+    );
+  };
+
+  const handleLockRun = () => {
+    if (!selectedRun) return;
+    lockRunMutation.mutate(
+      { organizationId, id: selectedRun.id },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListPayrollRunsQueryKey(organizationId) });
+          toast({ title: 'Payroll run locked' });
+        },
+        onError: (err) => toast({ title: 'Could not lock run', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  const handleCreateCorrection = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedRun || correctionLineId == null) return;
+    createCorrectionMutation.mutate(
+      { organizationId, runId: selectedRun.id, data: { originalRunLineId: correctionLineId, reason: correctionReason } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListPayrollCorrectionsForRunQueryKey(organizationId, selectedRun.id) });
+          setCorrectionOpen(false);
+          setCorrectionReason('');
+          setCorrectionLineId(null);
+          toast({ title: 'Draft correction created' });
+        },
+        onError: (err) => toast({ title: 'Could not create correction', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  const handleApproveCorrection = (id: number) => {
+    if (!selectedRun) return;
+    approveCorrectionMutation.mutate(
+      { organizationId, id },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListPayrollCorrectionsForRunQueryKey(organizationId, selectedRun.id) });
+          toast({ title: 'Correction approved' });
+        },
+        onError: (err) => toast({ title: 'Could not approve correction', description: errorMessage(err) ?? 'The membership that created a correction may not also approve it.', variant: 'destructive' }),
+      },
+    );
+  };
+
   const resetInputForm = () => {
     setInputEmployeeId('');
     setInputCategory('earning');
@@ -197,8 +275,8 @@ export default function PayrollPeriods() {
             Payroll Periods
           </h1>
           <p className="text-muted-foreground">
-            Draft payroll periods, runs, and calculation preview (Payroll, Workstream 3). Calculation is a non-final, draft result — approval and
-            finalization are not yet part of this workstream.
+            Payroll periods, draft calculation, approval, finalization/locking and corrections. A locked run's result is immutable — recalculation and
+            one-off-input changes are rejected from that point on; only an approved correction may adjust it, without ever rewriting the original.
           </p>
         </div>
         <Dialog open={createOpen} onOpenChange={(open) => (open ? setCreateOpen(true) : (setCreateOpen(false), resetCreateForm()))}>
@@ -312,17 +390,33 @@ export default function PayrollPeriods() {
         <div className="space-y-6" data-testid="section-period-detail">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-lg">Draft Payroll Run</CardTitle>
+              <CardTitle className="text-lg">Payroll Run</CardTitle>
               {!selectedRun ? (
                 <Button onClick={handleCreateRun} disabled={createRunMutation.isPending} data-testid="button-create-run">
                   <Plus className="h-4 w-4" aria-hidden="true" />
                   Create Draft Run
                 </Button>
               ) : (
-                <Button onClick={handleCalculate} disabled={calculateMutation.isPending} data-testid="button-calculate-run">
-                  {selectedRun.status === 'calculated' ? <RefreshCw className="h-4 w-4" aria-hidden="true" /> : <Play className="h-4 w-4" aria-hidden="true" />}
-                  {calculateMutation.isPending ? 'Calculating…' : selectedRun.status === 'calculated' ? 'Recalculate' : 'Calculate'}
-                </Button>
+                <div className="flex items-center gap-2">
+                  {(selectedRun.status === 'draft' || selectedRun.status === 'calculated') && (
+                    <Button onClick={handleCalculate} disabled={calculateMutation.isPending} data-testid="button-calculate-run">
+                      {selectedRun.status === 'calculated' ? <RefreshCw className="h-4 w-4" aria-hidden="true" /> : <Play className="h-4 w-4" aria-hidden="true" />}
+                      {calculateMutation.isPending ? 'Calculating…' : selectedRun.status === 'calculated' ? 'Recalculate' : 'Calculate'}
+                    </Button>
+                  )}
+                  {selectedRun.status === 'calculated' && (
+                    <Button onClick={handleApproveRun} disabled={approveRunMutation.isPending} data-testid="button-approve-run">
+                      <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                      {approveRunMutation.isPending ? 'Approving…' : 'Approve'}
+                    </Button>
+                  )}
+                  {selectedRun.status === 'approved' && (
+                    <Button onClick={handleLockRun} disabled={lockRunMutation.isPending} data-testid="button-lock-run">
+                      <Lock className="h-4 w-4" aria-hidden="true" />
+                      {lockRunMutation.isPending ? 'Locking…' : 'Lock / Finalize'}
+                    </Button>
+                  )}
+                </div>
               )}
             </CardHeader>
             <CardContent className="space-y-4">
@@ -332,7 +426,11 @@ export default function PayrollPeriods() {
                 <>
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground">Status:</span>
-                    <Badge variant={selectedRun.status === 'calculated' ? 'secondary' : 'outline'} className="capitalize" data-testid="badge-run-status">
+                    <Badge
+                      variant={selectedRun.status === 'locked' ? 'default' : selectedRun.status === 'approved' || selectedRun.status === 'calculated' ? 'secondary' : 'outline'}
+                      className="capitalize"
+                      data-testid="badge-run-status"
+                    >
                       {selectedRun.status}
                     </Badge>
                   </div>
@@ -366,6 +464,7 @@ export default function PayrollPeriods() {
                           <TableHead className="text-right">PAYE</TableHead>
                           <TableHead className="text-right">Other Ded.</TableHead>
                           <TableHead className="text-right">Net Pay</TableHead>
+                          {selectedRun.status === 'locked' && <TableHead className="text-right">Actions</TableHead>}
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -378,6 +477,22 @@ export default function PayrollPeriods() {
                             <TableCell className="text-right">{line.payeAmount}</TableCell>
                             <TableCell className="text-right">{line.otherDeductions}</TableCell>
                             <TableCell className="text-right font-semibold">{line.netPay}</TableCell>
+                            {selectedRun.status === 'locked' && (
+                              <TableCell className="text-right">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setCorrectionLineId(line.id);
+                                    setCorrectionOpen(true);
+                                  }}
+                                  data-testid={`button-correct-line-${line.employeeId}`}
+                                >
+                                  <GitCommitHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+                                  Correct
+                                </Button>
+                              </TableCell>
+                            )}
                           </TableRow>
                         ))}
                       </TableBody>
@@ -387,6 +502,75 @@ export default function PayrollPeriods() {
               )}
             </CardContent>
           </Card>
+
+          <Dialog open={correctionOpen} onOpenChange={(open) => (open ? setCorrectionOpen(true) : (setCorrectionOpen(false), setCorrectionReason(''), setCorrectionLineId(null)))}>
+            <DialogContent>
+              <form onSubmit={handleCreateCorrection}>
+                <DialogHeader>
+                  <DialogTitle>New Correction</DialogTitle>
+                  <DialogDescription>
+                    Never edits the locked line — recalculates from whatever compensation/statutory data is now on file as of the original pay date, and
+                    records the result as a new, separately-approved draft.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="correction-reason">Reason</Label>
+                    <Input id="correction-reason" value={correctionReason} onChange={(e) => setCorrectionReason(e.target.value)} required data-testid="input-correction-reason" />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button type="submit" disabled={createCorrectionMutation.isPending} data-testid="button-submit-correction">
+                    {createCorrectionMutation.isPending ? 'Creating…' : 'Create Draft Correction'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          {selectedRun?.status === 'locked' && corrections && corrections.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Corrections</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table aria-label="Payroll corrections">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Employee</TableHead>
+                      <TableHead>Reason</TableHead>
+                      <TableHead className="text-right">Net Pay</TableHead>
+                      <TableHead className="text-right">Delta</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {corrections.map((c) => (
+                      <TableRow key={c.id} data-testid={`row-correction-${c.id}`}>
+                        <TableCell>#{c.employeeId}</TableCell>
+                        <TableCell>{c.reason}</TableCell>
+                        <TableCell className="text-right">{c.netPay}</TableCell>
+                        <TableCell className="text-right">{c.netPayDelta}</TableCell>
+                        <TableCell>
+                          <Badge variant={c.status === 'approved' ? 'secondary' : 'outline'} className="capitalize">
+                            {c.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {c.status === 'draft' && (
+                            <Button size="sm" onClick={() => handleApproveCorrection(c.id)} disabled={approveCorrectionMutation.isPending} data-testid={`button-approve-correction-${c.id}`}>
+                              Approve
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>
