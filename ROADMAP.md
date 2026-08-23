@@ -53,7 +53,7 @@ Workforce Operations
 
 ## Future Expansion
 
-Payroll
+Payroll — **Complete.** See `PROJECT_STATUS.md`'s Payroll Completion Report (Frozen Workstream 10) for the full assessment.
 
 Tax
 
