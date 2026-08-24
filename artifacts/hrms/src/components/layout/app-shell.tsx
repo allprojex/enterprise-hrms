@@ -846,19 +846,46 @@ export function AppShell({ children }: AppShellProps) {
                 )}
               </Button>
             </Link>
-            <Link href="/profile" data-testid="button-user-menu">
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={`Your profile — ${user.firstName} ${user.lastName}`}
-              >
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback className="bg-primary text-primary-foreground text-xs font-medium">
-                    {userInitials}
-                  </AvatarFallback>
-                </Avatar>
-              </Button>
-            </Link>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Account menu — ${user.firstName} ${user.lastName}`}
+                  data-testid="button-user-menu"
+                >
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback className="bg-primary text-primary-foreground text-xs font-medium">
+                      {userInitials}
+                    </AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="font-normal">
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {user.firstName} {user.lastName}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild data-testid="link-profile">
+                  <Link href="/profile" className="cursor-pointer">
+                    Profile
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={handleLogout}
+                  disabled={logoutMutation.isPending}
+                  data-testid="button-header-logout"
+                  className="cursor-pointer"
+                >
+                  <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Log out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
 

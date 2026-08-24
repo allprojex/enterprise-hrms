@@ -49,7 +49,10 @@ const SINGLE_ORG_MEMBERSHIPS = [
   },
 ];
 
-const { useListMyOrganizationsMock } = vi.hoisted(() => ({ useListMyOrganizationsMock: vi.fn() }));
+const { useListMyOrganizationsMock, logoutMutateMock } = vi.hoisted(() => ({
+  useListMyOrganizationsMock: vi.fn(),
+  logoutMutateMock: vi.fn(),
+}));
 
 vi.mock('@tanstack/react-query', async () => {
   const actual = await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query');
@@ -79,7 +82,7 @@ vi.mock('@workspace/api-client-react', () => ({
   getListMyOrganizationsQueryKey: () => ['myOrganizations'],
   getGetDashboardSummaryQueryKey: () => ['dashboardSummary'],
   useSwitchOrganization: () => ({ mutate: switchMutateMock, isPending: false }),
-  useLogout: () => ({ mutate: vi.fn(), isPending: false }),
+  useLogout: () => ({ mutate: logoutMutateMock, isPending: false }),
 }));
 
 function renderShell() {
@@ -268,5 +271,31 @@ describe('AppShell grouped navigation', () => {
   it('never renders a decorative, non-functional search input', () => {
     renderShell();
     expect(screen.queryByTestId('input-search')).not.toBeInTheDocument();
+  });
+});
+
+// Bug report: users had no way to log out from the top of the app — only
+// the sidebar's bottom section had a logout control. The header avatar is
+// now a real account menu (not a plain profile link) with a Log out item.
+describe('AppShell header account menu', () => {
+  beforeEach(() => {
+    switchMutateMock.mockReset();
+    invalidateQueriesMock.mockReset();
+    logoutMutateMock.mockReset();
+    useListMyOrganizationsMock.mockReturnValue({ data: SINGLE_ORG_MEMBERSHIPS });
+  });
+
+  it('opens an account menu from the header with a working Log out item', async () => {
+    const user = userEvent.setup();
+    renderShell();
+
+    await user.click(screen.getByTestId('button-user-menu'));
+
+    const logoutItem = await screen.findByTestId('button-header-logout');
+    expect(logoutItem).toBeInTheDocument();
+    expect(screen.getAllByTestId('link-profile').length).toBeGreaterThan(0);
+
+    await user.click(logoutItem);
+    expect(logoutMutateMock).toHaveBeenCalled();
   });
 });
