@@ -9,7 +9,7 @@
  * and lives on the existing Departments page instead.
  */
 import { useState } from 'react';
-import { Boxes, Warehouse, Settings2, Plus, Pencil, Truck, Trash2, PackageSearch, ClipboardList, CheckCircle2, XCircle, UserCog, X, Ban, PackageCheck, Users, Undo2, ArrowLeftRight, AlertTriangle } from 'lucide-react';
+import { Boxes, Warehouse, Settings2, Plus, Pencil, Truck, Trash2, PackageSearch, ClipboardList, CheckCircle2, XCircle, UserCog, X, Ban, PackageCheck, Users, Undo2, ArrowLeftRight, AlertTriangle, ShieldAlert, Archive, SlidersHorizontal, SearchCheck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -78,6 +78,15 @@ import {
   useCreateOfficeInventoryReturn,
   useCreateOfficeInventoryHandover,
   useCreateOfficeInventoryTransfer,
+  useReportOfficeInventoryIncident,
+  useListOfficeInventoryIncidents,
+  getListOfficeInventoryIncidentsQueryKey,
+  useReviewOfficeInventoryIncident,
+  useMarkOfficeInventoryIncidentMissing,
+  useRecoverOfficeInventoryIncident,
+  useWriteOffOfficeInventoryIncident,
+  useCreateOfficeInventoryWriteOff,
+  useCreateOfficeInventoryAdjustment,
   OfficeInventoryItemClassification,
   type OfficeInventoryItem,
   type OfficeInventoryStore,
@@ -2355,6 +2364,270 @@ function TransferDialog({ organizationId }: { organizationId: number }) {
   );
 }
 
+function DirectWriteOffDialog({ organizationId }: { organizationId: number }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [itemId, setItemId] = useState('');
+  const [sourceType, setSourceType] = useState<'store' | 'employee' | 'department'>('store');
+  const [storeId, setStoreId] = useState('');
+  const [holderId, setHolderId] = useState('');
+  const [quantity, setQuantity] = useState('');
+  const [reason, setReason] = useState('');
+  const mutation = useCreateOfficeInventoryWriteOff();
+
+  const { data: items } = useListOfficeInventoryItems(organizationId, {
+    query: { queryKey: getListOfficeInventoryItemsQueryKey(organizationId), enabled: organizationId > 0 && open },
+  });
+  const { data: stores } = useListOfficeInventoryStores(organizationId, {
+    query: { queryKey: getListOfficeInventoryStoresQueryKey(organizationId), enabled: organizationId > 0 && open && sourceType === 'store' },
+  });
+  const { data: employeesPage } = useListEmployees(organizationId, { pageSize: 200 }, {
+    query: { queryKey: getListEmployeesQueryKey(organizationId, { pageSize: 200 }), enabled: organizationId > 0 && open && sourceType === 'employee' },
+  });
+  const { data: departments } = useListDepartments(organizationId, {
+    query: { queryKey: getListDepartmentsQueryKey(organizationId), enabled: organizationId > 0 && open && sourceType === 'department' },
+  });
+
+  const reset = () => {
+    setItemId('');
+    setSourceType('store');
+    setStoreId('');
+    setHolderId('');
+    setQuantity('');
+    setReason('');
+  };
+
+  const handle = () => {
+    if (!itemId || !quantity || !reason.trim()) return;
+    if (sourceType === 'store' && !storeId) return;
+    if (sourceType !== 'store' && !holderId) return;
+    mutation.mutate(
+      {
+        organizationId,
+        data: {
+          itemId: Number(itemId),
+          sourceType,
+          storeId: sourceType === 'store' ? Number(storeId) : undefined,
+          holderId: sourceType !== 'store' ? Number(holderId) : undefined,
+          quantity,
+          reason: reason.trim(),
+          idempotencyKey: crypto.randomUUID(),
+        },
+      },
+      {
+        onSuccess: () => {
+          setOpen(false);
+          reset();
+          toast({ title: 'Write-off recorded' });
+        },
+        onError: (err) => toast({ title: 'Could not record write-off', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
+      <DialogTrigger asChild>
+        <Button variant="outline" data-testid="button-open-writeoff">
+          <Archive className="h-4 w-4" aria-hidden="true" />
+          Write Off
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Write Off Stock</DialogTitle>
+          <DialogDescription>A direct, authoritative disposition — independent of any incident.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="writeoff-item">Item</Label>
+            <Select value={itemId} onValueChange={setItemId}>
+              <SelectTrigger id="writeoff-item" data-testid="select-writeoff-item">
+                <SelectValue placeholder="Choose an item" />
+              </SelectTrigger>
+              <SelectContent>
+                {(items ?? []).map((i) => (
+                  <SelectItem key={i.id} value={String(i.id)}>{i.name} ({i.itemCode})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="writeoff-source-type">Source</Label>
+            <Select value={sourceType} onValueChange={(v) => { setSourceType(v as typeof sourceType); setStoreId(''); setHolderId(''); }}>
+              <SelectTrigger id="writeoff-source-type" data-testid="select-writeoff-source-type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="store">Store</SelectItem>
+                <SelectItem value="employee">Employee</SelectItem>
+                <SelectItem value="department">Department</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {sourceType === 'store' ? (
+            <div className="space-y-2">
+              <Label htmlFor="writeoff-store">Store</Label>
+              <Select value={storeId} onValueChange={setStoreId}>
+                <SelectTrigger id="writeoff-store" data-testid="select-writeoff-store">
+                  <SelectValue placeholder="Choose a store" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(stores ?? []).map((s) => (
+                    <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="writeoff-holder">{sourceType === 'employee' ? 'Employee' : 'Department'}</Label>
+              <Select value={holderId} onValueChange={setHolderId}>
+                <SelectTrigger id="writeoff-holder" data-testid="select-writeoff-holder">
+                  <SelectValue placeholder={`Choose ${sourceType === 'employee' ? 'an employee' : 'a department'}`} />
+                </SelectTrigger>
+                <SelectContent>
+                  {sourceType === 'employee'
+                    ? (employeesPage?.items ?? []).map((e) => (
+                        <SelectItem key={e.id} value={String(e.id)}>{e.firstName} {e.lastName}</SelectItem>
+                      ))
+                    : (departments ?? []).map((d) => (
+                        <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
+                      ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div className="space-y-2">
+            <Label htmlFor="writeoff-quantity">Quantity</Label>
+            <Input id="writeoff-quantity" type="number" min={0} step="0.01" value={quantity} onChange={(e) => setQuantity(e.target.value)} data-testid="input-writeoff-quantity" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="writeoff-reason">Reason (required)</Label>
+            <Textarea id="writeoff-reason" value={reason} onChange={(e) => setReason(e.target.value)} data-testid="textarea-writeoff-reason" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={handle} disabled={mutation.isPending || !itemId || !quantity || !reason.trim()} data-testid="button-confirm-writeoff">
+            {mutation.isPending ? 'Recording…' : 'Confirm Write-Off'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AdjustmentDialog({ organizationId }: { organizationId: number }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [storeId, setStoreId] = useState('');
+  const [itemId, setItemId] = useState('');
+  const [direction, setDirection] = useState<'in' | 'out'>('in');
+  const [quantity, setQuantity] = useState('');
+  const [reason, setReason] = useState('');
+  const mutation = useCreateOfficeInventoryAdjustment();
+
+  const { data: items } = useListOfficeInventoryItems(organizationId, {
+    query: { queryKey: getListOfficeInventoryItemsQueryKey(organizationId), enabled: organizationId > 0 && open },
+  });
+  const { data: stores } = useListOfficeInventoryStores(organizationId, {
+    query: { queryKey: getListOfficeInventoryStoresQueryKey(organizationId), enabled: organizationId > 0 && open },
+  });
+
+  const reset = () => {
+    setStoreId('');
+    setItemId('');
+    setDirection('in');
+    setQuantity('');
+    setReason('');
+  };
+
+  const handle = () => {
+    if (!storeId || !itemId || !quantity || !reason.trim()) return;
+    mutation.mutate(
+      { organizationId, data: { storeId: Number(storeId), itemId: Number(itemId), direction, quantity, reason: reason.trim(), idempotencyKey: crypto.randomUUID() } },
+      {
+        onSuccess: () => {
+          setOpen(false);
+          reset();
+          toast({ title: 'Adjustment recorded' });
+        },
+        onError: (err) => toast({ title: 'Could not record adjustment', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
+      <DialogTrigger asChild>
+        <Button variant="outline" data-testid="button-open-adjustment">
+          <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+          Adjust Stock
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Adjust Store Stock</DialogTitle>
+          <DialogDescription>Store-only correction with an explicit reason — never a way to fix employee/department custody.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="adjustment-store">Store</Label>
+            <Select value={storeId} onValueChange={setStoreId}>
+              <SelectTrigger id="adjustment-store" data-testid="select-adjustment-store">
+                <SelectValue placeholder="Choose a store" />
+              </SelectTrigger>
+              <SelectContent>
+                {(stores ?? []).map((s) => (
+                  <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="adjustment-item">Item</Label>
+            <Select value={itemId} onValueChange={setItemId}>
+              <SelectTrigger id="adjustment-item" data-testid="select-adjustment-item">
+                <SelectValue placeholder="Choose an item" />
+              </SelectTrigger>
+              <SelectContent>
+                {(items ?? []).map((i) => (
+                  <SelectItem key={i.id} value={String(i.id)}>{i.name} ({i.itemCode})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="adjustment-direction">Direction</Label>
+            <Select value={direction} onValueChange={(v) => setDirection(v as 'in' | 'out')}>
+              <SelectTrigger id="adjustment-direction" data-testid="select-adjustment-direction">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="in">Increase (found extra stock)</SelectItem>
+                <SelectItem value="out">Decrease (confirmed shortfall)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="adjustment-quantity">Quantity</Label>
+            <Input id="adjustment-quantity" type="number" min={0} step="0.01" value={quantity} onChange={(e) => setQuantity(e.target.value)} data-testid="input-adjustment-quantity" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="adjustment-reason">Reason (required)</Label>
+            <Textarea id="adjustment-reason" value={reason} onChange={(e) => setReason(e.target.value)} data-testid="textarea-adjustment-reason" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={handle} disabled={mutation.isPending || !storeId || !itemId || !quantity || !reason.trim()} data-testid="button-confirm-adjustment">
+            {mutation.isPending ? 'Recording…' : 'Confirm Adjustment'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function MovementsTab({ organizationId }: { organizationId: number }) {
   return (
     <div className="space-y-4">
@@ -2363,7 +2636,316 @@ function MovementsTab({ organizationId }: { organizationId: number }) {
         <ReturnDialog organizationId={organizationId} />
         <HandoverDialog organizationId={organizationId} />
         <TransferDialog organizationId={organizationId} />
+        <DirectWriteOffDialog organizationId={organizationId} />
+        <AdjustmentDialog organizationId={organizationId} />
       </div>
+    </div>
+  );
+}
+
+// --- Incidents (Workstream 6) — damage/missing reporting, review,
+// mark-missing, recovery, and incident-linked write-off. Reporting and
+// reviewing never touch the stock ledger; mark-missing/recover/write-off
+// each append their own new, explicit ledger movement. ---
+
+function ReportIncidentDialog({ organizationId, onReported }: { organizationId: number; onReported: () => void }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [itemId, setItemId] = useState('');
+  const [holderType, setHolderType] = useState<'employee' | 'department'>('employee');
+  const [holderId, setHolderId] = useState('');
+  const [incidentType, setIncidentType] = useState<'damage' | 'missing'>('damage');
+  const [description, setDescription] = useState('');
+  const mutation = useReportOfficeInventoryIncident();
+
+  const { data: items } = useListOfficeInventoryItems(organizationId, {
+    query: { queryKey: getListOfficeInventoryItemsQueryKey(organizationId), enabled: organizationId > 0 && open },
+  });
+
+  const reset = () => {
+    setItemId('');
+    setHolderType('employee');
+    setHolderId('');
+    setIncidentType('damage');
+    setDescription('');
+  };
+
+  const handle = () => {
+    if (!itemId || !holderId || !description.trim()) return;
+    mutation.mutate(
+      { organizationId, data: { itemId: Number(itemId), holderType, holderId: Number(holderId), incidentType, description: description.trim() } },
+      {
+        onSuccess: () => {
+          setOpen(false);
+          reset();
+          onReported();
+          toast({ title: 'Incident reported' });
+        },
+        onError: (err) => toast({ title: 'Could not report incident', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
+      <DialogTrigger asChild>
+        <Button variant="outline" data-testid="button-open-report-incident">
+          <ShieldAlert className="h-4 w-4" aria-hidden="true" />
+          Report Incident
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Report Damage or Missing Item</DialogTitle>
+          <DialogDescription>Only for your own current custody or your own current department's custody. This does not itself change any stock or custody quantity.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="incident-item">Item</Label>
+            <Select value={itemId} onValueChange={setItemId}>
+              <SelectTrigger id="incident-item" data-testid="select-incident-item">
+                <SelectValue placeholder="Choose an item" />
+              </SelectTrigger>
+              <SelectContent>
+                {(items ?? []).map((i) => (
+                  <SelectItem key={i.id} value={String(i.id)}>{i.name} ({i.itemCode})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <HolderPicker organizationId={organizationId} idPrefix="incident-holder" holderType={holderType} holderId={holderId} onHolderTypeChange={setHolderType} onHolderIdChange={setHolderId} label="Custody" />
+          <div className="space-y-2">
+            <Label htmlFor="incident-type">Incident Type</Label>
+            <Select value={incidentType} onValueChange={(v) => setIncidentType(v as 'damage' | 'missing')}>
+              <SelectTrigger id="incident-type" data-testid="select-incident-type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="damage">Damage</SelectItem>
+                <SelectItem value="missing">Missing</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="incident-description">Description</Label>
+            <Textarea id="incident-description" value={description} onChange={(e) => setDescription(e.target.value)} data-testid="textarea-incident-description" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={handle} disabled={mutation.isPending || !itemId || !holderId || !description.trim()} data-testid="button-confirm-report-incident">
+            {mutation.isPending ? 'Reporting…' : 'Submit Report'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+const INCIDENT_STATUS_VARIANT: Record<string, 'secondary' | 'outline' | 'destructive'> = {
+  open: 'destructive',
+  reviewed: 'secondary',
+  dismissed: 'outline',
+};
+
+function IncidentDetailPanel({ organizationId, incident, onChanged }: { organizationId: number; incident: { id: number; itemId: number; holderType: 'employee' | 'department' | null; holderId: number | null; incidentType: 'damage' | 'missing'; status: 'open' | 'reviewed' | 'dismissed' }; onChanged: () => void }) {
+  const { toast } = useToast();
+  const [resolutionNotes, setResolutionNotes] = useState('');
+  const [missingQuantity, setMissingQuantity] = useState('');
+  const [recoverQuantity, setRecoverQuantity] = useState('');
+  const [recoverStoreId, setRecoverStoreId] = useState('');
+  const [writeOffQuantity, setWriteOffQuantity] = useState('');
+  const [writeOffReason, setWriteOffReason] = useState('');
+
+  const reviewMutation = useReviewOfficeInventoryIncident();
+  const markMissingMutation = useMarkOfficeInventoryIncidentMissing();
+  const recoverMutation = useRecoverOfficeInventoryIncident();
+  const writeOffMutation = useWriteOffOfficeInventoryIncident();
+
+  const { data: stores } = useListOfficeInventoryStores(organizationId, {
+    query: { queryKey: getListOfficeInventoryStoresQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+
+  const review = (outcome: 'reviewed' | 'dismissed') => {
+    reviewMutation.mutate(
+      { organizationId, id: incident.id, data: { outcome, resolutionNotes: resolutionNotes.trim() || undefined } },
+      {
+        onSuccess: () => { onChanged(); toast({ title: `Incident ${outcome}` }); },
+        onError: (err) => toast({ title: 'Could not update incident', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  const markMissing = () => {
+    if (!missingQuantity) return;
+    markMissingMutation.mutate(
+      { organizationId, id: incident.id, data: { quantity: missingQuantity, idempotencyKey: crypto.randomUUID() } },
+      {
+        onSuccess: () => { setMissingQuantity(''); onChanged(); toast({ title: 'Marked missing' }); },
+        onError: (err) => toast({ title: 'Could not mark missing', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  const recover = () => {
+    if (!recoverQuantity || !recoverStoreId) return;
+    recoverMutation.mutate(
+      { organizationId, id: incident.id, data: { quantity: recoverQuantity, destinationStoreId: Number(recoverStoreId), idempotencyKey: crypto.randomUUID() } },
+      {
+        onSuccess: () => { setRecoverQuantity(''); setRecoverStoreId(''); onChanged(); toast({ title: 'Recovery recorded' }); },
+        onError: (err) => toast({ title: 'Could not record recovery', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  const writeOffIncident = () => {
+    if (!writeOffQuantity || !writeOffReason.trim()) return;
+    writeOffMutation.mutate(
+      { organizationId, id: incident.id, data: { quantity: writeOffQuantity, reason: writeOffReason.trim(), idempotencyKey: crypto.randomUUID() } },
+      {
+        onSuccess: () => { setWriteOffQuantity(''); setWriteOffReason(''); onChanged(); toast({ title: 'Write-off recorded' }); },
+        onError: (err) => toast({ title: 'Could not record write-off', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <div className="space-y-4 rounded-md border border-border p-4" data-testid={`panel-incident-${incident.id}`}>
+      {incident.status === 'open' && (
+        <div className="space-y-2">
+          <Label htmlFor={`incident-notes-${incident.id}`}>Resolution Notes</Label>
+          <Textarea id={`incident-notes-${incident.id}`} value={resolutionNotes} onChange={(e) => setResolutionNotes(e.target.value)} data-testid={`textarea-resolution-notes-${incident.id}`} />
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => review('dismissed')} disabled={reviewMutation.isPending} data-testid={`button-dismiss-${incident.id}`}>
+              <XCircle className="h-3.5 w-3.5" aria-hidden="true" />
+              Dismiss
+            </Button>
+            <Button size="sm" onClick={() => review('reviewed')} disabled={reviewMutation.isPending} data-testid={`button-review-${incident.id}`}>
+              <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+              Mark Reviewed
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {incident.status === 'open' && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2 rounded-md border border-border p-3">
+            <Label htmlFor={`mark-missing-qty-${incident.id}`} className="flex items-center gap-2">
+              <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+              Mark Missing
+            </Label>
+            <Input id={`mark-missing-qty-${incident.id}`} type="number" min={0} step="0.01" placeholder="Quantity" value={missingQuantity} onChange={(e) => setMissingQuantity(e.target.value)} data-testid={`input-mark-missing-quantity-${incident.id}`} />
+            <Button size="sm" onClick={markMissing} disabled={markMissingMutation.isPending || !missingQuantity} data-testid={`button-mark-missing-${incident.id}`}>
+              Confirm Missing
+            </Button>
+          </div>
+
+          <div className="space-y-2 rounded-md border border-border p-3">
+            <Label className="flex items-center gap-2">
+              <SearchCheck className="h-3.5 w-3.5" aria-hidden="true" />
+              Recover
+            </Label>
+            <Input type="number" min={0} step="0.01" placeholder="Quantity" value={recoverQuantity} onChange={(e) => setRecoverQuantity(e.target.value)} data-testid={`input-recover-quantity-${incident.id}`} />
+            <Select value={recoverStoreId} onValueChange={setRecoverStoreId}>
+              <SelectTrigger data-testid={`select-recover-store-${incident.id}`}>
+                <SelectValue placeholder="Destination store" />
+              </SelectTrigger>
+              <SelectContent>
+                {(stores ?? []).map((s) => (
+                  <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button size="sm" onClick={recover} disabled={recoverMutation.isPending || !recoverQuantity || !recoverStoreId} data-testid={`button-recover-${incident.id}`}>
+              Confirm Recovery
+            </Button>
+          </div>
+
+          <div className="space-y-2 rounded-md border border-border p-3 sm:col-span-2">
+            <Label className="flex items-center gap-2">
+              <Archive className="h-3.5 w-3.5" aria-hidden="true" />
+              Write Off (this incident's missing quantity)
+            </Label>
+            <Input type="number" min={0} step="0.01" placeholder="Quantity" value={writeOffQuantity} onChange={(e) => setWriteOffQuantity(e.target.value)} data-testid={`input-writeoff-incident-quantity-${incident.id}`} />
+            <Textarea placeholder="Reason (required)" value={writeOffReason} onChange={(e) => setWriteOffReason(e.target.value)} data-testid={`textarea-writeoff-incident-reason-${incident.id}`} />
+            <Button size="sm" onClick={writeOffIncident} disabled={writeOffMutation.isPending || !writeOffQuantity || !writeOffReason.trim()} data-testid={`button-writeoff-incident-${incident.id}`}>
+              Confirm Write-Off
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function IncidentsTab({ organizationId }: { organizationId: number }) {
+  const queryClient = useQueryClient();
+  const [statusFilter, setStatusFilter] = useState<'open' | 'reviewed' | 'dismissed' | ''>('open');
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  const { data: items } = useListOfficeInventoryItems(organizationId, {
+    query: { queryKey: getListOfficeInventoryItemsQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+  const itemById = new Map((items ?? []).map((i) => [i.id, i]));
+
+  const { data: incidents, isLoading, error, refetch } = useListOfficeInventoryIncidents(
+    organizationId,
+    statusFilter ? { status: statusFilter } : undefined,
+    { query: { queryKey: getListOfficeInventoryIncidentsQueryKey(organizationId, statusFilter ? { status: statusFilter } : undefined), enabled: organizationId > 0 } },
+  );
+
+  const handleChanged = () => {
+    queryClient.invalidateQueries({ queryKey: getListOfficeInventoryIncidentsQueryKey(organizationId, statusFilter ? { status: statusFilter } : undefined) });
+    refetch();
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <Select value={statusFilter || 'all'} onValueChange={(v) => setStatusFilter(v === 'all' ? '' : (v as typeof statusFilter))}>
+          <SelectTrigger className="w-44" data-testid="select-incident-status-filter">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            <SelectItem value="open">Open</SelectItem>
+            <SelectItem value="reviewed">Reviewed</SelectItem>
+            <SelectItem value="dismissed">Dismissed</SelectItem>
+          </SelectContent>
+        </Select>
+        <ReportIncidentDialog organizationId={organizationId} onReported={handleChanged} />
+      </div>
+
+      {isLoading ? (
+        <Skeleton className="h-40 w-full" />
+      ) : error ? (
+        <QueryError title="Could not load incidents" message={errorMessage(error) ?? 'Please try again.'} onRetry={() => refetch()} />
+      ) : !incidents || incidents.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <ShieldAlert className="h-8 w-8 text-muted-foreground mb-4" aria-hidden="true" />
+            <h3 className="text-lg font-semibold text-foreground mb-2">No incidents</h3>
+            <p className="text-sm text-muted-foreground max-w-sm">Damage and missing reports will appear here.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {incidents.map((incident) => (
+            <Card key={incident.id} data-testid={`row-incident-${incident.id}`}>
+              <CardContent className="py-4 space-y-3">
+                <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => setExpandedId(expandedId === incident.id ? null : incident.id)} data-testid={`button-expand-incident-${incident.id}`}>
+                  <span className="space-y-1">
+                    <span className="block font-medium text-foreground">{itemById.get(incident.itemId)?.name ?? `Item #${incident.itemId}`} — {incident.incidentType}</span>
+                    <span className="block text-sm text-muted-foreground">{incident.holderType} #{incident.holderId} · reported {new Date(incident.reportedAt).toLocaleDateString()}</span>
+                  </span>
+                  <Badge variant={INCIDENT_STATUS_VARIANT[incident.status] ?? 'outline'}>{incident.status}</Badge>
+                </button>
+                {expandedId === incident.id && <IncidentDetailPanel organizationId={organizationId} incident={incident} onChanged={handleChanged} />}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -2463,6 +3045,7 @@ export default function OfficeInventory() {
           <TabsTrigger value="issuing" data-testid="tab-issuing">Issuing</TabsTrigger>
           <TabsTrigger value="custody" data-testid="tab-custody">Custody</TabsTrigger>
           <TabsTrigger value="movements" data-testid="tab-movements">Movements</TabsTrigger>
+          <TabsTrigger value="incidents" data-testid="tab-incidents">Incidents</TabsTrigger>
           <TabsTrigger value="configuration" data-testid="tab-configuration">Configuration</TabsTrigger>
         </TabsList>
         <TabsContent value="items">
@@ -2491,6 +3074,9 @@ export default function OfficeInventory() {
         </TabsContent>
         <TabsContent value="movements">
           <MovementsTab organizationId={organizationId} />
+        </TabsContent>
+        <TabsContent value="incidents">
+          <IncidentsTab organizationId={organizationId} />
         </TabsContent>
         <TabsContent value="configuration">
           <ConfigurationTab organizationId={organizationId} />

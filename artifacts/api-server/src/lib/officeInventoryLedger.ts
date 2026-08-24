@@ -296,19 +296,21 @@ export async function appendStoreMovement(tx: QueryClient, params: AppendStoreMo
 // `movementType` can mean opposite things to a store's balance and to a
 // holder's custody (e.g. `issued` decreases a store's balance but
 // increases a holder's custody). Workstream 4 defined only `issued`
-// (holder-increasing). Workstream 5 adds exactly one more: `returned`
-// (holder-decreasing) — reused for BOTH an ordinary holder→store return
-// AND the "from" side of a handover (§22 of the frozen plan: "handovers
-// [are] represented as paired issued/returned-style movements between two
-// holders" — the destination side is an ordinary holder-increasing
-// `issued` row, the source side an ordinary holder-decreasing `returned`
-// row; no new movementType enum value is needed for handovers at all).
-// Every other type remains undefined here on purpose — `handed_over`
-// doesn't exist as its own enum value, and W6's types (missing/recovered/
-// written_off/adjustment_in/out) are left undefined for W6 to define when
-// it actually builds them, exactly mirroring W4's own original disclosure.
+// (holder-increasing). Workstream 5 added `returned` (holder-decreasing) —
+// reused for BOTH an ordinary holder→store return AND the "from" side of a
+// handover. Workstream 6 adds exactly two more holder-decreasing types:
+// `missing` (a holder-custody "mark missing" action — §25) and
+// `written_off` (a DIRECT write-off of quantity still nominally in a
+// holder's custody, never routed through "mark missing" first — §13/§18).
+// `recovered` and `adjustment_in`/`adjustment_out` remain deliberately
+// undefined on the HOLDER side — recovery always re-enters a STORE (never
+// a holder directly, since a "found" item needs a fresh issue if the
+// original holder needs it again), and adjustments are store-only by
+// design (§17's own explicit custody-discrepancy boundary: an
+// employee/department custody discrepancy is never resolved by a direct
+// adjustment, only by return/handover/incident/write-off).
 export const HOLDER_INCREASING_TYPES: readonly OfficeInventoryMovementType[] = ["issued"];
-export const HOLDER_DECREASING_TYPES: readonly OfficeInventoryMovementType[] = ["returned"];
+export const HOLDER_DECREASING_TYPES: readonly OfficeInventoryMovementType[] = ["returned", "missing", "written_off"];
 
 export function holderMovementSign(movementType: OfficeInventoryMovementType): 1 | -1 {
   if (HOLDER_INCREASING_TYPES.includes(movementType)) return 1;
@@ -544,4 +546,86 @@ export async function appendHolderMovement(tx: QueryClient, params: AppendHolder
     .returning();
 
   return inserted;
+}
+
+// --- Unscoped movements — Workstream 6 ---
+//
+// A row with neither `storeId` nor `holderType`/`holderId` set — matched by
+// NEITHER `getStoreBalance` nor `getHolderBalance`/`listCurrentCustody`'s
+// own WHERE clauses (both filter on one of those columns explicitly), so an
+// unscoped row never contributes to any store or holder balance by
+// construction. Used for exactly one case: writing off a quantity that a
+// prior `missing` row has ALREADY removed from a holder's live custody
+// (§14/§25) — there is no live store or holder balance left to decrement a
+// second time, only the incident's own derived "outstanding missing"
+// tally (owned by officeInventoryDisposition.ts, which acquires its own
+// incident-scoped advisory lock before computing and validating that
+// tally — this primitive performs no balance validation of its own, since
+// it has no balance to validate against).
+export interface AppendUnscopedMovementParams {
+  organizationId: number;
+  itemId: number;
+  movementType: OfficeInventoryMovementType;
+  quantity: string;
+  referenceNumber?: string | null;
+  sourceReferenceType?: "request_line" | "incident" | "stocktake_line" | "asset" | null;
+  sourceReferenceId?: number | null;
+  reason?: string | null;
+  idempotencyKey?: string | null;
+  actorMembershipId: number | null;
+  notes?: string | null;
+}
+
+export async function appendUnscopedMovement(tx: QueryClient, params: AppendUnscopedMovementParams): Promise<OfficeInventoryStockMovement> {
+  const [inserted] = await tx
+    .insert(officeInventoryStockMovementsTable)
+    .values({
+      organizationId: params.organizationId,
+      itemId: params.itemId,
+      movementType: params.movementType,
+      quantity: params.quantity,
+      referenceNumber: params.referenceNumber ?? null,
+      sourceReferenceType: params.sourceReferenceType ?? null,
+      sourceReferenceId: params.sourceReferenceId ?? null,
+      reason: params.reason ?? null,
+      idempotencyKey: params.idempotencyKey ?? null,
+      actorMembershipId: params.actorMembershipId,
+      notes: params.notes ?? null,
+    })
+    .returning();
+
+  return inserted;
+}
+
+/** Postgres advisory-lock key for one incident's own "outstanding missing" tally — serializes concurrent recover/write-off-from-incident attempts against the same incident (§24). */
+export async function acquireIncidentLock(tx: QueryClient, organizationId: number, incidentId: number): Promise<void> {
+  const lockKey = `${organizationId}:incident:${incidentId}`;
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${lockKey}))`);
+}
+
+/**
+ * How much of a `missing`-type incident's quantity remains unresolved —
+ * SUM(missing rows referencing this incident) - SUM(recovered rows
+ * referencing this incident) - SUM(written_off rows referencing this
+ * incident), all computed in SQL. Must be called with the incident's own
+ * advisory lock (`acquireIncidentLock`) already held for the result to be
+ * safely actioned against.
+ */
+export async function getOutstandingMissingForIncident(tx: QueryClient, organizationId: number, incidentId: number): Promise<string> {
+  const [row] = await tx
+    .select({
+      balance: sql<string>`coalesce(sum(case
+        when ${officeInventoryStockMovementsTable.movementType} = 'missing' then ${officeInventoryStockMovementsTable.quantity}
+        when ${officeInventoryStockMovementsTable.movementType} in ('recovered', 'written_off') then -${officeInventoryStockMovementsTable.quantity}
+        else 0 end), 0)::numeric(12,2)`,
+    })
+    .from(officeInventoryStockMovementsTable)
+    .where(
+      and(
+        eq(officeInventoryStockMovementsTable.organizationId, organizationId),
+        eq(officeInventoryStockMovementsTable.sourceReferenceType, "incident"),
+        eq(officeInventoryStockMovementsTable.sourceReferenceId, incidentId),
+      ),
+    );
+  return row?.balance ?? "0.00";
 }

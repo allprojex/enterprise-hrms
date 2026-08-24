@@ -14703,3 +14703,364 @@ export const CreateOfficeInventoryTransferResponse = zod.object({
 })
 
 
+/**
+ * Zero ledger effect (§25) — a pure, self-service qualitative record.
+ * @summary Report a damage/missing incident on your own current custody — gated office_inventory.report_issue.own
+ */
+export const ReportOfficeInventoryIncidentParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ReportOfficeInventoryIncidentBody = zod.object({
+  "itemId": zod.number(),
+  "holderType": zod.enum(['employee', 'department']),
+  "holderId": zod.number(),
+  "incidentType": zod.enum(['damage', 'missing']),
+  "description": zod.string()
+}).describe('§25\/§33 — self-service ONLY: `holderType`\/`holderId` must be the reporting employee\'s own current custody or their own current department\'s custody, enforced server-side. Zero ledger effect.')
+
+export const ReportOfficeInventoryIncidentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "itemId": zod.number(),
+  "holderType": zod.enum(['employee', 'department']).nullable(),
+  "holderId": zod.number().nullable(),
+  "incidentType": zod.enum(['damage', 'missing']),
+  "description": zod.string(),
+  "reportedByMembershipId": zod.number(),
+  "reportedAt": zod.coerce.date(),
+  "status": zod.enum(['open', 'reviewed', 'dismissed']),
+  "reviewedByMembershipId": zod.number().nullable(),
+  "reviewedAt": zod.coerce.date().nullable(),
+  "resolutionNotes": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 6 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.7, §25). A pure, qualitative record — reporting and reviewing never touch the stock ledger. No quantity field exists here on purpose: every quantity-affecting resolution (mark missing \/ recover \/ write off) carries its own quantity, validated fresh against the live ledger, referencing this row only for traceability.')
+
+
+/**
+ * @summary List incidents org-wide, optionally filtered by status — gated office_inventory.incident.review
+ */
+export const ListOfficeInventoryIncidentsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListOfficeInventoryIncidentsQueryParams = zod.object({
+  "status": zod.enum(['open', 'reviewed', 'dismissed']).optional()
+})
+
+export const ListOfficeInventoryIncidentsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "itemId": zod.number(),
+  "holderType": zod.enum(['employee', 'department']).nullable(),
+  "holderId": zod.number().nullable(),
+  "incidentType": zod.enum(['damage', 'missing']),
+  "description": zod.string(),
+  "reportedByMembershipId": zod.number(),
+  "reportedAt": zod.coerce.date(),
+  "status": zod.enum(['open', 'reviewed', 'dismissed']),
+  "reviewedByMembershipId": zod.number().nullable(),
+  "reviewedAt": zod.coerce.date().nullable(),
+  "resolutionNotes": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 6 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.7, §25). A pure, qualitative record — reporting and reviewing never touch the stock ledger. No quantity field exists here on purpose: every quantity-affecting resolution (mark missing \/ recover \/ write off) carries its own quantity, validated fresh against the live ledger, referencing this row only for traceability.')
+export const ListOfficeInventoryIncidentsResponse = zod.array(ListOfficeInventoryIncidentsResponseItem)
+
+
+/**
+ * @summary Get one incident — gated office_inventory.incident.review
+ */
+export const GetOfficeInventoryIncidentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const GetOfficeInventoryIncidentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "itemId": zod.number(),
+  "holderType": zod.enum(['employee', 'department']).nullable(),
+  "holderId": zod.number().nullable(),
+  "incidentType": zod.enum(['damage', 'missing']),
+  "description": zod.string(),
+  "reportedByMembershipId": zod.number(),
+  "reportedAt": zod.coerce.date(),
+  "status": zod.enum(['open', 'reviewed', 'dismissed']),
+  "reviewedByMembershipId": zod.number().nullable(),
+  "reviewedAt": zod.coerce.date().nullable(),
+  "resolutionNotes": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 6 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.7, §25). A pure, qualitative record — reporting and reviewing never touch the stock ledger. No quantity field exists here on purpose: every quantity-affecting resolution (mark missing \/ recover \/ write off) carries its own quantity, validated fresh against the live ledger, referencing this row only for traceability.')
+
+
+/**
+ * Pure status transition, zero ledger effect regardless of outcome.
+ * @summary Review or dismiss an open incident — gated office_inventory.incident.review
+ */
+export const ReviewOfficeInventoryIncidentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const ReviewOfficeInventoryIncidentBody = zod.object({
+  "outcome": zod.enum(['reviewed', 'dismissed']),
+  "resolutionNotes": zod.string().optional()
+}).describe('A pure status transition (§9) — never appends a ledger row, regardless of outcome.')
+
+export const ReviewOfficeInventoryIncidentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "itemId": zod.number(),
+  "holderType": zod.enum(['employee', 'department']).nullable(),
+  "holderId": zod.number().nullable(),
+  "incidentType": zod.enum(['damage', 'missing']),
+  "description": zod.string(),
+  "reportedByMembershipId": zod.number(),
+  "reportedAt": zod.coerce.date(),
+  "status": zod.enum(['open', 'reviewed', 'dismissed']),
+  "reviewedByMembershipId": zod.number().nullable(),
+  "reviewedAt": zod.coerce.date().nullable(),
+  "resolutionNotes": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 6 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.7, §25). A pure, qualitative record — reporting and reviewing never touch the stock ledger. No quantity field exists here on purpose: every quantity-affecting resolution (mark missing \/ recover \/ write off) carries its own quantity, validated fresh against the live ledger, referencing this row only for traceability.')
+
+
+/**
+ * Appends a holder-decreasing `missing` ledger row referencing the incident (§25) — the incident's report alone never does this.
+ * @summary Mark a quantity of this incident's item as officially missing — gated office_inventory.incident.review
+ */
+export const MarkOfficeInventoryIncidentMissingParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const MarkOfficeInventoryIncidentMissingBody = zod.object({
+  "quantity": zod.string(),
+  "idempotencyKey": zod.string().optional()
+}).describe('The separate, deliberate action that actually removes quantity from a holder\'s live custody (§25) — reporting alone never does.')
+
+export const MarkOfficeInventoryIncidentMissingResponse = zod.object({
+  "movement": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "itemId": zod.number(),
+  "movementType": zod.enum(['received', 'issued', 'returned', 'transferred_out', 'transferred_in', 'adjustment_in', 'adjustment_out', 'written_off', 'missing', 'recovered', 'asset_handoff']),
+  "quantity": zod.string(),
+  "storeId": zod.number().nullable(),
+  "holderType": zod.union([zod.literal('employee'),zod.literal('department'),zod.literal(null)]).nullable(),
+  "holderId": zod.number().nullable(),
+  "referenceNumber": zod.string().nullable(),
+  "sourceReferenceType": zod.union([zod.literal('request_line'),zod.literal('incident'),zod.literal('stocktake_line'),zod.literal('asset'),zod.literal(null)]).nullable(),
+  "sourceReferenceId": zod.number().nullable(),
+  "source": zod.string().nullable(),
+  "deliveryReference": zod.string().nullable(),
+  "unitCost": zod.string().nullable(),
+  "condition": zod.union([zod.literal('new'),zod.literal('good'),zod.literal('fair'),zod.literal('poor'),zod.literal('damaged'),zod.literal(null)]).nullable(),
+  "reason": zod.string().nullable(),
+  "expectedReturnDate": zod.coerce.date().nullable(),
+  "confirmedByMembershipId": zod.number().nullable(),
+  "confirmedAt": zod.coerce.date().nullable(),
+  "idempotencyKey": zod.string().nullable(),
+  "actorMembershipId": zod.number().nullable(),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 2 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.3). One row of the authoritative, append-only stock ledger. Workstream 2 only ever produces `movementType: received` rows; every other enum value exists for later workstreams.'),
+  "replay": zod.boolean()
+}).describe('Shared response shape for every single-row Workstream 6 disposition action (mark-missing, recover, write-off, adjustment).')
+
+
+/**
+ * Validated against the incident's own outstanding-missing tally, never the holder's balance — a found item re-enters a STORE.
+ * @summary Recover a quantity of this incident's already-missing item into a store — gated office_inventory.recover
+ */
+export const RecoverOfficeInventoryIncidentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const RecoverOfficeInventoryIncidentBody = zod.object({
+  "quantity": zod.string(),
+  "destinationStoreId": zod.number(),
+  "idempotencyKey": zod.string().optional()
+}).describe('Validated against the incident\'s own derived outstanding-missing tally, never the holder\'s balance — a found item re-enters a STORE.')
+
+export const RecoverOfficeInventoryIncidentResponse = zod.object({
+  "movement": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "itemId": zod.number(),
+  "movementType": zod.enum(['received', 'issued', 'returned', 'transferred_out', 'transferred_in', 'adjustment_in', 'adjustment_out', 'written_off', 'missing', 'recovered', 'asset_handoff']),
+  "quantity": zod.string(),
+  "storeId": zod.number().nullable(),
+  "holderType": zod.union([zod.literal('employee'),zod.literal('department'),zod.literal(null)]).nullable(),
+  "holderId": zod.number().nullable(),
+  "referenceNumber": zod.string().nullable(),
+  "sourceReferenceType": zod.union([zod.literal('request_line'),zod.literal('incident'),zod.literal('stocktake_line'),zod.literal('asset'),zod.literal(null)]).nullable(),
+  "sourceReferenceId": zod.number().nullable(),
+  "source": zod.string().nullable(),
+  "deliveryReference": zod.string().nullable(),
+  "unitCost": zod.string().nullable(),
+  "condition": zod.union([zod.literal('new'),zod.literal('good'),zod.literal('fair'),zod.literal('poor'),zod.literal('damaged'),zod.literal(null)]).nullable(),
+  "reason": zod.string().nullable(),
+  "expectedReturnDate": zod.coerce.date().nullable(),
+  "confirmedByMembershipId": zod.number().nullable(),
+  "confirmedAt": zod.coerce.date().nullable(),
+  "idempotencyKey": zod.string().nullable(),
+  "actorMembershipId": zod.number().nullable(),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 2 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.3). One row of the authoritative, append-only stock ledger. Workstream 2 only ever produces `movementType: received` rows; every other enum value exists for later workstreams.'),
+  "replay": zod.boolean()
+}).describe('Shared response shape for every single-row Workstream 6 disposition action (mark-missing, recover, write-off, adjustment).')
+
+
+/**
+ * An unscoped ledger row (no store, no holder) — the quantity already left holder custody when it was marked missing.
+ * @summary Write off this incident's own already-missing quantity — gated office_inventory.writeoff
+ */
+export const WriteOffOfficeInventoryIncidentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const WriteOffOfficeInventoryIncidentBody = zod.object({
+  "quantity": zod.string(),
+  "reason": zod.string(),
+  "idempotencyKey": zod.string().optional()
+}).describe('Closes out an incident\'s own already-missing quantity — an unscoped ledger row, since the quantity already left holder custody.')
+
+export const WriteOffOfficeInventoryIncidentResponse = zod.object({
+  "movement": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "itemId": zod.number(),
+  "movementType": zod.enum(['received', 'issued', 'returned', 'transferred_out', 'transferred_in', 'adjustment_in', 'adjustment_out', 'written_off', 'missing', 'recovered', 'asset_handoff']),
+  "quantity": zod.string(),
+  "storeId": zod.number().nullable(),
+  "holderType": zod.union([zod.literal('employee'),zod.literal('department'),zod.literal(null)]).nullable(),
+  "holderId": zod.number().nullable(),
+  "referenceNumber": zod.string().nullable(),
+  "sourceReferenceType": zod.union([zod.literal('request_line'),zod.literal('incident'),zod.literal('stocktake_line'),zod.literal('asset'),zod.literal(null)]).nullable(),
+  "sourceReferenceId": zod.number().nullable(),
+  "source": zod.string().nullable(),
+  "deliveryReference": zod.string().nullable(),
+  "unitCost": zod.string().nullable(),
+  "condition": zod.union([zod.literal('new'),zod.literal('good'),zod.literal('fair'),zod.literal('poor'),zod.literal('damaged'),zod.literal(null)]).nullable(),
+  "reason": zod.string().nullable(),
+  "expectedReturnDate": zod.coerce.date().nullable(),
+  "confirmedByMembershipId": zod.number().nullable(),
+  "confirmedAt": zod.coerce.date().nullable(),
+  "idempotencyKey": zod.string().nullable(),
+  "actorMembershipId": zod.number().nullable(),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 2 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.3). One row of the authoritative, append-only stock ledger. Workstream 2 only ever produces `movementType: received` rows; every other enum value exists for later workstreams.'),
+  "replay": zod.boolean()
+}).describe('Shared response shape for every single-row Workstream 6 disposition action (mark-missing, recover, write-off, adjustment).')
+
+
+/**
+ * Independent of any incident, though one may optionally be referenced purely for traceability (§11-§13).
+ * @summary Directly write off quantity from a store or holder — gated office_inventory.writeoff
+ */
+export const CreateOfficeInventoryWriteOffParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const CreateOfficeInventoryWriteOffBody = zod.object({
+  "itemId": zod.number(),
+  "sourceType": zod.enum(['store', 'employee', 'department']),
+  "storeId": zod.number().optional().describe('Required when sourceType is \"store\".'),
+  "holderId": zod.number().optional().describe('Required when sourceType is \"employee\" or \"department\".'),
+  "quantity": zod.string(),
+  "reason": zod.string(),
+  "incidentId": zod.number().optional(),
+  "idempotencyKey": zod.string().optional()
+}).describe('§11-§13 — a DIRECT, single-actor authoritative disposition of quantity still nominally accountable somewhere (a store OR a holder), independent of any incident. `incidentId` is optional, purely for traceability.')
+
+export const CreateOfficeInventoryWriteOffResponse = zod.object({
+  "movement": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "itemId": zod.number(),
+  "movementType": zod.enum(['received', 'issued', 'returned', 'transferred_out', 'transferred_in', 'adjustment_in', 'adjustment_out', 'written_off', 'missing', 'recovered', 'asset_handoff']),
+  "quantity": zod.string(),
+  "storeId": zod.number().nullable(),
+  "holderType": zod.union([zod.literal('employee'),zod.literal('department'),zod.literal(null)]).nullable(),
+  "holderId": zod.number().nullable(),
+  "referenceNumber": zod.string().nullable(),
+  "sourceReferenceType": zod.union([zod.literal('request_line'),zod.literal('incident'),zod.literal('stocktake_line'),zod.literal('asset'),zod.literal(null)]).nullable(),
+  "sourceReferenceId": zod.number().nullable(),
+  "source": zod.string().nullable(),
+  "deliveryReference": zod.string().nullable(),
+  "unitCost": zod.string().nullable(),
+  "condition": zod.union([zod.literal('new'),zod.literal('good'),zod.literal('fair'),zod.literal('poor'),zod.literal('damaged'),zod.literal(null)]).nullable(),
+  "reason": zod.string().nullable(),
+  "expectedReturnDate": zod.coerce.date().nullable(),
+  "confirmedByMembershipId": zod.number().nullable(),
+  "confirmedAt": zod.coerce.date().nullable(),
+  "idempotencyKey": zod.string().nullable(),
+  "actorMembershipId": zod.number().nullable(),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 2 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.3). One row of the authoritative, append-only stock ledger. Workstream 2 only ever produces `movementType: received` rows; every other enum value exists for later workstreams.'),
+  "replay": zod.boolean()
+}).describe('Shared response shape for every single-row Workstream 6 disposition action (mark-missing, recover, write-off, adjustment).')
+
+
+/**
+ * STORE ONLY (§17) — an employee/department custody discrepancy is never resolved by adjustment.
+ * @summary Adjust a store's balance (in or out) — gated office_inventory.adjust
+ */
+export const CreateOfficeInventoryAdjustmentParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const CreateOfficeInventoryAdjustmentBody = zod.object({
+  "storeId": zod.number(),
+  "itemId": zod.number(),
+  "direction": zod.enum(['in', 'out']),
+  "quantity": zod.string(),
+  "reason": zod.string(),
+  "idempotencyKey": zod.string().optional()
+}).describe('§15-§17 — STORE ONLY by design; there is no holder field anywhere in this shape, structurally preventing the custody-discrepancy boundary from ever being crossed.')
+
+export const CreateOfficeInventoryAdjustmentResponse = zod.object({
+  "movement": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "itemId": zod.number(),
+  "movementType": zod.enum(['received', 'issued', 'returned', 'transferred_out', 'transferred_in', 'adjustment_in', 'adjustment_out', 'written_off', 'missing', 'recovered', 'asset_handoff']),
+  "quantity": zod.string(),
+  "storeId": zod.number().nullable(),
+  "holderType": zod.union([zod.literal('employee'),zod.literal('department'),zod.literal(null)]).nullable(),
+  "holderId": zod.number().nullable(),
+  "referenceNumber": zod.string().nullable(),
+  "sourceReferenceType": zod.union([zod.literal('request_line'),zod.literal('incident'),zod.literal('stocktake_line'),zod.literal('asset'),zod.literal(null)]).nullable(),
+  "sourceReferenceId": zod.number().nullable(),
+  "source": zod.string().nullable(),
+  "deliveryReference": zod.string().nullable(),
+  "unitCost": zod.string().nullable(),
+  "condition": zod.union([zod.literal('new'),zod.literal('good'),zod.literal('fair'),zod.literal('poor'),zod.literal('damaged'),zod.literal(null)]).nullable(),
+  "reason": zod.string().nullable(),
+  "expectedReturnDate": zod.coerce.date().nullable(),
+  "confirmedByMembershipId": zod.number().nullable(),
+  "confirmedAt": zod.coerce.date().nullable(),
+  "idempotencyKey": zod.string().nullable(),
+  "actorMembershipId": zod.number().nullable(),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 2 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.3). One row of the authoritative, append-only stock ledger. Workstream 2 only ever produces `movementType: received` rows; every other enum value exists for later workstreams.'),
+  "replay": zod.boolean()
+}).describe('Shared response shape for every single-row Workstream 6 disposition action (mark-missing, recover, write-off, adjustment).')
+
+

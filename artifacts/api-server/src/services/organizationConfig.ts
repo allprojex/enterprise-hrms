@@ -180,6 +180,16 @@ const officeInventoryConfigSchema = z
     returnNumber: officeInventoryItemNumberConfigSchema.optional(),
     handoverNumber: officeInventoryItemNumberConfigSchema.optional(),
     transferNumber: officeInventoryItemNumberConfigSchema.optional(),
+    // Office Inventory, Workstream 6 — two more independent number series,
+    // matching the frozen plan's own §40 enumeration exactly (both
+    // `office_inventory_writeoff` and `office_inventory_adjustment` are
+    // explicitly named there, unlike W5's own return-key gap). Mark-missing
+    // and recovery deliberately do NOT get their own series — both are
+    // always anchored to, and fully traceable via, the incident's own id
+    // (`sourceReferenceType='incident'`), which the frozen plan's own §40
+    // text does not name either.
+    writeoffNumber: officeInventoryItemNumberConfigSchema.optional(),
+    adjustmentNumber: officeInventoryItemNumberConfigSchema.optional(),
     repeatRequestReviewWindowDays: z.number().int().min(0).max(365).optional(),
     costTrackingEnabled: z.boolean().optional(),
     directIssueEnabled: z.boolean().optional(),
@@ -343,6 +353,20 @@ export const CONFIG_NAMESPACES: Record<string, NamespaceDefinition> = {
       },
       transferNumber: {
         prefix: "TRF",
+        separator: "-",
+        sequenceLength: 5,
+        startingSequence: 1,
+        resetPolicy: "never",
+      },
+      writeoffNumber: {
+        prefix: "WOF",
+        separator: "-",
+        sequenceLength: 5,
+        startingSequence: 1,
+        resetPolicy: "never",
+      },
+      adjustmentNumber: {
+        prefix: "ADJ",
         separator: "-",
         sequenceLength: 5,
         startingSequence: 1,

@@ -7876,6 +7876,174 @@ export interface OfficeInventoryTransferResult {
   replay: boolean;
 }
 
+export type OfficeInventoryIncidentHolderType = typeof OfficeInventoryIncidentHolderType[keyof typeof OfficeInventoryIncidentHolderType] | null;
+
+
+export const OfficeInventoryIncidentHolderType = {
+  employee: 'employee',
+  department: 'department',
+} as const;
+
+export type OfficeInventoryIncidentIncidentType = typeof OfficeInventoryIncidentIncidentType[keyof typeof OfficeInventoryIncidentIncidentType];
+
+
+export const OfficeInventoryIncidentIncidentType = {
+  damage: 'damage',
+  missing: 'missing',
+} as const;
+
+export type OfficeInventoryIncidentStatus = typeof OfficeInventoryIncidentStatus[keyof typeof OfficeInventoryIncidentStatus];
+
+
+export const OfficeInventoryIncidentStatus = {
+  open: 'open',
+  reviewed: 'reviewed',
+  dismissed: 'dismissed',
+} as const;
+
+/**
+ * Office Inventory, Workstream 6 (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.7, §25). A pure, qualitative record — reporting and reviewing never touch the stock ledger. No quantity field exists here on purpose: every quantity-affecting resolution (mark missing / recover / write off) carries its own quantity, validated fresh against the live ledger, referencing this row only for traceability.
+ */
+export interface OfficeInventoryIncident {
+  id: number;
+  organizationId: number;
+  itemId: number;
+  holderType: OfficeInventoryIncidentHolderType;
+  holderId: number | null;
+  incidentType: OfficeInventoryIncidentIncidentType;
+  description: string;
+  reportedByMembershipId: number;
+  reportedAt: string;
+  status: OfficeInventoryIncidentStatus;
+  reviewedByMembershipId: number | null;
+  reviewedAt: string | null;
+  resolutionNotes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ReportOfficeInventoryIncidentBodyHolderType = typeof ReportOfficeInventoryIncidentBodyHolderType[keyof typeof ReportOfficeInventoryIncidentBodyHolderType];
+
+
+export const ReportOfficeInventoryIncidentBodyHolderType = {
+  employee: 'employee',
+  department: 'department',
+} as const;
+
+export type ReportOfficeInventoryIncidentBodyIncidentType = typeof ReportOfficeInventoryIncidentBodyIncidentType[keyof typeof ReportOfficeInventoryIncidentBodyIncidentType];
+
+
+export const ReportOfficeInventoryIncidentBodyIncidentType = {
+  damage: 'damage',
+  missing: 'missing',
+} as const;
+
+/**
+ * §25/§33 — self-service ONLY: `holderType`/`holderId` must be the reporting employee's own current custody or their own current department's custody, enforced server-side. Zero ledger effect.
+ */
+export interface ReportOfficeInventoryIncidentBody {
+  itemId: number;
+  holderType: ReportOfficeInventoryIncidentBodyHolderType;
+  holderId: number;
+  incidentType: ReportOfficeInventoryIncidentBodyIncidentType;
+  description: string;
+}
+
+export type ReviewOfficeInventoryIncidentBodyOutcome = typeof ReviewOfficeInventoryIncidentBodyOutcome[keyof typeof ReviewOfficeInventoryIncidentBodyOutcome];
+
+
+export const ReviewOfficeInventoryIncidentBodyOutcome = {
+  reviewed: 'reviewed',
+  dismissed: 'dismissed',
+} as const;
+
+/**
+ * A pure status transition (§9) — never appends a ledger row, regardless of outcome.
+ */
+export interface ReviewOfficeInventoryIncidentBody {
+  outcome: ReviewOfficeInventoryIncidentBodyOutcome;
+  resolutionNotes?: string;
+}
+
+/**
+ * Shared response shape for every single-row Workstream 6 disposition action (mark-missing, recover, write-off, adjustment).
+ */
+export interface OfficeInventoryMovementActionResult {
+  movement: OfficeInventoryStockMovement;
+  replay: boolean;
+}
+
+/**
+ * The separate, deliberate action that actually removes quantity from a holder's live custody (§25) — reporting alone never does.
+ */
+export interface MarkOfficeInventoryIncidentMissingBody {
+  quantity: string;
+  idempotencyKey?: string;
+}
+
+/**
+ * Validated against the incident's own derived outstanding-missing tally, never the holder's balance — a found item re-enters a STORE.
+ */
+export interface RecoverOfficeInventoryIncidentBody {
+  quantity: string;
+  destinationStoreId: number;
+  idempotencyKey?: string;
+}
+
+/**
+ * Closes out an incident's own already-missing quantity — an unscoped ledger row, since the quantity already left holder custody.
+ */
+export interface WriteOffOfficeInventoryIncidentBody {
+  quantity: string;
+  reason: string;
+  idempotencyKey?: string;
+}
+
+export type CreateOfficeInventoryWriteOffBodySourceType = typeof CreateOfficeInventoryWriteOffBodySourceType[keyof typeof CreateOfficeInventoryWriteOffBodySourceType];
+
+
+export const CreateOfficeInventoryWriteOffBodySourceType = {
+  store: 'store',
+  employee: 'employee',
+  department: 'department',
+} as const;
+
+/**
+ * §11-§13 — a DIRECT, single-actor authoritative disposition of quantity still nominally accountable somewhere (a store OR a holder), independent of any incident. `incidentId` is optional, purely for traceability.
+ */
+export interface CreateOfficeInventoryWriteOffBody {
+  itemId: number;
+  sourceType: CreateOfficeInventoryWriteOffBodySourceType;
+  /** Required when sourceType is "store". */
+  storeId?: number;
+  /** Required when sourceType is "employee" or "department". */
+  holderId?: number;
+  quantity: string;
+  reason: string;
+  incidentId?: number;
+  idempotencyKey?: string;
+}
+
+export type CreateOfficeInventoryAdjustmentBodyDirection = typeof CreateOfficeInventoryAdjustmentBodyDirection[keyof typeof CreateOfficeInventoryAdjustmentBodyDirection];
+
+
+export const CreateOfficeInventoryAdjustmentBodyDirection = {
+  in: 'in',
+  out: 'out',
+} as const;
+
+/**
+ * §15-§17 — STORE ONLY by design; there is no holder field anywhere in this shape, structurally preventing the custody-discrepancy boundary from ever being crossed.
+ */
+export interface CreateOfficeInventoryAdjustmentBody {
+  storeId: number;
+  itemId: number;
+  direction: CreateOfficeInventoryAdjustmentBodyDirection;
+  quantity: string;
+  reason: string;
+  idempotencyKey?: string;
+}
+
 export type ListEmployeesParams = {
 search?: string;
 departmentId?: number;
@@ -8507,4 +8675,17 @@ export type ListOfficeInventoryStockMovementsParams = {
 itemId?: number;
 storeId?: number;
 };
+
+export type ListOfficeInventoryIncidentsParams = {
+status?: ListOfficeInventoryIncidentsStatus;
+};
+
+export type ListOfficeInventoryIncidentsStatus = typeof ListOfficeInventoryIncidentsStatus[keyof typeof ListOfficeInventoryIncidentsStatus];
+
+
+export const ListOfficeInventoryIncidentsStatus = {
+  open: 'open',
+  reviewed: 'reviewed',
+  dismissed: 'dismissed',
+} as const;
 

@@ -98,6 +98,7 @@ import type {
   CreateLeaveTypeInput,
   CreateMasterDataItemInput,
   CreateOfferInput,
+  CreateOfficeInventoryAdjustmentBody,
   CreateOfficeInventoryDelegationBody,
   CreateOfficeInventoryHandoverBody,
   CreateOfficeInventoryItemBody,
@@ -106,6 +107,7 @@ import type {
   CreateOfficeInventoryReturnBody,
   CreateOfficeInventoryStoreBody,
   CreateOfficeInventoryTransferBody,
+  CreateOfficeInventoryWriteOffBody,
   CreateOrganizationDomainInput,
   CreateOrganizationInput,
   CreatePayrollCorrectionBody,
@@ -202,6 +204,7 @@ import type {
   ListLeaveBalanceLedgerParams,
   ListLeaveCalendarParams,
   ListOffersParams,
+  ListOfficeInventoryIncidentsParams,
   ListOfficeInventoryStockMovementsParams,
   ListPayrollInputReferencesParams,
   ListPayrollStatutoryRuleVersionsParams,
@@ -216,6 +219,7 @@ import type {
   ManagerPortalTeamOverview,
   MarkAssetLostInput,
   MarkLearningEnrollmentAttendanceInput,
+  MarkOfficeInventoryIncidentMissingBody,
   MarkPersonnelFileMissingInput,
   MasterDataDomain,
   MasterDataItem,
@@ -239,8 +243,10 @@ import type {
   OfficeInventoryAwaitingFulfilmentEntry,
   OfficeInventoryCustodyEntry,
   OfficeInventoryHandoverResult,
+  OfficeInventoryIncident,
   OfficeInventoryItem,
   OfficeInventoryItemBalance,
+  OfficeInventoryMovementActionResult,
   OfficeInventoryReceipt,
   OfficeInventoryReceiptSummary,
   OfficeInventoryRequest,
@@ -312,6 +318,7 @@ import type {
   RecordAttendanceEventInput,
   RecordsLocation,
   RecoverAssetInput,
+  RecoverOfficeInventoryIncidentBody,
   RecoverPersonnelFileInput,
   RecruitmentDashboard,
   RecruitmentSettings,
@@ -329,6 +336,7 @@ import type {
   ReplacePerformanceTemplateCompetenciesInput,
   Report,
   ReportAssetIssueInput,
+  ReportOfficeInventoryIncidentBody,
   ReportRunResult,
   RequestLearningEnrollmentInput,
   RequisitionApproval,
@@ -340,6 +348,7 @@ import type {
   ReturnAssetInput,
   ReturnPersonnelFileInput,
   ReviewAssetIncidentInput,
+  ReviewOfficeInventoryIncidentBody,
   RevokeLearningCertificateInput,
   Role,
   RunAssetReportParams,
@@ -406,7 +415,8 @@ import type {
   Vacancy,
   VacancyListResponse,
   WithdrawApplicationInput,
-  WithdrawOfferVersionInput
+  WithdrawOfferVersionInput,
+  WriteOffOfficeInventoryIncidentBody
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -34650,5 +34660,695 @@ export const useCreateOfficeInventoryTransfer = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getCreateOfficeInventoryTransferMutationOptions(options));
+    }
+
+export const getReportOfficeInventoryIncidentUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/incidents`
+}
+
+/**
+ * Zero ledger effect (§25) — a pure, self-service qualitative record.
+ * @summary Report a damage/missing incident on your own current custody — gated office_inventory.report_issue.own
+ */
+export const reportOfficeInventoryIncident = async (organizationId: number,
+    reportOfficeInventoryIncidentBody: ReportOfficeInventoryIncidentBody, options?: RequestInit): Promise<OfficeInventoryIncident> => {
+
+  return customFetch<OfficeInventoryIncident>(getReportOfficeInventoryIncidentUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reportOfficeInventoryIncidentBody)
+  }
+);}
+
+
+
+
+
+export const getReportOfficeInventoryIncidentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reportOfficeInventoryIncident>>, TError,{organizationId: number;data: BodyType<ReportOfficeInventoryIncidentBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reportOfficeInventoryIncident>>, TError,{organizationId: number;data: BodyType<ReportOfficeInventoryIncidentBody>}, TContext> => {
+
+const mutationKey = ['reportOfficeInventoryIncident'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reportOfficeInventoryIncident>>, {organizationId: number;data: BodyType<ReportOfficeInventoryIncidentBody>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  reportOfficeInventoryIncident(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReportOfficeInventoryIncidentMutationResult = NonNullable<Awaited<ReturnType<typeof reportOfficeInventoryIncident>>>
+    export type ReportOfficeInventoryIncidentMutationBody = BodyType<ReportOfficeInventoryIncidentBody>
+    export type ReportOfficeInventoryIncidentMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Report a damage/missing incident on your own current custody — gated office_inventory.report_issue.own
+ */
+export const useReportOfficeInventoryIncident = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reportOfficeInventoryIncident>>, TError,{organizationId: number;data: BodyType<ReportOfficeInventoryIncidentBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reportOfficeInventoryIncident>>,
+        TError,
+        {organizationId: number;data: BodyType<ReportOfficeInventoryIncidentBody>},
+        TContext
+      > => {
+      return useMutation(getReportOfficeInventoryIncidentMutationOptions(options));
+    }
+
+export const getListOfficeInventoryIncidentsUrl = (organizationId: number,
+    params?: ListOfficeInventoryIncidentsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/office-inventory/incidents?${stringifiedParams}` : `/api/organizations/${organizationId}/office-inventory/incidents`
+}
+
+/**
+ * @summary List incidents org-wide, optionally filtered by status — gated office_inventory.incident.review
+ */
+export const listOfficeInventoryIncidents = async (organizationId: number,
+    params?: ListOfficeInventoryIncidentsParams, options?: RequestInit): Promise<OfficeInventoryIncident[]> => {
+
+  return customFetch<OfficeInventoryIncident[]>(getListOfficeInventoryIncidentsUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOfficeInventoryIncidentsQueryKey = (organizationId: number,
+    params?: ListOfficeInventoryIncidentsParams,) => {
+    return [
+    `/api/organizations/${organizationId}/office-inventory/incidents`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListOfficeInventoryIncidentsQueryOptions = <TData = Awaited<ReturnType<typeof listOfficeInventoryIncidents>>, TError = ErrorType<ApiError>>(organizationId: number,
+    params?: ListOfficeInventoryIncidentsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOfficeInventoryIncidents>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOfficeInventoryIncidentsQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOfficeInventoryIncidents>>> = ({ signal }) => listOfficeInventoryIncidents(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOfficeInventoryIncidents>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOfficeInventoryIncidentsQueryResult = NonNullable<Awaited<ReturnType<typeof listOfficeInventoryIncidents>>>
+export type ListOfficeInventoryIncidentsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List incidents org-wide, optionally filtered by status — gated office_inventory.incident.review
+ */
+
+export function useListOfficeInventoryIncidents<TData = Awaited<ReturnType<typeof listOfficeInventoryIncidents>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    params?: ListOfficeInventoryIncidentsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOfficeInventoryIncidents>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOfficeInventoryIncidentsQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetOfficeInventoryIncidentUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/incidents/${id}`
+}
+
+/**
+ * @summary Get one incident — gated office_inventory.incident.review
+ */
+export const getOfficeInventoryIncident = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<OfficeInventoryIncident> => {
+
+  return customFetch<OfficeInventoryIncident>(getGetOfficeInventoryIncidentUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOfficeInventoryIncidentQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/office-inventory/incidents/${id}`
+    ] as const;
+    }
+
+
+export const getGetOfficeInventoryIncidentQueryOptions = <TData = Awaited<ReturnType<typeof getOfficeInventoryIncident>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryIncident>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOfficeInventoryIncidentQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOfficeInventoryIncident>>> = ({ signal }) => getOfficeInventoryIncident(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryIncident>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOfficeInventoryIncidentQueryResult = NonNullable<Awaited<ReturnType<typeof getOfficeInventoryIncident>>>
+export type GetOfficeInventoryIncidentQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get one incident — gated office_inventory.incident.review
+ */
+
+export function useGetOfficeInventoryIncident<TData = Awaited<ReturnType<typeof getOfficeInventoryIncident>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryIncident>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOfficeInventoryIncidentQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getReviewOfficeInventoryIncidentUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/incidents/${id}/review`
+}
+
+/**
+ * Pure status transition, zero ledger effect regardless of outcome.
+ * @summary Review or dismiss an open incident — gated office_inventory.incident.review
+ */
+export const reviewOfficeInventoryIncident = async (organizationId: number,
+    id: number,
+    reviewOfficeInventoryIncidentBody: ReviewOfficeInventoryIncidentBody, options?: RequestInit): Promise<OfficeInventoryIncident> => {
+
+  return customFetch<OfficeInventoryIncident>(getReviewOfficeInventoryIncidentUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reviewOfficeInventoryIncidentBody)
+  }
+);}
+
+
+
+
+
+export const getReviewOfficeInventoryIncidentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewOfficeInventoryIncident>>, TError,{organizationId: number;id: number;data: BodyType<ReviewOfficeInventoryIncidentBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reviewOfficeInventoryIncident>>, TError,{organizationId: number;id: number;data: BodyType<ReviewOfficeInventoryIncidentBody>}, TContext> => {
+
+const mutationKey = ['reviewOfficeInventoryIncident'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reviewOfficeInventoryIncident>>, {organizationId: number;id: number;data: BodyType<ReviewOfficeInventoryIncidentBody>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  reviewOfficeInventoryIncident(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReviewOfficeInventoryIncidentMutationResult = NonNullable<Awaited<ReturnType<typeof reviewOfficeInventoryIncident>>>
+    export type ReviewOfficeInventoryIncidentMutationBody = BodyType<ReviewOfficeInventoryIncidentBody>
+    export type ReviewOfficeInventoryIncidentMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Review or dismiss an open incident — gated office_inventory.incident.review
+ */
+export const useReviewOfficeInventoryIncident = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewOfficeInventoryIncident>>, TError,{organizationId: number;id: number;data: BodyType<ReviewOfficeInventoryIncidentBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reviewOfficeInventoryIncident>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<ReviewOfficeInventoryIncidentBody>},
+        TContext
+      > => {
+      return useMutation(getReviewOfficeInventoryIncidentMutationOptions(options));
+    }
+
+export const getMarkOfficeInventoryIncidentMissingUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/incidents/${id}/mark-missing`
+}
+
+/**
+ * Appends a holder-decreasing `missing` ledger row referencing the incident (§25) — the incident's report alone never does this.
+ * @summary Mark a quantity of this incident's item as officially missing — gated office_inventory.incident.review
+ */
+export const markOfficeInventoryIncidentMissing = async (organizationId: number,
+    id: number,
+    markOfficeInventoryIncidentMissingBody: MarkOfficeInventoryIncidentMissingBody, options?: RequestInit): Promise<OfficeInventoryMovementActionResult> => {
+
+  return customFetch<OfficeInventoryMovementActionResult>(getMarkOfficeInventoryIncidentMissingUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(markOfficeInventoryIncidentMissingBody)
+  }
+);}
+
+
+
+
+
+export const getMarkOfficeInventoryIncidentMissingMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markOfficeInventoryIncidentMissing>>, TError,{organizationId: number;id: number;data: BodyType<MarkOfficeInventoryIncidentMissingBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markOfficeInventoryIncidentMissing>>, TError,{organizationId: number;id: number;data: BodyType<MarkOfficeInventoryIncidentMissingBody>}, TContext> => {
+
+const mutationKey = ['markOfficeInventoryIncidentMissing'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markOfficeInventoryIncidentMissing>>, {organizationId: number;id: number;data: BodyType<MarkOfficeInventoryIncidentMissingBody>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  markOfficeInventoryIncidentMissing(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkOfficeInventoryIncidentMissingMutationResult = NonNullable<Awaited<ReturnType<typeof markOfficeInventoryIncidentMissing>>>
+    export type MarkOfficeInventoryIncidentMissingMutationBody = BodyType<MarkOfficeInventoryIncidentMissingBody>
+    export type MarkOfficeInventoryIncidentMissingMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Mark a quantity of this incident's item as officially missing — gated office_inventory.incident.review
+ */
+export const useMarkOfficeInventoryIncidentMissing = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markOfficeInventoryIncidentMissing>>, TError,{organizationId: number;id: number;data: BodyType<MarkOfficeInventoryIncidentMissingBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof markOfficeInventoryIncidentMissing>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<MarkOfficeInventoryIncidentMissingBody>},
+        TContext
+      > => {
+      return useMutation(getMarkOfficeInventoryIncidentMissingMutationOptions(options));
+    }
+
+export const getRecoverOfficeInventoryIncidentUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/incidents/${id}/recover`
+}
+
+/**
+ * Validated against the incident's own outstanding-missing tally, never the holder's balance — a found item re-enters a STORE.
+ * @summary Recover a quantity of this incident's already-missing item into a store — gated office_inventory.recover
+ */
+export const recoverOfficeInventoryIncident = async (organizationId: number,
+    id: number,
+    recoverOfficeInventoryIncidentBody: RecoverOfficeInventoryIncidentBody, options?: RequestInit): Promise<OfficeInventoryMovementActionResult> => {
+
+  return customFetch<OfficeInventoryMovementActionResult>(getRecoverOfficeInventoryIncidentUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(recoverOfficeInventoryIncidentBody)
+  }
+);}
+
+
+
+
+
+export const getRecoverOfficeInventoryIncidentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recoverOfficeInventoryIncident>>, TError,{organizationId: number;id: number;data: BodyType<RecoverOfficeInventoryIncidentBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recoverOfficeInventoryIncident>>, TError,{organizationId: number;id: number;data: BodyType<RecoverOfficeInventoryIncidentBody>}, TContext> => {
+
+const mutationKey = ['recoverOfficeInventoryIncident'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recoverOfficeInventoryIncident>>, {organizationId: number;id: number;data: BodyType<RecoverOfficeInventoryIncidentBody>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  recoverOfficeInventoryIncident(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecoverOfficeInventoryIncidentMutationResult = NonNullable<Awaited<ReturnType<typeof recoverOfficeInventoryIncident>>>
+    export type RecoverOfficeInventoryIncidentMutationBody = BodyType<RecoverOfficeInventoryIncidentBody>
+    export type RecoverOfficeInventoryIncidentMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Recover a quantity of this incident's already-missing item into a store — gated office_inventory.recover
+ */
+export const useRecoverOfficeInventoryIncident = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recoverOfficeInventoryIncident>>, TError,{organizationId: number;id: number;data: BodyType<RecoverOfficeInventoryIncidentBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recoverOfficeInventoryIncident>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<RecoverOfficeInventoryIncidentBody>},
+        TContext
+      > => {
+      return useMutation(getRecoverOfficeInventoryIncidentMutationOptions(options));
+    }
+
+export const getWriteOffOfficeInventoryIncidentUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/incidents/${id}/write-off`
+}
+
+/**
+ * An unscoped ledger row (no store, no holder) — the quantity already left holder custody when it was marked missing.
+ * @summary Write off this incident's own already-missing quantity — gated office_inventory.writeoff
+ */
+export const writeOffOfficeInventoryIncident = async (organizationId: number,
+    id: number,
+    writeOffOfficeInventoryIncidentBody: WriteOffOfficeInventoryIncidentBody, options?: RequestInit): Promise<OfficeInventoryMovementActionResult> => {
+
+  return customFetch<OfficeInventoryMovementActionResult>(getWriteOffOfficeInventoryIncidentUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(writeOffOfficeInventoryIncidentBody)
+  }
+);}
+
+
+
+
+
+export const getWriteOffOfficeInventoryIncidentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof writeOffOfficeInventoryIncident>>, TError,{organizationId: number;id: number;data: BodyType<WriteOffOfficeInventoryIncidentBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof writeOffOfficeInventoryIncident>>, TError,{organizationId: number;id: number;data: BodyType<WriteOffOfficeInventoryIncidentBody>}, TContext> => {
+
+const mutationKey = ['writeOffOfficeInventoryIncident'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof writeOffOfficeInventoryIncident>>, {organizationId: number;id: number;data: BodyType<WriteOffOfficeInventoryIncidentBody>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  writeOffOfficeInventoryIncident(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type WriteOffOfficeInventoryIncidentMutationResult = NonNullable<Awaited<ReturnType<typeof writeOffOfficeInventoryIncident>>>
+    export type WriteOffOfficeInventoryIncidentMutationBody = BodyType<WriteOffOfficeInventoryIncidentBody>
+    export type WriteOffOfficeInventoryIncidentMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Write off this incident's own already-missing quantity — gated office_inventory.writeoff
+ */
+export const useWriteOffOfficeInventoryIncident = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof writeOffOfficeInventoryIncident>>, TError,{organizationId: number;id: number;data: BodyType<WriteOffOfficeInventoryIncidentBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof writeOffOfficeInventoryIncident>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<WriteOffOfficeInventoryIncidentBody>},
+        TContext
+      > => {
+      return useMutation(getWriteOffOfficeInventoryIncidentMutationOptions(options));
+    }
+
+export const getCreateOfficeInventoryWriteOffUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/write-offs`
+}
+
+/**
+ * Independent of any incident, though one may optionally be referenced purely for traceability (§11-§13).
+ * @summary Directly write off quantity from a store or holder — gated office_inventory.writeoff
+ */
+export const createOfficeInventoryWriteOff = async (organizationId: number,
+    createOfficeInventoryWriteOffBody: CreateOfficeInventoryWriteOffBody, options?: RequestInit): Promise<OfficeInventoryMovementActionResult> => {
+
+  return customFetch<OfficeInventoryMovementActionResult>(getCreateOfficeInventoryWriteOffUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createOfficeInventoryWriteOffBody)
+  }
+);}
+
+
+
+
+
+export const getCreateOfficeInventoryWriteOffMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryWriteOff>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryWriteOffBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryWriteOff>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryWriteOffBody>}, TContext> => {
+
+const mutationKey = ['createOfficeInventoryWriteOff'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createOfficeInventoryWriteOff>>, {organizationId: number;data: BodyType<CreateOfficeInventoryWriteOffBody>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createOfficeInventoryWriteOff(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateOfficeInventoryWriteOffMutationResult = NonNullable<Awaited<ReturnType<typeof createOfficeInventoryWriteOff>>>
+    export type CreateOfficeInventoryWriteOffMutationBody = BodyType<CreateOfficeInventoryWriteOffBody>
+    export type CreateOfficeInventoryWriteOffMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Directly write off quantity from a store or holder — gated office_inventory.writeoff
+ */
+export const useCreateOfficeInventoryWriteOff = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryWriteOff>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryWriteOffBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createOfficeInventoryWriteOff>>,
+        TError,
+        {organizationId: number;data: BodyType<CreateOfficeInventoryWriteOffBody>},
+        TContext
+      > => {
+      return useMutation(getCreateOfficeInventoryWriteOffMutationOptions(options));
+    }
+
+export const getCreateOfficeInventoryAdjustmentUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/adjustments`
+}
+
+/**
+ * STORE ONLY (§17) — an employee/department custody discrepancy is never resolved by adjustment.
+ * @summary Adjust a store's balance (in or out) — gated office_inventory.adjust
+ */
+export const createOfficeInventoryAdjustment = async (organizationId: number,
+    createOfficeInventoryAdjustmentBody: CreateOfficeInventoryAdjustmentBody, options?: RequestInit): Promise<OfficeInventoryMovementActionResult> => {
+
+  return customFetch<OfficeInventoryMovementActionResult>(getCreateOfficeInventoryAdjustmentUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createOfficeInventoryAdjustmentBody)
+  }
+);}
+
+
+
+
+
+export const getCreateOfficeInventoryAdjustmentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryAdjustment>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryAdjustmentBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryAdjustment>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryAdjustmentBody>}, TContext> => {
+
+const mutationKey = ['createOfficeInventoryAdjustment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createOfficeInventoryAdjustment>>, {organizationId: number;data: BodyType<CreateOfficeInventoryAdjustmentBody>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createOfficeInventoryAdjustment(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateOfficeInventoryAdjustmentMutationResult = NonNullable<Awaited<ReturnType<typeof createOfficeInventoryAdjustment>>>
+    export type CreateOfficeInventoryAdjustmentMutationBody = BodyType<CreateOfficeInventoryAdjustmentBody>
+    export type CreateOfficeInventoryAdjustmentMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Adjust a store's balance (in or out) — gated office_inventory.adjust
+ */
+export const useCreateOfficeInventoryAdjustment = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryAdjustment>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryAdjustmentBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createOfficeInventoryAdjustment>>,
+        TError,
+        {organizationId: number;data: BodyType<CreateOfficeInventoryAdjustmentBody>},
+        TContext
+      > => {
+      return useMutation(getCreateOfficeInventoryAdjustmentMutationOptions(options));
     }
 

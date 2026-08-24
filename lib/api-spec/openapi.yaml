@@ -17798,6 +17798,431 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/office-inventory/incidents:
+    post:
+      operationId: reportOfficeInventoryIncident
+      tags: [office-inventory-incidents]
+      summary: Report a damage/missing incident on your own current custody — gated office_inventory.report_issue.own
+      description: Zero ledger effect (§25) — a pure, self-service qualitative record.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportOfficeInventoryIncidentBody"
+      responses:
+        "201":
+          description: The created incident
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryIncident"
+        "400":
+          description: The specified holder has no outstanding custody of this item to report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires office_inventory.report_issue.own, module not enabled, or not your own custody/department
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Item or holder not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    get:
+      operationId: listOfficeInventoryIncidents
+      tags: [office-inventory-incidents]
+      summary: List incidents org-wide, optionally filtered by status — gated office_inventory.incident.review
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [open, reviewed, dismissed]
+      responses:
+        "200":
+          description: Incidents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OfficeInventoryIncident"
+        "403":
+          description: Forbidden — requires office_inventory.incident.review, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/incidents/{id}:
+    get:
+      operationId: getOfficeInventoryIncident
+      tags: [office-inventory-incidents]
+      summary: Get one incident — gated office_inventory.incident.review
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The incident
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryIncident"
+        "403":
+          description: Forbidden — requires office_inventory.incident.review, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Incident not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/incidents/{id}/review:
+    post:
+      operationId: reviewOfficeInventoryIncident
+      tags: [office-inventory-incidents]
+      summary: Review or dismiss an open incident — gated office_inventory.incident.review
+      description: Pure status transition, zero ledger effect regardless of outcome.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewOfficeInventoryIncidentBody"
+      responses:
+        "200":
+          description: The updated incident
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryIncident"
+        "403":
+          description: Forbidden — requires office_inventory.incident.review, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Incident not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: This incident has already been reviewed or dismissed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/incidents/{id}/mark-missing:
+    post:
+      operationId: markOfficeInventoryIncidentMissing
+      tags: [office-inventory-incidents]
+      summary: Mark a quantity of this incident's item as officially missing — gated office_inventory.incident.review
+      description: Appends a holder-decreasing `missing` ledger row referencing the incident (§25) — the incident's report alone never does this.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MarkOfficeInventoryIncidentMissingBody"
+      responses:
+        "201":
+          description: Mark-missing result (or, on idempotency replay, the original)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryMovementActionResult"
+        "400":
+          description: Invalid quantity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires office_inventory.incident.review, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Incident not found, or its holder no longer exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Incident is not open, or insufficient outstanding custody
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/incidents/{id}/recover:
+    post:
+      operationId: recoverOfficeInventoryIncident
+      tags: [office-inventory-incidents]
+      summary: Recover a quantity of this incident's already-missing item into a store — gated office_inventory.recover
+      description: Validated against the incident's own outstanding-missing tally, never the holder's balance — a found item re-enters a STORE.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecoverOfficeInventoryIncidentBody"
+      responses:
+        "201":
+          description: Recovery result (or, on idempotency replay, the original)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryMovementActionResult"
+        "400":
+          description: Invalid quantity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires office_inventory.recover, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Incident or destination store not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Requested quantity exceeds this incident's own outstanding-missing tally
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/incidents/{id}/write-off:
+    post:
+      operationId: writeOffOfficeInventoryIncident
+      tags: [office-inventory-incidents]
+      summary: Write off this incident's own already-missing quantity — gated office_inventory.writeoff
+      description: An unscoped ledger row (no store, no holder) — the quantity already left holder custody when it was marked missing.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteOffOfficeInventoryIncidentBody"
+      responses:
+        "201":
+          description: Write-off result (or, on idempotency replay, the original)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryMovementActionResult"
+        "400":
+          description: Invalid quantity, or missing reason
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires office_inventory.writeoff, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Incident not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Requested quantity exceeds this incident's own outstanding-missing tally
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/write-offs:
+    post:
+      operationId: createOfficeInventoryWriteOff
+      tags: [office-inventory-incidents]
+      summary: Directly write off quantity from a store or holder — gated office_inventory.writeoff
+      description: Independent of any incident, though one may optionally be referenced purely for traceability (§11-§13).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOfficeInventoryWriteOffBody"
+      responses:
+        "201":
+          description: Write-off result (or, on idempotency replay, the original)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryMovementActionResult"
+        "400":
+          description: Invalid quantity, or missing reason
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires office_inventory.writeoff, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Item, store, holder, or referenced incident not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Insufficient stock/custody at the source
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/adjustments:
+    post:
+      operationId: createOfficeInventoryAdjustment
+      tags: [office-inventory-incidents]
+      summary: Adjust a store's balance (in or out) — gated office_inventory.adjust
+      description: STORE ONLY (§17) — an employee/department custody discrepancy is never resolved by adjustment.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOfficeInventoryAdjustmentBody"
+      responses:
+        "201":
+          description: Adjustment result (or, on idempotency replay, the original)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryMovementActionResult"
+        "400":
+          description: Invalid quantity, or missing reason
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires office_inventory.adjust, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Item or store not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Negative adjustment would make the store balance negative
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -26983,3 +27408,182 @@ components:
           $ref: "#/components/schemas/OfficeInventoryStockMovement"
         replay:
           type: boolean
+
+    OfficeInventoryIncident:
+      type: object
+      description: >-
+        Office Inventory, Workstream 6
+        (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.7, §25). A pure,
+        qualitative record — reporting and reviewing never touch the stock
+        ledger. No quantity field exists here on purpose: every
+        quantity-affecting resolution (mark missing / recover / write off)
+        carries its own quantity, validated fresh against the live ledger,
+        referencing this row only for traceability.
+      required: [id, organizationId, itemId, holderType, holderId, incidentType, description, reportedByMembershipId, reportedAt, status, reviewedByMembershipId, reviewedAt, resolutionNotes, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        itemId:
+          type: integer
+        holderType:
+          type: string
+          enum: [employee, department]
+          nullable: true
+        holderId:
+          type: integer
+          nullable: true
+        incidentType:
+          type: string
+          enum: [damage, missing]
+        description:
+          type: string
+        reportedByMembershipId:
+          type: integer
+        reportedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [open, reviewed, dismissed]
+        reviewedByMembershipId:
+          type: integer
+          nullable: true
+        reviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+        resolutionNotes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ReportOfficeInventoryIncidentBody:
+      type: object
+      description: >-
+        §25/§33 — self-service ONLY: `holderType`/`holderId` must be the
+        reporting employee's own current custody or their own current
+        department's custody, enforced server-side. Zero ledger effect.
+      required: [itemId, holderType, holderId, incidentType, description]
+      properties:
+        itemId:
+          type: integer
+        holderType:
+          type: string
+          enum: [employee, department]
+        holderId:
+          type: integer
+        incidentType:
+          type: string
+          enum: [damage, missing]
+        description:
+          type: string
+
+    ReviewOfficeInventoryIncidentBody:
+      type: object
+      description: A pure status transition (§9) — never appends a ledger row, regardless of outcome.
+      required: [outcome]
+      properties:
+        outcome:
+          type: string
+          enum: [reviewed, dismissed]
+        resolutionNotes:
+          type: string
+
+    OfficeInventoryMovementActionResult:
+      type: object
+      description: Shared response shape for every single-row Workstream 6 disposition action (mark-missing, recover, write-off, adjustment).
+      required: [movement, replay]
+      properties:
+        movement:
+          $ref: "#/components/schemas/OfficeInventoryStockMovement"
+        replay:
+          type: boolean
+
+    MarkOfficeInventoryIncidentMissingBody:
+      type: object
+      description: The separate, deliberate action that actually removes quantity from a holder's live custody (§25) — reporting alone never does.
+      required: [quantity]
+      properties:
+        quantity:
+          type: string
+        idempotencyKey:
+          type: string
+
+    RecoverOfficeInventoryIncidentBody:
+      type: object
+      description: Validated against the incident's own derived outstanding-missing tally, never the holder's balance — a found item re-enters a STORE.
+      required: [quantity, destinationStoreId]
+      properties:
+        quantity:
+          type: string
+        destinationStoreId:
+          type: integer
+        idempotencyKey:
+          type: string
+
+    WriteOffOfficeInventoryIncidentBody:
+      type: object
+      description: Closes out an incident's own already-missing quantity — an unscoped ledger row, since the quantity already left holder custody.
+      required: [quantity, reason]
+      properties:
+        quantity:
+          type: string
+        reason:
+          type: string
+        idempotencyKey:
+          type: string
+
+    CreateOfficeInventoryWriteOffBody:
+      type: object
+      description: >-
+        §11-§13 — a DIRECT, single-actor authoritative disposition of
+        quantity still nominally accountable somewhere (a store OR a
+        holder), independent of any incident. `incidentId` is optional,
+        purely for traceability.
+      required: [itemId, sourceType, quantity, reason]
+      properties:
+        itemId:
+          type: integer
+        sourceType:
+          type: string
+          enum: [store, employee, department]
+        storeId:
+          type: integer
+          description: Required when sourceType is "store".
+        holderId:
+          type: integer
+          description: Required when sourceType is "employee" or "department".
+        quantity:
+          type: string
+        reason:
+          type: string
+        incidentId:
+          type: integer
+        idempotencyKey:
+          type: string
+
+    CreateOfficeInventoryAdjustmentBody:
+      type: object
+      description: §15-§17 — STORE ONLY by design; there is no holder field anywhere in this shape, structurally preventing the custody-discrepancy boundary from ever being crossed.
+      required: [storeId, itemId, direction, quantity, reason]
+      properties:
+        storeId:
+          type: integer
+        itemId:
+          type: integer
+        direction:
+          type: string
+          enum: [in, out]
+        quantity:
+          type: string
+        reason:
+          type: string
+        idempotencyKey:
+          type: string

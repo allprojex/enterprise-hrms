@@ -10,8 +10,9 @@
  * introspection from Workstream 2).
  *
  * "returned" was reassigned from "undefined, throws" to "holder-decreasing"
- * by Workstream 5 (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §21/§22) —
- * the test below was updated accordingly, not merely relaxed.
+ * by Workstream 5 (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §21/§22),
+ * and "missing"/"written_off" were reassigned identically by Workstream 6
+ * (§25/§13) — each test below was updated accordingly, not merely relaxed.
  */
 import { describe, it, expect } from "vitest";
 import * as ledger from "../lib/officeInventoryLedger";
@@ -25,9 +26,14 @@ describe("holderMovementSign — the holder-custody direction table", () => {
     expect(ledger.holderMovementSign("returned")).toBe(-1);
   });
 
+  it("missing and written_off decrease holder custody — Workstream 6's own additions (mark-missing and a direct holder write-off)", () => {
+    expect(ledger.holderMovementSign("missing")).toBe(-1);
+    expect(ledger.holderMovementSign("written_off")).toBe(-1);
+  });
+
   it("a type with no defined holder direction yet throws rather than guessing", () => {
     expect(() => ledger.holderMovementSign("adjustment_in")).toThrow();
-    expect(() => ledger.holderMovementSign("missing")).toThrow();
+    expect(() => ledger.holderMovementSign("recovered")).toThrow();
   });
 
   it("HOLDER_INCREASING_TYPES and HOLDER_DECREASING_TYPES never overlap", () => {
