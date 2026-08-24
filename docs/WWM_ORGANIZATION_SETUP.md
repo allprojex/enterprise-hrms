@@ -1,6 +1,6 @@
 # Worldwide Word Ministries — Organization Setup & Branding
 
-Status: **Local/development readiness complete, including the WWM Presentation Readiness visual + demo-data pass (§12–§15) and the real WWM logo integration (§16).** Production untouched, Netlify not deployed. See PROJECT_STATUS.md for the full workstream records; this document is the living reference for WWM's configuration and the branding/tenant-resolution architecture it uses, kept current as later WWM workstreams land. See `docs/WWM_PRESENTATION_DEMO_DATA.md` for the demo-data cleanup manifest.
+Status: **Local/development readiness complete, including the WWM Presentation Readiness visual + demo-data pass (§12–§15), the real WWM logo integration (§16), and the Organization Administrator UX/authority verification (§17).** Production untouched, Netlify not deployed. See PROJECT_STATUS.md for the full workstream records; this document is the living reference for WWM's configuration and the branding/tenant-resolution architecture it uses, kept current as later WWM workstreams land. See `docs/WWM_PRESENTATION_DEMO_DATA.md` for the demo-data cleanup manifest.
 
 ## 1. Organization Identity
 
@@ -176,3 +176,65 @@ No device-connector groundwork was added or removed by this workstream. If a fut
 **What was stored:** the owner's own standalone WWM emblem file (not the earlier wide "Worldwide Word Ministries" logo, not a redraw/approximation — the actual supplied PNG, 552×452, transparent background), uploaded via the real `PATCH /organizations/3/logo` endpoint using the WWM Organization Administrator's own account (`admin@wwm.test`), exactly as a real org admin would through a future Settings-page upload control (not built in this workstream — out of scope; only the backend capability was needed to verify the logo surfaces).
 
 **An unrelated issue found during this workstream, not caused by it:** between the previous workstream and this one, the password hashes for `admin@wwm.test`, `hr@wwm.test`, and `employee@wwm.test` changed in the database (visible via their `updatedAt` timestamps) — the known `WwmDemo#2026!` password stopped working for those three. No other Claude Code session was found running against this repository (`ListAgents` showed only one unrelated, idle peer session). The user confirmed they had not changed the passwords themselves and asked for them to be reset back — done via the same legitimate `POST /auth/forgot-password` → `POST /auth/reset-password/:token` flow used previously, not a raw database write. All six accounts re-verified authenticating correctly afterward; the underlying demo data (6 employees, 4 active modules, 2 assets, 4 inventory items) was independently confirmed unaffected via a live dashboard-summary check before and after.
+
+**Resolved:** the password changes described above were a second Claude Code session running the organization-administrator verification in §17 below, concurrently and independently, on the same repository — it reset the same three accounts via the same forgot-password flow to log in and test live, not an external actor. The two sessions coordinated once the overlap was discovered (mid-§17); no further password churn is expected from either.
+
+## 17. WWM Organization Administrator Verification (Workstream 3)
+
+Focused verification of the WWM Organization Administrator experience, run concurrently with §16 above (the logo-integration workstream) — the two overlapped on the same repository and the same three presentation accounts' passwords; see the "Resolved" note above. This section covers only the organization-administration UX/authority scope; §16 covers the logo.
+
+**1. Actual authority — no super_admin dependency found.** `admin@wwm.test` (Kwame Owusu, `users.id` 427) has exactly **one** `organization_memberships` row, for WWM (`organizationId: 3`, status `active`), carrying exactly one role: the system role template `org_admin` (id 2, 84 permissions, `isSystemRole: true`, `organizationId: null` — a shared template, not WWM-specific, applied through the membership same as every organization's own admin). His legacy platform-wide `users.role` column reads `"employee"` — true for all six WWM presentation accounts and never consulted by any real organization-scoped authorization check (`authorizeOrganizationAction` / `hasPermission`, both keyed off `membership_roles`, not `users.role`). `isSuperAdmin()` checks `users.role === "super_admin"` only; Kwame's is `"employee"`. **No super_admin dependency exists anywhere in his authority chain.** Verified by direct query (not just permission-table inspection) and by live API calls as him: `GET /organizations` returns WWM only; `GET /organizations/4` (Acme) → `403`; `GET /organizations/4/members` → `403`; `POST /auth/switch-organization` to org 4 → `403`; `GET /me/organizations` returns one row, `roles: ["org_admin"]`, org 3 only.
+
+Role distinction, confirmed live for all six presentation accounts via `membership_roles`:
+
+| Account | Membership roles (org 3 only) |
+|---|---|
+| `admin@wwm.test` (Kwame) | `org_admin` |
+| `hr@wwm.test` (Grace) | `hr_manager`, `wwm_hr_inventory_operations` |
+| `depthead@wwm.test` (Ama) | `employee`, `wwm_employee_inventory_self_service`, `wwm_department_head` |
+| `depthead.delegate@wwm.test` (Efua) | `employee`, `wwm_employee_inventory_self_service` |
+| `employee@wwm.test` (Kofi) | `employee`, `wwm_employee_inventory_self_service` |
+| `inventory@wwm.test` (Nana) | `employee`, `wwm_employee_inventory_self_service`, `wwm_inventory_store_officer` |
+
+No platform/super_admin role appears anywhere in this table.
+
+**2. Real root cause of the discoverability complaint, found and corrected.** It was not that the admin console didn't exist — a full Admin Console (`/admin`, `admin.tsx`) already existed with Members, Primary HR & Settings, Modules, Roles, Master Data, Audit Log, and Reports tabs, correctly `org_admin`-gated both in the nav and server-side. The actual causes were three display/authorization bugs, all sharing one root pattern — reading the legacy `users.role` column instead of the caller's real `membership_roles`-granted role for the active organization:
+
+- **Kwame's own sidebar and profile-page badge read "Employee."** `app-shell.tsx`'s profile card and `profile.tsx`'s badge both rendered `user.role` (the legacy column, `"employee"` for every WWM account) instead of the membership role. A genuine Organization Administrator's own UI was telling him he was an Employee — a direct, plausible explanation for "the owner cannot identify where the Organization Administrator manages the system." **Fixed:** both now derive a `roleLabel` from the caller's `currentOrg.roles` (the same source the nav's `isOrgAdmin`/`isHrCapable` gates already used), falling back to the legacy field only when no membership has resolved yet. Live-verified: Kwame now shows "Organization Administrator," Grace shows "HR Manager," Kofi shows "Employee."
+- **The Organisations page silently hid Kwame's real Edit/Suspend authority.** `organizations.tsx`'s `canManageSelectedOrg` gate checked `me.role === 'org_admin'` (legacy column, always `"employee"` for him) instead of his membership role, so the Edit/Suspend controls never rendered for him even though the backend (`organization.update` permission, which `org_admin` genuinely holds) would have allowed the action. **Fixed** the same way, using `useListMyOrganizations`.
+- **A missing UI for an existing backend capability.** The `branding` configuration namespace (`systemDisplayName` + `theme`, used to set WWM's own navy/gold identity in an earlier workstream) had a working `GET`/`PATCH /organizations/:id/config/branding` endpoint but no admin-console UI at all — it could only ever be set by direct API call. **Added:** a third `NamespaceConfigCard` (reusing the exact existing `general`/`terminology` pattern, no new component) in Primary HR & Settings. Live-verified: renders WWM's actual current branding JSON, editable and re-saveable through the same route Workstream 1 used.
+
+**3/9. Administration menu/location.** Sidebar → **Administration** (existing collapsible nav group, unchanged location) → **Organisations** (own-organization profile: name/slug/type/industry/status, Edit and Suspend/Reactivate, now correctly visible per the fix above) + **Organization Administration** (renamed from the generic "Admin," same `/admin` route, `org_admin`-gated) → Admin Console. The nav's dead **Settings** entry ("Coming Soon," no permission gate, no function for any organization, sitting directly beside the one real console) was removed from navigation — it was very plausibly the second half of the discoverability problem, a decoy next to the real thing. Its route was left in place (no functionality existed to lose) for anyone who reaches it by a saved direct URL. Grouped/collapsible nav structure from Workstream 2 is otherwise untouched.
+
+**4. Module management — live-verified via `GET /organizations/3/modules` as Kwame:**
+
+| Module | Status | Enabled for WWM |
+|---|---|---|
+| Leave | hidden | No |
+| Recruitment | active | No |
+| Employee Self Service | active | **Yes** |
+| Attendance | active | **Yes** |
+| Performance | active | No |
+| Learning & Development | active | No |
+| Asset Management | active | **Yes** |
+| Manager Portal | active | No |
+| **Payroll** | hidden | **No — confirmed remains disabled** |
+| **Office Inventory** | active | **Yes — confirmed remains enabled** |
+
+Available/enabled/disabled is clearly distinguished in the existing Modules tab (Status column + Enabled toggle) — no new mechanism built. Toggle authority itself confirmed live: a harmless idempotent `PATCH .../modules/office_inventory {enabled:true}` (already `true`; no state change) returned `200` for Kwame. No module was enabled or disabled by this verification beyond that no-op.
+
+**5. User/access management.** Existing Admin Console **Members** tab: add-by-email, invite-with-optional-role (returns a shareable link, no fake email), per-membership role assign/revoke, membership revoke. Existing **Roles** tab: lists system + WWM custom roles with their permission keys, copy-system-template-to-customize, grant/revoke permission on a custom role. Both already fully organization-scoped (`requireMembership` + `organizationId` route param) — no changes made to either. Live-verified negative controls: `PATCH .../modules/payroll` and `POST .../roles` both returned `403` for both Grace (HR) and Kofi (Employee) tokens.
+
+**6. HR/organization-administration separation — confirmed live.** Grace's roles (`hr_manager` + the WWM-scoped `wwm_hr_inventory_operations`) grant broad HR-operations authority but not `module.manage`/`role.manage`/`organization.update` — `hr_manager`'s 77 permissions were checked and do not include any of the three. Her sidebar shows no "Organization Administration" link; direct navigation to `/admin` redirects to `/unauthorized` (403 page), confirmed live via browser, not just by hiding the link.
+
+**7. Live UX verification — performed for real, not database-only.** Logged in as all three accounts (via the app's own `POST /auth/forgot-password` → `POST /auth/reset-password/:token` flow, since no account's plaintext password was ever recorded anywhere in this repository — same precedent as §14; no password is written into this document either):
+
+- **`admin@wwm.test`:** branded WWM login page; dashboard; sidebar badge "Organization Administrator"; Administration group shows Organisations + Organization Administration; Admin Console opens and every tab (Members, Primary HR & Settings incl. the new Branding card, Modules, Roles, Master Data, Audit Log, Reports) renders and is authorized.
+- **`hr@wwm.test`:** sidebar badge "HR Manager"; Administration group shows only Organisations (no admin-console link); direct URL to `/admin` → 403 Access Denied page.
+- **`employee@wwm.test`:** sidebar badge "Employee"; Administration group shows only Organisations; direct URL to `/admin` → 403 Access Denied page.
+
+**8. Cross-tenant isolation — verified at the API boundary, not just the database.** As `admin@wwm.test`: `GET /organizations` → WWM only (never Acme); `GET /organizations/4` → `403`; `GET /organizations/4/members` → `403`; `POST /auth/switch-organization {organizationId:4}` → `403`. Organization switching cannot grant cross-tenant administrative authority because Kwame has no membership in any other organization to switch into in the first place.
+
+**Notable finding, deliberately not changed:** `POST /organizations` (creating a brand-new organization) has no role/permission gate — any authenticated user of any role can call it and becomes that *new* organization's own `org_admin` + Primary HR. Investigated as a possible tenant-isolation gap and initially patched with `requireSuperAdmin`, then **reverted** after finding `artifacts/api-server/src/test/onboarding.test.ts` explicitly asserts a plain `"employee"`-role caller receives `201` — this is intentional, tested self-service tenant provisioning (comparable to "create your own workspace" in other multi-tenant SaaS products), not a defect. It lets any user spin up an unrelated new organization and administer *that*; it grants no authority over WWM or Acme. Recorded here rather than silently changed, per the request's own instruction not to weaken or alter authorization behavior beyond what this verification called for.
+
+**Files changed (frontend only — no schema, migration, or permission-table change):** `artifacts/hrms/src/components/layout/app-shell.tsx`, `artifacts/hrms/src/pages/profile.tsx`, `artifacts/hrms/src/pages/organizations.tsx`, `artifacts/hrms/src/pages/admin.tsx`. Workspace typecheck clean; targeted test files (`app-shell`, `profile`, `organizations`, `admin`) pass in isolation; full frontend suite 577/577 passing tests with 0 assertion failures (a full-run worker-pool timeout unrelated to any of these files, pre-existing to this environment, affected one unrelated file's collection). No migration, no deployment, no change beyond local/development, matching every prior WWM workstream's own scope boundary.
