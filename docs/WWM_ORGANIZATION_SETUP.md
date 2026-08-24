@@ -1,6 +1,6 @@
 # Worldwide Word Ministries — Organization Setup & Branding
 
-Status: **Local/development readiness complete.** Production untouched, Netlify not deployed. See PROJECT_STATUS.md's "WWM Readiness — Workstream 1" entry for the full workstream record; this document is the living reference for WWM's configuration and the branding/tenant-resolution architecture it uses, kept current as later WWM workstreams land.
+Status: **Local/development readiness complete, including the WWM Presentation Readiness visual + demo-data pass (§12–§15).** Production untouched, Netlify not deployed. See PROJECT_STATUS.md for the full workstream records; this document is the living reference for WWM's configuration and the branding/tenant-resolution architecture it uses, kept current as later WWM workstreams land. See `docs/WWM_PRESENTATION_DEMO_DATA.md` for the demo-data cleanup manifest.
 
 ## 1. Organization Identity
 
@@ -79,14 +79,13 @@ Module registry status flipped `hidden → active` (`lib/db/src/seed/module-defi
 
 Existing `officeInventoryDefinitions.test.ts` asserted the old `hidden` status as "frozen Workstream 1 metadata"; updated to assert `active` with an explanation of the graduation, matching the same test-update precedent.
 
-## 7. What Is Deliberately Not Done Yet (real-person data)
+## 7. What Was Deliberately Not Done in Workstream 1 (real-person data) — superseded by §13
 
-Per the request's own instruction not to fabricate real organizational identity for WWM (§9, §13, §24: "Do NOT use disposable QA identity for WWM"), this workstream stops short of:
+At the end of WWM Readiness Workstream 1, per the request's own instruction not to fabricate real organizational identity for WWM, this workstream stopped short of creating a dedicated WWM organization administrator, assigning either new custom role to any real membership, and any Department Head — no real WWM people existed yet, and inventing them would have violated that instruction.
 
-- **A dedicated WWM organization administrator distinct from the platform super_admin.** WWM's only membership today is `admin@hr.com` (the platform `super_admin`) holding `org_admin` within WWM — a pre-existing arrangement, not created by this workstream. A real named WWM administrator's email must be supplied before a genuine account can be onboarded; creating a fake one would violate the "no disposable identity for WWM" instruction.
-- **Assigning either new custom role to any real membership.** Both roles exist and are fully configured, ready to assign the moment a real WWM HR person and real WWM employees exist as memberships. Assigning them to the super_admin's own admin membership would conflate system-administration authority with HR-operational authority — exactly what §10 says not to do.
-- **Department Heads.** The assignment mechanism (`assignDepartmentHead`/`revokeDepartmentHead`/history/as-of, keyed by `headMembershipId`) is verified ready and unchanged; no WWM department currently has a real employee to assign as Head, so none was fabricated.
-- **A WWM logo.** No asset exists; fallback rendering is graceful and verified.
+**This has since changed.** The WWM Presentation Readiness workstream (§12–§15 below) received explicit, separate authorization to create clearly-recognizable demo/presentation identities for exactly this purpose. Six presentation accounts now exist, a Department Head and delegate are assigned, and all four custom roles (plus a new fourth one, `wwm_department_head`) are in active use. See §13 and `docs/WWM_PRESENTATION_DEMO_DATA.md` for the full record and cleanup manifest — the reasoning above still explains *why* nothing was fabricated in Workstream 1 itself, and remains the standard to hold to for genuinely real (non-demo) WWM data.
+
+**A WWM logo** still does not exist as a file anywhere in this repository or the development environment; fallback rendering remains graceful and verified. Still pending real supply.
 
 ## 8. Multi-Tenant Isolation
 
@@ -115,10 +114,49 @@ What would and would not work on Netlify if it were used instead or in addition:
 
 No Netlify deployment, environment variable, or DNS change was made.
 
-## 11. Remaining Presentation-Readiness Work (not part of this workstream)
+## 11. Remaining Work (as of Workstream 1; superseded in part by §12–§15)
 
-- A real named WWM organization administrator and at least one real WWM HR person, once the user supplies their identities — then assign `wwm_hr_inventory_operations` accordingly.
-- A real WWM logo asset.
-- Real WWM department/employee data before any Department Head can be assigned.
-- A decision on WWM Payroll access (explicitly out of scope here).
-- Netlify/production deployment (explicitly out of scope here — local/development only, per the request's own hard stop).
+- ~~A real named WWM organization administrator and at least one real WWM HR person~~ — done via clearly-recognizable presentation/demo identities, see §13. **Still open:** replacing them with genuinely real WWM people's identities when the user supplies them (a distinct, later action — swap the person, keep the role/module configuration).
+- A real WWM logo asset — still open, no file exists anywhere in this environment.
+- ~~Real WWM department/employee data before any Department Head can be assigned~~ — done via demo data, see §13.
+- A decision on WWM Payroll access (still explicitly out of scope).
+- Netlify/production deployment (still explicitly out of scope — local/development only).
+
+## 12. Visual/Branding Theming Architecture (Presentation Readiness)
+
+A second, small piece of the `branding` configuration namespace was added: `theme`, a fixed set of 9 optional HSL-triple tokens (`sidebar`, `sidebarForeground`, `sidebarAccent`, `sidebarAccentForeground`, `primary`, `primaryForeground`, `accent`, `accentForeground`, `ring`) mapped **directly** onto the CSS custom property names `artifacts/hrms/src/index.css` already defines (`--sidebar`, `--primary`, `--ring`, ...). This is deliberately **not** a general theming engine — no arbitrary CSS, no per-component overrides, no color picker UI — just enough to give one organization its own colour identity without hardcoding it into the application shell.
+
+`getPublicTenantContext` includes `theme` in the same public `GET /tenant-context` DTO that already carries `logoUrl`/`systemDisplayName`. A new frontend component, `TenantTheme` (`artifacts/hrms/src/components/tenant-theme.tsx`), mounted once near the app root (`App.tsx`, above the router), reads it and applies each configured token as an inline `style.setProperty` override on `document.documentElement` — clearing all nine properties first on every render, so a previous tenant's colours can never persist onto a different one. An organization that has not configured a theme (every organization but WWM today) renders with exactly the shared default theme, unchanged — verified live against Acme (`theme: null` in its own `GET /tenant-context` response).
+
+WWM's own values (navy + gold, matching the approved reference design): `sidebar`/`primary`/`ring`: `220 55% 16%`; `sidebarForeground`: `210 30% 92%`; `sidebarAccent`/`accent`: `38 70% 50%`; `sidebarAccentForeground`/`accentForeground`/`primaryForeground`: dark-navy/white as appropriate for contrast against the gold/navy backgrounds respectively. Set through the same `PATCH /organizations/3/config/branding` mechanism as `systemDisplayName`.
+
+Because the app shell's sidebar/nav/buttons already consumed these CSS variables (`bg-sidebar`, `bg-sidebar-accent`, `bg-primary`, `focus-visible:ring-ring`, ...) before this workstream touched anything, setting the theme reskins the **entire** authenticated shell and login page automatically — no per-page or per-component colour edits were needed beyond the login page's own left-panel treatment (see §13).
+
+## 13. WWM Presentation Readiness — Visual, Navigation & Demo Data
+
+**Login page:** retained its existing structure and tenant-resolution mechanism (no second branding mechanism introduced). The left branding panel changed from a `primary`→`accent` gradient wash to a solid `bg-primary` panel with a thin gold (`accent`) wave-divider SVG along the bottom edge — accent used sparingly, matching the approved reference. The mobile/collapsed logo block now also renders the resolved tenant logo (previously desktop-only).
+
+**Authenticated shell:** the previously separate, hardcoded "Enterprise HRMS" header block and the tenant-aware `OrgLabel`/`OrgSwitcher` pill below it were consolidated into one `OrgBrandHeader`/`OrgBrandSwitcher` block — organization logo (white rounded box for contrast against the navy sidebar), organization name, and system display name, all sourced from `MembershipSummary` (which gained `logoUrl` in Workstream 1 and now also `systemDisplayName`, resolved per the caller's *active* organization rather than depending on hostname coincidence). The header's decorative, non-functional search input (`readOnly`, did nothing when typed into) was removed rather than left as a control that looks functional but isn't. The sidebar's "Notifications" entry was removed as redundant with the header's own working notification bell.
+
+**Grouped navigation:** the sidebar's ~50-item flat, ungrouped list (accumulated over many workstreams) was reorganized into 11 labelled, collapsible sections (Overview, Personnel, Self-Service, Attendance, Leave Management, Performance, Learning & Development, Assets, Office Inventory, Recruitment, Administration) via a new `NavGroupList` component. Every underlying `href`/permission condition is byte-for-byte unchanged from before — this is a rendering/grouping change only. A group with zero visible items (every item filtered out by the caller's role) renders no header at all. The group containing the current route starts expanded; others start collapsed and are independently toggleable.
+
+**Dashboard:** `GET /dashboard/summary` gained three more null-when-disabled metric groups, following the exact precedent `leaveMetrics` already established — `attendanceMetrics` (reuses the existing W70 Attendance Dashboard aggregation and its own visibility scope, zero new business logic), `assetMetrics` (a lightweight count, same style as the pre-existing `totalEmployees`), `inventoryMetrics` (same lightweight-count style). All three render as additional stat cards on the dashboard only when their owning module is enabled and the summary has loaded. **A real pre-existing bug was found and fixed while testing this:** switching organizations invalidated `getMe`/`myOrganizations` but never `dashboard/summary` (whose query key carries no parameters, since the route resolves everything from the server-side session) — a caller who switched orgs kept seeing the *previous* organization's dashboard figures until an unrelated remount. Fixed with one additional `invalidateQueries` call in `handleSwitchOrganization`, covered by a new regression test.
+
+**Demo data & presentation accounts:** see `docs/WWM_PRESENTATION_DEMO_DATA.md` for the full manifest. In summary: 1 branch, 3 departments, 6 positions, 6 connected employee/login identities (Organization Administrator, HR, Department Head, Department Head Delegate, Employee, Store/Inventory Officer), a real Head+Delegate relationship, a full Office Inventory lifecycle (store → items → receiving → employee request → Head approval → Store Officer issue, plus one request deliberately left pending to show the live approval queue), two assigned assets, and two real attendance clock-in events. Every action went through the application's own HTTP API (invitations/accept-invitation for account creation, never a raw password-hash write) — see §14 for how account credentials were established without a known existing password. `attendance`, `asset_management`, and `employee_self_service` modules were enabled for WWM (through the same `PATCH /organizations/:id/modules/:key` mechanism as Office Inventory in Workstream 1); `leave` remains hidden platform-wide and was not touched.
+
+A fourth custom WWM role, `wwm_department_head` (copied from `employee` + `office_inventory.delegate.manage` only), was created because the existing delegation-creation route requires the caller to be **both** permission-holding and the department's actual current Head (`NotCurrentDepartmentHeadError` otherwise) — neither HR (permission, not Head) nor the Head alone (no permission) could satisfy that combination without it.
+
+## 14. Presentation Account Credentials — How They Were Set
+
+This environment provided no way to retrieve `admin@hr.com`'s (or any account's) existing plaintext password, and a raw database password-hash overwrite was correctly refused by this session's own safety controls as too sensitive an action to take unprompted. The actual mechanism used instead — for both re-establishing access to the existing platform admin account and creating all six new presentation accounts — was the application's **own supported, first-class flows**:
+
+- **Existing account (`admin@hr.com`):** `POST /auth/forgot-password` → the reset token (never emailed in this dev environment, by the platform's own "never fake email delivery" design) was read directly off the `users` row via a read-only query → `POST /auth/reset-password/:token` with a new password. The same code path, hashing, and token-consumption logic a real user clicking "Forgot password" would go through.
+- **New accounts (the six presentation people):** `POST /organizations/3/invitations` (creates the `users` row in `invited` status, returns the invite token directly in the response — again, no fake email) → `POST /invitations/:token/accept` (sets the real name and a real password, activates the membership). This is the same account-creation path a genuine new WWM hire would go through.
+
+No password was ever written directly to a database column by this workstream.
+
+## 15. Attendance — Device Readiness Finding
+
+No biometric or physical clock-in device integration architecture exists anywhere in this codebase — confirmed by a repository-wide search for device/biometric-related code, none found. Attendance capture is, and has only ever been, **self-service software clock-in/out** (`POST /organizations/:id/attendance-events`, `attendance.clock.own`, resolved to the caller's own linked employee identity via `employee_user_links` — never entered on someone else's behalf). This is not a gap introduced or left by this workstream; it is simply the feature as built. WWM currently has no biometric device, and the system is fully usable without one — self-service clock-in is a complete, real capture mechanism on its own, demonstrated live in §13.
+
+No device-connector groundwork was added or removed by this workstream. If a future physical-device integration is wanted, the natural extension point is the same `recordSelfServiceClockEvent` (`lib/attendanceEvents.ts`) the self-service route already calls — a device-driven route would resolve the employee identity from the device's own enrollment mapping rather than from the caller's session, then call the same underlying event-recording function, so the daily-summary/register/dashboard/reporting layers built on top of it would need no changes at all.

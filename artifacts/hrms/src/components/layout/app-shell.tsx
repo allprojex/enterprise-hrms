@@ -5,7 +5,6 @@ import {
   LayoutDashboard,
   Bell,
   Settings,
-  Search,
   Menu,
   X,
   LogOut,
@@ -45,7 +44,6 @@ import {
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
@@ -63,6 +61,7 @@ import {
   useListMyOrganizations,
   getListMyOrganizationsQueryKey,
   useSwitchOrganization,
+  getGetDashboardSummaryQueryKey,
   useLogout,
   type MembershipSummary,
 } from '@workspace/api-client-react';
@@ -127,28 +126,118 @@ function NavLinks({
   );
 }
 
-function OrgLogo({ logoUrl }: { logoUrl: string | null | undefined }) {
-  if (logoUrl) {
-    return <img src={logoUrl} alt="" className="h-4 w-4 object-contain flex-shrink-0" data-testid="img-org-logo" />;
-  }
-  return <Building className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />;
+interface NavGroupData {
+  label: string;
+  items: NavItem[];
 }
 
-function OrgLabel({ currentOrg }: { currentOrg: MembershipSummary }) {
+function groupSlug(label: string): string {
+  return label.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+}
+
+/**
+ * WWM Presentation Readiness: the flat nav list grew to ~50 conditionally-
+ * visible items as modules shipped over many workstreams — every item and
+ * every permission/module condition here is unchanged from navItems below,
+ * only regrouped into labelled, collapsible sections so the sidebar stays
+ * navigable. A group with zero visible items (every item inside it filtered
+ * out by the caller's own roles) renders nothing, including its header —
+ * never an empty section. The section containing the current route starts
+ * expanded; other sections start collapsed but remain independently
+ * toggleable, and expanding one never collapses another.
+ */
+function NavGroupList({
+  groups,
+  location,
+  onNavigate,
+}: {
+  groups: NavGroupData[];
+  location: string;
+  onNavigate?: () => void;
+}) {
+  const visibleGroups = groups.filter((g) => g.items.length > 0);
+  const [expanded, setExpanded] = useState<Set<string>>(
+    () => new Set(visibleGroups.filter((g) => g.items.some((i) => i.href === location)).map((g) => g.label)),
+  );
+
+  useEffect(() => {
+    const activeGroup = visibleGroups.find((g) => g.items.some((i) => i.href === location));
+    if (activeGroup && !expanded.has(activeGroup.label)) {
+      setExpanded((prev) => new Set(prev).add(activeGroup.label));
+    }
+    // Only ever grows the expanded set to include the active group — never
+    // reacts to `expanded` itself, so a user's manual collapse is preserved
+    // across unrelated re-renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location, visibleGroups]);
+
   return (
-    <div className="border-b border-sidebar-border px-4 py-3">
-      <div
-        className="flex items-center gap-2 rounded-lg border border-sidebar-border bg-card px-3 py-2"
-        data-testid="text-org-current"
-      >
-        <OrgLogo logoUrl={currentOrg.logoUrl} />
-        <span className="text-sm font-medium text-card-foreground truncate">{currentOrg.organizationName}</span>
+    <div className="space-y-1">
+      {visibleGroups.map((group) => {
+        const isExpanded = expanded.has(group.label);
+        return (
+          <div key={group.label}>
+            <button
+              type="button"
+              onClick={() =>
+                setExpanded((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(group.label)) next.delete(group.label);
+                  else next.add(group.label);
+                  return next;
+                })
+              }
+              className="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/60 transition-colors hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-expanded={isExpanded}
+              data-testid={`button-nav-group-${groupSlug(group.label)}`}
+            >
+              <span>{group.label}</span>
+              <ChevronDown
+                className={`h-3.5 w-3.5 flex-shrink-0 transition-transform ${isExpanded ? '' : '-rotate-90'}`}
+                aria-hidden="true"
+              />
+            </button>
+            {isExpanded && <NavLinks items={group.items} location={location} onNavigate={onNavigate} />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function OrgLogo({ logoUrl, size = 'sm' }: { logoUrl: string | null | undefined; size?: 'sm' | 'lg' }) {
+  const dimension = size === 'lg' ? 'h-9 w-9' : 'h-4 w-4';
+  if (logoUrl) {
+    return <img src={logoUrl} alt="" className={`${dimension} object-contain flex-shrink-0`} data-testid="img-org-logo" />;
+  }
+  return <Building className={`${dimension} text-muted-foreground flex-shrink-0`} aria-hidden="true" />;
+}
+
+// Consolidated sidebar brand header — logo, organization name, and (when
+// the organization has configured one) its own system display name. This
+// is the ONE branding block at the top of the sidebar: it replaces what
+// used to be two stacked blocks (a hardcoded "Enterprise HRMS" header plus
+// a separate organization pill below it). Every value is tenant-scoped
+// (MembershipSummary), so a future organization that configures its own
+// logo/systemDisplayName renders here identically — nothing WWM-specific
+// is hardcoded.
+function OrgBrandHeader({ currentOrg }: { currentOrg: MembershipSummary }) {
+  return (
+    <div className="flex items-center gap-3 border-b border-sidebar-border px-4 py-4" data-testid="text-org-current">
+      <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-white">
+        <OrgLogo logoUrl={currentOrg.logoUrl} size="lg" />
+      </div>
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold text-sidebar-foreground">{currentOrg.organizationName}</p>
+        {currentOrg.systemDisplayName && (
+          <p className="truncate text-xs text-sidebar-foreground/70">{currentOrg.systemDisplayName}</p>
+        )}
       </div>
     </div>
   );
 }
 
-function OrgSwitcher({
+function OrgBrandSwitcher({
   currentOrg,
   organizations,
   disabled,
@@ -160,22 +249,25 @@ function OrgSwitcher({
   onSwitch: (organization: MembershipSummary) => void;
 }) {
   return (
-    <div className="border-b border-sidebar-border px-4 py-3">
+    <div className="border-b border-sidebar-border px-4 py-4">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
-            className="flex w-full items-center justify-between gap-2 rounded-lg border border-sidebar-border bg-card px-3 py-2 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex w-full items-center gap-3 rounded-lg text-left transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60 -mx-1 px-1 py-1"
             aria-label={`Current organisation: ${currentOrg.organizationName}. Switch organisation`}
             disabled={disabled}
             data-testid="button-org-selector"
           >
-            <div className="flex items-center gap-2 min-w-0">
-              <OrgLogo logoUrl={currentOrg.logoUrl} />
-              <span className="text-sm font-medium text-card-foreground truncate">
-                {currentOrg.organizationName}
-              </span>
+            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-white">
+              <OrgLogo logoUrl={currentOrg.logoUrl} size="lg" />
             </div>
-            <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-sidebar-foreground">{currentOrg.organizationName}</p>
+              {currentOrg.systemDisplayName && (
+                <p className="truncate text-xs text-sidebar-foreground/70">{currentOrg.systemDisplayName}</p>
+              )}
+            </div>
+            <ChevronDown className="h-4 w-4 flex-shrink-0 text-sidebar-foreground/70" aria-hidden="true" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-56">
@@ -303,6 +395,14 @@ export function AppShell({ children }: AppShellProps) {
           // under new keys automatically — no manual cache clearing needed.
           queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
           queryClient.invalidateQueries({ queryKey: getListMyOrganizationsQueryKey() });
+          // GET /dashboard/summary is the one exception: it takes no
+          // parameters (resolves the caller's active org entirely from the
+          // server-side session), so its query key never changes across an
+          // org switch and needs an explicit invalidation like this one —
+          // without it, a caller who switches organizations keeps seeing
+          // the previous organization's dashboard figures until an
+          // unrelated remount.
+          queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
           toast({ title: `Switched to ${organization.organizationName}` });
         },
         onError: () => {
@@ -316,157 +416,158 @@ export function AppShell({ children }: AppShellProps) {
     );
   };
 
-  const navItems: NavItem[] = [
-    { href: '/dashboard',      label: 'Dashboard',      icon: LayoutDashboard },
-    { href: '/employees',      label: 'Employees',      icon: Users },
-    // Phase 3H, W119 — Reporting & Legacy Import. Same isHrCapable-only nav
-    // precedent as every other reports/import surface; the backend remains
-    // personnel_file.read/personnel_file.manage+employee_number.allocate-
-    // gated (never the broad employee.read), so a non-HR caller who
-    // navigates directly is still correctly authorized.
-    ...(isHrCapable ? [{ href: '/personnel-reports', label: 'Personnel Reports', icon: FileBarChart } satisfies NavItem] : []),
-    ...(isHrCapable ? [{ href: '/personnel-import', label: 'Legacy Import', icon: Upload } satisfies NavItem] : []),
-    { href: '/branches',       label: 'Branches',       icon: MapPin },
-    { href: '/departments',    label: 'Departments',    icon: Network },
-    { href: '/positions',      label: 'Positions',      icon: Briefcase },
-    { href: '/self-service',   label: 'Employee Self-Service', icon: CalendarClock },
-    // Phase 3G, W111 — unconditional nav visibility (frozen plan §25),
-    // mirroring Leave Approvals' own precedent immediately below: manager
-    // eligibility is a pure live reportingManagerId relationship, never a
-    // role, so there is no role flag to gate this on. The page itself
-    // resolves eligibility and renders the manager view, the HR/admin view,
-    // or the "no direct reports" empty state — never a hidden nav entry.
-    { href: '/manager',        label: 'Manager Portal', icon: Compass },
-    { href: '/leave-approvals', label: 'Leave Approvals', icon: ClipboardCheck },
-    { href: '/leave-calendar', label: 'Leave Calendar', icon: CalendarRange },
-    { href: '/public-holidays', label: 'Public Holidays', icon: CalendarHeart },
-    { href: '/leave-types',    label: 'Leave Types',    icon: CalendarDays },
-    ...(isHrCapable ? [{ href: '/leave-balances', label: 'Leave Balances', icon: Wallet } satisfies NavItem] : []),
-    ...(isOrgAdmin ? [{ href: '/attendance-settings', label: 'Attendance Settings', icon: Clock } satisfies NavItem] : []),
-    // Phase 3B, W69 — nav entry is HR-capable-role-gated, same precedent as
-    // every other Recruitment/Leave-management nav entry this platform
-    // uses (see the isHrCapable entries around this one); the backend's
-    // own/team tier still lets a manager reach the page directly by URL.
-    ...(isHrCapable ? [{ href: '/attendance-register', label: 'Attendance Register', icon: ListChecks } satisfies NavItem] : []),
-    // Phase 3B, W70 — same isHrCapable-only nav precedent as the Register
-    // above; own/team tier is still reachable directly by URL for anyone
-    // holding attendance.read.own, per attendanceReporting.ts's scope rules.
-    ...(isHrCapable ? [{ href: '/attendance-dashboard', label: 'Attendance Dashboard', icon: LayoutDashboard } satisfies NavItem] : []),
-    ...(isHrCapable ? [{ href: '/attendance-reports', label: 'Attendance Reports', icon: FileBarChart } satisfies NavItem] : []),
-    // Phase 3C, W74 — same isHrCapable-only nav precedent as every other HR
-    // configuration page (Leave Types, Attendance Settings, ...); the
-    // backend's own "read broad" GET routes are still reachable directly by
-    // URL for any performance.read.own holder, per performanceRatingScales.ts
-    // / performanceReviewTemplates.ts's own route comments.
-    ...(isHrCapable ? [{ href: '/performance-rating-scales', label: 'Performance Rating Scales', icon: Ruler } satisfies NavItem] : []),
-    ...(isHrCapable ? [{ href: '/performance-templates', label: 'Performance Templates', icon: FileText } satisfies NavItem] : []),
-    // Phase 3C, W75 — same isHrCapable-only precedent as W74's own two
-    // Performance nav entries above; own/team tier is still reachable
-    // directly by URL, though W75's own routes require performance.manage
-    // uniformly (HR/admin configuration-and-assignment territory, unlike
-    // W74's broader read grant — see routes/performanceCycles.ts).
-    ...(isHrCapable ? [{ href: '/performance-cycles', label: 'Performance Cycles', icon: CalendarRange } satisfies NavItem] : []),
-    // Phase 3C, W78 — §18's own frozen surface (/performance-team),
-    // nav-gated isHrCapable-only per its own literal text (unchanged from
-    // the draft) — same precedent as every other Performance nav entry
-    // above. Backend authorization is reviewer-of-record via
-    // reviewerEmployeeId regardless of nav visibility, so a manager who
-    // isn't HR-capable is still correctly authorized if they navigate
-    // directly; only the nav *entry* follows this convention.
-    ...(isHrCapable ? [{ href: '/performance-team', label: 'My Team Reviews', icon: Users } satisfies NavItem] : []),
-    // Phase 3C, W80 — §35's own frozen surface (/performance-reviews),
-    // same isHrCapable-only nav precedent as every other Performance nav
-    // entry above; backend remains performance.manage-gated regardless of
-    // nav visibility.
-    ...(isHrCapable ? [{ href: '/performance-reviews', label: 'Performance Reviews', icon: ClipboardCheck } satisfies NavItem] : []),
-    // Phase 3C, W81 — §35's own frozen surfaces (/performance,
-    // /performance-reports), same isHrCapable-only nav precedent as every
-    // other Performance nav entry above; backend remains
-    // performance.reports.read-gated (own/reviewer/org-wide scope) so a
-    // non-HR reviewer who navigates directly is still correctly authorized.
-    ...(isHrCapable ? [{ href: '/performance', label: 'Performance Dashboard', icon: LayoutDashboard } satisfies NavItem] : []),
-    ...(isHrCapable ? [{ href: '/performance-reports', label: 'Performance Reports', icon: FileBarChart } satisfies NavItem] : []),
-    // Phase 3D, W86 — same isHrCapable-only nav precedent as every other HR
-    // configuration page above (Performance Rating Scales/Templates, ...);
-    // the backend's own "read broad" GET routes are still reachable
-    // directly by URL for any learning.read.own holder, per
-    // learningCourses.ts's/learningCourseSessions.ts's own route comments.
-    ...(isHrCapable ? [{ href: '/learning-courses', label: 'Learning Courses', icon: GraduationCap } satisfies NavItem] : []),
-    // Phase 3D, W89 — same isHrCapable-only nav precedent as My Team
-    // Reviews above (/performance-team): the backend's own manager-of-
-    // record/instructor-of-record authorization is the real gate, so a
-    // non-HR manager who navigates directly is still correctly authorized.
-    ...(isHrCapable ? [{ href: '/learning-team-training', label: 'My Team Training', icon: Users } satisfies NavItem] : []),
-    // Phase 3D, W91 — §15's own frozen internal HR/L&D workspace surface
-    // (/learning-enrollments), same isHrCapable-only nav precedent as
-    // /performance-reviews (W80): the backend's own org-wide routes remain
-    // learning.manage-gated regardless of nav visibility.
-    ...(isHrCapable ? [{ href: '/learning-enrollments', label: 'Learning Enrollments', icon: ClipboardList } satisfies NavItem] : []),
-    // Phase 3D, W92 — §15's own frozen surfaces (/learning,
-    // /learning-reports), same isHrCapable-only nav precedent as
-    // /performance/​/performance-reports (W81); backend remains
-    // learning.reports.read-gated (own/manager-of-record/org-wide scope) so
-    // a non-HR manager who navigates directly is still correctly authorized.
-    ...(isHrCapable ? [{ href: '/learning', label: 'Learning Dashboard', icon: LayoutDashboard } satisfies NavItem] : []),
-    ...(isHrCapable ? [{ href: '/learning-reports', label: 'Learning Reports', icon: FileBarChart } satisfies NavItem] : []),
-    // Phase 3E, W96 — §19's own frozen /assets register surface, same
-    // isHrCapable-only nav precedent as every other HR configuration page
-    // above; the backend's own asset_management.manage/.read.own gating is
-    // the real authorization boundary regardless of nav visibility.
-    ...(isHrCapable ? [{ href: '/assets', label: 'Asset Register', icon: Boxes } satisfies NavItem] : []),
-    // Phase 3E, W98 — §19's own frozen manager "Team Assets" surface
-    // (Decision 3), same isHrCapable-only nav precedent as
-    // /learning-team-training (W89): the backend's own live
-    // reportingManagerId relationship check is the real authorization
-    // boundary, so a non-HR manager who navigates directly is still
-    // correctly authorized and scoped.
-    ...(isHrCapable ? [{ href: '/team-assets', label: 'Team Assets', icon: Users } satisfies NavItem] : []),
-    // Phase 3E, W102 per the frozen plan's own §24 numbering — §19's own
-    // frozen surfaces (/assets-dashboard, /asset-reports), same
-    // isHrCapable-only nav precedent as /performance/​/performance-reports
-    // (W81) and /learning/​/learning-reports (W92); backend remains
-    // asset_management.reports.read-gated (own/manager-current-only/
-    // org-wide scope) so a non-HR manager who navigates directly is still
-    // correctly authorized and scoped.
-    ...(isHrCapable ? [{ href: '/assets-dashboard', label: 'Asset Dashboard', icon: LayoutDashboard } satisfies NavItem] : []),
-    ...(isHrCapable ? [{ href: '/asset-reports', label: 'Asset Reports', icon: FileBarChart } satisfies NavItem] : []),
-    // Phase 3E, W101 — §19's own frozen org-wide operational surface
-    // (/asset-workspace, asset_management.manage only), same isHrCapable-
-    // only nav precedent as every other Assets/Performance/Learning
-    // organization-wide page above; the backend's own .manage-gated
-    // routes remain the real authorization boundary regardless of nav
-    // visibility — a manager's own Team Assets relationship never widens
-    // to this page.
-    ...(isHrCapable ? [{ href: '/asset-workspace', label: 'Asset Workspace', icon: LayoutGrid } satisfies NavItem] : []),
-    // Office Inventory, Workstream 1 — module is registered "hidden"
-    // (disabled by default, WWM included) and this nav entry is
-    // isHrCapable-gated like every other HR configuration page above; the
-    // real authorization boundary is /office-inventory's own
-    // requireModuleEnabled("office_inventory") + office_inventory.*.manage
-    // gating on the backend, so nav visibility alone never grants access —
-    // for a disabled org the ModuleGate wrapping this route shows its own
-    // "module not enabled" state rather than the page underneath.
-    ...(isHrCapable ? [{ href: '/office-inventory', label: 'Office Inventory', icon: Warehouse } satisfies NavItem] : []),
-    ...(isHrCapable ? [{ href: '/requisitions', label: 'Job Requisitions', icon: ClipboardList } satisfies NavItem] : []),
-    ...(isHrCapable ? [{ href: '/requisition-approvals', label: 'Requisition Approvals', icon: Stamp } satisfies NavItem] : []),
-    ...(isHrCapable ? [{ href: '/vacancies', label: 'Vacancies', icon: Megaphone } satisfies NavItem] : []),
-    ...(isHrCapable ? [{ href: '/applications', label: 'Applications', icon: UserCheck } satisfies NavItem] : []),
-    ...(isHrCapable ? [{ href: '/pipeline', label: 'Pipeline Board', icon: LayoutGrid } satisfies NavItem] : []),
-    ...(isHrCapable ? [{ href: '/interviews', label: 'Interviews', icon: Video } satisfies NavItem] : []),
-    ...(isHrCapable ? [{ href: '/talent-pools', label: 'Talent Pools', icon: Users2 } satisfies NavItem] : []),
-    ...(isHrCapable ? [{ href: '/offers', label: 'Offers', icon: FileSignature } satisfies NavItem] : []),
-    // Phase 3A, W61 — recruitment.reports.read is broadly seeded (assigned
-    // recruiter/hiring-manager scope, per §7), but the nav link itself
-    // follows the same isHrCapable-only precedent every other Recruitment
-    // nav entry already uses (see /offers above) — an assigned employee can
-    // still reach these pages directly by URL.
-    ...(isHrCapable ? [{ href: '/recruitment', label: 'Recruitment Dashboard', icon: LayoutDashboard } satisfies NavItem] : []),
-    ...(isHrCapable ? [{ href: '/recruitment-reports', label: 'Recruitment Reports', icon: FileBarChart } satisfies NavItem] : []),
-    ...(isHrCapable ? [{ href: '/recruitment-settings', label: 'Recruitment Settings', icon: UserPlus } satisfies NavItem] : []),
-    { href: '/organizations',  label: 'Organisations',  icon: Building },
-    { href: '/notifications',  label: 'Notifications',  icon: Bell, badge: unreadCount },
-    ...(isOrgAdmin ? [{ href: '/admin', label: 'Admin', icon: ShieldCheck } satisfies NavItem] : []),
-    { href: '/settings',       label: 'Settings',       icon: Settings },
+  // WWM Presentation Readiness: regrouped into labelled sections for
+  // navigability (was one 50-item flat list) — every href/label/icon and
+  // every isHrCapable/isOrgAdmin visibility condition below is unchanged
+  // from before this pass, just re-bucketed. See NavGroupList for how an
+  // empty group (every item filtered out) renders nothing.
+  const navGroups: NavGroupData[] = [
+    {
+      label: 'Overview',
+      items: [{ href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard }],
+    },
+    {
+      label: 'Personnel',
+      items: [
+        { href: '/employees', label: 'Employees', icon: Users },
+        // Phase 3H, W119 — Reporting & Legacy Import. Same isHrCapable-only
+        // nav precedent as every other reports/import surface; the backend
+        // remains personnel_file.read/personnel_file.manage+
+        // employee_number.allocate-gated (never the broad employee.read),
+        // so a non-HR caller who navigates directly is still correctly
+        // authorized.
+        ...(isHrCapable ? [{ href: '/personnel-reports', label: 'Personnel Reports', icon: FileBarChart } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/personnel-import', label: 'Legacy Import', icon: Upload } satisfies NavItem] : []),
+        { href: '/branches', label: 'Branches', icon: MapPin },
+        { href: '/departments', label: 'Departments', icon: Network },
+        { href: '/positions', label: 'Positions', icon: Briefcase },
+      ],
+    },
+    {
+      label: 'Self-Service',
+      items: [
+        { href: '/self-service', label: 'Employee Self-Service', icon: CalendarClock },
+        // Phase 3G, W111 — unconditional nav visibility (frozen plan §25):
+        // manager eligibility is a pure live reportingManagerId
+        // relationship, never a role, so there is no role flag to gate this
+        // on. The page itself resolves eligibility and renders the manager
+        // view, the HR/admin view, or the "no direct reports" empty state
+        // — never a hidden nav entry.
+        { href: '/manager', label: 'Manager Portal', icon: Compass },
+      ],
+    },
+    {
+      label: 'Attendance',
+      items: [
+        // Phase 3B, W69/W70 — nav entries are HR-capable-role-gated, same
+        // precedent as every other Recruitment/Leave-management nav entry
+        // this platform uses; the backend's own/team tier still lets a
+        // manager reach these pages directly by URL.
+        ...(isHrCapable ? [{ href: '/attendance-register', label: 'Attendance Register', icon: ListChecks } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/attendance-dashboard', label: 'Attendance Dashboard', icon: LayoutDashboard } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/attendance-reports', label: 'Attendance Reports', icon: FileBarChart } satisfies NavItem] : []),
+        ...(isOrgAdmin ? [{ href: '/attendance-settings', label: 'Attendance Settings', icon: Clock } satisfies NavItem] : []),
+      ],
+    },
+    {
+      label: 'Leave Management',
+      items: [
+        { href: '/leave-approvals', label: 'Leave Approvals', icon: ClipboardCheck },
+        { href: '/leave-calendar', label: 'Leave Calendar', icon: CalendarRange },
+        { href: '/public-holidays', label: 'Public Holidays', icon: CalendarHeart },
+        { href: '/leave-types', label: 'Leave Types', icon: CalendarDays },
+        ...(isHrCapable ? [{ href: '/leave-balances', label: 'Leave Balances', icon: Wallet } satisfies NavItem] : []),
+      ],
+    },
+    {
+      label: 'Performance',
+      items: [
+        // Phase 3C, W74/W75/W78/W80/W81 — same isHrCapable-only nav
+        // precedent throughout; each backend route keeps its own broader
+        // own/team/reviewer-of-record authorization regardless of nav
+        // visibility (see performanceRatingScales.ts, performanceCycles.ts,
+        // performanceReviews.ts's own route comments).
+        ...(isHrCapable ? [{ href: '/performance', label: 'Performance Dashboard', icon: LayoutDashboard } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/performance-reviews', label: 'Performance Reviews', icon: ClipboardCheck } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/performance-team', label: 'My Team Reviews', icon: Users } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/performance-cycles', label: 'Performance Cycles', icon: CalendarRange } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/performance-templates', label: 'Performance Templates', icon: FileText } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/performance-rating-scales', label: 'Performance Rating Scales', icon: Ruler } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/performance-reports', label: 'Performance Reports', icon: FileBarChart } satisfies NavItem] : []),
+      ],
+    },
+    {
+      label: 'Learning & Development',
+      items: [
+        // Phase 3D, W86/W89/W91/W92 — same isHrCapable-only nav precedent
+        // throughout; each backend route's own manager-of-record/
+        // instructor-of-record/org-wide authorization remains the real
+        // gate regardless of nav visibility.
+        ...(isHrCapable ? [{ href: '/learning', label: 'Learning Dashboard', icon: LayoutDashboard } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/learning-courses', label: 'Learning Courses', icon: GraduationCap } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/learning-team-training', label: 'My Team Training', icon: Users } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/learning-enrollments', label: 'Learning Enrollments', icon: ClipboardList } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/learning-reports', label: 'Learning Reports', icon: FileBarChart } satisfies NavItem] : []),
+      ],
+    },
+    {
+      label: 'Assets',
+      items: [
+        // Phase 3E, W96/W98/W101/W102 — same isHrCapable-only nav precedent
+        // throughout; each backend route's own asset_management.manage/
+        // .read.own/reportingManagerId gating remains the real
+        // authorization boundary regardless of nav visibility.
+        ...(isHrCapable ? [{ href: '/assets-dashboard', label: 'Asset Dashboard', icon: LayoutDashboard } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/assets', label: 'Asset Register', icon: Boxes } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/team-assets', label: 'Team Assets', icon: Users } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/asset-workspace', label: 'Asset Workspace', icon: LayoutGrid } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/asset-reports', label: 'Asset Reports', icon: FileBarChart } satisfies NavItem] : []),
+      ],
+    },
+    {
+      label: 'Office Inventory',
+      items: [
+        // Office Inventory, Workstream 1 — module is registered "hidden" by
+        // default (WWM's own organization_modules override enables it) and
+        // this nav entry is isHrCapable-gated like every other HR
+        // configuration page above; the real authorization boundary is
+        // /office-inventory's own requireModuleEnabled("office_inventory")
+        // + office_inventory.*.manage gating on the backend, so nav
+        // visibility alone never grants access — for a disabled org the
+        // ModuleGate wrapping this route shows its own "module not
+        // enabled" state rather than the page underneath.
+        ...(isHrCapable ? [{ href: '/office-inventory', label: 'Office Inventory', icon: Warehouse } satisfies NavItem] : []),
+      ],
+    },
+    {
+      label: 'Recruitment',
+      items: [
+        ...(isHrCapable ? [{ href: '/recruitment', label: 'Recruitment Dashboard', icon: LayoutDashboard } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/requisitions', label: 'Job Requisitions', icon: ClipboardList } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/requisition-approvals', label: 'Requisition Approvals', icon: Stamp } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/vacancies', label: 'Vacancies', icon: Megaphone } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/applications', label: 'Applications', icon: UserCheck } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/pipeline', label: 'Pipeline Board', icon: LayoutGrid } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/interviews', label: 'Interviews', icon: Video } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/talent-pools', label: 'Talent Pools', icon: Users2 } satisfies NavItem] : []),
+        // Phase 3A, W61 — recruitment.reports.read is broadly seeded
+        // (assigned recruiter/hiring-manager scope, per §7), but the nav
+        // link itself follows the same isHrCapable-only precedent every
+        // other Recruitment nav entry already uses — an assigned employee
+        // can still reach these pages directly by URL.
+        ...(isHrCapable ? [{ href: '/offers', label: 'Offers', icon: FileSignature } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/recruitment-reports', label: 'Recruitment Reports', icon: FileBarChart } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/recruitment-settings', label: 'Recruitment Settings', icon: UserPlus } satisfies NavItem] : []),
+      ],
+    },
+    {
+      label: 'Administration',
+      items: [
+        { href: '/organizations', label: 'Organisations', icon: Building },
+        ...(isOrgAdmin ? [{ href: '/admin', label: 'Admin', icon: ShieldCheck } satisfies NavItem] : []),
+        { href: '/settings', label: 'Settings', icon: Settings },
+      ],
+    },
   ];
 
   if (userLoading) {
@@ -500,35 +601,31 @@ export function AppShell({ children }: AppShellProps) {
         className="hidden lg:flex lg:flex-col lg:w-64 border-r border-sidebar-border bg-sidebar"
         aria-label="Main navigation"
       >
-        {/* Logo */}
-        <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-6">
-          <div
-            className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary"
-            aria-hidden="true"
-          >
-            <Building2 className="h-6 w-6 text-primary-foreground" />
-          </div>
-          <span className="text-base font-semibold text-sidebar-foreground">
-            Enterprise HRMS
-          </span>
-        </div>
-
-        {/* Organisation selector */}
-        {currentOrg &&
-          (hasMultipleOrganizations ? (
-            <OrgSwitcher
+        {/* Brand header — organization logo/name/system name, or a generic
+            platform fallback for the brief window before currentOrg loads. */}
+        {currentOrg ? (
+          hasMultipleOrganizations ? (
+            <OrgBrandSwitcher
               currentOrg={currentOrg}
               organizations={myOrganizations ?? []}
               disabled={switchOrganizationMutation.isPending}
               onSwitch={handleSwitchOrganization}
             />
           ) : (
-            <OrgLabel currentOrg={currentOrg} />
-          ))}
+            <OrgBrandHeader currentOrg={currentOrg} />
+          )
+        ) : (
+          <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-6">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary" aria-hidden="true">
+              <Building2 className="h-6 w-6 text-primary-foreground" />
+            </div>
+            <span className="text-base font-semibold text-sidebar-foreground">Enterprise HRMS</span>
+          </div>
+        )}
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Primary">
-          <NavLinks items={navItems} location={location} />
+          <NavGroupList groups={navGroups} location={location} />
         </nav>
 
         {/* User profile */}
@@ -593,18 +690,7 @@ export function AppShell({ children }: AppShellProps) {
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
               className="fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-sidebar-border bg-sidebar lg:hidden"
             >
-              <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
-                <div className="flex items-center gap-3">
-                  <div
-                    className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary"
-                    aria-hidden="true"
-                  >
-                    <Building2 className="h-6 w-6 text-primary-foreground" />
-                  </div>
-                  <span className="text-base font-semibold text-sidebar-foreground">
-                    Enterprise HRMS
-                  </span>
-                </div>
+              <div className="flex items-center justify-end border-b border-sidebar-border px-2 py-2">
                 <Button
                   ref={closeButtonRef}
                   variant="ghost"
@@ -617,21 +703,29 @@ export function AppShell({ children }: AppShellProps) {
                 </Button>
               </div>
 
-              {currentOrg &&
-                (hasMultipleOrganizations ? (
-                  <OrgSwitcher
+              {currentOrg ? (
+                hasMultipleOrganizations ? (
+                  <OrgBrandSwitcher
                     currentOrg={currentOrg}
                     organizations={myOrganizations ?? []}
                     disabled={switchOrganizationMutation.isPending}
                     onSwitch={handleSwitchOrganization}
                   />
                 ) : (
-                  <OrgLabel currentOrg={currentOrg} />
-                ))}
+                  <OrgBrandHeader currentOrg={currentOrg} />
+                )
+              ) : (
+                <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-6">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary" aria-hidden="true">
+                    <Building2 className="h-6 w-6 text-primary-foreground" />
+                  </div>
+                  <span className="text-base font-semibold text-sidebar-foreground">Enterprise HRMS</span>
+                </div>
+              )}
 
               <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Primary">
-                <NavLinks
-                  items={navItems}
+                <NavGroupList
+                  groups={navGroups}
                   location={location}
                   onNavigate={() => setSidebarOpen(false)}
                 />
@@ -694,24 +788,11 @@ export function AppShell({ children }: AppShellProps) {
             <Menu className="h-5 w-5" aria-hidden="true" />
           </Button>
 
-          {/* Search */}
-          <div className="flex-1 max-w-md">
-            <div className="relative">
-              <Search
-                className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-                aria-hidden="true"
-              />
-              <Input
-                type="search"
-                placeholder="Search…"
-                className="pl-9 bg-muted/50 border-muted"
-                data-testid="input-search"
-                aria-label="Search the application"
-                // Search is UI-only in this shell release.
-                readOnly
-              />
-            </div>
-          </div>
+          {/* No global search control here: there is no real cross-module
+              search capability to back it, and a search box that visually
+              accepts input but does nothing is exactly the kind of
+              decorative-but-non-functional control this shell avoids. */}
+          <div className="flex-1" />
 
           {/* Actions */}
           <div className="flex items-center gap-2">

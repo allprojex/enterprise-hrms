@@ -39,7 +39,18 @@ export const GetTenantContextResponse = zod.object({
   "organizationSlug": zod.string().optional(),
   "organizationType": zod.enum(['business', 'church', 'ngo', 'school', 'hospital', 'hotel', 'government', 'other']).optional(),
   "logoUrl": zod.string().nullish(),
-  "systemDisplayName": zod.string().nullish()
+  "systemDisplayName": zod.string().nullish(),
+  "theme": zod.union([zod.object({
+  "sidebar": zod.string().optional(),
+  "sidebarForeground": zod.string().optional(),
+  "sidebarAccent": zod.string().optional(),
+  "sidebarAccentForeground": zod.string().optional(),
+  "primary": zod.string().optional(),
+  "primaryForeground": zod.string().optional(),
+  "accent": zod.string().optional(),
+  "accentForeground": zod.string().optional(),
+  "ring": zod.string().optional()
+}).describe('Each value is an HSL triple string, e.g. \"217 45% 17%\" (no hsl() wrapper, no leading'),zod.null()]).optional().describe('A small, fixed set of theme tokens mapped directly onto the application\'s existing CSS custom properties. Every key is optional; null (or an absent key) means \"use the platform\'s shared default theme\" — never a fabricated fallback color.')
 })
 
 
@@ -460,6 +471,7 @@ export const ListMyOrganizationsResponseItem = zod.object({
   "organizationName": zod.string(),
   "organizationSlug": zod.string(),
   "logoUrl": zod.string().nullable(),
+  "systemDisplayName": zod.string().nullable(),
   "status": zod.enum(['invited', 'active', 'suspended', 'expired', 'revoked']),
   "roles": zod.array(zod.string()),
   "isPrimaryHr": zod.boolean()
@@ -7648,7 +7660,17 @@ export const GetDashboardSummaryResponse = zod.object({
   "rejected": zod.number(),
   "cancelled": zod.number()
 })
-}).describe('W40 — HR Operations Dashboard. Every figure is computed live from leave_requests\/leave_balance_entries\/public_holidays (W33\/W34\/W37) — no cache, no new table. \"Upcoming\"\/\"expiring\" figures use a shared 30-day window from today.'),zod.null()]).describe('Null when the \"leave\" module is disabled for the caller\'s active organization — never a zero-filled placeholder. When present, scoped to the viewer\'s own access tier: org-wide for an HR admin (leave_request.manage), own + direct reports otherwise.')
+}).describe('W40 — HR Operations Dashboard. Every figure is computed live from leave_requests\/leave_balance_entries\/public_holidays (W33\/W34\/W37) — no cache, no new table. \"Upcoming\"\/\"expiring\" figures use a shared 30-day window from today.'),zod.null()]).describe('Null when the \"leave\" module is disabled for the caller\'s active organization — never a zero-filled placeholder. When present, scoped to the viewer\'s own access tier: org-wide for an HR admin (leave_request.manage), own + direct reports otherwise.'),
+  "attendanceMetrics": zod.union([zod.object({
+  "presentToday": zod.number().describe('Employees (in the viewer\'s scope) whose today\'s attendance status is \"present\".'),
+  "totalEmployeesInScope": zod.number()
+}),zod.null()]).describe('Null when the \"attendance\" module is disabled, or when the organization has not configured a timezone yet — never a zero-filled placeholder. Reuses the existing Attendance Dashboard aggregation and its own own\/team\/organization-wide visibility scope, never a second business-rules engine.'),
+  "assetMetrics": zod.union([zod.object({
+  "activeAssets": zod.number().describe('Assets whose status is not \"retired\" or \"lost\".')
+}),zod.null()]).describe('Null when the \"asset_management\" module is disabled for the caller\'s active organization.'),
+  "inventoryMetrics": zod.union([zod.object({
+  "totalItems": zod.number().describe('Office Inventory items whose status is \"active\".')
+}),zod.null()]).describe('Null when the \"office_inventory\" module is disabled for the caller\'s active organization.')
 })
 
 

@@ -276,6 +276,7 @@ describe("GET /api/tenant-context", () => {
       organizationType: "church",
       logoUrl: null,
       systemDisplayName: null,
+      theme: null,
     });
     expect(res.body.employees).toBeUndefined();
     expect(res.body.adminEmail).toBeUndefined();

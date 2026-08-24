@@ -3,6 +3,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Route, Switch, Router as WouterRouter } from 'wouter';
 import { AppShell } from '@/components/layout/app-shell';
+import { TenantTheme } from '@/components/tenant-theme';
 import { ErrorBoundary } from '@/components/error-boundary';
 import Login from '@/pages/login';
 import ForgotPassword from '@/pages/forgot-password';
@@ -323,6 +324,7 @@ function App() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
+        <TenantTheme />
         <TooltipProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
             <Router />

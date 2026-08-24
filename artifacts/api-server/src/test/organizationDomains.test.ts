@@ -258,6 +258,7 @@ describe("organizationDomains service", () => {
       organizationType: "church",
       logoUrl: "https://x/y.png",
       systemDisplayName: null,
+      theme: null,
     });
   });
 

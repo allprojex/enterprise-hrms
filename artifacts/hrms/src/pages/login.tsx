@@ -58,9 +58,13 @@ export default function Login() {
 
   return (
     <div className="min-h-screen w-full flex">
-      {/* Left Panel — Branding */}
+      {/* Left Panel — Branding. Solid primary (navy for an organization that
+          configures one via its branding theme; the platform's own default
+          blue otherwise) rather than a gradient wash into accent — accent
+          is reserved for the thin wave divider below, matching "gold for
+          small accents only". */}
       <div
-        className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary via-primary/90 to-accent p-12 flex-col justify-between"
+        className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-primary p-12 flex-col justify-between"
         aria-hidden="true"
       >
         <div className="flex items-center gap-3">
@@ -99,8 +103,20 @@ export default function Login() {
         </div>
 
         <div className="text-sm text-white/70">
-          &copy; {new Date().getFullYear()} Enterprise HRMS. All rights reserved.
+          &copy; {new Date().getFullYear()} {tenantName ?? 'Enterprise HRMS'}. All rights reserved.
         </div>
+
+        {/* Subtle accent wave divider — the one deliberately sparing use of
+            "accent" on this panel, per the approved design direction. */}
+        <svg
+          className="absolute bottom-0 left-0 w-full h-16 text-accent/70"
+          viewBox="0 0 400 40"
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          <path d="M0 28 C 100 8, 300 8, 400 28 L 400 40 L 0 40 Z" fill="currentColor" opacity="0.15" />
+          <path d="M0 28 C 100 8, 300 8, 400 28" fill="none" stroke="currentColor" strokeWidth="1.5" />
+        </svg>
       </div>
 
       {/* Right Panel — Login Form */}

@@ -244,6 +244,21 @@ export const TenantContextOrganizationType = {
   other: 'other',
 } as const;
 
+/**
+ * Each value is an HSL triple string, e.g. "217 45% 17%" (no hsl() wrapper, no leading
+ */
+export interface TenantThemeTokens {
+  sidebar?: string;
+  sidebarForeground?: string;
+  sidebarAccent?: string;
+  sidebarAccentForeground?: string;
+  primary?: string;
+  primaryForeground?: string;
+  accent?: string;
+  accentForeground?: string;
+  ring?: string;
+}
+
 export interface TenantContext {
   resolved: boolean;
   organizationId?: number;
@@ -254,6 +269,8 @@ export interface TenantContext {
   logoUrl?: string | null;
   /** @nullable */
   systemDisplayName?: string | null;
+  /** A small, fixed set of theme tokens mapped directly onto the application's existing CSS custom properties. Every key is optional; null (or an absent key) means "use the platform's shared default theme" — never a fabricated fallback color. */
+  theme?: TenantThemeTokens | null;
 }
 
 export type MembershipSummaryStatus = typeof MembershipSummaryStatus[keyof typeof MembershipSummaryStatus];
@@ -273,6 +290,8 @@ export interface MembershipSummary {
   organizationSlug: string;
   /** @nullable */
   logoUrl: string | null;
+  /** @nullable */
+  systemDisplayName: string | null;
   status: MembershipSummaryStatus;
   roles: string[];
   isPrimaryHr: boolean;
@@ -4200,12 +4219,34 @@ export interface LeaveDashboardMetrics {
   requestsByStatus: LeaveRequestsByStatusCounts;
 }
 
+export interface AttendanceDashboardMetrics {
+  /** Employees (in the viewer's scope) whose today's attendance status is "present". */
+  presentToday: number;
+  totalEmployeesInScope: number;
+}
+
+export interface AssetDashboardMetrics {
+  /** Assets whose status is not "retired" or "lost". */
+  activeAssets: number;
+}
+
+export interface InventoryDashboardMetrics {
+  /** Office Inventory items whose status is "active". */
+  totalItems: number;
+}
+
 export interface DashboardSummary {
   totalEmployees: number;
   activeModules: number;
   unreadNotifications: number;
   /** Null when the "leave" module is disabled for the caller's active organization — never a zero-filled placeholder. When present, scoped to the viewer's own access tier: org-wide for an HR admin (leave_request.manage), own + direct reports otherwise. */
   leaveMetrics: LeaveDashboardMetrics | null;
+  /** Null when the "attendance" module is disabled, or when the organization has not configured a timezone yet — never a zero-filled placeholder. Reuses the existing Attendance Dashboard aggregation and its own own/team/organization-wide visibility scope, never a second business-rules engine. */
+  attendanceMetrics: AttendanceDashboardMetrics | null;
+  /** Null when the "asset_management" module is disabled for the caller's active organization. */
+  assetMetrics: AssetDashboardMetrics | null;
+  /** Null when the "office_inventory" module is disabled for the caller's active organization. */
+  inventoryMetrics: InventoryDashboardMetrics | null;
 }
 
 export interface Role {

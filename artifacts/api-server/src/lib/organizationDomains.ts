@@ -230,6 +230,18 @@ export async function resolveTenantByHostname(hostname: string): Promise<{ organ
   return { organizationId: row.organizationId };
 }
 
+export interface PublicTenantTheme {
+  sidebar?: string;
+  sidebarForeground?: string;
+  sidebarAccent?: string;
+  sidebarAccentForeground?: string;
+  primary?: string;
+  primaryForeground?: string;
+  accent?: string;
+  accentForeground?: string;
+  ring?: string;
+}
+
 export interface PublicTenantContext {
   organizationId: number;
   organizationName: string;
@@ -237,6 +249,7 @@ export interface PublicTenantContext {
   organizationType: string;
   logoUrl: string | null;
   systemDisplayName: string | null;
+  theme: PublicTenantTheme | null;
 }
 
 /**
@@ -255,6 +268,7 @@ export async function getPublicTenantContext(organizationId: number): Promise<Pu
 
   const branding = await getNamespaceConfig(organizationId, "branding");
   const systemDisplayName = branding.data.systemDisplayName;
+  const theme = branding.data.theme;
 
   return {
     organizationId: org.id,
@@ -263,5 +277,6 @@ export async function getPublicTenantContext(organizationId: number): Promise<Pu
     organizationType: org.type,
     logoUrl: org.logoUrl,
     systemDisplayName: typeof systemDisplayName === "string" ? systemDisplayName : null,
+    theme: theme && typeof theme === "object" ? (theme as PublicTenantTheme) : null,
   };
 }

@@ -77,6 +77,7 @@ vi.mock('@workspace/api-client-react', () => ({
   getListNotificationsQueryKey: () => ['notifications'],
   useListMyOrganizations: () => useListMyOrganizationsMock(),
   getListMyOrganizationsQueryKey: () => ['myOrganizations'],
+  getGetDashboardSummaryQueryKey: () => ['dashboardSummary'],
   useSwitchOrganization: () => ({ mutate: switchMutateMock, isPending: false }),
   useLogout: () => ({ mutate: vi.fn(), isPending: false }),
 }));
@@ -140,6 +141,12 @@ describe('AppShell organisation switcher', () => {
     });
     expect(invalidateQueriesMock).toHaveBeenCalledWith({ queryKey: ['getMe'] });
     expect(invalidateQueriesMock).toHaveBeenCalledWith({ queryKey: ['myOrganizations'] });
+    // Regression check: GET /dashboard/summary takes no parameters, so its
+    // query key never changes across an org switch and needs its own
+    // explicit invalidation — without this, a caller who switches
+    // organizations kept seeing the previous organization's dashboard
+    // figures (discovered live during WWM Presentation Readiness QA).
+    expect(invalidateQueriesMock).toHaveBeenCalledWith({ queryKey: ['dashboardSummary'] });
   });
 
   it('does not re-switch when selecting the already-active organisation', async () => {
@@ -176,5 +183,90 @@ describe('AppShell organisation display — single-organisation caller', () => {
   it('exposes no unrelated tenant inventory (no switcher menu to open)', () => {
     renderShell();
     expect(screen.queryByText('Switch organisation')).not.toBeInTheDocument();
+  });
+});
+
+// WWM Presentation Readiness: organization logo/system-name rendering in
+// the consolidated sidebar brand header.
+describe('AppShell brand header', () => {
+  beforeEach(() => {
+    switchMutateMock.mockReset();
+    invalidateQueriesMock.mockReset();
+  });
+
+  it('renders the organization logo image when logoUrl is set', () => {
+    useListMyOrganizationsMock.mockReturnValue({
+      data: [{ ...SINGLE_ORG_MEMBERSHIPS[0], logoUrl: 'https://example.com/wwm-logo.png' }],
+    });
+    renderShell();
+    expect(screen.getByTestId('img-org-logo')).toHaveAttribute('src', 'https://example.com/wwm-logo.png');
+  });
+
+  it('falls back to a generic icon (never a broken image) when logoUrl is null', () => {
+    useListMyOrganizationsMock.mockReturnValue({ data: [{ ...SINGLE_ORG_MEMBERSHIPS[0], logoUrl: null }] });
+    renderShell();
+    expect(screen.queryByTestId('img-org-logo')).not.toBeInTheDocument();
+  });
+
+  it("shows the organization's own system display name when configured", () => {
+    useListMyOrganizationsMock.mockReturnValue({
+      data: [{ ...SINGLE_ORG_MEMBERSHIPS[0], systemDisplayName: 'Human Resource Management System' }],
+    });
+    renderShell();
+    expect(screen.getByTestId('text-org-current')).toHaveTextContent('Human Resource Management System');
+  });
+
+  it('shows no system display name line when the organization has not configured one', () => {
+    useListMyOrganizationsMock.mockReturnValue({ data: [{ ...SINGLE_ORG_MEMBERSHIPS[0], systemDisplayName: null }] });
+    renderShell();
+    expect(screen.getByTestId('text-org-current')).not.toHaveTextContent('Human Resource Management System');
+  });
+});
+
+// WWM Presentation Readiness: the ~50-item flat nav list was regrouped into
+// labelled, collapsible sections — every underlying href/permission
+// condition is unchanged, only the grouping/rendering.
+describe('AppShell grouped navigation', () => {
+  beforeEach(() => {
+    switchMutateMock.mockReset();
+    invalidateQueriesMock.mockReset();
+    useListMyOrganizationsMock.mockReturnValue({ data: SINGLE_ORG_MEMBERSHIPS });
+  });
+
+  it('renders labelled, collapsible group headers', () => {
+    renderShell();
+    expect(screen.getByTestId('button-nav-group-overview')).toBeInTheDocument();
+    expect(screen.getByTestId('button-nav-group-personnel')).toBeInTheDocument();
+    expect(screen.getByTestId('button-nav-group-attendance')).toBeInTheDocument();
+  });
+
+  it('starts with the group containing the current route expanded', () => {
+    renderShell();
+    expect(screen.getByTestId('button-nav-group-overview')).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByTestId('link-nav-dashboard')).toBeInTheDocument();
+  });
+
+  it('starts other groups collapsed, and expands one on click without collapsing others', async () => {
+    const user = userEvent.setup();
+    renderShell();
+    expect(screen.getByTestId('button-nav-group-personnel')).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByTestId('link-nav-employees')).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId('button-nav-group-personnel'));
+
+    expect(screen.getByTestId('button-nav-group-personnel')).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByTestId('link-nav-employees')).toBeInTheDocument();
+    // The already-expanded Overview group stays expanded.
+    expect(screen.getByTestId('button-nav-group-overview')).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('never shows a Notifications sidebar entry — that surface lives only in the header bell', () => {
+    renderShell();
+    expect(screen.queryByTestId('link-nav-notifications')).not.toBeInTheDocument();
+  });
+
+  it('never renders a decorative, non-functional search input', () => {
+    renderShell();
+    expect(screen.queryByTestId('input-search')).not.toBeInTheDocument();
   });
 });

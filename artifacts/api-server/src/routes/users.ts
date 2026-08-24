@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { and, eq } from "drizzle-orm";
-import { db, usersTable, notificationsTable, employeesTable } from "@workspace/db";
+import { and, eq, notInArray } from "drizzle-orm";
+import { db, usersTable, notificationsTable, employeesTable, assetsTable, officeInventoryItemsTable } from "@workspace/db";
 import { UpdateMyProfileBody } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { resolveActiveOrganizationId, getActiveMembership } from "../lib/membership";
@@ -9,6 +9,13 @@ import { hasPermission } from "../lib/permissions";
 import { resolveOwnEmployeeId } from "../lib/leaveRequests";
 import { listPendingApprovals } from "../lib/leaveApprovals";
 import { getLeaveDashboardMetrics, type LeaveDashboardMetrics } from "../lib/leaveDashboardMetrics";
+import {
+  resolveAttendanceReportScope,
+  buildAttendanceReportContext,
+  resolveOrganizationTodayCivilDate,
+  getAttendanceDashboard,
+} from "../lib/attendanceReporting";
+import { OrganizationTimezoneNotConfiguredError } from "../lib/attendanceDailySummary";
 
 /**
  * HR Operations Dashboard (W40): resolves the same own+managed / org-wide
@@ -48,6 +55,64 @@ async function resolveLeaveDashboardMetrics(
     employeeIds,
     pendingApprovalCount: pendingApprovals.length,
   });
+}
+
+export interface AttendanceDashboardMetrics {
+  presentToday: number;
+  totalEmployeesInScope: number;
+}
+
+/**
+ * WWM Presentation Readiness: reuses W70's existing attendance dashboard
+ * aggregation (attendanceReporting.ts) exactly as attendance-dashboard.tsx
+ * already does — no second business-rules engine. Same null-when-disabled
+ * precedent as resolveLeaveDashboardMetrics. Also returns null (rather than
+ * throwing) when the organization hasn't configured a timezone yet
+ * (OrganizationTimezoneNotConfiguredError) — an unconfigured attendance
+ * setup is "nothing to show yet", not a dashboard-breaking error.
+ */
+async function resolveAttendanceDashboardMetrics(
+  userId: number,
+  organizationId: number,
+  membershipId: number,
+): Promise<AttendanceDashboardMetrics | null> {
+  const moduleAccess = await getModuleAccess(organizationId, "attendance");
+  if (!moduleAccess.enabled) return null;
+
+  try {
+    const scope = await resolveAttendanceReportScope({ organizationId, applicationUserId: userId, membershipId });
+    const ctx = await buildAttendanceReportContext(organizationId, scope);
+    const today = await resolveOrganizationTodayCivilDate(organizationId);
+    const dashboard = await getAttendanceDashboard(ctx, today);
+    const presentToday = dashboard.statusBreakdown.find((s) => s.status === "present")?.count ?? 0;
+    return { presentToday, totalEmployeesInScope: dashboard.totalEmployeesCount };
+  } catch (err) {
+    if (err instanceof OrganizationTimezoneNotConfiguredError) return null;
+    throw err;
+  }
+}
+
+/** Same lightweight `.length`-over-a-filtered-select style the existing totalEmployees field already uses — not a new reporting engine. "Active" excludes retired/lost, matching everyday usage rather than a literal enum value. */
+async function resolveAssetDashboardMetrics(organizationId: number): Promise<{ activeAssets: number } | null> {
+  const moduleAccess = await getModuleAccess(organizationId, "asset_management");
+  if (!moduleAccess.enabled) return null;
+
+  const rows = await db
+    .select({ id: assetsTable.id })
+    .from(assetsTable)
+    .where(and(eq(assetsTable.organizationId, organizationId), notInArray(assetsTable.status, ["retired", "lost"])));
+  return { activeAssets: rows.length };
+}
+
+async function resolveInventoryDashboardMetrics(organizationId: number): Promise<{ totalItems: number } | null> {
+  const moduleAccess = await getModuleAccess(organizationId, "office_inventory");
+  if (!moduleAccess.enabled) return null;
+
+  const rows = await db
+    .select({ id: officeInventoryItemsTable.id })
+    .from(officeInventoryItemsTable)
+    .where(and(eq(officeInventoryItemsTable.organizationId, organizationId), eq(officeInventoryItemsTable.status, "active")));
+  return { totalItems: rows.length };
 }
 
 const router = Router();
@@ -102,12 +167,19 @@ router.get("/dashboard/summary", requireAuth as any, async (req: AuthenticatedRe
     user.organizationId,
   );
 
-  const [employees, activeModules, leaveMetrics] = await Promise.all([
+  const activeMembership = activeOrganizationId ? await getActiveMembership(req.userId!, activeOrganizationId) : null;
+
+  const [employees, activeModules, leaveMetrics, attendanceMetrics, assetMetrics, inventoryMetrics] = await Promise.all([
     activeOrganizationId
       ? db.select().from(employeesTable).where(eq(employeesTable.organizationId, activeOrganizationId))
       : Promise.resolve([]),
     activeOrganizationId ? listOrganizationModules(activeOrganizationId) : Promise.resolve([]),
     activeOrganizationId ? resolveLeaveDashboardMetrics(req.userId!, activeOrganizationId) : Promise.resolve(null),
+    activeOrganizationId && activeMembership
+      ? resolveAttendanceDashboardMetrics(req.userId!, activeOrganizationId, activeMembership.id)
+      : Promise.resolve(null),
+    activeOrganizationId ? resolveAssetDashboardMetrics(activeOrganizationId) : Promise.resolve(null),
+    activeOrganizationId ? resolveInventoryDashboardMetrics(activeOrganizationId) : Promise.resolve(null),
   ]);
 
   const unreadNotifications = await db
@@ -122,6 +194,9 @@ router.get("/dashboard/summary", requireAuth as any, async (req: AuthenticatedRe
     activeModules: activeModules.filter((m) => m.enabled).length,
     unreadNotifications: unreadCount,
     leaveMetrics,
+    attendanceMetrics,
+    assetMetrics,
+    inventoryMetrics,
   });
 });
 

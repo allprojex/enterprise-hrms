@@ -64,7 +64,7 @@ vi.mock('@workspace/api-client-react', () => ({
 }));
 
 function membership(roles: string[]): MembershipSummary {
-  return { organizationId: 10, organizationName: 'Acme', organizationSlug: 'acme', logoUrl: null, status: 'active', roles, isPrimaryHr: false };
+  return { organizationId: 10, organizationName: 'Acme', organizationSlug: 'acme', logoUrl: null, systemDisplayName: null, status: 'active', roles, isPrimaryHr: false };
 }
 
 function asset(overrides: Partial<Asset> = {}): Asset {

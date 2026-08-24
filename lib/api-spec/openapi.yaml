@@ -19121,10 +19121,42 @@ components:
           type: ["string", "null"]
         systemDisplayName:
           type: ["string", "null"]
+        theme:
+          description: >-
+            A small, fixed set of theme tokens mapped directly onto the
+            application's existing CSS custom properties. Every key is
+            optional; null (or an absent key) means "use the platform's
+            shared default theme" — never a fabricated fallback color.
+          anyOf:
+            - $ref: "#/components/schemas/TenantThemeTokens"
+            - type: "null"
+
+    TenantThemeTokens:
+      type: object
+      description: Each value is an HSL triple string, e.g. "217 45% 17%" (no hsl() wrapper, no leading #).
+      properties:
+        sidebar:
+          type: string
+        sidebarForeground:
+          type: string
+        sidebarAccent:
+          type: string
+        sidebarAccentForeground:
+          type: string
+        primary:
+          type: string
+        primaryForeground:
+          type: string
+        accent:
+          type: string
+        accentForeground:
+          type: string
+        ring:
+          type: string
 
     MembershipSummary:
       type: object
-      required: [organizationId, organizationName, organizationSlug, logoUrl, status, roles, isPrimaryHr]
+      required: [organizationId, organizationName, organizationSlug, logoUrl, systemDisplayName, status, roles, isPrimaryHr]
       properties:
         organizationId:
           type: integer
@@ -19133,6 +19165,8 @@ components:
         organizationSlug:
           type: string
         logoUrl:
+          type: ["string", "null"]
+        systemDisplayName:
           type: ["string", "null"]
         status:
           type: string
@@ -23396,7 +23430,7 @@ components:
 
     DashboardSummary:
       type: object
-      required: [totalEmployees, activeModules, unreadNotifications, leaveMetrics]
+      required: [totalEmployees, activeModules, unreadNotifications, leaveMetrics, attendanceMetrics, assetMetrics, inventoryMetrics]
       properties:
         totalEmployees:
           type: integer
@@ -23413,6 +23447,52 @@ components:
           anyOf:
             - $ref: "#/components/schemas/LeaveDashboardMetrics"
             - type: "null"
+        attendanceMetrics:
+          description: >-
+            Null when the "attendance" module is disabled, or when the
+            organization has not configured a timezone yet — never a
+            zero-filled placeholder. Reuses the existing Attendance Dashboard
+            aggregation and its own own/team/organization-wide visibility
+            scope, never a second business-rules engine.
+          anyOf:
+            - $ref: "#/components/schemas/AttendanceDashboardMetrics"
+            - type: "null"
+        assetMetrics:
+          description: Null when the "asset_management" module is disabled for the caller's active organization.
+          anyOf:
+            - $ref: "#/components/schemas/AssetDashboardMetrics"
+            - type: "null"
+        inventoryMetrics:
+          description: Null when the "office_inventory" module is disabled for the caller's active organization.
+          anyOf:
+            - $ref: "#/components/schemas/InventoryDashboardMetrics"
+            - type: "null"
+
+    AttendanceDashboardMetrics:
+      type: object
+      required: [presentToday, totalEmployeesInScope]
+      properties:
+        presentToday:
+          type: integer
+          description: Employees (in the viewer's scope) whose today's attendance status is "present".
+        totalEmployeesInScope:
+          type: integer
+
+    AssetDashboardMetrics:
+      type: object
+      required: [activeAssets]
+      properties:
+        activeAssets:
+          type: integer
+          description: Assets whose status is not "retired" or "lost".
+
+    InventoryDashboardMetrics:
+      type: object
+      required: [totalItems]
+      properties:
+        totalItems:
+          type: integer
+          description: Office Inventory items whose status is "active".
 
     LeaveRequestsByStatusCounts:
       type: object

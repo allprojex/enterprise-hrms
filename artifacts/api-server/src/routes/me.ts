@@ -15,6 +15,7 @@ import {
   resolveOwnCertifications,
 } from "../lib/employeeSelfService";
 import { RECRUITMENT_MODULE_KEY } from "../lib/recruitmentAuthorization";
+import { getNamespaceConfig } from "../services/organizationConfig";
 import {
   listInternalVacancies,
   submitInternalApplication,
@@ -114,15 +115,29 @@ router.get("/me/organizations", requireAuth as any, async (req: AuthenticatedReq
     );
   const primaryHrMembershipIds = new Set(primaryHrRows.map((r) => r.membershipId));
 
+  // WWM Presentation Readiness: the authenticated shell's own branding
+  // (systemDisplayName) is sourced from the caller's actual active
+  // organization here, rather than depending on GET /tenant-context's
+  // hostname resolution — correct even for a super_admin whose active
+  // organization differs from the hostname they happen to be browsing.
+  const distinctOrgIds = [...new Set(organizations.map((o) => o.id))];
+  const brandingByOrgId = new Map(
+    await Promise.all(
+      distinctOrgIds.map(async (id) => [id, (await getNamespaceConfig(id, "branding")).data.systemDisplayName] as const),
+    ),
+  );
+
   const summaries = memberships
     .map((membership) => {
       const organization = organizationById.get(membership.organizationId);
       if (!organization) return null;
+      const systemDisplayName = brandingByOrgId.get(organization.id);
       return {
         organizationId: organization.id,
         organizationName: organization.name,
         organizationSlug: organization.slug,
         logoUrl: organization.logoUrl,
+        systemDisplayName: typeof systemDisplayName === "string" ? systemDisplayName : null,
         status: membership.status,
         roles: rolesByMembership.get(membership.id) ?? [],
         isPrimaryHr: primaryHrMembershipIds.has(membership.id),

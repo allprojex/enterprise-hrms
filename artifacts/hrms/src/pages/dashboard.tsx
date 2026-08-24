@@ -1,5 +1,5 @@
 import { Link } from 'wouter';
-import { Users, Package, Bell, CalendarClock, CalendarDays, ClipboardCheck, CalendarHeart, Percent, Hourglass } from 'lucide-react';
+import { Users, Package, Bell, CalendarClock, CalendarDays, ClipboardCheck, CalendarHeart, Percent, Hourglass, UserCheck, Briefcase, Boxes } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -45,6 +45,10 @@ export default function Dashboard() {
   const { data: summary, isLoading } = useGetDashboardSummary({ query: { queryKey: getGetDashboardSummaryQueryKey() } });
   const { data: modules } = useListModules({ query: { queryKey: getListModulesQueryKey() } });
 
+  // Presentation Readiness: attendance/asset/inventory cards only appear
+  // once their owning module is enabled and the summary has loaded — never
+  // a zero-filled placeholder for a module the organization hasn't turned
+  // on, matching the pre-existing leaveMetrics precedent below.
   const stats = [
     {
       title: 'Total Employees',
@@ -52,6 +56,15 @@ export default function Dashboard() {
       icon: Users,
       color: 'text-primary'
     },
+    ...(summary?.attendanceMetrics
+      ? [{ title: 'Present Today', value: summary.attendanceMetrics.presentToday, icon: UserCheck, color: 'text-chart-3' }]
+      : []),
+    ...(summary?.assetMetrics
+      ? [{ title: 'Active Assets', value: summary.assetMetrics.activeAssets, icon: Briefcase, color: 'text-chart-4' }]
+      : []),
+    ...(summary?.inventoryMetrics
+      ? [{ title: 'Inventory Items', value: summary.inventoryMetrics.totalItems, icon: Boxes, color: 'text-chart-2' }]
+      : []),
     {
       title: 'Active Modules',
       value: summary?.activeModules ?? 0,

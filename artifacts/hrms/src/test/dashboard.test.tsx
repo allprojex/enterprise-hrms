@@ -53,7 +53,7 @@ function renderDashboard() {
 
 describe('Dashboard page', () => {
   it('renders stats from the real summary, with no Pending Requests tile', () => {
-    state.summary = { totalEmployees: 12, activeModules: 1, unreadNotifications: 3, leaveMetrics: null };
+    state.summary = { totalEmployees: 12, activeModules: 1, unreadNotifications: 3, leaveMetrics: null, attendanceMetrics: null, assetMetrics: null, inventoryMetrics: null };
     state.isLoading = false;
     state.error = undefined;
     renderDashboard();
@@ -64,7 +64,7 @@ describe('Dashboard page', () => {
   });
 
   it('renders the always-available foundation capabilities with working links', () => {
-    state.summary = { totalEmployees: 12, activeModules: 1, unreadNotifications: 3, leaveMetrics: null };
+    state.summary = { totalEmployees: 12, activeModules: 1, unreadNotifications: 3, leaveMetrics: null, attendanceMetrics: null, assetMetrics: null, inventoryMetrics: null };
     state.isLoading = false;
     state.error = undefined;
     renderDashboard();
@@ -74,7 +74,7 @@ describe('Dashboard page', () => {
   });
 
   it('renders registered modules from the real module registry, not a hardcoded list', () => {
-    state.summary = { totalEmployees: 12, activeModules: 1, unreadNotifications: 3, leaveMetrics: null };
+    state.summary = { totalEmployees: 12, activeModules: 1, unreadNotifications: 3, leaveMetrics: null, attendanceMetrics: null, assetMetrics: null, inventoryMetrics: null };
     state.isLoading = false;
     state.error = undefined;
     renderDashboard();
@@ -94,7 +94,7 @@ describe('Dashboard page', () => {
     });
 
     it('omits the Leave section entirely (not zero-filled) when leaveMetrics is null — leave module disabled', () => {
-      state.summary = { totalEmployees: 5, activeModules: 0, unreadNotifications: 0, leaveMetrics: null };
+      state.summary = { totalEmployees: 5, activeModules: 0, unreadNotifications: 0, leaveMetrics: null, attendanceMetrics: null, assetMetrics: null, inventoryMetrics: null };
       state.isLoading = false;
       state.error = undefined;
       renderDashboard();
@@ -103,7 +103,7 @@ describe('Dashboard page', () => {
     });
 
     it('renders every required Leave tile and the requests-by-status breakdown when leaveMetrics is present', () => {
-      state.summary = { totalEmployees: 5, activeModules: 1, unreadNotifications: 0, leaveMetrics: LEAVE_METRICS };
+      state.summary = { totalEmployees: 5, activeModules: 1, unreadNotifications: 0, leaveMetrics: LEAVE_METRICS, attendanceMetrics: null, assetMetrics: null, inventoryMetrics: null };
       state.isLoading = false;
       state.error = undefined;
       renderDashboard();
@@ -126,6 +126,36 @@ describe('Dashboard page', () => {
       state.error = { error: 'boom' };
       expect(() => renderDashboard()).not.toThrow();
       expect(screen.queryByTestId('section-leave-metrics')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Attendance/Asset/Inventory dashboard cards (WWM Presentation Readiness)', () => {
+    it('omits all three cards when their metrics are null — module disabled, never zero-filled', () => {
+      state.summary = { totalEmployees: 5, activeModules: 0, unreadNotifications: 0, leaveMetrics: null, attendanceMetrics: null, assetMetrics: null, inventoryMetrics: null };
+      state.isLoading = false;
+      state.error = undefined;
+      renderDashboard();
+      expect(screen.queryByTestId('card-stat-present-today')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('card-stat-active-assets')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('card-stat-inventory-items')).not.toBeInTheDocument();
+    });
+
+    it('renders each card with its real value when its metrics are present', () => {
+      state.summary = {
+        totalEmployees: 5,
+        activeModules: 3,
+        unreadNotifications: 0,
+        leaveMetrics: null,
+        attendanceMetrics: { presentToday: 4, totalEmployeesInScope: 5 },
+        assetMetrics: { activeAssets: 7 },
+        inventoryMetrics: { totalItems: 13 },
+      };
+      state.isLoading = false;
+      state.error = undefined;
+      renderDashboard();
+      expect(screen.getByTestId('card-stat-present-today')).toHaveTextContent('4');
+      expect(screen.getByTestId('card-stat-active-assets')).toHaveTextContent('7');
+      expect(screen.getByTestId('card-stat-inventory-items')).toHaveTextContent('13');
     });
   });
 });

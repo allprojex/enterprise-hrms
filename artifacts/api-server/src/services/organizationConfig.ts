@@ -40,9 +40,42 @@ const generalConfigSchema = z
 // the product/system name shown alongside the org's own identity (e.g. "HR
 // Management System"). Left unset, callers fall back to platform-generic
 // copy — see getPublicTenantContext and the login page.
+// HSL triple, e.g. "217 45% 17%" — the exact raw format index.css's own
+// CSS custom properties already store (consumed as hsl(var(--x))), so a
+// configured value can be written straight into an inline style override
+// with no conversion step.
+const hslTripleSchema = z
+  .string()
+  .regex(/^\d{1,3} \d{1,3}% \d{1,3}%$/, 'Expected an HSL triple like "217 45% 17%"');
+
+// WWM Presentation Readiness — a small, fixed set of theme tokens mapped
+// directly onto index.css's existing CSS custom properties (--sidebar,
+// --sidebar-foreground, --sidebar-accent, --sidebar-accent-foreground,
+// --primary, --primary-foreground, --accent, --accent-foreground). Every
+// key is optional and independently overridable; an organization that sets
+// none of them (the default for every organization but WWM) renders with
+// exactly today's shared theme — this is deliberately NOT a general
+// theming engine (no arbitrary CSS, no per-component overrides), just
+// enough to give one organization its own colour identity without
+// hardcoding it into the application shell.
+const brandingThemeSchema = z
+  .object({
+    sidebar: hslTripleSchema.optional(),
+    sidebarForeground: hslTripleSchema.optional(),
+    sidebarAccent: hslTripleSchema.optional(),
+    sidebarAccentForeground: hslTripleSchema.optional(),
+    primary: hslTripleSchema.optional(),
+    primaryForeground: hslTripleSchema.optional(),
+    accent: hslTripleSchema.optional(),
+    accentForeground: hslTripleSchema.optional(),
+    ring: hslTripleSchema.optional(),
+  })
+  .partial();
+
 const brandingConfigSchema = z
   .object({
     systemDisplayName: z.string().min(1).optional(),
+    theme: brandingThemeSchema.optional(),
   })
   .passthrough();
 
