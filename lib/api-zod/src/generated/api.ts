@@ -15522,3 +15522,62 @@ export const FinalizeOfficeInventoryStocktakeResponse = zod.object({
 }).describe('Office Inventory, Workstream 7 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.8, §28). Store-scoped. `draft` -> `counting` (the moment `expectedQuantitySnapshot` is captured on every line, permanently frozen from then on) -> `finalized` (immutable; finalization itself never mutates stock).')
 
 
+/**
+ * No persisted aggregate — every tile is a live, batched query (§43).
+ * @summary Office Inventory dashboard — live-derived tiles, gated office_inventory.reports.read
+ */
+export const GetOfficeInventoryDashboardParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetOfficeInventoryDashboardResponse = zod.object({
+  "stockItems": zod.number().describe('Distinct items with a positive organization-wide store total.'),
+  "lowStockItems": zod.number().describe('Positive store total at or below the item\'s own reorderLevel.'),
+  "outOfStockItems": zod.number().describe('Zero or negative organization-wide store total. Never confused with employee\/department holder balances.'),
+  "itemsWithEmployees": zod.number().describe('Distinct items currently held (positive balance) by at least one employee.'),
+  "itemsWithDepartments": zod.number().describe('Distinct items currently held (positive balance) by at least one department.'),
+  "outstandingReturnables": zod.number().describe('Outstanding (employee + department) returnable-item holder balances, live-derived.'),
+  "overdueReturnables": zod.number().describe('Of the above, past their own most-recent-issue expectedReturnDate.'),
+  "pendingApprovals": zod.number().describe('Requests currently pending or partially approved.'),
+  "pendingIssues": zod.number().describe('Approved request lines with quantityIssuedSoFar < approvedQuantity.'),
+  "pendingReceiptConfirmations": zod.number().describe('Issued holder movements with confirmedAt still null — non-gating; stock was already issued.'),
+  "openMissingDamagedIncidents": zod.number().describe('Incidents with status = open.'),
+  "unresolvedStocktakeVariances": zod.number().describe('Non-zero, unresolved variance lines on a not-yet-finalized stocktake.'),
+  "vacantHeadBlockedDepartments": zod.number().describe('Departments with no currently-open Department Head assignment (§5.3).')
+}).describe('Office Inventory, Workstream 9 (§43). Every tile is a live, batched query — no persisted aggregate. `outstandingReturnables`\/ `overdueReturnables` count returnable-item holder balances only (never a consumable\'s cumulative issued total). `pendingIssues` counts approved-but-not-fully-issued request LINES, excluding rejected lines, cancelled requests, and fully fulfilled lines.')
+
+
+/**
+ * Computes one of the 13 frozen Office Inventory reports (§44; see GET /reports, category "office_inventory"). Organization-wide only — no own/manager visibility tiers; a Department Head's own scoped W8 accountability context is never widened by this permission. Pass ?format=csv for a hardened (formula-injection-safe) CSV download instead of JSON, identical filters/rows to JSON.
+ * @summary Run an Office Inventory report — gated office_inventory.reports.read
+ */
+export const RunOfficeInventoryReportParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "reportKey": zod.coerce.string()
+})
+
+export const RunOfficeInventoryReportQueryParams = zod.object({
+  "itemId": zod.coerce.number().optional(),
+  "storeId": zod.coerce.number().optional(),
+  "employeeId": zod.coerce.number().optional(),
+  "departmentId": zod.coerce.number().optional(),
+  "movementType": zod.enum(['received', 'issued', 'returned', 'transferred_out', 'transferred_in', 'adjustment_in', 'adjustment_out', 'written_off', 'missing', 'recovered', 'asset_handoff']).optional().describe('office_inventory_movement_ledger only.'),
+  "status": zod.coerce.string().optional().describe('office_inventory_missing_damaged (incident status) or office_inventory_stocktake_variances (stocktake status) only.'),
+  "dateFrom": zod.date().optional(),
+  "dateTo": zod.date().optional(),
+  "format": zod.enum(['json', 'csv']).optional()
+})
+
+export const RunOfficeInventoryReportResponse = zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "description": zod.string(),
+  "generatedAt": zod.coerce.date(),
+  "columns": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string()
+})),
+  "rows": zod.array(zod.record(zod.string(), zod.unknown()))
+})
+
+

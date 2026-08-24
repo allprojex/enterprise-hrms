@@ -9,7 +9,7 @@
  * and lives on the existing Departments page instead.
  */
 import { useState } from 'react';
-import { Boxes, Warehouse, Settings2, Plus, Pencil, Truck, Trash2, PackageSearch, ClipboardList, CheckCircle2, XCircle, UserCog, X, Ban, PackageCheck, Users, Undo2, ArrowLeftRight, AlertTriangle, ShieldAlert, Archive, SlidersHorizontal, SearchCheck, ClipboardCheck, Play, Lock } from 'lucide-react';
+import { Boxes, Warehouse, Settings2, Plus, Pencil, Truck, Trash2, PackageSearch, ClipboardList, CheckCircle2, XCircle, UserCog, X, Ban, PackageCheck, Users, Undo2, ArrowLeftRight, AlertTriangle, ShieldAlert, Archive, SlidersHorizontal, SearchCheck, ClipboardCheck, Play, Lock, LayoutDashboard, FileBarChart, Download } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -96,12 +96,16 @@ import {
   useRecordOfficeInventoryStocktakeCount,
   useResolveOfficeInventoryStocktakeLine,
   useFinalizeOfficeInventoryStocktake,
+  useGetOfficeInventoryDashboard,
+  getGetOfficeInventoryDashboardQueryKey,
+  runOfficeInventoryReport,
   OfficeInventoryItemClassification,
   type OfficeInventoryItem,
   type OfficeInventoryStore,
   type ReceiveLineInput,
   type OfficeInventoryRequestLineInput,
   type OfficeInventoryAccountabilityContext,
+  type ReportRunResult,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -3413,6 +3417,268 @@ function ConfigurationTab({ organizationId }: { organizationId: number }) {
   );
 }
 
+// --- Dashboard & Reports (Workstream 9, §43, §44) — purely read-only.
+// Live-derived tiles, no persisted aggregate; 13 frozen reports via the
+// ADR-016 dedicated route, never a generic report-builder. CSV export uses
+// the hardened safeCsvCell convention server-side (Owner Decision 22). ---
+
+const OFFICE_INVENTORY_REPORTS: { key: string; label: string }[] = [
+  { key: 'office_inventory_current_stock', label: 'Current Stock' },
+  { key: 'office_inventory_movement_ledger', label: 'Stock Movement Ledger' },
+  { key: 'office_inventory_receipts', label: 'Receipts' },
+  { key: 'office_inventory_issues', label: 'Issues' },
+  { key: 'office_inventory_employee_custody', label: 'Employee Custody' },
+  { key: 'office_inventory_department_custody', label: 'Department Custody' },
+  { key: 'office_inventory_outstanding_returns', label: 'Outstanding / Overdue Returns' },
+  { key: 'office_inventory_missing_damaged', label: 'Missing / Damaged Items' },
+  { key: 'office_inventory_adjustments_writeoffs', label: 'Adjustments & Write-Offs' },
+  { key: 'office_inventory_stocktake_variances', label: 'Stocktake Variances' },
+  { key: 'office_inventory_repeat_request_history', label: 'Repeat Request History' },
+  { key: 'office_inventory_department_consumable_usage', label: 'Department Consumable Usage' },
+  { key: 'office_inventory_received_cost_summary', label: 'Simple Received-Cost Summary (reference cost only, not a valuation)' },
+];
+
+function DashboardTab({ organizationId }: { organizationId: number }) {
+  const { data, isLoading, error, refetch } = useGetOfficeInventoryDashboard(organizationId, {
+    query: { queryKey: getGetOfficeInventoryDashboardQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+
+  if (error) {
+    return <QueryError title="Could not load the dashboard" message={errorMessage(error)} onRetry={() => refetch()} />;
+  }
+  if (isLoading || !data) {
+    return <Skeleton className="h-64 w-full" />;
+  }
+
+  const tiles: { key: string; label: string; value: number }[] = [
+    { key: 'stockItems', label: 'Stock Items', value: data.stockItems },
+    { key: 'lowStockItems', label: 'Low Stock', value: data.lowStockItems },
+    { key: 'outOfStockItems', label: 'Out of Stock', value: data.outOfStockItems },
+    { key: 'itemsWithEmployees', label: 'Items with Employees', value: data.itemsWithEmployees },
+    { key: 'itemsWithDepartments', label: 'Items with Departments', value: data.itemsWithDepartments },
+    { key: 'outstandingReturnables', label: 'Outstanding Returnables', value: data.outstandingReturnables },
+    { key: 'overdueReturnables', label: 'Overdue Returnables', value: data.overdueReturnables },
+    { key: 'pendingApprovals', label: 'Pending Approvals', value: data.pendingApprovals },
+    { key: 'pendingIssues', label: 'Pending Issues', value: data.pendingIssues },
+    { key: 'pendingReceiptConfirmations', label: 'Pending Receipt Confirmations', value: data.pendingReceiptConfirmations },
+    { key: 'openMissingDamagedIncidents', label: 'Open Missing/Damaged Incidents', value: data.openMissingDamagedIncidents },
+    { key: 'unresolvedStocktakeVariances', label: 'Unresolved Stocktake Variances', value: data.unresolvedStocktakeVariances },
+    { key: 'vacantHeadBlockedDepartments', label: 'Departments with Vacant Head', value: data.vacantHeadBlockedDepartments },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      {tiles.map((t) => (
+        <Card key={t.key} data-testid={`tile-office-inventory-${t.key}`}>
+          <CardContent className="py-4">
+            <p className="text-2xl font-bold text-foreground">{t.value}</p>
+            <p className="text-xs text-muted-foreground">{t.label}</p>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function ReportsTab({ organizationId }: { organizationId: number }) {
+  const { toast } = useToast();
+  const [reportKey, setReportKey] = useState(OFFICE_INVENTORY_REPORTS[0].key);
+  const [itemId, setItemId] = useState(NONE);
+  const [storeId, setStoreId] = useState(NONE);
+  const [employeeId, setEmployeeId] = useState(NONE);
+  const [departmentId, setDepartmentId] = useState(NONE);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [result, setResult] = useState<ReportRunResult | null>(null);
+  const [running, setRunning] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  const { data: items } = useListOfficeInventoryItems(organizationId, {
+    query: { queryKey: getListOfficeInventoryItemsQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+  const { data: stores } = useListOfficeInventoryStores(organizationId, {
+    query: { queryKey: getListOfficeInventoryStoresQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+  const { data: employeesPage } = useListEmployees(organizationId, { pageSize: 200 }, {
+    query: { queryKey: getListEmployeesQueryKey(organizationId, { pageSize: 200 }), enabled: organizationId > 0 },
+  });
+  const { data: departments } = useListDepartments(organizationId, {
+    query: { queryKey: getListDepartmentsQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+
+  const buildParams = () => ({
+    itemId: itemId === NONE ? undefined : Number(itemId),
+    storeId: storeId === NONE ? undefined : Number(storeId),
+    employeeId: employeeId === NONE ? undefined : Number(employeeId),
+    departmentId: departmentId === NONE ? undefined : Number(departmentId),
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo || undefined,
+  });
+
+  const handleRun = async () => {
+    setRunning(true);
+    try {
+      const res = await runOfficeInventoryReport(organizationId, reportKey, buildParams());
+      setResult(res as ReportRunResult);
+    } catch (err) {
+      toast({ title: 'Could not run report', description: errorMessage(err), variant: 'destructive' });
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const handleDownloadCsv = async () => {
+    setDownloading(true);
+    try {
+      const csv = await runOfficeInventoryReport(organizationId, reportKey, { ...buildParams(), format: 'csv' });
+      const blob = new Blob([csv as unknown as string], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${reportKey}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast({ title: 'Could not download CSV', description: errorMessage(err), variant: 'destructive' });
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="py-4 space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="report-key">Report</Label>
+              <Select value={reportKey} onValueChange={(v) => { setReportKey(v); setResult(null); }}>
+                <SelectTrigger id="report-key" data-testid="select-report-key">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {OFFICE_INVENTORY_REPORTS.map((r) => (
+                    <SelectItem key={r.key} value={r.key}>{r.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="report-item">Item</Label>
+              <Select value={itemId} onValueChange={setItemId}>
+                <SelectTrigger id="report-item" data-testid="select-report-item">
+                  <SelectValue placeholder="All items" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>All items</SelectItem>
+                  {(items ?? []).map((i) => (
+                    <SelectItem key={i.id} value={String(i.id)}>{i.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="report-store">Store</Label>
+              <Select value={storeId} onValueChange={setStoreId}>
+                <SelectTrigger id="report-store" data-testid="select-report-store">
+                  <SelectValue placeholder="All stores" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>All stores</SelectItem>
+                  {(stores ?? []).map((s) => (
+                    <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="report-employee">Employee</Label>
+              <Select value={employeeId} onValueChange={setEmployeeId}>
+                <SelectTrigger id="report-employee" data-testid="select-report-employee">
+                  <SelectValue placeholder="All employees" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>All employees</SelectItem>
+                  {(employeesPage?.items ?? []).map((e) => (
+                    <SelectItem key={e.id} value={String(e.id)}>{e.firstName} {e.lastName}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="report-department">Department</Label>
+              <Select value={departmentId} onValueChange={setDepartmentId}>
+                <SelectTrigger id="report-department" data-testid="select-report-department">
+                  <SelectValue placeholder="All departments" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>All departments</SelectItem>
+                  {(departments ?? []).map((d) => (
+                    <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="report-date-from">From</Label>
+              <Input id="report-date-from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} data-testid="input-report-date-from" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="report-date-to">To</Label>
+              <Input id="report-date-to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} data-testid="input-report-date-to" />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={handleRun} disabled={running} data-testid="button-run-report">
+              <FileBarChart className="h-4 w-4" aria-hidden="true" />
+              {running ? 'Running…' : 'Run Report'}
+            </Button>
+            <Button variant="outline" onClick={handleDownloadCsv} disabled={downloading} data-testid="button-download-report-csv">
+              <Download className="h-4 w-4" aria-hidden="true" />
+              {downloading ? 'Preparing…' : 'Download CSV'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {result && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{result.label}</CardTitle>
+            <CardDescription>{result.description}</CardDescription>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            {result.rows.length === 0 ? (
+              <p className="text-sm text-muted-foreground" data-testid="text-report-no-rows">No rows for the selected filters.</p>
+            ) : (
+              <Table aria-label={result.label}>
+                <TableHeader>
+                  <TableRow>
+                    {result.columns.map((c) => (
+                      <TableHead key={c.key}>{c.label}</TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {result.rows.map((row, idx) => (
+                    <TableRow key={idx} data-testid={`row-report-result-${idx}`}>
+                      {result.columns.map((c) => (
+                        <TableCell key={c.key}>{String(row[c.key] ?? '')}</TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 export default function OfficeInventory() {
   const { data: user } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const organizationId = user?.activeOrganizationId ?? user?.organizationId ?? 0;
@@ -3424,8 +3690,10 @@ export default function OfficeInventory() {
         <p className="text-muted-foreground">Catalog items, stores, and module configuration.</p>
       </div>
 
-      <Tabs defaultValue="items">
+      <Tabs defaultValue="dashboard">
         <TabsList>
+          <TabsTrigger value="dashboard" data-testid="tab-dashboard">Dashboard</TabsTrigger>
+          <TabsTrigger value="reports" data-testid="tab-reports">Reports</TabsTrigger>
           <TabsTrigger value="items" data-testid="tab-items">Items</TabsTrigger>
           <TabsTrigger value="stores" data-testid="tab-stores">Stores</TabsTrigger>
           <TabsTrigger value="receiving" data-testid="tab-receiving">Receiving</TabsTrigger>
@@ -3439,6 +3707,12 @@ export default function OfficeInventory() {
           <TabsTrigger value="stocktakes" data-testid="tab-stocktakes">Stocktakes</TabsTrigger>
           <TabsTrigger value="configuration" data-testid="tab-configuration">Configuration</TabsTrigger>
         </TabsList>
+        <TabsContent value="dashboard">
+          <DashboardTab organizationId={organizationId} />
+        </TabsContent>
+        <TabsContent value="reports">
+          <ReportsTab organizationId={organizationId} />
+        </TabsContent>
         <TabsContent value="items">
           <ItemsTab organizationId={organizationId} />
         </TabsContent>

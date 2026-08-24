@@ -352,6 +352,117 @@ export const REPORT_DEFINITIONS: readonly ReportDefinition[] = [
     category: "payroll",
     requiredPermissionKey: "payroll.report.read",
   },
+  // Office Inventory, Workstream 9 (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md
+  // §44). Registered here for catalog discoverability via the existing GET
+  // /reports (ADR-016), but — like every dedicated-route module above — NOT
+  // executed through the generic GET .../reports/:reportKey/run route
+  // (lib/reporting.ts's RUNNERS map has no entries for these keys, so that
+  // route safely 404s "Unknown report" for any of them). Office Inventory
+  // reporting has no own/manager/organization-wide visibility tiers (unlike
+  // Assets/Performance/Learning) — every report here is organization-wide,
+  // gated solely by office_inventory.reports.read; a Department Head's own
+  // scoped accountability context remains exclusively Workstream 8's own
+  // surface, never widened by this permission. Execution is a dedicated
+  // route instead (GET .../office-inventory/reports/:reportKey,
+  // artifacts/api-server/src/routes/officeInventoryReporting.ts), reusing
+  // the same {columns, rows} shape this registry already established, with
+  // a locally hardened (formula-injection-safe) CSV export — the frozen
+  // plan's own Owner Decision 22, not the platform's shared unescaped
+  // default. §44's own literal list has 13 entries; "Current Stock" is ONE
+  // combined report (organization totals with a per-store breakdown), not
+  // two separate reports — this session's own faithful reading of the
+  // frozen text over any other paraphrase of it.
+  {
+    key: "office_inventory_current_stock",
+    label: "Current Stock",
+    description: "Live-derived current stock per item, broken down by store, with the organization-wide total alongside each row. No persisted currentQuantity authority.",
+    category: "office_inventory",
+    requiredPermissionKey: "office_inventory.reports.read",
+  },
+  {
+    key: "office_inventory_movement_ledger",
+    label: "Stock Movement Ledger",
+    description: "Every ledger movement, filterable by date range/item/store/movement type/holder/reference — what happened, when, how much, and who performed it.",
+    category: "office_inventory",
+    requiredPermissionKey: "office_inventory.reports.read",
+  },
+  {
+    key: "office_inventory_receipts",
+    label: "Receipts",
+    description: "Every received movement, with store, source, delivery reference, and reference cost where recorded.",
+    category: "office_inventory",
+    requiredPermissionKey: "office_inventory.reports.read",
+  },
+  {
+    key: "office_inventory_issues",
+    label: "Issues",
+    description: "Every issue (request-based and direct), with recipient, store, expected return date, and item classification.",
+    category: "office_inventory",
+    requiredPermissionKey: "office_inventory.reports.read",
+  },
+  {
+    key: "office_inventory_employee_custody",
+    label: "Employee Custody",
+    description: "Live-derived current outstanding custody per employee (CURRENT accountability — shows the employee's current staff number, resolved live, never through historical reuse).",
+    category: "office_inventory",
+    requiredPermissionKey: "office_inventory.reports.read",
+  },
+  {
+    key: "office_inventory_department_custody",
+    label: "Department Custody",
+    description: "Live-derived current outstanding custody per department. Department Head identity is never shown as custodian unless the item was issued to that employee personally.",
+    category: "office_inventory",
+    requiredPermissionKey: "office_inventory.reports.read",
+  },
+  {
+    key: "office_inventory_outstanding_returns",
+    label: "Outstanding / Overdue Returns",
+    description: "Live-derived outstanding returnable custody with overdue status and days overdue. Consumables never appear here — issuing one is itself its consumption.",
+    category: "office_inventory",
+    requiredPermissionKey: "office_inventory.reports.read",
+  },
+  {
+    key: "office_inventory_missing_damaged",
+    label: "Missing / Damaged Items",
+    description: "Every damage/missing incident with its review status and, where applicable, its recovery/write-off linkage. Accountability tracking only — no disciplinary inference.",
+    category: "office_inventory",
+    requiredPermissionKey: "office_inventory.reports.read",
+  },
+  {
+    key: "office_inventory_adjustments_writeoffs",
+    label: "Adjustments & Write-Offs",
+    description: "Every adjustment and write-off movement, kept as two clearly distinguished categories, with reason, actor, and incident linkage where applicable.",
+    category: "office_inventory",
+    requiredPermissionKey: "office_inventory.reports.read",
+  },
+  {
+    key: "office_inventory_stocktake_variances",
+    label: "Stocktake Variances",
+    description: "Every stocktake line across every stocktake, with its snapshot/counted/variance/resolution — finalized values remain exactly as recorded, never re-derived from a since-changed ledger.",
+    category: "office_inventory",
+    requiredPermissionKey: "office_inventory.reports.read",
+  },
+  {
+    key: "office_inventory_repeat_request_history",
+    label: "Repeat Request History",
+    description: "Repeated same-item request activity per employee/department within the configurable review window. Factual history only — no suspicion or fraud scoring.",
+    category: "office_inventory",
+    requiredPermissionKey: "office_inventory.reports.read",
+  },
+  {
+    key: "office_inventory_department_consumable_usage",
+    label: "Department Consumable Usage",
+    description: "Consumable quantities actually issued to each department over a date range. Employee/department returnable custody is never counted as consumption.",
+    category: "office_inventory",
+    requiredPermissionKey: "office_inventory.reports.read",
+  },
+  {
+    key: "office_inventory_received_cost_summary",
+    label: "Simple Received-Cost Summary",
+    description: "A plain sum of recorded unitCost × quantity at receiving, per item — reference/historical received cost only, never an accounting-grade stock valuation. Empty for an organization that never records unitCost at receiving.",
+    category: "office_inventory",
+    requiredPermissionKey: "office_inventory.reports.read",
+  },
 ] as const;
 
 /** Throws on a duplicate key — the only integrity rule this registry has (no dependency graph, unlike modules). */

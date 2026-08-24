@@ -244,6 +244,7 @@ import type {
   OfficeInventoryApprovalDelegation,
   OfficeInventoryAwaitingFulfilmentEntry,
   OfficeInventoryCustodyEntry,
+  OfficeInventoryDashboard,
   OfficeInventoryHandoverResult,
   OfficeInventoryIncident,
   OfficeInventoryItem,
@@ -361,6 +362,7 @@ import type {
   RunAssetReportParams,
   RunAttendanceReportParams,
   RunLearningReportParams,
+  RunOfficeInventoryReportParams,
   RunPerformanceReportParams,
   RunPersonnelReportParams,
   RunRecruitmentReportParams,
@@ -36204,4 +36206,177 @@ export const useFinalizeOfficeInventoryStocktake = <TError = ErrorType<ApiError>
       > => {
       return useMutation(getFinalizeOfficeInventoryStocktakeMutationOptions(options));
     }
+
+export const getGetOfficeInventoryDashboardUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/dashboard`
+}
+
+/**
+ * No persisted aggregate — every tile is a live, batched query (§43).
+ * @summary Office Inventory dashboard — live-derived tiles, gated office_inventory.reports.read
+ */
+export const getOfficeInventoryDashboard = async (organizationId: number, options?: RequestInit): Promise<OfficeInventoryDashboard> => {
+
+  return customFetch<OfficeInventoryDashboard>(getGetOfficeInventoryDashboardUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOfficeInventoryDashboardQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/office-inventory/dashboard`
+    ] as const;
+    }
+
+
+export const getGetOfficeInventoryDashboardQueryOptions = <TData = Awaited<ReturnType<typeof getOfficeInventoryDashboard>>, TError = ErrorType<ApiError>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryDashboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOfficeInventoryDashboardQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOfficeInventoryDashboard>>> = ({ signal }) => getOfficeInventoryDashboard(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryDashboard>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOfficeInventoryDashboardQueryResult = NonNullable<Awaited<ReturnType<typeof getOfficeInventoryDashboard>>>
+export type GetOfficeInventoryDashboardQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Office Inventory dashboard — live-derived tiles, gated office_inventory.reports.read
+ */
+
+export function useGetOfficeInventoryDashboard<TData = Awaited<ReturnType<typeof getOfficeInventoryDashboard>>, TError = ErrorType<ApiError>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryDashboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOfficeInventoryDashboardQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRunOfficeInventoryReportUrl = (organizationId: number,
+    reportKey: string,
+    params?: RunOfficeInventoryReportParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/office-inventory/reports/${reportKey}?${stringifiedParams}` : `/api/organizations/${organizationId}/office-inventory/reports/${reportKey}`
+}
+
+/**
+ * Computes one of the 13 frozen Office Inventory reports (§44; see GET /reports, category "office_inventory"). Organization-wide only — no own/manager visibility tiers; a Department Head's own scoped W8 accountability context is never widened by this permission. Pass ?format=csv for a hardened (formula-injection-safe) CSV download instead of JSON, identical filters/rows to JSON.
+ * @summary Run an Office Inventory report — gated office_inventory.reports.read
+ */
+export const runOfficeInventoryReport = async (organizationId: number,
+    reportKey: string,
+    params?: RunOfficeInventoryReportParams, options?: RequestInit): Promise<ReportRunResult | string> => {
+
+  return customFetch<ReportRunResult | string>(getRunOfficeInventoryReportUrl(organizationId,reportKey,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getRunOfficeInventoryReportQueryKey = (organizationId: number,
+    reportKey: string,
+    params?: RunOfficeInventoryReportParams,) => {
+    return [
+    `/api/organizations/${organizationId}/office-inventory/reports/${reportKey}`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getRunOfficeInventoryReportQueryOptions = <TData = Awaited<ReturnType<typeof runOfficeInventoryReport>>, TError = ErrorType<ApiError>>(organizationId: number,
+    reportKey: string,
+    params?: RunOfficeInventoryReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runOfficeInventoryReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getRunOfficeInventoryReportQueryKey(organizationId,reportKey,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof runOfficeInventoryReport>>> = ({ signal }) => runOfficeInventoryReport(organizationId,reportKey,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && reportKey !== null && reportKey !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof runOfficeInventoryReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type RunOfficeInventoryReportQueryResult = NonNullable<Awaited<ReturnType<typeof runOfficeInventoryReport>>>
+export type RunOfficeInventoryReportQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Run an Office Inventory report — gated office_inventory.reports.read
+ */
+
+export function useRunOfficeInventoryReport<TData = Awaited<ReturnType<typeof runOfficeInventoryReport>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    reportKey: string,
+    params?: RunOfficeInventoryReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runOfficeInventoryReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getRunOfficeInventoryReportQueryOptions(organizationId,reportKey,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 

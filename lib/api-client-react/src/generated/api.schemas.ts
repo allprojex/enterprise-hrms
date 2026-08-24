@@ -8166,6 +8166,38 @@ export interface ResolveOfficeInventoryStocktakeLineBody {
   reason: string;
 }
 
+/**
+ * Office Inventory, Workstream 9 (§43). Every tile is a live, batched query — no persisted aggregate. `outstandingReturnables`/ `overdueReturnables` count returnable-item holder balances only (never a consumable's cumulative issued total). `pendingIssues` counts approved-but-not-fully-issued request LINES, excluding rejected lines, cancelled requests, and fully fulfilled lines.
+ */
+export interface OfficeInventoryDashboard {
+  /** Distinct items with a positive organization-wide store total. */
+  stockItems: number;
+  /** Positive store total at or below the item's own reorderLevel. */
+  lowStockItems: number;
+  /** Zero or negative organization-wide store total. Never confused with employee/department holder balances. */
+  outOfStockItems: number;
+  /** Distinct items currently held (positive balance) by at least one employee. */
+  itemsWithEmployees: number;
+  /** Distinct items currently held (positive balance) by at least one department. */
+  itemsWithDepartments: number;
+  /** Outstanding (employee + department) returnable-item holder balances, live-derived. */
+  outstandingReturnables: number;
+  /** Of the above, past their own most-recent-issue expectedReturnDate. */
+  overdueReturnables: number;
+  /** Requests currently pending or partially approved. */
+  pendingApprovals: number;
+  /** Approved request lines with quantityIssuedSoFar < approvedQuantity. */
+  pendingIssues: number;
+  /** Issued holder movements with confirmedAt still null — non-gating; stock was already issued. */
+  pendingReceiptConfirmations: number;
+  /** Incidents with status = open. */
+  openMissingDamagedIncidents: number;
+  /** Non-zero, unresolved variance lines on a not-yet-finalized stocktake. */
+  unresolvedStocktakeVariances: number;
+  /** Departments with no currently-open Department Head assignment (§5.3). */
+  vacantHeadBlockedDepartments: number;
+}
+
 export type ListEmployeesParams = {
 search?: string;
 departmentId?: number;
@@ -8823,5 +8855,48 @@ export const ListOfficeInventoryStocktakesStatus = {
   draft: 'draft',
   counting: 'counting',
   finalized: 'finalized',
+} as const;
+
+export type RunOfficeInventoryReportParams = {
+itemId?: number;
+storeId?: number;
+employeeId?: number;
+departmentId?: number;
+/**
+ * office_inventory_movement_ledger only.
+ */
+movementType?: RunOfficeInventoryReportMovementType;
+/**
+ * office_inventory_missing_damaged (incident status) or office_inventory_stocktake_variances (stocktake status) only.
+ */
+status?: string;
+dateFrom?: string;
+dateTo?: string;
+format?: RunOfficeInventoryReportFormat;
+};
+
+export type RunOfficeInventoryReportMovementType = typeof RunOfficeInventoryReportMovementType[keyof typeof RunOfficeInventoryReportMovementType];
+
+
+export const RunOfficeInventoryReportMovementType = {
+  received: 'received',
+  issued: 'issued',
+  returned: 'returned',
+  transferred_out: 'transferred_out',
+  transferred_in: 'transferred_in',
+  adjustment_in: 'adjustment_in',
+  adjustment_out: 'adjustment_out',
+  written_off: 'written_off',
+  missing: 'missing',
+  recovered: 'recovered',
+  asset_handoff: 'asset_handoff',
+} as const;
+
+export type RunOfficeInventoryReportFormat = typeof RunOfficeInventoryReportFormat[keyof typeof RunOfficeInventoryReportFormat];
+
+
+export const RunOfficeInventoryReportFormat = {
+  json: 'json',
+  csv: 'csv',
 } as const;
 
