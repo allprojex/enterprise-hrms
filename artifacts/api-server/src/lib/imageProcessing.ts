@@ -59,3 +59,31 @@ export async function processAvatarImage(buffer: Buffer): Promise<Buffer> {
     .jpeg({ quality: 82 })
     .toBuffer();
 }
+
+const LOGO_MAX_DIMENSION = 1024;
+
+/**
+ * Organization logo processing — deliberately different from
+ * processAvatarImage: `fit: "inside"` (never crops, only shrinks an
+ * oversized source, preserving the original aspect ratio) and no format
+ * conversion (stays PNG/WebP/JPEG as uploaded, so a transparent-background
+ * emblem stays transparent — forcing JPEG here would flatten it onto a
+ * black background). `.rotate()` with no argument still applies EXIF
+ * orientation then strips EXIF, matching processAvatarImage's own
+ * precedent. A source already at or under the cap passes through with
+ * only EXIF-stripping applied — no re-encode quality loss for the common
+ * case of an already-reasonably-sized logo.
+ */
+export async function processLogoImage(buffer: Buffer, mimeType: string): Promise<Buffer> {
+  const image = sharp(buffer).rotate();
+  const metadata = await image.metadata();
+  const needsResize =
+    (metadata.width ?? 0) > LOGO_MAX_DIMENSION || (metadata.height ?? 0) > LOGO_MAX_DIMENSION;
+  const resized = needsResize
+    ? image.resize(LOGO_MAX_DIMENSION, LOGO_MAX_DIMENSION, { fit: "inside", withoutEnlargement: true })
+    : image;
+
+  if (mimeType === "image/png") return resized.png().toBuffer();
+  if (mimeType === "image/webp") return resized.webp().toBuffer();
+  return resized.jpeg({ quality: 90 }).toBuffer();
+}

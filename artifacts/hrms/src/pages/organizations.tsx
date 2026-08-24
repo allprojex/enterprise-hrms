@@ -26,6 +26,8 @@ import {
   useReactivateOrganization,
   useGetMe,
   getGetMeQueryKey,
+  useListMyOrganizations,
+  getListMyOrganizationsQueryKey,
   useListOrganizationDomains,
   getListOrganizationDomainsQueryKey,
   useCreateOrganizationDomain,
@@ -261,6 +263,9 @@ export default function Organizations() {
   const reactivateMutation = useReactivateOrganization();
 
   const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
+  const { data: myOrganizations } = useListMyOrganizations({
+    query: { queryKey: getListMyOrganizationsQueryKey(), enabled: !!me },
+  });
 
   const [editOpen, setEditOpen] = useState(false);
   const [editName, setEditName] = useState('');
@@ -316,10 +321,17 @@ export default function Organizations() {
     },
   );
 
+  // me.role is the legacy platform-wide role column -- it never reflects an
+  // org_admin granted through the membership_roles system (the mechanism
+  // every organization's own admin, including WWM's, actually uses). The
+  // real authority signal is the caller's own membership for the selected
+  // organization, same source app-shell's isOrgAdmin already reads from.
+  const selectedOrgMembership = myOrganizations?.find((m) => m.organizationId === selectedOrg?.id);
   const canManageSelectedOrg =
     !!me &&
     !!selectedOrg &&
-    (me.role === 'super_admin' || (me.organizationId === selectedOrg.id && me.role === 'org_admin'));
+    (me.role === 'super_admin' ||
+      (selectedOrgMembership?.roles.some((r) => r === 'org_admin' || r === 'super_admin') ?? false));
 
   const openEditDialog = () => {
     if (!selectedOrg) return;

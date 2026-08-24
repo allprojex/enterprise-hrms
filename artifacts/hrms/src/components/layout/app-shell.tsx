@@ -4,7 +4,6 @@ import {
   Building2,
   LayoutDashboard,
   Bell,
-  Settings,
   Menu,
   X,
   LogOut,
@@ -384,6 +383,26 @@ export function AppShell({ children }: AppShellProps) {
   // a role that would 403 on every action.
   const isHrCapable = isOrgAdmin || (currentOrg?.roles.some((r) => r === 'hr_manager') ?? false);
 
+  // WWM Organization Administrator verification (WWM Readiness W3): the
+  // profile card previously showed `user.role` -- the legacy platform-wide
+  // column, which is "employee" for every WWM presentation account
+  // regardless of their real, membership_roles-granted authority (org_admin,
+  // hr_manager, ...). An org_admin logging in and seeing their own sidebar
+  // tell them they're an "Employee" is precisely the kind of thing that
+  // makes an admin console hard to find -- the badge itself pointed away
+  // from it. Prefers the caller's actual role(s) in their active
+  // organization (same source isOrgAdmin/isHrCapable already read from);
+  // falls back to the legacy field only if no membership is resolved yet.
+  const roleLabel = (() => {
+    const roles = currentOrg?.roles ?? [];
+    if (roles.includes('super_admin')) return 'Super Admin';
+    if (roles.includes('org_admin')) return 'Organization Administrator';
+    if (roles.includes('hr_manager')) return 'HR Manager';
+    if (roles.includes('employee')) return 'Employee';
+    if (roles.length > 0) return roles[0].replace(/_/g, ' ');
+    return user?.role.replace(/_/g, ' ') ?? '';
+  })();
+
   const handleSwitchOrganization = (organization: MembershipSummary) => {
     if (organization.organizationId === activeOrganizationId) return;
     switchOrganizationMutation.mutate(
@@ -561,11 +580,22 @@ export function AppShell({ children }: AppShellProps) {
       ],
     },
     {
+      // WWM Organization Administrator verification (WWM Readiness W3):
+      // "Admin" sitting next to a permanently non-functional "Settings"
+      // stub ("Coming Soon", no permission gate, does nothing for any
+      // organization) was the actual reason an org_admin couldn't tell
+      // where to manage their organization -- the one real console was
+      // genericly labelled and easy to mistake for the decorative one
+      // beside it. Same href/isOrgAdmin condition as before, just a
+      // clearer label and the dead stub removed from nav (route still
+      // exists for direct-URL access; nothing here changes what any role
+      // is authorized to do server-side).
       label: 'Administration',
       items: [
         { href: '/organizations', label: 'Organisations', icon: Building },
-        ...(isOrgAdmin ? [{ href: '/admin', label: 'Admin', icon: ShieldCheck } satisfies NavItem] : []),
-        { href: '/settings', label: 'Settings', icon: Settings },
+        ...(isOrgAdmin
+          ? [{ href: '/admin', label: 'Organization Administration', icon: ShieldCheck } satisfies NavItem]
+          : []),
       ],
     },
   ];
@@ -646,7 +676,7 @@ export function AppShell({ children }: AppShellProps) {
                 {user.firstName} {user.lastName}
               </Link>
               <p className="text-xs text-muted-foreground truncate capitalize">
-                {user.role.replace(/_/g, ' ')}
+                {roleLabel}
               </p>
             </div>
           </div>
@@ -747,7 +777,7 @@ export function AppShell({ children }: AppShellProps) {
                       {user.firstName} {user.lastName}
                     </Link>
                     <p className="text-xs text-muted-foreground truncate capitalize">
-                      {user.role.replace(/_/g, ' ')}
+                      {roleLabel}
                     </p>
                   </div>
                 </div>

@@ -1,6 +1,6 @@
 # Worldwide Word Ministries — Organization Setup & Branding
 
-Status: **Local/development readiness complete, including the WWM Presentation Readiness visual + demo-data pass (§12–§15).** Production untouched, Netlify not deployed. See PROJECT_STATUS.md for the full workstream records; this document is the living reference for WWM's configuration and the branding/tenant-resolution architecture it uses, kept current as later WWM workstreams land. See `docs/WWM_PRESENTATION_DEMO_DATA.md` for the demo-data cleanup manifest.
+Status: **Local/development readiness complete, including the WWM Presentation Readiness visual + demo-data pass (§12–§15) and the real WWM logo integration (§16).** Production untouched, Netlify not deployed. See PROJECT_STATUS.md for the full workstream records; this document is the living reference for WWM's configuration and the branding/tenant-resolution architecture it uses, kept current as later WWM workstreams land. See `docs/WWM_PRESENTATION_DEMO_DATA.md` for the demo-data cleanup manifest.
 
 ## 1. Organization Identity
 
@@ -12,7 +12,7 @@ WWM is organization id `3` (pre-existing — created before this workstream, not
 | `slug` | `wwm` | `wwm` (unchanged — already correct) |
 | `type` | `church` | `church` (unchanged) |
 | `status` | `trial` | `trial` (unchanged — a deliberate later decision, not this workstream's) |
-| `logoUrl` | `null` | `null` — **no logo asset exists anywhere in this repository or the development environment.** The login page and authenticated shell both already render a graceful fallback icon when `logoUrl` is null (verified live). A real WWM logo file must be supplied before this field can be set to something real; it should never be fabricated. |
+| `logoUrl` | `null` | `/api/organizations/3/logo/<random-key>.png` — see §16. The real, standalone WWM emblem (the owner's own file), not the earlier wide logo, not a redraw. |
 
 Updated through the same code path `PATCH /organizations/:id` uses (`organizations.updated` audit event recorded), not a bare row edit.
 
@@ -117,7 +117,7 @@ No Netlify deployment, environment variable, or DNS change was made.
 ## 11. Remaining Work (as of Workstream 1; superseded in part by §12–§15)
 
 - ~~A real named WWM organization administrator and at least one real WWM HR person~~ — done via clearly-recognizable presentation/demo identities, see §13. **Still open:** replacing them with genuinely real WWM people's identities when the user supplies them (a distinct, later action — swap the person, keep the role/module configuration).
-- A real WWM logo asset — still open, no file exists anywhere in this environment.
+- ~~A real WWM logo asset~~ — done, see §16. The owner's actual standalone emblem file, uploaded and stored through the application's own logo mechanism.
 - ~~Real WWM department/employee data before any Department Head can be assigned~~ — done via demo data, see §13.
 - A decision on WWM Payroll access (still explicitly out of scope).
 - Netlify/production deployment (still explicitly out of scope — local/development only).
@@ -160,3 +160,19 @@ No password was ever written directly to a database column by this workstream.
 No biometric or physical clock-in device integration architecture exists anywhere in this codebase — confirmed by a repository-wide search for device/biometric-related code, none found. Attendance capture is, and has only ever been, **self-service software clock-in/out** (`POST /organizations/:id/attendance-events`, `attendance.clock.own`, resolved to the caller's own linked employee identity via `employee_user_links` — never entered on someone else's behalf). This is not a gap introduced or left by this workstream; it is simply the feature as built. WWM currently has no biometric device, and the system is fully usable without one — self-service clock-in is a complete, real capture mechanism on its own, demonstrated live in §13.
 
 No device-connector groundwork was added or removed by this workstream. If a future physical-device integration is wanted, the natural extension point is the same `recordSelfServiceClockEvent` (`lib/attendanceEvents.ts`) the self-service route already calls — a device-driven route would resolve the employee identity from the device's own enrollment mapping rather than from the caller's session, then call the same underlying event-recording function, so the daily-summary/register/dashboard/reporting layers built on top of it would need no changes at all.
+
+## 16. Real WWM Logo Integration (Workstream 3)
+
+**Investigation finding:** `lib/fileStorage.ts` already existed as the platform's one private, organization-scoped disk-storage primitive (`writeOrgFile`/`readOrgFile`/`deleteOrgFile`, used for employee avatars/documents) — but its own read pattern is deliberately authenticated-only (see the employee profile-picture GET route), and nothing before this workstream let an organization actually store a *logo* through it at all. An authenticated-only read cannot serve the login page, which renders before any authentication exists. So there was a real, missing piece, not merely an unused existing one — completing it (not building a second mechanism) was the right scope.
+
+**What was added, reusing the existing primitive exactly:**
+
+- `processLogoImage` (`lib/imageProcessing.ts`) — deliberately different from the existing avatar processor: `fit: "inside"` (shrinks only if larger than 1024px on either side, preserving aspect ratio, never crops) and no format conversion (a transparent PNG/WebP stays transparent — forcing JPEG would flatten it onto a black background). WWM's emblem (552×452 PNG, alpha channel) needed no resize at all.
+- `PATCH /organizations/:id/logo` (new, `routes/organizationLogo.ts`) — authenticated, `organization.update`-gated, multipart upload, same file-signature validation (`validateImageUpload`) as the existing avatar upload. Writes via `writeOrgFile(orgId, "branding", ext, buffer)` (the exact existing function), deletes the previous logo file if replacing, sets `organizations.logoUrl`, records an `organization.logo_updated` audit event.
+- `GET /organizations/:id/logo/:filename` (new, same file) — **public, no authentication**, mirroring `GET /tenant-context`'s own "one deliberately public, narrow, safe route" precedent. Serves only what a caller could already learn from `GET /tenant-context` (that this organization has a logo at this URL) — 404s for a suspended organization, a filename that doesn't match the organization's *current* `logoUrl`, or a malformed filename, without ever touching storage in those cases.
+
+**Where the storage key lives:** `organizations` has no dedicated logo-storage-key column, and adding one purely to duplicate what the existing `logoUrl` text column can already express was rejected as unnecessary schema change. Instead, `logoUrl` itself encodes the storage key: `/api/organizations/3/logo/<48-hex-char-random-key>.png` — the `/api` prefix matters and is not decorative: logo URLs are consumed directly as `<img src>` in the frontend, never routed through the API client's base-URL logic, so they must carry the same prefix every other request relies on (Vite's dev proxy today, Nginx in production). The random key is server-generated by the existing `generateStorageFilename` (never client-supplied), the same trust level already extended to organization name/type/slug via `GET /tenant-context`.
+
+**What was stored:** the owner's own standalone WWM emblem file (not the earlier wide "Worldwide Word Ministries" logo, not a redraw/approximation — the actual supplied PNG, 552×452, transparent background), uploaded via the real `PATCH /organizations/3/logo` endpoint using the WWM Organization Administrator's own account (`admin@wwm.test`), exactly as a real org admin would through a future Settings-page upload control (not built in this workstream — out of scope; only the backend capability was needed to verify the logo surfaces).
+
+**An unrelated issue found during this workstream, not caused by it:** between the previous workstream and this one, the password hashes for `admin@wwm.test`, `hr@wwm.test`, and `employee@wwm.test` changed in the database (visible via their `updatedAt` timestamps) — the known `WwmDemo#2026!` password stopped working for those three. No other Claude Code session was found running against this repository (`ListAgents` showed only one unrelated, idle peer session). The user confirmed they had not changed the passwords themselves and asked for them to be reset back — done via the same legitimate `POST /auth/forgot-password` → `POST /auth/reset-password/:token` flow used previously, not a raw database write. All six accounts re-verified authenticating correctly afterward; the underlying demo data (6 employees, 4 active modules, 2 assets, 4 inventory items) was independently confirmed unaffected via a live dashboard-summary check before and after.

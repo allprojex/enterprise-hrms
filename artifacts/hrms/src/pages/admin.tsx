@@ -411,7 +411,7 @@ function NamespaceConfigCard({
   description,
 }: {
   organizationId: number;
-  namespace: 'general' | 'terminology';
+  namespace: 'general' | 'terminology' | 'branding';
   title: string;
   description: string;
 }) {
@@ -573,6 +573,16 @@ function PrimaryHrAndSettingsTab({ organizationId }: { organizationId: number })
         namespace="general"
         title="General Settings"
         description="Organization-wide configuration, validated and stored as JSON"
+      />
+      <NamespaceConfigCard
+        organizationId={organizationId}
+        namespace="branding"
+        title="Branding"
+        description={
+          'Product name and colour theme shown on the login page and app shell. Fields: systemDisplayName ' +
+          '(string) and theme (optional HSL-triple overrides for sidebar/primary/accent/ring — e.g. "220 55% 16%"). ' +
+          'Leave empty to use the shared platform defaults.'
+        }
       />
       <NamespaceConfigCard
         organizationId={organizationId}

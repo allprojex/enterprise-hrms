@@ -421,6 +421,8 @@ import type {
   UpdateVacancyInput,
   UploadEmployeeDocumentBody,
   UploadEmployeeProfilePictureBody,
+  UploadOrganizationLogo200,
+  UploadOrganizationLogoBody,
   UserProfile,
   UserProfileUpdate,
   Vacancy,
@@ -1579,6 +1581,81 @@ export const useUpdateOrganization = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getUpdateOrganizationMutationOptions(options));
+    }
+
+export const getUploadOrganizationLogoUrl = (id: number,) => {
+
+
+
+
+  return `/api/organizations/${id}/logo`
+}
+
+/**
+ * multipart/form-data upload. JPEG/PNG/WebP only, validated by file signature (not just Content-Type), 5MB max. Resized only if larger than 1024px on either side (aspect ratio preserved, never cropped); original format is kept so a transparent PNG/WebP logo stays transparent. Sets organizations.logoUrl to the resulting public (unauthenticated) asset URL. Requires org_admin (within the organization) or super_admin.
+ * @summary Upload or replace an organization's logo
+ */
+export const uploadOrganizationLogo = async (id: number,
+    uploadOrganizationLogoBody: UploadOrganizationLogoBody, options?: RequestInit): Promise<UploadOrganizationLogo200> => {
+    const formData = new FormData();
+formData.append(`file`, uploadOrganizationLogoBody.file);
+
+  return customFetch<UploadOrganizationLogo200>(getUploadOrganizationLogoUrl(id),
+  {
+    ...options,
+    method: 'PATCH'
+    ,
+    body: formData
+  }
+);}
+
+
+
+
+
+export const getUploadOrganizationLogoMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadOrganizationLogo>>, TError,{id: number;data: BodyType<UploadOrganizationLogoBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadOrganizationLogo>>, TError,{id: number;data: BodyType<UploadOrganizationLogoBody>}, TContext> => {
+
+const mutationKey = ['uploadOrganizationLogo'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadOrganizationLogo>>, {id: number;data: BodyType<UploadOrganizationLogoBody>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  uploadOrganizationLogo(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadOrganizationLogoMutationResult = NonNullable<Awaited<ReturnType<typeof uploadOrganizationLogo>>>
+    export type UploadOrganizationLogoMutationBody = BodyType<UploadOrganizationLogoBody>
+    export type UploadOrganizationLogoMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Upload or replace an organization's logo
+ */
+export const useUploadOrganizationLogo = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadOrganizationLogo>>, TError,{id: number;data: BodyType<UploadOrganizationLogoBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof uploadOrganizationLogo>>,
+        TError,
+        {id: number;data: BodyType<UploadOrganizationLogoBody>},
+        TContext
+      > => {
+      return useMutation(getUploadOrganizationLogoMutationOptions(options));
     }
 
 export const getSuspendOrganizationUrl = (id: number,) => {

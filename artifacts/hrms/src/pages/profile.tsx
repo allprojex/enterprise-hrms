@@ -87,6 +87,20 @@ export default function Profile() {
   const activeOrganizationId = user?.activeOrganizationId ?? user?.organizationId;
   const currentOrg = organizations?.find(org => org.organizationId === activeOrganizationId);
   const userInitials = user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : '?';
+  // user.role is the legacy platform-wide column -- it never reflects an
+  // org_admin/hr_manager granted through the membership_roles system, so a
+  // genuine organization administrator would see their own profile badge
+  // say "Employee". Same currentOrg.roles source app-shell's nav gating
+  // already reads from.
+  const roleLabel = (() => {
+    const roles = currentOrg?.roles ?? [];
+    if (roles.includes('super_admin')) return 'Super Admin';
+    if (roles.includes('org_admin')) return 'Organization Administrator';
+    if (roles.includes('hr_manager')) return 'HR Manager';
+    if (roles.includes('employee')) return 'Employee';
+    if (roles.length > 0) return roles[0].replace(/_/g, ' ');
+    return user?.role.replace('_', ' ') ?? '';
+  })();
 
   if (isLoading) {
     return (
@@ -132,7 +146,7 @@ export default function Profile() {
                 <p className="text-sm text-muted-foreground">{user.email}</p>
               </div>
               <Badge variant="secondary" className="capitalize">
-                {user.role.replace('_', ' ')}
+                {roleLabel}
               </Badge>
             </div>
 

@@ -502,6 +502,60 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{id}/logo:
+    patch:
+      operationId: uploadOrganizationLogo
+      tags: [organizations]
+      summary: Upload or replace an organization's logo
+      description: >-
+        multipart/form-data upload. JPEG/PNG/WebP only, validated by file
+        signature (not just Content-Type), 5MB max. Resized only if larger
+        than 1024px on either side (aspect ratio preserved, never cropped);
+        original format is kept so a transparent PNG/WebP logo stays
+        transparent. Sets organizations.logoUrl to the resulting public
+        (unauthenticated) asset URL. Requires org_admin (within the
+        organization) or super_admin.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Logo updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [logoUrl]
+                properties:
+                  logoUrl:
+                    type: string
+        "400":
+          description: Invalid file
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /organizations/{id}/suspend:
     post:
       operationId: suspendOrganization

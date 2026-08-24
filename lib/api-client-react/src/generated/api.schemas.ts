@@ -8277,6 +8277,14 @@ export interface OfficeInventoryAssetHandoffResult {
   replay: boolean;
 }
 
+export type UploadOrganizationLogoBody = {
+  file: Blob;
+};
+
+export type UploadOrganizationLogo200 = {
+  logoUrl: string;
+};
+
 export type ListEmployeesParams = {
 search?: string;
 departmentId?: number;

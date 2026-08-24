@@ -304,6 +304,23 @@ export const UpdateOrganizationResponse = zod.object({
 
 
 /**
+ * multipart/form-data upload. JPEG/PNG/WebP only, validated by file signature (not just Content-Type), 5MB max. Resized only if larger than 1024px on either side (aspect ratio preserved, never cropped); original format is kept so a transparent PNG/WebP logo stays transparent. Sets organizations.logoUrl to the resulting public (unauthenticated) asset URL. Requires org_admin (within the organization) or super_admin.
+ * @summary Upload or replace an organization's logo
+ */
+export const UploadOrganizationLogoParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UploadOrganizationLogoBody = zod.object({
+  "file": zod.instanceof(File)
+})
+
+export const UploadOrganizationLogoResponse = zod.object({
+  "logoUrl": zod.string()
+})
+
+
+/**
  * Sets status to suspended. Requires org_admin (within the organization) or super_admin.
  * @summary Suspend an organization
  */
