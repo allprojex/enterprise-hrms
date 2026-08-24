@@ -9,7 +9,7 @@
  * and lives on the existing Departments page instead.
  */
 import { useState } from 'react';
-import { Boxes, Warehouse, Settings2, Plus, Pencil, Truck, Trash2, PackageSearch, ClipboardList, CheckCircle2, XCircle, UserCog, X, Ban } from 'lucide-react';
+import { Boxes, Warehouse, Settings2, Plus, Pencil, Truck, Trash2, PackageSearch, ClipboardList, CheckCircle2, XCircle, UserCog, X, Ban, PackageCheck, Users } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -64,6 +64,17 @@ import {
   useRevokeOfficeInventoryDelegation,
   useListDepartments,
   getListDepartmentsQueryKey,
+  useListOfficeInventoryRequestsAwaitingFulfilment,
+  getListOfficeInventoryRequestsAwaitingFulfilmentQueryKey,
+  useIssueOfficeInventoryRequestLine,
+  useCreateOfficeInventoryDirectIssue,
+  useConfirmOfficeInventoryReceipt,
+  useGetOfficeInventoryEmployeeCustody,
+  getGetOfficeInventoryEmployeeCustodyQueryKey,
+  useGetOfficeInventoryDepartmentCustody,
+  getGetOfficeInventoryDepartmentCustodyQueryKey,
+  useListEmployees,
+  getListEmployeesQueryKey,
   OfficeInventoryItemClassification,
   type OfficeInventoryItem,
   type OfficeInventoryStore,
@@ -1503,6 +1514,408 @@ function ApprovalsTab({ organizationId }: { organizationId: number }) {
   );
 }
 
+// --- Issuing (Workstream 4) — Store Officer fulfilment + Direct Issue.
+// Approval (W3) authorizes a quantity; this is what actually leaves the
+// store. requested/approved/issued remain three permanently distinct
+// facts, never collapsed into one. ---
+
+function IssueLineDialog({ organizationId, lineId, itemId, remaining, onIssued }: { organizationId: number; lineId: number; itemId: number; remaining: string; onIssued: () => void }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [storeId, setStoreId] = useState('');
+  const [quantity, setQuantity] = useState('');
+  const [expectedReturnDate, setExpectedReturnDate] = useState('');
+  const mutation = useIssueOfficeInventoryRequestLine();
+
+  const { data: stores } = useListOfficeInventoryStores(organizationId, {
+    query: { queryKey: getListOfficeInventoryStoresQueryKey(organizationId), enabled: organizationId > 0 && open },
+  });
+  const { data: items } = useListOfficeInventoryItems(organizationId, {
+    query: { queryKey: getListOfficeInventoryItemsQueryKey(organizationId), enabled: organizationId > 0 && open },
+  });
+  const item = (items ?? []).find((i) => i.id === itemId);
+  const isReturnable = item?.classification === 'returnable';
+
+  const reset = () => {
+    setStoreId('');
+    setQuantity('');
+    setExpectedReturnDate('');
+  };
+
+  const handle = () => {
+    if (!storeId || !quantity) return;
+    mutation.mutate(
+      { organizationId, lineId, data: { storeId: Number(storeId), quantity, expectedReturnDate: isReturnable && expectedReturnDate ? expectedReturnDate : undefined, idempotencyKey: crypto.randomUUID() } },
+      {
+        onSuccess: () => {
+          setOpen(false);
+          reset();
+          onIssued();
+          toast({ title: 'Stock issued' });
+        },
+        onError: (err) => toast({ title: 'Could not issue stock', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
+      <DialogTrigger asChild>
+        <Button size="sm" data-testid={`button-open-issue-${lineId}`}>
+          <PackageCheck className="h-3.5 w-3.5" aria-hidden="true" />
+          Issue…
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Issue Stock</DialogTitle>
+          <DialogDescription>Remaining approved and unissued: {remaining}. Partial issue is allowed.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor={`issue-store-${lineId}`}>Store</Label>
+            <Select value={storeId} onValueChange={setStoreId}>
+              <SelectTrigger id={`issue-store-${lineId}`} data-testid={`select-issue-store-${lineId}`}>
+                <SelectValue placeholder="Choose a store" />
+              </SelectTrigger>
+              <SelectContent>
+                {(stores ?? []).map((s) => (
+                  <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`issue-quantity-${lineId}`}>Quantity</Label>
+            <Input id={`issue-quantity-${lineId}`} type="number" min={0} step="0.01" value={quantity} onChange={(e) => setQuantity(e.target.value)} data-testid={`input-issue-quantity-${lineId}`} />
+          </div>
+          {isReturnable && (
+            <div className="space-y-2">
+              <Label htmlFor={`issue-return-date-${lineId}`}>Expected Return Date (optional)</Label>
+              <Input id={`issue-return-date-${lineId}`} type="date" value={expectedReturnDate} onChange={(e) => setExpectedReturnDate(e.target.value)} data-testid={`input-issue-return-date-${lineId}`} />
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button onClick={handle} disabled={mutation.isPending || !storeId || !quantity} data-testid={`button-confirm-issue-${lineId}`}>
+            {mutation.isPending ? 'Issuing…' : 'Confirm Issue'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DirectIssueDialog({ organizationId, onIssued }: { organizationId: number; onIssued: () => void }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [storeId, setStoreId] = useState('');
+  const [itemId, setItemId] = useState('');
+  const [quantity, setQuantity] = useState('');
+  const [holderType, setHolderType] = useState<'employee' | 'department'>('employee');
+  const [holderId, setHolderId] = useState('');
+  const [reason, setReason] = useState('');
+  const [expectedReturnDate, setExpectedReturnDate] = useState('');
+  const mutation = useCreateOfficeInventoryDirectIssue();
+
+  const { data: stores } = useListOfficeInventoryStores(organizationId, {
+    query: { queryKey: getListOfficeInventoryStoresQueryKey(organizationId), enabled: organizationId > 0 && open },
+  });
+  const { data: items } = useListOfficeInventoryItems(organizationId, {
+    query: { queryKey: getListOfficeInventoryItemsQueryKey(organizationId), enabled: organizationId > 0 && open },
+  });
+  const { data: employeesPage } = useListEmployees(organizationId, { pageSize: 200 }, {
+    query: { queryKey: getListEmployeesQueryKey(organizationId, { pageSize: 200 }), enabled: organizationId > 0 && open && holderType === 'employee' },
+  });
+  const { data: departments } = useListDepartments(organizationId, {
+    query: { queryKey: getListDepartmentsQueryKey(organizationId), enabled: organizationId > 0 && open && holderType === 'department' },
+  });
+  const item = (items ?? []).find((i) => i.id === Number(itemId));
+  const isReturnable = item?.classification === 'returnable';
+
+  const reset = () => {
+    setStoreId('');
+    setItemId('');
+    setQuantity('');
+    setHolderType('employee');
+    setHolderId('');
+    setReason('');
+    setExpectedReturnDate('');
+  };
+
+  const handle = () => {
+    if (!storeId || !itemId || !quantity || !holderId || !reason.trim()) return;
+    mutation.mutate(
+      {
+        organizationId,
+        data: {
+          storeId: Number(storeId),
+          itemId: Number(itemId),
+          quantity,
+          holderType,
+          holderId: Number(holderId),
+          reason: reason.trim(),
+          expectedReturnDate: isReturnable && expectedReturnDate ? expectedReturnDate : undefined,
+          idempotencyKey: crypto.randomUUID(),
+        },
+      },
+      {
+        onSuccess: () => {
+          setOpen(false);
+          reset();
+          onIssued();
+          toast({ title: 'Direct issue recorded' });
+        },
+        onError: (err) => toast({ title: 'Could not record direct issue', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
+      <DialogTrigger asChild>
+        <Button variant="outline" data-testid="button-open-direct-issue">
+          <PackageCheck className="h-4 w-4" aria-hidden="true" />
+          Direct Issue
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Direct Issue</DialogTitle>
+          <DialogDescription>Bypasses a prior request. Clearly distinguished historically — a reason is required.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="direct-store">Store</Label>
+            <Select value={storeId} onValueChange={setStoreId}>
+              <SelectTrigger id="direct-store" data-testid="select-direct-store">
+                <SelectValue placeholder="Choose a store" />
+              </SelectTrigger>
+              <SelectContent>
+                {(stores ?? []).map((s) => (
+                  <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="direct-item">Item</Label>
+            <Select value={itemId} onValueChange={setItemId}>
+              <SelectTrigger id="direct-item" data-testid="select-direct-item">
+                <SelectValue placeholder="Choose an item" />
+              </SelectTrigger>
+              <SelectContent>
+                {(items ?? []).map((i) => (
+                  <SelectItem key={i.id} value={String(i.id)}>{i.name} ({i.itemCode})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="direct-quantity">Quantity</Label>
+            <Input id="direct-quantity" type="number" min={0} step="0.01" value={quantity} onChange={(e) => setQuantity(e.target.value)} data-testid="input-direct-quantity" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="direct-holder-type">Target</Label>
+            <Select value={holderType} onValueChange={(v) => { setHolderType(v as 'employee' | 'department'); setHolderId(''); }}>
+              <SelectTrigger id="direct-holder-type" data-testid="select-direct-holder-type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="employee">Employee</SelectItem>
+                <SelectItem value="department">Department</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="direct-holder">{holderType === 'employee' ? 'Employee' : 'Department'}</Label>
+            <Select value={holderId} onValueChange={setHolderId}>
+              <SelectTrigger id="direct-holder" data-testid="select-direct-holder">
+                <SelectValue placeholder={`Choose ${holderType === 'employee' ? 'an employee' : 'a department'}`} />
+              </SelectTrigger>
+              <SelectContent>
+                {holderType === 'employee'
+                  ? (employeesPage?.items ?? []).map((e) => (
+                      <SelectItem key={e.id} value={String(e.id)}>{e.firstName} {e.lastName}</SelectItem>
+                    ))
+                  : (departments ?? []).map((d) => (
+                      <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
+                    ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {isReturnable && (
+            <div className="space-y-2">
+              <Label htmlFor="direct-return-date">Expected Return Date (optional)</Label>
+              <Input id="direct-return-date" type="date" value={expectedReturnDate} onChange={(e) => setExpectedReturnDate(e.target.value)} data-testid="input-direct-return-date" />
+            </div>
+          )}
+          <div className="space-y-2">
+            <Label htmlFor="direct-reason">Reason (required)</Label>
+            <Textarea id="direct-reason" value={reason} onChange={(e) => setReason(e.target.value)} data-testid="textarea-direct-reason" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={handle} disabled={mutation.isPending || !storeId || !itemId || !quantity || !holderId || !reason.trim()} data-testid="button-confirm-direct-issue">
+            {mutation.isPending ? 'Recording…' : 'Confirm Direct Issue'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function IssuingTab({ organizationId }: { organizationId: number }) {
+  const queryClient = useQueryClient();
+  const { data: entries, isLoading, error, refetch } = useListOfficeInventoryRequestsAwaitingFulfilment(organizationId, {
+    query: { queryKey: getListOfficeInventoryRequestsAwaitingFulfilmentQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+
+  const handleChanged = () => {
+    queryClient.invalidateQueries({ queryKey: getListOfficeInventoryRequestsAwaitingFulfilmentQueryKey(organizationId) });
+    refetch();
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-end">
+        <DirectIssueDialog organizationId={organizationId} onIssued={handleChanged} />
+      </div>
+
+      {isLoading ? (
+        <Skeleton className="h-40 w-full" />
+      ) : error ? (
+        <QueryError title="Could not load the fulfilment queue" message={errorMessage(error) ?? 'Please try again.'} onRetry={() => refetch()} />
+      ) : !entries || entries.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <PackageCheck className="h-8 w-8 text-muted-foreground mb-4" aria-hidden="true" />
+            <h3 className="text-lg font-semibold text-foreground mb-2">Nothing awaiting fulfilment</h3>
+            <p className="text-sm text-muted-foreground max-w-sm">Approved requests with stock still to issue will appear here.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {entries.map((entry) => (
+            <Card key={entry.request.id} data-testid={`row-fulfilment-request-${entry.request.id}`}>
+              <CardContent className="py-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-sm text-foreground">{entry.request.requestReference}</span>
+                  <Badge variant={REQUEST_STATUS_VARIANT[entry.request.status] ?? 'outline'}>{REQUEST_STATUS_LABEL[entry.request.status] ?? entry.request.status}</Badge>
+                </div>
+                {entry.lines
+                  .filter((l) => l.approvalStatus === 'approved')
+                  .map((line) => {
+                    const remaining = (parseFloat(line.approvedQuantity ?? '0') - parseFloat(line.quantityIssuedSoFar)).toFixed(2);
+                    return (
+                      <div key={line.id} className="flex items-center justify-between rounded-md border border-border p-2 text-sm" data-testid={`row-fulfilment-line-${line.id}`}>
+                        <span>Item #{line.itemId} — requested {line.quantityRequested}, approved {line.approvedQuantity}, issued {line.quantityIssuedSoFar}, remaining {remaining}</span>
+                        {parseFloat(remaining) > 0 && <IssueLineDialog organizationId={organizationId} lineId={line.id} itemId={line.itemId} remaining={remaining} onIssued={handleChanged} />}
+                      </div>
+                    );
+                  })}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- Custody (Workstream 4) — item accountability only, live-derived from
+// the ledger; never salary/banking/statutory/personnel-file/performance/
+// leave data. ---
+
+function CustodyTab({ organizationId }: { organizationId: number }) {
+  const { data: employeesPage } = useListEmployees(organizationId, { pageSize: 200 }, {
+    query: { queryKey: getListEmployeesQueryKey(organizationId, { pageSize: 200 }), enabled: organizationId > 0 },
+  });
+  const { data: departments } = useListDepartments(organizationId, {
+    query: { queryKey: getListDepartmentsQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+  const { data: items } = useListOfficeInventoryItems(organizationId, {
+    query: { queryKey: getListOfficeInventoryItemsQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+  const itemById = new Map((items ?? []).map((i) => [i.id, i]));
+
+  const [employeeId, setEmployeeId] = useState('');
+  const [departmentId, setDepartmentId] = useState('');
+
+  const { data: employeeCustody } = useGetOfficeInventoryEmployeeCustody(organizationId, Number(employeeId), {
+    query: { queryKey: getGetOfficeInventoryEmployeeCustodyQueryKey(organizationId, Number(employeeId)), enabled: organizationId > 0 && !!employeeId },
+  });
+  const { data: departmentCustody } = useGetOfficeInventoryDepartmentCustody(organizationId, Number(departmentId), {
+    query: { queryKey: getGetOfficeInventoryDepartmentCustodyQueryKey(organizationId, Number(departmentId)), enabled: organizationId > 0 && !!departmentId },
+  });
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <Label htmlFor="custody-employee" className="flex items-center gap-2 mb-2">
+          <Users className="h-3.5 w-3.5" aria-hidden="true" />
+          Employee Custody
+        </Label>
+        <Select value={employeeId} onValueChange={setEmployeeId}>
+          <SelectTrigger id="custody-employee" className="max-w-sm" data-testid="select-custody-employee">
+            <SelectValue placeholder="Choose an employee" />
+          </SelectTrigger>
+          <SelectContent>
+            {(employeesPage?.items ?? []).map((e) => (
+              <SelectItem key={e.id} value={String(e.id)}>{e.firstName} {e.lastName}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {employeeId && (
+          <div className="mt-3 space-y-2">
+            {(employeeCustody ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground" data-testid="text-no-employee-custody">Holds nothing currently.</p>
+            ) : (
+              (employeeCustody ?? []).map((c) => (
+                <div key={c.itemId} className="flex items-center justify-between rounded-md border border-border p-2 text-sm" data-testid={`row-employee-custody-${c.itemId}`}>
+                  <span>{itemById.get(c.itemId)?.name ?? `Item #${c.itemId}`}</span>
+                  <span className="font-mono">{c.balance}</span>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <Label htmlFor="custody-department" className="flex items-center gap-2 mb-2">
+          <Warehouse className="h-3.5 w-3.5" aria-hidden="true" />
+          Department Custody
+        </Label>
+        <Select value={departmentId} onValueChange={setDepartmentId}>
+          <SelectTrigger id="custody-department" className="max-w-sm" data-testid="select-custody-department">
+            <SelectValue placeholder="Choose a department" />
+          </SelectTrigger>
+          <SelectContent>
+            {(departments ?? []).map((d) => (
+              <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {departmentId && (
+          <div className="mt-3 space-y-2">
+            {(departmentCustody ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground" data-testid="text-no-department-custody">Holds nothing currently.</p>
+            ) : (
+              (departmentCustody ?? []).map((c) => (
+                <div key={c.itemId} className="flex items-center justify-between rounded-md border border-border p-2 text-sm" data-testid={`row-department-custody-${c.itemId}`}>
+                  <span>{itemById.get(c.itemId)?.name ?? `Item #${c.itemId}`}</span>
+                  <span className="font-mono">{c.balance}</span>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // --- Configuration ---
 
 function ConfigurationTab({ organizationId }: { organizationId: number }) {
@@ -1595,6 +2008,8 @@ export default function OfficeInventory() {
           <TabsTrigger value="stock" data-testid="tab-stock">Stock</TabsTrigger>
           <TabsTrigger value="requests" data-testid="tab-requests">My Requests</TabsTrigger>
           <TabsTrigger value="approvals" data-testid="tab-approvals">Approvals</TabsTrigger>
+          <TabsTrigger value="issuing" data-testid="tab-issuing">Issuing</TabsTrigger>
+          <TabsTrigger value="custody" data-testid="tab-custody">Custody</TabsTrigger>
           <TabsTrigger value="configuration" data-testid="tab-configuration">Configuration</TabsTrigger>
         </TabsList>
         <TabsContent value="items">
@@ -1614,6 +2029,12 @@ export default function OfficeInventory() {
         </TabsContent>
         <TabsContent value="approvals">
           <ApprovalsTab organizationId={organizationId} />
+        </TabsContent>
+        <TabsContent value="issuing">
+          <IssuingTab organizationId={organizationId} />
+        </TabsContent>
+        <TabsContent value="custody">
+          <CustodyTab organizationId={organizationId} />
         </TabsContent>
         <TabsContent value="configuration">
           <ConfigurationTab organizationId={organizationId} />

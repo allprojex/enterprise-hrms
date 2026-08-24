@@ -215,6 +215,8 @@ export interface AppendStoreMovementParams {
 export interface ListStockMovementsFilter {
   itemId?: number;
   storeId?: number;
+  holderType?: "employee" | "department";
+  holderId?: number;
 }
 
 /** Read-only movement history for an organization, newest first, optionally narrowed to one item and/or one store. */
@@ -222,6 +224,8 @@ export async function listStockMovements(organizationId: number, filter: ListSto
   const conditions = [eq(officeInventoryStockMovementsTable.organizationId, organizationId)];
   if (filter.itemId !== undefined) conditions.push(eq(officeInventoryStockMovementsTable.itemId, filter.itemId));
   if (filter.storeId !== undefined) conditions.push(eq(officeInventoryStockMovementsTable.storeId, filter.storeId));
+  if (filter.holderType !== undefined) conditions.push(eq(officeInventoryStockMovementsTable.holderType, filter.holderType));
+  if (filter.holderId !== undefined) conditions.push(eq(officeInventoryStockMovementsTable.holderId, filter.holderId));
 
   return db
     .select()
@@ -258,6 +262,139 @@ export async function appendStoreMovement(tx: QueryClient, params: AppendStoreMo
       deliveryReference: params.deliveryReference ?? null,
       unitCost: params.unitCost ?? null,
       reason: params.reason ?? null,
+      idempotencyKey: params.idempotencyKey ?? null,
+      actorMembershipId: params.actorMembershipId,
+      notes: params.notes ?? null,
+    })
+    .returning();
+
+  return inserted;
+}
+
+// --- Holder (employee/department) custody — Workstream 4 ---
+//
+// A separate direction table from the store one above: the SAME
+// `movementType` can mean opposite things to a store's balance and to a
+// holder's custody (e.g. `issued` decreases a store's balance but
+// increases a holder's custody). Deliberately minimal for now — only
+// `issued` (the one type Workstream 4 itself ever produces on the holder
+// side) is defined. `returned`/handover-related holder semantics belong to
+// Workstream 5, which owns designing them; leaving them undefined here
+// (rather than guessing) means `holderMovementSign` throws if anything
+// ever tries to use them before W5 actually defines that direction,
+// instead of silently running with a possibly-wrong assumption.
+export const HOLDER_INCREASING_TYPES: readonly OfficeInventoryMovementType[] = ["issued"];
+export const HOLDER_DECREASING_TYPES: readonly OfficeInventoryMovementType[] = [];
+
+export function holderMovementSign(movementType: OfficeInventoryMovementType): 1 | -1 {
+  if (HOLDER_INCREASING_TYPES.includes(movementType)) return 1;
+  if (HOLDER_DECREASING_TYPES.includes(movementType)) return -1;
+  throw new Error(`Movement type "${movementType}" has no defined holder-custody direction yet`);
+}
+
+async function acquireHolderLock(tx: QueryClient, organizationId: number, itemId: number, holderType: "employee" | "department", holderId: number): Promise<void> {
+  const lockKey = `${organizationId}:${itemId}:${holderType}:${holderId}`;
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${lockKey}))`);
+}
+
+function signedHolderQuantitySql() {
+  return sql`case
+    when ${officeInventoryStockMovementsTable.movementType}::text in ${[...HOLDER_INCREASING_TYPES]} then ${officeInventoryStockMovementsTable.quantity}
+    else 0 end`;
+}
+
+/** Live-derived current custody for one (item, holder) — same SUM-in-SQL approach as getStoreBalance. */
+export async function getHolderBalance(organizationId: number, itemId: number, holderType: "employee" | "department", holderId: number): Promise<string> {
+  const [row] = await db
+    .select({ balance: sql<string>`coalesce(sum(${signedHolderQuantitySql()}), 0)::numeric(12,2)` })
+    .from(officeInventoryStockMovementsTable)
+    .where(
+      and(
+        eq(officeInventoryStockMovementsTable.organizationId, organizationId),
+        eq(officeInventoryStockMovementsTable.itemId, itemId),
+        eq(officeInventoryStockMovementsTable.holderType, holderType),
+        eq(officeInventoryStockMovementsTable.holderId, holderId),
+      ),
+    );
+  return row?.balance ?? "0.00";
+}
+
+/** Every item an employee or department currently holds any outstanding quantity of, derived live from the ledger — never a mutable "current custodian" table. */
+export async function listCurrentCustody(organizationId: number, holderType: "employee" | "department", holderId: number): Promise<{ itemId: number; balance: string }[]> {
+  const rows = await db
+    .select({
+      itemId: officeInventoryStockMovementsTable.itemId,
+      balance: sql<string>`coalesce(sum(${signedHolderQuantitySql()}), 0)::numeric(12,2)`,
+    })
+    .from(officeInventoryStockMovementsTable)
+    .where(
+      and(
+        eq(officeInventoryStockMovementsTable.organizationId, organizationId),
+        eq(officeInventoryStockMovementsTable.holderType, holderType),
+        eq(officeInventoryStockMovementsTable.holderId, holderId),
+      ),
+    )
+    .groupBy(officeInventoryStockMovementsTable.itemId);
+  return rows.filter((r) => toMinorUnits(r.balance) > 0n);
+}
+
+export interface AppendHolderMovementParams {
+  organizationId: number;
+  itemId: number;
+  holderType: "employee" | "department";
+  holderId: number;
+  movementType: OfficeInventoryMovementType;
+  quantity: string;
+  referenceNumber?: string | null;
+  sourceReferenceType?: "request_line" | "incident" | "stocktake_line" | "asset" | null;
+  sourceReferenceId?: number | null;
+  condition?: "new" | "good" | "fair" | "poor" | "damaged" | null;
+  reason?: string | null;
+  expectedReturnDate?: string | null;
+  idempotencyKey?: string | null;
+  actorMembershipId: number | null;
+  notes?: string | null;
+}
+
+/** The holder-side counterpart to `appendStoreMovement` — same lock→resolve→validate→append shape, on the holder-custody domain instead of the store-balance one. */
+export async function appendHolderMovement(tx: QueryClient, params: AppendHolderMovementParams): Promise<OfficeInventoryStockMovement> {
+  await acquireHolderLock(tx, params.organizationId, params.itemId, params.holderType, params.holderId);
+
+  const sign = holderMovementSign(params.movementType);
+  if (sign === -1) {
+    const [row] = await tx
+      .select({ balance: sql<string>`coalesce(sum(${signedHolderQuantitySql()}), 0)::numeric(12,2)` })
+      .from(officeInventoryStockMovementsTable)
+      .where(
+        and(
+          eq(officeInventoryStockMovementsTable.organizationId, params.organizationId),
+          eq(officeInventoryStockMovementsTable.itemId, params.itemId),
+          eq(officeInventoryStockMovementsTable.holderType, params.holderType),
+          eq(officeInventoryStockMovementsTable.holderId, params.holderId),
+        ),
+      );
+    const availableMinor = toMinorUnits(row?.balance ?? "0.00");
+    const requestedMinor = toMinorUnits(params.quantity);
+    if (availableMinor - requestedMinor < 0n) {
+      throw new InsufficientStockError(params.itemId, params.holderId, fromMinorUnits(availableMinor), params.quantity);
+    }
+  }
+
+  const [inserted] = await tx
+    .insert(officeInventoryStockMovementsTable)
+    .values({
+      organizationId: params.organizationId,
+      itemId: params.itemId,
+      movementType: params.movementType,
+      quantity: params.quantity,
+      holderType: params.holderType,
+      holderId: params.holderId,
+      referenceNumber: params.referenceNumber ?? null,
+      sourceReferenceType: params.sourceReferenceType ?? null,
+      sourceReferenceId: params.sourceReferenceId ?? null,
+      condition: params.condition ?? null,
+      reason: params.reason ?? null,
+      expectedReturnDate: params.expectedReturnDate ?? null,
       idempotencyKey: params.idempotencyKey ?? null,
       actorMembershipId: params.actorMembershipId,
       notes: params.notes ?? null,

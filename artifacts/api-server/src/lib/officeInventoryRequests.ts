@@ -125,13 +125,34 @@ async function generateRequestReference(organizationId: number): Promise<string>
   return formatGeneratedNumber(requestNumberConfig, sequenceValue, { branchCode: null, departmentCode: null, year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 });
 }
 
-export function deriveHeaderStatus(lines: { approvalStatus: string }[]): "pending" | "approved" | "rejected" | "partially_approved" {
+// Workstream 4 extends this with a fulfilment layer on top of the W3
+// approval layer — still a pure function of the lines' own columns
+// (quantityIssuedSoFar is just a plain column here, written by
+// officeInventoryIssuing.ts; this function itself touches no ledger data,
+// preserving the "approval never touches the ledger" architectural
+// boundary that officeInventoryRequestsCore.test.ts's import-graph check
+// proves for the rest of this file).
+export function deriveHeaderStatus(
+  lines: { approvalStatus: string; approvedQuantity: string | null; quantityIssuedSoFar: string }[],
+): "pending" | "approved" | "rejected" | "partially_approved" | "fulfilled" | "partially_fulfilled" {
   const decided = lines.filter((l) => l.approvalStatus !== "pending");
   if (decided.length === 0) return "pending";
+
   const approved = lines.filter((l) => l.approvalStatus === "approved");
   const rejected = lines.filter((l) => l.approvalStatus === "rejected");
+  const allDecided = decided.length === lines.length;
+
+  if (approved.length === 0) {
+    return allDecided ? "rejected" : "partially_approved";
+  }
+
+  const anyIssued = approved.some((l) => toMinorUnits(l.quantityIssuedSoFar) > 0n);
+  if (anyIssued) {
+    const allApprovedFullyIssued = approved.every((l) => toMinorUnits(l.quantityIssuedSoFar) >= toMinorUnits(l.approvedQuantity ?? "0"));
+    return allApprovedFullyIssued && allDecided ? "fulfilled" : "partially_fulfilled";
+  }
+
   if (approved.length === lines.length) return "approved";
-  if (rejected.length === lines.length) return "rejected";
   return "partially_approved";
 }
 

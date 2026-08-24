@@ -92,6 +92,7 @@ import officeInventoryCatalogRouter from "./officeInventoryCatalog";
 import officeInventoryLedgerRouter from "./officeInventoryLedger";
 import officeInventoryRequestsRouter from "./officeInventoryRequests";
 import officeInventoryDelegationsRouter from "./officeInventoryDelegations";
+import officeInventoryIssuingRouter from "./officeInventoryIssuing";
 
 const router: IRouter = Router();
 
@@ -191,6 +192,14 @@ router.use(payrollPaymentBatchesRouter);
 router.use(departmentHeadsRouter);
 router.use(officeInventoryCatalogRouter);
 router.use(officeInventoryLedgerRouter);
+// officeInventoryIssuingRouter is registered BEFORE officeInventoryRequestsRouter
+// deliberately: its literal GET .../requests/awaiting-fulfilment path would
+// otherwise be shadowed by the earlier-registered GET .../requests/:id route
+// (Express matches route patterns in registration order across every
+// router mounted via app.use — a parameterized path registered first wins
+// against a literal one registered later, even though the literal path is
+// the intended match here).
+router.use(officeInventoryIssuingRouter);
 router.use(officeInventoryRequestsRouter);
 router.use(officeInventoryDelegationsRouter);
 

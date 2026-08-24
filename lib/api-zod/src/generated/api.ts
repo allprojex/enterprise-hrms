@@ -14184,3 +14184,291 @@ export const RevokeOfficeInventoryDelegationResponse = zod.object({
 }).describe('Office Inventory, Workstream 3 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §6, §5.3). A row surviving the delegating Head\'s own replacement remains open and fully historically queryable, but becomes functionally inert for NEW approvals the instant that membership is no longer the department\'s actual current Head — re-checked fresh on every approval, never assumed from this row\'s own existence.')
 
 
+/**
+ * Gated `office_inventory.issue` only — independent of departmental approval authority.
+ * @summary The Store Officer's own queue — every request org-wide with at least one approved-but-not-fully-issued line (Workstream 4)
+ */
+export const ListOfficeInventoryRequestsAwaitingFulfilmentParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListOfficeInventoryRequestsAwaitingFulfilmentResponseItem = zod.object({
+  "request": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "requestReference": zod.string(),
+  "requestedByMembershipId": zod.number(),
+  "requestType": zod.enum(['employee', 'department']),
+  "forEmployeeId": zod.number().nullable(),
+  "forDepartmentId": zod.number(),
+  "reason": zod.string().nullable(),
+  "submittedAt": zod.coerce.date(),
+  "status": zod.enum(['pending', 'partially_approved', 'approved', 'rejected', 'fulfilled', 'partially_fulfilled', 'cancelled']),
+  "cancelledAt": zod.coerce.date().nullable(),
+  "cancelledByMembershipId": zod.number().nullable()
+}),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "requestId": zod.number(),
+  "itemId": zod.number(),
+  "quantityRequested": zod.string(),
+  "approvalStatus": zod.enum(['pending', 'approved', 'rejected']),
+  "approvedQuantity": zod.string().nullable(),
+  "approvedByMembershipId": zod.number().nullable(),
+  "actedAsDelegate": zod.boolean(),
+  "delegatorHeadMembershipId": zod.number().nullable(),
+  "delegationId": zod.number().nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
+  "rejectionReason": zod.string().nullable(),
+  "quantityIssuedSoFar": zod.string()
+}).describe('Office Inventory, Workstream 3 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.4). Approval never touches the stock ledger — only Workstream 4\'s own Issue\/Fulfilment action ever does.'))
+})
+export const ListOfficeInventoryRequestsAwaitingFulfilmentResponse = zod.array(ListOfficeInventoryRequestsAwaitingFulfilmentResponseItem)
+
+
+/**
+ * @summary Issue stock against an approved request line, in full or in part — gated office_inventory.issue
+ */
+export const IssueOfficeInventoryRequestLineParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "lineId": zod.coerce.number()
+})
+
+export const IssueOfficeInventoryRequestLineBody = zod.object({
+  "storeId": zod.number(),
+  "quantity": zod.string().describe('Positive numeric(12,2)-shaped string. Must not exceed the line\'s remaining approved-but-unissued quantity.'),
+  "expectedReturnDate": zod.coerce.date().optional().describe('Only meaningful for a returnable item; rejected for a consumable item.'),
+  "idempotencyKey": zod.string().optional()
+}).describe('Office Inventory, Workstream 4 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §16). Issues against this line\'s own remaining approved-but-unissued quantity (approvedQuantity - quantityIssuedSoFar). Supports partial fulfilment — multiple issue calls against the same line are normal.')
+
+export const IssueOfficeInventoryRequestLineResponse = zod.object({
+  "storeMovement": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "itemId": zod.number(),
+  "movementType": zod.enum(['received', 'issued', 'returned', 'transferred_out', 'transferred_in', 'adjustment_in', 'adjustment_out', 'written_off', 'missing', 'recovered', 'asset_handoff']),
+  "quantity": zod.string(),
+  "storeId": zod.number().nullable(),
+  "holderType": zod.union([zod.literal('employee'),zod.literal('department'),zod.literal(null)]).nullable(),
+  "holderId": zod.number().nullable(),
+  "referenceNumber": zod.string().nullable(),
+  "sourceReferenceType": zod.union([zod.literal('request_line'),zod.literal('incident'),zod.literal('stocktake_line'),zod.literal('asset'),zod.literal(null)]).nullable(),
+  "sourceReferenceId": zod.number().nullable(),
+  "source": zod.string().nullable(),
+  "deliveryReference": zod.string().nullable(),
+  "unitCost": zod.string().nullable(),
+  "condition": zod.union([zod.literal('new'),zod.literal('good'),zod.literal('fair'),zod.literal('poor'),zod.literal('damaged'),zod.literal(null)]).nullable(),
+  "reason": zod.string().nullable(),
+  "expectedReturnDate": zod.coerce.date().nullable(),
+  "confirmedByMembershipId": zod.number().nullable(),
+  "confirmedAt": zod.coerce.date().nullable(),
+  "idempotencyKey": zod.string().nullable(),
+  "actorMembershipId": zod.number().nullable(),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 2 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.3). One row of the authoritative, append-only stock ledger. Workstream 2 only ever produces `movementType: received` rows; every other enum value exists for later workstreams.'),
+  "holderMovement": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "itemId": zod.number(),
+  "movementType": zod.enum(['received', 'issued', 'returned', 'transferred_out', 'transferred_in', 'adjustment_in', 'adjustment_out', 'written_off', 'missing', 'recovered', 'asset_handoff']),
+  "quantity": zod.string(),
+  "storeId": zod.number().nullable(),
+  "holderType": zod.union([zod.literal('employee'),zod.literal('department'),zod.literal(null)]).nullable(),
+  "holderId": zod.number().nullable(),
+  "referenceNumber": zod.string().nullable(),
+  "sourceReferenceType": zod.union([zod.literal('request_line'),zod.literal('incident'),zod.literal('stocktake_line'),zod.literal('asset'),zod.literal(null)]).nullable(),
+  "sourceReferenceId": zod.number().nullable(),
+  "source": zod.string().nullable(),
+  "deliveryReference": zod.string().nullable(),
+  "unitCost": zod.string().nullable(),
+  "condition": zod.union([zod.literal('new'),zod.literal('good'),zod.literal('fair'),zod.literal('poor'),zod.literal('damaged'),zod.literal(null)]).nullable(),
+  "reason": zod.string().nullable(),
+  "expectedReturnDate": zod.coerce.date().nullable(),
+  "confirmedByMembershipId": zod.number().nullable(),
+  "confirmedAt": zod.coerce.date().nullable(),
+  "idempotencyKey": zod.string().nullable(),
+  "actorMembershipId": zod.number().nullable(),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 2 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.3). One row of the authoritative, append-only stock ledger. Workstream 2 only ever produces `movementType: received` rows; every other enum value exists for later workstreams.'),
+  "line": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "requestId": zod.number(),
+  "itemId": zod.number(),
+  "quantityRequested": zod.string(),
+  "approvalStatus": zod.enum(['pending', 'approved', 'rejected']),
+  "approvedQuantity": zod.string().nullable(),
+  "approvedByMembershipId": zod.number().nullable(),
+  "actedAsDelegate": zod.boolean(),
+  "delegatorHeadMembershipId": zod.number().nullable(),
+  "delegationId": zod.number().nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
+  "rejectionReason": zod.string().nullable(),
+  "quantityIssuedSoFar": zod.string()
+}).describe('Office Inventory, Workstream 3 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.4). Approval never touches the stock ledger — only Workstream 4\'s own Issue\/Fulfilment action ever does.'),
+  "request": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "requestReference": zod.string(),
+  "requestedByMembershipId": zod.number(),
+  "requestType": zod.enum(['employee', 'department']),
+  "forEmployeeId": zod.number().nullable(),
+  "forDepartmentId": zod.number(),
+  "reason": zod.string().nullable(),
+  "submittedAt": zod.coerce.date(),
+  "status": zod.enum(['pending', 'partially_approved', 'approved', 'rejected', 'fulfilled', 'partially_fulfilled', 'cancelled']),
+  "cancelledAt": zod.coerce.date().nullable(),
+  "cancelledByMembershipId": zod.number().nullable()
+}),
+  "replay": zod.boolean()
+})
+
+
+/**
+ * @summary Direct issue — bypasses a prior request, gated office_inventory.issue.direct (distinct from office_inventory.issue)
+ */
+export const CreateOfficeInventoryDirectIssueParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const CreateOfficeInventoryDirectIssueBody = zod.object({
+  "storeId": zod.number(),
+  "itemId": zod.number(),
+  "quantity": zod.string(),
+  "holderType": zod.enum(['employee', 'department']),
+  "holderId": zod.number(),
+  "reason": zod.string(),
+  "expectedReturnDate": zod.coerce.date().optional(),
+  "idempotencyKey": zod.string().optional()
+}).describe('docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §17 — bypasses a prior request but not inventory controls. `sourceReferenceType` is always null on the resulting ledger rows, the permanent historical signal distinguishing this from request-based fulfilment.')
+
+export const CreateOfficeInventoryDirectIssueResponse = zod.object({
+  "storeMovement": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "itemId": zod.number(),
+  "movementType": zod.enum(['received', 'issued', 'returned', 'transferred_out', 'transferred_in', 'adjustment_in', 'adjustment_out', 'written_off', 'missing', 'recovered', 'asset_handoff']),
+  "quantity": zod.string(),
+  "storeId": zod.number().nullable(),
+  "holderType": zod.union([zod.literal('employee'),zod.literal('department'),zod.literal(null)]).nullable(),
+  "holderId": zod.number().nullable(),
+  "referenceNumber": zod.string().nullable(),
+  "sourceReferenceType": zod.union([zod.literal('request_line'),zod.literal('incident'),zod.literal('stocktake_line'),zod.literal('asset'),zod.literal(null)]).nullable(),
+  "sourceReferenceId": zod.number().nullable(),
+  "source": zod.string().nullable(),
+  "deliveryReference": zod.string().nullable(),
+  "unitCost": zod.string().nullable(),
+  "condition": zod.union([zod.literal('new'),zod.literal('good'),zod.literal('fair'),zod.literal('poor'),zod.literal('damaged'),zod.literal(null)]).nullable(),
+  "reason": zod.string().nullable(),
+  "expectedReturnDate": zod.coerce.date().nullable(),
+  "confirmedByMembershipId": zod.number().nullable(),
+  "confirmedAt": zod.coerce.date().nullable(),
+  "idempotencyKey": zod.string().nullable(),
+  "actorMembershipId": zod.number().nullable(),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 2 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.3). One row of the authoritative, append-only stock ledger. Workstream 2 only ever produces `movementType: received` rows; every other enum value exists for later workstreams.'),
+  "holderMovement": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "itemId": zod.number(),
+  "movementType": zod.enum(['received', 'issued', 'returned', 'transferred_out', 'transferred_in', 'adjustment_in', 'adjustment_out', 'written_off', 'missing', 'recovered', 'asset_handoff']),
+  "quantity": zod.string(),
+  "storeId": zod.number().nullable(),
+  "holderType": zod.union([zod.literal('employee'),zod.literal('department'),zod.literal(null)]).nullable(),
+  "holderId": zod.number().nullable(),
+  "referenceNumber": zod.string().nullable(),
+  "sourceReferenceType": zod.union([zod.literal('request_line'),zod.literal('incident'),zod.literal('stocktake_line'),zod.literal('asset'),zod.literal(null)]).nullable(),
+  "sourceReferenceId": zod.number().nullable(),
+  "source": zod.string().nullable(),
+  "deliveryReference": zod.string().nullable(),
+  "unitCost": zod.string().nullable(),
+  "condition": zod.union([zod.literal('new'),zod.literal('good'),zod.literal('fair'),zod.literal('poor'),zod.literal('damaged'),zod.literal(null)]).nullable(),
+  "reason": zod.string().nullable(),
+  "expectedReturnDate": zod.coerce.date().nullable(),
+  "confirmedByMembershipId": zod.number().nullable(),
+  "confirmedAt": zod.coerce.date().nullable(),
+  "idempotencyKey": zod.string().nullable(),
+  "actorMembershipId": zod.number().nullable(),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 2 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.3). One row of the authoritative, append-only stock ledger. Workstream 2 only ever produces `movementType: received` rows; every other enum value exists for later workstreams.'),
+  "replay": zod.boolean()
+})
+
+
+/**
+ * Confirmable by the recipient employee, or — for department custody — the original requester or any employee whose own current department matches the holder.
+ * @summary Confirm physical receipt of an issued item — non-gating (§18); the custody change already occurred when it was issued
+ */
+export const ConfirmOfficeInventoryReceiptParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "movementId": zod.coerce.number()
+})
+
+export const ConfirmOfficeInventoryReceiptResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "itemId": zod.number(),
+  "movementType": zod.enum(['received', 'issued', 'returned', 'transferred_out', 'transferred_in', 'adjustment_in', 'adjustment_out', 'written_off', 'missing', 'recovered', 'asset_handoff']),
+  "quantity": zod.string(),
+  "storeId": zod.number().nullable(),
+  "holderType": zod.union([zod.literal('employee'),zod.literal('department'),zod.literal(null)]).nullable(),
+  "holderId": zod.number().nullable(),
+  "referenceNumber": zod.string().nullable(),
+  "sourceReferenceType": zod.union([zod.literal('request_line'),zod.literal('incident'),zod.literal('stocktake_line'),zod.literal('asset'),zod.literal(null)]).nullable(),
+  "sourceReferenceId": zod.number().nullable(),
+  "source": zod.string().nullable(),
+  "deliveryReference": zod.string().nullable(),
+  "unitCost": zod.string().nullable(),
+  "condition": zod.union([zod.literal('new'),zod.literal('good'),zod.literal('fair'),zod.literal('poor'),zod.literal('damaged'),zod.literal(null)]).nullable(),
+  "reason": zod.string().nullable(),
+  "expectedReturnDate": zod.coerce.date().nullable(),
+  "confirmedByMembershipId": zod.number().nullable(),
+  "confirmedAt": zod.coerce.date().nullable(),
+  "idempotencyKey": zod.string().nullable(),
+  "actorMembershipId": zod.number().nullable(),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 2 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.3). One row of the authoritative, append-only stock ledger. Workstream 2 only ever produces `movementType: received` rows; every other enum value exists for later workstreams.')
+
+
+/**
+ * Item accountability only — never salary, banking, statutory identifiers, personnel-file documents, performance, or leave data.
+ * @summary What an employee currently holds, live-derived from the ledger — gated office_inventory.custody.read
+ */
+export const GetOfficeInventoryEmployeeCustodyParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const GetOfficeInventoryEmployeeCustodyResponseItem = zod.object({
+  "itemId": zod.number(),
+  "balance": zod.string()
+})
+export const GetOfficeInventoryEmployeeCustodyResponse = zod.array(GetOfficeInventoryEmployeeCustodyResponseItem)
+
+
+/**
+ * @summary What a department currently holds, live-derived from the ledger — gated office_inventory.custody.read
+ */
+export const GetOfficeInventoryDepartmentCustodyParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "departmentId": zod.coerce.number()
+})
+
+export const GetOfficeInventoryDepartmentCustodyResponseItem = zod.object({
+  "itemId": zod.number(),
+  "balance": zod.string()
+})
+export const GetOfficeInventoryDepartmentCustodyResponse = zod.array(GetOfficeInventoryDepartmentCustodyResponseItem)
+
+

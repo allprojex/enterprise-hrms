@@ -161,6 +161,12 @@ const officeInventoryConfigSchema = z
     // Office Inventory, Workstream 3 — a third independent number series
     // via the same numbering-engine shape, for office_inventory_requests.
     requestNumber: officeInventoryItemNumberConfigSchema.optional(),
+    // Office Inventory, Workstream 4 — a fourth independent number series,
+    // for issue/fulfilment/direct-issue movement pairs (shared by both —
+    // there is no separate sequence for direct issue; the distinguishing
+    // signal between the two is `sourceReferenceType` on the ledger row
+    // itself, not the reference number series).
+    issueNumber: officeInventoryItemNumberConfigSchema.optional(),
     repeatRequestReviewWindowDays: z.number().int().min(0).max(365).optional(),
     costTrackingEnabled: z.boolean().optional(),
     directIssueEnabled: z.boolean().optional(),
@@ -296,6 +302,13 @@ export const CONFIG_NAMESPACES: Record<string, NamespaceDefinition> = {
       },
       requestNumber: {
         prefix: "REQ",
+        separator: "-",
+        sequenceLength: 5,
+        startingSequence: 1,
+        resetPolicy: "never",
+      },
+      issueNumber: {
+        prefix: "ISS",
         separator: "-",
         sequenceLength: 5,
         startingSequence: 1,

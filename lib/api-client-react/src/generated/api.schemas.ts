@@ -7705,6 +7705,64 @@ export interface CreateOfficeInventoryDelegationBody {
   delegateMembershipId: number;
 }
 
+/**
+ * Office Inventory, Workstream 4 (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §16). Issues against this line's own remaining approved-but-unissued quantity (approvedQuantity - quantityIssuedSoFar). Supports partial fulfilment — multiple issue calls against the same line are normal.
+ */
+export interface IssueRequestLineBody {
+  storeId: number;
+  /** Positive numeric(12,2)-shaped string. Must not exceed the line's remaining approved-but-unissued quantity. */
+  quantity: string;
+  /** Only meaningful for a returnable item; rejected for a consumable item. */
+  expectedReturnDate?: string;
+  idempotencyKey?: string;
+}
+
+export interface IssueResult {
+  storeMovement: OfficeInventoryStockMovement;
+  holderMovement: OfficeInventoryStockMovement;
+  line: OfficeInventoryRequestLine;
+  request: OfficeInventoryRequest;
+  replay: boolean;
+}
+
+export type DirectIssueBodyHolderType = typeof DirectIssueBodyHolderType[keyof typeof DirectIssueBodyHolderType];
+
+
+export const DirectIssueBodyHolderType = {
+  employee: 'employee',
+  department: 'department',
+} as const;
+
+/**
+ * docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §17 — bypasses a prior request but not inventory controls. `sourceReferenceType` is always null on the resulting ledger rows, the permanent historical signal distinguishing this from request-based fulfilment.
+ */
+export interface DirectIssueBody {
+  storeId: number;
+  itemId: number;
+  quantity: string;
+  holderType: DirectIssueBodyHolderType;
+  holderId: number;
+  reason: string;
+  expectedReturnDate?: string;
+  idempotencyKey?: string;
+}
+
+export interface DirectIssueResult {
+  storeMovement: OfficeInventoryStockMovement;
+  holderMovement: OfficeInventoryStockMovement;
+  replay: boolean;
+}
+
+export interface OfficeInventoryAwaitingFulfilmentEntry {
+  request: OfficeInventoryRequest;
+  lines: OfficeInventoryRequestLine[];
+}
+
+export interface OfficeInventoryCustodyEntry {
+  itemId: number;
+  balance: string;
+}
+
 export type ListEmployeesParams = {
 search?: string;
 departmentId?: number;

@@ -17396,6 +17396,256 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/office-inventory/requests/awaiting-fulfilment:
+    get:
+      operationId: listOfficeInventoryRequestsAwaitingFulfilment
+      tags: [office-inventory-issuing]
+      summary: The Store Officer's own queue — every request org-wide with at least one approved-but-not-fully-issued line (Workstream 4)
+      description: Gated `office_inventory.issue` only — independent of departmental approval authority.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Requests awaiting fulfilment, with their lines
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OfficeInventoryAwaitingFulfilmentEntry"
+        "403":
+          description: Forbidden — requires office_inventory.issue, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/request-lines/{lineId}/issue:
+    post:
+      operationId: issueOfficeInventoryRequestLine
+      tags: [office-inventory-issuing]
+      summary: Issue stock against an approved request line, in full or in part — gated office_inventory.issue
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: lineId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IssueRequestLineBody"
+      responses:
+        "201":
+          description: Issue result (or, on idempotency replay, the original)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IssueResult"
+        "400":
+          description: Invalid quantity, expectedReturnDate on a consumable item, or store not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires office_inventory.issue, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Request line not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Line not approved, over-fulfilment, or insufficient stock
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/direct-issue:
+    post:
+      operationId: createOfficeInventoryDirectIssue
+      tags: [office-inventory-issuing]
+      summary: Direct issue — bypasses a prior request, gated office_inventory.issue.direct (distinct from office_inventory.issue)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DirectIssueBody"
+      responses:
+        "201":
+          description: Direct issue result (or, on idempotency replay, the original)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DirectIssueResult"
+        "400":
+          description: Missing reason, invalid quantity, expectedReturnDate on a consumable item, or store/item/holder not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires office_inventory.issue.direct, or module not enabled, or direct issue disabled for this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Insufficient stock
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/movements/{movementId}/confirm:
+    post:
+      operationId: confirmOfficeInventoryReceipt
+      tags: [office-inventory-issuing]
+      summary: Confirm physical receipt of an issued item — non-gating (§18); the custody change already occurred when it was issued
+      description: >-
+        Confirmable by the recipient employee, or — for department custody
+        — the original requester or any employee whose own current
+        department matches the holder.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: movementId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Confirmed movement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryStockMovement"
+        "403":
+          description: Forbidden — requires office_inventory.receipt.confirm.own, and eligibility (recipient, original requester, or department member)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Movement not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Already confirmed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/custody/employees/{employeeId}:
+    get:
+      operationId: getOfficeInventoryEmployeeCustody
+      tags: [office-inventory-issuing]
+      summary: What an employee currently holds, live-derived from the ledger — gated office_inventory.custody.read
+      description: >-
+        Item accountability only — never salary, banking, statutory
+        identifiers, personnel-file documents, performance, or leave data.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Current custody
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OfficeInventoryCustodyEntry"
+        "403":
+          description: Forbidden — requires office_inventory.custody.read, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/custody/departments/{departmentId}:
+    get:
+      operationId: getOfficeInventoryDepartmentCustody
+      tags: [office-inventory-issuing]
+      summary: What a department currently holds, live-derived from the ledger — gated office_inventory.custody.read
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: departmentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Current custody
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OfficeInventoryCustodyEntry"
+        "403":
+          description: Forbidden — requires office_inventory.custody.read, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Department not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -26344,3 +26594,99 @@ components:
       properties:
         delegateMembershipId:
           type: integer
+
+    IssueRequestLineBody:
+      type: object
+      description: >-
+        Office Inventory, Workstream 4
+        (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §16). Issues against
+        this line's own remaining approved-but-unissued quantity
+        (approvedQuantity - quantityIssuedSoFar). Supports partial
+        fulfilment — multiple issue calls against the same line are normal.
+      required: [storeId, quantity]
+      properties:
+        storeId:
+          type: integer
+        quantity:
+          type: string
+          description: Positive numeric(12,2)-shaped string. Must not exceed the line's remaining approved-but-unissued quantity.
+        expectedReturnDate:
+          type: string
+          format: date
+          description: Only meaningful for a returnable item; rejected for a consumable item.
+        idempotencyKey:
+          type: string
+
+    IssueResult:
+      type: object
+      required: [storeMovement, holderMovement, line, request, replay]
+      properties:
+        storeMovement:
+          $ref: "#/components/schemas/OfficeInventoryStockMovement"
+        holderMovement:
+          $ref: "#/components/schemas/OfficeInventoryStockMovement"
+        line:
+          $ref: "#/components/schemas/OfficeInventoryRequestLine"
+        request:
+          $ref: "#/components/schemas/OfficeInventoryRequest"
+        replay:
+          type: boolean
+
+    DirectIssueBody:
+      type: object
+      description: >-
+        docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §17 — bypasses a prior
+        request but not inventory controls. `sourceReferenceType` is always
+        null on the resulting ledger rows, the permanent historical signal
+        distinguishing this from request-based fulfilment.
+      required: [storeId, itemId, quantity, holderType, holderId, reason]
+      properties:
+        storeId:
+          type: integer
+        itemId:
+          type: integer
+        quantity:
+          type: string
+        holderType:
+          type: string
+          enum: [employee, department]
+        holderId:
+          type: integer
+        reason:
+          type: string
+        expectedReturnDate:
+          type: string
+          format: date
+        idempotencyKey:
+          type: string
+
+    DirectIssueResult:
+      type: object
+      required: [storeMovement, holderMovement, replay]
+      properties:
+        storeMovement:
+          $ref: "#/components/schemas/OfficeInventoryStockMovement"
+        holderMovement:
+          $ref: "#/components/schemas/OfficeInventoryStockMovement"
+        replay:
+          type: boolean
+
+    OfficeInventoryAwaitingFulfilmentEntry:
+      type: object
+      required: [request, lines]
+      properties:
+        request:
+          $ref: "#/components/schemas/OfficeInventoryRequest"
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/OfficeInventoryRequestLine"
+
+    OfficeInventoryCustodyEntry:
+      type: object
+      required: [itemId, balance]
+      properties:
+        itemId:
+          type: integer
+        balance:
+          type: string
