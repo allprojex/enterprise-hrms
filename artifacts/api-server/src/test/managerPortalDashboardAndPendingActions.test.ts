@@ -153,11 +153,33 @@ vi.mock("../lib/attendanceReporting", () => ({
   },
 }));
 
+// Leave Approval Workflow Reconciliation: the real listPendingApprovals now
+// takes {isOrgWideHr, headedDepartmentIds} instead of an
+// (approverEmployeeId, isOrgWide) pair, and authority is Department-Head-
+// resolved via lib/departmentHeads.ts rather than reportingManagerId. This
+// test file's own purpose is verifying the Manager Portal's AGGREGATION
+// layer, not re-proving Leave/Department-Head correctness (covered by
+// leaveApprovals.test.ts/departmentHeads.test.ts) — so the mocked
+// listDepartmentsHeadedByMembership below bridges membershipId back to the
+// caller's own actorEmployeeIdByUser identity and reuses the existing
+// directReportsByManager fixture verbatim (treating "headed department"
+// as a stand-in single-element list containing the caller's own
+// managerEmployeeId), so no individual test body below needs to change.
+vi.mock("../lib/departmentHeads", () => ({
+  listDepartmentsHeadedByMembership: async (_organizationId: number, membershipId: number) => {
+    const membership = state.membershipRows.find((m) => m.id === membershipId);
+    if (!membership) return [];
+    const employeeId = state.actorEmployeeIdByUser.get(membership.applicationUserId as number);
+    return employeeId != null ? [employeeId] : [];
+  },
+}));
+
 vi.mock("../lib/leaveApprovals", () => ({
-  listPendingApprovals: async (organizationId: number, approverEmployeeId: number | null, isOrgWide: boolean) => {
-    if (isOrgWide) return state.leaveRequests.filter((r) => r.organizationId === organizationId && r.status === "pending");
-    if (approverEmployeeId == null) return [];
-    const managedIds = (state.directReportsByManager.get(approverEmployeeId) ?? []).map((e) => e.id);
+  listPendingApprovals: async (organizationId: number, params: { isOrgWideHr: boolean; headedDepartmentIds: number[] }) => {
+    if (params.isOrgWideHr) return state.leaveRequests.filter((r) => r.organizationId === organizationId && r.status === "pending");
+    const managerEmployeeId = params.headedDepartmentIds[0];
+    if (managerEmployeeId == null) return [];
+    const managedIds = (state.directReportsByManager.get(managerEmployeeId) ?? []).map((e) => e.id);
     return state.leaveRequests.filter((r) => r.organizationId === organizationId && r.status === "pending" && managedIds.includes(r.employeeId));
   },
 }));

@@ -20,6 +20,7 @@ import { getModuleAccess } from "./organizationModules";
 import { hasPermission } from "./permissions";
 import { resolveManagerPortalActorEmployeeId } from "./managerPortalAuthorization";
 import { listPendingApprovals } from "./leaveApprovals";
+import { listDepartmentsHeadedByMembership } from "./departmentHeads";
 import { resolvePerformanceActorEmployeeId } from "./performanceAuthorization";
 import { listTeamReviews } from "./performanceManagerReview";
 import { resolveLearningActorEmployeeId } from "./learningAuthorization";
@@ -52,14 +53,15 @@ interface RawItem {
   createdAt: Date;
 }
 
-/** Direct-reports-only for a plain manager; org-wide if the caller separately holds leave_request.manage — identical resolution to the Dashboard's own Leave tile (frozen plan §31). */
-async function resolveLeaveItems(organizationId: number, membershipId: number, managerEmployeeId: number | null): Promise<RawItem[]> {
+/** Department-Head-scoped for a plain caller; org-wide if the caller separately holds leave_request.manage — identical resolution to the Dashboard's own Leave tile (frozen plan §31), reworked for Department Head authority by the Leave Approval Workflow Reconciliation. */
+async function resolveLeaveItems(organizationId: number, membershipId: number): Promise<RawItem[]> {
   const moduleAccess = await getModuleAccess(organizationId, "leave");
   if (!moduleAccess.enabled) return [];
   if (!(await hasPermission(membershipId, "leave_request.approve"))) return [];
 
-  const isOrgWide = await hasPermission(membershipId, "leave_request.manage");
-  const requests = await listPendingApprovals(organizationId, managerEmployeeId, isOrgWide);
+  const isOrgWideHr = await hasPermission(membershipId, "leave_request.manage");
+  const headedDepartmentIds = isOrgWideHr ? [] : await listDepartmentsHeadedByMembership(organizationId, membershipId);
+  const requests = await listPendingApprovals(organizationId, { isOrgWideHr, headedDepartmentIds });
   return requests.map((r) => ({
     sourceModule: "leave" as const,
     id: r.id,
@@ -130,7 +132,7 @@ export async function resolveManagerPortalPendingActions(
   const managerEmployeeId = await resolveManagerPortalActorEmployeeId(organizationId, applicationUserId);
 
   const [leaveItems, performanceItems, learningItems] = await Promise.all([
-    resolveLeaveItems(organizationId, membershipId, managerEmployeeId),
+    resolveLeaveItems(organizationId, membershipId),
     resolvePerformanceItems(organizationId, membershipId, applicationUserId),
     resolveLearningItems(organizationId, membershipId, applicationUserId),
   ]);

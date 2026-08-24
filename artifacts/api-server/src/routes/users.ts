@@ -8,6 +8,7 @@ import { listOrganizationModules, getModuleAccess } from "../lib/organizationMod
 import { hasPermission } from "../lib/permissions";
 import { resolveOwnEmployeeId } from "../lib/leaveRequests";
 import { listPendingApprovals } from "../lib/leaveApprovals";
+import { listDepartmentsHeadedByMembership } from "../lib/departmentHeads";
 import { getLeaveDashboardMetrics, type LeaveDashboardMetrics } from "../lib/leaveDashboardMetrics";
 import {
   resolveAttendanceReportScope,
@@ -48,7 +49,8 @@ async function resolveLeaveDashboardMetrics(
     employeeIds = [...(ownEmployeeId != null ? [ownEmployeeId] : []), ...managed.map((e) => e.id)];
   }
 
-  const pendingApprovals = await listPendingApprovals(organizationId, ownEmployeeId, isOrgWide);
+  const headedDepartmentIds = isOrgWide ? [] : await listDepartmentsHeadedByMembership(organizationId, membership.id);
+  const pendingApprovals = await listPendingApprovals(organizationId, { isOrgWideHr: isOrgWide, headedDepartmentIds });
 
   return getLeaveDashboardMetrics({
     organizationId,

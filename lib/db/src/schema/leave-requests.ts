@@ -18,8 +18,16 @@ import { usersTable } from "./users";
 // intentionally not referenced here (W37 doesn't exist yet); day-count
 // exclusion for holidays is a pure service-layer concern layered on top of
 // this same `daysRequested` column later, not a schema change.
+//
+// Two-stage approval (Leave Approval Workflow Reconciliation): "pending_hr"
+// is the only new status value — Department Head vs. HR rejection is
+// deliberately NOT a second pair of enum values; it's derived from which of
+// the two decision-column groups below got populated, per the platform
+// principle of not inventing duplicate statuses when the existing model (a
+// few extra nullable columns) already represents the workflow cleanly.
 export const leaveRequestStatusEnum = pgEnum("leave_request_status", [
   "pending",
+  "pending_hr",
   "approved",
   "rejected",
   "cancelled",
@@ -51,15 +59,25 @@ export const leaveRequestsTable = pgTable(
     }),
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
     cancelledBy: integer("cancelled_by").references(() => usersTable.id, { onDelete: "set null" }),
-    // Approval (W35): a single-level decision, exactly the three columns the
-    // frozen plan specifies. approvedBy/approvedAt are set only on an actual
-    // approval; a rejection's actor/timestamp is deliberately not duplicated
-    // here — it already lives in the audit_events row the decision is
-    // recorded through (Architecture Principle 6), the same reasoning that
-    // keeps routine ledger postings out of the audit log in the other
-    // direction.
+    // Approval — now two stages (Leave Approval Workflow Reconciliation):
+    // Department Head first, HR final. approvedBy/approvedAt/rejectionReason
+    // (unchanged column names) now represent the FINAL/HR-stage decision
+    // only; departmentHead*/rejectedBy/rejectedAt below are the new columns
+    // this workflow needed. Unlike W35's original single-stage design, both
+    // stages' actor identity and timestamp are now stored directly on the
+    // row (not left to the audit_events trail alone) so a Department Head's
+    // decision is never overwritten or lost when HR subsequently acts, and
+    // survives a later Department Head replacement unchanged — the row
+    // captures who actually acted, not who currently holds the role.
+    departmentHeadApprovedBy: integer("department_head_approved_by").references(() => usersTable.id, { onDelete: "set null" }),
+    departmentHeadApprovedAt: timestamp("department_head_approved_at", { withTimezone: true }),
+    departmentHeadRejectedBy: integer("department_head_rejected_by").references(() => usersTable.id, { onDelete: "set null" }),
+    departmentHeadRejectedAt: timestamp("department_head_rejected_at", { withTimezone: true }),
+    departmentHeadRejectionReason: text("department_head_rejection_reason"),
     approvedBy: integer("approved_by").references(() => usersTable.id, { onDelete: "set null" }),
     approvedAt: timestamp("approved_at", { withTimezone: true }),
+    rejectedBy: integer("rejected_by").references(() => usersTable.id, { onDelete: "set null" }),
+    rejectedAt: timestamp("rejected_at", { withTimezone: true }),
     rejectionReason: text("rejection_reason"),
     createdBy: integer("created_by").references(() => usersTable.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

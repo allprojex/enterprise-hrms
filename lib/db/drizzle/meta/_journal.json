@@ -386,6 +386,13 @@
       "when": 1787537362690,
       "tag": "0054_bouncy_katie_power",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1787613946621,
+      "tag": "0055_shallow_morlocks",
+      "breakpoints": true
     }
   ]
 }

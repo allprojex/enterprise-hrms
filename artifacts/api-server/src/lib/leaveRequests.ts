@@ -23,6 +23,7 @@ import {
 import { recordAuditEvent } from "./auditLog";
 import { getEmployeeById } from "./employees";
 import { resolveHolidayDatesInRange } from "./publicHolidays";
+import { resolveDepartmentHeadIdentity } from "./departmentHeads";
 
 export class InvalidLeaveRequestError extends Error {}
 
@@ -160,6 +161,40 @@ export async function resolveApplicablePolicy(
   return matches.sort((a, b) => policySpecificity(b) - policySpecificity(a))[0];
 }
 
+/**
+ * The 6 workflow-stage labels HR/ESS need to render (binding requirement
+ * #4) — deliberately derived from the existing status + decision columns
+ * rather than a bigger status enum, per "do not invent duplicate statuses
+ * if the existing model can represent these states cleanly."
+ */
+export type LeaveWorkflowStage =
+  | "awaiting_department_head"
+  | "awaiting_hr"
+  | "rejected_by_department_head"
+  | "approved"
+  | "rejected_by_hr"
+  | "cancelled";
+
+export function deriveLeaveRequestWorkflowStage(row: LeaveRequest): LeaveWorkflowStage {
+  switch (row.status) {
+    case "pending":
+      return "awaiting_department_head";
+    case "pending_hr":
+      return "awaiting_hr";
+    case "approved":
+      return "approved";
+    case "cancelled":
+      return "cancelled";
+    case "rejected":
+      return row.departmentHeadRejectedAt != null ? "rejected_by_department_head" : "rejected_by_hr";
+  }
+}
+
+/** Response shaping — every leave-request API response includes its derived workflowStage, never just the raw status. */
+export function withWorkflowStage<T extends LeaveRequest>(row: T): T & { workflowStage: LeaveWorkflowStage } {
+  return { ...row, workflowStage: deriveLeaveRequestWorkflowStage(row) };
+}
+
 export async function listLeaveRequests(organizationId: number, employeeId: number): Promise<LeaveRequest[]> {
   return db
     .select()
@@ -263,13 +298,34 @@ export async function createLeaveRequest(params: {
       and(
         eq(leaveRequestsTable.employeeId, params.employeeId),
         eq(leaveRequestsTable.organizationId, params.organizationId),
-        inArray(leaveRequestsTable.status, ["pending", "approved"]),
+        inArray(leaveRequestsTable.status, ["pending", "pending_hr", "approved"]),
       ),
     );
   const overlaps = existing.some((row) => row.startDate <= params.endDate && row.endDate >= params.startDate);
   if (overlaps) {
     throw new InvalidLeaveRequestError("Employee already has a pending or approved request overlapping these dates");
   }
+
+  // Two-stage approval routing: every request starts "pending" (awaiting
+  // the employee's current Department Head) UNLESS there is no one who
+  // could actually hold that authority for it — the department is unset or
+  // currently vacant, or the only resolvable Head IS the requesting
+  // employee themself (who can never approve their own request, mirroring
+  // the existing SelfApprovalNotAllowedError rule at the approval stage
+  // itself). In either case the request starts "pending_hr" instead, so it
+  // is never stuck unapprovable — HR is always the fallback authoritative
+  // approver. This is a one-time decision made at submission; if a Head is
+  // assigned afterward, this specific request is not retroactively rerouted
+  // (Department Head authority is still re-resolved live for every OTHER
+  // request submitted from then on).
+  const head = await resolveDepartmentHeadIdentity(params.organizationId, employee.departmentId);
+  const [ownLink] = await db
+    .select({ applicationUserId: employeeUserLinksTable.applicationUserId })
+    .from(employeeUserLinksTable)
+    .where(eq(employeeUserLinksTable.employeeId, params.employeeId))
+    .limit(1);
+  const requesterIsTheHead = head != null && ownLink != null && head.headApplicationUserId === ownLink.applicationUserId;
+  const initialStatus = head != null && !requesterIsTheHead ? "pending" : "pending_hr";
 
   const [request] = await db
     .insert(leaveRequestsTable)
@@ -281,6 +337,7 @@ export async function createLeaveRequest(params: {
       startDate: params.startDate,
       endDate: params.endDate,
       daysRequested: daysRequested.toString(),
+      status: initialStatus,
       reason: params.reason ?? null,
       attachmentDocumentId: params.attachmentDocumentId ?? null,
       createdBy: params.actorApplicationUserId,
@@ -297,7 +354,14 @@ export async function createLeaveRequest(params: {
     eventType: "leave_request.submitted",
     targetType: "leave_request",
     targetId: String(request.id),
-    afterState: { employeeId: request.employeeId, leaveTypeId: request.leaveTypeId, startDate: request.startDate, endDate: request.endDate, daysRequested: request.daysRequested },
+    afterState: {
+      employeeId: request.employeeId,
+      leaveTypeId: request.leaveTypeId,
+      startDate: request.startDate,
+      endDate: request.endDate,
+      daysRequested: request.daysRequested,
+      status: request.status,
+    },
   });
 
   return request;
@@ -322,7 +386,7 @@ export async function cancelLeaveRequest(params: {
     )
     .limit(1);
   if (!before) throw new LeaveRequestNotFoundError();
-  if (before.status !== "pending") throw new LeaveRequestNotCancellableError();
+  if (before.status !== "pending" && before.status !== "pending_hr") throw new LeaveRequestNotCancellableError();
 
   const [updated] = await db
     .update(leaveRequestsTable)

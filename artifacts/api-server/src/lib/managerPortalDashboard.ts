@@ -52,6 +52,7 @@ import {
 } from "./attendanceDailySummary";
 import { resolveOrganizationTodayCivilDate } from "./attendanceReporting";
 import { listPendingApprovals } from "./leaveApprovals";
+import { listDepartmentsHeadedByMembership } from "./departmentHeads";
 import { resolvePerformanceActorEmployeeId } from "./performanceAuthorization";
 import { listTeamReviews } from "./performanceManagerReview";
 import { resolveLearningActorEmployeeId } from "./learningAuthorization";
@@ -95,19 +96,24 @@ async function resolveAttendanceAbsentOrLateTodayCount(
 }
 
 /**
- * Direct-reports-only for a plain manager; org-wide if the caller separately
- * holds leave_request.manage — reuses listPendingApprovals's own existing
- * isOrgWide branch verbatim (frozen plan §31, explicit Decision-4 carve-out
- * for Leave specifically, unlike Attendance/Assets/Learning which stay
- * strictly direct-report scoped even for HR/admin).
+ * Department-Head-scoped for a plain caller; org-wide if the caller
+ * separately holds leave_request.manage — reuses listPendingApprovals's own
+ * existing isOrgWideHr branch verbatim (frozen plan §31, explicit
+ * Decision-4 carve-out for Leave specifically, unlike Attendance/Assets/
+ * Learning which stay strictly direct-report scoped even for HR/admin).
+ * Reworked by the Leave Approval Workflow Reconciliation: this tile now
+ * reflects Department Head authority (lib/departmentHeads.ts), not
+ * reportingManagerId — a manager who isn't the actual Department Head no
+ * longer sees a stale non-zero count here.
  */
-async function resolvePendingLeaveActionsCount(organizationId: number, membershipId: number, managerEmployeeId: number | null): Promise<number | null> {
+async function resolvePendingLeaveActionsCount(organizationId: number, membershipId: number): Promise<number | null> {
   const moduleAccess = await getModuleAccess(organizationId, "leave");
   if (!moduleAccess.enabled) return null;
   if (!(await hasPermission(membershipId, "leave_request.approve"))) return null;
 
-  const isOrgWide = await hasPermission(membershipId, "leave_request.manage");
-  const requests = await listPendingApprovals(organizationId, managerEmployeeId, isOrgWide);
+  const isOrgWideHr = await hasPermission(membershipId, "leave_request.manage");
+  const headedDepartmentIds = isOrgWideHr ? [] : await listDepartmentsHeadedByMembership(organizationId, membershipId);
+  const requests = await listPendingApprovals(organizationId, { isOrgWideHr, headedDepartmentIds });
   return requests.length;
 }
 
@@ -167,7 +173,7 @@ export async function resolveManagerPortalDashboard(
   const [attendanceAbsentOrLateTodayCount, pendingLeaveActionsCount, pendingPerformanceActionsCount, pendingLearningActionsCount, teamAssetsInCustodyCount] =
     await Promise.all([
       resolveAttendanceAbsentOrLateTodayCount(organizationId, membershipId, directReportIds),
-      resolvePendingLeaveActionsCount(organizationId, membershipId, managerEmployeeId),
+      resolvePendingLeaveActionsCount(organizationId, membershipId),
       resolvePendingPerformanceActionsCount(organizationId, membershipId, applicationUserId),
       resolvePendingLearningActionsCount(organizationId, membershipId, applicationUserId),
       resolveTeamAssetsInCustodyCount(organizationId, membershipId, applicationUserId),

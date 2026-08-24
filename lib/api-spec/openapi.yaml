@@ -19597,7 +19597,25 @@ components:
           description: Decimal string, computed server-side.
         status:
           type: string
-          enum: [pending, approved, rejected, cancelled]
+          description: >-
+            "pending" = awaiting the employee's current Department Head;
+            "pending_hr" = Department Head approved, awaiting HR's final
+            decision. See `workflowStage` for the 6 owner-facing labels
+            (also distinguishes which stage a "rejected" request was
+            rejected at).
+          enum: [pending, pending_hr, approved, rejected, cancelled]
+        workflowStage:
+          type: string
+          description: Derived, never stored — the exact stage label HR/ESS should render.
+          enum:
+            [
+              awaiting_department_head,
+              awaiting_hr,
+              rejected_by_department_head,
+              approved,
+              rejected_by_hr,
+              cancelled,
+            ]
         reason:
           type: ["string", "null"]
         attachmentDocumentId:
@@ -19607,14 +19625,34 @@ components:
           format: date-time
         cancelledBy:
           type: ["integer", "null"]
+        departmentHeadApprovedBy:
+          type: ["integer", "null"]
+          description: The user id of the Department Head who approved this request's first stage. Never overwritten by a later HR action or a subsequent Department Head replacement.
+        departmentHeadApprovedAt:
+          type: ["string", "null"]
+          format: date-time
+        departmentHeadRejectedBy:
+          type: ["integer", "null"]
+        departmentHeadRejectedAt:
+          type: ["string", "null"]
+          format: date-time
+        departmentHeadRejectionReason:
+          type: ["string", "null"]
         approvedBy:
           type: ["integer", "null"]
-          description: Set only on an actual approval. A rejection's actor/timestamp lives in the audit trail instead (Architecture Principle 6).
+          description: The user id who gave FINAL (HR-stage) approval.
         approvedAt:
+          type: ["string", "null"]
+          format: date-time
+        rejectedBy:
+          type: ["integer", "null"]
+          description: The user id who gave the FINAL (HR-stage) rejection. Null when the request was instead rejected at the Department Head stage — see departmentHeadRejectedBy.
+        rejectedAt:
           type: ["string", "null"]
           format: date-time
         rejectionReason:
           type: ["string", "null"]
+          description: The HR-stage rejection reason. See departmentHeadRejectionReason for a Department-Head-stage rejection.
         createdBy:
           type: ["integer", "null"]
         createdAt:
@@ -19683,9 +19721,15 @@ components:
 
     RejectLeaveRequestInput:
       type: object
+      description: >-
+        Rejecting a leave request (at either the Department Head or HR
+        stage) always requires a non-empty reason — Leave Approval Workflow
+        Reconciliation binding rules #5/#6.
+      required: [reason]
       properties:
         reason:
           type: string
+          minLength: 1
 
     CreateLeaveRequestInput:
       type: object

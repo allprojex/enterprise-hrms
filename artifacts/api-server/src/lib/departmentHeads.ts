@@ -20,7 +20,7 @@
  * at once, even if the row lock were somehow bypassed.
  */
 import { and, eq, isNull } from "drizzle-orm";
-import { db, departmentsTable, departmentHeadsTable, type DepartmentHead } from "@workspace/db";
+import { db, departmentsTable, departmentHeadsTable, organizationMembershipsTable, type DepartmentHead } from "@workspace/db";
 import { recordAuditEvent } from "./auditLog";
 
 export class DepartmentNotFoundError extends Error {
@@ -179,4 +179,56 @@ export function pickDepartmentHeadAsOf(history: DepartmentHead[], asOfDate: Date
 export async function resolveDepartmentHeadAsOf(organizationId: number, departmentId: number, asOfDate: Date = new Date()): Promise<DepartmentHead | null> {
   const history = await listDepartmentHeadHistory(organizationId, departmentId);
   return pickDepartmentHeadAsOf(history, asOfDate);
+}
+
+/**
+ * The inverse lookup: every department this membership is CURRENTLY the
+ * open Head of. General-purpose (any consumer needing "what does this
+ * membership have Department Head authority over right now" — Leave's
+ * approval-authority resolver is the first consumer, not a special case).
+ */
+export async function listDepartmentsHeadedByMembership(organizationId: number, membershipId: number): Promise<number[]> {
+  const rows = await db
+    .select({ departmentId: departmentHeadsTable.departmentId })
+    .from(departmentHeadsTable)
+    .where(
+      and(
+        eq(departmentHeadsTable.organizationId, organizationId),
+        eq(departmentHeadsTable.headMembershipId, membershipId),
+        isNull(departmentHeadsTable.validTo),
+      ),
+    );
+  return rows.map((r) => r.departmentId);
+}
+
+export interface DepartmentHeadIdentity {
+  headMembershipId: number;
+  headApplicationUserId: number;
+}
+
+/**
+ * The CURRENT authoritative Department Head for a department, resolved down
+ * to their application-user identity as well as their membership id — the
+ * single shared resolver any consumer (Leave's approval workflow today,
+ * potentially others later) uses so there is exactly one definition of "who
+ * is the Head" across the organization. Re-derive this fresh at the moment
+ * of every authorization decision; never cache it across a request's
+ * lifetime. Null when the department is unset or currently vacant — a
+ * vacancy is never silently routed to a fallback approver here; that
+ * decision belongs to the caller.
+ */
+export async function resolveDepartmentHeadIdentity(
+  organizationId: number,
+  departmentId: number | null,
+): Promise<DepartmentHeadIdentity | null> {
+  if (departmentId == null) return null;
+  const head = await getCurrentDepartmentHead(organizationId, departmentId);
+  if (!head) return null;
+  const [membership] = await db
+    .select({ applicationUserId: organizationMembershipsTable.applicationUserId })
+    .from(organizationMembershipsTable)
+    .where(eq(organizationMembershipsTable.id, head.headMembershipId))
+    .limit(1);
+  if (!membership) return null;
+  return { headMembershipId: head.headMembershipId, headApplicationUserId: membership.applicationUserId };
 }

@@ -32,11 +32,22 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 
-const STATUS_VARIANT: Record<string, 'secondary' | 'outline' | 'destructive'> = {
-  pending: 'outline',
+const STAGE_VARIANT: Record<string, 'secondary' | 'outline' | 'destructive'> = {
+  awaiting_department_head: 'outline',
+  awaiting_hr: 'outline',
   approved: 'secondary',
-  rejected: 'destructive',
+  rejected_by_department_head: 'destructive',
+  rejected_by_hr: 'destructive',
   cancelled: 'outline',
+};
+
+const STAGE_LABEL: Record<string, string> = {
+  awaiting_department_head: 'Awaiting Department Head',
+  awaiting_hr: 'Awaiting HR',
+  approved: 'Approved',
+  rejected_by_department_head: 'Rejected by Department Head',
+  rejected_by_hr: 'Rejected by HR',
+  cancelled: 'Withdrawn',
 };
 
 export default function MyLeave() {
@@ -242,6 +253,10 @@ export default function MyLeave() {
             <ul className="divide-y divide-border">
               {requests.map((request) => {
                 const leaveTypeName = (leaveTypes ?? []).find((t) => t.id === request.leaveTypeId)?.name ?? `Type #${request.leaveTypeId}`;
+                const stage = request.workflowStage ?? 'awaiting_department_head';
+                const rejectionReason =
+                  stage === 'rejected_by_department_head' ? request.departmentHeadRejectionReason : stage === 'rejected_by_hr' ? request.rejectionReason : null;
+                const canWithdraw = request.status === 'pending' || request.status === 'pending_hr';
                 return (
                   <li key={request.id} className="flex items-center justify-between gap-4 py-3" data-testid={`row-leave-request-${request.id}`}>
                     <div>
@@ -250,12 +265,17 @@ export default function MyLeave() {
                         {new Date(request.startDate).toLocaleDateString()} – {new Date(request.endDate).toLocaleDateString()} · {request.daysRequested} day(s)
                       </p>
                       {request.reason && <p className="text-xs text-muted-foreground">{request.reason}</p>}
+                      {rejectionReason && (
+                        <p className="text-xs text-destructive" data-testid={`text-rejection-reason-${request.id}`}>
+                          Reason: {rejectionReason}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant={STATUS_VARIANT[request.status] ?? 'outline'} className="capitalize">
-                        {request.status}
+                      <Badge variant={STAGE_VARIANT[stage] ?? 'outline'} data-testid={`badge-stage-${request.id}`}>
+                        {STAGE_LABEL[stage] ?? stage}
                       </Badge>
-                      {request.status === 'pending' && (
+                      {canWithdraw && (
                         <Button
                           size="sm"
                           variant="ghost"

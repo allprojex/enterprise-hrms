@@ -5,6 +5,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
@@ -26,6 +27,11 @@ import {
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
+
+const STAGE_LABEL: Record<string, string> = {
+  awaiting_department_head: 'Awaiting Department Head',
+  awaiting_hr: 'Department Head approved — Awaiting HR',
+};
 
 function errorMessage(err: unknown): string | undefined {
   return err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
@@ -90,9 +96,9 @@ export default function LeaveApprovals() {
 
   const handleReject = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!rejectTarget) return;
+    if (!rejectTarget || !rejectReason.trim()) return;
     rejectMutation.mutate(
-      { organizationId, employeeId: rejectTarget.employeeId, id: rejectTarget.id, data: { reason: rejectReason.trim() || undefined } },
+      { organizationId, employeeId: rejectTarget.employeeId, id: rejectTarget.id, data: { reason: rejectReason.trim() } },
       {
         onSuccess: () => {
           invalidate();
@@ -118,7 +124,10 @@ export default function LeaveApprovals() {
     <div className="p-6 lg:p-8 space-y-8">
       <div className="space-y-2">
         <h1 className="text-3xl font-bold text-foreground">Leave Approvals</h1>
-        <p className="text-muted-foreground">Pending requests from your direct reports, or organization-wide if you hold HR authority</p>
+        <p className="text-muted-foreground">
+          Requests you're authorized to act on as the employee's Department Head, or organization-wide if you hold HR authority.
+          HR sees every request from submission, including while it still awaits the Department Head.
+        </p>
       </div>
 
       {pendingLoading ? (
@@ -152,11 +161,23 @@ export default function LeaveApprovals() {
                 return (
                   <li key={request.id} className="flex items-center justify-between gap-4 py-3" data-testid={`row-pending-approval-${request.id}`}>
                     <div>
-                      <p className="text-sm font-medium text-foreground">{employeeName} — {leaveTypeName}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-foreground">{employeeName} — {leaveTypeName}</p>
+                        {request.workflowStage && STAGE_LABEL[request.workflowStage] && (
+                          <Badge variant="outline" data-testid={`badge-stage-${request.id}`}>
+                            {STAGE_LABEL[request.workflowStage]}
+                          </Badge>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground">
                         {new Date(request.startDate).toLocaleDateString()} – {new Date(request.endDate).toLocaleDateString()} · {request.daysRequested} day(s)
                       </p>
                       {request.reason && <p className="text-xs text-muted-foreground">{request.reason}</p>}
+                      {request.departmentHeadApprovedAt && (
+                        <p className="text-xs text-muted-foreground">
+                          Department Head approved {new Date(request.departmentHeadApprovedAt).toLocaleDateString()}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
@@ -195,17 +216,24 @@ export default function LeaveApprovals() {
               <DialogTitle>Reject Leave Request</DialogTitle>
             </DialogHeader>
             <div className="space-y-2 py-4">
-              <Label htmlFor="reject-reason">Reason (optional)</Label>
+              <Label htmlFor="reject-reason">Reason *</Label>
               <Input
                 id="reject-reason"
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 placeholder="Why this request is being rejected"
+                required
                 data-testid="input-reject-reason"
               />
+              <p className="text-xs text-muted-foreground">A reason is required to reject a leave request.</p>
             </div>
             <DialogFooter>
-              <Button type="submit" variant="destructive" disabled={rejectMutation.isPending} data-testid="button-confirm-reject">
+              <Button
+                type="submit"
+                variant="destructive"
+                disabled={rejectMutation.isPending || !rejectReason.trim()}
+                data-testid="button-confirm-reject"
+              >
                 {rejectMutation.isPending ? 'Rejecting…' : 'Reject Request'}
               </Button>
             </DialogFooter>

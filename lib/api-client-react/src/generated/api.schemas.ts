@@ -578,13 +578,32 @@ export interface MyInternalApplicationsResponse {
   items: MyInternalApplicationSummary[];
 }
 
+/**
+ * "pending" = awaiting the employee's current Department Head; "pending_hr" = Department Head approved, awaiting HR's final decision. See `workflowStage` for the 6 owner-facing labels (also distinguishes which stage a "rejected" request was rejected at).
+ */
 export type LeaveRequestStatus = typeof LeaveRequestStatus[keyof typeof LeaveRequestStatus];
 
 
 export const LeaveRequestStatus = {
   pending: 'pending',
+  pending_hr: 'pending_hr',
   approved: 'approved',
   rejected: 'rejected',
+  cancelled: 'cancelled',
+} as const;
+
+/**
+ * Derived, never stored — the exact stage label HR/ESS should render.
+ */
+export type LeaveRequestWorkflowStage = typeof LeaveRequestWorkflowStage[keyof typeof LeaveRequestWorkflowStage];
+
+
+export const LeaveRequestWorkflowStage = {
+  awaiting_department_head: 'awaiting_department_head',
+  awaiting_hr: 'awaiting_hr',
+  rejected_by_department_head: 'rejected_by_department_head',
+  approved: 'approved',
+  rejected_by_hr: 'rejected_by_hr',
   cancelled: 'cancelled',
 } as const;
 
@@ -599,7 +618,10 @@ export interface LeaveRequest {
   endDate: string;
   /** Decimal string, computed server-side. */
   daysRequested: string;
+  /** "pending" = awaiting the employee's current Department Head; "pending_hr" = Department Head approved, awaiting HR's final decision. See `workflowStage` for the 6 owner-facing labels (also distinguishes which stage a "rejected" request was rejected at). */
   status: LeaveRequestStatus;
+  /** Derived, never stored — the exact stage label HR/ESS should render. */
+  workflowStage?: LeaveRequestWorkflowStage;
   /** @nullable */
   reason?: string | null;
   /** @nullable */
@@ -609,13 +631,36 @@ export interface LeaveRequest {
   /** @nullable */
   cancelledBy?: number | null;
   /**
-     * Set only on an actual approval. A rejection's actor/timestamp lives in the audit trail instead (Architecture Principle 6).
+     * The user id of the Department Head who approved this request's first stage. Never overwritten by a later HR action or a subsequent Department Head replacement.
+     * @nullable
+     */
+  departmentHeadApprovedBy?: number | null;
+  /** @nullable */
+  departmentHeadApprovedAt?: string | null;
+  /** @nullable */
+  departmentHeadRejectedBy?: number | null;
+  /** @nullable */
+  departmentHeadRejectedAt?: string | null;
+  /** @nullable */
+  departmentHeadRejectionReason?: string | null;
+  /**
+     * The user id who gave FINAL (HR-stage) approval.
      * @nullable
      */
   approvedBy?: number | null;
   /** @nullable */
   approvedAt?: string | null;
+  /**
+     * The user id who gave the FINAL (HR-stage) rejection. Null when the request was instead rejected at the Department Head stage — see departmentHeadRejectedBy.
+     * @nullable
+     */
+  rejectedBy?: number | null;
   /** @nullable */
+  rejectedAt?: string | null;
+  /**
+     * The HR-stage rejection reason. See departmentHeadRejectionReason for a Department-Head-stage rejection.
+     * @nullable
+     */
   rejectionReason?: string | null;
   /** @nullable */
   createdBy?: number | null;
@@ -651,8 +696,12 @@ export interface LeaveCalendarResponse {
   holidays: PublicHolidayOccurrence[];
 }
 
+/**
+ * Rejecting a leave request (at either the Department Head or HR stage) always requires a non-empty reason — Leave Approval Workflow Reconciliation binding rules #5/#6.
+ */
 export interface RejectLeaveRequestInput {
-  reason?: string;
+  /** @minLength 1 */
+  reason: string;
 }
 
 export interface CreateLeaveRequestInput {

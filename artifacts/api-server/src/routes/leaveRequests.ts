@@ -12,6 +12,7 @@ import {
   cancelLeaveRequest,
   resolveOwnEmployeeId,
   toIsoDate,
+  withWorkflowStage,
   InvalidLeaveRequestError,
   LeaveRequestNotFoundError,
   LeaveRequestNotCancellableError,
@@ -59,7 +60,7 @@ router.get(
     }
 
     const requests = await listLeaveRequests(organizationId, employeeId);
-    res.json(requests);
+    res.json(requests.map(withWorkflowStage));
   },
 );
 
@@ -104,7 +105,7 @@ router.post(
         actorApplicationUserId: req.userId!,
         actorMembershipId: req.membership!.id,
       });
-      res.status(201).json(request);
+      res.status(201).json(withWorkflowStage(request));
     } catch (err) {
       if (err instanceof InvalidLeaveRequestError) {
         res.status(400).json({ error: err.message });
@@ -145,7 +146,7 @@ router.post(
         actorApplicationUserId: req.userId!,
         actorMembershipId: req.membership!.id,
       });
-      res.json(request);
+      res.json(withWorkflowStage(request));
     } catch (err) {
       if (err instanceof LeaveRequestNotFoundError) {
         res.status(404).json({ error: err.message });

@@ -23,6 +23,7 @@ const {
   organizationModulesTable,
   employeesTable,
   employeeUserLinksTable,
+  departmentHeadsTable,
   leaveRequestsTable,
   leaveBalanceEntriesTable,
   leavePoliciesTable,
@@ -60,6 +61,7 @@ const {
     organizationModulesTable: mockTable("organization_modules", ["id", "organizationId", "moduleId", "enabled"]),
     employeesTable: mockTable("employees", ["id", "organizationId", "reportingManagerId"]),
     employeeUserLinksTable: mockTable("employee_user_links", ["employeeId", "applicationUserId"]),
+    departmentHeadsTable: mockTable("department_heads", ["id", "organizationId", "departmentId", "headMembershipId", "validTo"]),
     leaveRequestsTable: mockTable("leave_requests", [
       "id",
       "organizationId",
@@ -109,6 +111,7 @@ vi.mock("@workspace/db", () => ({
   organizationModulesTable,
   employeesTable,
   employeeUserLinksTable,
+  departmentHeadsTable,
   leaveRequestsTable,
   leaveBalanceEntriesTable,
   leavePoliciesTable,
@@ -156,6 +159,7 @@ vi.mock("@workspace/db", () => ({
         if (table === organizationMembershipsTable) rows = fixtures.membershipRows;
         else if (table === employeesTable) rows = fixtures.employeeRows;
         else if (table === employeeUserLinksTable) rows = fixtures.employeeUserLinkRows;
+        else if (table === departmentHeadsTable) rows = []; // no dept-head-scoped test in this file needs a non-empty result
         else if (table === leaveRequestsTable) rows = fixtures.leaveRequestRows;
         else if (table === leaveBalanceEntriesTable) rows = fixtures.leaveBalanceEntryRows;
         else if (table === leavePoliciesTable) rows = fixtures.leavePolicyRows;
@@ -289,7 +293,7 @@ describe("GET /api/dashboard/summary — leaveMetrics (W40)", () => {
       upcomingPublicHolidays: 0,
       leaveUtilizationPercent: 0,
       expiringCarryForwardBalances: 0,
-      requestsByStatus: { pending: 0, approved: 0, rejected: 0, cancelled: 0 },
+      requestsByStatus: { pending: 0, pending_hr: 0, approved: 0, rejected: 0, cancelled: 0 },
     });
   });
 
@@ -314,7 +318,7 @@ describe("GET /api/dashboard/summary — leaveMetrics (W40)", () => {
     // Sees the report's on-going approved leave even though the caller (HR
     // admin) isn't that employee's manager — org-wide reach.
     expect(res.body.leaveMetrics.employeesOnLeave).toBe(1);
-    expect(res.body.leaveMetrics.requestsByStatus).toEqual({ pending: 1, approved: 1, rejected: 0, cancelled: 0 });
+    expect(res.body.leaveMetrics.requestsByStatus).toEqual({ pending: 1, pending_hr: 0, approved: 1, rejected: 0, cancelled: 0 });
   });
 
   it("a manager without leave_request.manage sees only their own + direct reports' figures, not another team's", async () => {
@@ -428,7 +432,7 @@ describe("GET /api/dashboard/summary — leaveMetrics (W40)", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.leaveMetrics.employeesOnLeave).toBe(0);
-    expect(res.body.leaveMetrics.requestsByStatus).toEqual({ pending: 0, approved: 0, rejected: 0, cancelled: 0 });
+    expect(res.body.leaveMetrics.requestsByStatus).toEqual({ pending: 0, pending_hr: 0, approved: 0, rejected: 0, cancelled: 0 });
   });
 
   it("excludes sensitive fields — no employee names, reasons, or raw request rows in the response", async () => {

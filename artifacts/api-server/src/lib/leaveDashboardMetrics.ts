@@ -29,6 +29,7 @@ export const UPCOMING_WINDOW_DAYS = 30;
 
 export interface LeaveRequestsByStatusCounts {
   pending: number;
+  pending_hr: number;
   approved: number;
   rejected: number;
   cancelled: number;
@@ -79,7 +80,7 @@ export async function getLeaveDashboardMetrics(params: {
       upcomingPublicHolidays,
       leaveUtilizationPercent: 0,
       expiringCarryForwardBalances: 0,
-      requestsByStatus: { pending: 0, approved: 0, rejected: 0, cancelled: 0 },
+      requestsByStatus: { pending: 0, pending_hr: 0, approved: 0, rejected: 0, cancelled: 0 },
     };
   }
 
@@ -87,7 +88,7 @@ export async function getLeaveDashboardMetrics(params: {
   if (params.employeeIds != null) requestConditions.push(inArray(leaveRequestsTable.employeeId, params.employeeIds));
   const requests: LeaveRequest[] = await db.select().from(leaveRequestsTable).where(and(...requestConditions));
 
-  const requestsByStatus: LeaveRequestsByStatusCounts = { pending: 0, approved: 0, rejected: 0, cancelled: 0 };
+  const requestsByStatus: LeaveRequestsByStatusCounts = { pending: 0, pending_hr: 0, approved: 0, rejected: 0, cancelled: 0 };
   const onLeaveEmployeeIds = new Set<number>();
   let upcomingApprovedLeave = 0;
   for (const r of requests) {
