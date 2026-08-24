@@ -55,6 +55,8 @@ Workforce Operations
 
 Payroll — **Complete.** See `PROJECT_STATUS.md`'s Payroll Completion Report (Frozen Workstream 10) for the full assessment.
 
+Office Inventory — **Complete.** See `PROJECT_STATUS.md`'s Office Inventory Completion Report (Workstream 12) for the full assessment.
+
 Tax
 
 SSNIT

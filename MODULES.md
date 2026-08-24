@@ -39,6 +39,7 @@
 ## Future Modules
 
 - Payroll
+- Office Inventory
 - Benefits
 - Tax
 - Compliance
