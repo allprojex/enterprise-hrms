@@ -60,8 +60,15 @@ export interface ReportIncidentParams {
   actorApplicationUserId: number | null;
 }
 
-/** `holderType`/`holderId` must be the reporting employee's own identity, or their own current department — never a client-asserted "on behalf of" target. */
-async function assertOwnCustodyAuthority(organizationId: number, holderType: "employee" | "department", holderId: number, actorEmployeeId: number | null): Promise<void> {
+/**
+ * `holderType`/`holderId` must be the caller's own identity, or their own
+ * current department — never a client-asserted "on behalf of" target.
+ * Exported for reuse by Workstream 8's ESS return/handover routes
+ * (officeInventoryEss.ts), which need the identical "own custody" test this
+ * function already proved for incident reporting — not a second, separately
+ * invented ownership check.
+ */
+export async function assertOwnCustodyAuthority(organizationId: number, holderType: "employee" | "department", holderId: number, actorEmployeeId: number | null): Promise<void> {
   if (actorEmployeeId === null) throw new OfficeInventoryNotOwnCustodyError();
   if (holderType === "employee") {
     if (holderId !== actorEmployeeId) throw new OfficeInventoryNotOwnCustodyError();

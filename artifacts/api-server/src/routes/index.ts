@@ -96,6 +96,7 @@ import officeInventoryIssuingRouter from "./officeInventoryIssuing";
 import officeInventoryTransfersRouter from "./officeInventoryTransfers";
 import officeInventoryIncidentsRouter from "./officeInventoryIncidents";
 import officeInventoryStocktakesRouter from "./officeInventoryStocktakes";
+import officeInventoryEssRouter from "./officeInventoryEss";
 
 const router: IRouter = Router();
 
@@ -208,5 +209,6 @@ router.use(officeInventoryDelegationsRouter);
 router.use(officeInventoryTransfersRouter);
 router.use(officeInventoryIncidentsRouter);
 router.use(officeInventoryStocktakesRouter);
+router.use(officeInventoryEssRouter);
 
 export default router;

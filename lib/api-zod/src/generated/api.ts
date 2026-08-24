@@ -13991,8 +13991,42 @@ export const GetOfficeInventoryRequestApprovalContextResponse = zod.object({
   "cancelledAt": zod.coerce.date().nullable(),
   "cancelledByMembershipId": zod.number().nullable()
 }))
-}).describe('Query-time only, never a stored flag (§15). Deliberately does not include issued\/custody fields — those require Workstream 4\'s data, which does not exist yet; this shape is designed to be extended additively once it does, without a breaking change.')
-}))
+}).describe('Query-time only, never a stored flag (§15). Deliberately does not include issued\/custody fields — those require Workstream 4\'s data, which does not exist yet; this shape is designed to be extended additively once it does, without a breaking change.'),
+  "accountability": zod.object({
+  "employeeCurrentCustody": zod.object({
+  "itemId": zod.number(),
+  "balance": zod.string(),
+  "overdue": zod.boolean(),
+  "expectedReturnDate": zod.coerce.date().nullable()
+}).describe('Extended in Workstream 5 with live-derived overdue info (§20) — the fields are additive to Workstream 4\'s own original shape, never breaking it. `overdue`\/`expectedReturnDate` are computed from the most recent holder-increasing (`issued`) row for this item, which a handover\'s destination row also is — a handover therefore becomes the new \"most recent\" row and supersedes whatever due date the previous holder was tracking.').nullable(),
+  "departmentCurrentCustody": zod.object({
+  "itemId": zod.number(),
+  "balance": zod.string(),
+  "overdue": zod.boolean(),
+  "expectedReturnDate": zod.coerce.date().nullable()
+}).describe('Extended in Workstream 5 with live-derived overdue info (§20) — the fields are additive to Workstream 4\'s own original shape, never breaking it. `overdue`\/`expectedReturnDate` are computed from the most recent holder-increasing (`issued`) row for this item, which a handover\'s destination row also is — a handover therefore becomes the new \"most recent\" row and supersedes whatever due date the previous holder was tracking.'),
+  "recentEmployeeIssuedQuantity": zod.string().nullable(),
+  "recentDepartmentIssuedQuantity": zod.string(),
+  "recentEmployeeReturnedQuantity": zod.string().nullable(),
+  "recentDepartmentReturnedQuantity": zod.string()
+}).describe('Office Inventory, Workstream 8 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §15, §34). Completes the repeat-request warning with real current custody and recent issue\/return activity for both the employee and the department, now that Workstreams 4-7 exist — additive to OfficeInventoryRepeatRequestWarning\'s own shape, not a replacement. `employeeCurrentCustody`\/`recentEmployeeIssuedQuantity`\/ `recentEmployeeReturnedQuantity` are null only when the request has no `forEmployeeId` (a pure department request). For a consumable item, current custody is a cumulative issued total, not an outstanding return obligation — `overdue` is always false for a consumable, since a consumable\'s `issued` row never carries an `expectedReturnDate`.')
+})),
+  "viewerAuthority": zod.object({
+  "capacity": zod.enum(['department_head', 'delegate']),
+  "headMembershipId": zod.number(),
+  "delegation": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "departmentId": zod.number(),
+  "delegatingHeadMembershipId": zod.number(),
+  "delegateMembershipId": zod.number(),
+  "validFrom": zod.coerce.date(),
+  "validTo": zod.coerce.date().nullable(),
+  "createdByMembershipId": zod.number().nullable(),
+  "revokedByMembershipId": zod.number().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 3 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §6, §5.3). A row surviving the delegating Head\'s own replacement remains open and fully historically queryable, but becomes functionally inert for NEW approvals the instant that membership is no longer the department\'s actual current Head — re-checked fresh on every approval, never assumed from this row\'s own existence.').nullable()
+}).describe('Office Inventory, Workstream 8 (§34) — \"when the actor is a delegate, the delegation authority being exercised, its validity window, and the delegating Head\'s identity.\" The same `resolveApprovalAuthority` result Workstream 3 already re-checks fresh on every approval action, carried onto the approval-context response the viewer themselves is currently authorized under.')
 })
 
 
@@ -14573,6 +14607,214 @@ export const CreateOfficeInventoryHandoverBody = zod.object({
 }).describe('docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §22. A paired holder-to-holder movement — no store is ever touched. Supports all four directions (employee\/department x employee\/department). A department-to-department handover additionally requires the acting membership to resolve as the RECEIVING department\'s current Head or a currently-valid delegate (Owner Decision 17) — the same authority-resolution primitive Workstream 3 already proved for ordinary department-request approval.')
 
 export const CreateOfficeInventoryHandoverResponse = zod.object({
+  "sourceMovement": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "itemId": zod.number(),
+  "movementType": zod.enum(['received', 'issued', 'returned', 'transferred_out', 'transferred_in', 'adjustment_in', 'adjustment_out', 'written_off', 'missing', 'recovered', 'asset_handoff']),
+  "quantity": zod.string(),
+  "storeId": zod.number().nullable(),
+  "holderType": zod.union([zod.literal('employee'),zod.literal('department'),zod.literal(null)]).nullable(),
+  "holderId": zod.number().nullable(),
+  "referenceNumber": zod.string().nullable(),
+  "sourceReferenceType": zod.union([zod.literal('request_line'),zod.literal('incident'),zod.literal('stocktake_line'),zod.literal('asset'),zod.literal(null)]).nullable(),
+  "sourceReferenceId": zod.number().nullable(),
+  "source": zod.string().nullable(),
+  "deliveryReference": zod.string().nullable(),
+  "unitCost": zod.string().nullable(),
+  "condition": zod.union([zod.literal('new'),zod.literal('good'),zod.literal('fair'),zod.literal('poor'),zod.literal('damaged'),zod.literal(null)]).nullable(),
+  "reason": zod.string().nullable(),
+  "expectedReturnDate": zod.coerce.date().nullable(),
+  "confirmedByMembershipId": zod.number().nullable(),
+  "confirmedAt": zod.coerce.date().nullable(),
+  "idempotencyKey": zod.string().nullable(),
+  "actorMembershipId": zod.number().nullable(),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 2 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.3). One row of the authoritative, append-only stock ledger. Workstream 2 only ever produces `movementType: received` rows; every other enum value exists for later workstreams.'),
+  "destinationMovement": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "itemId": zod.number(),
+  "movementType": zod.enum(['received', 'issued', 'returned', 'transferred_out', 'transferred_in', 'adjustment_in', 'adjustment_out', 'written_off', 'missing', 'recovered', 'asset_handoff']),
+  "quantity": zod.string(),
+  "storeId": zod.number().nullable(),
+  "holderType": zod.union([zod.literal('employee'),zod.literal('department'),zod.literal(null)]).nullable(),
+  "holderId": zod.number().nullable(),
+  "referenceNumber": zod.string().nullable(),
+  "sourceReferenceType": zod.union([zod.literal('request_line'),zod.literal('incident'),zod.literal('stocktake_line'),zod.literal('asset'),zod.literal(null)]).nullable(),
+  "sourceReferenceId": zod.number().nullable(),
+  "source": zod.string().nullable(),
+  "deliveryReference": zod.string().nullable(),
+  "unitCost": zod.string().nullable(),
+  "condition": zod.union([zod.literal('new'),zod.literal('good'),zod.literal('fair'),zod.literal('poor'),zod.literal('damaged'),zod.literal(null)]).nullable(),
+  "reason": zod.string().nullable(),
+  "expectedReturnDate": zod.coerce.date().nullable(),
+  "confirmedByMembershipId": zod.number().nullable(),
+  "confirmedAt": zod.coerce.date().nullable(),
+  "idempotencyKey": zod.string().nullable(),
+  "actorMembershipId": zod.number().nullable(),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 2 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.3). One row of the authoritative, append-only stock ledger. Workstream 2 only ever produces `movementType: received` rows; every other enum value exists for later workstreams.'),
+  "replay": zod.boolean()
+})
+
+
+/**
+ * Resolved via resolveOwnEmployeeId exclusively — no client-supplied employee ID. No office_inventory.* permission is required beyond the module being enabled; owning your own data is not an operational grant. A caller with no linked employee record gets an empty list, never an error.
+ * @summary The caller's own current personal custody, live-derived — Workstream 8 ESS (§33)
+ */
+export const GetOfficeInventoryMyCustodyParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetOfficeInventoryMyCustodyResponseItem = zod.object({
+  "itemId": zod.number(),
+  "balance": zod.string(),
+  "overdue": zod.boolean(),
+  "expectedReturnDate": zod.coerce.date().nullable()
+}).describe('Extended in Workstream 5 with live-derived overdue info (§20) — the fields are additive to Workstream 4\'s own original shape, never breaking it. `overdue`\/`expectedReturnDate` are computed from the most recent holder-increasing (`issued`) row for this item, which a handover\'s destination row also is — a handover therefore becomes the new \"most recent\" row and supersedes whatever due date the previous holder was tracking.')
+export const GetOfficeInventoryMyCustodyResponse = zod.array(GetOfficeInventoryMyCustodyResponseItem)
+
+
+/**
+ * Resolved via resolveOwnEmployeeId exclusively. A caller with no linked employee record gets an empty list, never an error.
+ * @summary Every ledger movement ever recorded against the caller's own personal custody, newest first — Workstream 8 ESS (§33)
+ */
+export const GetOfficeInventoryMyHistoryParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetOfficeInventoryMyHistoryResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "itemId": zod.number(),
+  "movementType": zod.enum(['received', 'issued', 'returned', 'transferred_out', 'transferred_in', 'adjustment_in', 'adjustment_out', 'written_off', 'missing', 'recovered', 'asset_handoff']),
+  "quantity": zod.string(),
+  "storeId": zod.number().nullable(),
+  "holderType": zod.union([zod.literal('employee'),zod.literal('department'),zod.literal(null)]).nullable(),
+  "holderId": zod.number().nullable(),
+  "referenceNumber": zod.string().nullable(),
+  "sourceReferenceType": zod.union([zod.literal('request_line'),zod.literal('incident'),zod.literal('stocktake_line'),zod.literal('asset'),zod.literal(null)]).nullable(),
+  "sourceReferenceId": zod.number().nullable(),
+  "source": zod.string().nullable(),
+  "deliveryReference": zod.string().nullable(),
+  "unitCost": zod.string().nullable(),
+  "condition": zod.union([zod.literal('new'),zod.literal('good'),zod.literal('fair'),zod.literal('poor'),zod.literal('damaged'),zod.literal(null)]).nullable(),
+  "reason": zod.string().nullable(),
+  "expectedReturnDate": zod.coerce.date().nullable(),
+  "confirmedByMembershipId": zod.number().nullable(),
+  "confirmedAt": zod.coerce.date().nullable(),
+  "idempotencyKey": zod.string().nullable(),
+  "actorMembershipId": zod.number().nullable(),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 2 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.3). One row of the authoritative, append-only stock ledger. Workstream 2 only ever produces `movementType: received` rows; every other enum value exists for later workstreams.')
+export const GetOfficeInventoryMyHistoryResponse = zod.array(GetOfficeInventoryMyHistoryResponseItem)
+
+
+/**
+ * `holderType`/`holderId` must be the caller's own personal custody or their own current department's custody — verified server-side against resolveOwnEmployeeId, never a client-asserted "on behalf of" holder. Otherwise identical to POST .../office-inventory/returns.
+ * @summary Return from the caller's OWN outstanding custody into a store — Workstream 8 ESS (§33), gated office_inventory.return
+ */
+export const CreateOfficeInventoryMyReturnParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const CreateOfficeInventoryMyReturnBody = zod.object({
+  "itemId": zod.number(),
+  "holderType": zod.enum(['employee', 'department']),
+  "holderId": zod.number(),
+  "destinationStoreId": zod.number(),
+  "quantity": zod.string().describe('Positive numeric(12,2)-shaped string. Must not exceed the holder\'s current outstanding custody for this item.'),
+  "condition": zod.enum(['new', 'good', 'fair', 'poor', 'damaged']).optional(),
+  "notes": zod.string().optional(),
+  "idempotencyKey": zod.string().optional()
+}).describe('Office Inventory, Workstream 5 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §21). A `returned` ledger row pair — holder-side decrease, store-side increase — validated against the holder\'s own live-derived outstanding custody, never a client-supplied \"current quantity\". Consumable items are rejected (Owner Decision 10 — issuing a consumable is itself its consumption, never reversible).')
+
+export const CreateOfficeInventoryMyReturnResponse = zod.object({
+  "storeMovement": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "itemId": zod.number(),
+  "movementType": zod.enum(['received', 'issued', 'returned', 'transferred_out', 'transferred_in', 'adjustment_in', 'adjustment_out', 'written_off', 'missing', 'recovered', 'asset_handoff']),
+  "quantity": zod.string(),
+  "storeId": zod.number().nullable(),
+  "holderType": zod.union([zod.literal('employee'),zod.literal('department'),zod.literal(null)]).nullable(),
+  "holderId": zod.number().nullable(),
+  "referenceNumber": zod.string().nullable(),
+  "sourceReferenceType": zod.union([zod.literal('request_line'),zod.literal('incident'),zod.literal('stocktake_line'),zod.literal('asset'),zod.literal(null)]).nullable(),
+  "sourceReferenceId": zod.number().nullable(),
+  "source": zod.string().nullable(),
+  "deliveryReference": zod.string().nullable(),
+  "unitCost": zod.string().nullable(),
+  "condition": zod.union([zod.literal('new'),zod.literal('good'),zod.literal('fair'),zod.literal('poor'),zod.literal('damaged'),zod.literal(null)]).nullable(),
+  "reason": zod.string().nullable(),
+  "expectedReturnDate": zod.coerce.date().nullable(),
+  "confirmedByMembershipId": zod.number().nullable(),
+  "confirmedAt": zod.coerce.date().nullable(),
+  "idempotencyKey": zod.string().nullable(),
+  "actorMembershipId": zod.number().nullable(),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 2 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.3). One row of the authoritative, append-only stock ledger. Workstream 2 only ever produces `movementType: received` rows; every other enum value exists for later workstreams.'),
+  "holderMovement": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "itemId": zod.number(),
+  "movementType": zod.enum(['received', 'issued', 'returned', 'transferred_out', 'transferred_in', 'adjustment_in', 'adjustment_out', 'written_off', 'missing', 'recovered', 'asset_handoff']),
+  "quantity": zod.string(),
+  "storeId": zod.number().nullable(),
+  "holderType": zod.union([zod.literal('employee'),zod.literal('department'),zod.literal(null)]).nullable(),
+  "holderId": zod.number().nullable(),
+  "referenceNumber": zod.string().nullable(),
+  "sourceReferenceType": zod.union([zod.literal('request_line'),zod.literal('incident'),zod.literal('stocktake_line'),zod.literal('asset'),zod.literal(null)]).nullable(),
+  "sourceReferenceId": zod.number().nullable(),
+  "source": zod.string().nullable(),
+  "deliveryReference": zod.string().nullable(),
+  "unitCost": zod.string().nullable(),
+  "condition": zod.union([zod.literal('new'),zod.literal('good'),zod.literal('fair'),zod.literal('poor'),zod.literal('damaged'),zod.literal(null)]).nullable(),
+  "reason": zod.string().nullable(),
+  "expectedReturnDate": zod.coerce.date().nullable(),
+  "confirmedByMembershipId": zod.number().nullable(),
+  "confirmedAt": zod.coerce.date().nullable(),
+  "idempotencyKey": zod.string().nullable(),
+  "actorMembershipId": zod.number().nullable(),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 2 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.3). One row of the authoritative, append-only stock ledger. Workstream 2 only ever produces `movementType: received` rows; every other enum value exists for later workstreams.'),
+  "replay": zod.boolean()
+})
+
+
+/**
+ * `fromHolderType`/`fromHolderId` must be the caller's own personal custody or their own current department's custody — verified server-side against resolveOwnEmployeeId. The destination holder is unrestricted (it is simply the recipient), subject to the same Owner Decision 17 department-to-department authority gate as POST .../office-inventory/handovers.
+ * @summary Hand over the caller's OWN outstanding custody to another holder — Workstream 8 ESS (§33), gated office_inventory.handover
+ */
+export const CreateOfficeInventoryMyHandoverParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const CreateOfficeInventoryMyHandoverBody = zod.object({
+  "itemId": zod.number(),
+  "fromHolderType": zod.enum(['employee', 'department']),
+  "fromHolderId": zod.number(),
+  "toHolderType": zod.enum(['employee', 'department']),
+  "toHolderId": zod.number(),
+  "quantity": zod.string(),
+  "reason": zod.string().optional(),
+  "condition": zod.enum(['new', 'good', 'fair', 'poor', 'damaged']).optional(),
+  "expectedReturnDate": zod.coerce.date().optional().describe('Only meaningful for a returnable item; rejected for a consumable item. Unset clears any prior due date rather than carrying it forward.'),
+  "idempotencyKey": zod.string().optional()
+}).describe('docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §22. A paired holder-to-holder movement — no store is ever touched. Supports all four directions (employee\/department x employee\/department). A department-to-department handover additionally requires the acting membership to resolve as the RECEIVING department\'s current Head or a currently-valid delegate (Owner Decision 17) — the same authority-resolution primitive Workstream 3 already proved for ordinary department-request approval.')
+
+export const CreateOfficeInventoryMyHandoverResponse = zod.object({
   "sourceMovement": zod.object({
   "id": zod.number(),
   "organizationId": zod.number(),

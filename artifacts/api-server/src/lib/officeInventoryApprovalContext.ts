@@ -9,13 +9,34 @@
  * officeInventoryLedger.ts.
  */
 import { getRequestWithLines, getRepeatRequestWarning, type RepeatRequestWarning } from "./officeInventoryRequests";
-import { getOrganizationTotalBalance, getStoreBalancesForItem } from "./officeInventoryLedger";
+import { getOrganizationTotalBalance, getStoreBalancesForItem, getHolderCustodyForItem, sumHolderMovementsSince, type HolderCustodyEntry } from "./officeInventoryLedger";
 import { type OfficeInventoryRequest, type OfficeInventoryRequestLine } from "@workspace/db";
+
+/**
+ * Workstream 8 (§15, §34) — completes the repeat-request/accountability
+ * warning with the actual W4-W7 data W3 could only defer (see this file's
+ * own header, and officeInventoryRequests.ts's `RepeatRequestWarning`
+ * comment: "adding them later is additive... not breaking"). Lives here,
+ * not on `RepeatRequestWarning` itself, to preserve officeInventoryRequests.ts's
+ * own proven architectural boundary (approval never touches the ledger) —
+ * this file remains the ONLY W3-lineage file that reads officeInventoryLedger.ts.
+ * `employeeCurrentCustody` is null only when the request has no
+ * `forEmployeeId` (a pure department request) — never a fabricated zero.
+ */
+export interface AccountabilityContext {
+  employeeCurrentCustody: HolderCustodyEntry | null;
+  departmentCurrentCustody: HolderCustodyEntry;
+  recentEmployeeIssuedQuantity: string | null;
+  recentDepartmentIssuedQuantity: string;
+  recentEmployeeReturnedQuantity: string | null;
+  recentDepartmentReturnedQuantity: string;
+}
 
 export interface RequestLineApprovalContext {
   line: OfficeInventoryRequestLine;
   storeAvailability: { total: string; byStore: { storeId: number; balance: string }[] };
   repeatRequestWarning: RepeatRequestWarning;
+  accountability: AccountabilityContext;
 }
 
 export interface RequestApprovalContext {
@@ -41,7 +62,34 @@ export async function getRequestApprovalContext(organizationId: number, requestI
         getStoreBalancesForItem(organizationId, line.itemId),
         getRepeatRequestWarning(organizationId, request.forEmployeeId, request.forDepartmentId, line.itemId),
       ]);
-      return { line, storeAvailability: { total, byStore }, repeatRequestWarning };
+
+      const since = new Date(Date.now() - repeatRequestWarning.windowDays * 24 * 60 * 60 * 1000);
+      const [
+        employeeCurrentCustody,
+        departmentCurrentCustody,
+        recentEmployeeIssuedQuantity,
+        recentDepartmentIssuedQuantity,
+        recentEmployeeReturnedQuantity,
+        recentDepartmentReturnedQuantity,
+      ] = await Promise.all([
+        request.forEmployeeId !== null ? getHolderCustodyForItem(organizationId, line.itemId, "employee", request.forEmployeeId) : Promise.resolve(null),
+        getHolderCustodyForItem(organizationId, line.itemId, "department", request.forDepartmentId),
+        request.forEmployeeId !== null ? sumHolderMovementsSince(organizationId, line.itemId, "employee", request.forEmployeeId, "issued", since) : Promise.resolve(null),
+        sumHolderMovementsSince(organizationId, line.itemId, "department", request.forDepartmentId, "issued", since),
+        request.forEmployeeId !== null ? sumHolderMovementsSince(organizationId, line.itemId, "employee", request.forEmployeeId, "returned", since) : Promise.resolve(null),
+        sumHolderMovementsSince(organizationId, line.itemId, "department", request.forDepartmentId, "returned", since),
+      ]);
+
+      const accountability: AccountabilityContext = {
+        employeeCurrentCustody,
+        departmentCurrentCustody,
+        recentEmployeeIssuedQuantity,
+        recentDepartmentIssuedQuantity,
+        recentEmployeeReturnedQuantity,
+        recentDepartmentReturnedQuantity,
+      };
+
+      return { line, storeAvailability: { total, byStore }, repeatRequestWarning, accountability };
     }),
   );
 

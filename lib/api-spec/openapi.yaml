@@ -17748,6 +17748,177 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/office-inventory/my/custody:
+    get:
+      operationId: getOfficeInventoryMyCustody
+      tags: [office-inventory-ess]
+      summary: The caller's own current personal custody, live-derived — Workstream 8 ESS (§33)
+      description: >-
+        Resolved via resolveOwnEmployeeId exclusively — no client-supplied
+        employee ID. No office_inventory.* permission is required beyond
+        the module being enabled; owning your own data is not an
+        operational grant. A caller with no linked employee record gets an
+        empty list, never an error.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Current personal custody
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OfficeInventoryCustodyEntry"
+        "403":
+          description: Forbidden — module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/my/history:
+    get:
+      operationId: getOfficeInventoryMyHistory
+      tags: [office-inventory-ess]
+      summary: Every ledger movement ever recorded against the caller's own personal custody, newest first — Workstream 8 ESS (§33)
+      description: Resolved via resolveOwnEmployeeId exclusively. A caller with no linked employee record gets an empty list, never an error.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Own movement history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OfficeInventoryStockMovement"
+        "403":
+          description: Forbidden — module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/my/returns:
+    post:
+      operationId: createOfficeInventoryMyReturn
+      tags: [office-inventory-ess]
+      summary: Return from the caller's OWN outstanding custody into a store — Workstream 8 ESS (§33), gated office_inventory.return
+      description: >-
+        `holderType`/`holderId` must be the caller's own personal custody
+        or their own current department's custody — verified server-side
+        against resolveOwnEmployeeId, never a client-asserted "on behalf
+        of" holder. Otherwise identical to POST .../office-inventory/returns.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOfficeInventoryReturnBody"
+      responses:
+        "201":
+          description: Return result (or, on idempotency replay, the original)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryReturnResult"
+        "400":
+          description: Invalid quantity, or the item is a consumable (not returnable)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires office_inventory.return, or the holder is not the caller's own custody, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Item, store, or holder not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Insufficient outstanding custody (over-return)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/my/handovers:
+    post:
+      operationId: createOfficeInventoryMyHandover
+      tags: [office-inventory-ess]
+      summary: Hand over the caller's OWN outstanding custody to another holder — Workstream 8 ESS (§33), gated office_inventory.handover
+      description: >-
+        `fromHolderType`/`fromHolderId` must be the caller's own personal
+        custody or their own current department's custody — verified
+        server-side against resolveOwnEmployeeId. The destination holder is
+        unrestricted (it is simply the recipient), subject to the same
+        Owner Decision 17 department-to-department authority gate as
+        POST .../office-inventory/handovers.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOfficeInventoryHandoverBody"
+      responses:
+        "201":
+          description: Handover result (or, on idempotency replay, the original)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryHandoverResult"
+        "400":
+          description: Invalid quantity, same source/destination holder, the item is a consumable, or expectedReturnDate on a consumable item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires office_inventory.handover, or the source holder is not the caller's own custody, or (department-to-department only) not the receiving department's current Head/delegate, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Item, source holder, or destination holder not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Insufficient outstanding custody on the source holder
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /organizations/{organizationId}/office-inventory/transfers:
     post:
       operationId: createOfficeInventoryTransfer
@@ -27421,9 +27592,44 @@ components:
           items:
             $ref: "#/components/schemas/OfficeInventoryRequest"
 
+    OfficeInventoryAccountabilityContext:
+      type: object
+      description: >-
+        Office Inventory, Workstream 8
+        (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §15, §34). Completes
+        the repeat-request warning with real current custody and recent
+        issue/return activity for both the employee and the department,
+        now that Workstreams 4-7 exist — additive to
+        OfficeInventoryRepeatRequestWarning's own shape, not a replacement.
+        `employeeCurrentCustody`/`recentEmployeeIssuedQuantity`/
+        `recentEmployeeReturnedQuantity` are null only when the request has
+        no `forEmployeeId` (a pure department request). For a consumable
+        item, current custody is a cumulative issued total, not an
+        outstanding return obligation — `overdue` is always false for a
+        consumable, since a consumable's `issued` row never carries an
+        `expectedReturnDate`.
+      required: [employeeCurrentCustody, departmentCurrentCustody, recentEmployeeIssuedQuantity, recentDepartmentIssuedQuantity, recentEmployeeReturnedQuantity, recentDepartmentReturnedQuantity]
+      properties:
+        employeeCurrentCustody:
+          allOf:
+            - $ref: "#/components/schemas/OfficeInventoryCustodyEntry"
+          nullable: true
+        departmentCurrentCustody:
+          $ref: "#/components/schemas/OfficeInventoryCustodyEntry"
+        recentEmployeeIssuedQuantity:
+          type: string
+          nullable: true
+        recentDepartmentIssuedQuantity:
+          type: string
+        recentEmployeeReturnedQuantity:
+          type: string
+          nullable: true
+        recentDepartmentReturnedQuantity:
+          type: string
+
     OfficeInventoryRequestLineApprovalContext:
       type: object
-      required: [line, storeAvailability, repeatRequestWarning]
+      required: [line, storeAvailability, repeatRequestWarning, accountability]
       properties:
         line:
           $ref: "#/components/schemas/OfficeInventoryRequestLine"
@@ -27431,10 +27637,33 @@ components:
           $ref: "#/components/schemas/OfficeInventoryItemBalance"
         repeatRequestWarning:
           $ref: "#/components/schemas/OfficeInventoryRepeatRequestWarning"
+        accountability:
+          $ref: "#/components/schemas/OfficeInventoryAccountabilityContext"
+
+    OfficeInventoryApprovalAuthority:
+      type: object
+      description: >-
+        Office Inventory, Workstream 8 (§34) — "when the actor is a
+        delegate, the delegation authority being exercised, its validity
+        window, and the delegating Head's identity." The same
+        `resolveApprovalAuthority` result Workstream 3 already re-checks
+        fresh on every approval action, carried onto the approval-context
+        response the viewer themselves is currently authorized under.
+      required: [capacity, headMembershipId, delegation]
+      properties:
+        capacity:
+          type: string
+          enum: [department_head, delegate]
+        headMembershipId:
+          type: integer
+        delegation:
+          allOf:
+            - $ref: "#/components/schemas/OfficeInventoryApprovalDelegation"
+          nullable: true
 
     OfficeInventoryRequestApprovalContext:
       type: object
-      required: [request, lines]
+      required: [request, lines, viewerAuthority]
       properties:
         request:
           $ref: "#/components/schemas/OfficeInventoryRequest"
@@ -27442,6 +27671,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/OfficeInventoryRequestLineApprovalContext"
+        viewerAuthority:
+          $ref: "#/components/schemas/OfficeInventoryApprovalAuthority"
 
     OfficeInventoryApprovalDelegation:
       type: object

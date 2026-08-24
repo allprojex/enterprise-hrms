@@ -37,7 +37,7 @@
  * inside the same locked transaction immediately before any decreasing
  * insert.
  */
-import { and, eq, gt, sql } from "drizzle-orm";
+import { and, eq, gt, gte, sql } from "drizzle-orm";
 import { db, officeInventoryStockMovementsTable, type OfficeInventoryStockMovement } from "@workspace/db";
 import { toMinorUnits, fromMinorUnits } from "./payrollMoney";
 
@@ -515,6 +515,72 @@ export async function listCurrentCustody(organizationId: number, holderType: "em
       overdue: expectedReturnDate !== null && new Date(expectedReturnDate) < now,
     };
   });
+}
+
+/**
+ * Workstream 8 (§34) — the single-item version of `listCurrentCustody`'s
+ * own per-item balance/overdue derivation, for the Department Head
+ * approval-context screen (one item per request line, not "everything this
+ * holder has"). Always returns a row, even at zero balance — a Head
+ * reviewing a repeat request needs to see "currently holds 0" just as much
+ * as "currently holds 2," never a fabricated absence.
+ */
+export async function getHolderCustodyForItem(organizationId: number, itemId: number, holderType: "employee" | "department", holderId: number): Promise<HolderCustodyEntry> {
+  const balance = await getHolderBalance(organizationId, itemId, holderType, holderId);
+  const [mostRecentIssue] = await db
+    .select({ expectedReturnDate: officeInventoryStockMovementsTable.expectedReturnDate })
+    .from(officeInventoryStockMovementsTable)
+    .where(
+      and(
+        eq(officeInventoryStockMovementsTable.organizationId, organizationId),
+        eq(officeInventoryStockMovementsTable.itemId, itemId),
+        eq(officeInventoryStockMovementsTable.holderType, holderType),
+        eq(officeInventoryStockMovementsTable.holderId, holderId),
+        eq(officeInventoryStockMovementsTable.movementType, "issued"),
+      ),
+    )
+    .orderBy(sql`${officeInventoryStockMovementsTable.occurredAt} desc`)
+    .limit(1);
+  const expectedReturnDate = mostRecentIssue?.expectedReturnDate ?? null;
+  return {
+    itemId,
+    balance,
+    expectedReturnDate,
+    overdue: toMinorUnits(balance) > 0n && expectedReturnDate !== null && new Date(expectedReturnDate) < new Date(),
+  };
+}
+
+/**
+ * Workstream 8 (§15/§34) — sums a holder-side movement type for one item
+ * since a cutoff, completing the repeat-request accountability panel with
+ * real issue/return quantities (never a stored counter). `returned` here
+ * covers both an ordinary return-to-store AND a handover-away-from-holder
+ * (§22: a handover's source leg is an ordinary `returned` row) — both
+ * equally answer "did this leave their custody," the correct accountability
+ * signal, not a narrower "formal returns only" count.
+ */
+export async function sumHolderMovementsSince(
+  organizationId: number,
+  itemId: number,
+  holderType: "employee" | "department",
+  holderId: number,
+  movementType: "issued" | "returned",
+  since: Date,
+): Promise<string> {
+  const [row] = await db
+    .select({ total: sql<string>`coalesce(sum(${officeInventoryStockMovementsTable.quantity}), 0)::numeric(12,2)` })
+    .from(officeInventoryStockMovementsTable)
+    .where(
+      and(
+        eq(officeInventoryStockMovementsTable.organizationId, organizationId),
+        eq(officeInventoryStockMovementsTable.itemId, itemId),
+        eq(officeInventoryStockMovementsTable.holderType, holderType),
+        eq(officeInventoryStockMovementsTable.holderId, holderId),
+        eq(officeInventoryStockMovementsTable.movementType, movementType),
+        gte(officeInventoryStockMovementsTable.occurredAt, since),
+      ),
+    );
+  return row?.total ?? "0.00";
 }
 
 export interface AppendHolderMovementParams {

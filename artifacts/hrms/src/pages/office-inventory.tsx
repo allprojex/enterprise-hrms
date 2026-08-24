@@ -101,6 +101,7 @@ import {
   type OfficeInventoryStore,
   type ReceiveLineInput,
   type OfficeInventoryRequestLineInput,
+  type OfficeInventoryAccountabilityContext,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -913,7 +914,8 @@ function StockTab({ organizationId }: { organizationId: number }) {
 // itself a stock movement; approval never touches the ledger. No
 // issue/fulfilment exists yet — that is Workstream 4. ---
 
-const REQUEST_STATUS_LABEL: Record<string, string> = {
+// Exported for reuse by the "My Inventory" ESS tab (§33) — see CreateRequestDialog's own comment above.
+export const REQUEST_STATUS_LABEL: Record<string, string> = {
   pending: 'Pending',
   partially_approved: 'Partially Approved',
   approved: 'Approved',
@@ -922,7 +924,7 @@ const REQUEST_STATUS_LABEL: Record<string, string> = {
   partially_fulfilled: 'Partially Fulfilled',
   cancelled: 'Cancelled',
 };
-const REQUEST_STATUS_VARIANT: Record<string, 'secondary' | 'outline' | 'destructive'> = {
+export const REQUEST_STATUS_VARIANT: Record<string, 'secondary' | 'outline' | 'destructive'> = {
   pending: 'outline',
   partially_approved: 'secondary',
   approved: 'secondary',
@@ -932,7 +934,12 @@ const REQUEST_STATUS_VARIANT: Record<string, 'secondary' | 'outline' | 'destruct
   cancelled: 'destructive',
 };
 
-function CreateRequestDialog({ organizationId, onCreated }: { organizationId: number; onCreated: () => void }) {
+// Exported for reuse by the "My Inventory" ESS tab (employee-self-service.tsx,
+// Workstream 8 §33) — an employee-type request is submitted identically
+// whether the caller reaches it from this operational page or from ESS
+// (both ultimately hit the same resolveOwnEmployeeId-scoped route), so this
+// dialog is shared rather than duplicated a second time.
+export function CreateRequestDialog({ organizationId, onCreated }: { organizationId: number; onCreated: () => void }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [requestType, setRequestType] = useState<'employee' | 'department'>('employee');
@@ -1075,7 +1082,8 @@ function CreateRequestDialog({ organizationId, onCreated }: { organizationId: nu
   );
 }
 
-function RequestDetailDialog({ organizationId, requestId, onChanged }: { organizationId: number; requestId: number; onChanged: () => void }) {
+// Exported for reuse by the "My Inventory" ESS tab (§33) — see CreateRequestDialog's own comment above.
+export function RequestDetailDialog({ organizationId, requestId, onChanged }: { organizationId: number; requestId: number; onChanged: () => void }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const { data, isLoading } = useGetOfficeInventoryRequest(organizationId, requestId, {
@@ -1297,11 +1305,49 @@ function RejectLineDialog({ organizationId, lineId, onDecided }: { organizationI
   );
 }
 
+// Workstream 8 (§34): completes the repeat-request accountability panel
+// with real current-custody and recent-issue/return figures now that
+// Workstreams 4-7 exist. For a consumable item, "current custody" is a
+// cumulative issued total, never an outstanding return obligation — no
+// overdue badge is ever shown for one, since a consumable's issue never
+// carries an expectedReturnDate (enforced server-side).
+function AccountabilityPanel({ accountability, isConsumable }: { accountability: OfficeInventoryAccountabilityContext; isConsumable: boolean }) {
+  const custodyLabel = isConsumable ? 'Recently issued' : 'Currently holds';
+  return (
+    <div className="rounded-md bg-muted/50 p-2 space-y-1 text-xs text-muted-foreground">
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        {accountability.employeeCurrentCustody !== null && (
+          <span data-testid="text-accountability-employee-custody">
+            Employee — {custodyLabel.toLowerCase()}: {isConsumable ? accountability.recentEmployeeIssuedQuantity : accountability.employeeCurrentCustody.balance}
+            {!isConsumable && accountability.employeeCurrentCustody.overdue && <Badge variant="destructive" className="ml-1 align-middle">Overdue</Badge>}
+          </span>
+        )}
+        <span data-testid="text-accountability-department-custody">
+          Department — {custodyLabel.toLowerCase()}: {isConsumable ? accountability.recentDepartmentIssuedQuantity : accountability.departmentCurrentCustody.balance}
+          {!isConsumable && accountability.departmentCurrentCustody.overdue && <Badge variant="destructive" className="ml-1 align-middle">Overdue</Badge>}
+        </span>
+      </div>
+      {!isConsumable && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1">
+          {accountability.recentEmployeeReturnedQuantity !== null && (
+            <span>Employee returned recently: {accountability.recentEmployeeReturnedQuantity}</span>
+          )}
+          <span>Department returned recently: {accountability.recentDepartmentReturnedQuantity}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ApprovalContextDialog({ organizationId, requestId, onDecided }: { organizationId: number; requestId: number; onDecided: () => void }) {
   const [open, setOpen] = useState(false);
   const { data, isLoading } = useGetOfficeInventoryRequestApprovalContext(organizationId, requestId, {
     query: { queryKey: getGetOfficeInventoryRequestApprovalContextQueryKey(organizationId, requestId), enabled: organizationId > 0 && open },
   });
+  const { data: items } = useListOfficeInventoryItems(organizationId, {
+    query: { queryKey: getListOfficeInventoryItemsQueryKey(organizationId), enabled: organizationId > 0 && open },
+  });
+  const itemById = new Map((items ?? []).map((i) => [i.id, i]));
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -1317,6 +1363,12 @@ function ApprovalContextDialog({ organizationId, requestId, onDecided }: { organ
           <Skeleton className="h-40 w-full" />
         ) : (
           <div className="space-y-3 py-2">
+            {data?.viewerAuthority.capacity === 'delegate' && (
+              <p className="text-xs text-muted-foreground rounded-md border border-border p-2" data-testid="text-viewer-delegate-banner">
+                You are reviewing this as a delegate of Head (membership #{data.viewerAuthority.headMembershipId})
+                {data.viewerAuthority.delegation ? `, delegated since ${new Date(data.viewerAuthority.delegation.validFrom).toLocaleDateString()}` : ''}.
+              </p>
+            )}
             {(data?.lines ?? []).map((entry) => (
               <div key={entry.line.id} className="rounded-md border border-border p-3 space-y-2 text-sm" data-testid={`row-approval-line-${entry.line.id}`}>
                 <div className="flex items-center justify-between">
@@ -1324,6 +1376,7 @@ function ApprovalContextDialog({ organizationId, requestId, onDecided }: { organ
                   <Badge variant={entry.line.approvalStatus === 'approved' ? 'secondary' : entry.line.approvalStatus === 'rejected' ? 'destructive' : 'outline'} className="capitalize">{entry.line.approvalStatus}</Badge>
                 </div>
                 <p className="text-muted-foreground">Current stock available: {entry.storeAvailability.total}</p>
+                <AccountabilityPanel accountability={entry.accountability} isConsumable={itemById.get(entry.line.itemId)?.classification === 'consumable'} />
                 {(entry.repeatRequestWarning.recentEmployeeRequests.length > 0 || entry.repeatRequestWarning.recentDepartmentRequests.length > 0) && (
                   <p className="text-xs text-amber-600 dark:text-amber-400" data-testid={`text-repeat-warning-${entry.line.id}`}>
                     Repeat request: {entry.repeatRequestWarning.recentEmployeeRequests.length} recent request(s) by this employee and {entry.repeatRequestWarning.recentDepartmentRequests.length} by this department for the same item within the last {entry.repeatRequestWarning.windowDays} days. You may still approve.

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { UserCircle, FileText, CalendarClock, Briefcase, Send, Clock, LogIn, LogOut, Plus, Target, CheckCircle2, GraduationCap, PlayCircle, XCircle, Boxes, ShieldAlert } from 'lucide-react';
+import { UserCircle, FileText, CalendarClock, Briefcase, Send, Clock, LogIn, LogOut, Plus, Target, CheckCircle2, GraduationCap, PlayCircle, XCircle, Boxes, ShieldAlert, Package, Undo2, ArrowLeftRight, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { PerformanceEvidenceSection } from '@/components/performance-evidence';
 import { LearningEvidenceSection } from '@/components/learning-evidence';
 import {
@@ -62,6 +62,27 @@ import {
   getListMyAssetAssignmentsQueryKey,
   useAcknowledgeAssetAssignment,
   useReportAssetIssue,
+  useListOfficeInventoryMyRequests,
+  getListOfficeInventoryMyRequestsQueryKey,
+  useGetOfficeInventoryMyCustody,
+  getGetOfficeInventoryMyCustodyQueryKey,
+  useGetOfficeInventoryMyHistory,
+  getGetOfficeInventoryMyHistoryQueryKey,
+  useConfirmOfficeInventoryReceipt,
+  useCreateOfficeInventoryMyReturn,
+  useCreateOfficeInventoryMyHandover,
+  useReportOfficeInventoryIncident,
+  useListOfficeInventoryStores,
+  getListOfficeInventoryStoresQueryKey,
+  useListOfficeInventoryItems,
+  getListOfficeInventoryItemsQueryKey,
+  useListEmployees,
+  getListEmployeesQueryKey,
+  useListDepartments,
+  getListDepartmentsQueryKey,
+  type OfficeInventoryCustodyEntry,
+  type OfficeInventoryStockMovement,
+  type OfficeInventoryItem,
   useGetMyEmploymentHistory,
   getGetMyEmploymentHistoryQueryKey,
   useGetMySkills,
@@ -91,6 +112,7 @@ import { QueryError } from '@/components/query-error';
 import { isModuleAccessible } from '@/lib/module-access';
 import { useToast } from '@/hooks/use-toast';
 import MyLeave from './my-leave';
+import { CreateRequestDialog, RequestDetailDialog, REQUEST_STATUS_LABEL, REQUEST_STATUS_VARIANT } from './office-inventory';
 
 function errorMessage(err: unknown): string | undefined {
   return err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
@@ -2241,6 +2263,506 @@ function MyAssetsTab({ organizationId }: { organizationId: number }) {
   );
 }
 
+// --- My Inventory (Workstream 8, §33) — own requests, own current
+// personal custody, own full personal history, receipt confirmation, and
+// self-service return/handover/damage-missing reporting on the caller's
+// own custody. Every "own" fact is resolved server-side via
+// resolveOwnEmployeeId; no employee ID is ever client-supplied to
+// establish authority — `employeeId` here is passed only to populate
+// request bodies for actions the backend independently re-verifies as the
+// caller's own. Return/handover on department-held custody, and a
+// department-wide Inventory view, are Department Head surfaces (§34), not
+// part of this page. ---
+
+const MOVEMENT_TYPE_LABEL: Record<string, string> = {
+  received: 'Received',
+  issued: 'Issued',
+  returned: 'Returned',
+  transferred_out: 'Transferred Out',
+  transferred_in: 'Transferred In',
+  adjustment_in: 'Adjustment In',
+  adjustment_out: 'Adjustment Out',
+  written_off: 'Written Off',
+  missing: 'Missing',
+  recovered: 'Recovered',
+  asset_handoff: 'Asset Handoff',
+};
+
+function ConfirmMyReceiptButton({ organizationId, movementId, onConfirmed }: { organizationId: number; movementId: number; onConfirmed: () => void }) {
+  const { toast } = useToast();
+  const mutation = useConfirmOfficeInventoryReceipt();
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      onClick={() =>
+        mutation.mutate(
+          { organizationId, movementId },
+          {
+            onSuccess: () => {
+              onConfirmed();
+              toast({ title: 'Receipt confirmed' });
+            },
+            onError: (err) => toast({ title: 'Could not confirm receipt', description: errorMessage(err), variant: 'destructive' }),
+          },
+        )
+      }
+      disabled={mutation.isPending}
+      data-testid={`button-confirm-my-receipt-${movementId}`}
+    >
+      <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+      {mutation.isPending ? 'Confirming…' : 'Confirm Receipt'}
+    </Button>
+  );
+}
+
+function ReturnMyItemDialog({ organizationId, itemId, itemName, employeeId, onReturned }: { organizationId: number; itemId: number; itemName: string; employeeId: number; onReturned: () => void }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [destinationStoreId, setDestinationStoreId] = useState('');
+  const [quantity, setQuantity] = useState('');
+  const [condition, setCondition] = useState<'new' | 'good' | 'fair' | 'poor' | 'damaged' | ''>('');
+  const mutation = useCreateOfficeInventoryMyReturn();
+
+  const { data: stores } = useListOfficeInventoryStores(organizationId, {
+    query: { queryKey: getListOfficeInventoryStoresQueryKey(organizationId), enabled: organizationId > 0 && open },
+  });
+
+  const reset = () => {
+    setDestinationStoreId('');
+    setQuantity('');
+    setCondition('');
+  };
+
+  const handle = () => {
+    if (!destinationStoreId || !quantity) return;
+    mutation.mutate(
+      {
+        organizationId,
+        data: {
+          itemId,
+          holderType: 'employee',
+          holderId: employeeId,
+          destinationStoreId: Number(destinationStoreId),
+          quantity,
+          condition: condition || undefined,
+          idempotencyKey: crypto.randomUUID(),
+        },
+      },
+      {
+        onSuccess: () => {
+          setOpen(false);
+          reset();
+          onReturned();
+          toast({ title: 'Item returned' });
+        },
+        onError: (err) => toast({ title: 'Could not return item', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" data-testid={`button-open-my-return-${itemId}`}>
+          <Undo2 className="h-3.5 w-3.5" aria-hidden="true" />
+          Return
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Return {itemName}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor={`my-return-store-${itemId}`}>Return To Store</Label>
+            <Select value={destinationStoreId} onValueChange={setDestinationStoreId}>
+              <SelectTrigger id={`my-return-store-${itemId}`} data-testid={`select-my-return-store-${itemId}`}>
+                <SelectValue placeholder="Choose a store" />
+              </SelectTrigger>
+              <SelectContent>
+                {(stores ?? []).map((s) => (
+                  <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`my-return-quantity-${itemId}`}>Quantity</Label>
+            <Input id={`my-return-quantity-${itemId}`} type="number" min={0} step="0.01" value={quantity} onChange={(e) => setQuantity(e.target.value)} data-testid={`input-my-return-quantity-${itemId}`} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`my-return-condition-${itemId}`}>Condition (optional)</Label>
+            <Select value={condition} onValueChange={(v) => setCondition(v as typeof condition)}>
+              <SelectTrigger id={`my-return-condition-${itemId}`} data-testid={`select-my-return-condition-${itemId}`}>
+                <SelectValue placeholder="Not specified" />
+              </SelectTrigger>
+              <SelectContent>
+                {(['new', 'good', 'fair', 'poor', 'damaged'] as const).map((c) => (
+                  <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={handle} disabled={mutation.isPending || !destinationStoreId || !quantity} data-testid={`button-confirm-my-return-${itemId}`}>
+            {mutation.isPending ? 'Returning…' : 'Confirm Return'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function HandoverMyItemDialog({ organizationId, itemId, itemName, employeeId, isReturnable, onHandedOver }: { organizationId: number; itemId: number; itemName: string; employeeId: number; isReturnable: boolean; onHandedOver: () => void }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [toHolderType, setToHolderType] = useState<'employee' | 'department'>('employee');
+  const [toHolderId, setToHolderId] = useState('');
+  const [quantity, setQuantity] = useState('');
+  const [reason, setReason] = useState('');
+  const [expectedReturnDate, setExpectedReturnDate] = useState('');
+  const mutation = useCreateOfficeInventoryMyHandover();
+
+  const { data: employeesPage } = useListEmployees(organizationId, { pageSize: 200 }, {
+    query: { queryKey: getListEmployeesQueryKey(organizationId, { pageSize: 200 }), enabled: organizationId > 0 && open && toHolderType === 'employee' },
+  });
+  const { data: departments } = useListDepartments(organizationId, {
+    query: { queryKey: getListDepartmentsQueryKey(organizationId), enabled: organizationId > 0 && open && toHolderType === 'department' },
+  });
+
+  const reset = () => {
+    setToHolderType('employee');
+    setToHolderId('');
+    setQuantity('');
+    setReason('');
+    setExpectedReturnDate('');
+  };
+
+  const handle = () => {
+    if (!toHolderId || !quantity) return;
+    mutation.mutate(
+      {
+        organizationId,
+        data: {
+          itemId,
+          fromHolderType: 'employee',
+          fromHolderId: employeeId,
+          toHolderType,
+          toHolderId: Number(toHolderId),
+          quantity,
+          reason: reason.trim() || undefined,
+          expectedReturnDate: isReturnable && expectedReturnDate ? expectedReturnDate : undefined,
+          idempotencyKey: crypto.randomUUID(),
+        },
+      },
+      {
+        onSuccess: () => {
+          setOpen(false);
+          reset();
+          onHandedOver();
+          toast({ title: 'Item handed over' });
+        },
+        onError: (err) => toast({ title: 'Could not hand over item', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" data-testid={`button-open-my-handover-${itemId}`}>
+          <ArrowLeftRight className="h-3.5 w-3.5" aria-hidden="true" />
+          Hand Over
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Hand Over {itemName}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor={`my-handover-target-type-${itemId}`}>Hand Over To</Label>
+            <Select value={toHolderType} onValueChange={(v) => { setToHolderType(v as 'employee' | 'department'); setToHolderId(''); }}>
+              <SelectTrigger id={`my-handover-target-type-${itemId}`} data-testid={`select-my-handover-target-type-${itemId}`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="employee">Another Employee</SelectItem>
+                <SelectItem value="department">A Department</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`my-handover-target-${itemId}`}>{toHolderType === 'employee' ? 'Employee' : 'Department'}</Label>
+            <Select value={toHolderId} onValueChange={setToHolderId}>
+              <SelectTrigger id={`my-handover-target-${itemId}`} data-testid={`select-my-handover-target-${itemId}`}>
+                <SelectValue placeholder={`Choose ${toHolderType === 'employee' ? 'an employee' : 'a department'}`} />
+              </SelectTrigger>
+              <SelectContent>
+                {toHolderType === 'employee'
+                  ? (employeesPage?.items ?? []).filter((e) => e.id !== employeeId).map((e) => (
+                      <SelectItem key={e.id} value={String(e.id)}>{e.firstName} {e.lastName}</SelectItem>
+                    ))
+                  : (departments ?? []).map((d) => (
+                      <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
+                    ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`my-handover-quantity-${itemId}`}>Quantity</Label>
+            <Input id={`my-handover-quantity-${itemId}`} type="number" min={0} step="0.01" value={quantity} onChange={(e) => setQuantity(e.target.value)} data-testid={`input-my-handover-quantity-${itemId}`} />
+          </div>
+          {isReturnable && (
+            <div className="space-y-2">
+              <Label htmlFor={`my-handover-return-date-${itemId}`}>Expected Return Date (optional)</Label>
+              <Input id={`my-handover-return-date-${itemId}`} type="date" value={expectedReturnDate} onChange={(e) => setExpectedReturnDate(e.target.value)} data-testid={`input-my-handover-return-date-${itemId}`} />
+            </div>
+          )}
+          <div className="space-y-2">
+            <Label htmlFor={`my-handover-reason-${itemId}`}>Reason (optional)</Label>
+            <Textarea id={`my-handover-reason-${itemId}`} value={reason} onChange={(e) => setReason(e.target.value)} data-testid={`textarea-my-handover-reason-${itemId}`} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={handle} disabled={mutation.isPending || !toHolderId || !quantity} data-testid={`button-confirm-my-handover-${itemId}`}>
+            {mutation.isPending ? 'Submitting…' : 'Confirm Handover'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ReportMyInventoryIssueDialog({ organizationId, itemId, itemName, employeeId, onReported }: { organizationId: number; itemId: number; itemName: string; employeeId: number; onReported: () => void }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [incidentType, setIncidentType] = useState<'damage' | 'missing'>('damage');
+  const [description, setDescription] = useState('');
+  const mutation = useReportOfficeInventoryIncident();
+
+  const reset = () => {
+    setIncidentType('damage');
+    setDescription('');
+  };
+
+  const handle = () => {
+    if (!description.trim()) return;
+    mutation.mutate(
+      { organizationId, data: { itemId, holderType: 'employee', holderId: employeeId, incidentType, description: description.trim() } },
+      {
+        onSuccess: () => {
+          setOpen(false);
+          reset();
+          onReported();
+          toast({ title: 'Reported' });
+        },
+        onError: (err) => toast({ title: 'Could not report issue', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" data-testid={`button-open-my-report-issue-${itemId}`}>
+          <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+          Report Damage / Missing
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Report Issue — {itemName}</DialogTitle>
+          <DialogDescription>A pure annotation, reviewed separately — this does not itself change your custody record.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor={`my-incident-type-${itemId}`}>Type</Label>
+            <Select value={incidentType} onValueChange={(v) => setIncidentType(v as 'damage' | 'missing')}>
+              <SelectTrigger id={`my-incident-type-${itemId}`} data-testid={`select-my-incident-type-${itemId}`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="damage">Damage</SelectItem>
+                <SelectItem value="missing">Missing</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`my-incident-description-${itemId}`}>Description</Label>
+            <Textarea id={`my-incident-description-${itemId}`} value={description} onChange={(e) => setDescription(e.target.value)} data-testid={`textarea-my-incident-description-${itemId}`} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={handle} disabled={mutation.isPending || !description.trim()} data-testid={`button-confirm-my-report-issue-${itemId}`}>
+            {mutation.isPending ? 'Reporting…' : 'Submit Report'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function MyInventoryTab({ organizationId, employeeId }: { organizationId: number; employeeId: number }) {
+  const queryClient = useQueryClient();
+
+  const requestsQuery = useListOfficeInventoryMyRequests(organizationId, {
+    query: { queryKey: getListOfficeInventoryMyRequestsQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+  const custodyQuery = useGetOfficeInventoryMyCustody(organizationId, {
+    query: { queryKey: getGetOfficeInventoryMyCustodyQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+  const historyQuery = useGetOfficeInventoryMyHistory(organizationId, {
+    query: { queryKey: getGetOfficeInventoryMyHistoryQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+  const { data: items } = useListOfficeInventoryItems(organizationId, {
+    query: { queryKey: getListOfficeInventoryItemsQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+  const itemById = new Map<number, OfficeInventoryItem>((items ?? []).map((i) => [i.id, i]));
+
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: getListOfficeInventoryMyRequestsQueryKey(organizationId) });
+    queryClient.invalidateQueries({ queryKey: getGetOfficeInventoryMyCustodyQueryKey(organizationId) });
+    queryClient.invalidateQueries({ queryKey: getGetOfficeInventoryMyHistoryQueryKey(organizationId) });
+  };
+
+  const custody: OfficeInventoryCustodyEntry[] = custodyQuery.data ?? [];
+  const history: OfficeInventoryStockMovement[] = historyQuery.data ?? [];
+  const unconfirmedReceipts = history.filter((m) => m.movementType === 'issued' && m.confirmedAt === null);
+
+  return (
+    <div className="space-y-6">
+      {unconfirmedReceipts.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Awaiting Your Confirmation</CardTitle>
+            <CardDescription>Items issued to you that you have not yet confirmed receipt of.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {unconfirmedReceipts.map((m) => (
+              <div key={m.id} className="flex items-center justify-between rounded-md border border-border p-3 text-sm" data-testid={`row-unconfirmed-receipt-${m.id}`}>
+                <span>{itemById.get(m.itemId)?.name ?? `Item #${m.itemId}`} — {m.quantity} ({new Date(m.occurredAt).toLocaleDateString()})</span>
+                <ConfirmMyReceiptButton organizationId={organizationId} movementId={m.id} onConfirmed={invalidateAll} />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-base">Currently in My Custody</CardTitle>
+            <CardDescription>What you currently hold, live-derived.</CardDescription>
+          </div>
+          <CreateRequestDialog organizationId={organizationId} onCreated={invalidateAll} />
+        </CardHeader>
+        <CardContent>
+          {custodyQuery.error ? (
+            <QueryError title="Could not load your custody" onRetry={() => custodyQuery.refetch()} />
+          ) : custodyQuery.isLoading ? (
+            <Skeleton className="h-32 w-full" />
+          ) : custody.length === 0 ? (
+            <p className="text-sm text-muted-foreground">You have no items currently in your custody.</p>
+          ) : (
+            <div className="space-y-3">
+              {custody.map((c) => {
+                const item = itemById.get(c.itemId);
+                const isConsumable = item?.classification === 'consumable';
+                const isReturnable = item?.classification === 'returnable';
+                return (
+                  <div key={c.itemId} className="border rounded-md p-4 space-y-2" data-testid={`card-my-custody-${c.itemId}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-medium text-sm text-foreground">{item?.name ?? `Item #${c.itemId}`}</p>
+                        <p className="text-xs text-muted-foreground">{item?.itemCode} · Holding: {c.balance}</p>
+                      </div>
+                      {!isConsumable && c.overdue && <Badge variant="destructive">Overdue</Badge>}
+                    </div>
+                    {!isConsumable && c.expectedReturnDate && (
+                      <p className="text-xs text-muted-foreground">Expected back {new Date(c.expectedReturnDate).toLocaleDateString()}</p>
+                    )}
+                    {isReturnable && (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <ReturnMyItemDialog organizationId={organizationId} itemId={c.itemId} itemName={item?.name ?? `Item #${c.itemId}`} employeeId={employeeId} onReturned={invalidateAll} />
+                        <HandoverMyItemDialog organizationId={organizationId} itemId={c.itemId} itemName={item?.name ?? `Item #${c.itemId}`} employeeId={employeeId} isReturnable={isReturnable} onHandedOver={invalidateAll} />
+                      </div>
+                    )}
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <ReportMyInventoryIssueDialog organizationId={organizationId} itemId={c.itemId} itemName={item?.name ?? `Item #${c.itemId}`} employeeId={employeeId} onReported={invalidateAll} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">My Requests</CardTitle>
+          <CardDescription>Requests you have submitted for yourself or your department.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {requestsQuery.error ? (
+            <QueryError title="Could not load your requests" onRetry={() => requestsQuery.refetch()} />
+          ) : requestsQuery.isLoading ? (
+            <Skeleton className="h-24 w-full" />
+          ) : !requestsQuery.data || requestsQuery.data.length === 0 ? (
+            <p className="text-sm text-muted-foreground">You have not submitted any requests yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {requestsQuery.data.map((r) => (
+                <div key={r.id} className="flex items-center justify-between rounded-md border border-border p-3 text-sm" data-testid={`row-my-inventory-request-${r.id}`}>
+                  <div>
+                    <p className="font-mono text-xs text-foreground">{r.requestReference}</p>
+                    <p className="text-muted-foreground text-xs capitalize">{r.requestType} · {new Date(r.submittedAt).toLocaleDateString()}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={REQUEST_STATUS_VARIANT[r.status] ?? 'outline'}>{REQUEST_STATUS_LABEL[r.status] ?? r.status}</Badge>
+                    <RequestDetailDialog organizationId={organizationId} requestId={r.id} onChanged={invalidateAll} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">My History</CardTitle>
+          <CardDescription>Every movement ever recorded against your own custody.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {historyQuery.error ? (
+            <QueryError title="Could not load your history" onRetry={() => historyQuery.refetch()} />
+          ) : historyQuery.isLoading ? (
+            <Skeleton className="h-24 w-full" />
+          ) : history.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No history yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {history.map((m) => (
+                <div key={m.id} className="flex items-center justify-between rounded-md border border-border p-3 text-sm" data-testid={`row-my-inventory-history-${m.id}`}>
+                  <div>
+                    <p className="text-foreground">{itemById.get(m.itemId)?.name ?? `Item #${m.itemId}`} — {m.quantity}</p>
+                    <p className="text-muted-foreground text-xs">{new Date(m.occurredAt).toLocaleString()}{m.referenceNumber ? ` · ${m.referenceNumber}` : ''}</p>
+                  </div>
+                  <Badge variant="outline">{MOVEMENT_TYPE_LABEL[m.movementType] ?? m.movementType}</Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function EmployeeSelfService() {
   const { data: user } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const organizationId = user?.activeOrganizationId ?? user?.organizationId ?? 0;
@@ -2281,6 +2803,11 @@ export default function EmployeeSelfService() {
   // this page too — a disabled asset_management module degrades only My
   // Assets, exactly mirroring Attendance/Performance/Learning/Leave above.
   const assetManagementAccessible = !!modules && isModuleAccessible(modules, 'asset_management');
+  // Office Inventory (Workstream 8, §33) is checked independently within
+  // this page too — a disabled office_inventory module degrades only My
+  // Inventory, exactly mirroring Asset Management/Attendance/Performance/
+  // Learning/Leave above.
+  const officeInventoryAccessible = !!modules && isModuleAccessible(modules, 'office_inventory');
 
   if (error) {
     return (
@@ -2336,6 +2863,7 @@ export default function EmployeeSelfService() {
           <TabsTrigger value="performance" data-testid="tab-my-performance">My Performance</TabsTrigger>
           <TabsTrigger value="learning" data-testid="tab-my-learning">My Learning</TabsTrigger>
           <TabsTrigger value="assets" data-testid="tab-my-assets">My Assets</TabsTrigger>
+          <TabsTrigger value="inventory" data-testid="tab-my-inventory">My Inventory</TabsTrigger>
           <TabsTrigger value="leave" data-testid="tab-my-leave">My Leave</TabsTrigger>
           <TabsTrigger value="documents" data-testid="tab-my-documents">My Documents</TabsTrigger>
           <TabsTrigger value="career-profile" data-testid="tab-career-profile">Career Profile</TabsTrigger>
@@ -2400,6 +2928,21 @@ export default function EmployeeSelfService() {
                 <h3 className="text-lg font-semibold text-foreground mb-2">Asset Management isn't enabled</h3>
                 <p className="text-sm text-muted-foreground max-w-sm">
                   Your organisation hasn't enabled the Asset Management module, so your assigned assets aren't available here.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+        <TabsContent value="inventory">
+          {officeInventoryAccessible ? (
+            <MyInventoryTab organizationId={organizationId} employeeId={employee.id} />
+          ) : (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+                <Package className="h-8 w-8 text-muted-foreground mb-4" aria-hidden="true" />
+                <h3 className="text-lg font-semibold text-foreground mb-2">Office Inventory isn't enabled</h3>
+                <p className="text-sm text-muted-foreground max-w-sm">
+                  Your organisation hasn't enabled the Office Inventory module, so requests and custody aren't available here.
                 </p>
               </CardContent>
             </Card>

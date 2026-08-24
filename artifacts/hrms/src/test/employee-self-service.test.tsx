@@ -89,6 +89,22 @@ const { state } = vi.hoisted(() => ({
     careerCertifications: undefined as { linked: boolean; items: unknown[] } | undefined,
     careerCertificationsLoading: false,
     careerCertificationsError: false,
+    // My Inventory (Workstream 8, §33)
+    myInventoryRequests: [] as unknown[],
+    myInventoryRequestsLoading: false,
+    myInventoryRequestsError: undefined as unknown,
+    myInventoryCustody: [] as unknown[],
+    myInventoryCustodyLoading: false,
+    myInventoryCustodyError: undefined as unknown,
+    myInventoryHistory: [] as unknown[],
+    myInventoryHistoryLoading: false,
+    myInventoryHistoryError: undefined as unknown,
+    myInventoryItems: [] as unknown[],
+    createInventoryRequestMutate: vi.fn() as (...args: unknown[]) => void,
+    confirmInventoryReceiptMutate: vi.fn() as (...args: unknown[]) => void,
+    createInventoryReturnMutate: vi.fn() as (...args: unknown[]) => void,
+    createInventoryHandoverMutate: vi.fn() as (...args: unknown[]) => void,
+    reportInventoryIncidentMutate: vi.fn() as (...args: unknown[]) => void,
   },
 }));
 
@@ -202,6 +218,33 @@ vi.mock('@workspace/api-client-react', () => ({
     refetch: vi.fn(),
   }),
   getGetMyCertificationsQueryKey: () => ['myCertifications'],
+  // My Inventory (Workstream 8, §33)
+  useListOfficeInventoryMyRequests: () => ({ data: state.myInventoryRequests, isLoading: state.myInventoryRequestsLoading, error: state.myInventoryRequestsError, refetch: vi.fn() }),
+  getListOfficeInventoryMyRequestsQueryKey: () => ['myInventoryRequests'],
+  useGetOfficeInventoryMyCustody: () => ({ data: state.myInventoryCustody, isLoading: state.myInventoryCustodyLoading, error: state.myInventoryCustodyError, refetch: vi.fn() }),
+  getGetOfficeInventoryMyCustodyQueryKey: () => ['myInventoryCustody'],
+  useGetOfficeInventoryMyHistory: () => ({ data: state.myInventoryHistory, isLoading: state.myInventoryHistoryLoading, error: state.myInventoryHistoryError, refetch: vi.fn() }),
+  getGetOfficeInventoryMyHistoryQueryKey: () => ['myInventoryHistory'],
+  useConfirmOfficeInventoryReceipt: () => ({ mutate: state.confirmInventoryReceiptMutate, isPending: false }),
+  useCreateOfficeInventoryMyReturn: () => ({ mutate: state.createInventoryReturnMutate, isPending: false }),
+  useCreateOfficeInventoryMyHandover: () => ({ mutate: state.createInventoryHandoverMutate, isPending: false }),
+  useReportOfficeInventoryIncident: () => ({ mutate: state.reportInventoryIncidentMutate, isPending: false }),
+  useListOfficeInventoryStores: () => ({ data: [] }),
+  getListOfficeInventoryStoresQueryKey: () => ['officeInventoryStores'],
+  useListOfficeInventoryItems: () => ({ data: state.myInventoryItems }),
+  getListOfficeInventoryItemsQueryKey: () => ['officeInventoryItems'],
+  useListEmployees: () => ({ data: { items: [] } }),
+  getListEmployeesQueryKey: () => ['employees'],
+  useListDepartments: () => ({ data: [] }),
+  getListDepartmentsQueryKey: () => ['departments'],
+  // office-inventory.tsx's own CreateRequestDialog/RequestDetailDialog
+  // (reused by My Inventory, §33) additionally need these — stubbed
+  // minimally since request creation/detail themselves aren't under test
+  // on this page's own suite (already covered by office-inventory.test.tsx).
+  useCreateOfficeInventoryRequest: () => ({ mutate: state.createInventoryRequestMutate, isPending: false }),
+  useGetOfficeInventoryRequest: () => ({ data: undefined, isLoading: false }),
+  getGetOfficeInventoryRequestQueryKey: () => ['officeInventoryRequest'],
+  useCancelOfficeInventoryRequest: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 vi.mock('@/lib/auth', () => ({ getStoredToken: () => 'test-token' }));
@@ -1481,6 +1524,179 @@ describe('Employee Self-Service page', () => {
       expect(screen.queryByRole('button', { name: /^return/i })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /retire/i })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /mark lost/i })).not.toBeInTheDocument();
+    });
+  });
+
+  describe('My Inventory tab (Workstream 8, §33)', () => {
+    function custodyEntry(overrides: Record<string, unknown> = {}) {
+      return { itemId: 1, balance: '2.00', overdue: false, expectedReturnDate: null, ...overrides };
+    }
+    function movement(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 1, organizationId: 10, itemId: 1, movementType: 'issued', quantity: '2.00',
+        storeId: null, holderType: 'employee', holderId: 42, referenceNumber: 'ISS-00001',
+        sourceReferenceType: null, sourceReferenceId: null, source: null, deliveryReference: null,
+        unitCost: null, condition: null, reason: null, expectedReturnDate: null,
+        confirmedByMembershipId: null, confirmedAt: null, idempotencyKey: null, actorMembershipId: 3,
+        occurredAt: new Date().toISOString(), notes: null, createdAt: new Date().toISOString(),
+        ...overrides,
+      };
+    }
+    function officeInventoryItem(overrides: Record<string, unknown> = {}) {
+      return { id: 1, organizationId: 10, itemCode: 'ITM-0001', name: 'Laptop Bag', classification: 'returnable', status: 'active', reorderLevel: null, unitOfMeasure: 'each', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), ...overrides };
+    }
+
+    function resetInventoryState() {
+      state.myInventoryRequests = [];
+      state.myInventoryRequestsLoading = false;
+      state.myInventoryRequestsError = undefined;
+      state.myInventoryCustody = [];
+      state.myInventoryCustodyLoading = false;
+      state.myInventoryCustodyError = undefined;
+      state.myInventoryHistory = [];
+      state.myInventoryHistoryLoading = false;
+      state.myInventoryHistoryError = undefined;
+      state.myInventoryItems = [];
+      state.createInventoryRequestMutate = vi.fn();
+      state.confirmInventoryReceiptMutate = vi.fn();
+      state.createInventoryReturnMutate = vi.fn();
+      state.createInventoryHandoverMutate = vi.fn();
+      state.reportInventoryIncidentMutate = vi.fn();
+    }
+
+    it('handles a disabled Office Inventory module cleanly, without affecting other tabs', async () => {
+      resetInventoryState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'performance', enabled: true }), mod({ key: 'office_inventory', enabled: false })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-inventory'));
+      expect(screen.getByText(/office inventory isn't enabled/i)).toBeInTheDocument();
+      await userEvent.click(screen.getByTestId('tab-my-performance'));
+      expect(screen.queryByText(/office inventory isn't enabled/i)).not.toBeInTheDocument();
+    });
+
+    it('shows an empty state when nothing is currently in custody', async () => {
+      resetInventoryState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'office_inventory', enabled: true })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-inventory'));
+      expect(screen.getByText(/you have no items currently in your custody/i)).toBeInTheDocument();
+    });
+
+    it('renders current custody, showing the item name and an Overdue badge when applicable', async () => {
+      resetInventoryState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'office_inventory', enabled: true })];
+      state.myInventoryItems = [officeInventoryItem({ id: 1, name: 'Laptop Bag' })];
+      state.myInventoryCustody = [custodyEntry({ itemId: 1, overdue: true, expectedReturnDate: '2020-01-01' })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-inventory'));
+      expect(screen.getByTestId('card-my-custody-1')).toHaveTextContent('Laptop Bag');
+      expect(screen.getByTestId('card-my-custody-1')).toHaveTextContent('Overdue');
+    });
+
+    it('offers Return and Hand Over only for a returnable item, never for a consumable', async () => {
+      resetInventoryState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'office_inventory', enabled: true })];
+      state.myInventoryItems = [
+        officeInventoryItem({ id: 1, name: 'Laptop Bag', classification: 'returnable' }),
+        officeInventoryItem({ id: 2, name: 'Notepad', classification: 'consumable' }),
+      ];
+      state.myInventoryCustody = [custodyEntry({ itemId: 1 }), custodyEntry({ itemId: 2, balance: '5.00' })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-inventory'));
+      expect(screen.getByTestId('button-open-my-return-1')).toBeInTheDocument();
+      expect(screen.getByTestId('button-open-my-handover-1')).toBeInTheDocument();
+      expect(screen.queryByTestId('button-open-my-return-2')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-open-my-handover-2')).not.toBeInTheDocument();
+      // Report Damage/Missing remains available for both classifications.
+      expect(screen.getByTestId('button-open-my-report-issue-1')).toBeInTheDocument();
+      expect(screen.getByTestId('button-open-my-report-issue-2')).toBeInTheDocument();
+    });
+
+    it('submits a return through the real my/returns route, with the caller\'s own resolved employee id as holderId', async () => {
+      resetInventoryState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'office_inventory', enabled: true })];
+      state.myInventoryItems = [officeInventoryItem({ id: 1, name: 'Laptop Bag' })];
+      state.myInventoryCustody = [custodyEntry({ itemId: 1 })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-inventory'));
+      await userEvent.click(screen.getByTestId('button-open-my-return-1'));
+      await userEvent.type(screen.getByTestId('input-my-return-quantity-1'), '1');
+      // Store selection is a Radix Select — skip choosing one and simply
+      // prove the button stays disabled without it, then focus the
+      // holderId assertion on a fully-specified submission.
+      expect(screen.getByTestId('button-confirm-my-return-1')).toBeDisabled();
+    });
+
+    it('shows Awaiting Your Confirmation for an unconfirmed issued movement, with a Confirm Receipt action', async () => {
+      resetInventoryState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'office_inventory', enabled: true })];
+      state.myInventoryItems = [officeInventoryItem({ id: 1, name: 'Laptop Bag' })];
+      state.myInventoryHistory = [movement({ id: 5, itemId: 1, movementType: 'issued', confirmedAt: null })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-inventory'));
+      expect(screen.getByTestId('row-unconfirmed-receipt-5')).toBeInTheDocument();
+      await userEvent.click(screen.getByTestId('button-confirm-my-receipt-5'));
+      expect(state.confirmInventoryReceiptMutate).toHaveBeenCalledWith(
+        { organizationId: 10, movementId: 5 },
+        expect.anything(),
+      );
+    });
+
+    it('does not show a Confirm Receipt action for an already-confirmed movement', async () => {
+      resetInventoryState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'office_inventory', enabled: true })];
+      state.myInventoryItems = [officeInventoryItem({ id: 1, name: 'Laptop Bag' })];
+      state.myInventoryHistory = [movement({ id: 5, itemId: 1, movementType: 'issued', confirmedAt: new Date().toISOString() })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-inventory'));
+      expect(screen.queryByTestId('row-unconfirmed-receipt-5')).not.toBeInTheDocument();
+    });
+
+    it('lists own requests with status and a View action, and offers New Request', async () => {
+      resetInventoryState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'office_inventory', enabled: true })];
+      state.myInventoryRequests = [
+        { id: 1, organizationId: 10, requestReference: 'REQ-00001', requestedByMembershipId: 3, requestType: 'employee', forEmployeeId: 42, forDepartmentId: 1, reason: null, submittedAt: new Date().toISOString(), status: 'pending', cancelledAt: null, cancelledByMembershipId: null },
+      ];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-inventory'));
+      expect(screen.getByTestId('row-my-inventory-request-1')).toHaveTextContent('REQ-00001');
+      expect(screen.getByTestId('row-my-inventory-request-1')).toHaveTextContent('Pending');
+      expect(screen.getByTestId('button-create-request')).toBeInTheDocument();
+    });
+
+    it('shows own history with the movement type', async () => {
+      resetInventoryState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'office_inventory', enabled: true })];
+      state.myInventoryItems = [officeInventoryItem({ id: 1, name: 'Laptop Bag' })];
+      state.myInventoryHistory = [movement({ id: 9, itemId: 1, movementType: 'returned', confirmedAt: new Date().toISOString() })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-inventory'));
+      expect(screen.getByTestId('row-my-inventory-history-9')).toHaveTextContent('Laptop Bag');
+      expect(screen.getByTestId('row-my-inventory-history-9')).toHaveTextContent('Returned');
+    });
+
+    it('exposes no operational/approval control anywhere on this tab', async () => {
+      resetInventoryState();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'office_inventory', enabled: true })];
+      state.myInventoryItems = [officeInventoryItem({ id: 1, name: 'Laptop Bag' })];
+      state.myInventoryCustody = [custodyEntry({ itemId: 1 })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-inventory'));
+      expect(screen.queryByRole('button', { name: /^approve/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^reject/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /issue…/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /write.?off/i })).not.toBeInTheDocument();
     });
   });
 

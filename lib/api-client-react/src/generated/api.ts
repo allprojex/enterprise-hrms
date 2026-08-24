@@ -34596,6 +34596,308 @@ export const useCreateOfficeInventoryHandover = <TError = ErrorType<ApiError>,
       return useMutation(getCreateOfficeInventoryHandoverMutationOptions(options));
     }
 
+export const getGetOfficeInventoryMyCustodyUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/my/custody`
+}
+
+/**
+ * Resolved via resolveOwnEmployeeId exclusively — no client-supplied employee ID. No office_inventory.* permission is required beyond the module being enabled; owning your own data is not an operational grant. A caller with no linked employee record gets an empty list, never an error.
+ * @summary The caller's own current personal custody, live-derived — Workstream 8 ESS (§33)
+ */
+export const getOfficeInventoryMyCustody = async (organizationId: number, options?: RequestInit): Promise<OfficeInventoryCustodyEntry[]> => {
+
+  return customFetch<OfficeInventoryCustodyEntry[]>(getGetOfficeInventoryMyCustodyUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOfficeInventoryMyCustodyQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/office-inventory/my/custody`
+    ] as const;
+    }
+
+
+export const getGetOfficeInventoryMyCustodyQueryOptions = <TData = Awaited<ReturnType<typeof getOfficeInventoryMyCustody>>, TError = ErrorType<ApiError>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryMyCustody>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOfficeInventoryMyCustodyQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOfficeInventoryMyCustody>>> = ({ signal }) => getOfficeInventoryMyCustody(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryMyCustody>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOfficeInventoryMyCustodyQueryResult = NonNullable<Awaited<ReturnType<typeof getOfficeInventoryMyCustody>>>
+export type GetOfficeInventoryMyCustodyQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary The caller's own current personal custody, live-derived — Workstream 8 ESS (§33)
+ */
+
+export function useGetOfficeInventoryMyCustody<TData = Awaited<ReturnType<typeof getOfficeInventoryMyCustody>>, TError = ErrorType<ApiError>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryMyCustody>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOfficeInventoryMyCustodyQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetOfficeInventoryMyHistoryUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/my/history`
+}
+
+/**
+ * Resolved via resolveOwnEmployeeId exclusively. A caller with no linked employee record gets an empty list, never an error.
+ * @summary Every ledger movement ever recorded against the caller's own personal custody, newest first — Workstream 8 ESS (§33)
+ */
+export const getOfficeInventoryMyHistory = async (organizationId: number, options?: RequestInit): Promise<OfficeInventoryStockMovement[]> => {
+
+  return customFetch<OfficeInventoryStockMovement[]>(getGetOfficeInventoryMyHistoryUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOfficeInventoryMyHistoryQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/office-inventory/my/history`
+    ] as const;
+    }
+
+
+export const getGetOfficeInventoryMyHistoryQueryOptions = <TData = Awaited<ReturnType<typeof getOfficeInventoryMyHistory>>, TError = ErrorType<ApiError>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryMyHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOfficeInventoryMyHistoryQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOfficeInventoryMyHistory>>> = ({ signal }) => getOfficeInventoryMyHistory(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryMyHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOfficeInventoryMyHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof getOfficeInventoryMyHistory>>>
+export type GetOfficeInventoryMyHistoryQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Every ledger movement ever recorded against the caller's own personal custody, newest first — Workstream 8 ESS (§33)
+ */
+
+export function useGetOfficeInventoryMyHistory<TData = Awaited<ReturnType<typeof getOfficeInventoryMyHistory>>, TError = ErrorType<ApiError>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryMyHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOfficeInventoryMyHistoryQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateOfficeInventoryMyReturnUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/my/returns`
+}
+
+/**
+ * `holderType`/`holderId` must be the caller's own personal custody or their own current department's custody — verified server-side against resolveOwnEmployeeId, never a client-asserted "on behalf of" holder. Otherwise identical to POST .../office-inventory/returns.
+ * @summary Return from the caller's OWN outstanding custody into a store — Workstream 8 ESS (§33), gated office_inventory.return
+ */
+export const createOfficeInventoryMyReturn = async (organizationId: number,
+    createOfficeInventoryReturnBody: CreateOfficeInventoryReturnBody, options?: RequestInit): Promise<OfficeInventoryReturnResult> => {
+
+  return customFetch<OfficeInventoryReturnResult>(getCreateOfficeInventoryMyReturnUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createOfficeInventoryReturnBody)
+  }
+);}
+
+
+
+
+
+export const getCreateOfficeInventoryMyReturnMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryMyReturn>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryReturnBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryMyReturn>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryReturnBody>}, TContext> => {
+
+const mutationKey = ['createOfficeInventoryMyReturn'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createOfficeInventoryMyReturn>>, {organizationId: number;data: BodyType<CreateOfficeInventoryReturnBody>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createOfficeInventoryMyReturn(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateOfficeInventoryMyReturnMutationResult = NonNullable<Awaited<ReturnType<typeof createOfficeInventoryMyReturn>>>
+    export type CreateOfficeInventoryMyReturnMutationBody = BodyType<CreateOfficeInventoryReturnBody>
+    export type CreateOfficeInventoryMyReturnMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Return from the caller's OWN outstanding custody into a store — Workstream 8 ESS (§33), gated office_inventory.return
+ */
+export const useCreateOfficeInventoryMyReturn = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryMyReturn>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryReturnBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createOfficeInventoryMyReturn>>,
+        TError,
+        {organizationId: number;data: BodyType<CreateOfficeInventoryReturnBody>},
+        TContext
+      > => {
+      return useMutation(getCreateOfficeInventoryMyReturnMutationOptions(options));
+    }
+
+export const getCreateOfficeInventoryMyHandoverUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/my/handovers`
+}
+
+/**
+ * `fromHolderType`/`fromHolderId` must be the caller's own personal custody or their own current department's custody — verified server-side against resolveOwnEmployeeId. The destination holder is unrestricted (it is simply the recipient), subject to the same Owner Decision 17 department-to-department authority gate as POST .../office-inventory/handovers.
+ * @summary Hand over the caller's OWN outstanding custody to another holder — Workstream 8 ESS (§33), gated office_inventory.handover
+ */
+export const createOfficeInventoryMyHandover = async (organizationId: number,
+    createOfficeInventoryHandoverBody: CreateOfficeInventoryHandoverBody, options?: RequestInit): Promise<OfficeInventoryHandoverResult> => {
+
+  return customFetch<OfficeInventoryHandoverResult>(getCreateOfficeInventoryMyHandoverUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createOfficeInventoryHandoverBody)
+  }
+);}
+
+
+
+
+
+export const getCreateOfficeInventoryMyHandoverMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryMyHandover>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryHandoverBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryMyHandover>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryHandoverBody>}, TContext> => {
+
+const mutationKey = ['createOfficeInventoryMyHandover'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createOfficeInventoryMyHandover>>, {organizationId: number;data: BodyType<CreateOfficeInventoryHandoverBody>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createOfficeInventoryMyHandover(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateOfficeInventoryMyHandoverMutationResult = NonNullable<Awaited<ReturnType<typeof createOfficeInventoryMyHandover>>>
+    export type CreateOfficeInventoryMyHandoverMutationBody = BodyType<CreateOfficeInventoryHandoverBody>
+    export type CreateOfficeInventoryMyHandoverMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Hand over the caller's OWN outstanding custody to another holder — Workstream 8 ESS (§33), gated office_inventory.handover
+ */
+export const useCreateOfficeInventoryMyHandover = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryMyHandover>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryHandoverBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createOfficeInventoryMyHandover>>,
+        TError,
+        {organizationId: number;data: BodyType<CreateOfficeInventoryHandoverBody>},
+        TContext
+      > => {
+      return useMutation(getCreateOfficeInventoryMyHandoverMutationOptions(options));
+    }
+
 export const getCreateOfficeInventoryTransferUrl = (organizationId: number,) => {
 
 

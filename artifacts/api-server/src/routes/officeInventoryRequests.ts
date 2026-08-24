@@ -231,7 +231,12 @@ router.get(
         return;
       }
       const context = await getRequestApprovalContext(organizationId, id);
-      res.json(context);
+      // Workstream 8 (§34): "when the actor is a delegate, the delegation
+      // authority being exercised, its validity window, and the delegating
+      // Head's identity" — the same `authority` already resolved above for
+      // the 403 gate, simply carried into the response rather than a second
+      // lookup.
+      res.json({ ...context, viewerAuthority: authority });
     } catch (err) {
       if (err instanceof OfficeInventoryRequestNotFoundError) {
         res.status(404).json({ error: err.message });

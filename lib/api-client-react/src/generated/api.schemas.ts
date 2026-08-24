@@ -7671,16 +7671,42 @@ export interface OfficeInventoryRepeatRequestWarning {
   recentDepartmentRequests: OfficeInventoryRequest[];
 }
 
+/**
+ * Extended in Workstream 5 with live-derived overdue info (§20) — the fields are additive to Workstream 4's own original shape, never breaking it. `overdue`/`expectedReturnDate` are computed from the most recent holder-increasing (`issued`) row for this item, which a handover's destination row also is — a handover therefore becomes the new "most recent" row and supersedes whatever due date the previous holder was tracking.
+ */
+export interface OfficeInventoryCustodyEntry {
+  itemId: number;
+  balance: string;
+  overdue: boolean;
+  expectedReturnDate: string | null;
+}
+
+/**
+ * Office Inventory, Workstream 8 (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §15, §34). Completes the repeat-request warning with real current custody and recent issue/return activity for both the employee and the department, now that Workstreams 4-7 exist — additive to OfficeInventoryRepeatRequestWarning's own shape, not a replacement. `employeeCurrentCustody`/`recentEmployeeIssuedQuantity`/ `recentEmployeeReturnedQuantity` are null only when the request has no `forEmployeeId` (a pure department request). For a consumable item, current custody is a cumulative issued total, not an outstanding return obligation — `overdue` is always false for a consumable, since a consumable's `issued` row never carries an `expectedReturnDate`.
+ */
+export interface OfficeInventoryAccountabilityContext {
+  employeeCurrentCustody: OfficeInventoryCustodyEntry | null;
+  departmentCurrentCustody: OfficeInventoryCustodyEntry;
+  recentEmployeeIssuedQuantity: string | null;
+  recentDepartmentIssuedQuantity: string;
+  recentEmployeeReturnedQuantity: string | null;
+  recentDepartmentReturnedQuantity: string;
+}
+
 export interface OfficeInventoryRequestLineApprovalContext {
   line: OfficeInventoryRequestLine;
   storeAvailability: OfficeInventoryItemBalance;
   repeatRequestWarning: OfficeInventoryRepeatRequestWarning;
+  accountability: OfficeInventoryAccountabilityContext;
 }
 
-export interface OfficeInventoryRequestApprovalContext {
-  request: OfficeInventoryRequest;
-  lines: OfficeInventoryRequestLineApprovalContext[];
-}
+export type OfficeInventoryApprovalAuthorityCapacity = typeof OfficeInventoryApprovalAuthorityCapacity[keyof typeof OfficeInventoryApprovalAuthorityCapacity];
+
+
+export const OfficeInventoryApprovalAuthorityCapacity = {
+  department_head: 'department_head',
+  delegate: 'delegate',
+} as const;
 
 /**
  * Office Inventory, Workstream 3 (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §6, §5.3). A row surviving the delegating Head's own replacement remains open and fully historically queryable, but becomes functionally inert for NEW approvals the instant that membership is no longer the department's actual current Head — re-checked fresh on every approval, never assumed from this row's own existence.
@@ -7699,6 +7725,21 @@ export interface OfficeInventoryApprovalDelegation {
   /** @nullable */
   revokedByMembershipId: number | null;
   createdAt: string;
+}
+
+/**
+ * Office Inventory, Workstream 8 (§34) — "when the actor is a delegate, the delegation authority being exercised, its validity window, and the delegating Head's identity." The same `resolveApprovalAuthority` result Workstream 3 already re-checks fresh on every approval action, carried onto the approval-context response the viewer themselves is currently authorized under.
+ */
+export interface OfficeInventoryApprovalAuthority {
+  capacity: OfficeInventoryApprovalAuthorityCapacity;
+  headMembershipId: number;
+  delegation: OfficeInventoryApprovalDelegation | null;
+}
+
+export interface OfficeInventoryRequestApprovalContext {
+  request: OfficeInventoryRequest;
+  lines: OfficeInventoryRequestLineApprovalContext[];
+  viewerAuthority: OfficeInventoryApprovalAuthority;
 }
 
 export interface CreateOfficeInventoryDelegationBody {
@@ -7756,16 +7797,6 @@ export interface DirectIssueResult {
 export interface OfficeInventoryAwaitingFulfilmentEntry {
   request: OfficeInventoryRequest;
   lines: OfficeInventoryRequestLine[];
-}
-
-/**
- * Extended in Workstream 5 with live-derived overdue info (§20) — the fields are additive to Workstream 4's own original shape, never breaking it. `overdue`/`expectedReturnDate` are computed from the most recent holder-increasing (`issued`) row for this item, which a handover's destination row also is — a handover therefore becomes the new "most recent" row and supersedes whatever due date the previous holder was tracking.
- */
-export interface OfficeInventoryCustodyEntry {
-  itemId: number;
-  balance: string;
-  overdue: boolean;
-  expectedReturnDate: string | null;
 }
 
 export type CreateOfficeInventoryReturnBodyHolderType = typeof CreateOfficeInventoryReturnBodyHolderType[keyof typeof CreateOfficeInventoryReturnBodyHolderType];
