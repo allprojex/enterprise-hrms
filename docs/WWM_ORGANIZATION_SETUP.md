@@ -261,3 +261,15 @@ At the same time, and not by this action: `recruitment`, `performance`, `learnin
 | Payroll | hidden | No |
 
 Backend regression: **125/125 files, 2264/2264 tests**, clean. Zero schema drift. No frontend change.
+
+## 19. WWM HR Granted Organization Administrator Rights (Owner Decision)
+
+At the owner's explicit request, Grace Mensah (`hr@wwm.test`) was additionally granted the `org_admin` system role on top of her existing `hr_manager` + `wwm_hr_inventory_operations` roles — via `POST /organizations/3/members/426/roles {roleId: 2}`, the same membership-role-assignment endpoint used for every other role grant in this document. Additive, not a replacement: her membership now carries all three roles simultaneously.
+
+§17 established (and this reconfirms) that the platform's own default design deliberately separates system/organization administration from HR-operational authority — `hr_manager` intentionally excludes `module.manage`/`role.manage`/`organization.update`. Granting Grace `org_admin` is a **conscious departure from that default, made by WWM's own stakeholder for WWM specifically** — not something the platform recommends by default, not applied to any other organization, and not something a future workstream should treat as a new baseline to replicate elsewhere without the same kind of explicit instruction.
+
+Live-verified with Grace's own token after the grant: `PATCH /organizations/3/modules/leave` → `200` (module management), `GET /organizations/3/roles` → `200` (role/permission management), `PATCH /organizations/3` → `200` (organization settings). She can now configure modules, roles, and organization settings herself, in addition to her existing HR-operational work.
+
+Kwame (`admin@wwm.test`) remains WWM's own dedicated `org_admin` as well — unaffected, still a separate account with the same authority. No other WWM account's roles changed.
+
+No code, schema, or permission-table change of any kind; this document and the matching `PROJECT_STATUS.md` entry are the only repository change this action required.
