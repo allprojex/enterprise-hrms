@@ -9,7 +9,7 @@
  * and lives on the existing Departments page instead.
  */
 import { useState } from 'react';
-import { Boxes, Warehouse, Settings2, Plus, Pencil, Truck, Trash2, PackageSearch, ClipboardList, CheckCircle2, XCircle, UserCog, X, Ban, PackageCheck, Users, Undo2, ArrowLeftRight, AlertTriangle, ShieldAlert, Archive, SlidersHorizontal, SearchCheck, ClipboardCheck, Play, Lock, LayoutDashboard, FileBarChart, Download } from 'lucide-react';
+import { Boxes, Warehouse, Settings2, Plus, Pencil, Truck, Trash2, PackageSearch, ClipboardList, CheckCircle2, XCircle, UserCog, X, Ban, PackageCheck, Users, Undo2, ArrowLeftRight, AlertTriangle, ShieldAlert, Archive, SlidersHorizontal, SearchCheck, ClipboardCheck, Play, Lock, LayoutDashboard, FileBarChart, Download, PackagePlus } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -99,6 +99,7 @@ import {
   useGetOfficeInventoryDashboard,
   getGetOfficeInventoryDashboardQueryKey,
   runOfficeInventoryReport,
+  useCreateOfficeInventoryAssetHandoff,
   OfficeInventoryItemClassification,
   type OfficeInventoryItem,
   type OfficeInventoryStore,
@@ -852,15 +853,90 @@ function ReceivingTab({ organizationId }: { organizationId: number }) {
 // --- Stock (Workstream 2) — current balance, live-derived from the ledger.
 // No employee/department custody view yet — that is a later workstream. ---
 
+// Workstream 10 (§4 Owner Decision 1) — explicit, one-directional,
+// one-unit-per-call conversion of a store-held returnable item into an
+// individually-identifiable Asset. Never automatic; requires deliberate
+// confirmation. No accounting/Procurement terminology — this is an
+// accountability reclassification, not a purchase or a valuation.
+function ConvertToAssetDialog({ organizationId, itemId, itemName, storeId, storeBalance, onConverted }: { organizationId: number; itemId: number; itemName: string; storeId: number; storeBalance: string; onConverted: () => void }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [assetCategoryCode, setAssetCategoryCode] = useState('');
+  const [assetName, setAssetName] = useState('');
+  const mutation = useCreateOfficeInventoryAssetHandoff();
+
+  const reset = () => {
+    setAssetCategoryCode('');
+    setAssetName('');
+  };
+
+  const handle = () => {
+    if (!assetCategoryCode.trim()) return;
+    mutation.mutate(
+      { organizationId, data: { itemId, storeId, assetCategoryCode: assetCategoryCode.trim(), assetName: assetName.trim() || undefined, idempotencyKey: crypto.randomUUID() } },
+      {
+        onSuccess: (result) => {
+          setOpen(false);
+          reset();
+          onConverted();
+          toast({ title: 'Converted to Asset', description: `Asset ${result.asset.assetTag} created.` });
+        },
+        onError: (err) => toast({ title: 'Could not convert to Asset', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" disabled={parseFloat(storeBalance) < 1} data-testid={`button-open-convert-to-asset-${storeId}`}>
+          <PackagePlus className="h-3.5 w-3.5" aria-hidden="true" />
+          Convert to Asset…
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Convert to Asset</DialogTitle>
+          <DialogDescription>
+            Converts exactly ONE unit of {itemName} from this store into an individually-tracked Asset. This permanently removes that unit from Office Inventory accountability — it will no longer count toward this store's stock. This cannot be undone from here.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor={`asset-category-${storeId}`}>Asset Category (required)</Label>
+            <Input id={`asset-category-${storeId}`} value={assetCategoryCode} onChange={(e) => setAssetCategoryCode(e.target.value)} placeholder="e.g. IT_EQUIPMENT" data-testid={`input-asset-category-${storeId}`} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`asset-name-${storeId}`}>Asset Name (optional)</Label>
+            <Input id={`asset-name-${storeId}`} value={assetName} onChange={(e) => setAssetName(e.target.value)} placeholder={itemName} data-testid={`input-asset-name-${storeId}`} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={handle} disabled={mutation.isPending || !assetCategoryCode.trim()} data-testid={`button-confirm-convert-to-asset-${storeId}`}>
+            {mutation.isPending ? 'Converting…' : 'Confirm Conversion'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function StockTab({ organizationId }: { organizationId: number }) {
+  const queryClient = useQueryClient();
   const { data: items } = useListOfficeInventoryItems(organizationId, {
     query: { queryKey: getListOfficeInventoryItemsQueryKey(organizationId), enabled: organizationId > 0 },
   });
   const [itemId, setItemId] = useState('');
+  const selectedItem = (items ?? []).find((i) => i.id === Number(itemId));
 
   const { data: balance, isLoading, error, refetch } = useGetOfficeInventoryStockBalance(organizationId, { itemId: Number(itemId) }, {
     query: { queryKey: getGetOfficeInventoryStockBalanceQueryKey(organizationId, { itemId: Number(itemId) }), enabled: organizationId > 0 && !!itemId },
   });
+
+  const handleConverted = () => {
+    queryClient.invalidateQueries({ queryKey: getGetOfficeInventoryStockBalanceQueryKey(organizationId, { itemId: Number(itemId) }) });
+    refetch();
+  };
 
   return (
     <div className="space-y-4">
@@ -902,7 +978,12 @@ function StockTab({ organizationId }: { organizationId: number }) {
                 {balance!.byStore.map((b) => (
                   <div key={b.storeId} className="flex items-center justify-between rounded-md border border-border p-2 text-sm" data-testid={`row-store-balance-${b.storeId}`}>
                     <span>Store #{b.storeId}</span>
-                    <span className="font-mono">{b.balance}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono">{b.balance}</span>
+                      {selectedItem?.classification === 'returnable' && (
+                        <ConvertToAssetDialog organizationId={organizationId} itemId={selectedItem.id} itemName={selectedItem.name} storeId={b.storeId} storeBalance={b.balance} onConverted={handleConverted} />
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

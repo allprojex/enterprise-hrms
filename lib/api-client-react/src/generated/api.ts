@@ -99,6 +99,7 @@ import type {
   CreateMasterDataItemInput,
   CreateOfferInput,
   CreateOfficeInventoryAdjustmentBody,
+  CreateOfficeInventoryAssetHandoffBody,
   CreateOfficeInventoryDelegationBody,
   CreateOfficeInventoryHandoverBody,
   CreateOfficeInventoryItemBody,
@@ -242,6 +243,7 @@ import type {
   OfferListResponse,
   OfferVersion,
   OfficeInventoryApprovalDelegation,
+  OfficeInventoryAssetHandoffResult,
   OfficeInventoryAwaitingFulfilmentEntry,
   OfficeInventoryCustodyEntry,
   OfficeInventoryDashboard,
@@ -36379,4 +36381,77 @@ export function useRunOfficeInventoryReport<TData = Awaited<ReturnType<typeof ru
 
 
 
+
+export const getCreateOfficeInventoryAssetHandoffUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/asset-handoff`
+}
+
+/**
+ * Workstream 10, §4 Owner Decision 1. Explicit, one-directional, one-unit-per-call conversion — calls Assets' own existing creation API directly. Requires BOTH office_inventory and asset_management to be enabled for the organization. The source unit must currently be store-held (not issued to an employee/department) and the item must be classification=returnable.
+ * @summary Convert one unit of a store-held returnable item into an Asset — gated office_inventory.asset_handoff
+ */
+export const createOfficeInventoryAssetHandoff = async (organizationId: number,
+    createOfficeInventoryAssetHandoffBody: CreateOfficeInventoryAssetHandoffBody, options?: RequestInit): Promise<OfficeInventoryAssetHandoffResult> => {
+
+  return customFetch<OfficeInventoryAssetHandoffResult>(getCreateOfficeInventoryAssetHandoffUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createOfficeInventoryAssetHandoffBody)
+  }
+);}
+
+
+
+
+
+export const getCreateOfficeInventoryAssetHandoffMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryAssetHandoff>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryAssetHandoffBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryAssetHandoff>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryAssetHandoffBody>}, TContext> => {
+
+const mutationKey = ['createOfficeInventoryAssetHandoff'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createOfficeInventoryAssetHandoff>>, {organizationId: number;data: BodyType<CreateOfficeInventoryAssetHandoffBody>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createOfficeInventoryAssetHandoff(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateOfficeInventoryAssetHandoffMutationResult = NonNullable<Awaited<ReturnType<typeof createOfficeInventoryAssetHandoff>>>
+    export type CreateOfficeInventoryAssetHandoffMutationBody = BodyType<CreateOfficeInventoryAssetHandoffBody>
+    export type CreateOfficeInventoryAssetHandoffMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Convert one unit of a store-held returnable item into an Asset — gated office_inventory.asset_handoff
+ */
+export const useCreateOfficeInventoryAssetHandoff = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryAssetHandoff>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryAssetHandoffBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createOfficeInventoryAssetHandoff>>,
+        TError,
+        {organizationId: number;data: BodyType<CreateOfficeInventoryAssetHandoffBody>},
+        TContext
+      > => {
+      return useMutation(getCreateOfficeInventoryAssetHandoffMutationOptions(options));
+    }
 

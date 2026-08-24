@@ -8198,6 +8198,40 @@ export interface OfficeInventoryDashboard {
   vacantHeadBlockedDepartments: number;
 }
 
+/**
+ * Office Inventory, Workstream 10 (§4 Owner Decision 1). Converts exactly ONE unit of a returnable item currently held in a store into one individually-identifiable Asset, calling Assets' own existing creation API directly. Only a store-held unit is eligible — an item currently issued to an employee/department must be returned first (Workstream 5); `asset_handoff` is a store-decreasing movement type only. assetCategoryCode/assetName mirror CreateAssetInput's own categoryCode/name; every other field passes straight through to Assets unchanged.
+ */
+export interface CreateOfficeInventoryAssetHandoffBody {
+  itemId: number;
+  storeId: number;
+  /** @minLength 1 */
+  assetCategoryCode: string;
+  /**
+     * Defaults to the Office Inventory item's own current name if omitted.
+     * @minLength 1
+     */
+  assetName?: string;
+  description?: string;
+  manufacturer?: string;
+  model?: string;
+  serialNumber?: string;
+  purchaseDate?: string;
+  /** @minimum 0 */
+  purchaseCost?: number;
+  purchaseCurrency?: string;
+  warrantyExpiryDate?: string;
+  condition?: AssetCondition;
+  notes?: string;
+  /** Optional client-generated key protecting against duplicate submission. Same key returns the original handoff (same Asset, same movement) rather than creating a second one. */
+  idempotencyKey?: string;
+}
+
+export interface OfficeInventoryAssetHandoffResult {
+  asset: Asset;
+  movement: OfficeInventoryStockMovement;
+  replay: boolean;
+}
+
 export type ListEmployeesParams = {
 search?: string;
 departmentId?: number;

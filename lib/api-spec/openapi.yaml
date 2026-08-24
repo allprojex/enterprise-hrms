@@ -18831,6 +18831,62 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/office-inventory/asset-handoff:
+    post:
+      operationId: createOfficeInventoryAssetHandoff
+      tags: [office-inventory-asset-handoff]
+      summary: Convert one unit of a store-held returnable item into an Asset — gated office_inventory.asset_handoff
+      description: >-
+        Workstream 10, §4 Owner Decision 1. Explicit, one-directional,
+        one-unit-per-call conversion — calls Assets' own existing creation
+        API directly. Requires BOTH office_inventory and asset_management to
+        be enabled for the organization. The source unit must currently be
+        store-held (not issued to an employee/department) and the item must
+        be classification=returnable.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOfficeInventoryAssetHandoffBody"
+      responses:
+        "201":
+          description: The created Asset and the office_inventory asset_handoff movement (or, on idempotency replay, the original)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryAssetHandoffResult"
+        "400":
+          description: The item is not returnable (not eligible for handoff)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires office_inventory.asset_handoff, or office_inventory/asset_management not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Item or store not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Insufficient store stock (fewer than 1 unit available)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -28448,3 +28504,66 @@ components:
         vacantHeadBlockedDepartments:
           type: integer
           description: Departments with no currently-open Department Head assignment (§5.3).
+
+    CreateOfficeInventoryAssetHandoffBody:
+      type: object
+      description: >-
+        Office Inventory, Workstream 10 (§4 Owner Decision 1). Converts
+        exactly ONE unit of a returnable item currently held in a store into
+        one individually-identifiable Asset, calling Assets' own existing
+        creation API directly. Only a store-held unit is eligible — an item
+        currently issued to an employee/department must be returned first
+        (Workstream 5); `asset_handoff` is a store-decreasing movement type
+        only. assetCategoryCode/assetName mirror CreateAssetInput's own
+        categoryCode/name; every other field passes straight through to
+        Assets unchanged.
+      required: [itemId, storeId, assetCategoryCode]
+      properties:
+        itemId:
+          type: integer
+        storeId:
+          type: integer
+        assetCategoryCode:
+          type: string
+          minLength: 1
+        assetName:
+          type: string
+          minLength: 1
+          description: Defaults to the Office Inventory item's own current name if omitted.
+        description:
+          type: string
+        manufacturer:
+          type: string
+        model:
+          type: string
+        serialNumber:
+          type: string
+        purchaseDate:
+          type: string
+          format: date
+        purchaseCost:
+          type: number
+          minimum: 0
+        purchaseCurrency:
+          type: string
+        warrantyExpiryDate:
+          type: string
+          format: date
+        condition:
+          $ref: "#/components/schemas/AssetCondition"
+        notes:
+          type: string
+        idempotencyKey:
+          type: string
+          description: Optional client-generated key protecting against duplicate submission. Same key returns the original handoff (same Asset, same movement) rather than creating a second one.
+
+    OfficeInventoryAssetHandoffResult:
+      type: object
+      required: [asset, movement, replay]
+      properties:
+        asset:
+          $ref: "#/components/schemas/Asset"
+        movement:
+          $ref: "#/components/schemas/OfficeInventoryStockMovement"
+        replay:
+          type: boolean

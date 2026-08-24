@@ -15581,3 +15581,88 @@ export const RunOfficeInventoryReportResponse = zod.object({
 })
 
 
+/**
+ * Workstream 10, §4 Owner Decision 1. Explicit, one-directional, one-unit-per-call conversion — calls Assets' own existing creation API directly. Requires BOTH office_inventory and asset_management to be enabled for the organization. The source unit must currently be store-held (not issued to an employee/department) and the item must be classification=returnable.
+ * @summary Convert one unit of a store-held returnable item into an Asset — gated office_inventory.asset_handoff
+ */
+export const CreateOfficeInventoryAssetHandoffParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+
+export const createOfficeInventoryAssetHandoffBodyPurchaseCostMin = 0;
+
+
+
+export const CreateOfficeInventoryAssetHandoffBody = zod.object({
+  "itemId": zod.number(),
+  "storeId": zod.number(),
+  "assetCategoryCode": zod.string().min(1),
+  "assetName": zod.string().min(1).optional().describe('Defaults to the Office Inventory item\'s own current name if omitted.'),
+  "description": zod.string().optional(),
+  "manufacturer": zod.string().optional(),
+  "model": zod.string().optional(),
+  "serialNumber": zod.string().optional(),
+  "purchaseDate": zod.coerce.date().optional(),
+  "purchaseCost": zod.number().min(createOfficeInventoryAssetHandoffBodyPurchaseCostMin).optional(),
+  "purchaseCurrency": zod.string().optional(),
+  "warrantyExpiryDate": zod.coerce.date().optional(),
+  "condition": zod.enum(['new', 'good', 'fair', 'poor', 'damaged']).optional().describe('Deliberately independent of asset status (§7) — a damaged asset can still be assigned or in maintenance.'),
+  "notes": zod.string().optional(),
+  "idempotencyKey": zod.string().optional().describe('Optional client-generated key protecting against duplicate submission. Same key returns the original handoff (same Asset, same movement) rather than creating a second one.')
+}).describe('Office Inventory, Workstream 10 (§4 Owner Decision 1). Converts exactly ONE unit of a returnable item currently held in a store into one individually-identifiable Asset, calling Assets\' own existing creation API directly. Only a store-held unit is eligible — an item currently issued to an employee\/department must be returned first (Workstream 5); `asset_handoff` is a store-decreasing movement type only. assetCategoryCode\/assetName mirror CreateAssetInput\'s own categoryCode\/name; every other field passes straight through to Assets unchanged.')
+
+export const CreateOfficeInventoryAssetHandoffResponse = zod.object({
+  "asset": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "assetTag": zod.string().describe('Server-generated, sequential, per-organization (\"AST-00001\", ...) — never client-supplied, never editable.'),
+  "categoryCode": zod.string().describe('Free-text code from the asset_category Master Data domain, not validated against the domain\'s item list.'),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "manufacturer": zod.string().nullish(),
+  "model": zod.string().nullish(),
+  "serialNumber": zod.string().nullish().describe('Unique per organization only when present. An empty string is stored as null.'),
+  "branchId": zod.number().nullish().describe('Current physical location — a live reference, not a historical snapshot.'),
+  "purchaseDate": zod.coerce.date().nullish(),
+  "purchaseCost": zod.string().nullish().describe('Optional, reference-only. No depreciation\/valuation\/accounting logic anywhere. No pairing requirement with purchaseCurrency.'),
+  "purchaseCurrency": zod.string().nullish(),
+  "warrantyExpiryDate": zod.coerce.date().nullish(),
+  "condition": zod.enum(['new', 'good', 'fair', 'poor', 'damaged']).describe('Deliberately independent of asset status (§7) — a damaged asset can still be assigned or in maintenance.'),
+  "status": zod.enum(['available', 'assigned', 'maintenance', 'lost', 'retired']).describe('The sole-authoritative lifecycle field. retired is permanently terminal.'),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "movement": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "itemId": zod.number(),
+  "movementType": zod.enum(['received', 'issued', 'returned', 'transferred_out', 'transferred_in', 'adjustment_in', 'adjustment_out', 'written_off', 'missing', 'recovered', 'asset_handoff']),
+  "quantity": zod.string(),
+  "storeId": zod.number().nullable(),
+  "holderType": zod.union([zod.literal('employee'),zod.literal('department'),zod.literal(null)]).nullable(),
+  "holderId": zod.number().nullable(),
+  "referenceNumber": zod.string().nullable(),
+  "sourceReferenceType": zod.union([zod.literal('request_line'),zod.literal('incident'),zod.literal('stocktake_line'),zod.literal('asset'),zod.literal(null)]).nullable(),
+  "sourceReferenceId": zod.number().nullable(),
+  "source": zod.string().nullable(),
+  "deliveryReference": zod.string().nullable(),
+  "unitCost": zod.string().nullable(),
+  "condition": zod.union([zod.literal('new'),zod.literal('good'),zod.literal('fair'),zod.literal('poor'),zod.literal('damaged'),zod.literal(null)]).nullable(),
+  "reason": zod.string().nullable(),
+  "expectedReturnDate": zod.coerce.date().nullable(),
+  "confirmedByMembershipId": zod.number().nullable(),
+  "confirmedAt": zod.coerce.date().nullable(),
+  "idempotencyKey": zod.string().nullable(),
+  "actorMembershipId": zod.number().nullable(),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 2 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.3). One row of the authoritative, append-only stock ledger. Workstream 2 only ever produces `movementType: received` rows; every other enum value exists for later workstreams.'),
+  "replay": zod.boolean()
+})
+
+
