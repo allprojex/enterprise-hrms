@@ -127,6 +127,13 @@ function NavLinks({
   );
 }
 
+function OrgLogo({ logoUrl }: { logoUrl: string | null | undefined }) {
+  if (logoUrl) {
+    return <img src={logoUrl} alt="" className="h-4 w-4 object-contain flex-shrink-0" data-testid="img-org-logo" />;
+  }
+  return <Building className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />;
+}
+
 function OrgLabel({ currentOrg }: { currentOrg: MembershipSummary }) {
   return (
     <div className="border-b border-sidebar-border px-4 py-3">
@@ -134,7 +141,7 @@ function OrgLabel({ currentOrg }: { currentOrg: MembershipSummary }) {
         className="flex items-center gap-2 rounded-lg border border-sidebar-border bg-card px-3 py-2"
         data-testid="text-org-current"
       >
-        <Building className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
+        <OrgLogo logoUrl={currentOrg.logoUrl} />
         <span className="text-sm font-medium text-card-foreground truncate">{currentOrg.organizationName}</span>
       </div>
     </div>
@@ -163,7 +170,7 @@ function OrgSwitcher({
             data-testid="button-org-selector"
           >
             <div className="flex items-center gap-2 min-w-0">
-              <Building className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
+              <OrgLogo logoUrl={currentOrg.logoUrl} />
               <span className="text-sm font-medium text-card-foreground truncate">
                 {currentOrg.organizationName}
               </span>
@@ -180,6 +187,7 @@ function OrgSwitcher({
               onSelect={() => onSwitch(org)}
               data-testid={`option-org-${org.organizationId}`}
             >
+              <OrgLogo logoUrl={org.logoUrl} />
               <span className="flex-1 truncate">{org.organizationName}</span>
               {org.organizationId === currentOrg.organizationId && (
                 <Check className="h-4 w-4 flex-shrink-0" aria-hidden="true" />

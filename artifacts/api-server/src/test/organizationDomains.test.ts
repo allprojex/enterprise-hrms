@@ -5,18 +5,20 @@
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-const { fixtures, organizationDomainsTable, organizationsTable } = vi.hoisted(() => {
+const { fixtures, organizationDomainsTable, organizationsTable, organizationSettingsTable } = vi.hoisted(() => {
   return {
     fixtures: {
       domainRows: [] as unknown[],
       domainOrgJoinRows: [] as unknown[],
       orgRows: [] as unknown[],
+      settingsRows: [] as unknown[],
       inserted: [] as { table: string; values: unknown }[],
       updated: [] as { table: string; values: unknown }[],
       insertShouldConflict: false,
     },
     organizationDomainsTable: { __name: "organization_domains" },
     organizationsTable: { __name: "organizations" },
+    organizationSettingsTable: { __name: "organization_settings" },
   };
 });
 
@@ -39,16 +41,21 @@ function makeTx() {
 vi.mock("@workspace/db", () => ({
   organizationDomainsTable,
   organizationsTable,
+  organizationSettingsTable,
   db: {
     select: (_cols?: unknown) => ({
       from(table: { __name: string }) {
-        const rows = table === organizationDomainsTable ? fixtures.domainOrgJoinRows : fixtures.orgRows;
+        const rowsByTable = (t: { __name: string }) => {
+          if (t === organizationDomainsTable) return fixtures.domainRows;
+          if (t === organizationSettingsTable) return fixtures.settingsRows;
+          return fixtures.orgRows;
+        };
+        const rows = table === organizationDomainsTable ? fixtures.domainOrgJoinRows : rowsByTable(table);
         const builder = {
           innerJoin: () => builder,
           where: () => builder,
-          limit: () => Promise.resolve(table === organizationDomainsTable ? fixtures.domainRows : fixtures.orgRows),
-          then: (resolve: (v: unknown) => void) =>
-            resolve(table === organizationDomainsTable ? fixtures.domainRows : rows),
+          limit: () => Promise.resolve(rowsByTable(table)),
+          then: (resolve: (v: unknown) => void) => resolve(rows),
         };
         return builder;
       },
@@ -242,6 +249,7 @@ describe("organizationDomains service", () => {
     fixtures.orgRows = [
       { id: 3, name: "wwm", slug: "wwm", type: "church", status: "trial", logoUrl: "https://x/y.png", industry: "secret" },
     ];
+    fixtures.settingsRows = [];
     const context = await getPublicTenantContext(3);
     expect(context).toEqual({
       organizationId: 3,
@@ -249,6 +257,24 @@ describe("organizationDomains service", () => {
       organizationSlug: "wwm",
       organizationType: "church",
       logoUrl: "https://x/y.png",
+      systemDisplayName: null,
     });
+  });
+
+  it("getPublicTenantContext includes the organization's own branding.systemDisplayName when configured", async () => {
+    fixtures.orgRows = [{ id: 3, name: "Worldwide Word Ministries", slug: "wwm", type: "church", status: "active", logoUrl: null }];
+    fixtures.settingsRows = [
+      { organizationId: 3, namespace: "branding", schemaVersion: 1, settings: { systemDisplayName: "Human Resource Management System" }, updatedAt: new Date() },
+    ];
+    const context = await getPublicTenantContext(3);
+    expect(context?.systemDisplayName).toBe("Human Resource Management System");
+  });
+
+  it("getPublicTenantContext never leaks one organization's branding onto another's response shape (isolation smoke check)", async () => {
+    fixtures.orgRows = [{ id: 4, name: "Acme", slug: "acme", type: "business", status: "active", logoUrl: null }];
+    fixtures.settingsRows = [];
+    const context = await getPublicTenantContext(4);
+    expect(context?.organizationId).toBe(4);
+    expect(context?.systemDisplayName).toBeNull();
   });
 });

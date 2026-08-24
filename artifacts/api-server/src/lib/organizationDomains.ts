@@ -2,6 +2,7 @@ import { and, eq, ne } from "drizzle-orm";
 import { db, organizationDomainsTable, organizationsTable, type OrganizationDomain } from "@workspace/db";
 import { generateToken } from "./auth";
 import { isUniqueViolation } from "./dbErrors";
+import { getNamespaceConfig } from "../services/organizationConfig";
 
 /**
  * Multi-Organization Tenant Infrastructure. A hostname identifies which
@@ -235,6 +236,7 @@ export interface PublicTenantContext {
   organizationSlug: string;
   organizationType: string;
   logoUrl: string | null;
+  systemDisplayName: string | null;
 }
 
 /**
@@ -251,11 +253,15 @@ export async function getPublicTenantContext(organizationId: number): Promise<Pu
   const [org] = await db.select().from(organizationsTable).where(eq(organizationsTable.id, organizationId)).limit(1);
   if (!org || org.status === "suspended") return null;
 
+  const branding = await getNamespaceConfig(organizationId, "branding");
+  const systemDisplayName = branding.data.systemDisplayName;
+
   return {
     organizationId: org.id,
     organizationName: org.name,
     organizationSlug: org.slug,
     organizationType: org.type,
     logoUrl: org.logoUrl,
+    systemDisplayName: typeof systemDisplayName === "string" ? systemDisplayName : null,
   };
 }

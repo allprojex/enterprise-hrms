@@ -122,6 +122,7 @@ router.get("/me/organizations", requireAuth as any, async (req: AuthenticatedReq
         organizationId: organization.id,
         organizationName: organization.name,
         organizationSlug: organization.slug,
+        logoUrl: organization.logoUrl,
         status: membership.status,
         roles: rolesByMembership.get(membership.id) ?? [],
         isPrimaryHr: primaryHrMembershipIds.has(membership.id),

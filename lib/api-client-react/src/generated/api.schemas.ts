@@ -252,6 +252,8 @@ export interface TenantContext {
   organizationType?: TenantContextOrganizationType;
   /** @nullable */
   logoUrl?: string | null;
+  /** @nullable */
+  systemDisplayName?: string | null;
 }
 
 export type MembershipSummaryStatus = typeof MembershipSummaryStatus[keyof typeof MembershipSummaryStatus];
@@ -269,6 +271,8 @@ export interface MembershipSummary {
   organizationId: number;
   organizationName: string;
   organizationSlug: string;
+  /** @nullable */
+  logoUrl: string | null;
   status: MembershipSummaryStatus;
   roles: string[];
   isPrimaryHr: boolean;

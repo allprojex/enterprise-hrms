@@ -169,21 +169,21 @@ export const MODULE_DEFINITIONS: readonly ModuleDefinition[] = [
     description: "Organizational stock/store accountability: items, receiving, requests, custody, and movement history.",
     category: "hr-operations",
     version: "1.0.0",
-    // Office Inventory, Workstream 1
-    // (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §50). "hidden": this
-    // workstream ships only the catalog/store/Department-Head foundation —
-    // no stock ledger, no requests, no movement of any kind exists yet, so
-    // there is nothing an organization could meaningfully use even if
-    // enabled — the frozen plan's own literal Workstream 1 text names
-    // "hidden" explicitly, a deliberate choice, not an oversight (this
-    // module does not follow the "flip to active the instant foundation
-    // ships" convention some earlier modules used). defaultEnabled: false
-    // and no organization_modules override is created for any organization
-    // by this workstream — building this platform-wide grants zero access
-    // to any organization, including WWM, until a future, separate,
-    // deliberate per-organization enablement decision. No Payroll or
-    // Procurement dependency of any kind.
-    status: "hidden",
+    // Office Inventory shipped "hidden" at Workstream 1
+    // (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §50) because only the
+    // catalog/store/Department-Head foundation existed then — nothing an
+    // organization could meaningfully use. The epic completed through
+    // Workstream 12 (see PROJECT_STATUS.md's Office Inventory Completion
+    // Report): item catalog, requests, approvals, custody, movement,
+    // stocktake, incidents, reporting, ESS. WWM Readiness Workstream 1 is
+    // the first organization to actually turn it on, so the module now
+    // graduates to "active" — matching every other completed hr-operations
+    // module's convention. defaultEnabled stays false: no organization
+    // inherits it automatically, each org's enablement remains its own
+    // deliberate organization_modules decision (WWM's is made explicitly by
+    // that same workstream, not by this flip). No Payroll or Procurement
+    // dependency of any kind.
+    status: "active",
     defaultEnabled: false,
     requiredModuleKeys: [],
     optionalModuleKeys: [],

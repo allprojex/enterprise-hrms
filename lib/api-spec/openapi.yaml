@@ -19119,10 +19119,12 @@ components:
           enum: [business, church, ngo, school, hospital, hotel, government, other]
         logoUrl:
           type: ["string", "null"]
+        systemDisplayName:
+          type: ["string", "null"]
 
     MembershipSummary:
       type: object
-      required: [organizationId, organizationName, organizationSlug, status, roles, isPrimaryHr]
+      required: [organizationId, organizationName, organizationSlug, logoUrl, status, roles, isPrimaryHr]
       properties:
         organizationId:
           type: integer
@@ -19130,6 +19132,8 @@ components:
           type: string
         organizationSlug:
           type: string
+        logoUrl:
+          type: ["string", "null"]
         status:
           type: string
           enum: [invited, active, suspended, expired, revoked]

@@ -24,6 +24,7 @@ export default function Login() {
   // assigned tenant yet) — this can never fail to render a login form.
   const { data: tenantContext } = useGetTenantContext({ query: { queryKey: getGetTenantContextQueryKey() } });
   const tenantName = tenantContext?.resolved ? tenantContext.organizationName : null;
+  const systemDisplayName = tenantContext?.resolved ? tenantContext.systemDisplayName : null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,9 +76,16 @@ export default function Login() {
               <Building2 className="h-7 w-7 text-primary" />
             )}
           </div>
-          <h1 className="text-xl font-semibold text-white font-sans" data-testid="text-tenant-name">
-            {tenantName ?? 'Enterprise HRMS'}
-          </h1>
+          <div>
+            <h1 className="text-xl font-semibold text-white font-sans" data-testid="text-tenant-name">
+              {tenantName ?? 'Enterprise HRMS'}
+            </h1>
+            {systemDisplayName && (
+              <p className="text-sm text-white/80 font-sans" data-testid="text-system-display-name">
+                {systemDisplayName}
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="space-y-6">
@@ -104,9 +112,20 @@ export default function Login() {
               className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary"
               aria-hidden="true"
             >
-              <Building2 className="h-7 w-7 text-primary-foreground" />
+              {tenantContext?.resolved && tenantContext.logoUrl ? (
+                <img src={tenantContext.logoUrl} alt="" className="h-8 w-8 object-contain" />
+              ) : (
+                <Building2 className="h-7 w-7 text-primary-foreground" />
+              )}
             </div>
-            <span className="text-xl font-semibold text-foreground font-sans">{tenantName ?? 'Enterprise HRMS'}</span>
+            <div>
+              <span className="block text-xl font-semibold text-foreground font-sans">
+                {tenantName ?? 'Enterprise HRMS'}
+              </span>
+              {systemDisplayName && (
+                <span className="block text-xs text-muted-foreground font-sans">{systemDisplayName}</span>
+              )}
+            </div>
           </div>
 
           <div className="space-y-6">

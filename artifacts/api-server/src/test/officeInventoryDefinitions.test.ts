@@ -14,11 +14,11 @@ import { MODULE_DEFINITIONS, validateModuleDefinitions } from "@workspace/db/see
 import { MASTER_DATA_DOMAINS, validateMasterDataDomains } from "@workspace/db/seed/master-data-definitions";
 
 describe("office_inventory module registration", () => {
-  it("is registered with the exact frozen Workstream 1 metadata", () => {
+  it("is registered active (graduated from Workstream 1's 'hidden' once the epic completed through W12 — WWM Readiness W1) with defaultEnabled still false", () => {
     const mod = MODULE_DEFINITIONS.find((m) => m.key === "office_inventory");
     expect(mod).toBeDefined();
     expect(mod?.category).toBe("hr-operations");
-    expect(mod?.status).toBe("hidden");
+    expect(mod?.status).toBe("active");
     expect(mod?.defaultEnabled).toBe(false);
     expect(mod?.requiredModuleKeys).toEqual([]);
   });

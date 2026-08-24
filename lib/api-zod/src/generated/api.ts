@@ -38,7 +38,8 @@ export const GetTenantContextResponse = zod.object({
   "organizationName": zod.string().optional(),
   "organizationSlug": zod.string().optional(),
   "organizationType": zod.enum(['business', 'church', 'ngo', 'school', 'hospital', 'hotel', 'government', 'other']).optional(),
-  "logoUrl": zod.string().nullish()
+  "logoUrl": zod.string().nullish(),
+  "systemDisplayName": zod.string().nullish()
 })
 
 
@@ -458,6 +459,7 @@ export const ListMyOrganizationsResponseItem = zod.object({
   "organizationId": zod.number(),
   "organizationName": zod.string(),
   "organizationSlug": zod.string(),
+  "logoUrl": zod.string().nullable(),
   "status": zod.enum(['invited', 'active', 'suspended', 'expired', 'revoked']),
   "roles": zod.array(zod.string()),
   "isPrimaryHr": zod.boolean()

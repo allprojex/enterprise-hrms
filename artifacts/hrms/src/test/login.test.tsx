@@ -23,6 +23,7 @@ const { state } = vi.hoisted(() => ({
           organizationSlug?: string;
           organizationType?: string;
           logoUrl?: string | null;
+          systemDisplayName?: string | null;
         }
       | undefined,
   },
@@ -72,6 +73,35 @@ describe('Login tenant branding', () => {
     renderLogin();
     expect(screen.getByTestId('text-tenant-name')).toHaveTextContent('wwm');
     expect(screen.getByText("Sign in to wwm's HR workspace")).toBeInTheDocument();
+  });
+
+  it('shows the organization\'s own system display name under its name when configured', () => {
+    state.tenantContext = {
+      resolved: true,
+      organizationId: 3,
+      organizationName: 'Worldwide Word Ministries',
+      organizationSlug: 'wwm',
+      organizationType: 'church',
+      logoUrl: null,
+      systemDisplayName: 'Human Resource Management System',
+    };
+    renderLogin();
+    expect(screen.getByTestId('text-tenant-name')).toHaveTextContent('Worldwide Word Ministries');
+    expect(screen.getAllByText('Human Resource Management System').length).toBeGreaterThan(0);
+  });
+
+  it('renders no system display name line when the organization has not configured one', () => {
+    state.tenantContext = {
+      resolved: true,
+      organizationId: 4,
+      organizationName: 'Acme',
+      organizationSlug: 'acme',
+      organizationType: 'business',
+      logoUrl: null,
+      systemDisplayName: null,
+    };
+    renderLogin();
+    expect(screen.queryByTestId('text-system-display-name')).not.toBeInTheDocument();
   });
 
   it('never exposes anything beyond the safe DTO fields, even if present on the response object', () => {

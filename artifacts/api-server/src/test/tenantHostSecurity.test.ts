@@ -18,6 +18,7 @@ const {
   organizationMembershipsTable,
   organizationDomainsTable,
   organizationsTable,
+  organizationSettingsTable,
   auditEventsTable,
 } = vi.hoisted(() => {
   return {
@@ -27,6 +28,7 @@ const {
       membershipRows: [] as Record<string, unknown>[],
       domainRows: [] as Record<string, unknown>[],
       orgRows: [] as Record<string, unknown>[],
+      settingsRows: [] as Record<string, unknown>[],
       insertedSessions: [] as Record<string, unknown>[],
       updatedSessions: [] as Record<string, unknown>[],
       auditInserts: [] as Record<string, unknown>[],
@@ -54,6 +56,7 @@ const {
       organizationId: "organizationId",
     },
     organizationsTable: { __name: "organizations", id: "id" },
+    organizationSettingsTable: { __name: "organization_settings", organizationId: "organizationId", namespace: "namespace" },
     auditEventsTable: { __name: "audit_events" },
   };
 });
@@ -99,6 +102,7 @@ vi.mock("@workspace/db", () => ({
   organizationMembershipsTable,
   organizationDomainsTable,
   organizationsTable,
+  organizationSettingsTable,
   auditEventsTable,
   db: {
     select: (_cols?: unknown) => ({
@@ -124,7 +128,9 @@ vi.mock("@workspace/db", () => ({
                 ? fixtures.domainRows
                 : table === organizationsTable
                   ? fixtures.orgRows
-                  : [];
+                  : table === organizationSettingsTable
+                    ? fixtures.settingsRows
+                    : [];
 
         if (table === organizationDomainsTable && fixtures.forceDomainQueryError) {
           const failingBuilder = {
@@ -259,6 +265,7 @@ describe("GET /api/tenant-context", () => {
   it("returns the safe DTO for a resolved, active tenant — no sensitive fields", async () => {
     fixtures.domainRows = [{ hostname: "wwm.localhost", status: "active", organizationId: 3, orgStatus: "trial" }];
     fixtures.orgRows = [{ id: 3, name: "wwm", slug: "wwm", type: "church", status: "trial", logoUrl: null }];
+    fixtures.settingsRows = [];
     const res = await request(app).get("/api/tenant-context").set("X-Tenant-Hostname", "wwm.localhost");
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
@@ -268,9 +275,23 @@ describe("GET /api/tenant-context", () => {
       organizationSlug: "wwm",
       organizationType: "church",
       logoUrl: null,
+      systemDisplayName: null,
     });
     expect(res.body.employees).toBeUndefined();
     expect(res.body.adminEmail).toBeUndefined();
+  });
+
+  it("includes the resolved organization's own branding.systemDisplayName, scoped to that organization only", async () => {
+    fixtures.domainRows = [{ hostname: "wwm.localhost", status: "active", organizationId: 3, orgStatus: "active" }];
+    fixtures.orgRows = [{ id: 3, name: "Worldwide Word Ministries", slug: "wwm", type: "church", status: "active", logoUrl: null }];
+    fixtures.settingsRows = [
+      { organizationId: 3, namespace: "branding", settings: { systemDisplayName: "Human Resource Management System" } },
+      // A different organization's branding row must never leak onto org 3's response.
+      { organizationId: 4, namespace: "branding", settings: { systemDisplayName: "Someone Else's System Name" } },
+    ];
+    const res = await request(app).get("/api/tenant-context").set("X-Tenant-Hostname", "wwm.localhost");
+    expect(res.status).toBe(200);
+    expect(res.body.systemDisplayName).toBe("Human Resource Management System");
   });
 });
 

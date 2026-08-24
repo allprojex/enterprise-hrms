@@ -31,6 +31,21 @@ const generalConfigSchema = z
   })
   .passthrough();
 
+// WWM Readiness, Workstream 1 — organization branding. Foundation namespace
+// (no moduleKey): every organization needs a login/shell identity regardless
+// of which modules it has enabled, matching general/terminology. The
+// organization's display name and logo already live on `organizations.name`
+// / `organizations.logoUrl` (first-class columns, not duplicated here) —
+// this namespace exists only for the one field with no existing column:
+// the product/system name shown alongside the org's own identity (e.g. "HR
+// Management System"). Left unset, callers fall back to platform-generic
+// copy — see getPublicTenantContext and the login page.
+const brandingConfigSchema = z
+  .object({
+    systemDisplayName: z.string().min(1).optional(),
+  })
+  .passthrough();
+
 const terminologyConfigSchema = z
   .object({
     employeeLabel: z.string().min(1).optional(),
@@ -215,6 +230,11 @@ export const CONFIG_NAMESPACES: Record<string, NamespaceDefinition> = {
   general: {
     schemaVersion: 1,
     schema: generalConfigSchema,
+    defaults: () => ({}),
+  },
+  branding: {
+    schemaVersion: 1,
+    schema: brandingConfigSchema,
     defaults: () => ({}),
   },
   terminology: {
