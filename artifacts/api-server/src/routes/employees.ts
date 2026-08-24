@@ -52,8 +52,12 @@ import {
 } from "../lib/numbering";
 import { listEmploymentPeriods } from "../lib/employmentLifecycleService";
 import { recordAuditEvent } from "../lib/auditLog";
-import { validateImageUpload, processAvatarImage, InvalidImageError } from "../lib/imageProcessing";
-import { writeOrgFile, readOrgFile, deleteOrgFile } from "../lib/fileStorage";
+import {
+  applyEmployeeProfilePicture,
+  readEmployeeProfilePictureBuffer,
+  clearEmployeeProfilePicture,
+  InvalidImageError,
+} from "../lib/employeeProfilePicture";
 import { InvalidDocumentError } from "../lib/documentValidation";
 import {
   listEmployeeDocuments,
@@ -363,19 +367,12 @@ router.post(
     }
 
     try {
-      validateImageUpload({ mimetype: req.file.mimetype, size: req.file.size, buffer: req.file.buffer });
-      const processed = await processAvatarImage(req.file.buffer);
-      const key = await writeOrgFile(organizationId, "avatars", "jpg", processed);
-
-      if (employee.profilePictureKey) {
-        await deleteOrgFile(organizationId, employee.profilePictureKey);
-      }
-
-      const [updated] = await db
-        .update(employeesTable)
-        .set({ profilePictureKey: key, updatedBy: req.userId! })
-        .where(eq(employeesTable.id, employeeId))
-        .returning();
+      const updated = await applyEmployeeProfilePicture(
+        organizationId,
+        employee,
+        { mimetype: req.file.mimetype, size: req.file.size, buffer: req.file.buffer },
+        req.userId!,
+      );
 
       const labels = await resolveEmployeeLabels([updated]);
       const canReadNotes = await hasPermission(req.membership!.id, "employee.notes.read");
@@ -405,19 +402,15 @@ router.get(
     }
 
     const employee = await getEmployeeById(req.membership!.organizationId, employeeId);
-    if (!employee?.profilePictureKey) {
+    const buffer = employee ? await readEmployeeProfilePictureBuffer(req.membership!.organizationId, employee) : null;
+    if (!buffer) {
       res.status(404).json({ error: "No profile picture" });
       return;
     }
 
-    try {
-      const buffer = await readOrgFile(req.membership!.organizationId, employee.profilePictureKey);
-      res.set("Content-Type", "image/jpeg");
-      res.set("Cache-Control", "private, max-age=300");
-      res.send(buffer);
-    } catch {
-      res.status(404).json({ error: "No profile picture" });
-    }
+    res.set("Content-Type", "image/jpeg");
+    res.set("Cache-Control", "private, max-age=300");
+    res.send(buffer);
   },
 );
 
@@ -442,15 +435,7 @@ router.delete(
       return;
     }
 
-    if (employee.profilePictureKey) {
-      await deleteOrgFile(organizationId, employee.profilePictureKey);
-    }
-
-    const [updated] = await db
-      .update(employeesTable)
-      .set({ profilePictureKey: null, updatedBy: req.userId! })
-      .where(eq(employeesTable.id, employeeId))
-      .returning();
+    const updated = await clearEmployeeProfilePicture(organizationId, employee, req.userId!);
 
     const labels = await resolveEmployeeLabels([updated]);
     const canReadNotes = await hasPermission(req.membership!.id, "employee.notes.read");

@@ -24,7 +24,6 @@ import {
   getListMembersQueryKey,
   useListMasterDataItems,
   getListMasterDataItemsQueryKey,
-  getRemoveEmployeeProfilePictureUrl,
   useGetMe,
   getGetMeQueryKey,
   useListEmployeeDocuments,
@@ -88,7 +87,7 @@ import type { CreatePersonnelFileInputMode } from '@workspace/api-client-react';
 import type { UpdateEmployeeInputEmploymentStatus } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
-import { getStoredToken } from '@/lib/auth';
+import { useEmployeePhoto } from '@/hooks/use-employee-photo';
 import { QueryError } from '@/components/query-error';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
@@ -101,41 +100,6 @@ const STATUS_OPTIONS: UpdateEmployeeInputEmploymentStatus[] = [
   'suspended',
   'terminated',
 ];
-
-/** Employee photos are served from an authenticated endpoint — a plain
- * <img src> can't attach the Bearer token, so this fetches the bytes
- * manually and hands the component an object URL. */
-function useEmployeePhoto(organizationId: number, employeeId: number, hasPicture: boolean) {
-  const [src, setSrc] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Nothing to fetch — leave state untouched rather than setState-ing
-    // synchronously in the effect body; the hook's return value already
-    // gates on `hasPicture` below, so a stale `src` here is never surfaced.
-    if (!hasPicture) return;
-
-    let objectUrl: string | null = null;
-    let cancelled = false;
-
-    (async () => {
-      const token = getStoredToken();
-      const res = await fetch(getRemoveEmployeeProfilePictureUrl(organizationId, employeeId), {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok || cancelled) return;
-      const blob = await res.blob();
-      objectUrl = URL.createObjectURL(blob);
-      if (!cancelled) setSrc(objectUrl);
-    })();
-
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [organizationId, employeeId, hasPicture]);
-
-  return hasPicture ? src : null;
-}
 
 export default function EmployeeDetail() {
   const params = useParams<{ id: string }>();

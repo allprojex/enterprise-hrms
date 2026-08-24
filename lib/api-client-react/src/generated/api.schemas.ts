@@ -8285,6 +8285,10 @@ export type UploadOrganizationLogo200 = {
   logoUrl: string;
 };
 
+export type UploadMyEmployeeProfilePictureBody = {
+  file: Blob;
+};
+
 export type ListEmployeesParams = {
 search?: string;
 departmentId?: number;

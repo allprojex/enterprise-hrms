@@ -1,23 +1,77 @@
-import { useState } from 'react';
-import { User, Loader2, Building, Briefcase, Phone, Mail } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { User, Loader2, Building, Briefcase, Phone, Mail, Camera, X } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useGetMe, getGetMeQueryKey, useUpdateMyProfile, useListMyOrganizations, getListMyOrganizationsQueryKey } from '@workspace/api-client-react';
+import {
+  useGetMe,
+  getGetMeQueryKey,
+  useUpdateMyProfile,
+  useListMyOrganizations,
+  getListMyOrganizationsQueryKey,
+  useGetMyEmployee,
+  getGetMyEmployeeQueryKey,
+  useUploadMyEmployeeProfilePicture,
+  useRemoveMyEmployeeProfilePicture,
+} from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
+import { useMyProfilePhoto } from '@/hooks/use-employee-photo';
 
 export default function Profile() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const { data: user, isLoading } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const { data: organizations } = useListMyOrganizations({ query: { queryKey: getListMyOrganizationsQueryKey() } });
   const updateProfileMutation = useUpdateMyProfile();
+
+  const { data: myEmployeeResponse } = useGetMyEmployee({
+    query: { queryKey: getGetMyEmployeeQueryKey(), enabled: !!user },
+  });
+  const hasProfilePicture = myEmployeeResponse?.employee?.hasProfilePicture ?? false;
+  const photoSrc = useMyProfilePhoto(hasProfilePicture);
+  const uploadPhotoMutation = useUploadMyEmployeeProfilePicture();
+  const removePhotoMutation = useRemoveMyEmployeeProfilePicture();
+
+  const invalidateEmployeeProfile = () => {
+    queryClient.invalidateQueries({ queryKey: getGetMyEmployeeQueryKey() });
+  };
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    uploadPhotoMutation.mutate(
+      { data: { file } },
+      {
+        onSuccess: () => {
+          invalidateEmployeeProfile();
+          toast({ title: 'Profile picture updated' });
+        },
+        onError: () => {
+          toast({ title: 'Could not upload photo', description: 'JPEG, PNG, or WebP up to 5MB.', variant: 'destructive' });
+        },
+      },
+    );
+  };
+
+  const handleRemovePhoto = () => {
+    removePhotoMutation.mutate(undefined, {
+      onSuccess: () => {
+        invalidateEmployeeProfile();
+        toast({ title: 'Profile picture removed' });
+      },
+      onError: () => {
+        toast({ title: 'Could not remove photo', variant: 'destructive' });
+      },
+    });
+  };
 
   const [isEditing, setIsEditing] = useState(false);
   const [firstName, setFirstName] = useState('');
@@ -134,11 +188,56 @@ export default function Profile() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="flex flex-col items-center text-center space-y-4">
-              <Avatar className="h-24 w-24">
-                <AvatarFallback className="bg-primary text-primary-foreground text-2xl font-semibold">
-                  {userInitials}
-                </AvatarFallback>
-              </Avatar>
+              <div className="relative">
+                <Avatar className="h-24 w-24">
+                  {photoSrc && <AvatarImage src={photoSrc} alt="" />}
+                  <AvatarFallback className="bg-primary text-primary-foreground text-2xl font-semibold">
+                    {userInitials}
+                  </AvatarFallback>
+                </Avatar>
+                {myEmployeeResponse?.linked && (
+                  <>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="secondary"
+                      className="absolute -bottom-1 -right-1 h-8 w-8 rounded-full"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadPhotoMutation.isPending}
+                      aria-label="Change profile picture"
+                      data-testid="button-upload-photo"
+                    >
+                      {uploadPhotoMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <Camera className="h-4 w-4" aria-hidden="true" />
+                      )}
+                    </Button>
+                    {hasProfilePicture && (
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="secondary"
+                        className="absolute -top-1 -right-1 h-6 w-6 rounded-full"
+                        onClick={handleRemovePhoto}
+                        disabled={removePhotoMutation.isPending}
+                        aria-label="Remove profile picture"
+                        data-testid="button-remove-photo"
+                      >
+                        <X className="h-3 w-3" aria-hidden="true" />
+                      </Button>
+                    )}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={handlePhotoChange}
+                      data-testid="input-photo-file"
+                    />
+                  </>
+                )}
+              </div>
               <div>
                 <h3 className="text-xl font-semibold text-foreground">
                   {user.firstName} {user.lastName}

@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { Link } from 'wouter';
-import { Users, Plus, Search, ChevronLeft, ChevronRight, IdCard } from 'lucide-react';
+import { Users, Plus, Search, ChevronLeft, ChevronRight, IdCard, Camera } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Dialog,
   DialogContent,
@@ -22,6 +22,7 @@ import {
   useListEmployees,
   getListEmployeesQueryKey,
   useCreateEmployee,
+  useUploadEmployeeProfilePicture,
   useListDepartments,
   getListDepartmentsQueryKey,
   useGetMe,
@@ -30,7 +31,33 @@ import {
   getSearchPersonnelRecordsQueryKey,
 } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
+import { useEmployeePhoto } from '@/hooks/use-employee-photo';
 import { QueryError } from '@/components/query-error';
+
+function EmployeeRowAvatar({
+  organizationId,
+  employeeId,
+  hasProfilePicture,
+  firstName,
+  lastName,
+}: {
+  organizationId: number;
+  employeeId: number;
+  hasProfilePicture: boolean;
+  firstName: string;
+  lastName: string;
+}) {
+  const photoSrc = useEmployeePhoto(organizationId, employeeId, hasProfilePicture);
+  return (
+    <Avatar className="h-8 w-8">
+      {photoSrc && <AvatarImage src={photoSrc} alt="" />}
+      <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
+        {firstName[0]}
+        {lastName[0]}
+      </AvatarFallback>
+    </Avatar>
+  );
+}
 
 const MATCH_TYPE_LABEL: Record<string, string> = {
   name: 'Name',
@@ -100,8 +127,30 @@ export default function Employees() {
   const [lastName, setLastName] = useState('');
   const [workEmail, setWorkEmail] = useState('');
   const [departmentId, setDepartmentId] = useState(NONE);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
 
   const createMutation = useCreateEmployee();
+  const uploadPhotoMutation = useUploadEmployeeProfilePicture();
+
+  const resetForm = () => {
+    setFirstName('');
+    setLastName('');
+    setWorkEmail('');
+    setDepartmentId(NONE);
+    setPhotoFile(null);
+    if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+    setPhotoPreviewUrl(null);
+  };
+
+  const handlePhotoSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+    setPhotoFile(file);
+    setPhotoPreviewUrl(URL.createObjectURL(file));
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,17 +165,34 @@ export default function Employees() {
         },
       },
       {
-        onSuccess: () => {
+        onSuccess: (employee) => {
           // Invalidating by a params-less query key doesn't reliably match
           // the active list query (its key includes search/page/pageSize) —
           // refetch the query we actually have in hand instead.
           refetch();
           setOpen(false);
-          setFirstName('');
-          setLastName('');
-          setWorkEmail('');
-          setDepartmentId(NONE);
           toast({ title: 'Employee added' });
+
+          // The photo picked in this dialog becomes the new employee's
+          // initial profile picture — a second call to the existing
+          // per-employee upload endpoint, chained on the new id, rather
+          // than teaching the create-employee endpoint multipart parsing.
+          if (photoFile) {
+            uploadPhotoMutation.mutate(
+              { organizationId, employeeId: employee.id, data: { file: photoFile } },
+              {
+                onSuccess: () => refetch(),
+                onError: () => {
+                  toast({
+                    title: 'Employee added, but the photo could not be uploaded',
+                    description: 'You can add a profile picture from the employee’s detail page.',
+                    variant: 'destructive',
+                  });
+                },
+              },
+            );
+          }
+          resetForm();
         },
         onError: (err) => {
           const message =
@@ -151,7 +217,13 @@ export default function Employees() {
           <h1 className="text-3xl font-bold text-foreground">Employees</h1>
           <p className="text-muted-foreground">The employee directory for your organisation</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog
+          open={open}
+          onOpenChange={(next) => {
+            setOpen(next);
+            if (!next) resetForm();
+          }}
+        >
           <DialogTrigger asChild>
             <Button data-testid="button-add-employee">
               <Plus className="h-4 w-4" aria-hidden="true" />
@@ -164,6 +236,30 @@ export default function Employees() {
                 <DialogTitle>Add Employee</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-4">
+                <div className="flex flex-col items-center gap-2">
+                  <label
+                    htmlFor="employee-photo"
+                    className="relative flex h-20 w-20 cursor-pointer items-center justify-center rounded-full border border-dashed border-border bg-muted/40 hover:bg-muted/60"
+                  >
+                    {photoPreviewUrl ? (
+                      <Avatar className="h-20 w-20">
+                        <AvatarImage src={photoPreviewUrl} alt="" />
+                        <AvatarFallback>{firstName[0]}</AvatarFallback>
+                      </Avatar>
+                    ) : (
+                      <Camera className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
+                    )}
+                  </label>
+                  <input
+                    id="employee-photo"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={handlePhotoSelected}
+                    data-testid="input-employee-photo"
+                  />
+                  <p className="text-xs text-muted-foreground">Photo (optional) — becomes their profile picture</p>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label htmlFor="employee-first-name">First name</Label>
@@ -340,12 +436,13 @@ export default function Employees() {
                         className="flex items-center gap-3 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
                         data-testid={`link-employee-${employee.id}`}
                       >
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
-                            {employee.firstName[0]}
-                            {employee.lastName[0]}
-                          </AvatarFallback>
-                        </Avatar>
+                        <EmployeeRowAvatar
+                          organizationId={organizationId}
+                          employeeId={employee.id}
+                          hasProfilePicture={employee.hasProfilePicture ?? false}
+                          firstName={employee.firstName}
+                          lastName={employee.lastName}
+                        />
                         <span className="font-medium text-foreground">
                           {employee.firstName} {employee.lastName}
                         </span>

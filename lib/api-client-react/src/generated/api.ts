@@ -421,6 +421,7 @@ import type {
   UpdateVacancyInput,
   UploadEmployeeDocumentBody,
   UploadEmployeeProfilePictureBody,
+  UploadMyEmployeeProfilePictureBody,
   UploadOrganizationLogo200,
   UploadOrganizationLogoBody,
   UserProfile,
@@ -2330,6 +2331,152 @@ export function useGetMyEmployee<TData = Awaited<ReturnType<typeof getMyEmployee
 
 
 
+
+export const getUploadMyEmployeeProfilePictureUrl = () => {
+
+
+
+
+  return `/api/me/employee/profile-picture`
+}
+
+/**
+ * multipart/form-data upload, sharing the exact same validation and processing as the HR-administrator upload route (JPEG/PNG/WebP only, signature-validated, 5MB max, re-encoded to a resized, EXIF-stripped JPEG). Identity is always server-resolved from the caller's own employee-user link, the same way GET /me/employee resolves it — never a client-supplied employee ID. Gated by the employee_self_service module.
+ * @summary Set/replace the caller's own profile picture (Employee Self-Service)
+ */
+export const uploadMyEmployeeProfilePicture = async (uploadMyEmployeeProfilePictureBody: UploadMyEmployeeProfilePictureBody, options?: RequestInit): Promise<MyEmployeeResponse> => {
+    const formData = new FormData();
+formData.append(`file`, uploadMyEmployeeProfilePictureBody.file);
+
+  return customFetch<MyEmployeeResponse>(getUploadMyEmployeeProfilePictureUrl(),
+  {
+    ...options,
+    method: 'POST'
+    ,
+    body: formData
+  }
+);}
+
+
+
+
+
+export const getUploadMyEmployeeProfilePictureMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadMyEmployeeProfilePicture>>, TError,{data: BodyType<UploadMyEmployeeProfilePictureBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadMyEmployeeProfilePicture>>, TError,{data: BodyType<UploadMyEmployeeProfilePictureBody>}, TContext> => {
+
+const mutationKey = ['uploadMyEmployeeProfilePicture'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadMyEmployeeProfilePicture>>, {data: BodyType<UploadMyEmployeeProfilePictureBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  uploadMyEmployeeProfilePicture(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadMyEmployeeProfilePictureMutationResult = NonNullable<Awaited<ReturnType<typeof uploadMyEmployeeProfilePicture>>>
+    export type UploadMyEmployeeProfilePictureMutationBody = BodyType<UploadMyEmployeeProfilePictureBody>
+    export type UploadMyEmployeeProfilePictureMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Set/replace the caller's own profile picture (Employee Self-Service)
+ */
+export const useUploadMyEmployeeProfilePicture = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadMyEmployeeProfilePicture>>, TError,{data: BodyType<UploadMyEmployeeProfilePictureBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof uploadMyEmployeeProfilePicture>>,
+        TError,
+        {data: BodyType<UploadMyEmployeeProfilePictureBody>},
+        TContext
+      > => {
+      return useMutation(getUploadMyEmployeeProfilePictureMutationOptions(options));
+    }
+
+export const getRemoveMyEmployeeProfilePictureUrl = () => {
+
+
+
+
+  return `/api/me/employee/profile-picture`
+}
+
+/**
+ * Identity is always server-resolved from the caller's own employee-user link — never a client-supplied employee ID.
+ * @summary Remove the caller's own profile picture (Employee Self-Service)
+ */
+export const removeMyEmployeeProfilePicture = async ( options?: RequestInit): Promise<MyEmployeeResponse> => {
+
+  return customFetch<MyEmployeeResponse>(getRemoveMyEmployeeProfilePictureUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRemoveMyEmployeeProfilePictureMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeMyEmployeeProfilePicture>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof removeMyEmployeeProfilePicture>>, TError,void, TContext> => {
+
+const mutationKey = ['removeMyEmployeeProfilePicture'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeMyEmployeeProfilePicture>>, void> = () => {
+
+
+          return  removeMyEmployeeProfilePicture(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemoveMyEmployeeProfilePictureMutationResult = NonNullable<Awaited<ReturnType<typeof removeMyEmployeeProfilePicture>>>
+
+    export type RemoveMyEmployeeProfilePictureMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Remove the caller's own profile picture (Employee Self-Service)
+ */
+export const useRemoveMyEmployeeProfilePicture = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeMyEmployeeProfilePicture>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof removeMyEmployeeProfilePicture>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getRemoveMyEmployeeProfilePictureMutationOptions(options));
+    }
 
 export const getGetMyEmploymentHistoryUrl = () => {
 

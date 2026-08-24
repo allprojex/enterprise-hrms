@@ -870,6 +870,70 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /me/employee/profile-picture:
+    post:
+      operationId: uploadMyEmployeeProfilePicture
+      tags: [self-service]
+      summary: Set/replace the caller's own profile picture (Employee Self-Service)
+      description: >-
+        multipart/form-data upload, sharing the exact same validation and
+        processing as the HR-administrator upload route (JPEG/PNG/WebP only,
+        signature-validated, 5MB max, re-encoded to a resized, EXIF-stripped
+        JPEG). Identity is always server-resolved from the caller's own
+        employee-user link, the same way GET /me/employee resolves it — never
+        a client-supplied employee ID. Gated by the employee_self_service
+        module.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: The caller's own employee, with the new picture applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyEmployeeResponse"
+        "400":
+          description: Invalid file
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: No linked employee record, no active organization membership, or the employee_self_service module is disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    delete:
+      operationId: removeMyEmployeeProfilePicture
+      tags: [self-service]
+      summary: Remove the caller's own profile picture (Employee Self-Service)
+      description: >-
+        Identity is always server-resolved from the caller's own
+        employee-user link — never a client-supplied employee ID.
+      responses:
+        "200":
+          description: The caller's own employee, with the picture removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyEmployeeResponse"
+        "403":
+          description: No linked employee record, no active organization membership, or the employee_self_service module is disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /me/employment-history:
     get:
       operationId: getMyEmploymentHistory

@@ -29,6 +29,7 @@ vi.mock('@workspace/api-client-react', () => ({
   useListEmployees: () => ({ data: { items: [], total: 0 }, isLoading: false, error: undefined, refetch: vi.fn() }),
   getListEmployeesQueryKey: (orgId: number, params: unknown) => ['employees', orgId, params],
   useCreateEmployee: () => ({ mutate: vi.fn(), isPending: false }),
+  useUploadEmployeeProfilePicture: () => ({ mutate: vi.fn(), isPending: false }),
   useListDepartments: () => ({ data: [] }),
   getListDepartmentsQueryKey: (orgId: number) => ['departments', orgId],
 

@@ -41,7 +41,7 @@ import {
   Compass,
   Upload,
 } from 'lucide-react';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -55,6 +55,8 @@ import {
 import {
   useGetMe,
   getGetMeQueryKey,
+  useGetMyEmployee,
+  getGetMyEmployeeQueryKey,
   useListNotifications,
   getListNotificationsQueryKey,
   useListMyOrganizations,
@@ -66,6 +68,7 @@ import {
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
+import { useMyProfilePhoto } from '@/hooks/use-employee-photo';
 import { clearToken } from '@/lib/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -311,6 +314,14 @@ export function AppShell({ children }: AppShellProps) {
   const { data: myOrganizations } = useListMyOrganizations({
     query: { queryKey: getListMyOrganizationsQueryKey() },
   });
+
+  // Profile picture: a caller without a linked employee, or whose
+  // organization has employee_self_service disabled, simply resolves to
+  // "no picture" here — the fallback initials are always a safe default.
+  const { data: myEmployeeResponse } = useGetMyEmployee({
+    query: { queryKey: getGetMyEmployeeQueryKey(), enabled: !!user },
+  });
+  const myPhotoSrc = useMyProfilePhoto(myEmployeeResponse?.employee?.hasProfilePicture ?? false);
 
   const logoutMutation = useLogout();
   const switchOrganizationMutation = useSwitchOrganization();
@@ -662,6 +673,7 @@ export function AppShell({ children }: AppShellProps) {
         <div className="border-t border-sidebar-border p-4">
           <div className="flex items-center gap-3 mb-3">
             <Avatar className="h-10 w-10">
+              {myPhotoSrc && <AvatarImage src={myPhotoSrc} alt="" />}
               <AvatarFallback className="bg-primary text-primary-foreground font-medium">
                 {userInitials}
               </AvatarFallback>
@@ -764,6 +776,7 @@ export function AppShell({ children }: AppShellProps) {
               <div className="border-t border-sidebar-border p-4">
                 <div className="flex items-center gap-3 mb-3">
                   <Avatar className="h-10 w-10">
+                    {myPhotoSrc && <AvatarImage src={myPhotoSrc} alt="" />}
                     <AvatarFallback className="bg-primary text-primary-foreground font-medium">
                       {userInitials}
                     </AvatarFallback>
@@ -855,6 +868,7 @@ export function AppShell({ children }: AppShellProps) {
                   data-testid="button-user-menu"
                 >
                   <Avatar className="h-8 w-8">
+                    {myPhotoSrc && <AvatarImage src={myPhotoSrc} alt="" />}
                     <AvatarFallback className="bg-primary text-primary-foreground text-xs font-medium">
                       {userInitials}
                     </AvatarFallback>

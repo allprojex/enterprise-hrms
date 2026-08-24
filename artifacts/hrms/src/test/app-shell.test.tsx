@@ -83,6 +83,8 @@ vi.mock('@workspace/api-client-react', () => ({
   getGetDashboardSummaryQueryKey: () => ['dashboardSummary'],
   useSwitchOrganization: () => ({ mutate: switchMutateMock, isPending: false }),
   useLogout: () => ({ mutate: logoutMutateMock, isPending: false }),
+  useGetMyEmployee: () => ({ data: { linked: false, employee: null } }),
+  getGetMyEmployeeQueryKey: () => ['getMyEmployee'],
 }));
 
 function renderShell() {

@@ -1,4 +1,5 @@
 import { Router, type Response, type NextFunction } from "express";
+import multer from "multer";
 import { eq, and, isNull, inArray } from "drizzle-orm";
 import { db, organizationsTable, membershipRolesTable, rolesTable, primaryHrAssignmentsTable } from "@workspace/db";
 import { ApplyToInternalVacancyBody } from "@workspace/api-zod";
@@ -14,6 +15,14 @@ import {
   resolveOwnQualifications,
   resolveOwnCertifications,
 } from "../lib/employeeSelfService";
+import { getEmployeeById } from "../lib/employees";
+import { resolveOwnEmployeeId } from "../lib/leaveRequests";
+import {
+  applyEmployeeProfilePicture,
+  readEmployeeProfilePictureBuffer,
+  clearEmployeeProfilePicture,
+  InvalidImageError,
+} from "../lib/employeeProfilePicture";
 import { RECRUITMENT_MODULE_KEY } from "../lib/recruitmentAuthorization";
 import { getNamespaceConfig } from "../services/organizationConfig";
 import {
@@ -27,6 +36,7 @@ import {
 } from "../lib/employeeInternalApplications";
 
 const router = Router();
+const uploadAvatar = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 /**
  * Every other module-gated route resolves membership from a URL
@@ -162,6 +172,102 @@ router.get(
   requireModuleEnabled("employee_self_service"),
   async (req: MembershipRequest, res): Promise<void> => {
     const profile = await resolveOwnEmployeeProfile(req.membership!.organizationId, req.userId!);
+    res.json({ linked: profile != null, employee: profile });
+  },
+);
+
+// POST /me/employee/profile-picture, GET, DELETE
+// Lets a caller set/view/remove their own profile picture without needing
+// the HR-administrator employee.write/employee.read permission — identity
+// is always server-resolved via resolveOwnEmployeeId (see GET /me/employee's
+// own header comment), never a client-supplied employeeId. Shares the exact
+// same storage/processing implementation as the HR admin routes in
+// routes/employees.ts (lib/employeeProfilePicture.ts) — one picture per
+// employee record, not a second parallel concept.
+router.post(
+  "/me/employee/profile-picture",
+  requireAuth as any,
+  requireActiveOrganizationMembership,
+  requireModuleEnabled("employee_self_service"),
+  uploadAvatar.single("file"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    if (!req.file) {
+      res.status(400).json({ error: "Invalid request" });
+      return;
+    }
+
+    const organizationId = req.membership!.organizationId;
+    const employeeId = await resolveOwnEmployeeId(organizationId, req.userId!);
+    if (employeeId == null) {
+      res.status(403).json({ error: "No linked employee record" });
+      return;
+    }
+    const employee = await getEmployeeById(organizationId, employeeId);
+    if (!employee) {
+      res.status(403).json({ error: "No linked employee record" });
+      return;
+    }
+
+    try {
+      await applyEmployeeProfilePicture(
+        organizationId,
+        employee,
+        { mimetype: req.file.mimetype, size: req.file.size, buffer: req.file.buffer },
+        req.userId!,
+      );
+      const profile = await resolveOwnEmployeeProfile(organizationId, req.userId!);
+      res.json({ linked: profile != null, employee: profile });
+    } catch (err) {
+      if (err instanceof InvalidImageError) {
+        res.status(400).json({ error: err.message });
+        return;
+      }
+      throw err;
+    }
+  },
+);
+
+router.get(
+  "/me/employee/profile-picture",
+  requireAuth as any,
+  requireActiveOrganizationMembership,
+  requireModuleEnabled("employee_self_service"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const organizationId = req.membership!.organizationId;
+    const employeeId = await resolveOwnEmployeeId(organizationId, req.userId!);
+    const employee = employeeId != null ? await getEmployeeById(organizationId, employeeId) : null;
+    const buffer = employee ? await readEmployeeProfilePictureBuffer(organizationId, employee) : null;
+    if (!buffer) {
+      res.status(404).json({ error: "No profile picture" });
+      return;
+    }
+
+    res.set("Content-Type", "image/jpeg");
+    res.set("Cache-Control", "private, max-age=300");
+    res.send(buffer);
+  },
+);
+
+router.delete(
+  "/me/employee/profile-picture",
+  requireAuth as any,
+  requireActiveOrganizationMembership,
+  requireModuleEnabled("employee_self_service"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const organizationId = req.membership!.organizationId;
+    const employeeId = await resolveOwnEmployeeId(organizationId, req.userId!);
+    if (employeeId == null) {
+      res.status(403).json({ error: "No linked employee record" });
+      return;
+    }
+    const employee = await getEmployeeById(organizationId, employeeId);
+    if (!employee) {
+      res.status(403).json({ error: "No linked employee record" });
+      return;
+    }
+
+    await clearEmployeeProfilePicture(organizationId, employee, req.userId!);
+    const profile = await resolveOwnEmployeeProfile(organizationId, req.userId!);
     res.json({ linked: profile != null, employee: profile });
   },
 );
