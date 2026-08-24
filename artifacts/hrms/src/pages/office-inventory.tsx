@@ -9,7 +9,7 @@
  * and lives on the existing Departments page instead.
  */
 import { useState } from 'react';
-import { Boxes, Warehouse, Settings2, Plus, Pencil, Truck, Trash2, PackageSearch, ClipboardList, CheckCircle2, XCircle, UserCog, X, Ban, PackageCheck, Users } from 'lucide-react';
+import { Boxes, Warehouse, Settings2, Plus, Pencil, Truck, Trash2, PackageSearch, ClipboardList, CheckCircle2, XCircle, UserCog, X, Ban, PackageCheck, Users, Undo2, ArrowLeftRight, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -75,6 +75,9 @@ import {
   getGetOfficeInventoryDepartmentCustodyQueryKey,
   useListEmployees,
   getListEmployeesQueryKey,
+  useCreateOfficeInventoryReturn,
+  useCreateOfficeInventoryHandover,
+  useCreateOfficeInventoryTransfer,
   OfficeInventoryItemClassification,
   type OfficeInventoryItem,
   type OfficeInventoryStore,
@@ -1873,7 +1876,15 @@ function CustodyTab({ organizationId }: { organizationId: number }) {
             ) : (
               (employeeCustody ?? []).map((c) => (
                 <div key={c.itemId} className="flex items-center justify-between rounded-md border border-border p-2 text-sm" data-testid={`row-employee-custody-${c.itemId}`}>
-                  <span>{itemById.get(c.itemId)?.name ?? `Item #${c.itemId}`}</span>
+                  <span className="flex items-center gap-2">
+                    {itemById.get(c.itemId)?.name ?? `Item #${c.itemId}`}
+                    {c.overdue && (
+                      <Badge variant="destructive" className="gap-1" data-testid={`badge-overdue-employee-${c.itemId}`}>
+                        <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                        Overdue{c.expectedReturnDate ? ` since ${c.expectedReturnDate}` : ''}
+                      </Badge>
+                    )}
+                  </span>
                   <span className="font-mono">{c.balance}</span>
                 </div>
               ))
@@ -1904,13 +1915,454 @@ function CustodyTab({ organizationId }: { organizationId: number }) {
             ) : (
               (departmentCustody ?? []).map((c) => (
                 <div key={c.itemId} className="flex items-center justify-between rounded-md border border-border p-2 text-sm" data-testid={`row-department-custody-${c.itemId}`}>
-                  <span>{itemById.get(c.itemId)?.name ?? `Item #${c.itemId}`}</span>
+                  <span className="flex items-center gap-2">
+                    {itemById.get(c.itemId)?.name ?? `Item #${c.itemId}`}
+                    {c.overdue && (
+                      <Badge variant="destructive" className="gap-1" data-testid={`badge-overdue-department-${c.itemId}`}>
+                        <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                        Overdue{c.expectedReturnDate ? ` since ${c.expectedReturnDate}` : ''}
+                      </Badge>
+                    )}
+                  </span>
                   <span className="font-mono">{c.balance}</span>
                 </div>
               ))
             )}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// --- Movements (Workstream 5) — Return, Handover, Store Transfer. Each
+// action creates new append-only ledger movement(s); the current holder or
+// store balance is never overwritten directly. ---
+
+function HolderPicker({
+  organizationId,
+  idPrefix,
+  holderType,
+  holderId,
+  onHolderTypeChange,
+  onHolderIdChange,
+  label,
+}: {
+  organizationId: number;
+  idPrefix: string;
+  holderType: 'employee' | 'department';
+  holderId: string;
+  onHolderTypeChange: (t: 'employee' | 'department') => void;
+  onHolderIdChange: (id: string) => void;
+  label: string;
+}) {
+  const { data: employeesPage } = useListEmployees(organizationId, { pageSize: 200 }, {
+    query: { queryKey: getListEmployeesQueryKey(organizationId, { pageSize: 200 }), enabled: organizationId > 0 },
+  });
+  const { data: departments } = useListDepartments(organizationId, {
+    query: { queryKey: getListDepartmentsQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      <div className="flex gap-2">
+        <Select value={holderType} onValueChange={(v) => { onHolderTypeChange(v as 'employee' | 'department'); onHolderIdChange(''); }}>
+          <SelectTrigger className="w-40" id={`${idPrefix}-type`} data-testid={`select-${idPrefix}-type`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="employee">Employee</SelectItem>
+            <SelectItem value="department">Department</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={holderId} onValueChange={onHolderIdChange}>
+          <SelectTrigger id={`${idPrefix}-id`} data-testid={`select-${idPrefix}-id`}>
+            <SelectValue placeholder={`Choose ${holderType === 'employee' ? 'an employee' : 'a department'}`} />
+          </SelectTrigger>
+          <SelectContent>
+            {holderType === 'employee'
+              ? (employeesPage?.items ?? []).map((e) => (
+                  <SelectItem key={e.id} value={String(e.id)}>{e.firstName} {e.lastName}</SelectItem>
+                ))
+              : (departments ?? []).map((d) => (
+                  <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
+                ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
+}
+
+function ReturnDialog({ organizationId }: { organizationId: number }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [itemId, setItemId] = useState('');
+  const [holderType, setHolderType] = useState<'employee' | 'department'>('employee');
+  const [holderId, setHolderId] = useState('');
+  const [destinationStoreId, setDestinationStoreId] = useState('');
+  const [quantity, setQuantity] = useState('');
+  const [condition, setCondition] = useState('');
+  const [notes, setNotes] = useState('');
+  const mutation = useCreateOfficeInventoryReturn();
+
+  const { data: items } = useListOfficeInventoryItems(organizationId, {
+    query: { queryKey: getListOfficeInventoryItemsQueryKey(organizationId), enabled: organizationId > 0 && open },
+  });
+  const { data: stores } = useListOfficeInventoryStores(organizationId, {
+    query: { queryKey: getListOfficeInventoryStoresQueryKey(organizationId), enabled: organizationId > 0 && open },
+  });
+  const returnableItems = (items ?? []).filter((i) => i.classification === 'returnable');
+
+  const reset = () => {
+    setItemId('');
+    setHolderType('employee');
+    setHolderId('');
+    setDestinationStoreId('');
+    setQuantity('');
+    setCondition('');
+    setNotes('');
+  };
+
+  const handle = () => {
+    if (!itemId || !holderId || !destinationStoreId || !quantity) return;
+    mutation.mutate(
+      {
+        organizationId,
+        data: {
+          itemId: Number(itemId),
+          holderType,
+          holderId: Number(holderId),
+          destinationStoreId: Number(destinationStoreId),
+          quantity,
+          condition: condition ? (condition as 'new' | 'good' | 'fair' | 'poor' | 'damaged') : undefined,
+          notes: notes.trim() || undefined,
+          idempotencyKey: crypto.randomUUID(),
+        },
+      },
+      {
+        onSuccess: () => {
+          setOpen(false);
+          reset();
+          toast({ title: 'Return recorded' });
+        },
+        onError: (err) => toast({ title: 'Could not record return', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
+      <DialogTrigger asChild>
+        <Button variant="outline" data-testid="button-open-return">
+          <Undo2 className="h-4 w-4" aria-hidden="true" />
+          Return
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Return to Store</DialogTitle>
+          <DialogDescription>Return part or all of an employee's or department's outstanding custody. Validated against their current outstanding quantity.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="return-item">Item</Label>
+            <Select value={itemId} onValueChange={setItemId}>
+              <SelectTrigger id="return-item" data-testid="select-return-item">
+                <SelectValue placeholder="Choose a returnable item" />
+              </SelectTrigger>
+              <SelectContent>
+                {returnableItems.map((i) => (
+                  <SelectItem key={i.id} value={String(i.id)}>{i.name} ({i.itemCode})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <HolderPicker organizationId={organizationId} idPrefix="return-holder" holderType={holderType} holderId={holderId} onHolderTypeChange={setHolderType} onHolderIdChange={setHolderId} label="Returning From" />
+          <div className="space-y-2">
+            <Label htmlFor="return-store">Destination Store</Label>
+            <Select value={destinationStoreId} onValueChange={setDestinationStoreId}>
+              <SelectTrigger id="return-store" data-testid="select-return-store">
+                <SelectValue placeholder="Choose a store" />
+              </SelectTrigger>
+              <SelectContent>
+                {(stores ?? []).map((s) => (
+                  <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="return-quantity">Quantity</Label>
+            <Input id="return-quantity" type="number" min={0} step="0.01" value={quantity} onChange={(e) => setQuantity(e.target.value)} data-testid="input-return-quantity" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="return-condition">Condition (optional)</Label>
+            <Select value={condition} onValueChange={setCondition}>
+              <SelectTrigger id="return-condition" data-testid="select-return-condition">
+                <SelectValue placeholder="Not specified" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="new">New</SelectItem>
+                <SelectItem value="good">Good</SelectItem>
+                <SelectItem value="fair">Fair</SelectItem>
+                <SelectItem value="poor">Poor</SelectItem>
+                <SelectItem value="damaged">Damaged</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="return-notes">Notes (optional)</Label>
+            <Textarea id="return-notes" value={notes} onChange={(e) => setNotes(e.target.value)} data-testid="textarea-return-notes" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={handle} disabled={mutation.isPending || !itemId || !holderId || !destinationStoreId || !quantity} data-testid="button-confirm-return">
+            {mutation.isPending ? 'Recording…' : 'Confirm Return'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function HandoverDialog({ organizationId }: { organizationId: number }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [itemId, setItemId] = useState('');
+  const [fromHolderType, setFromHolderType] = useState<'employee' | 'department'>('employee');
+  const [fromHolderId, setFromHolderId] = useState('');
+  const [toHolderType, setToHolderType] = useState<'employee' | 'department'>('employee');
+  const [toHolderId, setToHolderId] = useState('');
+  const [quantity, setQuantity] = useState('');
+  const [reason, setReason] = useState('');
+  const [condition, setCondition] = useState('');
+  const [expectedReturnDate, setExpectedReturnDate] = useState('');
+  const mutation = useCreateOfficeInventoryHandover();
+
+  const { data: items } = useListOfficeInventoryItems(organizationId, {
+    query: { queryKey: getListOfficeInventoryItemsQueryKey(organizationId), enabled: organizationId > 0 && open },
+  });
+  const returnableItems = (items ?? []).filter((i) => i.classification === 'returnable');
+  const isDeptToDept = fromHolderType === 'department' && toHolderType === 'department';
+
+  const reset = () => {
+    setItemId('');
+    setFromHolderType('employee');
+    setFromHolderId('');
+    setToHolderType('employee');
+    setToHolderId('');
+    setQuantity('');
+    setReason('');
+    setCondition('');
+    setExpectedReturnDate('');
+  };
+
+  const handle = () => {
+    if (!itemId || !fromHolderId || !toHolderId || !quantity) return;
+    mutation.mutate(
+      {
+        organizationId,
+        data: {
+          itemId: Number(itemId),
+          fromHolderType,
+          fromHolderId: Number(fromHolderId),
+          toHolderType,
+          toHolderId: Number(toHolderId),
+          quantity,
+          reason: reason.trim() || undefined,
+          condition: condition ? (condition as 'new' | 'good' | 'fair' | 'poor' | 'damaged') : undefined,
+          expectedReturnDate: expectedReturnDate || undefined,
+          idempotencyKey: crypto.randomUUID(),
+        },
+      },
+      {
+        onSuccess: () => {
+          setOpen(false);
+          reset();
+          toast({ title: 'Handover recorded' });
+        },
+        onError: (err) => toast({ title: 'Could not record handover', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
+      <DialogTrigger asChild>
+        <Button variant="outline" data-testid="button-open-handover">
+          <Users className="h-4 w-4" aria-hidden="true" />
+          Handover
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Handover Custody</DialogTitle>
+          <DialogDescription>
+            Move outstanding custody directly between two holders — no store involved.
+            {isDeptToDept && ' A department-to-department handover requires the receiving department\'s current Head or a valid delegate.'}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="handover-item">Item</Label>
+            <Select value={itemId} onValueChange={setItemId}>
+              <SelectTrigger id="handover-item" data-testid="select-handover-item">
+                <SelectValue placeholder="Choose a returnable item" />
+              </SelectTrigger>
+              <SelectContent>
+                {returnableItems.map((i) => (
+                  <SelectItem key={i.id} value={String(i.id)}>{i.name} ({i.itemCode})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <HolderPicker organizationId={organizationId} idPrefix="handover-from" holderType={fromHolderType} holderId={fromHolderId} onHolderTypeChange={setFromHolderType} onHolderIdChange={setFromHolderId} label="From" />
+          <HolderPicker organizationId={organizationId} idPrefix="handover-to" holderType={toHolderType} holderId={toHolderId} onHolderTypeChange={setToHolderType} onHolderIdChange={setToHolderId} label="To" />
+          <div className="space-y-2">
+            <Label htmlFor="handover-quantity">Quantity</Label>
+            <Input id="handover-quantity" type="number" min={0} step="0.01" value={quantity} onChange={(e) => setQuantity(e.target.value)} data-testid="input-handover-quantity" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="handover-return-date">Expected Return Date (optional)</Label>
+            <Input id="handover-return-date" type="date" value={expectedReturnDate} onChange={(e) => setExpectedReturnDate(e.target.value)} data-testid="input-handover-return-date" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="handover-reason">Reason (optional)</Label>
+            <Textarea id="handover-reason" value={reason} onChange={(e) => setReason(e.target.value)} data-testid="textarea-handover-reason" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={handle} disabled={mutation.isPending || !itemId || !fromHolderId || !toHolderId || !quantity} data-testid="button-confirm-handover">
+            {mutation.isPending ? 'Recording…' : 'Confirm Handover'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function TransferDialog({ organizationId }: { organizationId: number }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [itemId, setItemId] = useState('');
+  const [fromStoreId, setFromStoreId] = useState('');
+  const [toStoreId, setToStoreId] = useState('');
+  const [quantity, setQuantity] = useState('');
+  const [notes, setNotes] = useState('');
+  const mutation = useCreateOfficeInventoryTransfer();
+
+  const { data: items } = useListOfficeInventoryItems(organizationId, {
+    query: { queryKey: getListOfficeInventoryItemsQueryKey(organizationId), enabled: organizationId > 0 && open },
+  });
+  const { data: stores } = useListOfficeInventoryStores(organizationId, {
+    query: { queryKey: getListOfficeInventoryStoresQueryKey(organizationId), enabled: organizationId > 0 && open },
+  });
+
+  const reset = () => {
+    setItemId('');
+    setFromStoreId('');
+    setToStoreId('');
+    setQuantity('');
+    setNotes('');
+  };
+
+  const handle = () => {
+    if (!itemId || !fromStoreId || !toStoreId || !quantity) return;
+    mutation.mutate(
+      { organizationId, data: { itemId: Number(itemId), fromStoreId: Number(fromStoreId), toStoreId: Number(toStoreId), quantity, notes: notes.trim() || undefined, idempotencyKey: crypto.randomUUID() } },
+      {
+        onSuccess: () => {
+          setOpen(false);
+          reset();
+          toast({ title: 'Transfer recorded' });
+        },
+        onError: (err) => toast({ title: 'Could not record transfer', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
+      <DialogTrigger asChild>
+        <Button variant="outline" data-testid="button-open-transfer">
+          <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
+          Store Transfer
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Transfer Between Stores</DialogTitle>
+          <DialogDescription>A single atomic movement — stock is never simultaneously available or unavailable in both stores.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="transfer-item">Item</Label>
+            <Select value={itemId} onValueChange={setItemId}>
+              <SelectTrigger id="transfer-item" data-testid="select-transfer-item">
+                <SelectValue placeholder="Choose an item" />
+              </SelectTrigger>
+              <SelectContent>
+                {(items ?? []).map((i) => (
+                  <SelectItem key={i.id} value={String(i.id)}>{i.name} ({i.itemCode})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="transfer-from">From Store</Label>
+            <Select value={fromStoreId} onValueChange={setFromStoreId}>
+              <SelectTrigger id="transfer-from" data-testid="select-transfer-from">
+                <SelectValue placeholder="Choose a store" />
+              </SelectTrigger>
+              <SelectContent>
+                {(stores ?? []).map((s) => (
+                  <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="transfer-to">To Store</Label>
+            <Select value={toStoreId} onValueChange={setToStoreId}>
+              <SelectTrigger id="transfer-to" data-testid="select-transfer-to">
+                <SelectValue placeholder="Choose a store" />
+              </SelectTrigger>
+              <SelectContent>
+                {(stores ?? []).filter((s) => String(s.id) !== fromStoreId).map((s) => (
+                  <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="transfer-quantity">Quantity</Label>
+            <Input id="transfer-quantity" type="number" min={0} step="0.01" value={quantity} onChange={(e) => setQuantity(e.target.value)} data-testid="input-transfer-quantity" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="transfer-notes">Notes (optional)</Label>
+            <Textarea id="transfer-notes" value={notes} onChange={(e) => setNotes(e.target.value)} data-testid="textarea-transfer-notes" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={handle} disabled={mutation.isPending || !itemId || !fromStoreId || !toStoreId || !quantity} data-testid="button-confirm-transfer">
+            {mutation.isPending ? 'Recording…' : 'Confirm Transfer'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function MovementsTab({ organizationId }: { organizationId: number }) {
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">Post-issue custody events — each creates a new, permanent movement record. Nothing here edits or removes a prior issue, return, or transfer.</p>
+      <div className="flex flex-wrap gap-3">
+        <ReturnDialog organizationId={organizationId} />
+        <HandoverDialog organizationId={organizationId} />
+        <TransferDialog organizationId={organizationId} />
       </div>
     </div>
   );
@@ -2010,6 +2462,7 @@ export default function OfficeInventory() {
           <TabsTrigger value="approvals" data-testid="tab-approvals">Approvals</TabsTrigger>
           <TabsTrigger value="issuing" data-testid="tab-issuing">Issuing</TabsTrigger>
           <TabsTrigger value="custody" data-testid="tab-custody">Custody</TabsTrigger>
+          <TabsTrigger value="movements" data-testid="tab-movements">Movements</TabsTrigger>
           <TabsTrigger value="configuration" data-testid="tab-configuration">Configuration</TabsTrigger>
         </TabsList>
         <TabsContent value="items">
@@ -2035,6 +2488,9 @@ export default function OfficeInventory() {
         </TabsContent>
         <TabsContent value="custody">
           <CustodyTab organizationId={organizationId} />
+        </TabsContent>
+        <TabsContent value="movements">
+          <MovementsTab organizationId={organizationId} />
         </TabsContent>
         <TabsContent value="configuration">
           <ConfigurationTab organizationId={organizationId} />

@@ -8,6 +8,10 @@
  * direction table and the "no generic ledger-write API" architectural
  * boundary (mirroring officeInventoryLedgerHttp.test.ts's own static route
  * introspection from Workstream 2).
+ *
+ * "returned" was reassigned from "undefined, throws" to "holder-decreasing"
+ * by Workstream 5 (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §21/§22) —
+ * the test below was updated accordingly, not merely relaxed.
  */
 import { describe, it, expect } from "vitest";
 import * as ledger from "../lib/officeInventoryLedger";
@@ -17,9 +21,13 @@ describe("holderMovementSign — the holder-custody direction table", () => {
     expect(ledger.holderMovementSign("issued")).toBe(1);
   });
 
+  it("returned decreases holder custody — Workstream 5's own addition, reused for both an ordinary return and a handover's source side", () => {
+    expect(ledger.holderMovementSign("returned")).toBe(-1);
+  });
+
   it("a type with no defined holder direction yet throws rather than guessing", () => {
-    expect(() => ledger.holderMovementSign("returned")).toThrow();
     expect(() => ledger.holderMovementSign("adjustment_in")).toThrow();
+    expect(() => ledger.holderMovementSign("missing")).toThrow();
   });
 
   it("HOLDER_INCREASING_TYPES and HOLDER_DECREASING_TYPES never overlap", () => {

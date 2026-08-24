@@ -167,6 +167,19 @@ const officeInventoryConfigSchema = z
     // signal between the two is `sourceReferenceType` on the ledger row
     // itself, not the reference number series).
     issueNumber: officeInventoryItemNumberConfigSchema.optional(),
+    // Office Inventory, Workstream 5 — three more independent number
+    // series via the same numbering-engine shape. The frozen plan's own
+    // §40 lists `office_inventory_return` as omitted from its enumerated
+    // sequenceKey list (only transfer/handover are named there) alongside
+    // an explicit return-row pairing requirement in §21 ("A `returned`
+    // ledger row... sharing one referenceNumber" — implicit in every other
+    // paired-movement action's own documented shape) — treated here as the
+    // same kind of minor enumeration gap already found and disclosed for
+    // W1's own permission count, not a deliberate exclusion, so a
+    // `returnNumber` series is added to close it.
+    returnNumber: officeInventoryItemNumberConfigSchema.optional(),
+    handoverNumber: officeInventoryItemNumberConfigSchema.optional(),
+    transferNumber: officeInventoryItemNumberConfigSchema.optional(),
     repeatRequestReviewWindowDays: z.number().int().min(0).max(365).optional(),
     costTrackingEnabled: z.boolean().optional(),
     directIssueEnabled: z.boolean().optional(),
@@ -309,6 +322,27 @@ export const CONFIG_NAMESPACES: Record<string, NamespaceDefinition> = {
       },
       issueNumber: {
         prefix: "ISS",
+        separator: "-",
+        sequenceLength: 5,
+        startingSequence: 1,
+        resetPolicy: "never",
+      },
+      returnNumber: {
+        prefix: "RET",
+        separator: "-",
+        sequenceLength: 5,
+        startingSequence: 1,
+        resetPolicy: "never",
+      },
+      handoverNumber: {
+        prefix: "HAN",
+        separator: "-",
+        sequenceLength: 5,
+        startingSequence: 1,
+        resetPolicy: "never",
+      },
+      transferNumber: {
+        prefix: "TRF",
         separator: "-",
         sequenceLength: 5,
         startingSequence: 1,

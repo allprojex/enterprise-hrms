@@ -17646,6 +17646,158 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/office-inventory/returns:
+    post:
+      operationId: createOfficeInventoryReturn
+      tags: [office-inventory-transfers]
+      summary: Return from an employee or department's outstanding custody into a store — gated office_inventory.return
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOfficeInventoryReturnBody"
+      responses:
+        "201":
+          description: Return result (or, on idempotency replay, the original)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryReturnResult"
+        "400":
+          description: Invalid quantity, or the item is a consumable (not returnable)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires office_inventory.return, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Item, store, or holder not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Insufficient outstanding custody (over-return)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/handovers:
+    post:
+      operationId: createOfficeInventoryHandover
+      tags: [office-inventory-transfers]
+      summary: Hand over outstanding custody from one holder to another (employee/department, any direction) — gated office_inventory.handover
+      description: >-
+        A department-to-department handover additionally requires the
+        acting membership to resolve as the RECEIVING department's current
+        Head or a currently-valid delegate (Owner Decision 17).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOfficeInventoryHandoverBody"
+      responses:
+        "201":
+          description: Handover result (or, on idempotency replay, the original)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryHandoverResult"
+        "400":
+          description: Invalid quantity, same source/destination holder, the item is a consumable, or expectedReturnDate on a consumable item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires office_inventory.handover, or module not enabled, or (department-to-department only) not the receiving department's current Head/delegate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Item, source holder, or destination holder not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Insufficient outstanding custody on the source holder
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/transfers:
+    post:
+      operationId: createOfficeInventoryTransfer
+      tags: [office-inventory-transfers]
+      summary: Transfer stock between two stores, atomically — gated office_inventory.transfer
+      description: Single atomic paired transferred_out/transferred_in movement (§23) — organization-wide total is unchanged by construction.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOfficeInventoryTransferBody"
+      responses:
+        "201":
+          description: Transfer result (or, on idempotency replay, the original)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryTransferResult"
+        "400":
+          description: Invalid quantity, or source and destination store are the same
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires office_inventory.transfer, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Item, source store, or destination store not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Insufficient stock in the source store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -26684,9 +26836,150 @@ components:
 
     OfficeInventoryCustodyEntry:
       type: object
-      required: [itemId, balance]
+      description: >-
+        Extended in Workstream 5 with live-derived overdue info (§20) — the
+        fields are additive to Workstream 4's own original shape, never
+        breaking it. `overdue`/`expectedReturnDate` are computed from the
+        most recent holder-increasing (`issued`) row for this item, which a
+        handover's destination row also is — a handover therefore becomes
+        the new "most recent" row and supersedes whatever due date the
+        previous holder was tracking.
+      required: [itemId, balance, overdue, expectedReturnDate]
       properties:
         itemId:
           type: integer
         balance:
           type: string
+        overdue:
+          type: boolean
+        expectedReturnDate:
+          type: string
+          format: date
+          nullable: true
+
+    CreateOfficeInventoryReturnBody:
+      type: object
+      description: >-
+        Office Inventory, Workstream 5
+        (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §21). A `returned`
+        ledger row pair — holder-side decrease, store-side increase —
+        validated against the holder's own live-derived outstanding
+        custody, never a client-supplied "current quantity". Consumable
+        items are rejected (Owner Decision 10 — issuing a consumable is
+        itself its consumption, never reversible).
+      required: [itemId, holderType, holderId, destinationStoreId, quantity]
+      properties:
+        itemId:
+          type: integer
+        holderType:
+          type: string
+          enum: [employee, department]
+        holderId:
+          type: integer
+        destinationStoreId:
+          type: integer
+        quantity:
+          type: string
+          description: Positive numeric(12,2)-shaped string. Must not exceed the holder's current outstanding custody for this item.
+        condition:
+          type: string
+          enum: [new, good, fair, poor, damaged]
+        notes:
+          type: string
+        idempotencyKey:
+          type: string
+
+    OfficeInventoryReturnResult:
+      type: object
+      required: [storeMovement, holderMovement, replay]
+      properties:
+        storeMovement:
+          $ref: "#/components/schemas/OfficeInventoryStockMovement"
+        holderMovement:
+          $ref: "#/components/schemas/OfficeInventoryStockMovement"
+        replay:
+          type: boolean
+
+    CreateOfficeInventoryHandoverBody:
+      type: object
+      description: >-
+        docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §22. A paired
+        holder-to-holder movement — no store is ever touched. Supports all
+        four directions (employee/department x employee/department). A
+        department-to-department handover additionally requires the acting
+        membership to resolve as the RECEIVING department's current Head
+        or a currently-valid delegate (Owner Decision 17) — the same
+        authority-resolution primitive Workstream 3 already proved for
+        ordinary department-request approval.
+      required: [itemId, fromHolderType, fromHolderId, toHolderType, toHolderId, quantity]
+      properties:
+        itemId:
+          type: integer
+        fromHolderType:
+          type: string
+          enum: [employee, department]
+        fromHolderId:
+          type: integer
+        toHolderType:
+          type: string
+          enum: [employee, department]
+        toHolderId:
+          type: integer
+        quantity:
+          type: string
+        reason:
+          type: string
+        condition:
+          type: string
+          enum: [new, good, fair, poor, damaged]
+        expectedReturnDate:
+          type: string
+          format: date
+          description: Only meaningful for a returnable item; rejected for a consumable item. Unset clears any prior due date rather than carrying it forward.
+        idempotencyKey:
+          type: string
+
+    OfficeInventoryHandoverResult:
+      type: object
+      required: [sourceMovement, destinationMovement, replay]
+      properties:
+        sourceMovement:
+          $ref: "#/components/schemas/OfficeInventoryStockMovement"
+        destinationMovement:
+          $ref: "#/components/schemas/OfficeInventoryStockMovement"
+        replay:
+          type: boolean
+
+    CreateOfficeInventoryTransferBody:
+      type: object
+      description: >-
+        docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §23. A single atomic
+        paired `transferred_out`/`transferred_in` store-to-store movement —
+        both rows are inserted in the same locked transaction, so stock is
+        never simultaneously available or unavailable in both stores.
+        Organization-wide total is unchanged by construction.
+      required: [itemId, fromStoreId, toStoreId, quantity]
+      properties:
+        itemId:
+          type: integer
+        fromStoreId:
+          type: integer
+        toStoreId:
+          type: integer
+        quantity:
+          type: string
+        notes:
+          type: string
+        idempotencyKey:
+          type: string
+
+    OfficeInventoryTransferResult:
+      type: object
+      required: [outMovement, inMovement, replay]
+      properties:
+        outMovement:
+          $ref: "#/components/schemas/OfficeInventoryStockMovement"
+        inMovement:
+          $ref: "#/components/schemas/OfficeInventoryStockMovement"
+        replay:
+          type: boolean

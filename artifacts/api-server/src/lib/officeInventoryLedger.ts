@@ -85,6 +85,25 @@ export class InsufficientStockError extends Error {
   }
 }
 
+/**
+ * The holder-side counterpart to InsufficientStockError — kept distinct
+ * (rather than reusing InsufficientStockError with a holderId passed where
+ * a storeId is expected) so the error message is accurate. Unreachable
+ * until Workstream 5 defines a holder-decreasing movement type (`returned`)
+ * — HOLDER_DECREASING_TYPES was empty throughout Workstream 4.
+ */
+export class InsufficientCustodyError extends Error {
+  constructor(
+    readonly itemId: number,
+    readonly holderType: "employee" | "department",
+    readonly holderId: number,
+    readonly available: string,
+    readonly requested: string,
+  ) {
+    super(`Insufficient custody: item ${itemId} held by ${holderType} ${holderId} has ${available} outstanding, ${requested} requested`);
+  }
+}
+
 export function movementSign(movementType: OfficeInventoryMovementType): 1 | -1 {
   if (STORE_INCREASING_TYPES.includes(movementType)) return 1;
   if (STORE_DECREASING_TYPES.includes(movementType)) return -1;
@@ -271,20 +290,25 @@ export async function appendStoreMovement(tx: QueryClient, params: AppendStoreMo
   return inserted;
 }
 
-// --- Holder (employee/department) custody — Workstream 4 ---
+// --- Holder (employee/department) custody — Workstream 4, extended by 5 ---
 //
 // A separate direction table from the store one above: the SAME
 // `movementType` can mean opposite things to a store's balance and to a
 // holder's custody (e.g. `issued` decreases a store's balance but
-// increases a holder's custody). Deliberately minimal for now — only
-// `issued` (the one type Workstream 4 itself ever produces on the holder
-// side) is defined. `returned`/handover-related holder semantics belong to
-// Workstream 5, which owns designing them; leaving them undefined here
-// (rather than guessing) means `holderMovementSign` throws if anything
-// ever tries to use them before W5 actually defines that direction,
-// instead of silently running with a possibly-wrong assumption.
+// increases a holder's custody). Workstream 4 defined only `issued`
+// (holder-increasing). Workstream 5 adds exactly one more: `returned`
+// (holder-decreasing) — reused for BOTH an ordinary holder→store return
+// AND the "from" side of a handover (§22 of the frozen plan: "handovers
+// [are] represented as paired issued/returned-style movements between two
+// holders" — the destination side is an ordinary holder-increasing
+// `issued` row, the source side an ordinary holder-decreasing `returned`
+// row; no new movementType enum value is needed for handovers at all).
+// Every other type remains undefined here on purpose — `handed_over`
+// doesn't exist as its own enum value, and W6's types (missing/recovered/
+// written_off/adjustment_in/out) are left undefined for W6 to define when
+// it actually builds them, exactly mirroring W4's own original disclosure.
 export const HOLDER_INCREASING_TYPES: readonly OfficeInventoryMovementType[] = ["issued"];
-export const HOLDER_DECREASING_TYPES: readonly OfficeInventoryMovementType[] = [];
+export const HOLDER_DECREASING_TYPES: readonly OfficeInventoryMovementType[] = ["returned"];
 
 export function holderMovementSign(movementType: OfficeInventoryMovementType): 1 | -1 {
   if (HOLDER_INCREASING_TYPES.includes(movementType)) return 1;
@@ -297,9 +321,77 @@ async function acquireHolderLock(tx: QueryClient, organizationId: number, itemId
   await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${lockKey}))`);
 }
 
+/**
+ * Pre-acquires BOTH the store lock and the holder lock, in that fixed
+ * order, for one (item, store, holder) domain — Workstream 5's return
+ * function calls this before appending its paired rows so its lock order
+ * matches Workstream 4's issue functions exactly (which naturally acquire
+ * store-then-holder, since they call `appendStoreMovement` before
+ * `appendHolderMovement`). Without a single canonical order, a return
+ * (holder-then-store) racing a concurrent issue (store-then-holder) for
+ * the same item could deadlock — Postgres would detect and abort one side
+ * with a raw `deadlock_detected` error instead of the intended clean,
+ * controlled application-level conflict (§17 of the frozen plan's own
+ * Issue-vs-Return concurrency requirement). Re-acquiring a lock already
+ * held by the same transaction is a harmless no-op, so `appendStoreMovement`/
+ * `appendHolderMovement`'s own internal lock calls remain safe afterward.
+ */
+export async function acquireStoreThenHolderLock(tx: QueryClient, organizationId: number, itemId: number, storeId: number, holderType: "employee" | "department", holderId: number): Promise<void> {
+  await acquireStoreLock(tx, organizationId, itemId, storeId);
+  await acquireHolderLock(tx, organizationId, itemId, holderType, holderId);
+}
+
+/**
+ * Pre-acquires two HOLDER locks for the same item, in a deterministic
+ * sorted order — used by handover, which touches two independent holder
+ * domains (source, destination) in one transaction. Without a fixed order,
+ * a handover A->B racing a concurrent handover B->A for the same item
+ * could deadlock (§19's own concurrency requirement) — sorting by a
+ * composite key before acquiring guarantees every caller locks in the
+ * same order regardless of which side of the handover it is.
+ */
+export async function acquireOrderedHolderLocks(
+  tx: QueryClient,
+  organizationId: number,
+  itemId: number,
+  holderTypeA: "employee" | "department",
+  holderIdA: number,
+  holderTypeB: "employee" | "department",
+  holderIdB: number,
+): Promise<void> {
+  const keyA = `${holderTypeA}:${holderIdA}`;
+  const keyB = `${holderTypeB}:${holderIdB}`;
+  const [first, second] = keyA <= keyB ? [[holderTypeA, holderIdA] as const, [holderTypeB, holderIdB] as const] : [[holderTypeB, holderIdB] as const, [holderTypeA, holderIdA] as const];
+  await acquireHolderLock(tx, organizationId, itemId, first[0], first[1]);
+  if (keyA !== keyB) await acquireHolderLock(tx, organizationId, itemId, second[0], second[1]);
+}
+
+/**
+ * Pre-acquires two STORE locks for the same item, in ascending storeId
+ * order — the store-transfer analogue of `acquireOrderedHolderLocks`,
+ * satisfying §16's explicit "sort lock keys before acquiring" instruction
+ * so a transfer A->B never races a concurrent transfer B->A into a
+ * deadlock.
+ */
+export async function acquireOrderedStoreLocks(tx: QueryClient, organizationId: number, itemId: number, storeIdA: number, storeIdB: number): Promise<void> {
+  const [first, second] = storeIdA <= storeIdB ? [storeIdA, storeIdB] : [storeIdB, storeIdA];
+  await acquireStoreLock(tx, organizationId, itemId, first);
+  if (first !== second) await acquireStoreLock(tx, organizationId, itemId, second);
+}
+
+// Bug found and fixed during Workstream 5's own live QA (not by the mocked
+// test suite): this was written in Workstream 4, when HOLDER_DECREASING_TYPES
+// was still empty, so it only ever needed the increasing branch. Workstream 5
+// added "returned" as the first holder-decreasing type but this function was
+// never updated to match — every getHolderBalance/listCurrentCustody read
+// (and appendHolderMovement's own pre-decrease validation query, which reuses
+// this same helper) silently ignored every decreasing row, so a return or a
+// handover's source-side decrease never reduced the computed balance at all.
+// Now mirrors signedQuantitySql's own two-branch shape exactly.
 function signedHolderQuantitySql() {
   return sql`case
     when ${officeInventoryStockMovementsTable.movementType}::text in ${[...HOLDER_INCREASING_TYPES]} then ${officeInventoryStockMovementsTable.quantity}
+    when ${officeInventoryStockMovementsTable.movementType}::text in ${[...HOLDER_DECREASING_TYPES]} then -${officeInventoryStockMovementsTable.quantity}
     else 0 end`;
 }
 
@@ -319,9 +411,27 @@ export async function getHolderBalance(organizationId: number, itemId: number, h
   return row?.balance ?? "0.00";
 }
 
+export interface HolderCustodyEntry {
+  itemId: number;
+  balance: string;
+  /**
+   * Live-derived, never stored (§20 of the frozen plan): true when this
+   * holder's outstanding balance for this item is positive AND the most
+   * recent holder-increasing (`issued`) row's own `expectedReturnDate` has
+   * passed. A handover's destination row is itself an ordinary `issued`
+   * row (see the direction-table comment above), so a handover correctly
+   * becomes the new "most recent" row and supersedes whatever due date the
+   * previous holder was tracking — by design, not an oversight (§13/§20:
+   * a handover does not silently carry forward a due date unless the
+   * initiator explicitly sets a new one).
+   */
+  overdue: boolean;
+  expectedReturnDate: string | null;
+}
+
 /** Every item an employee or department currently holds any outstanding quantity of, derived live from the ledger — never a mutable "current custodian" table. */
-export async function listCurrentCustody(organizationId: number, holderType: "employee" | "department", holderId: number): Promise<{ itemId: number; balance: string }[]> {
-  const rows = await db
+export async function listCurrentCustody(organizationId: number, holderType: "employee" | "department", holderId: number): Promise<HolderCustodyEntry[]> {
+  const balanceRows = await db
     .select({
       itemId: officeInventoryStockMovementsTable.itemId,
       balance: sql<string>`coalesce(sum(${signedHolderQuantitySql()}), 0)::numeric(12,2)`,
@@ -335,7 +445,39 @@ export async function listCurrentCustody(organizationId: number, holderType: "em
       ),
     )
     .groupBy(officeInventoryStockMovementsTable.itemId);
-  return rows.filter((r) => toMinorUnits(r.balance) > 0n);
+  const outstanding = balanceRows.filter((r) => toMinorUnits(r.balance) > 0n);
+  if (outstanding.length === 0) return [];
+
+  // Batched (no N+1, per §20's own explicit instruction): the most recent
+  // `issued`-type row per item for this holder, whatever its due date.
+  const mostRecentIssueRows = await db
+    .selectDistinctOn([officeInventoryStockMovementsTable.itemId], {
+      itemId: officeInventoryStockMovementsTable.itemId,
+      expectedReturnDate: officeInventoryStockMovementsTable.expectedReturnDate,
+    })
+    .from(officeInventoryStockMovementsTable)
+    .where(
+      and(
+        eq(officeInventoryStockMovementsTable.organizationId, organizationId),
+        eq(officeInventoryStockMovementsTable.holderType, holderType),
+        eq(officeInventoryStockMovementsTable.holderId, holderId),
+        eq(officeInventoryStockMovementsTable.movementType, "issued"),
+      ),
+    )
+    .orderBy(officeInventoryStockMovementsTable.itemId, sql`${officeInventoryStockMovementsTable.occurredAt} desc`);
+  const dueDateByItem = new Map<number, string | null>();
+  for (const row of mostRecentIssueRows) dueDateByItem.set(row.itemId, row.expectedReturnDate);
+
+  const now = new Date();
+  return outstanding.map((r) => {
+    const expectedReturnDate = dueDateByItem.get(r.itemId) ?? null;
+    return {
+      itemId: r.itemId,
+      balance: r.balance,
+      expectedReturnDate,
+      overdue: expectedReturnDate !== null && new Date(expectedReturnDate) < now,
+    };
+  });
 }
 
 export interface AppendHolderMovementParams {
@@ -376,7 +518,7 @@ export async function appendHolderMovement(tx: QueryClient, params: AppendHolder
     const availableMinor = toMinorUnits(row?.balance ?? "0.00");
     const requestedMinor = toMinorUnits(params.quantity);
     if (availableMinor - requestedMinor < 0n) {
-      throw new InsufficientStockError(params.itemId, params.holderId, fromMinorUnits(availableMinor), params.quantity);
+      throw new InsufficientCustodyError(params.itemId, params.holderType, params.holderId, fromMinorUnits(availableMinor), params.quantity);
     }
   }
 

@@ -7758,9 +7758,122 @@ export interface OfficeInventoryAwaitingFulfilmentEntry {
   lines: OfficeInventoryRequestLine[];
 }
 
+/**
+ * Extended in Workstream 5 with live-derived overdue info (§20) — the fields are additive to Workstream 4's own original shape, never breaking it. `overdue`/`expectedReturnDate` are computed from the most recent holder-increasing (`issued`) row for this item, which a handover's destination row also is — a handover therefore becomes the new "most recent" row and supersedes whatever due date the previous holder was tracking.
+ */
 export interface OfficeInventoryCustodyEntry {
   itemId: number;
   balance: string;
+  overdue: boolean;
+  expectedReturnDate: string | null;
+}
+
+export type CreateOfficeInventoryReturnBodyHolderType = typeof CreateOfficeInventoryReturnBodyHolderType[keyof typeof CreateOfficeInventoryReturnBodyHolderType];
+
+
+export const CreateOfficeInventoryReturnBodyHolderType = {
+  employee: 'employee',
+  department: 'department',
+} as const;
+
+export type CreateOfficeInventoryReturnBodyCondition = typeof CreateOfficeInventoryReturnBodyCondition[keyof typeof CreateOfficeInventoryReturnBodyCondition];
+
+
+export const CreateOfficeInventoryReturnBodyCondition = {
+  new: 'new',
+  good: 'good',
+  fair: 'fair',
+  poor: 'poor',
+  damaged: 'damaged',
+} as const;
+
+/**
+ * Office Inventory, Workstream 5 (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §21). A `returned` ledger row pair — holder-side decrease, store-side increase — validated against the holder's own live-derived outstanding custody, never a client-supplied "current quantity". Consumable items are rejected (Owner Decision 10 — issuing a consumable is itself its consumption, never reversible).
+ */
+export interface CreateOfficeInventoryReturnBody {
+  itemId: number;
+  holderType: CreateOfficeInventoryReturnBodyHolderType;
+  holderId: number;
+  destinationStoreId: number;
+  /** Positive numeric(12,2)-shaped string. Must not exceed the holder's current outstanding custody for this item. */
+  quantity: string;
+  condition?: CreateOfficeInventoryReturnBodyCondition;
+  notes?: string;
+  idempotencyKey?: string;
+}
+
+export interface OfficeInventoryReturnResult {
+  storeMovement: OfficeInventoryStockMovement;
+  holderMovement: OfficeInventoryStockMovement;
+  replay: boolean;
+}
+
+export type CreateOfficeInventoryHandoverBodyFromHolderType = typeof CreateOfficeInventoryHandoverBodyFromHolderType[keyof typeof CreateOfficeInventoryHandoverBodyFromHolderType];
+
+
+export const CreateOfficeInventoryHandoverBodyFromHolderType = {
+  employee: 'employee',
+  department: 'department',
+} as const;
+
+export type CreateOfficeInventoryHandoverBodyToHolderType = typeof CreateOfficeInventoryHandoverBodyToHolderType[keyof typeof CreateOfficeInventoryHandoverBodyToHolderType];
+
+
+export const CreateOfficeInventoryHandoverBodyToHolderType = {
+  employee: 'employee',
+  department: 'department',
+} as const;
+
+export type CreateOfficeInventoryHandoverBodyCondition = typeof CreateOfficeInventoryHandoverBodyCondition[keyof typeof CreateOfficeInventoryHandoverBodyCondition];
+
+
+export const CreateOfficeInventoryHandoverBodyCondition = {
+  new: 'new',
+  good: 'good',
+  fair: 'fair',
+  poor: 'poor',
+  damaged: 'damaged',
+} as const;
+
+/**
+ * docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §22. A paired holder-to-holder movement — no store is ever touched. Supports all four directions (employee/department x employee/department). A department-to-department handover additionally requires the acting membership to resolve as the RECEIVING department's current Head or a currently-valid delegate (Owner Decision 17) — the same authority-resolution primitive Workstream 3 already proved for ordinary department-request approval.
+ */
+export interface CreateOfficeInventoryHandoverBody {
+  itemId: number;
+  fromHolderType: CreateOfficeInventoryHandoverBodyFromHolderType;
+  fromHolderId: number;
+  toHolderType: CreateOfficeInventoryHandoverBodyToHolderType;
+  toHolderId: number;
+  quantity: string;
+  reason?: string;
+  condition?: CreateOfficeInventoryHandoverBodyCondition;
+  /** Only meaningful for a returnable item; rejected for a consumable item. Unset clears any prior due date rather than carrying it forward. */
+  expectedReturnDate?: string;
+  idempotencyKey?: string;
+}
+
+export interface OfficeInventoryHandoverResult {
+  sourceMovement: OfficeInventoryStockMovement;
+  destinationMovement: OfficeInventoryStockMovement;
+  replay: boolean;
+}
+
+/**
+ * docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §23. A single atomic paired `transferred_out`/`transferred_in` store-to-store movement — both rows are inserted in the same locked transaction, so stock is never simultaneously available or unavailable in both stores. Organization-wide total is unchanged by construction.
+ */
+export interface CreateOfficeInventoryTransferBody {
+  itemId: number;
+  fromStoreId: number;
+  toStoreId: number;
+  quantity: string;
+  notes?: string;
+  idempotencyKey?: string;
+}
+
+export interface OfficeInventoryTransferResult {
+  outMovement: OfficeInventoryStockMovement;
+  inMovement: OfficeInventoryStockMovement;
+  replay: boolean;
 }
 
 export type ListEmployeesParams = {

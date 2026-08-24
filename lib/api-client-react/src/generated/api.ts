@@ -99,10 +99,13 @@ import type {
   CreateMasterDataItemInput,
   CreateOfferInput,
   CreateOfficeInventoryDelegationBody,
+  CreateOfficeInventoryHandoverBody,
   CreateOfficeInventoryItemBody,
   CreateOfficeInventoryReceiptBody,
   CreateOfficeInventoryRequestBody,
+  CreateOfficeInventoryReturnBody,
   CreateOfficeInventoryStoreBody,
+  CreateOfficeInventoryTransferBody,
   CreateOrganizationDomainInput,
   CreateOrganizationInput,
   CreatePayrollCorrectionBody,
@@ -235,6 +238,7 @@ import type {
   OfficeInventoryApprovalDelegation,
   OfficeInventoryAwaitingFulfilmentEntry,
   OfficeInventoryCustodyEntry,
+  OfficeInventoryHandoverResult,
   OfficeInventoryItem,
   OfficeInventoryItemBalance,
   OfficeInventoryReceipt,
@@ -242,8 +246,10 @@ import type {
   OfficeInventoryRequest,
   OfficeInventoryRequestApprovalContext,
   OfficeInventoryRequestWithLines,
+  OfficeInventoryReturnResult,
   OfficeInventoryStockMovement,
   OfficeInventoryStore,
+  OfficeInventoryTransferResult,
   Organization,
   OrganizationConfig,
   OrganizationDomain,
@@ -34427,4 +34433,222 @@ export function useGetOfficeInventoryDepartmentCustody<TData = Awaited<ReturnTyp
 
 
 
+
+export const getCreateOfficeInventoryReturnUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/returns`
+}
+
+/**
+ * @summary Return from an employee or department's outstanding custody into a store — gated office_inventory.return
+ */
+export const createOfficeInventoryReturn = async (organizationId: number,
+    createOfficeInventoryReturnBody: CreateOfficeInventoryReturnBody, options?: RequestInit): Promise<OfficeInventoryReturnResult> => {
+
+  return customFetch<OfficeInventoryReturnResult>(getCreateOfficeInventoryReturnUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createOfficeInventoryReturnBody)
+  }
+);}
+
+
+
+
+
+export const getCreateOfficeInventoryReturnMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryReturn>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryReturnBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryReturn>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryReturnBody>}, TContext> => {
+
+const mutationKey = ['createOfficeInventoryReturn'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createOfficeInventoryReturn>>, {organizationId: number;data: BodyType<CreateOfficeInventoryReturnBody>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createOfficeInventoryReturn(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateOfficeInventoryReturnMutationResult = NonNullable<Awaited<ReturnType<typeof createOfficeInventoryReturn>>>
+    export type CreateOfficeInventoryReturnMutationBody = BodyType<CreateOfficeInventoryReturnBody>
+    export type CreateOfficeInventoryReturnMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Return from an employee or department's outstanding custody into a store — gated office_inventory.return
+ */
+export const useCreateOfficeInventoryReturn = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryReturn>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryReturnBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createOfficeInventoryReturn>>,
+        TError,
+        {organizationId: number;data: BodyType<CreateOfficeInventoryReturnBody>},
+        TContext
+      > => {
+      return useMutation(getCreateOfficeInventoryReturnMutationOptions(options));
+    }
+
+export const getCreateOfficeInventoryHandoverUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/handovers`
+}
+
+/**
+ * A department-to-department handover additionally requires the acting membership to resolve as the RECEIVING department's current Head or a currently-valid delegate (Owner Decision 17).
+ * @summary Hand over outstanding custody from one holder to another (employee/department, any direction) — gated office_inventory.handover
+ */
+export const createOfficeInventoryHandover = async (organizationId: number,
+    createOfficeInventoryHandoverBody: CreateOfficeInventoryHandoverBody, options?: RequestInit): Promise<OfficeInventoryHandoverResult> => {
+
+  return customFetch<OfficeInventoryHandoverResult>(getCreateOfficeInventoryHandoverUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createOfficeInventoryHandoverBody)
+  }
+);}
+
+
+
+
+
+export const getCreateOfficeInventoryHandoverMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryHandover>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryHandoverBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryHandover>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryHandoverBody>}, TContext> => {
+
+const mutationKey = ['createOfficeInventoryHandover'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createOfficeInventoryHandover>>, {organizationId: number;data: BodyType<CreateOfficeInventoryHandoverBody>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createOfficeInventoryHandover(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateOfficeInventoryHandoverMutationResult = NonNullable<Awaited<ReturnType<typeof createOfficeInventoryHandover>>>
+    export type CreateOfficeInventoryHandoverMutationBody = BodyType<CreateOfficeInventoryHandoverBody>
+    export type CreateOfficeInventoryHandoverMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Hand over outstanding custody from one holder to another (employee/department, any direction) — gated office_inventory.handover
+ */
+export const useCreateOfficeInventoryHandover = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryHandover>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryHandoverBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createOfficeInventoryHandover>>,
+        TError,
+        {organizationId: number;data: BodyType<CreateOfficeInventoryHandoverBody>},
+        TContext
+      > => {
+      return useMutation(getCreateOfficeInventoryHandoverMutationOptions(options));
+    }
+
+export const getCreateOfficeInventoryTransferUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/transfers`
+}
+
+/**
+ * Single atomic paired transferred_out/transferred_in movement (§23) — organization-wide total is unchanged by construction.
+ * @summary Transfer stock between two stores, atomically — gated office_inventory.transfer
+ */
+export const createOfficeInventoryTransfer = async (organizationId: number,
+    createOfficeInventoryTransferBody: CreateOfficeInventoryTransferBody, options?: RequestInit): Promise<OfficeInventoryTransferResult> => {
+
+  return customFetch<OfficeInventoryTransferResult>(getCreateOfficeInventoryTransferUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createOfficeInventoryTransferBody)
+  }
+);}
+
+
+
+
+
+export const getCreateOfficeInventoryTransferMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryTransfer>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryTransferBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryTransfer>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryTransferBody>}, TContext> => {
+
+const mutationKey = ['createOfficeInventoryTransfer'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createOfficeInventoryTransfer>>, {organizationId: number;data: BodyType<CreateOfficeInventoryTransferBody>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createOfficeInventoryTransfer(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateOfficeInventoryTransferMutationResult = NonNullable<Awaited<ReturnType<typeof createOfficeInventoryTransfer>>>
+    export type CreateOfficeInventoryTransferMutationBody = BodyType<CreateOfficeInventoryTransferBody>
+    export type CreateOfficeInventoryTransferMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Transfer stock between two stores, atomically — gated office_inventory.transfer
+ */
+export const useCreateOfficeInventoryTransfer = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryTransfer>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryTransferBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createOfficeInventoryTransfer>>,
+        TError,
+        {organizationId: number;data: BodyType<CreateOfficeInventoryTransferBody>},
+        TContext
+      > => {
+      return useMutation(getCreateOfficeInventoryTransferMutationOptions(options));
+    }
 
