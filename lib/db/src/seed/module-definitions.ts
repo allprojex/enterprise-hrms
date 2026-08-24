@@ -55,7 +55,15 @@ export const MODULE_DEFINITIONS: readonly ModuleDefinition[] = [
     description: "Leave types, balances, requests, and approvals.",
     category: "hr-operations",
     version: "1.0.0",
-    status: "hidden",
+    // Fully shipped since Phase 2B (leave types/policies/balances/requests/
+    // approvals/calendar/public holidays, working-day notice boundaries,
+    // dashboard metrics) and exercised live against real WWM data as far
+    // back as the Phase 3H W120 verification pass — the "hidden" status
+    // was simply never graduated afterward, the same gap office_inventory
+    // had before WWM Readiness Workstream 1 flipped it. Corrected here on
+    // the same precedent seed-modules.ts's own docstring documents
+    // (recruitment/employee_self_service).
+    status: "active",
     defaultEnabled: false,
     requiredModuleKeys: [],
     optionalModuleKeys: [],

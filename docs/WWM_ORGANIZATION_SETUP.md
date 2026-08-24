@@ -238,3 +238,26 @@ Available/enabled/disabled is clearly distinguished in the existing Modules tab 
 **Notable finding, deliberately not changed:** `POST /organizations` (creating a brand-new organization) has no role/permission gate — any authenticated user of any role can call it and becomes that *new* organization's own `org_admin` + Primary HR. Investigated as a possible tenant-isolation gap and initially patched with `requireSuperAdmin`, then **reverted** after finding `artifacts/api-server/src/test/onboarding.test.ts` explicitly asserts a plain `"employee"`-role caller receives `201` — this is intentional, tested self-service tenant provisioning (comparable to "create your own workspace" in other multi-tenant SaaS products), not a defect. It lets any user spin up an unrelated new organization and administer *that*; it grants no authority over WWM or Acme. Recorded here rather than silently changed, per the request's own instruction not to weaken or alter authorization behavior beyond what this verification called for.
 
 **Files changed (frontend only — no schema, migration, or permission-table change):** `artifacts/hrms/src/components/layout/app-shell.tsx`, `artifacts/hrms/src/pages/profile.tsx`, `artifacts/hrms/src/pages/organizations.tsx`, `artifacts/hrms/src/pages/admin.tsx`. Workspace typecheck clean; targeted test files (`app-shell`, `profile`, `organizations`, `admin`) pass in isolation; full frontend suite 577/577 passing tests with 0 assertion failures (a full-run worker-pool timeout unrelated to any of these files, pre-existing to this environment, affected one unrelated file's collection). No migration, no deployment, no change beyond local/development, matching every prior WWM workstream's own scope boundary.
+
+## 18. Leave Module Enabled for WWM
+
+`leave`'s module registry status graduated `hidden → active` (`lib/db/src/seed/module-definitions.ts`), the same one-time-row-correction precedent §6 documents for Office Inventory. Leave is not new or unfinished work — types, policies, balances, requests, approvals, calendar, and public holidays have all been built and shipped since Phase 2B, and the module was exercised live against real WWM data as far back as the Phase 3H W120 verification pass (a disposable ESS fixture at the time, since cleaned up) — its "hidden" flag was simply never graduated afterward, an oversight, not a deliberate withholding the way Office Inventory's 23 permission keys were.
+
+Enabled for WWM specifically via `PATCH /organizations/3/modules/leave`, the same real mechanism every other module enablement in this document uses. **No new permission grant was needed**: `hr_manager` (Grace's existing system role) already carries `leave_request.manage`, `leave_request.approve`, `leave_type.manage`, `leave_type.read`, `leave_request.read.own`, `leave_request.write.own` — unlike Office Inventory, Leave's permissions were never withheld from the global system roles. Verified live: `GET /dashboard/summary` as `hr@wwm.test` now returns a populated `leaveMetrics` object (previously `null`) reflecting real, currently-empty state (0 employees on leave, 0 pending approvals — no leave types or requests exist for WWM yet; none were fabricated).
+
+At the same time, and not by this action: `recruitment`, `performance`, `learning`, and `manager_portal` were also enabled for WWM (module list re-queried live shows all four `enabled: true`) — this was the concurrent peer session's own §17 UX verification work, not something done here. `payroll` remains correctly disabled throughout. Table below reflects state as of §18, superseding the one in §17:
+
+| Module | Registry status | Enabled for WWM |
+|---|---|---|
+| Leave | active | **Yes** |
+| Recruitment | active | **Yes** |
+| Employee Self Service | active | **Yes** |
+| Attendance | active | **Yes** |
+| Performance | active | **Yes** |
+| Learning & Development | active | **Yes** |
+| Asset Management | active | **Yes** |
+| Manager Portal | active | **Yes** |
+| Office Inventory | active | **Yes** |
+| Payroll | hidden | No |
+
+Backend regression: **125/125 files, 2264/2264 tests**, clean. Zero schema drift. No frontend change.
