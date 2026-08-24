@@ -190,6 +190,10 @@ const officeInventoryConfigSchema = z
     // text does not name either.
     writeoffNumber: officeInventoryItemNumberConfigSchema.optional(),
     adjustmentNumber: officeInventoryItemNumberConfigSchema.optional(),
+    // Office Inventory, Workstream 7 — `office_inventory_stocktake` is
+    // explicitly named in the frozen plan's own §40 sequence-key
+    // enumeration.
+    stocktakeNumber: officeInventoryItemNumberConfigSchema.optional(),
     repeatRequestReviewWindowDays: z.number().int().min(0).max(365).optional(),
     costTrackingEnabled: z.boolean().optional(),
     directIssueEnabled: z.boolean().optional(),
@@ -367,6 +371,13 @@ export const CONFIG_NAMESPACES: Record<string, NamespaceDefinition> = {
       },
       adjustmentNumber: {
         prefix: "ADJ",
+        separator: "-",
+        sequenceLength: 5,
+        startingSequence: 1,
+        resetPolicy: "never",
+      },
+      stocktakeNumber: {
+        prefix: "STK",
         separator: "-",
         sequenceLength: 5,
         startingSequence: 1,

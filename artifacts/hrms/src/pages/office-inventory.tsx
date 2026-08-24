@@ -9,7 +9,7 @@
  * and lives on the existing Departments page instead.
  */
 import { useState } from 'react';
-import { Boxes, Warehouse, Settings2, Plus, Pencil, Truck, Trash2, PackageSearch, ClipboardList, CheckCircle2, XCircle, UserCog, X, Ban, PackageCheck, Users, Undo2, ArrowLeftRight, AlertTriangle, ShieldAlert, Archive, SlidersHorizontal, SearchCheck } from 'lucide-react';
+import { Boxes, Warehouse, Settings2, Plus, Pencil, Truck, Trash2, PackageSearch, ClipboardList, CheckCircle2, XCircle, UserCog, X, Ban, PackageCheck, Users, Undo2, ArrowLeftRight, AlertTriangle, ShieldAlert, Archive, SlidersHorizontal, SearchCheck, ClipboardCheck, Play, Lock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -87,6 +87,15 @@ import {
   useWriteOffOfficeInventoryIncident,
   useCreateOfficeInventoryWriteOff,
   useCreateOfficeInventoryAdjustment,
+  useCreateOfficeInventoryStocktake,
+  useListOfficeInventoryStocktakes,
+  getListOfficeInventoryStocktakesQueryKey,
+  useGetOfficeInventoryStocktake,
+  getGetOfficeInventoryStocktakeQueryKey,
+  useStartOfficeInventoryStocktake,
+  useRecordOfficeInventoryStocktakeCount,
+  useResolveOfficeInventoryStocktakeLine,
+  useFinalizeOfficeInventoryStocktake,
   OfficeInventoryItemClassification,
   type OfficeInventoryItem,
   type OfficeInventoryStore,
@@ -2950,6 +2959,334 @@ function IncidentsTab({ organizationId }: { organizationId: number }) {
   );
 }
 
+// --- Stocktaking (Workstream 7) — snapshot-at-start physical count,
+// reconciled live against post-snapshot movements, resolved via
+// Workstream 6's own adjustment/missing services, finalized only once
+// every line is counted and every non-zero variance is resolved.
+// Finalization itself never mutates stock. ---
+
+const STOCKTAKE_STATUS_VARIANT: Record<string, 'secondary' | 'outline' | 'destructive'> = {
+  draft: 'outline',
+  counting: 'destructive',
+  finalized: 'secondary',
+};
+
+function CreateStocktakeDialog({ organizationId, onCreated }: { organizationId: number; onCreated: () => void }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [storeId, setStoreId] = useState('');
+  const [notes, setNotes] = useState('');
+  const mutation = useCreateOfficeInventoryStocktake();
+
+  const { data: stores } = useListOfficeInventoryStores(organizationId, {
+    query: { queryKey: getListOfficeInventoryStoresQueryKey(organizationId), enabled: organizationId > 0 && open },
+  });
+
+  const reset = () => {
+    setStoreId('');
+    setNotes('');
+  };
+
+  const handle = () => {
+    if (!storeId) return;
+    mutation.mutate(
+      { organizationId, data: { storeId: Number(storeId), notes: notes.trim() || undefined } },
+      {
+        onSuccess: () => {
+          setOpen(false);
+          reset();
+          onCreated();
+          toast({ title: 'Stocktake created' });
+        },
+        onError: (err) => toast({ title: 'Could not create stocktake', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
+      <DialogTrigger asChild>
+        <Button data-testid="button-open-create-stocktake">
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          New Stocktake
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>New Stocktake</DialogTitle>
+          <DialogDescription>Created as a draft. Nothing is counted or snapshotted until it's started.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="stocktake-store">Store</Label>
+            <Select value={storeId} onValueChange={setStoreId}>
+              <SelectTrigger id="stocktake-store" data-testid="select-stocktake-store">
+                <SelectValue placeholder="Choose a store" />
+              </SelectTrigger>
+              <SelectContent>
+                {(stores ?? []).map((s) => (
+                  <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="stocktake-notes">Notes (optional)</Label>
+            <Textarea id="stocktake-notes" value={notes} onChange={(e) => setNotes(e.target.value)} data-testid="textarea-stocktake-notes" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={handle} disabled={mutation.isPending || !storeId} data-testid="button-confirm-create-stocktake">
+            {mutation.isPending ? 'Creating…' : 'Create Draft'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function StocktakeLineRow({ organizationId, stocktakeId, status, itemName, line, onChanged }: {
+  organizationId: number;
+  stocktakeId: number;
+  status: 'draft' | 'counting' | 'finalized';
+  itemName: string;
+  line: { id: number; expectedQuantitySnapshot: string; countedQuantity: string | null; movementsSinceSnapshot: string; reconciledExpectedQuantity: string; currentVariance: string | null; resolutionType: 'recount' | 'adjustment' | 'missing' | null };
+  onChanged: () => void;
+}) {
+  const { toast } = useToast();
+  const [countInput, setCountInput] = useState(line.countedQuantity ?? '');
+  const [resolveReason, setResolveReason] = useState('');
+  const countMutation = useRecordOfficeInventoryStocktakeCount();
+  const resolveMutation = useResolveOfficeInventoryStocktakeLine();
+
+  const hasVariance = line.currentVariance !== null && parseFloat(line.currentVariance) !== 0;
+  const isSurplus = line.currentVariance !== null && parseFloat(line.currentVariance) > 0;
+
+  const submitCount = () => {
+    if (!countInput) return;
+    countMutation.mutate(
+      { organizationId, id: stocktakeId, lineId: line.id, data: { countedQuantity: countInput } },
+      {
+        onSuccess: () => { onChanged(); toast({ title: 'Count recorded' }); },
+        onError: (err) => toast({ title: 'Could not record count', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  const resolve = (resolutionType: 'adjustment' | 'missing') => {
+    if (!resolveReason.trim()) return;
+    resolveMutation.mutate(
+      { organizationId, id: stocktakeId, lineId: line.id, data: { resolutionType, reason: resolveReason.trim() } },
+      {
+        onSuccess: () => { setResolveReason(''); onChanged(); toast({ title: 'Variance resolved' }); },
+        onError: (err) => toast({ title: 'Could not resolve variance', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  return (
+    <div className="rounded-md border border-border p-3 space-y-2" data-testid={`row-stocktake-line-${line.id}`}>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <span className="font-medium text-foreground">{itemName}</span>
+        <span className="text-sm text-muted-foreground">
+          Snapshot {line.expectedQuantitySnapshot} · Since {line.movementsSinceSnapshot} · Reconciled {line.reconciledExpectedQuantity}
+        </span>
+      </div>
+      {status === 'counting' && (
+        <div className="flex items-center gap-2">
+          <Input type="number" step="0.01" min={0} value={countInput} onChange={(e) => setCountInput(e.target.value)} placeholder="Counted quantity" data-testid={`input-count-${line.id}`} />
+          <Button size="sm" onClick={submitCount} disabled={countMutation.isPending || !countInput} data-testid={`button-submit-count-${line.id}`}>
+            {line.countedQuantity !== null ? 'Recount' : 'Count'}
+          </Button>
+        </div>
+      )}
+      {line.currentVariance !== null && (
+        <div className="flex items-center justify-between text-sm">
+          <span className={hasVariance ? 'text-destructive font-medium' : 'text-muted-foreground'}>
+            Variance: {line.currentVariance}{!hasVariance && ' (zero)'}
+          </span>
+          {line.resolutionType && <Badge variant="secondary">{line.resolutionType}</Badge>}
+        </div>
+      )}
+      {status === 'counting' && hasVariance && !line.resolutionType && (
+        <div className="space-y-2 rounded-md bg-muted/40 p-2">
+          <Textarea placeholder="Reason for resolution (required)" value={resolveReason} onChange={(e) => setResolveReason(e.target.value)} data-testid={`textarea-resolve-reason-${line.id}`} />
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => resolve('adjustment')} disabled={resolveMutation.isPending || !resolveReason.trim()} data-testid={`button-resolve-adjustment-${line.id}`}>
+              Resolve as Adjustment
+            </Button>
+            {!isSurplus && (
+              <Button size="sm" variant="outline" onClick={() => resolve('missing')} disabled={resolveMutation.isPending || !resolveReason.trim()} data-testid={`button-resolve-missing-${line.id}`}>
+                Resolve as Missing
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StocktakeDetailPanel({ organizationId, stocktakeId }: { organizationId: number; stocktakeId: number }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const { data, isLoading, error, refetch } = useGetOfficeInventoryStocktake(organizationId, stocktakeId, {
+    query: { queryKey: getGetOfficeInventoryStocktakeQueryKey(organizationId, stocktakeId), enabled: organizationId > 0 },
+  });
+  const { data: items } = useListOfficeInventoryItems(organizationId, {
+    query: { queryKey: getListOfficeInventoryItemsQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+  const itemById = new Map((items ?? []).map((i) => [i.id, i]));
+
+  const startMutation = useStartOfficeInventoryStocktake();
+  const finalizeMutation = useFinalizeOfficeInventoryStocktake();
+
+  const handleChanged = () => {
+    queryClient.invalidateQueries({ queryKey: getGetOfficeInventoryStocktakeQueryKey(organizationId, stocktakeId) });
+    refetch();
+  };
+
+  const start = () => {
+    startMutation.mutate(
+      { organizationId, id: stocktakeId },
+      {
+        onSuccess: () => { handleChanged(); toast({ title: 'Stocktake started — snapshot captured' }); },
+        onError: (err) => toast({ title: 'Could not start stocktake', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  const finalize = () => {
+    finalizeMutation.mutate(
+      { organizationId, id: stocktakeId },
+      {
+        onSuccess: () => { handleChanged(); toast({ title: 'Stocktake finalized' }); },
+        onError: (err) => toast({ title: 'Could not finalize stocktake', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
+  };
+
+  if (isLoading) return <Skeleton className="h-40 w-full" />;
+  if (error || !data) return <QueryError title="Could not load stocktake" message={errorMessage(error) ?? 'Please try again.'} onRetry={() => refetch()} />;
+
+  const { stocktake, lines } = data;
+  const unresolvedCount = lines.filter((l) => l.currentVariance !== null && parseFloat(l.currentVariance) !== 0 && !l.resolutionType).length;
+  const uncountedCount = lines.filter((l) => l.countedQuantity === null).length;
+
+  return (
+    <div className="space-y-4 rounded-md border border-border p-4" data-testid={`panel-stocktake-${stocktake.id}`}>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <p className="text-sm text-muted-foreground">{lines.length} item(s) · {uncountedCount} uncounted · {unresolvedCount} unresolved variance</p>
+        </div>
+        <div className="flex gap-2">
+          {stocktake.status === 'draft' && (
+            <Button size="sm" onClick={start} disabled={startMutation.isPending} data-testid={`button-start-stocktake-${stocktake.id}`}>
+              <Play className="h-3.5 w-3.5" aria-hidden="true" />
+              Start Counting
+            </Button>
+          )}
+          {stocktake.status === 'counting' && (
+            <Button size="sm" onClick={finalize} disabled={finalizeMutation.isPending} data-testid={`button-finalize-stocktake-${stocktake.id}`}>
+              <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+              Finalize
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {stocktake.status !== 'draft' && (
+        <div className="space-y-2">
+          {lines.map((line) => (
+            <StocktakeLineRow
+              key={line.id}
+              organizationId={organizationId}
+              stocktakeId={stocktake.id}
+              status={stocktake.status}
+              itemName={itemById.get(line.itemId)?.name ?? `Item #${line.itemId}`}
+              line={line}
+              onChanged={handleChanged}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StocktakesTab({ organizationId }: { organizationId: number }) {
+  const queryClient = useQueryClient();
+  const [statusFilter, setStatusFilter] = useState<'draft' | 'counting' | 'finalized' | ''>('');
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  const { data: stores } = useListOfficeInventoryStores(organizationId, {
+    query: { queryKey: getListOfficeInventoryStoresQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+  const storeById = new Map((stores ?? []).map((s) => [s.id, s]));
+
+  const { data: stocktakes, isLoading, error, refetch } = useListOfficeInventoryStocktakes(
+    organizationId,
+    statusFilter ? { status: statusFilter } : undefined,
+    { query: { queryKey: getListOfficeInventoryStocktakesQueryKey(organizationId, statusFilter ? { status: statusFilter } : undefined), enabled: organizationId > 0 } },
+  );
+
+  const handleCreated = () => {
+    queryClient.invalidateQueries({ queryKey: getListOfficeInventoryStocktakesQueryKey(organizationId, statusFilter ? { status: statusFilter } : undefined) });
+    refetch();
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <Select value={statusFilter || 'all'} onValueChange={(v) => setStatusFilter(v === 'all' ? '' : (v as typeof statusFilter))}>
+          <SelectTrigger className="w-44" data-testid="select-stocktake-status-filter">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            <SelectItem value="draft">Draft</SelectItem>
+            <SelectItem value="counting">Counting</SelectItem>
+            <SelectItem value="finalized">Finalized</SelectItem>
+          </SelectContent>
+        </Select>
+        <CreateStocktakeDialog organizationId={organizationId} onCreated={handleCreated} />
+      </div>
+
+      {isLoading ? (
+        <Skeleton className="h-40 w-full" />
+      ) : error ? (
+        <QueryError title="Could not load stocktakes" message={errorMessage(error) ?? 'Please try again.'} onRetry={() => refetch()} />
+      ) : !stocktakes || stocktakes.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <ClipboardCheck className="h-8 w-8 text-muted-foreground mb-4" aria-hidden="true" />
+            <h3 className="text-lg font-semibold text-foreground mb-2">No stocktakes</h3>
+            <p className="text-sm text-muted-foreground max-w-sm">Create one to begin a store's physical count.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {stocktakes.map((stocktake) => (
+            <Card key={stocktake.id} data-testid={`row-stocktake-${stocktake.id}`}>
+              <CardContent className="py-4 space-y-3">
+                <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => setExpandedId(expandedId === stocktake.id ? null : stocktake.id)} data-testid={`button-expand-stocktake-${stocktake.id}`}>
+                  <span className="space-y-1">
+                    <span className="block font-mono text-sm text-foreground">{stocktake.stocktakeReference}</span>
+                    <span className="block text-sm text-muted-foreground">{storeById.get(stocktake.storeId)?.name ?? `Store #${stocktake.storeId}`}</span>
+                  </span>
+                  <Badge variant={STOCKTAKE_STATUS_VARIANT[stocktake.status] ?? 'outline'}>{stocktake.status}</Badge>
+                </button>
+                {expandedId === stocktake.id && <StocktakeDetailPanel organizationId={organizationId} stocktakeId={stocktake.id} />}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // --- Configuration ---
 
 function ConfigurationTab({ organizationId }: { organizationId: number }) {
@@ -3046,6 +3383,7 @@ export default function OfficeInventory() {
           <TabsTrigger value="custody" data-testid="tab-custody">Custody</TabsTrigger>
           <TabsTrigger value="movements" data-testid="tab-movements">Movements</TabsTrigger>
           <TabsTrigger value="incidents" data-testid="tab-incidents">Incidents</TabsTrigger>
+          <TabsTrigger value="stocktakes" data-testid="tab-stocktakes">Stocktakes</TabsTrigger>
           <TabsTrigger value="configuration" data-testid="tab-configuration">Configuration</TabsTrigger>
         </TabsList>
         <TabsContent value="items">
@@ -3077,6 +3415,9 @@ export default function OfficeInventory() {
         </TabsContent>
         <TabsContent value="incidents">
           <IncidentsTab organizationId={organizationId} />
+        </TabsContent>
+        <TabsContent value="stocktakes">
+          <StocktakesTab organizationId={organizationId} />
         </TabsContent>
         <TabsContent value="configuration">
           <ConfigurationTab organizationId={organizationId} />

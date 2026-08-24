@@ -116,3 +116,4 @@ export * from "./office-inventory-stock-movements";
 export * from "./office-inventory-approval-delegations";
 export * from "./office-inventory-requests";
 export * from "./office-inventory-incidents";
+export * from "./office-inventory-stocktakes";

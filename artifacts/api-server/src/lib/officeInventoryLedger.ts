@@ -37,7 +37,7 @@
  * inside the same locked transaction immediately before any decreasing
  * insert.
  */
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, gt, sql } from "drizzle-orm";
 import { db, officeInventoryStockMovementsTable, type OfficeInventoryStockMovement } from "@workspace/db";
 import { toMinorUnits, fromMinorUnits } from "./payrollMoney";
 
@@ -110,8 +110,15 @@ export function movementSign(movementType: OfficeInventoryMovementType): 1 | -1 
   throw new Error(`Movement type "${movementType}" has no defined store-balance direction`);
 }
 
-/** Postgres advisory-lock key for one (organization, item, store) domain — §8's exact frozen formula. */
-async function acquireStoreLock(tx: QueryClient, organizationId: number, itemId: number, storeId: number): Promise<void> {
+/**
+ * Postgres advisory-lock key for one (organization, item, store) domain —
+ * §8's exact frozen formula. Exported (Workstream 7 onward) so
+ * officeInventoryStocktakes.ts can serialize a stocktake-start snapshot
+ * read against the exact same lock domain an ordinary movement against
+ * that store's items would acquire (§28's own explicit requirement) —
+ * without needing to append a movement row itself.
+ */
+export async function acquireStoreLock(tx: QueryClient, organizationId: number, itemId: number, storeId: number): Promise<void> {
   const lockKey = `${organizationId}:${itemId}:${storeId}`;
   await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${lockKey}))`);
 }
@@ -160,8 +167,36 @@ export async function getStoreBalance(organizationId: number, itemId: number, st
   return row?.balance ?? "0.00";
 }
 
-/** Same (item, store) balance, computed inside an already-open transaction — used by appendStoreMovement's own lock-then-read sequence. */
-async function getStoreBalanceIn(tx: QueryClient, organizationId: number, itemId: number, storeId: number): Promise<string> {
+/**
+ * Net signed quantity moved against one (item, store) STRICTLY AFTER
+ * `sinceOccurredAt` — Workstream 7's own reconciliation primitive (§7/§28).
+ * A stocktake's `expectedQuantitySnapshot` is frozen the instant counting
+ * starts; this is what officeInventoryStocktakes.ts adds back to that
+ * snapshot to get the movement-adjusted "reconciled expected quantity" a
+ * physical count is actually compared against, so a legitimate
+ * receipt/issue/return/transfer/adjustment/write-off that happens DURING
+ * an open count is never mistaken for unexplained variance. Uses the same
+ * signed-quantity direction table as every other store balance query —
+ * `strictly after`, not `>=`, since the snapshot read itself never inserts
+ * a row of its own to collide with.
+ */
+export async function getNetStoreMovementsSince(organizationId: number, itemId: number, storeId: number, sinceOccurredAt: Date): Promise<string> {
+  const [row] = await db
+    .select({ net: sql<string>`coalesce(sum(${signedQuantitySql()}), 0)::numeric(12,2)` })
+    .from(officeInventoryStockMovementsTable)
+    .where(
+      and(
+        eq(officeInventoryStockMovementsTable.organizationId, organizationId),
+        eq(officeInventoryStockMovementsTable.itemId, itemId),
+        eq(officeInventoryStockMovementsTable.storeId, storeId),
+        gt(officeInventoryStockMovementsTable.occurredAt, sinceOccurredAt),
+      ),
+    );
+  return row?.net ?? "0.00";
+}
+
+/** Same (item, store) balance, computed inside an already-open transaction — used by appendStoreMovement's own lock-then-read sequence, and by officeInventoryStocktakes.ts's own lock-then-snapshot sequence at stocktake-start (Workstream 7). */
+export async function getStoreBalanceIn(tx: QueryClient, organizationId: number, itemId: number, storeId: number): Promise<string> {
   const [row] = await tx
     .select({ balance: sql<string>`coalesce(sum(${signedQuantitySql()}), 0)::numeric(12,2)` })
     .from(officeInventoryStockMovementsTable)

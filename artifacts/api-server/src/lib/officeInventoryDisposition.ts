@@ -419,6 +419,9 @@ export interface AdjustStoreParams {
   direction: "in" | "out";
   quantity: string;
   reason: string;
+  /** Set by Workstream 7 when this adjustment resolves a stocktake variance — gives the resulting movement the same bidirectional traceability sourceReferenceType already provides for incident-linked write-offs. Never set by an ordinary, standalone adjustment. */
+  sourceReferenceType?: "stocktake_line" | null;
+  sourceReferenceId?: number | null;
   idempotencyKey?: string | null;
   actorMembershipId: number | null;
   actorApplicationUserId: number | null;
@@ -457,6 +460,8 @@ export async function adjustStore(params: AdjustStoreParams): Promise<{ movement
       quantity: params.quantity,
       referenceNumber,
       reason: params.reason,
+      sourceReferenceType: params.sourceReferenceType ?? undefined,
+      sourceReferenceId: params.sourceReferenceId ?? undefined,
       idempotencyKey: params.idempotencyKey ?? null,
       actorMembershipId: params.actorMembershipId,
     });
@@ -473,6 +478,88 @@ export async function adjustStore(params: AdjustStoreParams): Promise<{ movement
       targetType: "office_inventory_stock_movement",
       targetId: movement.referenceNumber ?? String(movement.id),
       afterState: { itemId: params.itemId, storeId: params.storeId, direction: params.direction, quantity: params.quantity, reason: params.reason },
+    });
+  }
+
+  return { movement, replay };
+}
+
+// --- Mark store stock missing (Workstream 7's own new caller) ---
+
+export interface MarkStoreMissingParams {
+  organizationId: number;
+  storeId: number;
+  itemId: number;
+  quantity: string;
+  reason: string;
+  sourceReferenceType?: "stocktake_line" | null;
+  sourceReferenceId?: number | null;
+  idempotencyKey?: string | null;
+  actorMembershipId: number | null;
+  actorApplicationUserId: number | null;
+}
+
+/**
+ * The STORE-scoped counterpart to Workstream 6's own holder-scoped
+ * `markIncidentMissing` — `missing` has been a valid STORE-decreasing
+ * movement type since Workstream 2's own original direction table, but no
+ * workstream had occasion to produce one on the store side until now.
+ * Introduced for Workstream 7's stocktake "missing" resolution (§16 of that
+ * workstream's own instructions): a store-level physical-count shortfall is
+ * a different accountable domain than a holder losing custody of an item,
+ * so this reuses the SAME movement type/semantics and the SAME
+ * append-primitive/reason/audit shape already proven for `adjustStore`
+ * immediately above — not a second missing-item engine, the store-side
+ * activation of an enum value the schema always anticipated.
+ */
+export async function markStoreMissing(params: MarkStoreMissingParams): Promise<{ movement: OfficeInventoryStockMovement; replay: boolean }> {
+  if (!params.reason.trim()) throw new OfficeInventoryReasonRequiredError();
+  validateQuantity(params.quantity);
+
+  const [item] = await db.select({ id: officeInventoryItemsTable.id }).from(officeInventoryItemsTable).where(and(eq(officeInventoryItemsTable.id, params.itemId), eq(officeInventoryItemsTable.organizationId, params.organizationId)));
+  if (!item) throw new OfficeInventoryItemNotFoundError();
+  const [store] = await db.select({ id: officeInventoryStoresTable.id }).from(officeInventoryStoresTable).where(and(eq(officeInventoryStoresTable.id, params.storeId), eq(officeInventoryStoresTable.organizationId, params.organizationId)));
+  if (!store) throw new OfficeInventoryStoreNotFoundError();
+
+  const preCheck = await existingByIdempotencyKey(params.organizationId, params.idempotencyKey);
+  if (preCheck) return { movement: preCheck, replay: true };
+
+  const { movement, replay } = await db.transaction(async (tx) => {
+    if (params.idempotencyKey) {
+      const lockKey = `${params.organizationId}:idem:office_inventory_store_missing:${params.idempotencyKey}`;
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${lockKey}))`);
+      const [existing] = await tx
+        .select()
+        .from(officeInventoryStockMovementsTable)
+        .where(and(eq(officeInventoryStockMovementsTable.organizationId, params.organizationId), eq(officeInventoryStockMovementsTable.idempotencyKey, params.idempotencyKey)));
+      if (existing) return { movement: existing, replay: true };
+    }
+
+    const movement = await appendStoreMovement(tx, {
+      organizationId: params.organizationId,
+      itemId: params.itemId,
+      storeId: params.storeId,
+      movementType: "missing",
+      quantity: params.quantity,
+      reason: params.reason,
+      sourceReferenceType: params.sourceReferenceType ?? undefined,
+      sourceReferenceId: params.sourceReferenceId ?? undefined,
+      idempotencyKey: params.idempotencyKey ?? null,
+      actorMembershipId: params.actorMembershipId,
+    });
+
+    return { movement, replay: false };
+  });
+
+  if (!replay) {
+    await recordAuditEvent({
+      actorApplicationUserId: params.actorApplicationUserId,
+      actorMembershipId: params.actorMembershipId,
+      organizationId: params.organizationId,
+      eventType: "office_inventory_missing.created",
+      targetType: "office_inventory_stock_movement",
+      targetId: String(movement.id),
+      afterState: { itemId: params.itemId, storeId: params.storeId, quantity: params.quantity, reason: params.reason, sourceReferenceType: params.sourceReferenceType ?? null, sourceReferenceId: params.sourceReferenceId ?? null },
     });
   }
 

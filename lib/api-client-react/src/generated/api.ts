@@ -105,6 +105,7 @@ import type {
   CreateOfficeInventoryReceiptBody,
   CreateOfficeInventoryRequestBody,
   CreateOfficeInventoryReturnBody,
+  CreateOfficeInventoryStocktakeBody,
   CreateOfficeInventoryStoreBody,
   CreateOfficeInventoryTransferBody,
   CreateOfficeInventoryWriteOffBody,
@@ -206,6 +207,7 @@ import type {
   ListOffersParams,
   ListOfficeInventoryIncidentsParams,
   ListOfficeInventoryStockMovementsParams,
+  ListOfficeInventoryStocktakesParams,
   ListPayrollInputReferencesParams,
   ListPayrollStatutoryRuleVersionsParams,
   ListPerformanceReviewsParams,
@@ -254,6 +256,9 @@ import type {
   OfficeInventoryRequestWithLines,
   OfficeInventoryReturnResult,
   OfficeInventoryStockMovement,
+  OfficeInventoryStocktake,
+  OfficeInventoryStocktakeDetail,
+  OfficeInventoryStocktakeLineView,
   OfficeInventoryStore,
   OfficeInventoryTransferResult,
   Organization,
@@ -316,6 +321,7 @@ import type {
   ReadinessStatus,
   RecordAttendanceAdjustmentInput,
   RecordAttendanceEventInput,
+  RecordOfficeInventoryStocktakeCountBody,
   RecordsLocation,
   RecoverAssetInput,
   RecoverOfficeInventoryIncidentBody,
@@ -342,6 +348,7 @@ import type {
   RequisitionApproval,
   ResetPasswordInput,
   ResolveDepartmentHeadAsOfParams,
+  ResolveOfficeInventoryStocktakeLineBody,
   RestructureDepartmentInput,
   RestructurePositionInput,
   RetireAssetInput,
@@ -35350,5 +35357,549 @@ export const useCreateOfficeInventoryAdjustment = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getCreateOfficeInventoryAdjustmentMutationOptions(options));
+    }
+
+export const getCreateOfficeInventoryStocktakeUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/stocktakes`
+}
+
+/**
+ * @summary Create a draft stocktake for one store — gated office_inventory.stocktake
+ */
+export const createOfficeInventoryStocktake = async (organizationId: number,
+    createOfficeInventoryStocktakeBody: CreateOfficeInventoryStocktakeBody, options?: RequestInit): Promise<OfficeInventoryStocktake> => {
+
+  return customFetch<OfficeInventoryStocktake>(getCreateOfficeInventoryStocktakeUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createOfficeInventoryStocktakeBody)
+  }
+);}
+
+
+
+
+
+export const getCreateOfficeInventoryStocktakeMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryStocktake>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryStocktakeBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryStocktake>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryStocktakeBody>}, TContext> => {
+
+const mutationKey = ['createOfficeInventoryStocktake'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createOfficeInventoryStocktake>>, {organizationId: number;data: BodyType<CreateOfficeInventoryStocktakeBody>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createOfficeInventoryStocktake(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateOfficeInventoryStocktakeMutationResult = NonNullable<Awaited<ReturnType<typeof createOfficeInventoryStocktake>>>
+    export type CreateOfficeInventoryStocktakeMutationBody = BodyType<CreateOfficeInventoryStocktakeBody>
+    export type CreateOfficeInventoryStocktakeMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Create a draft stocktake for one store — gated office_inventory.stocktake
+ */
+export const useCreateOfficeInventoryStocktake = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeInventoryStocktake>>, TError,{organizationId: number;data: BodyType<CreateOfficeInventoryStocktakeBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createOfficeInventoryStocktake>>,
+        TError,
+        {organizationId: number;data: BodyType<CreateOfficeInventoryStocktakeBody>},
+        TContext
+      > => {
+      return useMutation(getCreateOfficeInventoryStocktakeMutationOptions(options));
+    }
+
+export const getListOfficeInventoryStocktakesUrl = (organizationId: number,
+    params?: ListOfficeInventoryStocktakesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/office-inventory/stocktakes?${stringifiedParams}` : `/api/organizations/${organizationId}/office-inventory/stocktakes`
+}
+
+/**
+ * @summary List stocktakes org-wide, optionally filtered by store/status — gated office_inventory.stocktake
+ */
+export const listOfficeInventoryStocktakes = async (organizationId: number,
+    params?: ListOfficeInventoryStocktakesParams, options?: RequestInit): Promise<OfficeInventoryStocktake[]> => {
+
+  return customFetch<OfficeInventoryStocktake[]>(getListOfficeInventoryStocktakesUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOfficeInventoryStocktakesQueryKey = (organizationId: number,
+    params?: ListOfficeInventoryStocktakesParams,) => {
+    return [
+    `/api/organizations/${organizationId}/office-inventory/stocktakes`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListOfficeInventoryStocktakesQueryOptions = <TData = Awaited<ReturnType<typeof listOfficeInventoryStocktakes>>, TError = ErrorType<ApiError>>(organizationId: number,
+    params?: ListOfficeInventoryStocktakesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOfficeInventoryStocktakes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOfficeInventoryStocktakesQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOfficeInventoryStocktakes>>> = ({ signal }) => listOfficeInventoryStocktakes(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOfficeInventoryStocktakes>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOfficeInventoryStocktakesQueryResult = NonNullable<Awaited<ReturnType<typeof listOfficeInventoryStocktakes>>>
+export type ListOfficeInventoryStocktakesQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List stocktakes org-wide, optionally filtered by store/status — gated office_inventory.stocktake
+ */
+
+export function useListOfficeInventoryStocktakes<TData = Awaited<ReturnType<typeof listOfficeInventoryStocktakes>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    params?: ListOfficeInventoryStocktakesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOfficeInventoryStocktakes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOfficeInventoryStocktakesQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetOfficeInventoryStocktakeUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/stocktakes/${id}`
+}
+
+/**
+ * @summary Get one stocktake with its lines, live-reconciled — gated office_inventory.stocktake
+ */
+export const getOfficeInventoryStocktake = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<OfficeInventoryStocktakeDetail> => {
+
+  return customFetch<OfficeInventoryStocktakeDetail>(getGetOfficeInventoryStocktakeUrl(organizationId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOfficeInventoryStocktakeQueryKey = (organizationId: number,
+    id: number,) => {
+    return [
+    `/api/organizations/${organizationId}/office-inventory/stocktakes/${id}`
+    ] as const;
+    }
+
+
+export const getGetOfficeInventoryStocktakeQueryOptions = <TData = Awaited<ReturnType<typeof getOfficeInventoryStocktake>>, TError = ErrorType<ApiError>>(organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryStocktake>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOfficeInventoryStocktakeQueryKey(organizationId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOfficeInventoryStocktake>>> = ({ signal }) => getOfficeInventoryStocktake(organizationId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryStocktake>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOfficeInventoryStocktakeQueryResult = NonNullable<Awaited<ReturnType<typeof getOfficeInventoryStocktake>>>
+export type GetOfficeInventoryStocktakeQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get one stocktake with its lines, live-reconciled — gated office_inventory.stocktake
+ */
+
+export function useGetOfficeInventoryStocktake<TData = Awaited<ReturnType<typeof getOfficeInventoryStocktake>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfficeInventoryStocktake>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOfficeInventoryStocktakeQueryOptions(organizationId,id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getStartOfficeInventoryStocktakeUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/stocktakes/${id}/start`
+}
+
+/**
+ * Acquires the same advisory-lock domain an ordinary movement against this store's items would (§28) — serializes against an in-flight receipt/issue rather than racing silently.
+ * @summary Transition draft -> counting, capturing the expectedQuantitySnapshot for every in-scope item — gated office_inventory.stocktake
+ */
+export const startOfficeInventoryStocktake = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<OfficeInventoryStocktake> => {
+
+  return customFetch<OfficeInventoryStocktake>(getStartOfficeInventoryStocktakeUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getStartOfficeInventoryStocktakeMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startOfficeInventoryStocktake>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof startOfficeInventoryStocktake>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['startOfficeInventoryStocktake'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof startOfficeInventoryStocktake>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  startOfficeInventoryStocktake(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StartOfficeInventoryStocktakeMutationResult = NonNullable<Awaited<ReturnType<typeof startOfficeInventoryStocktake>>>
+
+    export type StartOfficeInventoryStocktakeMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Transition draft -> counting, capturing the expectedQuantitySnapshot for every in-scope item — gated office_inventory.stocktake
+ */
+export const useStartOfficeInventoryStocktake = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startOfficeInventoryStocktake>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof startOfficeInventoryStocktake>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getStartOfficeInventoryStocktakeMutationOptions(options));
+    }
+
+export const getRecordOfficeInventoryStocktakeCountUrl = (organizationId: number,
+    id: number,
+    lineId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/stocktakes/${id}/lines/${lineId}/count`
+}
+
+/**
+ * Never mutates the stock ledger. A recount that brings a previously non-zero variance to exactly zero is automatically resolved as "recount", no stock movement.
+ * @summary Record (or recount) a line's physical counted quantity — gated office_inventory.stocktake
+ */
+export const recordOfficeInventoryStocktakeCount = async (organizationId: number,
+    id: number,
+    lineId: number,
+    recordOfficeInventoryStocktakeCountBody: RecordOfficeInventoryStocktakeCountBody, options?: RequestInit): Promise<OfficeInventoryStocktakeLineView> => {
+
+  return customFetch<OfficeInventoryStocktakeLineView>(getRecordOfficeInventoryStocktakeCountUrl(organizationId,id,lineId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(recordOfficeInventoryStocktakeCountBody)
+  }
+);}
+
+
+
+
+
+export const getRecordOfficeInventoryStocktakeCountMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordOfficeInventoryStocktakeCount>>, TError,{organizationId: number;id: number;lineId: number;data: BodyType<RecordOfficeInventoryStocktakeCountBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordOfficeInventoryStocktakeCount>>, TError,{organizationId: number;id: number;lineId: number;data: BodyType<RecordOfficeInventoryStocktakeCountBody>}, TContext> => {
+
+const mutationKey = ['recordOfficeInventoryStocktakeCount'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordOfficeInventoryStocktakeCount>>, {organizationId: number;id: number;lineId: number;data: BodyType<RecordOfficeInventoryStocktakeCountBody>}> = (props) => {
+          const {organizationId,id,lineId,data} = props ?? {};
+
+          return  recordOfficeInventoryStocktakeCount(organizationId,id,lineId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordOfficeInventoryStocktakeCountMutationResult = NonNullable<Awaited<ReturnType<typeof recordOfficeInventoryStocktakeCount>>>
+    export type RecordOfficeInventoryStocktakeCountMutationBody = BodyType<RecordOfficeInventoryStocktakeCountBody>
+    export type RecordOfficeInventoryStocktakeCountMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Record (or recount) a line's physical counted quantity — gated office_inventory.stocktake
+ */
+export const useRecordOfficeInventoryStocktakeCount = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordOfficeInventoryStocktakeCount>>, TError,{organizationId: number;id: number;lineId: number;data: BodyType<RecordOfficeInventoryStocktakeCountBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordOfficeInventoryStocktakeCount>>,
+        TError,
+        {organizationId: number;id: number;lineId: number;data: BodyType<RecordOfficeInventoryStocktakeCountBody>},
+        TContext
+      > => {
+      return useMutation(getRecordOfficeInventoryStocktakeCountMutationOptions(options));
+    }
+
+export const getResolveOfficeInventoryStocktakeLineUrl = (organizationId: number,
+    id: number,
+    lineId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/stocktakes/${id}/lines/${lineId}/resolve`
+}
+
+/**
+ * @summary Resolve a counted line's non-zero variance via Workstream 6's own adjustment or missing domain service — gated office_inventory.stocktake
+ */
+export const resolveOfficeInventoryStocktakeLine = async (organizationId: number,
+    id: number,
+    lineId: number,
+    resolveOfficeInventoryStocktakeLineBody: ResolveOfficeInventoryStocktakeLineBody, options?: RequestInit): Promise<OfficeInventoryStocktakeLineView> => {
+
+  return customFetch<OfficeInventoryStocktakeLineView>(getResolveOfficeInventoryStocktakeLineUrl(organizationId,id,lineId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(resolveOfficeInventoryStocktakeLineBody)
+  }
+);}
+
+
+
+
+
+export const getResolveOfficeInventoryStocktakeLineMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resolveOfficeInventoryStocktakeLine>>, TError,{organizationId: number;id: number;lineId: number;data: BodyType<ResolveOfficeInventoryStocktakeLineBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resolveOfficeInventoryStocktakeLine>>, TError,{organizationId: number;id: number;lineId: number;data: BodyType<ResolveOfficeInventoryStocktakeLineBody>}, TContext> => {
+
+const mutationKey = ['resolveOfficeInventoryStocktakeLine'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resolveOfficeInventoryStocktakeLine>>, {organizationId: number;id: number;lineId: number;data: BodyType<ResolveOfficeInventoryStocktakeLineBody>}> = (props) => {
+          const {organizationId,id,lineId,data} = props ?? {};
+
+          return  resolveOfficeInventoryStocktakeLine(organizationId,id,lineId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResolveOfficeInventoryStocktakeLineMutationResult = NonNullable<Awaited<ReturnType<typeof resolveOfficeInventoryStocktakeLine>>>
+    export type ResolveOfficeInventoryStocktakeLineMutationBody = BodyType<ResolveOfficeInventoryStocktakeLineBody>
+    export type ResolveOfficeInventoryStocktakeLineMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Resolve a counted line's non-zero variance via Workstream 6's own adjustment or missing domain service — gated office_inventory.stocktake
+ */
+export const useResolveOfficeInventoryStocktakeLine = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resolveOfficeInventoryStocktakeLine>>, TError,{organizationId: number;id: number;lineId: number;data: BodyType<ResolveOfficeInventoryStocktakeLineBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resolveOfficeInventoryStocktakeLine>>,
+        TError,
+        {organizationId: number;id: number;lineId: number;data: BodyType<ResolveOfficeInventoryStocktakeLineBody>},
+        TContext
+      > => {
+      return useMutation(getResolveOfficeInventoryStocktakeLineMutationOptions(options));
+    }
+
+export const getFinalizeOfficeInventoryStocktakeUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/stocktakes/${id}/finalize`
+}
+
+/**
+ * Requires every line counted and every non-zero variance resolved; rejects with the exact blocking lines otherwise. Never mutates stock itself — every stock effect already happened through an explicit resolution action.
+ * @summary Finalize a stocktake — gated office_inventory.stocktake
+ */
+export const finalizeOfficeInventoryStocktake = async (organizationId: number,
+    id: number, options?: RequestInit): Promise<OfficeInventoryStocktake> => {
+
+  return customFetch<OfficeInventoryStocktake>(getFinalizeOfficeInventoryStocktakeUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getFinalizeOfficeInventoryStocktakeMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof finalizeOfficeInventoryStocktake>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof finalizeOfficeInventoryStocktake>>, TError,{organizationId: number;id: number}, TContext> => {
+
+const mutationKey = ['finalizeOfficeInventoryStocktake'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof finalizeOfficeInventoryStocktake>>, {organizationId: number;id: number}> = (props) => {
+          const {organizationId,id} = props ?? {};
+
+          return  finalizeOfficeInventoryStocktake(organizationId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type FinalizeOfficeInventoryStocktakeMutationResult = NonNullable<Awaited<ReturnType<typeof finalizeOfficeInventoryStocktake>>>
+
+    export type FinalizeOfficeInventoryStocktakeMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Finalize a stocktake — gated office_inventory.stocktake
+ */
+export const useFinalizeOfficeInventoryStocktake = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof finalizeOfficeInventoryStocktake>>, TError,{organizationId: number;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof finalizeOfficeInventoryStocktake>>,
+        TError,
+        {organizationId: number;id: number},
+        TContext
+      > => {
+      return useMutation(getFinalizeOfficeInventoryStocktakeMutationOptions(options));
     }
 

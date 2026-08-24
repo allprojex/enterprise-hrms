@@ -15064,3 +15064,219 @@ export const CreateOfficeInventoryAdjustmentResponse = zod.object({
 }).describe('Shared response shape for every single-row Workstream 6 disposition action (mark-missing, recover, write-off, adjustment).')
 
 
+/**
+ * @summary Create a draft stocktake for one store — gated office_inventory.stocktake
+ */
+export const CreateOfficeInventoryStocktakeParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const CreateOfficeInventoryStocktakeBody = zod.object({
+  "storeId": zod.number(),
+  "notes": zod.string().optional()
+})
+
+export const CreateOfficeInventoryStocktakeResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "storeId": zod.number(),
+  "stocktakeReference": zod.string(),
+  "status": zod.enum(['draft', 'counting', 'finalized']),
+  "startedAt": zod.coerce.date().nullable(),
+  "startedByMembershipId": zod.number().nullable(),
+  "finalizedAt": zod.coerce.date().nullable(),
+  "finalizedByMembershipId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 7 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.8, §28). Store-scoped. `draft` -> `counting` (the moment `expectedQuantitySnapshot` is captured on every line, permanently frozen from then on) -> `finalized` (immutable; finalization itself never mutates stock).')
+
+
+/**
+ * @summary List stocktakes org-wide, optionally filtered by store/status — gated office_inventory.stocktake
+ */
+export const ListOfficeInventoryStocktakesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListOfficeInventoryStocktakesQueryParams = zod.object({
+  "storeId": zod.coerce.number().optional(),
+  "status": zod.enum(['draft', 'counting', 'finalized']).optional()
+})
+
+export const ListOfficeInventoryStocktakesResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "storeId": zod.number(),
+  "stocktakeReference": zod.string(),
+  "status": zod.enum(['draft', 'counting', 'finalized']),
+  "startedAt": zod.coerce.date().nullable(),
+  "startedByMembershipId": zod.number().nullable(),
+  "finalizedAt": zod.coerce.date().nullable(),
+  "finalizedByMembershipId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 7 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.8, §28). Store-scoped. `draft` -> `counting` (the moment `expectedQuantitySnapshot` is captured on every line, permanently frozen from then on) -> `finalized` (immutable; finalization itself never mutates stock).')
+export const ListOfficeInventoryStocktakesResponse = zod.array(ListOfficeInventoryStocktakesResponseItem)
+
+
+/**
+ * @summary Get one stocktake with its lines, live-reconciled — gated office_inventory.stocktake
+ */
+export const GetOfficeInventoryStocktakeParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const GetOfficeInventoryStocktakeResponse = zod.object({
+  "stocktake": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "storeId": zod.number(),
+  "stocktakeReference": zod.string(),
+  "status": zod.enum(['draft', 'counting', 'finalized']),
+  "startedAt": zod.coerce.date().nullable(),
+  "startedByMembershipId": zod.number().nullable(),
+  "finalizedAt": zod.coerce.date().nullable(),
+  "finalizedByMembershipId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 7 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.8, §28). Store-scoped. `draft` -> `counting` (the moment `expectedQuantitySnapshot` is captured on every line, permanently frozen from then on) -> `finalized` (immutable; finalization itself never mutates stock).'),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "stocktakeId": zod.number(),
+  "itemId": zod.number(),
+  "expectedQuantitySnapshot": zod.string(),
+  "countedQuantity": zod.string().nullable(),
+  "countedByMembershipId": zod.number().nullable(),
+  "countedAt": zod.coerce.date().nullable(),
+  "variance": zod.string().nullable(),
+  "resolutionType": zod.enum(['recount', 'adjustment', 'missing']).nullable(),
+  "resolutionMovementId": zod.number().nullable(),
+  "resolvedAt": zod.coerce.date().nullable(),
+  "movementsSinceSnapshot": zod.string(),
+  "reconciledExpectedQuantity": zod.string(),
+  "currentVariance": zod.string().nullable()
+}).describe('`variance`\/`resolutionType`\/`resolutionMovementId`\/`resolvedAt` are the last-PERSISTED values (as of the most recent count\/resolve\/ finalize action). `movementsSinceSnapshot`\/`reconciledExpectedQuantity`\/ `currentVariance` are LIVE-recomputed on every read and may differ from the persisted `variance` if a movement has occurred since — never presented as silently already-corrected.'))
+})
+
+
+/**
+ * Acquires the same advisory-lock domain an ordinary movement against this store's items would (§28) — serializes against an in-flight receipt/issue rather than racing silently.
+ * @summary Transition draft -> counting, capturing the expectedQuantitySnapshot for every in-scope item — gated office_inventory.stocktake
+ */
+export const StartOfficeInventoryStocktakeParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const StartOfficeInventoryStocktakeResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "storeId": zod.number(),
+  "stocktakeReference": zod.string(),
+  "status": zod.enum(['draft', 'counting', 'finalized']),
+  "startedAt": zod.coerce.date().nullable(),
+  "startedByMembershipId": zod.number().nullable(),
+  "finalizedAt": zod.coerce.date().nullable(),
+  "finalizedByMembershipId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 7 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.8, §28). Store-scoped. `draft` -> `counting` (the moment `expectedQuantitySnapshot` is captured on every line, permanently frozen from then on) -> `finalized` (immutable; finalization itself never mutates stock).')
+
+
+/**
+ * Never mutates the stock ledger. A recount that brings a previously non-zero variance to exactly zero is automatically resolved as "recount", no stock movement.
+ * @summary Record (or recount) a line's physical counted quantity — gated office_inventory.stocktake
+ */
+export const RecordOfficeInventoryStocktakeCountParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number(),
+  "lineId": zod.coerce.number()
+})
+
+export const RecordOfficeInventoryStocktakeCountBody = zod.object({
+  "countedQuantity": zod.string().describe('Non-negative numeric(12,2)-shaped string.')
+}).describe('Supports recount — resubmitting for an already-counted line. Never mutates the stock ledger.')
+
+export const RecordOfficeInventoryStocktakeCountResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "stocktakeId": zod.number(),
+  "itemId": zod.number(),
+  "expectedQuantitySnapshot": zod.string(),
+  "countedQuantity": zod.string().nullable(),
+  "countedByMembershipId": zod.number().nullable(),
+  "countedAt": zod.coerce.date().nullable(),
+  "variance": zod.string().nullable(),
+  "resolutionType": zod.enum(['recount', 'adjustment', 'missing']).nullable(),
+  "resolutionMovementId": zod.number().nullable(),
+  "resolvedAt": zod.coerce.date().nullable(),
+  "movementsSinceSnapshot": zod.string(),
+  "reconciledExpectedQuantity": zod.string(),
+  "currentVariance": zod.string().nullable()
+}).describe('`variance`\/`resolutionType`\/`resolutionMovementId`\/`resolvedAt` are the last-PERSISTED values (as of the most recent count\/resolve\/ finalize action). `movementsSinceSnapshot`\/`reconciledExpectedQuantity`\/ `currentVariance` are LIVE-recomputed on every read and may differ from the persisted `variance` if a movement has occurred since — never presented as silently already-corrected.')
+
+
+/**
+ * @summary Resolve a counted line's non-zero variance via Workstream 6's own adjustment or missing domain service — gated office_inventory.stocktake
+ */
+export const ResolveOfficeInventoryStocktakeLineParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number(),
+  "lineId": zod.coerce.number()
+})
+
+export const ResolveOfficeInventoryStocktakeLineBody = zod.object({
+  "resolutionType": zod.enum(['adjustment', 'missing']),
+  "reason": zod.string()
+}).describe('A thin pass-through to Workstream 6\'s own existing adjustment\/missing domain services (§15-§16) — this action never appends a ledger row itself. `adjustment` accepts any non-zero variance sign; `missing` only a shortage (negative variance).')
+
+export const ResolveOfficeInventoryStocktakeLineResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "stocktakeId": zod.number(),
+  "itemId": zod.number(),
+  "expectedQuantitySnapshot": zod.string(),
+  "countedQuantity": zod.string().nullable(),
+  "countedByMembershipId": zod.number().nullable(),
+  "countedAt": zod.coerce.date().nullable(),
+  "variance": zod.string().nullable(),
+  "resolutionType": zod.enum(['recount', 'adjustment', 'missing']).nullable(),
+  "resolutionMovementId": zod.number().nullable(),
+  "resolvedAt": zod.coerce.date().nullable(),
+  "movementsSinceSnapshot": zod.string(),
+  "reconciledExpectedQuantity": zod.string(),
+  "currentVariance": zod.string().nullable()
+}).describe('`variance`\/`resolutionType`\/`resolutionMovementId`\/`resolvedAt` are the last-PERSISTED values (as of the most recent count\/resolve\/ finalize action). `movementsSinceSnapshot`\/`reconciledExpectedQuantity`\/ `currentVariance` are LIVE-recomputed on every read and may differ from the persisted `variance` if a movement has occurred since — never presented as silently already-corrected.')
+
+
+/**
+ * Requires every line counted and every non-zero variance resolved; rejects with the exact blocking lines otherwise. Never mutates stock itself — every stock effect already happened through an explicit resolution action.
+ * @summary Finalize a stocktake — gated office_inventory.stocktake
+ */
+export const FinalizeOfficeInventoryStocktakeParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const FinalizeOfficeInventoryStocktakeResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "storeId": zod.number(),
+  "stocktakeReference": zod.string(),
+  "status": zod.enum(['draft', 'counting', 'finalized']),
+  "startedAt": zod.coerce.date().nullable(),
+  "startedByMembershipId": zod.number().nullable(),
+  "finalizedAt": zod.coerce.date().nullable(),
+  "finalizedByMembershipId": zod.number().nullable(),
+  "notes": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Office Inventory, Workstream 7 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.8, §28). Store-scoped. `draft` -> `counting` (the moment `expectedQuantitySnapshot` is captured on every line, permanently frozen from then on) -> `finalized` (immutable; finalization itself never mutates stock).')
+
+

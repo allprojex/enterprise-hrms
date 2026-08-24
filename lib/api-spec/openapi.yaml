@@ -18223,6 +18223,320 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/office-inventory/stocktakes:
+    post:
+      operationId: createOfficeInventoryStocktake
+      tags: [office-inventory-stocktakes]
+      summary: Create a draft stocktake for one store — gated office_inventory.stocktake
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOfficeInventoryStocktakeBody"
+      responses:
+        "201":
+          description: The created draft stocktake
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryStocktake"
+        "403":
+          description: Forbidden — requires office_inventory.stocktake, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Store not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    get:
+      operationId: listOfficeInventoryStocktakes
+      tags: [office-inventory-stocktakes]
+      summary: List stocktakes org-wide, optionally filtered by store/status — gated office_inventory.stocktake
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: storeId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [draft, counting, finalized]
+      responses:
+        "200":
+          description: Stocktakes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OfficeInventoryStocktake"
+        "403":
+          description: Forbidden — requires office_inventory.stocktake, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/stocktakes/{id}:
+    get:
+      operationId: getOfficeInventoryStocktake
+      tags: [office-inventory-stocktakes]
+      summary: Get one stocktake with its lines, live-reconciled — gated office_inventory.stocktake
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The stocktake and its lines
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryStocktakeDetail"
+        "403":
+          description: Forbidden — requires office_inventory.stocktake, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Stocktake not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/stocktakes/{id}/start:
+    post:
+      operationId: startOfficeInventoryStocktake
+      tags: [office-inventory-stocktakes]
+      summary: Transition draft -> counting, capturing the expectedQuantitySnapshot for every in-scope item — gated office_inventory.stocktake
+      description: Acquires the same advisory-lock domain an ordinary movement against this store's items would (§28) — serializes against an in-flight receipt/issue rather than racing silently.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The now-counting stocktake
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryStocktake"
+        "403":
+          description: Forbidden — requires office_inventory.stocktake, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Stocktake not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Stocktake is not draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/stocktakes/{id}/lines/{lineId}/count:
+    post:
+      operationId: recordOfficeInventoryStocktakeCount
+      tags: [office-inventory-stocktakes]
+      summary: Record (or recount) a line's physical counted quantity — gated office_inventory.stocktake
+      description: Never mutates the stock ledger. A recount that brings a previously non-zero variance to exactly zero is automatically resolved as "recount", no stock movement.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: lineId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordOfficeInventoryStocktakeCountBody"
+      responses:
+        "201":
+          description: The updated line, live-reconciled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryStocktakeLineView"
+        "400":
+          description: Invalid (negative) counted quantity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires office_inventory.stocktake, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Stocktake or line not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Stocktake is not counting
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/stocktakes/{id}/lines/{lineId}/resolve:
+    post:
+      operationId: resolveOfficeInventoryStocktakeLine
+      tags: [office-inventory-stocktakes]
+      summary: Resolve a counted line's non-zero variance via Workstream 6's own adjustment or missing domain service — gated office_inventory.stocktake
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: lineId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResolveOfficeInventoryStocktakeLineBody"
+      responses:
+        "201":
+          description: The resolved line, live-reconciled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryStocktakeLineView"
+        "400":
+          description: Not yet counted, missing reason, or a "missing" resolution attempted on a surplus
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires office_inventory.stocktake, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Stocktake or line not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Stocktake is not counting, or the line has no variance to resolve
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/office-inventory/stocktakes/{id}/finalize:
+    post:
+      operationId: finalizeOfficeInventoryStocktake
+      tags: [office-inventory-stocktakes]
+      summary: Finalize a stocktake — gated office_inventory.stocktake
+      description: Requires every line counted and every non-zero variance resolved; rejects with the exact blocking lines otherwise. Never mutates stock itself — every stock effect already happened through an explicit resolution action.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The finalized, immutable stocktake
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInventoryStocktake"
+        "403":
+          description: Forbidden — requires office_inventory.stocktake, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Stocktake not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Stocktake is not counting, or one or more lines are not counted / have unresolved variance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -27586,4 +27900,146 @@ components:
         reason:
           type: string
         idempotencyKey:
+          type: string
+
+    OfficeInventoryStocktake:
+      type: object
+      description: >-
+        Office Inventory, Workstream 7
+        (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.8, §28). Store-scoped.
+        `draft` -> `counting` (the moment `expectedQuantitySnapshot` is
+        captured on every line, permanently frozen from then on) -> `finalized`
+        (immutable; finalization itself never mutates stock).
+      required: [id, organizationId, storeId, stocktakeReference, status, startedAt, startedByMembershipId, finalizedAt, finalizedByMembershipId, notes, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        storeId:
+          type: integer
+        stocktakeReference:
+          type: string
+        status:
+          type: string
+          enum: [draft, counting, finalized]
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        startedByMembershipId:
+          type: integer
+          nullable: true
+        finalizedAt:
+          type: string
+          format: date-time
+          nullable: true
+        finalizedByMembershipId:
+          type: integer
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    OfficeInventoryStocktakeLineView:
+      type: object
+      description: >-
+        `variance`/`resolutionType`/`resolutionMovementId`/`resolvedAt` are
+        the last-PERSISTED values (as of the most recent count/resolve/
+        finalize action). `movementsSinceSnapshot`/`reconciledExpectedQuantity`/
+        `currentVariance` are LIVE-recomputed on every read and may differ
+        from the persisted `variance` if a movement has occurred since —
+        never presented as silently already-corrected.
+      required: [id, organizationId, stocktakeId, itemId, expectedQuantitySnapshot, countedQuantity, countedByMembershipId, countedAt, variance, resolutionType, resolutionMovementId, resolvedAt, movementsSinceSnapshot, reconciledExpectedQuantity, currentVariance]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        stocktakeId:
+          type: integer
+        itemId:
+          type: integer
+        expectedQuantitySnapshot:
+          type: string
+        countedQuantity:
+          type: string
+          nullable: true
+        countedByMembershipId:
+          type: integer
+          nullable: true
+        countedAt:
+          type: string
+          format: date-time
+          nullable: true
+        variance:
+          type: string
+          nullable: true
+        resolutionType:
+          type: string
+          enum: [recount, adjustment, missing]
+          nullable: true
+        resolutionMovementId:
+          type: integer
+          nullable: true
+        resolvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        movementsSinceSnapshot:
+          type: string
+        reconciledExpectedQuantity:
+          type: string
+        currentVariance:
+          type: string
+          nullable: true
+
+    CreateOfficeInventoryStocktakeBody:
+      type: object
+      required: [storeId]
+      properties:
+        storeId:
+          type: integer
+        notes:
+          type: string
+
+    OfficeInventoryStocktakeDetail:
+      type: object
+      required: [stocktake, lines]
+      properties:
+        stocktake:
+          $ref: "#/components/schemas/OfficeInventoryStocktake"
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/OfficeInventoryStocktakeLineView"
+
+    RecordOfficeInventoryStocktakeCountBody:
+      type: object
+      description: Supports recount — resubmitting for an already-counted line. Never mutates the stock ledger.
+      required: [countedQuantity]
+      properties:
+        countedQuantity:
+          type: string
+          description: Non-negative numeric(12,2)-shaped string.
+
+    ResolveOfficeInventoryStocktakeLineBody:
+      type: object
+      description: >-
+        A thin pass-through to Workstream 6's own existing adjustment/missing
+        domain services (§15-§16) — this action never appends a ledger row
+        itself. `adjustment` accepts any non-zero variance sign; `missing`
+        only a shortage (negative variance).
+      required: [resolutionType, reason]
+      properties:
+        resolutionType:
+          type: string
+          enum: [adjustment, missing]
+        reason:
           type: string

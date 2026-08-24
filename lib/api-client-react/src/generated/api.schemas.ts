@@ -8044,6 +8044,97 @@ export interface CreateOfficeInventoryAdjustmentBody {
   idempotencyKey?: string;
 }
 
+export type OfficeInventoryStocktakeStatus = typeof OfficeInventoryStocktakeStatus[keyof typeof OfficeInventoryStocktakeStatus];
+
+
+export const OfficeInventoryStocktakeStatus = {
+  draft: 'draft',
+  counting: 'counting',
+  finalized: 'finalized',
+} as const;
+
+/**
+ * Office Inventory, Workstream 7 (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.8, §28). Store-scoped. `draft` -> `counting` (the moment `expectedQuantitySnapshot` is captured on every line, permanently frozen from then on) -> `finalized` (immutable; finalization itself never mutates stock).
+ */
+export interface OfficeInventoryStocktake {
+  id: number;
+  organizationId: number;
+  storeId: number;
+  stocktakeReference: string;
+  status: OfficeInventoryStocktakeStatus;
+  startedAt: string | null;
+  startedByMembershipId: number | null;
+  finalizedAt: string | null;
+  finalizedByMembershipId: number | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type OfficeInventoryStocktakeLineViewResolutionType = typeof OfficeInventoryStocktakeLineViewResolutionType[keyof typeof OfficeInventoryStocktakeLineViewResolutionType] | null;
+
+
+export const OfficeInventoryStocktakeLineViewResolutionType = {
+  recount: 'recount',
+  adjustment: 'adjustment',
+  missing: 'missing',
+} as const;
+
+/**
+ * `variance`/`resolutionType`/`resolutionMovementId`/`resolvedAt` are the last-PERSISTED values (as of the most recent count/resolve/ finalize action). `movementsSinceSnapshot`/`reconciledExpectedQuantity`/ `currentVariance` are LIVE-recomputed on every read and may differ from the persisted `variance` if a movement has occurred since — never presented as silently already-corrected.
+ */
+export interface OfficeInventoryStocktakeLineView {
+  id: number;
+  organizationId: number;
+  stocktakeId: number;
+  itemId: number;
+  expectedQuantitySnapshot: string;
+  countedQuantity: string | null;
+  countedByMembershipId: number | null;
+  countedAt: string | null;
+  variance: string | null;
+  resolutionType: OfficeInventoryStocktakeLineViewResolutionType;
+  resolutionMovementId: number | null;
+  resolvedAt: string | null;
+  movementsSinceSnapshot: string;
+  reconciledExpectedQuantity: string;
+  currentVariance: string | null;
+}
+
+export interface CreateOfficeInventoryStocktakeBody {
+  storeId: number;
+  notes?: string;
+}
+
+export interface OfficeInventoryStocktakeDetail {
+  stocktake: OfficeInventoryStocktake;
+  lines: OfficeInventoryStocktakeLineView[];
+}
+
+/**
+ * Supports recount — resubmitting for an already-counted line. Never mutates the stock ledger.
+ */
+export interface RecordOfficeInventoryStocktakeCountBody {
+  /** Non-negative numeric(12,2)-shaped string. */
+  countedQuantity: string;
+}
+
+export type ResolveOfficeInventoryStocktakeLineBodyResolutionType = typeof ResolveOfficeInventoryStocktakeLineBodyResolutionType[keyof typeof ResolveOfficeInventoryStocktakeLineBodyResolutionType];
+
+
+export const ResolveOfficeInventoryStocktakeLineBodyResolutionType = {
+  adjustment: 'adjustment',
+  missing: 'missing',
+} as const;
+
+/**
+ * A thin pass-through to Workstream 6's own existing adjustment/missing domain services (§15-§16) — this action never appends a ledger row itself. `adjustment` accepts any non-zero variance sign; `missing` only a shortage (negative variance).
+ */
+export interface ResolveOfficeInventoryStocktakeLineBody {
+  resolutionType: ResolveOfficeInventoryStocktakeLineBodyResolutionType;
+  reason: string;
+}
+
 export type ListEmployeesParams = {
 search?: string;
 departmentId?: number;
@@ -8687,5 +8778,19 @@ export const ListOfficeInventoryIncidentsStatus = {
   open: 'open',
   reviewed: 'reviewed',
   dismissed: 'dismissed',
+} as const;
+
+export type ListOfficeInventoryStocktakesParams = {
+storeId?: number;
+status?: ListOfficeInventoryStocktakesStatus;
+};
+
+export type ListOfficeInventoryStocktakesStatus = typeof ListOfficeInventoryStocktakesStatus[keyof typeof ListOfficeInventoryStocktakesStatus];
+
+
+export const ListOfficeInventoryStocktakesStatus = {
+  draft: 'draft',
+  counting: 'counting',
+  finalized: 'finalized',
 } as const;
 
