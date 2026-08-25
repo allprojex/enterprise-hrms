@@ -5,7 +5,7 @@
  * Every READ here is audit-logged (frozen plan Decision 9), a deliberate
  * exception to the platform's general read-silence convention.
  */
-import { Router, type Response } from "express";
+import { Router, type Response, type Request } from "express";
 import { CreateEmployeeBankingDetailBody, CreateEmployeeStatutoryIdentifierBody } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireMembership, type MembershipRequest } from "../middlewares/requireMembership";
@@ -24,12 +24,27 @@ import {
   StatutoryIdentifierCollisionError,
 } from "../lib/payrollSensitiveRecords";
 import { recordAuditEvent } from "../lib/auditLog";
+import { maskAccountNumber, maskIdentifier } from "../lib/sensitiveData";
 
 const router = Router();
 
 function parseId(raw: string | string[] | undefined): number {
   const value = Array.isArray(raw) ? raw[0] : raw;
   return parseInt(value ?? "", 10);
+}
+
+// WS-3 (Owner Decision #23): masked-by-default, explicit reveal. Reuses the
+// SAME payroll.banking.read/payroll.statutory_identifiers.read permission
+// this route already gated on before this workstream — per the frozen
+// review's own §23 guidance ("do not require reveal-click UX if the
+// current page already has a safe dedicated sensitive endpoint... use
+// evidence"), this endpoint was already narrow, dedicated, and non-default
+// (no role gets it by default), so a second, narrower permission would add
+// no real boundary. What was genuinely missing was the masked-by-default
+// behavior and a distinct audit trail for "saw the masked value" vs "saw
+// the full value" — both added here.
+function wantsReveal(req: Request): boolean {
+  return req.query.reveal === "true";
 }
 
 async function requireKnownEmployee(req: MembershipRequest, res: Response): Promise<number | null> {
@@ -61,19 +76,29 @@ router.get(
     const employeeId = await requireKnownEmployee(req, res);
     if (employeeId == null) return;
     const detail = await getCurrentBankingDetail(req.membership!.organizationId, employeeId);
+    const reveal = wantsReveal(req);
 
     // Read-audit — deliberate exception to the platform's general
-    // read-silence convention (frozen plan Decision 9).
+    // read-silence convention (frozen plan Decision 9). WS-3: the masked
+    // view and a full reveal are now distinct, separately auditable events
+    // — a reveal is the higher-sensitivity action and must be visible as
+    // such in the audit trail, not indistinguishable from an ordinary
+    // masked view.
     await recordAuditEvent({
       actorApplicationUserId: req.userId!,
       actorMembershipId: req.membership!.id,
       organizationId: req.membership!.organizationId,
-      eventType: "payroll_banking.read",
+      eventType: reveal ? "payroll_banking.revealed" : "payroll_banking.read",
       targetType: "employee_banking_detail",
       targetId: String(employeeId),
+      outcome: "success",
     });
 
-    res.json(detail);
+    if (!detail) {
+      res.json(detail);
+      return;
+    }
+    res.json(reveal ? detail : { ...detail, accountNumber: maskAccountNumber(detail.accountNumber) });
   },
 );
 
@@ -148,17 +173,19 @@ router.get(
     const employeeId = await requireKnownEmployee(req, res);
     if (employeeId == null) return;
     const rows = await listBankingHistory(req.membership!.organizationId, employeeId);
+    const reveal = wantsReveal(req);
 
     await recordAuditEvent({
       actorApplicationUserId: req.userId!,
       actorMembershipId: req.membership!.id,
       organizationId: req.membership!.organizationId,
-      eventType: "payroll_banking.history_read",
+      eventType: reveal ? "payroll_banking.history_revealed" : "payroll_banking.history_read",
       targetType: "employee_banking_detail",
       targetId: String(employeeId),
+      outcome: "success",
     });
 
-    res.json(rows);
+    res.json(reveal ? rows : rows.map((r) => ({ ...r, accountNumber: maskAccountNumber(r.accountNumber) })));
   },
 );
 
@@ -177,17 +204,31 @@ router.get(
     const employeeId = await requireKnownEmployee(req, res);
     if (employeeId == null) return;
     const detail = await getCurrentStatutoryIdentifier(req.membership!.organizationId, employeeId);
+    const reveal = wantsReveal(req);
 
     await recordAuditEvent({
       actorApplicationUserId: req.userId!,
       actorMembershipId: req.membership!.id,
       organizationId: req.membership!.organizationId,
-      eventType: "payroll_statutory_identifier.read",
+      eventType: reveal ? "payroll_statutory_identifier.revealed" : "payroll_statutory_identifier.read",
       targetType: "employee_statutory_identifier",
       targetId: String(employeeId),
+      outcome: "success",
     });
 
-    res.json(detail);
+    if (!detail) {
+      res.json(detail);
+      return;
+    }
+    res.json(
+      reveal
+        ? detail
+        : {
+            ...detail,
+            ssnitNumber: detail.ssnitNumber ? maskIdentifier(detail.ssnitNumber) : detail.ssnitNumber,
+            tin: detail.tin ? maskIdentifier(detail.tin) : detail.tin,
+          },
+    );
   },
 );
 
@@ -250,17 +291,27 @@ router.get(
     const employeeId = await requireKnownEmployee(req, res);
     if (employeeId == null) return;
     const rows = await listStatutoryIdentifierHistory(req.membership!.organizationId, employeeId);
+    const reveal = wantsReveal(req);
 
     await recordAuditEvent({
       actorApplicationUserId: req.userId!,
       actorMembershipId: req.membership!.id,
       organizationId: req.membership!.organizationId,
-      eventType: "payroll_statutory_identifier.history_read",
+      eventType: reveal ? "payroll_statutory_identifier.history_revealed" : "payroll_statutory_identifier.history_read",
       targetType: "employee_statutory_identifier",
       targetId: String(employeeId),
+      outcome: "success",
     });
 
-    res.json(rows);
+    res.json(
+      reveal
+        ? rows
+        : rows.map((r) => ({
+            ...r,
+            ssnitNumber: r.ssnitNumber ? maskIdentifier(r.ssnitNumber) : r.ssnitNumber,
+            tin: r.tin ? maskIdentifier(r.tin) : r.tin,
+          })),
+    );
   },
 );
 

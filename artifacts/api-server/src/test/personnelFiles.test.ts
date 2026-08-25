@@ -491,6 +491,13 @@ describe("GET personnel-file by employee / by id", () => {
     const byId = await request(app).get(`/api/organizations/${ORG_ID}/personnel-files/${created.body.id}`).set("Authorization", "Bearer valid-token");
     expect(byId.status).toBe(200);
     expect(byId.body.employeeId).toBe(employee.id);
+
+    // WS-3 (Owner Decision #18): both routes above are sensitive-read
+    // audited — a specific personnel file's own details are a deliberate,
+    // higher-value read, unlike the routine search endpoint below.
+    const viewedEvents = fixtures.auditRows.filter((r) => r.eventType === "personnel_file.viewed");
+    expect(viewedEvents).toHaveLength(2);
+    expect(viewedEvents[0]).toMatchObject({ targetType: "personnel_file", category: "documents" });
   });
 
   it("returns 403 without personnel_file.read", async () => {

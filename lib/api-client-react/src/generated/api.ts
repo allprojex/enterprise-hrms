@@ -20895,7 +20895,7 @@ export const getListAuditEventsUrl = (organizationId: number,
 }
 
 /**
- * Paginated, most recent first.
+ * Paginated, most recent first. Category-scoped (WS-3, Owner Decision #17): a caller sees only the audit categories their permissions grant (audit.read = all categories; audit.read.<category> = one category each). An explicit ?category= must be one the caller is allowed to see, or the request is 403. Omitting it returns the union of every allowed category. A caller with none of the audit.read* permissions gets 403.
  * @summary List audit events
  */
 export const listAuditEvents = async (organizationId: number,

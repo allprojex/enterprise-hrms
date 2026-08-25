@@ -25,6 +25,7 @@ import {
 } from "../lib/personnelFiles";
 import { EmployeeNumberMissingTokenDataError } from "../lib/numbering";
 import { db, type PersonnelFile } from "@workspace/db";
+import { recordAuditEvent } from "../lib/auditLog";
 
 const router = Router();
 
@@ -138,6 +139,22 @@ router.get(
       res.status(404).json({ error: "This employee has no personnel file yet" });
       return;
     }
+
+    // WS-3 (Owner Decision #18): a specific personnel file's own details are
+    // a deliberate, higher-value sensitive read (a named, confidential
+    // record, unlike the search endpoint below, which returns only a
+    // routine list and stays unaudited to avoid noise — §16 of the frozen
+    // review).
+    await recordAuditEvent({
+      actorApplicationUserId: req.userId!,
+      actorMembershipId: req.membership!.id,
+      organizationId,
+      eventType: "personnel_file.viewed",
+      targetType: "personnel_file",
+      targetId: String(personnelFile.id),
+      outcome: "success",
+    });
+
     res.json(formatPersonnelFile(personnelFile));
   },
 );
@@ -162,6 +179,17 @@ router.get(
       res.status(404).json({ error: "Personnel file not found" });
       return;
     }
+
+    await recordAuditEvent({
+      actorApplicationUserId: req.userId!,
+      actorMembershipId: req.membership!.id,
+      organizationId,
+      eventType: "personnel_file.viewed",
+      targetType: "personnel_file",
+      targetId: String(personnelFile.id),
+      outcome: "success",
+    });
+
     res.json(formatPersonnelFile(personnelFile));
   },
 );

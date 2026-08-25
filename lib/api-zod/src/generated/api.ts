@@ -8399,7 +8399,7 @@ export const RevokeRolePermissionResponse = zod.void()
 
 
 /**
- * Paginated, most recent first.
+ * Paginated, most recent first. Category-scoped (WS-3, Owner Decision #17): a caller sees only the audit categories their permissions grant (audit.read = all categories; audit.read.<category> = one category each). An explicit ?category= must be one the caller is allowed to see, or the request is 403. Omitting it returns the union of every allowed category. A caller with none of the audit.read* permissions gets 403.
  * @summary List audit events
  */
 export const ListAuditEventsParams = zod.object({
@@ -8414,6 +8414,7 @@ export const ListAuditEventsQueryParams = zod.object({
   "targetType": zod.coerce.string().optional(),
   "targetId": zod.coerce.string().optional(),
   "actorApplicationUserId": zod.coerce.number().optional(),
+  "category": zod.enum(['hr', 'payroll', 'security', 'documents', 'assets_inventory', 'platform_configuration']).optional().describe('One of the six audit categories. Must be within the caller\'s allowed set.'),
   "page": zod.coerce.number().default(listAuditEventsQueryPageDefault),
   "pageSize": zod.coerce.number().default(listAuditEventsQueryPageSizeDefault)
 })
@@ -8432,11 +8433,15 @@ export const ListAuditEventsResponse = zod.object({
   "afterState": zod.record(zod.string(), zod.unknown()).nullish(),
   "ipAddress": zod.string().nullish(),
   "userAgent": zod.string().nullish(),
-  "metadata": zod.record(zod.string(), zod.unknown()).nullish()
+  "metadata": zod.record(zod.string(), zod.unknown()).nullish(),
+  "category": zod.enum(['hr', 'payroll', 'security', 'documents', 'assets_inventory', 'platform_configuration']).optional(),
+  "requestId": zod.string().nullish(),
+  "outcome": zod.union([zod.literal('success'),zod.literal('failure'),zod.literal('denied'),zod.literal(null)]).nullish()
 })),
   "total": zod.number(),
   "page": zod.number(),
-  "pageSize": zod.number()
+  "pageSize": zod.number(),
+  "allowedCategories": zod.union([zod.enum(['all']),zod.array(zod.enum(['hr', 'payroll', 'security', 'documents', 'assets_inventory', 'platform_configuration']))]).describe('\"all\", or the specific categories this caller may read — drives the frontend category filter (WS-3).')
 })
 
 

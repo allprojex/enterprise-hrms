@@ -10021,7 +10021,14 @@ paths:
       operationId: listAuditEvents
       tags: [audit-events]
       summary: List audit events
-      description: Paginated, most recent first.
+      description: >-
+        Paginated, most recent first. Category-scoped (WS-3, Owner Decision
+        #17): a caller sees only the audit categories their permissions
+        grant (audit.read = all categories; audit.read.<category> = one
+        category each). An explicit ?category= must be one the caller is
+        allowed to see, or the request is 403. Omitting it returns the union
+        of every allowed category. A caller with none of the audit.read*
+        permissions gets 403.
       parameters:
         - name: organizationId
           in: path
@@ -10044,6 +10051,12 @@ paths:
           in: query
           schema:
             type: integer
+        - name: category
+          in: query
+          description: One of the six audit categories. Must be within the caller's allowed set.
+          schema:
+            type: string
+            enum: [hr, payroll, security, documents, assets_inventory, platform_configuration]
         - name: page
           in: query
           schema:
@@ -24245,10 +24258,18 @@ components:
         metadata:
           type: ["object", "null"]
           additionalProperties: true
+        category:
+          type: string
+          enum: [hr, payroll, security, documents, assets_inventory, platform_configuration]
+        requestId:
+          type: ["string", "null"]
+        outcome:
+          type: ["string", "null"]
+          enum: [success, failure, denied, null]
 
     AuditEventListResponse:
       type: object
-      required: [items, total, page, pageSize]
+      required: [items, total, page, pageSize, allowedCategories]
       properties:
         items:
           type: array
@@ -24260,6 +24281,15 @@ components:
           type: integer
         pageSize:
           type: integer
+        allowedCategories:
+          description: '"all", or the specific categories this caller may read — drives the frontend category filter (WS-3).'
+          oneOf:
+            - type: string
+              enum: [all]
+            - type: array
+              items:
+                type: string
+                enum: [hr, payroll, security, documents, assets_inventory, platform_configuration]
 
     Report:
       type: object

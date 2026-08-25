@@ -5,6 +5,7 @@ import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { resolveTenantHost } from "./middlewares/resolveTenantHost";
+import { runWithRequestId } from "./lib/requestContext";
 
 const app: Express = express();
 
@@ -27,6 +28,14 @@ app.use(
     },
   }),
 );
+
+// WS-3 (§8): makes pino-http's own per-request id available to
+// recordAuditEvent() for the whole lifetime of the request, without every
+// audit call site needing to thread it through explicitly. Placed
+// immediately after pinoHttp so req.id already exists.
+app.use((req, _res, next) => {
+  runWithRequestId(String((req as unknown as { id: string | number }).id), next);
+});
 
 // This API only ever returns JSON, so a strict default-src is safe and adds
 // baseline hardening (X-Content-Type-Options, X-Frame-Options, HSTS, etc.)

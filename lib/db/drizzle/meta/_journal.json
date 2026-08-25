@@ -400,6 +400,20 @@
       "when": 1787629417639,
       "tag": "0056_normal_wind_dancer",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1787632029168,
+      "tag": "0057_public_lady_bullseye",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1787632043542,
+      "tag": "0058_audit_events_tamper_protection",
+      "breakpoints": true
     }
   ]
 }

@@ -67,7 +67,7 @@ import {
   getRunReportQueryKey,
   getRunReportUrl,
 } from '@workspace/api-client-react';
-import type { AuditEvent } from '@workspace/api-client-react';
+import type { AuditEvent, ListAuditEventsCategory } from '@workspace/api-client-react';
 import { getStoredToken } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -1000,12 +1000,29 @@ function RolesTab({ organizationId }: { organizationId: number }) {
   );
 }
 
+// WS-3 (Owner Decision #17) — display labels for the audit_category
+// taxonomy (lib/auditCategories.ts on the backend). Purely cosmetic; the
+// actual set a given caller may choose from always comes from the server's
+// own allowedCategories, never a fixed client-side assumption.
+const AUDIT_CATEGORY_LABELS: Record<string, string> = {
+  hr: 'HR',
+  payroll: 'Payroll',
+  security: 'Security & Access',
+  documents: 'Documents & Records',
+  assets_inventory: 'Assets & Inventory',
+  platform_configuration: 'Platform Configuration',
+};
+
 function AuditLogTab({ organizationId }: { organizationId: number }) {
   const [page, setPage] = useState(1);
   const [eventType, setEventType] = useState('');
   const [targetType, setTargetType] = useState('');
   const [targetId, setTargetId] = useState('');
   const [actorApplicationUserId, setActorApplicationUserId] = useState('');
+  // WS-3 (Owner Decision #17): '' means "every category I'm allowed to
+  // see" (server-resolved — never assume "all" client-side). An explicit
+  // value narrows to just that one category.
+  const [category, setCategory] = useState('');
   const [detailEvent, setDetailEvent] = useState<AuditEvent | null>(null);
 
   const { data: members } = useListMembers(organizationId, {
@@ -1019,6 +1036,7 @@ function AuditLogTab({ organizationId }: { organizationId: number }) {
     targetType: targetType || undefined,
     targetId: targetId || undefined,
     actorApplicationUserId: actorApplicationUserId ? Number(actorApplicationUserId) : undefined,
+    category: (category || undefined) as ListAuditEventsCategory | undefined,
   };
 
   const { data: result, isLoading, error, refetch } = useListAuditEvents(organizationId, filters, {
@@ -1026,13 +1044,23 @@ function AuditLogTab({ organizationId }: { organizationId: number }) {
   });
 
   const totalPages = Math.max(1, Math.ceil((result?.total ?? 0) / 20));
-  const hasFilters = !!(eventType || targetType || targetId || actorApplicationUserId);
+  const hasFilters = !!(eventType || targetType || targetId || actorApplicationUserId || category);
+
+  // The server tells us which categories this caller may even see
+  // (allowedCategories) — the dropdown only ever offers a choice the
+  // backend would actually honor, never a category picked from a fixed
+  // client-side list that might 403.
+  const selectableCategories =
+    result?.allowedCategories === 'all'
+      ? ['hr', 'payroll', 'security', 'documents', 'assets_inventory', 'platform_configuration']
+      : (result?.allowedCategories ?? []);
 
   const resetFilters = () => {
     setEventType('');
     setTargetType('');
     setTargetId('');
     setActorApplicationUserId('');
+    setCategory('');
     setPage(1);
   };
 
@@ -1085,6 +1113,25 @@ function AuditLogTab({ organizationId }: { organizationId: number }) {
                 {(members ?? []).map((m) => (
                   <SelectItem key={m.applicationUserId} value={String(m.applicationUserId)}>
                     {m.firstName} {m.lastName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="audit-filter-category">Category</Label>
+            <Select
+              value={category}
+              onValueChange={(v) => { setCategory(v === '__all__' ? '' : v); setPage(1); }}
+            >
+              <SelectTrigger id="audit-filter-category" className="w-56" data-testid="select-audit-filter-category">
+                <SelectValue placeholder="Every category I can see" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">Every category I can see</SelectItem>
+                {selectableCategories.map((c) => (
+                  <SelectItem key={c} value={c} data-testid={`option-audit-category-${c}`}>
+                    {AUDIT_CATEGORY_LABELS[c] ?? c}
                   </SelectItem>
                 ))}
               </SelectContent>

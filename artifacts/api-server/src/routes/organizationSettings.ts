@@ -78,12 +78,28 @@ router.patch(
       // namespaces (general/terminology/attendance/performance) are left
       // exactly as they were, per the frozen plan's own "audit only what
       // existing infrastructure does not already audit" instruction.
+      // WS-3 extends this same targeted exception to audit_retention —
+      // changing an organization's retention/legal-hold posture is exactly
+      // the kind of security-relevant configuration change this workstream
+      // is meant to make traceable; the other, unrelated namespaces are
+      // intentionally left out of scope here.
       if (namespace === "numbering") {
         await recordAuditEvent({
           actorApplicationUserId: req.userId!,
           actorMembershipId: req.membership!.id,
           organizationId: req.membership!.organizationId,
           eventType: "numbering_config.updated",
+          targetType: "organization_settings",
+          targetId: namespace,
+          beforeState: before.data,
+          afterState: config.data,
+        });
+      } else if (namespace === "audit_retention") {
+        await recordAuditEvent({
+          actorApplicationUserId: req.userId!,
+          actorMembershipId: req.membership!.id,
+          organizationId: req.membership!.organizationId,
+          eventType: "audit_retention_config.updated",
           targetType: "organization_settings",
           targetId: namespace,
           beforeState: before.data,

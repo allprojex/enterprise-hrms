@@ -4627,6 +4627,30 @@ export type AuditEventAfterState = { [key: string]: unknown } | null;
  */
 export type AuditEventMetadata = { [key: string]: unknown } | null;
 
+export type AuditEventCategory = typeof AuditEventCategory[keyof typeof AuditEventCategory];
+
+
+export const AuditEventCategory = {
+  hr: 'hr',
+  payroll: 'payroll',
+  security: 'security',
+  documents: 'documents',
+  assets_inventory: 'assets_inventory',
+  platform_configuration: 'platform_configuration',
+} as const;
+
+/**
+ * @nullable
+ */
+export type AuditEventOutcome = typeof AuditEventOutcome[keyof typeof AuditEventOutcome] | null;
+
+
+export const AuditEventOutcome = {
+  success: 'success',
+  failure: 'failure',
+  denied: 'denied',
+} as const;
+
 export interface AuditEvent {
   id: number;
   occurredAt: string;
@@ -4650,6 +4674,11 @@ export interface AuditEvent {
   userAgent?: string | null;
   /** @nullable */
   metadata?: AuditEventMetadata;
+  category?: AuditEventCategory;
+  /** @nullable */
+  requestId?: string | null;
+  /** @nullable */
+  outcome?: AuditEventOutcome;
 }
 
 export interface AuditEventListResponse {
@@ -4657,6 +4686,8 @@ export interface AuditEventListResponse {
   total: number;
   page: number;
   pageSize: number;
+  /** "all", or the specific categories this caller may read — drives the frontend category filter (WS-3). */
+  allowedCategories: 'all' | ('hr' | 'payroll' | 'security' | 'documents' | 'assets_inventory' | 'platform_configuration')[];
 }
 
 export interface Report {
@@ -8626,9 +8657,25 @@ eventType?: string;
 targetType?: string;
 targetId?: string;
 actorApplicationUserId?: number;
+/**
+ * One of the six audit categories. Must be within the caller's allowed set.
+ */
+category?: ListAuditEventsCategory;
 page?: number;
 pageSize?: number;
 };
+
+export type ListAuditEventsCategory = typeof ListAuditEventsCategory[keyof typeof ListAuditEventsCategory];
+
+
+export const ListAuditEventsCategory = {
+  hr: 'hr',
+  payroll: 'payroll',
+  security: 'security',
+  documents: 'documents',
+  assets_inventory: 'assets_inventory',
+  platform_configuration: 'platform_configuration',
+} as const;
 
 export type RunReportParams = {
 format?: RunReportFormat;

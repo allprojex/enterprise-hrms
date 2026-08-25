@@ -298,8 +298,8 @@ export async function exportPaymentBatch(params: { organizationId: number; id: n
   });
 }
 
-/** Last 4 characters visible only — for ordinary JSON review surfaces. Full values are only ever returned by the export route (§8). */
-export function maskAccountNumber(accountNumber: string): string {
-  if (accountNumber.length <= 4) return "*".repeat(accountNumber.length);
-  return "*".repeat(accountNumber.length - 4) + accountNumber.slice(-4);
-}
+// maskAccountNumber moved to lib/sensitiveData.ts (WS-3) — now the one
+// shared masking primitive, also used by payrollSensitiveRecords.ts's
+// masked-by-default banking/statutory reads. Re-exported here unchanged so
+// existing importers of this module don't need to change their import path.
+export { maskAccountNumber } from "./sensitiveData";

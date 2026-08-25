@@ -39,7 +39,22 @@ const PERMISSIONS = [
   { key: "department.manage", resource: "department", action: "manage" },
   { key: "position.read", resource: "position", action: "read" },
   { key: "position.manage", resource: "position", action: "manage" },
+  // "audit.read" is the pre-existing, broad "read every audit category"
+  // permission — kept unchanged (super_admin/org_admin still hold it via
+  // their existing grants below). WS-3 (Owner Decision #17) adds narrow,
+  // category-scoped alternatives beneath it — a role can hold just one
+  // category (e.g. hr_manager below, HR only) without the others. See
+  // lib/auditCategories.ts for the category taxonomy and
+  // lib/auditAuthorization.ts's resolveAllowedAuditCategories() for
+  // how routes/auditEvents.ts resolves which categories a caller may see
+  // (holding "audit.read" itself means "all categories", same as before).
   { key: "audit.read", resource: "audit", action: "read" },
+  { key: "audit.read.hr", resource: "audit", action: "read.hr" },
+  { key: "audit.read.payroll", resource: "audit", action: "read.payroll" },
+  { key: "audit.read.security", resource: "audit", action: "read.security" },
+  { key: "audit.read.documents", resource: "audit", action: "read.documents" },
+  { key: "audit.read.assets_inventory", resource: "audit", action: "read.assets_inventory" },
+  { key: "audit.read.platform_configuration", resource: "audit", action: "read.platform_configuration" },
   { key: "role.manage", resource: "role", action: "manage" },
   { key: "module.manage", resource: "module", action: "manage" },
   { key: "master_data.manage", resource: "master_data", action: "manage" },
@@ -495,6 +510,12 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
   hr_manager: [
     "organization.read",
     "membership.read",
+    // WS-3 (Owner Decision #17): a genuine, new grant — hr_manager held no
+    // audit visibility at all before this workstream (only org_admin/
+    // super_admin held the broad "audit.read"). Scoped to HR-category
+    // events only — Payroll/Security/Documents/Assets/Platform-Config audit
+    // history remains invisible to this role.
+    "audit.read.hr",
     "employee.read",
     "employee.write",
     "employee.notes.read",

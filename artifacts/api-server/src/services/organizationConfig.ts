@@ -249,6 +249,36 @@ const officeInventoryConfigSchema = z
   })
   .passthrough();
 
+// WS-3 (Audit & Sensitive-Data Security Hardening, Owner Decision #19) —
+// configuration FOUNDATION only, no purge engine: this namespace records an
+// organization's intended retention policy; nothing in this workstream (or
+// anywhere else in the repository) automatically deletes an audit_events
+// row based on it — a future, separate privileged retention workstream
+// would read this configuration to drive an actual archival/purge process,
+// not built here. Minimums are enforced in the schema itself (not just
+// documentation) so an ordinary org.update-permission holder cannot
+// configure retention "below zero" effective protection; `legalHold`, once
+// true, is a simple organization-wide flag a future purge process would
+// have to honor (refuse to purge anything) — there is no case-level legal-
+// hold system here (out of WS-3's scope, per §29).
+const auditRetentionConfigSchema = z
+  .object({
+    // Ordinary business-audit events (most of the ~340 existing call sites).
+    standardRetentionDays: z.number().int().min(90).max(3650).optional(),
+    // Security/access-category events (WS-3's own audit_category taxonomy) —
+    // floor is higher than standard, matching common security-log retention
+    // expectations.
+    securityRetentionDays: z.number().int().min(365).max(3650).optional(),
+    // Payroll-category events — floor matches typical financial-record
+    // retention expectations (longer than ordinary HR/business audit).
+    financialRetentionDays: z.number().int().min(365).max(3650).optional(),
+    // When true, a future retention/purge process must refuse to remove ANY
+    // audit history for this organization, regardless of the durations
+    // above, until explicitly cleared.
+    legalHold: z.boolean().optional(),
+  })
+  .passthrough();
+
 interface NamespaceDefinition {
   schemaVersion: number;
   schema: z.ZodType;
@@ -442,6 +472,19 @@ export const CONFIG_NAMESPACES: Record<string, NamespaceDefinition> = {
       receiptConfirmationRequired: true,
     }),
     moduleKey: "office_inventory",
+  },
+  // WS-3 (Owner Decision #19) — no moduleKey: audit retention policy applies
+  // platform-wide for an organization, independent of which HR modules are
+  // enabled.
+  audit_retention: {
+    schemaVersion: 1,
+    schema: auditRetentionConfigSchema,
+    defaults: () => ({
+      standardRetentionDays: 365,
+      securityRetentionDays: 730,
+      financialRetentionDays: 730,
+      legalHold: false,
+    }),
   },
 };
 
