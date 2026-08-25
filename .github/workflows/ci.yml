@@ -1,0 +1,252 @@
+name: CI
+
+# WS-1 (Engineering & Security Foundation). Repository reality this workflow
+# is built against (verified locally before writing this file, not guessed):
+# pnpm 9.15.0 workspace, Node.js 20+ (OPERATIONS.md), root `pnpm run
+# typecheck`/`pnpm run build` cover the whole workspace, backend tests
+# (`pnpm --filter @workspace/api-server run test`) fully mock `@workspace/db`
+# and need no real database, frontend tests use Vitest + Testing Library,
+# `pnpm --filter @workspace/db run generate` and `pnpm --filter
+# @workspace/api-spec run codegen` both run without a live database
+# connection (a placeholder DATABASE_URL only satisfies drizzle.config.ts's
+# own unset-check) and are safe drift checks in CI.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Least-privilege default; individual jobs do not need anything beyond
+# reading the repository. No job in this workflow deploys anything or needs
+# write access to the repo, PRs, or GitHub's code-scanning API.
+permissions:
+  contents: read
+
+# Cancel a superseded run on the same PR/branch rather than letting old and
+# new runs race each other for no benefit.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PNPM_VERSION: "9.15.0"
+  NODE_VERSION: "20"
+  # Every job that touches @workspace/db (directly or transitively via
+  # typecheck/build) needs SOME value here — @workspace/db throws at import
+  # time if it's unset (see lib/db/src/index.ts and OPERATIONS.md's own
+  # documented gotcha). This is never a real database: no job in this
+  # workflow opens a live connection (tests mock @workspace/db entirely;
+  # `drizzle-kit generate` only diffs local schema files against the
+  # committed migration journal). Matches the exact placeholder convention
+  # already used in artifacts/api-server/src/test/setup.ts.
+  DATABASE_URL: "postgres://ci:ci@localhost:5432/ci_placeholder"
+
+jobs:
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - name: Install dependencies (deterministic)
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck (libs + artifacts)
+        run: pnpm run typecheck
+
+  test-backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - name: Install dependencies (deterministic)
+        run: pnpm install --frozen-lockfile
+      - name: Backend tests (Vitest + Supertest, @workspace/db mocked — no live database)
+        run: pnpm --filter @workspace/api-server run test
+
+  test-frontend:
+    name: Frontend tests + lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - name: Install dependencies (deterministic)
+        run: pnpm install --frozen-lockfile
+      - name: Frontend tests (Vitest + Testing Library)
+        run: pnpm --filter @workspace/hrms run test
+      - name: Lint (max-warnings=0)
+        run: pnpm --filter @workspace/hrms run lint
+
+  build:
+    name: Production build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - name: Install dependencies (deterministic)
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck + build every package (root script)
+        run: pnpm run build
+
+  schema-drift:
+    name: DB schema drift check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - name: Install dependencies (deterministic)
+        run: pnpm install --frozen-lockfile
+      - name: Generate a migration from the current schema (no live DB — diffs local files only)
+        run: pnpm --filter @workspace/db run generate
+      - name: Fail if schema.ts and the committed migration journal have drifted
+        run: |
+          if ! git diff --quiet -- lib/db/drizzle || [ -n "$(git status --porcelain -- lib/db/drizzle)" ]; then
+            echo "::error::lib/db/schema/*.ts has changes not captured by a committed migration. Run 'pnpm --filter @workspace/db run generate' locally and commit the result." >&2
+            git status --porcelain -- lib/db/drizzle
+            git diff -- lib/db/drizzle
+            exit 1
+          fi
+          echo "No schema drift."
+
+  codegen-drift:
+    name: OpenAPI codegen drift check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - name: Install dependencies (deterministic)
+        run: pnpm install --frozen-lockfile
+      - name: Regenerate API clients/schemas from lib/api-spec/openapi.yaml
+        run: pnpm --filter @workspace/api-spec run codegen
+      - name: Fail if the generated clients don't match what's committed
+        run: |
+          if [ -n "$(git status --porcelain -- lib/api-client-react lib/api-zod)" ]; then
+            echo "::error::lib/api-spec/openapi.yaml has changed without regenerating/committing the generated clients. Run 'pnpm --filter @workspace/api-spec run codegen' locally and commit the result." >&2
+            git status --porcelain -- lib/api-client-react lib/api-zod
+            git diff -- lib/api-client-react lib/api-zod
+            exit 1
+          fi
+          echo "No codegen drift."
+
+  dependency-scan:
+    name: Dependency / SCA scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - name: Install dependencies (deterministic)
+        run: pnpm install --frozen-lockfile
+      # `pnpm audit` exits non-zero for ANY finding of ANY severity, which
+      # would make this job permanently red — the approved WS-1 policy
+      # (docs/CI_CD.md) is to fail only on CRITICAL, print everything else.
+      # `|| true` absorbs pnpm audit's own exit code; the Node script below
+      # makes the real pass/fail decision from the JSON body.
+      - name: pnpm audit (JSON) — policy-gated by tools/ci/check-pnpm-audit.mjs
+        run: pnpm audit --json > audit-result.json || true
+      - name: Enforce CRITICAL-only gate
+        run: node tools/ci/check-pnpm-audit.mjs < audit-result.json
+
+  secret-scan:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history — gitleaks scans commit history, not just the working tree
+      # Runs the open-source `gitleaks` CLI directly via its official image
+      # rather than a Marketplace wrapper action, to avoid any dependency on
+      # that action's own licensing terms for private repositories — this is
+      # just the OSS `detect` command, nothing else.
+      - name: gitleaks detect
+        run: |
+          docker run --rm -v "${{ github.workspace }}:/repo" zricethezav/gitleaks:latest \
+            detect --source=/repo --redact --exit-code 1 --no-banner \
+            --report-format=json --report-path=/repo/gitleaks-report.json
+      - name: Upload report (redacted — no secret values, just locations)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.json
+          retention-days: 14
+          if-no-files-found: ignore
+
+  sast:
+    name: SAST (CodeQL)
+    runs-on: ubuntu-latest
+    # CodeQL needs to read+write its own analysis workspace; it does NOT get
+    # security-events:write here because `upload` is deliberately disabled
+    # below (see step comment) — this job never needs that permission.
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+      # `upload: false` is deliberate, not an oversight: uploading SARIF to
+      # GitHub's Security/code-scanning tab requires GitHub Advanced Security
+      # to be enabled for PRIVATE repositories, which this workflow cannot
+      # verify or enable itself. Analysis still runs in full on every PR;
+      # results are published as a downloadable artifact instead, so this
+      # job can never fail purely because of a plan/licensing gap. Once GHAS
+      # status for this repository is confirmed (docs/CI_CD.md tracks this
+      # as a known limitation), flip `upload: true` (the default) to get
+      # results directly in the Security tab.
+      - name: Run CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          upload: false
+          output: codeql-results
+      - name: Upload SARIF as a build artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codeql-results
+          path: codeql-results
+          retention-days: 14
+          if-no-files-found: ignore

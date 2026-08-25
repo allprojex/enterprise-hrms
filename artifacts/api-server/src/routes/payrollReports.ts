@@ -13,6 +13,7 @@ import { requireMembership, type MembershipRequest } from "../middlewares/requir
 import { requireModuleEnabled } from "../middlewares/requireModuleEnabled";
 import { requirePermission } from "../middlewares/requirePermission";
 import { hasPermission } from "../lib/permissions";
+import { toCsv } from "../lib/reporting";
 import {
   runPayrollReport,
   isKnownPayrollReportKey,
@@ -29,16 +30,8 @@ function parseId(raw: string | string[] | undefined): number {
   return parseInt(value ?? "", 10);
 }
 
-/** Mirrors reporting.ts's/personnelReporting.ts's own toCsv exactly — same established convention, including the same known, pre-existing, platform-wide formula-injection gap (not introduced or fixed here). */
-function toCsv(columns: { key: string; label: string }[], rows: Record<string, string | number | null>[]): string {
-  const escape = (value: string | number | null) => {
-    const str = String(value ?? "");
-    return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
-  };
-  const header = columns.map((c) => escape(c.label)).join(",");
-  const body = rows.map((row) => columns.map((c) => escape(row[c.key])).join(","));
-  return [header, ...body].join("\n");
-}
+// toCsv (formula-injection-safe) is now the shared lib/reporting.ts primitive
+// (WS-1) — this file's own local, unhardened copy was removed.
 
 // GET /organizations/:organizationId/payroll/runs/:runId/reports/:reportKey?format=
 router.get(

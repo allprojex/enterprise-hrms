@@ -1,0 +1,63 @@
+# WS-1 (Engineering & Security Foundation) — LOCAL DEVELOPMENT / MANUAL
+# VALIDATION convenience only. This is NOT the production topology: real
+# deployments point DATABASE_URL at an externally managed Postgres (Supabase,
+# a managed RDS/Cloud SQL instance, or a customer's own dedicated database
+# per docs/DEPLOYMENT_AND_TENANT_ARCHITECTURE.md) — this file exists purely
+# so a developer (or a future CI job) can run `docker compose up` and get the
+# app container talking to a real, throwaway Postgres without hand-wiring
+# `docker run` flags, exactly the manual steps used to validate this
+# Dockerfile during WS-1. It intentionally does NOT attempt to reproduce
+# Supabase locally — that's an external managed service, not a container.
+#
+# Migrations are NOT run automatically by this file (see the Dockerfile's own
+# "no automatic migration on container start" comment and docs/CI_CD.md's
+# migration-boundary section) — after `docker compose up -d db`, run
+# `DATABASE_URL=postgres://hrms:hrms@localhost:5433/hrms pnpm --filter
+# @workspace/db run migrate` once from the host before starting `app`.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hrms
+      POSTGRES_PASSWORD: hrms
+      POSTGRES_DB: hrms
+    ports:
+      - "5433:5432" # host:container — 5433 to avoid colliding with a local Postgres on the default 5432
+    volumes:
+      - hrms-ws1-local-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hrms"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      DATABASE_URL: postgres://hrms:hrms@db:5432/hrms
+      # CORS_ORIGIN / APP_BASE_URL / RESEND_API_KEY / EMAIL_FROM_ADDRESS /
+      # RELEASE_VERSION: intentionally left unset here — see .env.example
+      # for what each does. Override via `docker compose run -e KEY=value`
+      # or a local, gitignored `.env` referenced with `env_file:` if needed;
+      # never hard-code a real value into this checked-in file.
+    ports:
+      - "3001:3001"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3001/api/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+volumes:
+  hrms-ws1-local-pgdata:

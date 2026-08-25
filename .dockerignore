@@ -1,0 +1,58 @@
+# WS-1 (Engineering & Security Foundation). Keeps the Docker build context to
+# actual source — never ships local secrets, dev caches, or build output into
+# an image layer.
+
+# Version control
+.git
+.github
+
+# Dependencies (reinstalled inside the image, never copied from the host)
+node_modules
+**/node_modules
+
+# Build output (rebuilt inside the image; a stale host-built dist/ must never
+# leak into the image and silently shadow what the image actually built)
+dist
+**/dist
+out-tsc
+.vite
+**/.vite
+*.tsbuildinfo
+
+# Local secrets — never baked into an image layer
+.env
+.env.*
+!.env.example
+.mcp.json
+
+# Local tooling / editor / OS noise
+.cache/
+.local/
+.idea
+.vscode
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log
+yarn-error.log
+
+# Test/coverage artifacts
+coverage
+/typings
+
+# Claude Code / agent-runtime local state — never relevant inside the image
+.claude
+.agents
+CLAUDE.md
+CONTRIBUTING.md
+skills-lock.json
+
+# Uploaded files stored on local disk in dev — never bake tenant file data
+# into an image; production file storage is a mounted volume, not the image
+artifacts/api-server/uploads
+
+# Docker/CI metadata itself doesn't need to be in the build context twice
+Dockerfile
+.dockerignore
+docker-compose.yml
+compose.yaml

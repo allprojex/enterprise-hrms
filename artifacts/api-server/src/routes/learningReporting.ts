@@ -17,7 +17,7 @@ import { requireMembership, type MembershipRequest } from "../middlewares/requir
 import { requirePermission } from "../middlewares/requirePermission";
 import { requireModuleEnabled } from "../middlewares/requireModuleEnabled";
 import { LEARNING_MODULE_KEY } from "../lib/learningAuthorization";
-import { getReportDefinition } from "../lib/reporting";
+import { getReportDefinition, toCsv } from "../lib/reporting";
 import {
   resolveLearningReportScope,
   buildLearningReportContext,
@@ -36,23 +36,8 @@ function optionalId(raw: unknown): number | undefined {
   return isNaN(parsed) ? undefined : parsed;
 }
 
-/**
- * Mirrors performanceReporting.ts's own local toCsv exactly — same
- * established convention, including the same known, pre-existing gap: no
- * spreadsheet-formula-injection escaping (a leading =/+/-/@ is passed
- * through unescaped). Shared with every other reporting surface on this
- * platform, not introduced or redesigned here — flagged, not fixed, in the
- * W92 completion report.
- */
-function toCsv(columns: { key: string; label: string }[], rows: Record<string, string | number | null>[]): string {
-  const escape = (value: string | number) => {
-    const str = String(value);
-    return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
-  };
-  const header = columns.map((c) => escape(c.label)).join(",");
-  const body = rows.map((row) => columns.map((c) => escape(row[c.key] ?? "")).join(","));
-  return [header, ...body].join("\n");
-}
+// toCsv (formula-injection-safe) is now the shared lib/reporting.ts primitive
+// (WS-1) — this file's own local, unhardened copy was removed.
 
 // GET /organizations/:organizationId/learning/dashboard
 router.get(

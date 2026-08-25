@@ -126,13 +126,42 @@ export async function runReport(key: string, organizationId: number): Promise<Re
   };
 }
 
+/**
+ * Formula-injection-safe CSV cell serialization (WS-1, Engineering & Security
+ * Foundation). Every reporting route on this platform used to define its own
+ * local copy of this exact escaping logic — some hardened (Office Inventory,
+ * Payroll payment batches — the two routes that had already independently
+ * adopted a leading `'` guard), most not (this file's own prior `toCsv`
+ * included). This is now the ONE shared primitive: every CSV-producing route
+ * imports it from here rather than redefining it, closing the platform-wide
+ * gap in one place instead of per-file. A cell whose string form begins with
+ * `=`, `+`, `-`, `@`, a tab, or a carriage return — the character set a
+ * spreadsheet application treats as "this cell is a formula" — is prefixed
+ * with a single leading `'`, which every mainstream spreadsheet application
+ * renders as a literal apostrophe-quoted string, never as a formula trigger.
+ * A genuine `number`-typed cell (as opposed to a string that merely looks
+ * numeric) is never guarded, even if it's negative — a real negative amount
+ * (e.g. `-42`) is exported as the plain numeral `-42`, preserving its numeric
+ * type in the spreadsheet. Only string/boolean values are tested against the
+ * dangerous-leading-character pattern, since those are the values that can
+ * actually originate as free-text a user typed (a name, a note, an address);
+ * a `number` can never be a formula-injection vector regardless of sign, so
+ * guarding it would only ever destroy legitimate numeric data for no
+ * security benefit. (This refines, rather than copies byte-for-byte, the
+ * existing Office Inventory/Payroll-payment-batch precedent, which applies
+ * the guard by stringified leading character only and does not make this
+ * type distinction — kept local to those two already-shipped, already-
+ * reviewed files rather than changed retroactively here.)
+ */
+export function safeCsvCell(value: string | number | boolean | null | undefined): string {
+  let str = String(value ?? "");
+  if (typeof value !== "number" && /^[=+\-@\t\r]/.test(str)) str = `'${str}`;
+  return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+}
+
 /** Export abstraction (ADR-016): the same {columns, rows} shape every report produces serializes to CSV uniformly, with no per-report special-casing. */
-export function toCsv(columns: ReportColumn[], rows: Record<string, string | number>[]): string {
-  const escape = (value: string | number) => {
-    const str = String(value);
-    return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
-  };
-  const header = columns.map((c) => escape(c.label)).join(",");
-  const body = rows.map((row) => columns.map((c) => escape(row[c.key] ?? "")).join(","));
+export function toCsv(columns: ReportColumn[], rows: Record<string, string | number | boolean | null | undefined>[]): string {
+  const header = columns.map((c) => safeCsvCell(c.label)).join(",");
+  const body = rows.map((row) => columns.map((c) => safeCsvCell(row[c.key])).join(","));
   return [header, ...body].join("\n");
 }

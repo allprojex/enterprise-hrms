@@ -10,7 +10,7 @@ import { Router } from "express";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireMembership, type MembershipRequest } from "../middlewares/requireMembership";
 import { requirePermission } from "../middlewares/requirePermission";
-import { getReportDefinition } from "../lib/reporting";
+import { getReportDefinition, toCsv } from "../lib/reporting";
 import { runPersonnelReport, isKnownPersonnelReportKey, PersonnelReportNotFoundError } from "../lib/personnelReporting";
 
 const router = Router();
@@ -22,23 +22,8 @@ function optionalId(raw: unknown): number | undefined {
   return isNaN(parsed) ? undefined : parsed;
 }
 
-/**
- * Mirrors assetReporting.ts's/performanceReporting.ts's/learningReporting.ts's
- * own local toCsv exactly — same established convention, including the same
- * known, pre-existing, platform-wide gap: no spreadsheet-formula-injection
- * escaping (a leading =/+/-/@ is passed through unescaped). Not introduced
- * here, not silently redesigned here — flagged, not fixed, matching every
- * prior reporting workstream's own disclosure.
- */
-function toCsv(columns: { key: string; label: string }[], rows: Record<string, string | number | null>[]): string {
-  const escape = (value: string | number) => {
-    const str = String(value);
-    return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
-  };
-  const header = columns.map((c) => escape(c.label)).join(",");
-  const body = rows.map((row) => columns.map((c) => escape(row[c.key] ?? "")).join(","));
-  return [header, ...body].join("\n");
-}
+// toCsv (formula-injection-safe) is now the shared lib/reporting.ts primitive
+// (WS-1) — this file's own local, unhardened copy was removed.
 
 // GET /organizations/:organizationId/personnel-records/reports/:reportKey?employeeId=&format=
 router.get(
