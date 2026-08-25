@@ -421,6 +421,13 @@
       "when": 1787635274755,
       "tag": "0059_damp_nextwave",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1787695185313,
+      "tag": "0060_high_menace",
+      "breakpoints": true
     }
   ]
 }

@@ -17,6 +17,8 @@ import Settings from '@/pages/settings';
 import Unauthorized from '@/pages/unauthorized';
 import NotFound from '@/pages/not-found';
 import Branches from '@/pages/branches';
+import OrganizationDocuments from '@/pages/organization-documents';
+import DocumentTemplates from '@/pages/document-templates';
 import Departments from '@/pages/departments';
 import Positions from '@/pages/positions';
 import Employees from '@/pages/employees';
@@ -142,6 +144,12 @@ function Router() {
       </Route>
       <Route path="/positions">
         {() => <SecureRoute component={Positions} />}
+      </Route>
+      <Route path="/documents">
+        {() => <SecureRoute component={OrganizationDocuments} />}
+      </Route>
+      <Route path="/document-templates">
+        {() => <SecureRoute component={DocumentTemplates} />}
       </Route>
       <Route path="/employees/:id">
         {() => <SecureRoute component={EmployeeDetail} />}

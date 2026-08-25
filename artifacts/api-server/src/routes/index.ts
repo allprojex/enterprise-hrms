@@ -103,6 +103,9 @@ import officeInventoryStocktakesRouter from "./officeInventoryStocktakes";
 import officeInventoryEssRouter from "./officeInventoryEss";
 import officeInventoryReportingRouter from "./officeInventoryReporting";
 import officeInventoryAssetHandoffRouter from "./officeInventoryAssetHandoff";
+import organizationDocumentsRouter from "./organizationDocuments";
+import documentTemplatesRouter from "./documentTemplates";
+import documentRecordsRouter from "./documentRecords";
 
 const router: IRouter = Router();
 
@@ -222,5 +225,13 @@ router.use(officeInventoryStocktakesRouter);
 router.use(officeInventoryEssRouter);
 router.use(officeInventoryReportingRouter);
 router.use(officeInventoryAssetHandoffRouter);
+// WS-5 — Documents & Records Foundation. organizationDocumentsRouter
+// registers its literal .../documents/categories path before its own
+// .../documents/:documentId, so Express's registration-order matching
+// resolves the literal one correctly (the same ordering hazard documented
+// for assetReporting/officeInventoryIssuing above).
+router.use(organizationDocumentsRouter);
+router.use(documentTemplatesRouter);
+router.use(documentRecordsRouter);
 
 export default router;

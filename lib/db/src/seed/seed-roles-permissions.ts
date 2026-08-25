@@ -417,6 +417,43 @@ const PERMISSIONS = [
   { key: "office_inventory.stocktake", resource: "office_inventory", action: "stocktake" },
   { key: "office_inventory.asset_handoff", resource: "office_inventory", action: "asset_handoff" },
   { key: "office_inventory.reports.read", resource: "office_inventory", action: "reports.read" },
+  // WS-5 — Documents & Records Foundation (Owner Decision #4). Deliberately
+  // seven keys, not one per document category (§32 explicitly forbids
+  // category-specific keys). The split follows the authority boundaries the
+  // frozen scope draws, not the table layout:
+  //
+  //   .read/.manage    — the organization-level document repository.
+  //   .verify          — §13: uploading a document is not verifying it, so
+  //                      verification authority is separable from the
+  //                      ability to upload.
+  //   .retention.manage— archive/legal-hold/disposal (§15-17). Separable
+  //                      from .manage on the same least-privilege reasoning
+  //                      W116 used to keep personnel_file.movement.write
+  //                      out of personnel_file.manage: someone who maintains
+  //                      documents does not thereby get to dispose of them.
+  //   .sensitive.read  — reading a category the organization marked
+  //                      confidential (§34).
+  //
+  // Existing employee/candidate document routes keep their current
+  // employee.*/recruitment gates untouched (§32 "reuse existing permissions
+  // where they are semantically correct", §55 regression) — these keys gate
+  // only the surfaces WS-5 introduces.
+  //
+  // Granted below to org_admin and hr_manager (the roles that already hold
+  // personnel_file.read/.manage — digital records authority belongs with the
+  // same records-officer function), except `.retention.manage`, which is
+  // registered but assigned to no role: authorizing destruction of records
+  // is a deliberate per-organization delegation, following the same
+  // "register once, assign explicitly" precedent Payroll/Office Inventory
+  // established. super_admin receives all of them only through the
+  // pre-existing blanket grant.
+  { key: "organization_document.read", resource: "organization_document", action: "read" },
+  { key: "organization_document.manage", resource: "organization_document", action: "manage" },
+  { key: "organization_document.sensitive.read", resource: "organization_document", action: "sensitive.read" },
+  { key: "document.verify", resource: "document", action: "verify" },
+  { key: "document.retention.manage", resource: "document", action: "retention.manage" },
+  { key: "document_template.read", resource: "document_template", action: "read" },
+  { key: "document_template.manage", resource: "document_template", action: "manage" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -506,6 +543,14 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "personnel_file.read",
     "personnel_file.manage",
     "personnel_file.movement.write",
+    // WS-5 — see the permission block above for why .retention.manage is
+    // deliberately absent from every seeded role.
+    "organization_document.read",
+    "organization_document.manage",
+    "organization_document.sensitive.read",
+    "document.verify",
+    "document_template.read",
+    "document_template.manage",
   ],
   hr_manager: [
     "organization.read",
@@ -591,6 +636,15 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "personnel_file.read",
     "personnel_file.manage",
     "personnel_file.movement.write",
+    // WS-5 — same set as org_admin: hr_manager already holds the equivalent
+    // physical-records authority (personnel_file.*), so digital records
+    // authority belongs here too. .retention.manage remains unassigned.
+    "organization_document.read",
+    "organization_document.manage",
+    "organization_document.sensitive.read",
+    "document.verify",
+    "document_template.read",
+    "document_template.manage",
   ],
   employee: [
     "organization.read",

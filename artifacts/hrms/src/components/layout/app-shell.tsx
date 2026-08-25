@@ -35,6 +35,7 @@ import {
   ListChecks,
   Ruler,
   FileText,
+  FolderOpen,
   GraduationCap,
   Boxes,
   Warehouse,
@@ -470,6 +471,13 @@ export function AppShell({ children }: AppShellProps) {
         { href: '/branches', label: 'Branches', icon: MapPin },
         { href: '/departments', label: 'Departments', icon: Network },
         { href: '/positions', label: 'Positions', icon: Briefcase },
+        // WS-5 — Documents & Records Foundation. Same isHrCapable-only nav
+        // precedent as the other records surfaces above; the backend remains
+        // organization_document.*/document_template.*-gated, so a non-HR
+        // caller who navigates directly is still correctly authorized. Not
+        // module-gated: WS-5 is foundation, not an optional module.
+        ...(isHrCapable ? [{ href: '/documents', label: 'Documents & Records', icon: FolderOpen } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/document-templates', label: 'Document Templates', icon: FileSignature } satisfies NavItem] : []),
       ],
     },
     {

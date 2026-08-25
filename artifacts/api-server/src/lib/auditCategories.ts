@@ -53,6 +53,18 @@ const CATEGORY_BY_PREFIX: Record<string, AuditCategory> = {
   personnel_file_volume: "documents",
   personnel_records: "documents",
   records_location: "documents",
+  // WS-5 (Documents & Records Foundation, Owner Decision #4): the digital
+  // documents domain — the organization-level repository, the shared
+  // requirement/verification checklist, retention/legal-hold/disposal, and
+  // the template/generation engine. Registered here for the same reason
+  // every prefix above is: this is the one place categorization happens, so
+  // no WS-5 call site passes a category itself.
+  organization_document: "documents",
+  document_requirement: "documents",
+  document_retention: "documents",
+  document_template: "documents",
+  document_category: "documents",
+  generated_document: "documents",
 
   // --- assets / inventory ---
   asset: "assets_inventory",

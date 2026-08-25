@@ -16234,3 +16234,1127 @@ export const CreateOfficeInventoryAssetHandoffResponse = zod.object({
 })
 
 
+/**
+ * The organization's active "document_category" Master Data items, each merged with its resolved behavior (verification/expiry/ sensitivity/retention). A category with no settings row resolves to safe defaults rather than an error.
+ * @summary List document categories with their configured behavior
+ */
+export const ListDocumentCategoriesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListDocumentCategoriesResponseItem = zod.object({
+  "categoryCode": zod.string(),
+  "label": zod.string(),
+  "verificationRequired": zod.boolean(),
+  "expirySupported": zod.boolean(),
+  "expiryRequired": zod.boolean(),
+  "sensitivity": zod.enum(['standard', 'confidential']),
+  "retentionBasis": zod.string().nullish(),
+  "retentionPeriodMonths": zod.number().nullish()
+}).describe('A document category available to the organization — a \"document_category\" Master Data item merged with its resolved behavior. A category with no settings row resolves to safe defaults (not confidential, no expiry, no verification required).')
+export const ListDocumentCategoriesResponse = zod.array(ListDocumentCategoriesResponseItem)
+
+
+/**
+ * Creates or updates this organization's own settings row for a category. Never modifies a platform-wide default row, so one organization's configuration can never change another's.
+ * @summary Configure a document category's behavior
+ */
+export const UpdateDocumentCategorySettingsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "categoryCode": zod.coerce.string()
+})
+
+export const UpdateDocumentCategorySettingsBody = zod.object({
+  "verificationRequired": zod.boolean().optional(),
+  "expirySupported": zod.boolean().optional(),
+  "expiryRequired": zod.boolean().optional().describe('Implies expirySupported — setting this true normalizes that to true as well.'),
+  "sensitivity": zod.enum(['standard', 'confidential']).optional(),
+  "retentionBasis": zod.string().nullish(),
+  "retentionPeriodMonths": zod.number().nullish()
+}).describe('Every field is optional; omitted fields keep their current value.')
+
+export const UpdateDocumentCategorySettingsResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number().nullish(),
+  "categoryCode": zod.string(),
+  "verificationRequired": zod.boolean(),
+  "expirySupported": zod.boolean(),
+  "expiryRequired": zod.boolean(),
+  "sensitivity": zod.enum(['standard', 'confidential']),
+  "retentionBasis": zod.string().nullish(),
+  "retentionPeriodMonths": zod.number().nullish(),
+  "createdAt": zod.coerce.date().optional(),
+  "updatedAt": zod.coerce.date().optional()
+})
+
+
+/**
+ * Metadata only — no file bytes are read. Each row carries its current version inline so the list needs no per-row follow-up query.
+ * @summary List organization documents
+ */
+export const ListOrganizationDocumentsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListOrganizationDocumentsQueryParams = zod.object({
+  "categoryCode": zod.coerce.string().optional(),
+  "status": zod.enum(['active', 'archived']).optional(),
+  "search": zod.coerce.string().optional().describe('Case-insensitive substring match on the document title.'),
+  "expiringBefore": zod.date().optional().describe('Only documents whose current version expires on or before this date.')
+})
+
+export const ListOrganizationDocumentsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "categoryCode": zod.string(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['active', 'archived']),
+  "currentVersionId": zod.number().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "currentVersion": zod.object({
+  "id": zod.number(),
+  "versionNumber": zod.number(),
+  "fileName": zod.string(),
+  "mimeType": zod.string(),
+  "fileSize": zod.number(),
+  "effectiveDate": zod.coerce.date().nullish(),
+  "expiryDate": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+}).describe('The current version summary embedded in a document list row.').nullish()
+}).describe('A document owned by the organization itself (handbook, policy, form, procedure). Not a Personnel File — physical custody is a separate domain with no storage columns.')
+export const ListOrganizationDocumentsResponse = zod.array(ListOrganizationDocumentsResponseItem)
+
+
+/**
+ * multipart/form-data upload. PDF, JPEG, PNG, DOCX, and XLSX only, validated by file signature rather than the declared Content-Type, 10MB max. Creates the document, its version 1, and its retention record in one transaction; a failure deletes the just-written storage object rather than leaving a dangling reference.
+ * @summary Create an organization document with its first version
+ */
+export const CreateOrganizationDocumentParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const CreateOrganizationDocumentBody = zod.object({
+  "file": zod.instanceof(File),
+  "categoryCode": zod.string().describe('Must be an active category for this organization.'),
+  "title": zod.string(),
+  "description": zod.string().optional(),
+  "effectiveDate": zod.coerce.date().optional(),
+  "expiryDate": zod.coerce.date().optional()
+})
+
+export const CreateOrganizationDocumentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "categoryCode": zod.string(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['active', 'archived']),
+  "currentVersionId": zod.number().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "currentVersion": zod.object({
+  "id": zod.number(),
+  "versionNumber": zod.number(),
+  "fileName": zod.string(),
+  "mimeType": zod.string(),
+  "fileSize": zod.number(),
+  "effectiveDate": zod.coerce.date().nullish(),
+  "expiryDate": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+}).describe('The current version summary embedded in a document list row.').nullish()
+}).describe('A document owned by the organization itself (handbook, policy, form, procedure). Not a Personnel File — physical custody is a separate domain with no storage columns.')
+
+
+/**
+ * @summary Get one organization document
+ */
+export const GetOrganizationDocumentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "documentId": zod.coerce.number()
+})
+
+export const GetOrganizationDocumentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "categoryCode": zod.string(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['active', 'archived']),
+  "currentVersionId": zod.number().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "currentVersion": zod.object({
+  "id": zod.number(),
+  "versionNumber": zod.number(),
+  "fileName": zod.string(),
+  "mimeType": zod.string(),
+  "fileSize": zod.number(),
+  "effectiveDate": zod.coerce.date().nullish(),
+  "expiryDate": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+}).describe('The current version summary embedded in a document list row.').nullish()
+}).describe('A document owned by the organization itself (handbook, policy, form, procedure). Not a Personnel File — physical custody is a separate domain with no storage columns.')
+
+
+/**
+ * @summary Update a document's title or description
+ */
+export const UpdateOrganizationDocumentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "documentId": zod.coerce.number()
+})
+
+export const UpdateOrganizationDocumentBody = zod.object({
+  "title": zod.string().optional(),
+  "description": zod.string().nullish()
+})
+
+export const UpdateOrganizationDocumentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "categoryCode": zod.string(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['active', 'archived']),
+  "currentVersionId": zod.number().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "currentVersion": zod.object({
+  "id": zod.number(),
+  "versionNumber": zod.number(),
+  "fileName": zod.string(),
+  "mimeType": zod.string(),
+  "fileSize": zod.number(),
+  "effectiveDate": zod.coerce.date().nullish(),
+  "expiryDate": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+}).describe('The current version summary embedded in a document list row.').nullish()
+}).describe('A document owned by the organization itself (handbook, policy, form, procedure). Not a Personnel File — physical custody is a separate domain with no storage columns.')
+
+
+/**
+ * Newest first. Superseded versions are retained permanently and stay downloadable — a new upload never destroys a prior version.
+ * @summary List a document's full version history
+ */
+export const ListOrganizationDocumentVersionsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "documentId": zod.coerce.number()
+})
+
+export const ListOrganizationDocumentVersionsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "documentId": zod.number(),
+  "versionNumber": zod.number(),
+  "storageKey": zod.string(),
+  "fileName": zod.string(),
+  "mimeType": zod.string(),
+  "fileSize": zod.number(),
+  "status": zod.enum(['current', 'superseded']),
+  "effectiveDate": zod.coerce.date().nullish(),
+  "expiryDate": zod.coerce.date().nullish(),
+  "changeNote": zod.string().nullish(),
+  "supersededAt": zod.coerce.date().nullish(),
+  "supersededBy": zod.number().nullish(),
+  "uploadedBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+}).describe('One immutable version of an organization document. Superseded versions retain their row and their stored object permanently.')
+export const ListOrganizationDocumentVersionsResponse = zod.array(ListOrganizationDocumentVersionsResponseItem)
+
+
+/**
+ * The previous current version is marked superseded in the same transaction; its row and stored object are left intact. Returns 409 if a concurrent upload won the race (retry against the new head) or if the document is archived.
+ * @summary Upload a new version, superseding the current one
+ */
+export const AddOrganizationDocumentVersionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "documentId": zod.coerce.number()
+})
+
+export const AddOrganizationDocumentVersionBody = zod.object({
+  "file": zod.instanceof(File),
+  "changeNote": zod.string().optional(),
+  "effectiveDate": zod.coerce.date().optional(),
+  "expiryDate": zod.coerce.date().optional()
+})
+
+export const AddOrganizationDocumentVersionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "documentId": zod.number(),
+  "versionNumber": zod.number(),
+  "storageKey": zod.string(),
+  "fileName": zod.string(),
+  "mimeType": zod.string(),
+  "fileSize": zod.number(),
+  "status": zod.enum(['current', 'superseded']),
+  "effectiveDate": zod.coerce.date().nullish(),
+  "expiryDate": zod.coerce.date().nullish(),
+  "changeNote": zod.string().nullish(),
+  "supersededAt": zod.coerce.date().nullish(),
+  "supersededBy": zod.number().nullish(),
+  "uploadedBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+}).describe('One immutable version of an organization document. Superseded versions retain their row and their stored object permanently.')
+
+
+/**
+ * Authorization is re-proved before any storage read: the document must belong to this organization and the version to that document. If the category is marked confidential the caller additionally needs organization_document.sensitive.read, and the read is audited. Knowing an id or a storage key never grants access.
+ * @summary Download one version's file
+ */
+export const DownloadOrganizationDocumentVersionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "documentId": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const DownloadOrganizationDocumentVersionResponse = zod.unknown()
+
+
+/**
+ * The complete set of fields a template may reference. A token naming anything outside this list is rejected when the template version is saved. Deliberately contains no payroll, banking, or statutory identifier field.
+ * @summary List the allow-listed merge fields
+ */
+export const ListDocumentMergeFieldsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListDocumentMergeFieldsResponseItem = zod.object({
+  "key": zod.string(),
+  "label": zod.string()
+}).describe('One allow-listed merge field. A template token naming anything outside this set is rejected when the version is saved.')
+export const ListDocumentMergeFieldsResponse = zod.array(ListDocumentMergeFieldsResponseItem)
+
+
+/**
+ * @summary List document templates
+ */
+export const ListDocumentTemplatesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListDocumentTemplatesQueryParams = zod.object({
+  "categoryCode": zod.coerce.string().optional(),
+  "status": zod.enum(['active', 'inactive']).optional()
+})
+
+export const ListDocumentTemplatesResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "categoryCode": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "currentVersionId": zod.number().nullish(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "currentVersion": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateId": zod.number(),
+  "versionNumber": zod.number(),
+  "content": zod.string(),
+  "format": zod.enum(['plain_text']),
+  "status": zod.enum(['draft', 'active', 'superseded']),
+  "approvedBy": zod.number().nullish(),
+  "approvedAt": zod.coerce.date().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+}).describe('One immutable version of a template\'s content. Draft versions are editable in place; active and superseded ones never are.').nullish()
+})
+export const ListDocumentTemplatesResponse = zod.array(ListDocumentTemplatesResponseItem)
+
+
+/**
+ * Template content is plain text containing allow-listed {{merge.field}} tokens. Content referencing an unknown field is rejected here, at authoring time, rather than silently at generation time on an official letter.
+ * @summary Create a template with its first draft version
+ */
+export const CreateDocumentTemplateParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const CreateDocumentTemplateBody = zod.object({
+  "name": zod.string(),
+  "categoryCode": zod.string(),
+  "description": zod.string().nullish(),
+  "content": zod.string()
+})
+
+export const CreateDocumentTemplateResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "categoryCode": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "currentVersionId": zod.number().nullish(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "currentVersion": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateId": zod.number(),
+  "versionNumber": zod.number(),
+  "content": zod.string(),
+  "format": zod.enum(['plain_text']),
+  "status": zod.enum(['draft', 'active', 'superseded']),
+  "approvedBy": zod.number().nullish(),
+  "approvedAt": zod.coerce.date().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+}).describe('One immutable version of a template\'s content. Draft versions are editable in place; active and superseded ones never are.').nullish()
+})
+
+
+/**
+ * @summary Get one template
+ */
+export const GetDocumentTemplateParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "templateId": zod.coerce.number()
+})
+
+export const GetDocumentTemplateResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "categoryCode": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "currentVersionId": zod.number().nullish(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "currentVersion": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateId": zod.number(),
+  "versionNumber": zod.number(),
+  "content": zod.string(),
+  "format": zod.enum(['plain_text']),
+  "status": zod.enum(['draft', 'active', 'superseded']),
+  "approvedBy": zod.number().nullish(),
+  "approvedAt": zod.coerce.date().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+}).describe('One immutable version of a template\'s content. Draft versions are editable in place; active and superseded ones never are.').nullish()
+})
+
+
+/**
+ * @summary Activate or deactivate a template
+ */
+export const UpdateDocumentTemplateStatusParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "templateId": zod.coerce.number()
+})
+
+export const UpdateDocumentTemplateStatusBody = zod.object({
+  "status": zod.enum(['active', 'inactive'])
+})
+
+export const UpdateDocumentTemplateStatusResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "categoryCode": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "currentVersionId": zod.number().nullish(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "currentVersion": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateId": zod.number(),
+  "versionNumber": zod.number(),
+  "content": zod.string(),
+  "format": zod.enum(['plain_text']),
+  "status": zod.enum(['draft', 'active', 'superseded']),
+  "approvedBy": zod.number().nullish(),
+  "approvedAt": zod.coerce.date().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+}).describe('One immutable version of a template\'s content. Draft versions are editable in place; active and superseded ones never are.').nullish()
+})
+
+
+/**
+ * @summary List a template's version history
+ */
+export const ListDocumentTemplateVersionsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "templateId": zod.coerce.number()
+})
+
+export const ListDocumentTemplateVersionsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateId": zod.number(),
+  "versionNumber": zod.number(),
+  "content": zod.string(),
+  "format": zod.enum(['plain_text']),
+  "status": zod.enum(['draft', 'active', 'superseded']),
+  "approvedBy": zod.number().nullish(),
+  "approvedAt": zod.coerce.date().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+}).describe('One immutable version of a template\'s content. Draft versions are editable in place; active and superseded ones never are.')
+export const ListDocumentTemplateVersionsResponse = zod.array(ListDocumentTemplateVersionsResponseItem)
+
+
+/**
+ * How an already-active template is edited. Prior versions keep their content permanently, so any artifact generated from one stays explainable by reading it.
+ * @summary Start a new draft version
+ */
+export const CreateDocumentTemplateVersionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "templateId": zod.coerce.number()
+})
+
+export const CreateDocumentTemplateVersionBody = zod.object({
+  "content": zod.string()
+})
+
+export const CreateDocumentTemplateVersionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateId": zod.number(),
+  "versionNumber": zod.number(),
+  "content": zod.string(),
+  "format": zod.enum(['plain_text']),
+  "status": zod.enum(['draft', 'active', 'superseded']),
+  "approvedBy": zod.number().nullish(),
+  "approvedAt": zod.coerce.date().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+}).describe('One immutable version of a template\'s content. Draft versions are editable in place; active and superseded ones never are.')
+
+
+/**
+ * Draft versions only. Editing an active or superseded version returns 409 — that immutability is what makes an already-generated artifact's provenance meaningful.
+ * @summary Edit a draft version's content
+ */
+export const UpdateDocumentTemplateVersionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "templateId": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const UpdateDocumentTemplateVersionBody = zod.object({
+  "content": zod.string()
+})
+
+export const UpdateDocumentTemplateVersionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateId": zod.number(),
+  "versionNumber": zod.number(),
+  "content": zod.string(),
+  "format": zod.enum(['plain_text']),
+  "status": zod.enum(['draft', 'active', 'superseded']),
+  "approvedBy": zod.number().nullish(),
+  "approvedAt": zod.coerce.date().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+}).describe('One immutable version of a template\'s content. Draft versions are editable in place; active and superseded ones never are.')
+
+
+/**
+ * Supersedes whichever version was active. A partial unique index guarantees at most one active version per template, so concurrent activations cannot both succeed.
+ * @summary Make a version the active one
+ */
+export const ActivateDocumentTemplateVersionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "templateId": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const ActivateDocumentTemplateVersionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateId": zod.number(),
+  "versionNumber": zod.number(),
+  "content": zod.string(),
+  "format": zod.enum(['plain_text']),
+  "status": zod.enum(['draft', 'active', 'superseded']),
+  "approvedBy": zod.number().nullish(),
+  "approvedAt": zod.coerce.date().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+}).describe('One immutable version of a template\'s content. Draft versions are editable in place; active and superseded ones never are.')
+
+
+/**
+ * Renders against obviously-fake sample values, never a real employee record — holding document_template.manage conveys no entitlement to any individual's data, so preview must not become a way to read one by guessing merge fields. Writes nothing: no storage object, no generated-document row, no audit event.
+ * @summary Preview a version rendered with synthetic sample data
+ */
+export const PreviewDocumentTemplateVersionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "templateId": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const PreviewDocumentTemplateVersionResponse = zod.object({
+  "text": zod.string()
+}).describe('Preview text rendered with synthetic sample data, never a real record.')
+
+
+/**
+ * Renders the template's ACTIVE version against the named employee and stores the resulting PDF, recording exactly which template version produced it. The merge context is resolved server-side from the employee record inside the caller's own organization — never from request-body values — so another person's details cannot be injected and cross-organization generation is impossible. Later template edits never alter this artifact.
+ * @summary Generate an official document from a template's active version
+ */
+export const GenerateDocumentFromTemplateParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "templateId": zod.coerce.number()
+})
+
+export const GenerateDocumentFromTemplateBody = zod.object({
+  "employeeId": zod.number(),
+  "effectiveDate": zod.coerce.date().optional(),
+  "reference": zod.string().nullish()
+})
+
+export const GenerateDocumentFromTemplateResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateId": zod.number().nullish(),
+  "templateVersionId": zod.number().nullish(),
+  "categoryCode": zod.string(),
+  "sourceType": zod.string().nullish(),
+  "sourceId": zod.number().nullish(),
+  "storageKey": zod.string(),
+  "fileName": zod.string(),
+  "mimeType": zod.string(),
+  "fileSize": zod.number(),
+  "generatedBy": zod.number().nullish(),
+  "generatedAt": zod.coerce.date(),
+  "createdAt": zod.coerce.date()
+}).describe('One finalized generated artifact. Records exactly which template version, merged with which source entity, produced the stored PDF. Later template edits never alter this row or its file.')
+
+
+/**
+ * @summary List generated document artifacts
+ */
+export const ListGeneratedDocumentsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListGeneratedDocumentsQueryParams = zod.object({
+  "sourceType": zod.coerce.string().optional(),
+  "sourceId": zod.coerce.number().optional(),
+  "templateId": zod.coerce.number().optional()
+})
+
+export const ListGeneratedDocumentsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateId": zod.number().nullish(),
+  "templateVersionId": zod.number().nullish(),
+  "categoryCode": zod.string(),
+  "sourceType": zod.string().nullish(),
+  "sourceId": zod.number().nullish(),
+  "storageKey": zod.string(),
+  "fileName": zod.string(),
+  "mimeType": zod.string(),
+  "fileSize": zod.number(),
+  "generatedBy": zod.number().nullish(),
+  "generatedAt": zod.coerce.date(),
+  "createdAt": zod.coerce.date()
+}).describe('One finalized generated artifact. Records exactly which template version, merged with which source entity, produced the stored PDF. Later template edits never alter this row or its file.')
+export const ListGeneratedDocumentsResponse = zod.array(ListGeneratedDocumentsResponseItem)
+
+
+/**
+ * Returns the exact bytes produced at generation time. Editing the template afterwards never changes this file.
+ * @summary Download a generated artifact
+ */
+export const DownloadGeneratedDocumentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "generatedId": zod.coerce.number()
+})
+
+export const DownloadGeneratedDocumentResponse = zod.unknown()
+
+
+/**
+ * @summary List document requirements
+ */
+export const ListDocumentRequirementsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListDocumentRequirementsQueryParams = zod.object({
+  "ownerType": zod.enum(['employee', 'candidate', 'organization']).optional(),
+  "ownerId": zod.coerce.number().optional()
+})
+
+export const ListDocumentRequirementsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "ownerType": zod.enum(['employee', 'candidate', 'organization']),
+  "ownerId": zod.number(),
+  "categoryCode": zod.string(),
+  "required": zod.boolean(),
+  "status": zod.enum(['pending', 'provided', 'verified', 'rejected']),
+  "fulfilledDocumentTable": zod.string().nullish(),
+  "fulfilledDocumentId": zod.number().nullish(),
+  "verifiedBy": zod.number().nullish(),
+  "verifiedAt": zod.coerce.date().nullish(),
+  "expiryDate": zod.coerce.date().nullish(),
+  "rejectionReason": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('One required\/provided\/verified\/expiry fact for one owner and category. \"provided\" and \"verified\" are deliberately distinct states.')
+export const ListDocumentRequirementsResponse = zod.array(ListDocumentRequirementsResponseItem)
+
+
+/**
+ * @summary Declare that an owner must provide a document
+ */
+export const CreateDocumentRequirementParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const CreateDocumentRequirementBody = zod.object({
+  "ownerType": zod.enum(['employee', 'candidate', 'organization']),
+  "ownerId": zod.number(),
+  "categoryCode": zod.string(),
+  "required": zod.boolean().optional(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateDocumentRequirementResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "ownerType": zod.enum(['employee', 'candidate', 'organization']),
+  "ownerId": zod.number(),
+  "categoryCode": zod.string(),
+  "required": zod.boolean(),
+  "status": zod.enum(['pending', 'provided', 'verified', 'rejected']),
+  "fulfilledDocumentTable": zod.string().nullish(),
+  "fulfilledDocumentId": zod.number().nullish(),
+  "verifiedBy": zod.number().nullish(),
+  "verifiedAt": zod.coerce.date().nullish(),
+  "expiryDate": zod.coerce.date().nullish(),
+  "rejectionReason": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('One required\/provided\/verified\/expiry fact for one owner and category. \"provided\" and \"verified\" are deliberately distinct states.')
+
+
+/**
+ * The read-only contract a future reminder workstream consumes. Sends no notification. The windows are disjoint: `expired` is strictly before asOf, `expiringSoon` is asOf through asOf+horizonDays inclusive, so a document expiring exactly on asOf appears once.
+ * @summary Documents that are expired, expiring soon, or still missing
+ */
+export const GetDocumentExpiryStateParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const getDocumentExpiryStateQueryHorizonDaysDefault = 30;
+
+export const GetDocumentExpiryStateQueryParams = zod.object({
+  "asOf": zod.date().optional().describe('YYYY-MM-DD. Defaults to today. Explicit so boundaries are deterministic.'),
+  "horizonDays": zod.coerce.number().default(getDocumentExpiryStateQueryHorizonDaysDefault)
+})
+
+export const GetDocumentExpiryStateResponse = zod.object({
+  "expired": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "ownerType": zod.enum(['employee', 'candidate', 'organization']),
+  "ownerId": zod.number(),
+  "categoryCode": zod.string(),
+  "required": zod.boolean(),
+  "status": zod.enum(['pending', 'provided', 'verified', 'rejected']),
+  "fulfilledDocumentTable": zod.string().nullish(),
+  "fulfilledDocumentId": zod.number().nullish(),
+  "verifiedBy": zod.number().nullish(),
+  "verifiedAt": zod.coerce.date().nullish(),
+  "expiryDate": zod.coerce.date().nullish(),
+  "rejectionReason": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('One required\/provided\/verified\/expiry fact for one owner and category. \"provided\" and \"verified\" are deliberately distinct states.')),
+  "expiringSoon": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "ownerType": zod.enum(['employee', 'candidate', 'organization']),
+  "ownerId": zod.number(),
+  "categoryCode": zod.string(),
+  "required": zod.boolean(),
+  "status": zod.enum(['pending', 'provided', 'verified', 'rejected']),
+  "fulfilledDocumentTable": zod.string().nullish(),
+  "fulfilledDocumentId": zod.number().nullish(),
+  "verifiedBy": zod.number().nullish(),
+  "verifiedAt": zod.coerce.date().nullish(),
+  "expiryDate": zod.coerce.date().nullish(),
+  "rejectionReason": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('One required\/provided\/verified\/expiry fact for one owner and category. \"provided\" and \"verified\" are deliberately distinct states.')),
+  "missing": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "ownerType": zod.enum(['employee', 'candidate', 'organization']),
+  "ownerId": zod.number(),
+  "categoryCode": zod.string(),
+  "required": zod.boolean(),
+  "status": zod.enum(['pending', 'provided', 'verified', 'rejected']),
+  "fulfilledDocumentTable": zod.string().nullish(),
+  "fulfilledDocumentId": zod.number().nullish(),
+  "verifiedBy": zod.number().nullish(),
+  "verifiedAt": zod.coerce.date().nullish(),
+  "expiryDate": zod.coerce.date().nullish(),
+  "rejectionReason": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('One required\/provided\/verified\/expiry fact for one owner and category. \"provided\" and \"verified\" are deliberately distinct states.'))
+}).describe('Disjoint windows: expired is strictly before asOf; expiringSoon is asOf through asOf+horizonDays inclusive; missing is required but still pending.')
+
+
+/**
+ * Links the row that satisfied the requirement and sets status to "provided" — never "verified". Supplying a document is not the same act as accepting it.
+ * @summary Record that a document was supplied against a requirement
+ */
+export const ProvideDocumentRequirementParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "requirementId": zod.coerce.number()
+})
+
+export const ProvideDocumentRequirementBody = zod.object({
+  "fulfilledDocumentTable": zod.string(),
+  "fulfilledDocumentId": zod.number(),
+  "expiryDate": zod.coerce.date().nullish()
+})
+
+export const ProvideDocumentRequirementResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "ownerType": zod.enum(['employee', 'candidate', 'organization']),
+  "ownerId": zod.number(),
+  "categoryCode": zod.string(),
+  "required": zod.boolean(),
+  "status": zod.enum(['pending', 'provided', 'verified', 'rejected']),
+  "fulfilledDocumentTable": zod.string().nullish(),
+  "fulfilledDocumentId": zod.number().nullish(),
+  "verifiedBy": zod.number().nullish(),
+  "verifiedAt": zod.coerce.date().nullish(),
+  "expiryDate": zod.coerce.date().nullish(),
+  "rejectionReason": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('One required\/provided\/verified\/expiry fact for one owner and category. \"provided\" and \"verified\" are deliberately distinct states.')
+
+
+/**
+ * The verification decision, gated by document.verify — deliberately a separate permission from the ability to upload. Records who decided and when.
+ * @summary Accept or reject a provided document
+ */
+export const VerifyDocumentRequirementParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "requirementId": zod.coerce.number()
+})
+
+export const VerifyDocumentRequirementBody = zod.object({
+  "approved": zod.boolean(),
+  "rejectionReason": zod.string().nullish()
+})
+
+export const VerifyDocumentRequirementResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "ownerType": zod.enum(['employee', 'candidate', 'organization']),
+  "ownerId": zod.number(),
+  "categoryCode": zod.string(),
+  "required": zod.boolean(),
+  "status": zod.enum(['pending', 'provided', 'verified', 'rejected']),
+  "fulfilledDocumentTable": zod.string().nullish(),
+  "fulfilledDocumentId": zod.number().nullish(),
+  "verifiedBy": zod.number().nullish(),
+  "verifiedAt": zod.coerce.date().nullish(),
+  "expiryDate": zod.coerce.date().nullish(),
+  "rejectionReason": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('One required\/provided\/verified\/expiry fact for one owner and category. \"provided\" and \"verified\" are deliberately distinct states.')
+
+
+/**
+ * @summary List retention records
+ */
+export const ListDocumentRetentionRecordsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListDocumentRetentionRecordsQueryParams = zod.object({
+  "archiveStatus": zod.enum(['active', 'archived']).optional(),
+  "disposalStatus": zod.enum(['none', 'eligible', 'disposed']).optional(),
+  "legalHold": zod.coerce.boolean().optional()
+})
+
+export const ListDocumentRetentionRecordsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "documentTable": zod.string(),
+  "documentId": zod.number(),
+  "retentionBasis": zod.string().nullish(),
+  "retainUntil": zod.coerce.date().nullish(),
+  "legalHold": zod.boolean(),
+  "legalHoldReason": zod.string().nullish(),
+  "legalHoldSetBy": zod.number().nullish(),
+  "legalHoldSetAt": zod.coerce.date().nullish(),
+  "archiveStatus": zod.enum(['active', 'archived']),
+  "archivedAt": zod.coerce.date().nullish(),
+  "archivedBy": zod.number().nullish(),
+  "disposalStatus": zod.enum(['none', 'eligible', 'disposed']),
+  "disposalReason": zod.string().nullish(),
+  "disposalAuthorizedBy": zod.number().nullish(),
+  "disposalAuthorizedAt": zod.coerce.date().nullish(),
+  "disposedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Retention, archive, legal hold, and disposal state for one document instance, addressed by a polymorphic (documentTable, documentId) pair. Archived never means deleted; disposal is never automatic.')
+export const ListDocumentRetentionRecordsResponse = zod.array(ListDocumentRetentionRecordsResponseItem)
+
+
+/**
+ * Reports candidates for a records officer to review. Never disposes anything. Records under legal hold are excluded, so a held document can never be presented as ready to dispose.
+ * @summary Documents whose retention has elapsed and which nothing blocks
+ */
+export const ListDisposalEligibleDocumentsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListDisposalEligibleDocumentsQueryParams = zod.object({
+  "asOf": zod.date().optional().describe('YYYY-MM-DD. Defaults to today.')
+})
+
+export const ListDisposalEligibleDocumentsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "documentTable": zod.string(),
+  "documentId": zod.number(),
+  "retentionBasis": zod.string().nullish(),
+  "retainUntil": zod.coerce.date().nullish(),
+  "legalHold": zod.boolean(),
+  "legalHoldReason": zod.string().nullish(),
+  "legalHoldSetBy": zod.number().nullish(),
+  "legalHoldSetAt": zod.coerce.date().nullish(),
+  "archiveStatus": zod.enum(['active', 'archived']),
+  "archivedAt": zod.coerce.date().nullish(),
+  "archivedBy": zod.number().nullish(),
+  "disposalStatus": zod.enum(['none', 'eligible', 'disposed']),
+  "disposalReason": zod.string().nullish(),
+  "disposalAuthorizedBy": zod.number().nullish(),
+  "disposalAuthorizedAt": zod.coerce.date().nullish(),
+  "disposedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Retention, archive, legal hold, and disposal state for one document instance, addressed by a polymorphic (documentTable, documentId) pair. Archived never means deleted; disposal is never automatic.')
+export const ListDisposalEligibleDocumentsResponse = zod.array(ListDisposalEligibleDocumentsResponseItem)
+
+
+/**
+ * @summary Get one document instance's retention record
+ */
+export const GetDocumentRetentionRecordParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "documentTable": zod.coerce.string(),
+  "documentId": zod.coerce.number()
+})
+
+export const GetDocumentRetentionRecordResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "documentTable": zod.string(),
+  "documentId": zod.number(),
+  "retentionBasis": zod.string().nullish(),
+  "retainUntil": zod.coerce.date().nullish(),
+  "legalHold": zod.boolean(),
+  "legalHoldReason": zod.string().nullish(),
+  "legalHoldSetBy": zod.number().nullish(),
+  "legalHoldSetAt": zod.coerce.date().nullish(),
+  "archiveStatus": zod.enum(['active', 'archived']),
+  "archivedAt": zod.coerce.date().nullish(),
+  "archivedBy": zod.number().nullish(),
+  "disposalStatus": zod.enum(['none', 'eligible', 'disposed']),
+  "disposalReason": zod.string().nullish(),
+  "disposalAuthorizedBy": zod.number().nullish(),
+  "disposalAuthorizedAt": zod.coerce.date().nullish(),
+  "disposedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Retention, archive, legal hold, and disposal state for one document instance, addressed by a polymorphic (documentTable, documentId) pair. Archived never means deleted; disposal is never automatic.')
+
+
+/**
+ * Removes the document from active circulation. Explicitly NOT deletion — the row and the stored file both survive untouched.
+ * @summary Archive a document instance
+ */
+export const ArchiveDocumentRetentionRecordParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "documentTable": zod.coerce.string(),
+  "documentId": zod.coerce.number()
+})
+
+export const ArchiveDocumentRetentionRecordResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "documentTable": zod.string(),
+  "documentId": zod.number(),
+  "retentionBasis": zod.string().nullish(),
+  "retainUntil": zod.coerce.date().nullish(),
+  "legalHold": zod.boolean(),
+  "legalHoldReason": zod.string().nullish(),
+  "legalHoldSetBy": zod.number().nullish(),
+  "legalHoldSetAt": zod.coerce.date().nullish(),
+  "archiveStatus": zod.enum(['active', 'archived']),
+  "archivedAt": zod.coerce.date().nullish(),
+  "archivedBy": zod.number().nullish(),
+  "disposalStatus": zod.enum(['none', 'eligible', 'disposed']),
+  "disposalReason": zod.string().nullish(),
+  "disposalAuthorizedBy": zod.number().nullish(),
+  "disposalAuthorizedAt": zod.coerce.date().nullish(),
+  "disposedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Retention, archive, legal hold, and disposal state for one document instance, addressed by a polymorphic (documentTable, documentId) pair. Archived never means deleted; disposal is never automatic.')
+
+
+/**
+ * While a hold is in place the document can never become disposal-eligible and can never be disposed, regardless of elapsed retention. Both applying and lifting are audited.
+ * @summary Apply or lift a legal hold
+ */
+export const SetDocumentLegalHoldParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "documentTable": zod.coerce.string(),
+  "documentId": zod.coerce.number()
+})
+
+export const SetDocumentLegalHoldBody = zod.object({
+  "legalHold": zod.boolean(),
+  "reason": zod.string().nullish()
+})
+
+export const SetDocumentLegalHoldResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "documentTable": zod.string(),
+  "documentId": zod.number(),
+  "retentionBasis": zod.string().nullish(),
+  "retainUntil": zod.coerce.date().nullish(),
+  "legalHold": zod.boolean(),
+  "legalHoldReason": zod.string().nullish(),
+  "legalHoldSetBy": zod.number().nullish(),
+  "legalHoldSetAt": zod.coerce.date().nullish(),
+  "archiveStatus": zod.enum(['active', 'archived']),
+  "archivedAt": zod.coerce.date().nullish(),
+  "archivedBy": zod.number().nullish(),
+  "disposalStatus": zod.enum(['none', 'eligible', 'disposed']),
+  "disposalReason": zod.string().nullish(),
+  "disposalAuthorizedBy": zod.number().nullish(),
+  "disposalAuthorizedAt": zod.coerce.date().nullish(),
+  "disposedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Retention, archive, legal hold, and disposal state for one document instance, addressed by a polymorphic (documentTable, documentId) pair. Archived never means deleted; disposal is never automatic.')
+
+
+/**
+ * A reviewable decision, separate from and prior to actually disposing. Refused while a legal hold is in place, while retention has not elapsed, or when no retention deadline was ever recorded.
+ * @summary Record the determination that a document may be disposed
+ */
+export const MarkDocumentDisposalEligibleParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "documentTable": zod.coerce.string(),
+  "documentId": zod.coerce.number()
+})
+
+export const MarkDocumentDisposalEligibleResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "documentTable": zod.string(),
+  "documentId": zod.number(),
+  "retentionBasis": zod.string().nullish(),
+  "retainUntil": zod.coerce.date().nullish(),
+  "legalHold": zod.boolean(),
+  "legalHoldReason": zod.string().nullish(),
+  "legalHoldSetBy": zod.number().nullish(),
+  "legalHoldSetAt": zod.coerce.date().nullish(),
+  "archiveStatus": zod.enum(['active', 'archived']),
+  "archivedAt": zod.coerce.date().nullish(),
+  "archivedBy": zod.number().nullish(),
+  "disposalStatus": zod.enum(['none', 'eligible', 'disposed']),
+  "disposalReason": zod.string().nullish(),
+  "disposalAuthorizedBy": zod.number().nullish(),
+  "disposalAuthorizedAt": zod.coerce.date().nullish(),
+  "disposedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Retention, archive, legal hold, and disposal state for one document instance, addressed by a polymorphic (documentTable, documentId) pair. Archived never means deleted; disposal is never automatic.')
+
+
+/**
+ * The irreversible act, requiring an explicit recorded reason. The record is marked disposed first and the storage object deleted afterwards, so a failed delete leaves a recoverable orphan rather than a destroyed file the record still claims is retained. Disposal is per instance — sibling versions of the same document are never touched. There is deliberately no bulk disposal operation.
+ * @summary Authorize and execute disposal of one document instance
+ */
+export const DisposeDocumentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "documentTable": zod.coerce.string(),
+  "documentId": zod.coerce.number()
+})
+
+export const DisposeDocumentBody = zod.object({
+  "reason": zod.string()
+})
+
+export const DisposeDocumentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "documentTable": zod.string(),
+  "documentId": zod.number(),
+  "retentionBasis": zod.string().nullish(),
+  "retainUntil": zod.coerce.date().nullish(),
+  "legalHold": zod.boolean(),
+  "legalHoldReason": zod.string().nullish(),
+  "legalHoldSetBy": zod.number().nullish(),
+  "legalHoldSetAt": zod.coerce.date().nullish(),
+  "archiveStatus": zod.enum(['active', 'archived']),
+  "archivedAt": zod.coerce.date().nullish(),
+  "archivedBy": zod.number().nullish(),
+  "disposalStatus": zod.enum(['none', 'eligible', 'disposed']),
+  "disposalReason": zod.string().nullish(),
+  "disposalAuthorizedBy": zod.number().nullish(),
+  "disposalAuthorizedAt": zod.coerce.date().nullish(),
+  "disposedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Retention, archive, legal hold, and disposal state for one document instance, addressed by a polymorphic (documentTable, documentId) pair. Archived never means deleted; disposal is never automatic.').and(zod.object({
+  "storageDeleted": zod.boolean().describe('False when the record was authoritatively marked disposed but the storage object could not be removed — a recoverable orphan, never a false claim that the file is still retained.')
+}))
+
+

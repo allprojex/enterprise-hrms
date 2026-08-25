@@ -8592,6 +8592,329 @@ export interface OfficeInventoryAssetHandoffResult {
   replay: boolean;
 }
 
+export type DocumentCategorySensitivity = typeof DocumentCategorySensitivity[keyof typeof DocumentCategorySensitivity];
+
+
+export const DocumentCategorySensitivity = {
+  standard: 'standard',
+  confidential: 'confidential',
+} as const;
+
+/**
+ * A document category available to the organization — a "document_category" Master Data item merged with its resolved behavior. A category with no settings row resolves to safe defaults (not confidential, no expiry, no verification required).
+ */
+export interface DocumentCategory {
+  categoryCode: string;
+  label: string;
+  verificationRequired: boolean;
+  expirySupported: boolean;
+  expiryRequired: boolean;
+  sensitivity: DocumentCategorySensitivity;
+  retentionBasis?: string | null;
+  retentionPeriodMonths?: number | null;
+}
+
+export type DocumentCategorySettingsInputSensitivity = typeof DocumentCategorySettingsInputSensitivity[keyof typeof DocumentCategorySettingsInputSensitivity];
+
+
+export const DocumentCategorySettingsInputSensitivity = {
+  standard: 'standard',
+  confidential: 'confidential',
+} as const;
+
+/**
+ * Every field is optional; omitted fields keep their current value.
+ */
+export interface DocumentCategorySettingsInput {
+  verificationRequired?: boolean;
+  expirySupported?: boolean;
+  /** Implies expirySupported — setting this true normalizes that to true as well. */
+  expiryRequired?: boolean;
+  sensitivity?: DocumentCategorySettingsInputSensitivity;
+  retentionBasis?: string | null;
+  retentionPeriodMonths?: number | null;
+}
+
+export type DocumentCategorySettingsSensitivity = typeof DocumentCategorySettingsSensitivity[keyof typeof DocumentCategorySettingsSensitivity];
+
+
+export const DocumentCategorySettingsSensitivity = {
+  standard: 'standard',
+  confidential: 'confidential',
+} as const;
+
+export interface DocumentCategorySettings {
+  id: number;
+  organizationId?: number | null;
+  categoryCode: string;
+  verificationRequired: boolean;
+  expirySupported: boolean;
+  expiryRequired: boolean;
+  sensitivity: DocumentCategorySettingsSensitivity;
+  retentionBasis?: string | null;
+  retentionPeriodMonths?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type OrganizationDocumentVersionStatus = typeof OrganizationDocumentVersionStatus[keyof typeof OrganizationDocumentVersionStatus];
+
+
+export const OrganizationDocumentVersionStatus = {
+  current: 'current',
+  superseded: 'superseded',
+} as const;
+
+/**
+ * One immutable version of an organization document. Superseded versions retain their row and their stored object permanently.
+ */
+export interface OrganizationDocumentVersion {
+  id: number;
+  organizationId: number;
+  documentId: number;
+  versionNumber: number;
+  storageKey: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  status: OrganizationDocumentVersionStatus;
+  effectiveDate?: string | null;
+  expiryDate?: string | null;
+  changeNote?: string | null;
+  supersededAt?: string | null;
+  supersededBy?: number | null;
+  uploadedBy?: number | null;
+  createdAt: string;
+}
+
+/**
+ * The current version summary embedded in a document list row.
+ */
+export interface OrganizationDocumentCurrentVersion {
+  id: number;
+  versionNumber: number;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  effectiveDate?: string | null;
+  expiryDate?: string | null;
+  createdAt: string;
+}
+
+export type OrganizationDocumentStatus = typeof OrganizationDocumentStatus[keyof typeof OrganizationDocumentStatus];
+
+
+export const OrganizationDocumentStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+/**
+ * A document owned by the organization itself (handbook, policy, form, procedure). Not a Personnel File — physical custody is a separate domain with no storage columns.
+ */
+export interface OrganizationDocument {
+  id: number;
+  organizationId: number;
+  categoryCode: string;
+  title: string;
+  description?: string | null;
+  status: OrganizationDocumentStatus;
+  currentVersionId?: number | null;
+  createdBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+  currentVersion?: OrganizationDocumentCurrentVersion | null;
+}
+
+/**
+ * One allow-listed merge field. A template token naming anything outside this set is rejected when the version is saved.
+ */
+export interface DocumentMergeField {
+  key: string;
+  label: string;
+}
+
+export type DocumentTemplateVersionFormat = typeof DocumentTemplateVersionFormat[keyof typeof DocumentTemplateVersionFormat];
+
+
+export const DocumentTemplateVersionFormat = {
+  plain_text: 'plain_text',
+} as const;
+
+export type DocumentTemplateVersionStatus = typeof DocumentTemplateVersionStatus[keyof typeof DocumentTemplateVersionStatus];
+
+
+export const DocumentTemplateVersionStatus = {
+  draft: 'draft',
+  active: 'active',
+  superseded: 'superseded',
+} as const;
+
+/**
+ * One immutable version of a template's content. Draft versions are editable in place; active and superseded ones never are.
+ */
+export interface DocumentTemplateVersion {
+  id: number;
+  organizationId: number;
+  templateId: number;
+  versionNumber: number;
+  content: string;
+  format: DocumentTemplateVersionFormat;
+  status: DocumentTemplateVersionStatus;
+  approvedBy?: number | null;
+  approvedAt?: string | null;
+  createdBy?: number | null;
+  createdAt: string;
+}
+
+export type DocumentTemplateStatus = typeof DocumentTemplateStatus[keyof typeof DocumentTemplateStatus];
+
+
+export const DocumentTemplateStatus = {
+  active: 'active',
+  inactive: 'inactive',
+} as const;
+
+export interface DocumentTemplate {
+  id: number;
+  organizationId: number;
+  categoryCode: string;
+  name: string;
+  description?: string | null;
+  currentVersionId?: number | null;
+  status: DocumentTemplateStatus;
+  createdBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+  currentVersion?: DocumentTemplateVersion | null;
+}
+
+/**
+ * Preview text rendered with synthetic sample data, never a real record.
+ */
+export interface DocumentTemplatePreview {
+  text: string;
+}
+
+/**
+ * One finalized generated artifact. Records exactly which template version, merged with which source entity, produced the stored PDF. Later template edits never alter this row or its file.
+ */
+export interface GeneratedDocument {
+  id: number;
+  organizationId: number;
+  templateId?: number | null;
+  templateVersionId?: number | null;
+  categoryCode: string;
+  sourceType?: string | null;
+  sourceId?: number | null;
+  storageKey: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  generatedBy?: number | null;
+  generatedAt: string;
+  createdAt: string;
+}
+
+export type DocumentRequirementOwnerType = typeof DocumentRequirementOwnerType[keyof typeof DocumentRequirementOwnerType];
+
+
+export const DocumentRequirementOwnerType = {
+  employee: 'employee',
+  candidate: 'candidate',
+  organization: 'organization',
+} as const;
+
+export type DocumentRequirementStatus = typeof DocumentRequirementStatus[keyof typeof DocumentRequirementStatus];
+
+
+export const DocumentRequirementStatus = {
+  pending: 'pending',
+  provided: 'provided',
+  verified: 'verified',
+  rejected: 'rejected',
+} as const;
+
+/**
+ * One required/provided/verified/expiry fact for one owner and category. "provided" and "verified" are deliberately distinct states.
+ */
+export interface DocumentRequirement {
+  id: number;
+  organizationId: number;
+  ownerType: DocumentRequirementOwnerType;
+  ownerId: number;
+  categoryCode: string;
+  required: boolean;
+  status: DocumentRequirementStatus;
+  fulfilledDocumentTable?: string | null;
+  fulfilledDocumentId?: number | null;
+  verifiedBy?: number | null;
+  verifiedAt?: string | null;
+  expiryDate?: string | null;
+  rejectionReason?: string | null;
+  notes?: string | null;
+  createdBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Disjoint windows: expired is strictly before asOf; expiringSoon is asOf through asOf+horizonDays inclusive; missing is required but still pending.
+ */
+export interface DocumentExpiryState {
+  expired: DocumentRequirement[];
+  expiringSoon: DocumentRequirement[];
+  missing: DocumentRequirement[];
+}
+
+export type DocumentRetentionRecordArchiveStatus = typeof DocumentRetentionRecordArchiveStatus[keyof typeof DocumentRetentionRecordArchiveStatus];
+
+
+export const DocumentRetentionRecordArchiveStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export type DocumentRetentionRecordDisposalStatus = typeof DocumentRetentionRecordDisposalStatus[keyof typeof DocumentRetentionRecordDisposalStatus];
+
+
+export const DocumentRetentionRecordDisposalStatus = {
+  none: 'none',
+  eligible: 'eligible',
+  disposed: 'disposed',
+} as const;
+
+/**
+ * Retention, archive, legal hold, and disposal state for one document instance, addressed by a polymorphic (documentTable, documentId) pair. Archived never means deleted; disposal is never automatic.
+ */
+export interface DocumentRetentionRecord {
+  id: number;
+  organizationId: number;
+  documentTable: string;
+  documentId: number;
+  retentionBasis?: string | null;
+  retainUntil?: string | null;
+  legalHold: boolean;
+  legalHoldReason?: string | null;
+  legalHoldSetBy?: number | null;
+  legalHoldSetAt?: string | null;
+  archiveStatus: DocumentRetentionRecordArchiveStatus;
+  archivedAt?: string | null;
+  archivedBy?: number | null;
+  disposalStatus: DocumentRetentionRecordDisposalStatus;
+  disposalReason?: string | null;
+  disposalAuthorizedBy?: number | null;
+  disposalAuthorizedAt?: string | null;
+  disposedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type DisposedDocumentResult = DocumentRetentionRecord & {
+  /** False when the record was authoritatively marked disposed but the storage object could not be removed — a recoverable orphan, never a false claim that the file is still retained. */
+  storageDeleted: boolean;
+};
+
 export type UploadOrganizationLogoBody = {
   file: Blob;
 };
@@ -9325,4 +9648,188 @@ export const RunOfficeInventoryReportFormat = {
   json: 'json',
   csv: 'csv',
 } as const;
+
+export type ListOrganizationDocumentsParams = {
+categoryCode?: string;
+status?: ListOrganizationDocumentsStatus;
+/**
+ * Case-insensitive substring match on the document title.
+ */
+search?: string;
+/**
+ * Only documents whose current version expires on or before this date.
+ */
+expiringBefore?: string;
+};
+
+export type ListOrganizationDocumentsStatus = typeof ListOrganizationDocumentsStatus[keyof typeof ListOrganizationDocumentsStatus];
+
+
+export const ListOrganizationDocumentsStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export type CreateOrganizationDocumentBody = {
+  file: Blob;
+  /** Must be an active category for this organization. */
+  categoryCode: string;
+  title: string;
+  description?: string;
+  effectiveDate?: string;
+  expiryDate?: string;
+};
+
+export type UpdateOrganizationDocumentBody = {
+  title?: string;
+  description?: string | null;
+};
+
+export type AddOrganizationDocumentVersionBody = {
+  file: Blob;
+  changeNote?: string;
+  effectiveDate?: string;
+  expiryDate?: string;
+};
+
+export type ListDocumentTemplatesParams = {
+categoryCode?: string;
+status?: ListDocumentTemplatesStatus;
+};
+
+export type ListDocumentTemplatesStatus = typeof ListDocumentTemplatesStatus[keyof typeof ListDocumentTemplatesStatus];
+
+
+export const ListDocumentTemplatesStatus = {
+  active: 'active',
+  inactive: 'inactive',
+} as const;
+
+export type CreateDocumentTemplateBody = {
+  name: string;
+  categoryCode: string;
+  description?: string | null;
+  content: string;
+};
+
+export type UpdateDocumentTemplateStatusBodyStatus = typeof UpdateDocumentTemplateStatusBodyStatus[keyof typeof UpdateDocumentTemplateStatusBodyStatus];
+
+
+export const UpdateDocumentTemplateStatusBodyStatus = {
+  active: 'active',
+  inactive: 'inactive',
+} as const;
+
+export type UpdateDocumentTemplateStatusBody = {
+  status: UpdateDocumentTemplateStatusBodyStatus;
+};
+
+export type CreateDocumentTemplateVersionBody = {
+  content: string;
+};
+
+export type UpdateDocumentTemplateVersionBody = {
+  content: string;
+};
+
+export type GenerateDocumentFromTemplateBody = {
+  employeeId: number;
+  effectiveDate?: string;
+  reference?: string | null;
+};
+
+export type ListGeneratedDocumentsParams = {
+sourceType?: string;
+sourceId?: number;
+templateId?: number;
+};
+
+export type ListDocumentRequirementsParams = {
+ownerType?: ListDocumentRequirementsOwnerType;
+ownerId?: number;
+};
+
+export type ListDocumentRequirementsOwnerType = typeof ListDocumentRequirementsOwnerType[keyof typeof ListDocumentRequirementsOwnerType];
+
+
+export const ListDocumentRequirementsOwnerType = {
+  employee: 'employee',
+  candidate: 'candidate',
+  organization: 'organization',
+} as const;
+
+export type CreateDocumentRequirementBodyOwnerType = typeof CreateDocumentRequirementBodyOwnerType[keyof typeof CreateDocumentRequirementBodyOwnerType];
+
+
+export const CreateDocumentRequirementBodyOwnerType = {
+  employee: 'employee',
+  candidate: 'candidate',
+  organization: 'organization',
+} as const;
+
+export type CreateDocumentRequirementBody = {
+  ownerType: CreateDocumentRequirementBodyOwnerType;
+  ownerId: number;
+  categoryCode: string;
+  required?: boolean;
+  notes?: string | null;
+};
+
+export type GetDocumentExpiryStateParams = {
+/**
+ * YYYY-MM-DD. Defaults to today. Explicit so boundaries are deterministic.
+ */
+asOf?: string;
+horizonDays?: number;
+};
+
+export type ProvideDocumentRequirementBody = {
+  fulfilledDocumentTable: string;
+  fulfilledDocumentId: number;
+  expiryDate?: string | null;
+};
+
+export type VerifyDocumentRequirementBody = {
+  approved: boolean;
+  rejectionReason?: string | null;
+};
+
+export type ListDocumentRetentionRecordsParams = {
+archiveStatus?: ListDocumentRetentionRecordsArchiveStatus;
+disposalStatus?: ListDocumentRetentionRecordsDisposalStatus;
+legalHold?: boolean;
+};
+
+export type ListDocumentRetentionRecordsArchiveStatus = typeof ListDocumentRetentionRecordsArchiveStatus[keyof typeof ListDocumentRetentionRecordsArchiveStatus];
+
+
+export const ListDocumentRetentionRecordsArchiveStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export type ListDocumentRetentionRecordsDisposalStatus = typeof ListDocumentRetentionRecordsDisposalStatus[keyof typeof ListDocumentRetentionRecordsDisposalStatus];
+
+
+export const ListDocumentRetentionRecordsDisposalStatus = {
+  none: 'none',
+  eligible: 'eligible',
+  disposed: 'disposed',
+} as const;
+
+export type ListDisposalEligibleDocumentsParams = {
+/**
+ * YYYY-MM-DD. Defaults to today.
+ */
+asOf?: string;
+};
+
+export type SetDocumentLegalHoldBody = {
+  legalHold: boolean;
+  reason?: string | null;
+};
+
+export type DisposeDocumentBody = {
+  reason: string;
+};
 

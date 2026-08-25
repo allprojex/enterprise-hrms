@@ -134,6 +134,45 @@ tags:
     description: Phase 3C, W81 — Performance dashboard and reports. Read-only, server-computed aggregation over existing Performance data, no stored analytics table. Scoped own/reviewer-of-record/organization-wide (performance.reports.read, org-wide reach signaled by performance.manage).
   - name: performance-evidence
     description: Phase 3C, W82 — Evidence/attachments on Performance reviews. A lightweight join over the existing employee_documents storage layer (§8.9) — no new file-storage code. No new permission key; upload is stage-gated by the caller's own relationship to the review, view/download are not.
+  - name: organization-documents
+    description: >-
+      WS-5, Owner Decision #4 — the organization-level digital document
+      repository (handbook, HR policy, forms, procedures): documents owned by
+      the organization itself rather than by one employee or candidate. NOT
+      Personnel Files — physical file custody remains its own domain
+      (personnel_files et al, zero column overlap). Immutable version history:
+      a new upload supersedes the previous version but never overwrites its
+      row or its stored object, and a partial unique index guarantees exactly
+      one current version per document. See docs/DOCUMENTS_AND_RECORDS.md.
+  - name: document-templates
+    description: >-
+      WS-5, Owner Decision #4 — the reusable, organization-scoped document
+      template and generation engine (offer/appointment/confirmation/
+      promotion/transfer/warning/service/separation letters and any other
+      organization-defined HR letter). A platform service only: it renders
+      and stores artifacts, and never decides when a letter should be issued
+      — that belongs to the owning downstream workstream. Template content is
+      plain text with an allow-listed {{merge.field}} syntax that is never
+      evaluated, so there is no template-injection surface; output is PDF.
+  - name: document-requirements
+    description: >-
+      WS-5 — the shared required/provided/verified/expiry checklist
+      primitive later HR workflows (Recruitment, Onboarding, employee
+      lifecycle/compliance) compose their own checklists from. Deliberately
+      not a workflow engine: recording a document only ever marks it
+      "provided"; only document.verify can move a requirement to "verified"
+      or "rejected". The expiry endpoint is the read-only contract a future
+      reminder workstream consumes — no notification is ever sent from here.
+  - name: document-retention
+    description: >-
+      WS-5, Owner Decision #4 — retention, archive, legal hold, and
+      controlled disposal, shared across every digital document table via a
+      polymorphic (documentTable, documentId) key. Archive is never
+      deletion; disposal eligibility is a reviewable determination, never
+      automatic; legal hold blocks disposal outright regardless of elapsed
+      retention. Every state change requires document.retention.manage,
+      seeded to no role by default — a deliberate per-organization
+      delegation, not implied by ordinary HR/records authority.
 
 paths:
   /healthz:
@@ -19500,6 +19539,1671 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/documents/categories:
+    get:
+      operationId: listDocumentCategories
+      tags: [organization-documents]
+      summary: List document categories with their configured behavior
+      description: >-
+        The organization's active "document_category" Master Data items,
+        each merged with its resolved behavior (verification/expiry/
+        sensitivity/retention). A category with no settings row resolves to
+        safe defaults rather than an error.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Categories available to this organization
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DocumentCategory"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /organizations/{organizationId}/documents/categories/{categoryCode}:
+    put:
+      operationId: updateDocumentCategorySettings
+      tags: [organization-documents]
+      summary: Configure a document category's behavior
+      description: >-
+        Creates or updates this organization's own settings row for a
+        category. Never modifies a platform-wide default row, so one
+        organization's configuration can never change another's.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: categoryCode
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentCategorySettingsInput"
+      responses:
+        "200":
+          description: Updated category settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentCategorySettings"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /organizations/{organizationId}/documents:
+    get:
+      operationId: listOrganizationDocuments
+      tags: [organization-documents]
+      summary: List organization documents
+      description: >-
+        Metadata only — no file bytes are read. Each row carries its current
+        version inline so the list needs no per-row follow-up query.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: categoryCode
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, archived]
+        - name: search
+          in: query
+          description: Case-insensitive substring match on the document title.
+          schema:
+            type: string
+        - name: expiringBefore
+          in: query
+          description: Only documents whose current version expires on or before this date.
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Documents in this organization
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrganizationDocument"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createOrganizationDocument
+      tags: [organization-documents]
+      summary: Create an organization document with its first version
+      description: >-
+        multipart/form-data upload. PDF, JPEG, PNG, DOCX, and XLSX only,
+        validated by file signature rather than the declared Content-Type,
+        10MB max. Creates the document, its version 1, and its retention
+        record in one transaction; a failure deletes the just-written
+        storage object rather than leaving a dangling reference.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, categoryCode, title]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                categoryCode:
+                  type: string
+                  description: Must be an active category for this organization.
+                title:
+                  type: string
+                description:
+                  type: string
+                effectiveDate:
+                  type: string
+                  format: date
+                expiryDate:
+                  type: string
+                  format: date
+      responses:
+        "201":
+          description: Document created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationDocument"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /organizations/{organizationId}/documents/{documentId}:
+    get:
+      operationId: getOrganizationDocument
+      tags: [organization-documents]
+      summary: Get one organization document
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationDocument"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    patch:
+      operationId: updateOrganizationDocument
+      tags: [organization-documents]
+      summary: Update a document's title or description
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                  nullable: true
+      responses:
+        "200":
+          description: Updated document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationDocument"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /organizations/{organizationId}/documents/{documentId}/versions:
+    get:
+      operationId: listOrganizationDocumentVersions
+      tags: [organization-documents]
+      summary: List a document's full version history
+      description: >-
+        Newest first. Superseded versions are retained permanently and stay
+        downloadable — a new upload never destroys a prior version.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Version history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrganizationDocumentVersion"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: addOrganizationDocumentVersion
+      tags: [organization-documents]
+      summary: Upload a new version, superseding the current one
+      description: >-
+        The previous current version is marked superseded in the same
+        transaction; its row and stored object are left intact. Returns 409
+        if a concurrent upload won the race (retry against the new head) or
+        if the document is archived.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                changeNote:
+                  type: string
+                effectiveDate:
+                  type: string
+                  format: date
+                expiryDate:
+                  type: string
+                  format: date
+      responses:
+        "201":
+          description: New current version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationDocumentVersion"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Document archived, or a concurrent version won the race
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /organizations/{organizationId}/documents/{documentId}/versions/{versionId}/download:
+    get:
+      operationId: downloadOrganizationDocumentVersion
+      tags: [organization-documents]
+      summary: Download one version's file
+      description: >-
+        Authorization is re-proved before any storage read: the document must
+        belong to this organization and the version to that document. If the
+        category is marked confidential the caller additionally needs
+        organization_document.sensitive.read, and the read is audited.
+        Knowing an id or a storage key never grants access.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: versionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The stored file
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "403":
+          description: Not authorized, or confidential without sensitive-read permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /organizations/{organizationId}/document-templates/merge-fields:
+    get:
+      operationId: listDocumentMergeFields
+      tags: [document-templates]
+      summary: List the allow-listed merge fields
+      description: >-
+        The complete set of fields a template may reference. A token naming
+        anything outside this list is rejected when the template version is
+        saved. Deliberately contains no payroll, banking, or statutory
+        identifier field.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Available merge fields
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DocumentMergeField"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /organizations/{organizationId}/document-templates:
+    get:
+      operationId: listDocumentTemplates
+      tags: [document-templates]
+      summary: List document templates
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: categoryCode
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive]
+      responses:
+        "200":
+          description: Templates in this organization
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DocumentTemplate"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createDocumentTemplate
+      tags: [document-templates]
+      summary: Create a template with its first draft version
+      description: >-
+        Template content is plain text containing allow-listed
+        {{merge.field}} tokens. Content referencing an unknown field is
+        rejected here, at authoring time, rather than silently at generation
+        time on an official letter.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, categoryCode, content]
+              properties:
+                name:
+                  type: string
+                categoryCode:
+                  type: string
+                description:
+                  type: string
+                  nullable: true
+                content:
+                  type: string
+      responses:
+        "201":
+          description: Template created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentTemplate"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /organizations/{organizationId}/document-templates/{templateId}:
+    get:
+      operationId: getDocumentTemplate
+      tags: [document-templates]
+      summary: Get one template
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentTemplate"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    patch:
+      operationId: updateDocumentTemplateStatus
+      tags: [document-templates]
+      summary: Activate or deactivate a template
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [active, inactive]
+      responses:
+        "200":
+          description: Updated template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentTemplate"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /organizations/{organizationId}/document-templates/{templateId}/versions:
+    get:
+      operationId: listDocumentTemplateVersions
+      tags: [document-templates]
+      summary: List a template's version history
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Version history, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DocumentTemplateVersion"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createDocumentTemplateVersion
+      tags: [document-templates]
+      summary: Start a new draft version
+      description: >-
+        How an already-active template is edited. Prior versions keep their
+        content permanently, so any artifact generated from one stays
+        explainable by reading it.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: string
+      responses:
+        "201":
+          description: New draft version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentTemplateVersion"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /organizations/{organizationId}/document-templates/{templateId}/versions/{versionId}:
+    patch:
+      operationId: updateDocumentTemplateVersion
+      tags: [document-templates]
+      summary: Edit a draft version's content
+      description: >-
+        Draft versions only. Editing an active or superseded version returns
+        409 — that immutability is what makes an already-generated artifact's
+        provenance meaningful.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: versionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: string
+      responses:
+        "200":
+          description: Updated draft version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentTemplateVersion"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Not a draft version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /organizations/{organizationId}/document-templates/{templateId}/versions/{versionId}/activate:
+    post:
+      operationId: activateDocumentTemplateVersion
+      tags: [document-templates]
+      summary: Make a version the active one
+      description: >-
+        Supersedes whichever version was active. A partial unique index
+        guarantees at most one active version per template, so concurrent
+        activations cannot both succeed.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: versionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The now-active version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentTemplateVersion"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Another version was activated concurrently
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /organizations/{organizationId}/document-templates/{templateId}/versions/{versionId}/preview:
+    post:
+      operationId: previewDocumentTemplateVersion
+      tags: [document-templates]
+      summary: Preview a version rendered with synthetic sample data
+      description: >-
+        Renders against obviously-fake sample values, never a real employee
+        record — holding document_template.manage conveys no entitlement to
+        any individual's data, so preview must not become a way to read one
+        by guessing merge fields. Writes nothing: no storage object, no
+        generated-document row, no audit event.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: versionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The rendered preview text
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentTemplatePreview"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /organizations/{organizationId}/document-templates/{templateId}/generate:
+    post:
+      operationId: generateDocumentFromTemplate
+      tags: [document-templates]
+      summary: Generate an official document from a template's active version
+      description: >-
+        Renders the template's ACTIVE version against the named employee and
+        stores the resulting PDF, recording exactly which template version
+        produced it. The merge context is resolved server-side from the
+        employee record inside the caller's own organization — never from
+        request-body values — so another person's details cannot be injected
+        and cross-organization generation is impossible. Later template edits
+        never alter this artifact.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [employeeId]
+              properties:
+                employeeId:
+                  type: integer
+                effectiveDate:
+                  type: string
+                  format: date
+                reference:
+                  type: string
+                  nullable: true
+      responses:
+        "201":
+          description: The generated document's metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeneratedDocument"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Template or employee not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: The template has no active version to generate from
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /organizations/{organizationId}/generated-documents:
+    get:
+      operationId: listGeneratedDocuments
+      tags: [document-templates]
+      summary: List generated document artifacts
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: sourceType
+          in: query
+          schema:
+            type: string
+        - name: sourceId
+          in: query
+          schema:
+            type: integer
+        - name: templateId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Generated artifacts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GeneratedDocument"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /organizations/{organizationId}/generated-documents/{generatedId}/download:
+    get:
+      operationId: downloadGeneratedDocument
+      tags: [document-templates]
+      summary: Download a generated artifact
+      description: >-
+        Returns the exact bytes produced at generation time. Editing the
+        template afterwards never changes this file.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: generatedId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The generated PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /organizations/{organizationId}/document-requirements:
+    get:
+      operationId: listDocumentRequirements
+      tags: [document-requirements]
+      summary: List document requirements
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: ownerType
+          in: query
+          schema:
+            type: string
+            enum: [employee, candidate, organization]
+        - name: ownerId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Requirements
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DocumentRequirement"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createDocumentRequirement
+      tags: [document-requirements]
+      summary: Declare that an owner must provide a document
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ownerType, ownerId, categoryCode]
+              properties:
+                ownerType:
+                  type: string
+                  enum: [employee, candidate, organization]
+                ownerId:
+                  type: integer
+                categoryCode:
+                  type: string
+                required:
+                  type: boolean
+                notes:
+                  type: string
+                  nullable: true
+      responses:
+        "201":
+          description: Requirement created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentRequirement"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: This owner already has a requirement for that category
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /organizations/{organizationId}/document-requirements/expiry:
+    get:
+      operationId: getDocumentExpiryState
+      tags: [document-requirements]
+      summary: Documents that are expired, expiring soon, or still missing
+      description: >-
+        The read-only contract a future reminder workstream consumes. Sends
+        no notification. The windows are disjoint: `expired` is strictly
+        before asOf, `expiringSoon` is asOf through asOf+horizonDays
+        inclusive, so a document expiring exactly on asOf appears once.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: asOf
+          in: query
+          description: YYYY-MM-DD. Defaults to today. Explicit so boundaries are deterministic.
+          schema:
+            type: string
+            format: date
+        - name: horizonDays
+          in: query
+          schema:
+            type: integer
+            default: 30
+      responses:
+        "200":
+          description: Expiry state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentExpiryState"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /organizations/{organizationId}/document-requirements/{requirementId}/provide:
+    post:
+      operationId: provideDocumentRequirement
+      tags: [document-requirements]
+      summary: Record that a document was supplied against a requirement
+      description: >-
+        Links the row that satisfied the requirement and sets status to
+        "provided" — never "verified". Supplying a document is not the same
+        act as accepting it.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: requirementId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fulfilledDocumentTable, fulfilledDocumentId]
+              properties:
+                fulfilledDocumentTable:
+                  type: string
+                fulfilledDocumentId:
+                  type: integer
+                expiryDate:
+                  type: string
+                  format: date
+                  nullable: true
+      responses:
+        "200":
+          description: Updated requirement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentRequirement"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /organizations/{organizationId}/document-requirements/{requirementId}/verify:
+    post:
+      operationId: verifyDocumentRequirement
+      tags: [document-requirements]
+      summary: Accept or reject a provided document
+      description: >-
+        The verification decision, gated by document.verify — deliberately a
+        separate permission from the ability to upload. Records who decided
+        and when.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: requirementId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [approved]
+              properties:
+                approved:
+                  type: boolean
+                rejectionReason:
+                  type: string
+                  nullable: true
+      responses:
+        "200":
+          description: Updated requirement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentRequirement"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /organizations/{organizationId}/document-retention:
+    get:
+      operationId: listDocumentRetentionRecords
+      tags: [document-retention]
+      summary: List retention records
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: archiveStatus
+          in: query
+          schema:
+            type: string
+            enum: [active, archived]
+        - name: disposalStatus
+          in: query
+          schema:
+            type: string
+            enum: [none, eligible, disposed]
+        - name: legalHold
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Retention records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DocumentRetentionRecord"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /organizations/{organizationId}/document-retention/disposal-eligible:
+    get:
+      operationId: listDisposalEligibleDocuments
+      tags: [document-retention]
+      summary: Documents whose retention has elapsed and which nothing blocks
+      description: >-
+        Reports candidates for a records officer to review. Never disposes
+        anything. Records under legal hold are excluded, so a held document
+        can never be presented as ready to dispose.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: asOf
+          in: query
+          description: YYYY-MM-DD. Defaults to today.
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Disposal candidates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DocumentRetentionRecord"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /organizations/{organizationId}/document-retention/{documentTable}/{documentId}:
+    get:
+      operationId: getDocumentRetentionRecord
+      tags: [document-retention]
+      summary: Get one document instance's retention record
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: documentTable
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The retention record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentRetentionRecord"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /organizations/{organizationId}/document-retention/{documentTable}/{documentId}/archive:
+    post:
+      operationId: archiveDocumentRetentionRecord
+      tags: [document-retention]
+      summary: Archive a document instance
+      description: >-
+        Removes the document from active circulation. Explicitly NOT
+        deletion — the row and the stored file both survive untouched.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: documentTable
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated retention record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentRetentionRecord"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /organizations/{organizationId}/document-retention/{documentTable}/{documentId}/legal-hold:
+    put:
+      operationId: setDocumentLegalHold
+      tags: [document-retention]
+      summary: Apply or lift a legal hold
+      description: >-
+        While a hold is in place the document can never become
+        disposal-eligible and can never be disposed, regardless of elapsed
+        retention. Both applying and lifting are audited.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: documentTable
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [legalHold]
+              properties:
+                legalHold:
+                  type: boolean
+                reason:
+                  type: string
+                  nullable: true
+      responses:
+        "200":
+          description: Updated retention record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentRetentionRecord"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /organizations/{organizationId}/document-retention/{documentTable}/{documentId}/disposal-eligibility:
+    post:
+      operationId: markDocumentDisposalEligible
+      tags: [document-retention]
+      summary: Record the determination that a document may be disposed
+      description: >-
+        A reviewable decision, separate from and prior to actually disposing.
+        Refused while a legal hold is in place, while retention has not
+        elapsed, or when no retention deadline was ever recorded.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: documentTable
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated retention record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentRetentionRecord"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Legal hold active, retention not elapsed, or already disposed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /organizations/{organizationId}/document-retention/{documentTable}/{documentId}/dispose:
+    post:
+      operationId: disposeDocument
+      tags: [document-retention]
+      summary: Authorize and execute disposal of one document instance
+      description: >-
+        The irreversible act, requiring an explicit recorded reason. The
+        record is marked disposed first and the storage object deleted
+        afterwards, so a failed delete leaves a recoverable orphan rather
+        than a destroyed file the record still claims is retained. Disposal
+        is per instance — sibling versions of the same document are never
+        touched. There is deliberately no bulk disposal operation.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: documentTable
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: The disposed record, with whether the storage object was removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisposedDocumentResult"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Legal hold active, retention not elapsed, or already disposed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -29609,3 +31313,582 @@ components:
           $ref: "#/components/schemas/OfficeInventoryStockMovement"
         replay:
           type: boolean
+
+    DocumentCategory:
+      type: object
+      description: >-
+        A document category available to the organization — a
+        "document_category" Master Data item merged with its resolved
+        behavior. A category with no settings row resolves to safe defaults
+        (not confidential, no expiry, no verification required).
+      properties:
+        categoryCode:
+          type: string
+        label:
+          type: string
+        verificationRequired:
+          type: boolean
+        expirySupported:
+          type: boolean
+        expiryRequired:
+          type: boolean
+        sensitivity:
+          type: string
+          enum: [standard, confidential]
+        retentionBasis:
+          type: string
+          nullable: true
+        retentionPeriodMonths:
+          type: integer
+          nullable: true
+      required:
+        - categoryCode
+        - label
+        - verificationRequired
+        - expirySupported
+        - expiryRequired
+        - sensitivity
+
+    DocumentCategorySettingsInput:
+      type: object
+      description: Every field is optional; omitted fields keep their current value.
+      properties:
+        verificationRequired:
+          type: boolean
+        expirySupported:
+          type: boolean
+        expiryRequired:
+          type: boolean
+          description: Implies expirySupported — setting this true normalizes that to true as well.
+        sensitivity:
+          type: string
+          enum: [standard, confidential]
+        retentionBasis:
+          type: string
+          nullable: true
+        retentionPeriodMonths:
+          type: integer
+          nullable: true
+
+    DocumentCategorySettings:
+      type: object
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+          nullable: true
+        categoryCode:
+          type: string
+        verificationRequired:
+          type: boolean
+        expirySupported:
+          type: boolean
+        expiryRequired:
+          type: boolean
+        sensitivity:
+          type: string
+          enum: [standard, confidential]
+        retentionBasis:
+          type: string
+          nullable: true
+        retentionPeriodMonths:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - categoryCode
+        - verificationRequired
+        - expirySupported
+        - expiryRequired
+        - sensitivity
+
+    OrganizationDocumentVersion:
+      type: object
+      description: >-
+        One immutable version of an organization document. Superseded
+        versions retain their row and their stored object permanently.
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        documentId:
+          type: integer
+        versionNumber:
+          type: integer
+        storageKey:
+          type: string
+        fileName:
+          type: string
+        mimeType:
+          type: string
+        fileSize:
+          type: integer
+        status:
+          type: string
+          enum: [current, superseded]
+        effectiveDate:
+          type: string
+          format: date
+          nullable: true
+        expiryDate:
+          type: string
+          format: date
+          nullable: true
+        changeNote:
+          type: string
+          nullable: true
+        supersededAt:
+          type: string
+          format: date-time
+          nullable: true
+        supersededBy:
+          type: integer
+          nullable: true
+        uploadedBy:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - organizationId
+        - documentId
+        - versionNumber
+        - storageKey
+        - fileName
+        - mimeType
+        - fileSize
+        - status
+        - createdAt
+
+    OrganizationDocumentCurrentVersion:
+      type: object
+      description: The current version summary embedded in a document list row.
+      properties:
+        id:
+          type: integer
+        versionNumber:
+          type: integer
+        fileName:
+          type: string
+        mimeType:
+          type: string
+        fileSize:
+          type: integer
+        effectiveDate:
+          type: string
+          format: date
+          nullable: true
+        expiryDate:
+          type: string
+          format: date
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - versionNumber
+        - fileName
+        - mimeType
+        - fileSize
+        - createdAt
+
+    OrganizationDocument:
+      type: object
+      description: >-
+        A document owned by the organization itself (handbook, policy, form,
+        procedure). Not a Personnel File — physical custody is a separate
+        domain with no storage columns.
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        categoryCode:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [active, archived]
+        currentVersionId:
+          type: integer
+          nullable: true
+        createdBy:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        currentVersion:
+          allOf:
+            - $ref: "#/components/schemas/OrganizationDocumentCurrentVersion"
+          nullable: true
+      required:
+        - id
+        - organizationId
+        - categoryCode
+        - title
+        - status
+        - createdAt
+        - updatedAt
+
+    DocumentMergeField:
+      type: object
+      description: >-
+        One allow-listed merge field. A template token naming anything
+        outside this set is rejected when the version is saved.
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+      required:
+        - key
+        - label
+
+    DocumentTemplateVersion:
+      type: object
+      description: >-
+        One immutable version of a template's content. Draft versions are
+        editable in place; active and superseded ones never are.
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        templateId:
+          type: integer
+        versionNumber:
+          type: integer
+        content:
+          type: string
+        format:
+          type: string
+          enum: [plain_text]
+        status:
+          type: string
+          enum: [draft, active, superseded]
+        approvedBy:
+          type: integer
+          nullable: true
+        approvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdBy:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - organizationId
+        - templateId
+        - versionNumber
+        - content
+        - format
+        - status
+        - createdAt
+
+    DocumentTemplate:
+      type: object
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        categoryCode:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        currentVersionId:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          enum: [active, inactive]
+        createdBy:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        currentVersion:
+          allOf:
+            - $ref: "#/components/schemas/DocumentTemplateVersion"
+          nullable: true
+      required:
+        - id
+        - organizationId
+        - categoryCode
+        - name
+        - status
+        - createdAt
+        - updatedAt
+
+    DocumentTemplatePreview:
+      type: object
+      description: Preview text rendered with synthetic sample data, never a real record.
+      properties:
+        text:
+          type: string
+      required:
+        - text
+
+    GeneratedDocument:
+      type: object
+      description: >-
+        One finalized generated artifact. Records exactly which template
+        version, merged with which source entity, produced the stored PDF.
+        Later template edits never alter this row or its file.
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        templateId:
+          type: integer
+          nullable: true
+        templateVersionId:
+          type: integer
+          nullable: true
+        categoryCode:
+          type: string
+        sourceType:
+          type: string
+          nullable: true
+        sourceId:
+          type: integer
+          nullable: true
+        storageKey:
+          type: string
+        fileName:
+          type: string
+        mimeType:
+          type: string
+        fileSize:
+          type: integer
+        generatedBy:
+          type: integer
+          nullable: true
+        generatedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - organizationId
+        - categoryCode
+        - storageKey
+        - fileName
+        - mimeType
+        - fileSize
+        - generatedAt
+        - createdAt
+
+    DocumentRequirement:
+      type: object
+      description: >-
+        One required/provided/verified/expiry fact for one owner and
+        category. "provided" and "verified" are deliberately distinct states.
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        ownerType:
+          type: string
+          enum: [employee, candidate, organization]
+        ownerId:
+          type: integer
+        categoryCode:
+          type: string
+        required:
+          type: boolean
+        status:
+          type: string
+          enum: [pending, provided, verified, rejected]
+        fulfilledDocumentTable:
+          type: string
+          nullable: true
+        fulfilledDocumentId:
+          type: integer
+          nullable: true
+        verifiedBy:
+          type: integer
+          nullable: true
+        verifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        expiryDate:
+          type: string
+          format: date
+          nullable: true
+        rejectionReason:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdBy:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - organizationId
+        - ownerType
+        - ownerId
+        - categoryCode
+        - required
+        - status
+        - createdAt
+        - updatedAt
+
+    DocumentExpiryState:
+      type: object
+      description: >-
+        Disjoint windows: expired is strictly before asOf; expiringSoon is
+        asOf through asOf+horizonDays inclusive; missing is required but
+        still pending.
+      properties:
+        expired:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocumentRequirement"
+        expiringSoon:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocumentRequirement"
+        missing:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocumentRequirement"
+      required:
+        - expired
+        - expiringSoon
+        - missing
+
+    DocumentRetentionRecord:
+      type: object
+      description: >-
+        Retention, archive, legal hold, and disposal state for one document
+        instance, addressed by a polymorphic (documentTable, documentId)
+        pair. Archived never means deleted; disposal is never automatic.
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        documentTable:
+          type: string
+        documentId:
+          type: integer
+        retentionBasis:
+          type: string
+          nullable: true
+        retainUntil:
+          type: string
+          format: date
+          nullable: true
+        legalHold:
+          type: boolean
+        legalHoldReason:
+          type: string
+          nullable: true
+        legalHoldSetBy:
+          type: integer
+          nullable: true
+        legalHoldSetAt:
+          type: string
+          format: date-time
+          nullable: true
+        archiveStatus:
+          type: string
+          enum: [active, archived]
+        archivedAt:
+          type: string
+          format: date-time
+          nullable: true
+        archivedBy:
+          type: integer
+          nullable: true
+        disposalStatus:
+          type: string
+          enum: [none, eligible, disposed]
+        disposalReason:
+          type: string
+          nullable: true
+        disposalAuthorizedBy:
+          type: integer
+          nullable: true
+        disposalAuthorizedAt:
+          type: string
+          format: date-time
+          nullable: true
+        disposedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - organizationId
+        - documentTable
+        - documentId
+        - legalHold
+        - archiveStatus
+        - disposalStatus
+        - createdAt
+        - updatedAt
+
+    DisposedDocumentResult:
+      allOf:
+        - $ref: "#/components/schemas/DocumentRetentionRecord"
+        - type: object
+          properties:
+            storageDeleted:
+              type: boolean
+              description: >-
+                False when the record was authoritatively marked disposed but
+                the storage object could not be removed — a recoverable
+                orphan, never a false claim that the file is still retained.
+          required:
+            - storageDeleted

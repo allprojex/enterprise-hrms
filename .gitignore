@@ -53,6 +53,12 @@ Thumbs.db
 .env.*
 !.env.example
 
+# Uploaded files — fileStorage.ts's private, organization-scoped storage tree
+# (UPLOADS_DIR, default <cwd>/uploads). Real customer content: employee
+# avatars, organization branding, employee/candidate documents, and WS-5
+# organization documents and generated letters. Never belongs in git.
+uploads/
+
 # MCP server config — may contain embedded connection credentials
 # (e.g. the Supabase MCP server's authenticated URL)
 .mcp.json

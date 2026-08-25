@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 import { organizationsTable } from "./organizations";
 import { offersTable } from "./offers";
 import { employmentTypeEnum } from "./employees";
+import { documentTemplatesTable } from "./document-templates";
 
 // Offer Versions (Phase 3A, W57 — Offers): immutable offer content per
 // revision — the actual envelope contents (§9/§14). Column list is exactly
@@ -21,15 +22,14 @@ import { employmentTypeEnum } from "./employees";
 // instead — enforced in lib/offers.ts, not at the schema level.
 //
 // `letterTemplateId`/`generatedDocumentStorageKey` are reserved columns per
-// §9's own key-column list — no offer-letter-template table exists in this
-// three-table frozen scope, and no document-generation logic is built by
-// this workstream (§15 lists offer letters as "generated as stored
-// HTML/text documents" but names no template-rendering mechanism to build
-// it with). Both are nullable and never populated by any route here,
-// mirroring `vacancies.publicId`'s and `interview_scorecards.externalInterviewerToken`'s
-// own "reserved for a later workstream, not consumed here" precedent.
-// `letterTemplateId` carries no FK reference for the same reason — its
-// target table doesn't exist yet.
+// §9's own key-column list — both nullable and never populated by any route
+// in this workstream, mirroring `vacancies.publicId`'s and
+// `interview_scorecards.externalInterviewerToken`'s own "reserved for a
+// later workstream, not consumed here" precedent. WS-5 (Documents & Records
+// Foundation, Owner Decision #4) later built the generation engine these
+// fields were reserved for (document-templates.ts) and added the FK below
+// as pure infrastructure wiring — no recruitment business behavior changes,
+// no route populates either column here; that remains WS-9's own scope.
 export const offerVersionWorkplaceTypeEnum = pgEnum("offer_version_workplace_type", ["onsite", "remote", "hybrid"]);
 export const offerVersionStatusEnum = pgEnum("offer_version_status", [
   "draft",
@@ -67,7 +67,7 @@ export const offerVersionsTable = pgTable(
     compensationSummary: jsonb("compensation_summary"),
     conditions: text("conditions"),
     expiryDate: date("expiry_date"),
-    letterTemplateId: integer("letter_template_id"),
+    letterTemplateId: integer("letter_template_id").references(() => documentTemplatesTable.id, { onDelete: "set null" }),
     generatedDocumentStorageKey: text("generated_document_storage_key"),
     status: offerVersionStatusEnum("status").notNull().default("draft"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
