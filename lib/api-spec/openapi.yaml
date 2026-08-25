@@ -813,6 +813,95 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /platform/users/{userId}/disable:
+    post:
+      operationId: disablePlatformUser
+      tags: [platform-users]
+      summary: Disable a user's platform account
+      description: >-
+        Platform super_admin only (WS-2, Owner Decision #20). Blocks the
+        user across every organization, immediately revokes every existing
+        session, and is re-checked live on every subsequent authenticated
+        request — never merely on next login. Distinct from, and
+        independent of, organization membership status: a disabled user's
+        organization memberships are left untouched. A super_admin cannot
+        disable their own account.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DisablePlatformUserInput"
+      responses:
+        "200":
+          description: User disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformUserSummary"
+        "400":
+          description: Cannot disable your own account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /platform/users/{userId}/enable:
+    post:
+      operationId: enablePlatformUser
+      tags: [platform-users]
+      summary: Re-enable a user's platform account
+      description: >-
+        Platform super_admin only (WS-2, Owner Decision #20). Restores
+        platform account eligibility only — does NOT restore any
+        organization membership, role, or permission grant that changed
+        while the account was disabled; those remain separately
+        authoritative and are managed through their own existing
+        membership-management operations.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User re-enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformUserSummary"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /me/organizations:
     get:
       operationId: listMyOrganizations
@@ -19219,6 +19308,33 @@ components:
         domainType:
           type: string
           enum: [platform_subdomain, custom_domain]
+
+    PlatformUserSummary:
+      type: object
+      required: [id, email, firstName, lastName, disabledAt, disabledBy, disabledReason]
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        disabledAt:
+          type: ["string", "null"]
+          format: date-time
+        disabledBy:
+          type: ["integer", "null"]
+        disabledReason:
+          type: ["string", "null"]
+
+    DisablePlatformUserInput:
+      type: object
+      properties:
+        reason:
+          type: string
+          minLength: 1
 
     TenantContext:
       type: object

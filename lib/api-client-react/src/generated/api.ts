@@ -137,6 +137,7 @@ import type {
   DepartmentHead,
   DirectIssueBody,
   DirectIssueResult,
+  DisablePlatformUserInput,
   DismissAssetIncidentInput,
   Employee,
   EmployeeBankingDetail,
@@ -309,6 +310,7 @@ import type {
   PersonnelImportCommitResult,
   PersonnelImportValidationSummary,
   PersonnelSearchResult,
+  PlatformUserSummary,
   Position,
   PreEmploymentRequirement,
   PreEmploymentRequirementListResponse,
@@ -2174,6 +2176,151 @@ export const useSetPrimaryOrganizationDomain = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getSetPrimaryOrganizationDomainMutationOptions(options));
+    }
+
+export const getDisablePlatformUserUrl = (userId: number,) => {
+
+
+
+
+  return `/api/platform/users/${userId}/disable`
+}
+
+/**
+ * Platform super_admin only (WS-2, Owner Decision #20). Blocks the user across every organization, immediately revokes every existing session, and is re-checked live on every subsequent authenticated request — never merely on next login. Distinct from, and independent of, organization membership status: a disabled user's organization memberships are left untouched. A super_admin cannot disable their own account.
+ * @summary Disable a user's platform account
+ */
+export const disablePlatformUser = async (userId: number,
+    disablePlatformUserInput?: DisablePlatformUserInput, options?: RequestInit): Promise<PlatformUserSummary> => {
+
+  return customFetch<PlatformUserSummary>(getDisablePlatformUserUrl(userId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(disablePlatformUserInput)
+  }
+);}
+
+
+
+
+
+export const getDisablePlatformUserMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disablePlatformUser>>, TError,{userId: number;data?: BodyType<DisablePlatformUserInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof disablePlatformUser>>, TError,{userId: number;data?: BodyType<DisablePlatformUserInput>}, TContext> => {
+
+const mutationKey = ['disablePlatformUser'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof disablePlatformUser>>, {userId: number;data?: BodyType<DisablePlatformUserInput>}> = (props) => {
+          const {userId,data} = props ?? {};
+
+          return  disablePlatformUser(userId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DisablePlatformUserMutationResult = NonNullable<Awaited<ReturnType<typeof disablePlatformUser>>>
+    export type DisablePlatformUserMutationBody = BodyType<DisablePlatformUserInput> | undefined
+    export type DisablePlatformUserMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Disable a user's platform account
+ */
+export const useDisablePlatformUser = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disablePlatformUser>>, TError,{userId: number;data?: BodyType<DisablePlatformUserInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof disablePlatformUser>>,
+        TError,
+        {userId: number;data?: BodyType<DisablePlatformUserInput>},
+        TContext
+      > => {
+      return useMutation(getDisablePlatformUserMutationOptions(options));
+    }
+
+export const getEnablePlatformUserUrl = (userId: number,) => {
+
+
+
+
+  return `/api/platform/users/${userId}/enable`
+}
+
+/**
+ * Platform super_admin only (WS-2, Owner Decision #20). Restores platform account eligibility only — does NOT restore any organization membership, role, or permission grant that changed while the account was disabled; those remain separately authoritative and are managed through their own existing membership-management operations.
+ * @summary Re-enable a user's platform account
+ */
+export const enablePlatformUser = async (userId: number, options?: RequestInit): Promise<PlatformUserSummary> => {
+
+  return customFetch<PlatformUserSummary>(getEnablePlatformUserUrl(userId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getEnablePlatformUserMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof enablePlatformUser>>, TError,{userId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof enablePlatformUser>>, TError,{userId: number}, TContext> => {
+
+const mutationKey = ['enablePlatformUser'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof enablePlatformUser>>, {userId: number}> = (props) => {
+          const {userId} = props ?? {};
+
+          return  enablePlatformUser(userId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EnablePlatformUserMutationResult = NonNullable<Awaited<ReturnType<typeof enablePlatformUser>>>
+
+    export type EnablePlatformUserMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Re-enable a user's platform account
+ */
+export const useEnablePlatformUser = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof enablePlatformUser>>, TError,{userId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof enablePlatformUser>>,
+        TError,
+        {userId: number},
+        TContext
+      > => {
+      return useMutation(getEnablePlatformUserMutationOptions(options));
     }
 
 export const getListMyOrganizationsUrl = () => {

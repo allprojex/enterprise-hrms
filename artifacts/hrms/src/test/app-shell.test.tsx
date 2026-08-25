@@ -49,10 +49,25 @@ const SINGLE_ORG_MEMBERSHIPS = [
   },
 ];
 
-const { useListMyOrganizationsMock, logoutMutateMock } = vi.hoisted(() => ({
+const { useListMyOrganizationsMock, logoutMutateMock, useGetMeMock, clearTokenMock } = vi.hoisted(() => ({
   useListMyOrganizationsMock: vi.fn(),
   logoutMutateMock: vi.fn(),
+  useGetMeMock: vi.fn(),
+  clearTokenMock: vi.fn(),
 }));
+
+const DEFAULT_ME = {
+  data: {
+    id: 1,
+    firstName: 'Ama',
+    lastName: 'Owusu',
+    role: 'org_admin',
+    organizationId: 10,
+    activeOrganizationId: 10,
+  },
+  isLoading: false,
+  error: null,
+};
 
 vi.mock('@tanstack/react-query', async () => {
   const actual = await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query');
@@ -62,19 +77,13 @@ vi.mock('@tanstack/react-query', async () => {
   };
 });
 
+vi.mock('@/lib/auth', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/auth')>('@/lib/auth');
+  return { ...actual, clearToken: clearTokenMock };
+});
+
 vi.mock('@workspace/api-client-react', () => ({
-  useGetMe: () => ({
-    data: {
-      id: 1,
-      firstName: 'Ama',
-      lastName: 'Owusu',
-      role: 'org_admin',
-      organizationId: 10,
-      activeOrganizationId: 10,
-    },
-    isLoading: false,
-    error: null,
-  }),
+  useGetMe: () => useGetMeMock(),
   getGetMeQueryKey: () => ['getMe'],
   useListNotifications: () => ({ data: [] }),
   getListNotificationsQueryKey: () => ['notifications'],
@@ -100,6 +109,11 @@ function renderShell() {
     </QueryClientProvider>,
   );
 }
+
+beforeEach(() => {
+  useGetMeMock.mockReturnValue(DEFAULT_ME);
+  clearTokenMock.mockReset();
+});
 
 describe('AppShell organisation switcher', () => {
   beforeEach(() => {
@@ -299,5 +313,50 @@ describe('AppShell header account menu', () => {
 
     await user.click(logoutItem);
     expect(logoutMutateMock).toHaveBeenCalled();
+  });
+});
+
+// WS-2 (Identity & Access Hardening): a session that stops being valid mid-
+// use — most notably a platform-level disablement (Owner Decision #20),
+// but identically for any other reason requireAuth now or in the future
+// returns 401 for /auth/me — must clear the stale local token and redirect
+// to login, never leave the shell rendering as if the caller were still
+// authenticated.
+describe('AppShell session invalidation (e.g. platform-disabled account)', () => {
+  beforeEach(() => {
+    useListMyOrganizationsMock.mockReturnValue({ data: SINGLE_ORG_MEMBERSHIPS });
+  });
+
+  it('clears the local token and redirects to /login when GET /auth/me returns 401', async () => {
+    useGetMeMock.mockReturnValue({ data: undefined, isLoading: false, error: { status: 401 } });
+    const { hook, history } = memoryLocation({ path: '/dashboard', record: true });
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <Router hook={hook}>
+          <AppShell>
+            <div>page content</div>
+          </AppShell>
+        </Router>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(clearTokenMock).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(history[history.length - 1]).toBe('/login');
+    });
+  });
+
+  it('does not clear the token or redirect for a healthy session', () => {
+    renderShell();
+    expect(clearTokenMock).not.toHaveBeenCalled();
+  });
+
+  it('does not clear the token for a non-401 error (e.g. a transient network failure)', () => {
+    useGetMeMock.mockReturnValue({ data: undefined, isLoading: false, error: { status: 500 } });
+    renderShell();
+    expect(clearTokenMock).not.toHaveBeenCalled();
   });
 });

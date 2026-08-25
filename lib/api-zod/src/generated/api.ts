@@ -480,6 +480,51 @@ export const SetPrimaryOrganizationDomainResponse = zod.object({
 
 
 /**
+ * Platform super_admin only (WS-2, Owner Decision #20). Blocks the user across every organization, immediately revokes every existing session, and is re-checked live on every subsequent authenticated request — never merely on next login. Distinct from, and independent of, organization membership status: a disabled user's organization memberships are left untouched. A super_admin cannot disable their own account.
+ * @summary Disable a user's platform account
+ */
+export const DisablePlatformUserParams = zod.object({
+  "userId": zod.coerce.number()
+})
+
+
+
+
+export const DisablePlatformUserBody = zod.object({
+  "reason": zod.string().min(1).optional()
+})
+
+export const DisablePlatformUserResponse = zod.object({
+  "id": zod.number(),
+  "email": zod.string(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "disabledAt": zod.coerce.date().nullable(),
+  "disabledBy": zod.number().nullable(),
+  "disabledReason": zod.string().nullable()
+})
+
+
+/**
+ * Platform super_admin only (WS-2, Owner Decision #20). Restores platform account eligibility only — does NOT restore any organization membership, role, or permission grant that changed while the account was disabled; those remain separately authoritative and are managed through their own existing membership-management operations.
+ * @summary Re-enable a user's platform account
+ */
+export const EnablePlatformUserParams = zod.object({
+  "userId": zod.coerce.number()
+})
+
+export const EnablePlatformUserResponse = zod.object({
+  "id": zod.number(),
+  "email": zod.string(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "disabledAt": zod.coerce.date().nullable(),
+  "disabledBy": zod.number().nullable(),
+  "disabledReason": zod.string().nullable()
+})
+
+
+/**
  * Returns every organization the caller has an active membership in, with their role(s) and Primary HR status in each.
  * @summary List my organization memberships
  */

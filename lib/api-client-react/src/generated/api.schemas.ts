@@ -230,6 +230,24 @@ export interface CreateOrganizationDomainInput {
   domainType: CreateOrganizationDomainInputDomainType;
 }
 
+export interface PlatformUserSummary {
+  id: number;
+  email: string;
+  firstName: string;
+  lastName: string;
+  /** @nullable */
+  disabledAt: string | null;
+  /** @nullable */
+  disabledBy: number | null;
+  /** @nullable */
+  disabledReason: string | null;
+}
+
+export interface DisablePlatformUserInput {
+  /** @minLength 1 */
+  reason?: string;
+}
+
 export type TenantContextOrganizationType = typeof TenantContextOrganizationType[keyof typeof TenantContextOrganizationType];
 
 

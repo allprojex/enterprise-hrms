@@ -1,11 +1,12 @@
 import { Router, type Response } from "express";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db, organizationsTable } from "@workspace/db";
 import { CreateOrganizationBody, UpdateOrganizationBody } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import type { TenantAwareRequest } from "../middlewares/resolveTenantHost";
 import { isSuperAdmin } from "../lib/authorization";
 import { authorizeOrganizationAction } from "../lib/organizationAuthorization";
+import { getActiveMembershipsForUser } from "../lib/membership";
 import { hostnameOrganizationMismatch, shouldFailClosedForTenantResolution } from "../lib/organizationDomains";
 import { onboardOrganization } from "../lib/onboarding";
 import { isUniqueViolation } from "../lib/dbErrors";
@@ -61,14 +62,29 @@ function formatOrg(org: typeof organizationsTable.$inferSelect) {
 }
 
 // GET /organizations
+// WS-2 (Owner Decision #1): previously filtered by the legacy
+// users.organizationId single-org column, which silently hid every
+// organization a multi-membership user belongs to beyond their original
+// "home" org — a real, now-fixed discrepancy with GET /me/organizations
+// (lib/membership.ts's getActiveMembershipsForUser), which was already
+// correctly membership-based. Both routes now agree.
 router.get("/organizations", requireAuth as any, async (req: AuthenticatedRequest, res): Promise<void> => {
   const user = req.user!;
-  // Users see only their own organization; super_admins see all
-  const orgs = await db
-    .select()
-    .from(organizationsTable)
-    .where(isSuperAdmin(user) ? undefined : eq(organizationsTable.id, user.organizationId));
 
+  if (isSuperAdmin(user)) {
+    const orgs = await db.select().from(organizationsTable);
+    res.json(orgs.map(formatOrg));
+    return;
+  }
+
+  const memberships = await getActiveMembershipsForUser(user.id);
+  if (!memberships.length) {
+    res.json([]);
+    return;
+  }
+
+  const organizationIds = [...new Set(memberships.map((m) => m.organizationId))];
+  const orgs = await db.select().from(organizationsTable).where(inArray(organizationsTable.id, organizationIds));
   res.json(orgs.map(formatOrg));
 });
 

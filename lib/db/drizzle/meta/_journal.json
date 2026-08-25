@@ -393,6 +393,13 @@
       "when": 1787613946621,
       "tag": "0055_shallow_morlocks",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1787629417639,
+      "tag": "0056_normal_wind_dancer",
+      "breakpoints": true
     }
   ]
 }
