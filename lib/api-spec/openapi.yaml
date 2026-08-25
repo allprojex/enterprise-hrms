@@ -23595,7 +23595,15 @@ components:
       required: [totalEmployees, activeModules, unreadNotifications, leaveMetrics, attendanceMetrics, assetMetrics, inventoryMetrics]
       properties:
         totalEmployees:
-          type: integer
+          description: >-
+            Null when the caller lacks employee.write (the same
+            org_admin/hr_manager-only tier that gates every employee-record
+            mutation) — the broad employee.read every role holds only
+            implies "may view the directory," never "may see an aggregate
+            organization headcount."
+          anyOf:
+            - type: integer
+            - type: "null"
         activeModules:
           type: integer
         unreadNotifications:
@@ -23620,12 +23628,19 @@ components:
             - $ref: "#/components/schemas/AttendanceDashboardMetrics"
             - type: "null"
         assetMetrics:
-          description: Null when the "asset_management" module is disabled for the caller's active organization.
+          description: >-
+            Null when the "asset_management" module is disabled for the
+            caller's active organization, or when the caller lacks
+            asset_management.reports.read (the same permission
+            assets-dashboard.tsx's own endpoint requires).
           anyOf:
             - $ref: "#/components/schemas/AssetDashboardMetrics"
             - type: "null"
         inventoryMetrics:
-          description: Null when the "office_inventory" module is disabled for the caller's active organization.
+          description: >-
+            Null when the "office_inventory" module is disabled for the
+            caller's active organization, or when the caller lacks
+            office_inventory.reports.read.
           anyOf:
             - $ref: "#/components/schemas/InventoryDashboardMetrics"
             - type: "null"

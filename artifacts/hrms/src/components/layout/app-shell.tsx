@@ -69,6 +69,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { useMyProfilePhoto } from '@/hooks/use-employee-photo';
+import { useIsOrgAdmin, useIsHrCapable } from '@/hooks/use-hr-capable';
 import { clearToken } from '@/lib/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -387,12 +388,10 @@ export function AppShell({ children }: AppShellProps) {
   // endpoint independently enforces its own permission server-side
   // (requireMembership + requirePermission). This just avoids showing a
   // link to a page whose actions would all 403 for this user's roles.
-  const isOrgAdmin = currentOrg?.roles.some((r) => r === 'org_admin' || r === 'super_admin') ?? false;
-  // Same UX-convenience gate as isOrgAdmin — the leave_request.manage
-  // permission (server-enforced) is what actually protects the balance
-  // adjustment endpoint; this just avoids showing HR admins-only tooling to
-  // a role that would 403 on every action.
-  const isHrCapable = isOrgAdmin || (currentOrg?.roles.some((r) => r === 'hr_manager') ?? false);
+  // Shared with every other page's identical gate (hooks/use-hr-capable.ts)
+  // rather than re-deriving the roles lookup here a second time.
+  const isOrgAdmin = useIsOrgAdmin(activeOrganizationId ?? 0);
+  const isHrCapable = useIsHrCapable(activeOrganizationId ?? 0);
 
   // WWM Organization Administrator verification (WWM Readiness W3): the
   // profile card previously showed `user.role` -- the legacy platform-wide

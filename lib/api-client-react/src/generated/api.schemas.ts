@@ -4285,16 +4285,17 @@ export interface InventoryDashboardMetrics {
 }
 
 export interface DashboardSummary {
-  totalEmployees: number;
+  /** Null when the caller lacks employee.write (the same org_admin/hr_manager-only tier that gates every employee-record mutation) — the broad employee.read every role holds only implies "may view the directory," never "may see an aggregate organization headcount." */
+  totalEmployees: number | null;
   activeModules: number;
   unreadNotifications: number;
   /** Null when the "leave" module is disabled for the caller's active organization — never a zero-filled placeholder. When present, scoped to the viewer's own access tier: org-wide for an HR admin (leave_request.manage), own + direct reports otherwise. */
   leaveMetrics: LeaveDashboardMetrics | null;
   /** Null when the "attendance" module is disabled, or when the organization has not configured a timezone yet — never a zero-filled placeholder. Reuses the existing Attendance Dashboard aggregation and its own own/team/organization-wide visibility scope, never a second business-rules engine. */
   attendanceMetrics: AttendanceDashboardMetrics | null;
-  /** Null when the "asset_management" module is disabled for the caller's active organization. */
+  /** Null when the "asset_management" module is disabled for the caller's active organization, or when the caller lacks asset_management.reports.read (the same permission assets-dashboard.tsx's own endpoint requires). */
   assetMetrics: AssetDashboardMetrics | null;
-  /** Null when the "office_inventory" module is disabled for the caller's active organization. */
+  /** Null when the "office_inventory" module is disabled for the caller's active organization, or when the caller lacks office_inventory.reports.read. */
   inventoryMetrics: InventoryDashboardMetrics | null;
 }
 

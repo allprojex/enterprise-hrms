@@ -42,6 +42,12 @@ const {
         notificationRows: [] as { userId: number; read: boolean }[],
         moduleRows: [] as Record<string, unknown>[],
         organizationModuleRows: [] as Record<string, unknown>[],
+        // Permission-Aware Dashboard Reconciliation: totalEmployees is now
+        // gated by employee.write — this test file mocks hasPermission
+        // directly (see vi.mock("../lib/permissions", ...) below) rather
+        // than extending the db mock's condition evaluator with
+        // inArray/innerJoin support just for this one gate.
+        grantedPermissions: new Set<string>(),
       },
       usersTable: { __name: "users" },
       sessionsTable: { __name: "sessions" },
@@ -149,6 +155,10 @@ vi.mock("@workspace/db", () => ({
   },
 }));
 
+vi.mock("../lib/permissions", () => ({
+  hasPermission: async (_membershipId: number, key: string) => fixtures.grantedPermissions.has(key),
+}));
+
 const { resolveActiveOrganizationId } = await import("../lib/membership");
 const { default: app } = await import("../app");
 
@@ -237,6 +247,7 @@ describe("GET /api/dashboard/summary", () => {
     fixtures.notificationRows = [];
     fixtures.moduleRows = [];
     fixtures.organizationModuleRows = [];
+    fixtures.grantedPermissions = new Set();
   });
 
   it("counts employees for the resolved active organization, not the legacy organizationId", async () => {
@@ -246,11 +257,24 @@ describe("GET /api/dashboard/summary", () => {
     mockSession({ activeOrganizationId: 20, legacyOrganizationId: 10 });
     fixtures.membershipRows = [activeMembership(20), activeMembership(10)];
     fixtures.employeeRows = [{ organizationId: 10 }, { organizationId: 10 }, { organizationId: 20 }];
+    fixtures.grantedPermissions = new Set(["employee.write"]);
 
     const res = await request(app).get("/api/dashboard/summary").set("Authorization", "Bearer valid-token");
 
     expect(res.status).toBe(200);
     expect(res.body.totalEmployees).toBe(1);
+  });
+
+  it("returns totalEmployees: null (never a fabricated 0) for a caller without employee.write, even with employees present (Permission-Aware Dashboard Reconciliation)", async () => {
+    mockSession({ activeOrganizationId: 20, legacyOrganizationId: 10 });
+    fixtures.membershipRows = [activeMembership(20)];
+    fixtures.employeeRows = [{ organizationId: 20 }, { organizationId: 20 }];
+    // No employee.write granted.
+
+    const res = await request(app).get("/api/dashboard/summary").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.totalEmployees).toBeNull();
   });
 
   it("derives activeModules from the real per-organization module registry, not a hardcoded constant (W18)", async () => {

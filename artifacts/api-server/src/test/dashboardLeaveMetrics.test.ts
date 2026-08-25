@@ -29,6 +29,8 @@ const {
   leavePoliciesTable,
   publicHolidaysTable,
   notificationsTable,
+  assetsTable,
+  officeInventoryItemsTable,
 } = vi.hoisted(() => {
   function mockTable(name: string, columns: string[]) {
     const table: Record<string, string> & { __name: string } = { __name: name } as never;
@@ -50,6 +52,8 @@ const {
       leavePolicyRows: [] as Record<string, unknown>[],
       publicHolidayRows: [] as Record<string, unknown>[],
       notificationRows: [] as Record<string, unknown>[],
+      assetRows: [] as Record<string, unknown>[],
+      officeInventoryItemRows: [] as Record<string, unknown>[],
     },
     usersTable: mockTable("users", ["id", "email"]),
     sessionsTable: mockTable("sessions", ["token", "userId", "expiresAt"]),
@@ -83,6 +87,8 @@ const {
     leavePoliciesTable: mockTable("leave_policies", ["id", "carryForwardAllowed", "carryForwardExpiryMonths"]),
     publicHolidaysTable: mockTable("public_holidays", ["id", "organizationId", "status", "recurring", "date", "observedDate", "name"]),
     notificationsTable: mockTable("notifications", ["userId", "read"]),
+    assetsTable: mockTable("assets", ["id", "organizationId", "status"]),
+    officeInventoryItemsTable: mockTable("office_inventory_items", ["id", "organizationId", "status"]),
   };
 });
 
@@ -90,6 +96,7 @@ type Cond =
   | { __op: "eq"; field: string; val: unknown }
   | { __op: "and"; conds: Cond[] }
   | { __op: "inArray"; field: string; vals: unknown[] }
+  | { __op: "notInArray"; field: string; vals: unknown[] }
   | undefined;
 
 function matches(row: Record<string, unknown>, cond: Cond): boolean {
@@ -97,6 +104,7 @@ function matches(row: Record<string, unknown>, cond: Cond): boolean {
   if (cond.__op === "eq") return row[cond.field] === cond.val;
   if (cond.__op === "and") return cond.conds.every((c) => matches(row, c));
   if (cond.__op === "inArray") return cond.vals.includes(row[cond.field]);
+  if (cond.__op === "notInArray") return !cond.vals.includes(row[cond.field]);
   return true;
 }
 
@@ -117,6 +125,8 @@ vi.mock("@workspace/db", () => ({
   leavePoliciesTable,
   publicHolidaysTable,
   notificationsTable,
+  assetsTable,
+  officeInventoryItemsTable,
   db: {
     select: () => ({
       from(table: { __name: string }) {
@@ -165,6 +175,8 @@ vi.mock("@workspace/db", () => ({
         else if (table === leavePoliciesTable) rows = fixtures.leavePolicyRows;
         else if (table === publicHolidaysTable) rows = fixtures.publicHolidayRows;
         else if (table === notificationsTable) rows = fixtures.notificationRows;
+        else if (table === assetsTable) rows = fixtures.assetRows;
+        else if (table === officeInventoryItemsTable) rows = fixtures.officeInventoryItemRows;
 
         let filtered = rows;
         const builder = {
@@ -187,6 +199,7 @@ vi.mock("drizzle-orm", () => ({
   eq: (col: string, val: unknown) => ({ __op: "eq", field: typeof col === "string" ? col.split(".").pop() : col, val }),
   and: (...conds: Cond[]) => ({ __op: "and", conds: conds.filter(Boolean) }),
   inArray: (col: string, vals: unknown[]) => ({ __op: "inArray", field: typeof col === "string" ? col.split(".").pop() : col, vals }),
+  notInArray: (col: string, vals: unknown[]) => ({ __op: "notInArray", field: typeof col === "string" ? col.split(".").pop() : col, vals }),
   // resolveActiveOrganizationId's fallback (lib/membership.ts) also composes
   // or/isNull/gt for its active-and-unexpired check; not otherwise exercised
   // by these tests (fixtures are already constructed active/unexpired), so
@@ -247,7 +260,21 @@ beforeEach(() => {
   fixtures.leavePolicyRows = [];
   fixtures.publicHolidayRows = [];
   fixtures.notificationRows = [];
+  fixtures.assetRows = [];
+  fixtures.officeInventoryItemRows = [];
 });
+
+/** Appends an enabled/disabled module row — unlike mockLeaveModuleEnabled, doesn't replace the whole moduleRows array, so multiple modules can be configured in the same test. */
+function mockModuleEnabled(key: string, enabled: boolean) {
+  const id = fixtures.moduleRows.length + 1;
+  fixtures.moduleRows.push({ id, key, status: "active", defaultEnabled: false, requiredModuleKeys: [] });
+  if (enabled) fixtures.organizationModuleRows.push({ id, organizationId: ORG_ID, moduleId: id, enabled: true });
+}
+
+function mockPermissions(...keys: string[]) {
+  fixtures.membershipRoleRows = [{ membershipId: 5, roleId: 1 }];
+  fixtures.permissionRows = keys.map((key) => ({ roleId: 1, key }));
+}
 
 describe("GET /api/dashboard/summary — leaveMetrics (W40)", () => {
   it("returns 401 when unauthenticated", async () => {
@@ -461,5 +488,104 @@ describe("GET /api/dashboard/summary — leaveMetrics (W40)", () => {
         "requestsByStatus",
       ].sort(),
     );
+  });
+});
+
+describe("GET /api/dashboard/summary — assetMetrics/inventoryMetrics/totalEmployees permission gating (Permission-Aware Dashboard Reconciliation)", () => {
+  it("assetMetrics is null when asset_management is enabled but the caller lacks asset_management.reports.read", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockModuleEnabled("asset_management", true);
+    fixtures.assetRows = [{ id: 1, organizationId: ORG_ID, status: "assigned" }];
+    // No permissions granted at all.
+
+    const res = await request(app).get("/api/dashboard/summary").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.assetMetrics).toBeNull();
+  });
+
+  it("assetMetrics is populated when the caller holds asset_management.reports.read and the module is enabled", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockModuleEnabled("asset_management", true);
+    mockPermissions("asset_management.reports.read");
+    fixtures.assetRows = [
+      { id: 1, organizationId: ORG_ID, status: "assigned" },
+      { id: 2, organizationId: ORG_ID, status: "retired" },
+    ];
+
+    const res = await request(app).get("/api/dashboard/summary").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.assetMetrics).toEqual({ activeAssets: 1 });
+  });
+
+  it("assetMetrics is null when the caller holds the permission but the module is disabled", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockModuleEnabled("asset_management", false);
+    mockPermissions("asset_management.reports.read");
+    fixtures.assetRows = [{ id: 1, organizationId: ORG_ID, status: "assigned" }];
+
+    const res = await request(app).get("/api/dashboard/summary").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.assetMetrics).toBeNull();
+  });
+
+  it("inventoryMetrics is null when office_inventory is enabled but the caller lacks office_inventory.reports.read", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockModuleEnabled("office_inventory", true);
+    fixtures.officeInventoryItemRows = [{ id: 1, organizationId: ORG_ID, status: "active" }];
+
+    const res = await request(app).get("/api/dashboard/summary").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.inventoryMetrics).toBeNull();
+  });
+
+  it("inventoryMetrics is populated when the caller holds office_inventory.reports.read — proving a custom Inventory-only role (not hr_manager/org_admin) still sees it", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockModuleEnabled("office_inventory", true);
+    // Deliberately NOT hr_manager/org_admin — a custom "Inventory Store
+    // Officer"-style role holding just this one reporting permission.
+    mockPermissions("office_inventory.reports.read");
+    fixtures.officeInventoryItemRows = [
+      { id: 1, organizationId: ORG_ID, status: "active" },
+      { id: 2, organizationId: ORG_ID, status: "active" },
+      { id: 3, organizationId: ORG_ID, status: "retired" },
+    ];
+
+    const res = await request(app).get("/api/dashboard/summary").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.inventoryMetrics).toEqual({ totalItems: 2 });
+  });
+
+  it("totalEmployees is null for a caller without employee.write, even though every role holds employee.read", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions("employee.read");
+    fixtures.employeeRows = [{ id: 1, organizationId: ORG_ID }, { id: 2, organizationId: ORG_ID }];
+
+    const res = await request(app).get("/api/dashboard/summary").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.totalEmployees).toBeNull();
+  });
+
+  it("totalEmployees is populated for a caller holding employee.write", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions("employee.write");
+    fixtures.employeeRows = [{ id: 1, organizationId: ORG_ID }, { id: 2, organizationId: ORG_ID }];
+
+    const res = await request(app).get("/api/dashboard/summary").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.totalEmployees).toBe(2);
   });
 });

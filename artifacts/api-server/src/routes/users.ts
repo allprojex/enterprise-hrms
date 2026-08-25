@@ -94,10 +94,23 @@ async function resolveAttendanceDashboardMetrics(
   }
 }
 
-/** Same lightweight `.length`-over-a-filtered-select style the existing totalEmployees field already uses — not a new reporting engine. "Active" excludes retired/lost, matching everyday usage rather than a literal enum value. */
-async function resolveAssetDashboardMetrics(organizationId: number): Promise<{ activeAssets: number } | null> {
+/**
+ * Permission-Aware Dashboard Reconciliation: org-wide aggregate figures
+ * (asset/inventory/employee counts) must never leak to a caller who
+ * couldn't otherwise see them — module-enabled alone was never a
+ * sufficient gate, since the module can be on for the organization while
+ * this specific caller holds no reporting/write authority over it. Reuses
+ * the exact permission keys each domain's own dashboard/reporting endpoint
+ * already requires (asset_management.reports.read, office_inventory.reports.read)
+ * — not a new permission, not a role-name heuristic. Same lightweight
+ * `.length`-over-a-filtered-select style the existing totalEmployees field
+ * already uses — not a new reporting engine. "Active" excludes
+ * retired/lost, matching everyday usage rather than a literal enum value.
+ */
+async function resolveAssetDashboardMetrics(organizationId: number, membershipId: number): Promise<{ activeAssets: number } | null> {
   const moduleAccess = await getModuleAccess(organizationId, "asset_management");
   if (!moduleAccess.enabled) return null;
+  if (!(await hasPermission(membershipId, "asset_management.reports.read"))) return null;
 
   const rows = await db
     .select({ id: assetsTable.id })
@@ -106,15 +119,31 @@ async function resolveAssetDashboardMetrics(organizationId: number): Promise<{ a
   return { activeAssets: rows.length };
 }
 
-async function resolveInventoryDashboardMetrics(organizationId: number): Promise<{ totalItems: number } | null> {
+async function resolveInventoryDashboardMetrics(organizationId: number, membershipId: number): Promise<{ totalItems: number } | null> {
   const moduleAccess = await getModuleAccess(organizationId, "office_inventory");
   if (!moduleAccess.enabled) return null;
+  if (!(await hasPermission(membershipId, "office_inventory.reports.read"))) return null;
 
   const rows = await db
     .select({ id: officeInventoryItemsTable.id })
     .from(officeInventoryItemsTable)
     .where(and(eq(officeInventoryItemsTable.organizationId, organizationId), eq(officeInventoryItemsTable.status, "active")));
   return { totalItems: rows.length };
+}
+
+/**
+ * "Organization employee totals" is administrative/aggregate information —
+ * gated by employee.write (the same org_admin/hr_manager-only tier that
+ * already gates every employee-record mutation), not the broad
+ * employee.read every role holds (which only ever implies "may view the
+ * directory," never "may see an aggregate headcount"). Null (never zero)
+ * for a caller without it — the same "hide, don't fabricate zero" contract
+ * every other dashboard metric here already follows.
+ */
+async function resolveTotalEmployees(organizationId: number, membershipId: number): Promise<number | null> {
+  if (!(await hasPermission(membershipId, "employee.write"))) return null;
+  const rows = await db.select({ id: employeesTable.id }).from(employeesTable).where(eq(employeesTable.organizationId, organizationId));
+  return rows.length;
 }
 
 const router = Router();
@@ -171,17 +200,21 @@ router.get("/dashboard/summary", requireAuth as any, async (req: AuthenticatedRe
 
   const activeMembership = activeOrganizationId ? await getActiveMembership(req.userId!, activeOrganizationId) : null;
 
-  const [employees, activeModules, leaveMetrics, attendanceMetrics, assetMetrics, inventoryMetrics] = await Promise.all([
-    activeOrganizationId
-      ? db.select().from(employeesTable).where(eq(employeesTable.organizationId, activeOrganizationId))
-      : Promise.resolve([]),
+  const [totalEmployees, activeModules, leaveMetrics, attendanceMetrics, assetMetrics, inventoryMetrics] = await Promise.all([
+    activeOrganizationId && activeMembership
+      ? resolveTotalEmployees(activeOrganizationId, activeMembership.id)
+      : Promise.resolve(null),
     activeOrganizationId ? listOrganizationModules(activeOrganizationId) : Promise.resolve([]),
     activeOrganizationId ? resolveLeaveDashboardMetrics(req.userId!, activeOrganizationId) : Promise.resolve(null),
     activeOrganizationId && activeMembership
       ? resolveAttendanceDashboardMetrics(req.userId!, activeOrganizationId, activeMembership.id)
       : Promise.resolve(null),
-    activeOrganizationId ? resolveAssetDashboardMetrics(activeOrganizationId) : Promise.resolve(null),
-    activeOrganizationId ? resolveInventoryDashboardMetrics(activeOrganizationId) : Promise.resolve(null),
+    activeOrganizationId && activeMembership
+      ? resolveAssetDashboardMetrics(activeOrganizationId, activeMembership.id)
+      : Promise.resolve(null),
+    activeOrganizationId && activeMembership
+      ? resolveInventoryDashboardMetrics(activeOrganizationId, activeMembership.id)
+      : Promise.resolve(null),
   ]);
 
   const unreadNotifications = await db
@@ -192,7 +225,7 @@ router.get("/dashboard/summary", requireAuth as any, async (req: AuthenticatedRe
   const unreadCount = unreadNotifications.filter((n) => !n.read).length;
 
   res.json({
-    totalEmployees: employees.length,
+    totalEmployees,
     activeModules: activeModules.filter((m) => m.enabled).length,
     unreadNotifications: unreadCount,
     leaveMetrics,

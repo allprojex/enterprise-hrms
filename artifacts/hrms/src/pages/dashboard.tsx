@@ -8,10 +8,11 @@ import {
   getGetDashboardSummaryQueryKey,
   useGetMe,
   getGetMeQueryKey,
-  useListModules,
-  getListModulesQueryKey,
+  useListOrganizationModules,
+  getListOrganizationModulesQueryKey,
 } from '@workspace/api-client-react';
 import { motion } from 'framer-motion';
+import { useIsHrCapable } from '@/hooks/use-hr-capable';
 
 // Core Platform / HR Foundation capabilities — always available to every
 // organization, per ARCHITECTURE.md. Not part of the Module Registry (W3),
@@ -42,20 +43,32 @@ const FOUNDATION_CAPABILITIES = [
 
 export default function Dashboard() {
   const { data: user } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
+  const organizationId = user?.activeOrganizationId ?? user?.organizationId ?? 0;
+  const isHrCapable = useIsHrCapable(organizationId);
   const { data: summary, isLoading } = useGetDashboardSummary({ query: { queryKey: getGetDashboardSummaryQueryKey() } });
-  const { data: modules } = useListModules({ query: { queryKey: getListModulesQueryKey() } });
+  // Permission-Aware Dashboard Reconciliation: org-enablement-aware, unlike
+  // the platform-wide catalog useListModules would give — a module the
+  // platform has built but this ORGANIZATION hasn't turned on must never
+  // read as "Available" here (rule: module disabled -> show nothing).
+  const { data: orgModules } = useListOrganizationModules(organizationId, {
+    query: { queryKey: getListOrganizationModulesQueryKey(organizationId), enabled: organizationId > 0 },
+  });
 
-  // Presentation Readiness: attendance/asset/inventory cards only appear
-  // once their owning module is enabled and the summary has loaded — never
-  // a zero-filled placeholder for a module the organization hasn't turned
-  // on, matching the pre-existing leaveMetrics precedent below.
+  // Permission-Aware Dashboard Reconciliation: every stat below now follows
+  // the SAME "null from the backend -> omit the card, never a fabricated
+  // zero" contract leaveMetrics already established — totalEmployees is
+  // null unless the caller holds employee.write (not the broad
+  // employee.read every role holds), and assetMetrics/inventoryMetrics are
+  // null unless the caller holds asset_management.reports.read/
+  // office_inventory.reports.read respectively, in addition to their
+  // module being enabled. This is a backend permission gate, not a
+  // frontend role heuristic — a custom role holding just
+  // office_inventory.reports.read sees the Inventory tile without needing
+  // hr_manager/org_admin.
   const stats = [
-    {
-      title: 'Total Employees',
-      value: summary?.totalEmployees ?? 0,
-      icon: Users,
-      color: 'text-primary'
-    },
+    ...(summary?.totalEmployees != null
+      ? [{ title: 'Total Employees', value: summary.totalEmployees, icon: Users, color: 'text-primary' }]
+      : []),
     ...(summary?.attendanceMetrics
       ? [{ title: 'Present Today', value: summary.attendanceMetrics.presentToday, icon: UserCheck, color: 'text-chart-3' }]
       : []),
@@ -94,6 +107,8 @@ export default function Dashboard() {
         { title: 'Expiring Carry-Forward', value: leaveMetrics.expiringCarryForwardBalances, icon: Hourglass, color: 'text-chart-5' },
       ]
     : [];
+
+  const enabledOrgModules = (orgModules ?? []).filter((m) => m.enabled);
 
   return (
     <div className="p-6 lg:p-8 space-y-8">
@@ -216,9 +231,19 @@ export default function Dashboard() {
               </Link>
             </motion.div>
           ))}
-          {(modules ?? []).map((module, i) => {
-            const isAvailable = module.status === 'active' || module.status === 'beta';
-            return (
+          {/* Permission-Aware Dashboard Reconciliation: this registry is an
+              informational/administrative overview of the organization's
+              module configuration (no card here is a functional entry
+              point — none of them link anywhere), so it's shown only to
+              HR-capable users, matching the sidebar's own treatment of
+              every module listed here (attendance/performance/learning/
+              assets/office_inventory/recruitment are all isHrCapable-gated
+              nav groups). Only modules actually ENABLED for this
+              organization appear — a module the platform has built but
+              this org hasn't turned on is omitted entirely, never shown as
+              "Available" or "Coming Soon". */}
+          {isHrCapable &&
+            enabledOrgModules.map((module, i) => (
               <motion.div
                 key={module.key}
                 initial={{ opacity: 0, y: 20 }}
@@ -232,9 +257,7 @@ export default function Dashboard() {
                   <CardHeader>
                     <div className="flex items-start justify-between gap-2">
                       <CardTitle className="text-lg">{module.name}</CardTitle>
-                      <Badge variant={isAvailable ? 'default' : 'secondary'} className="text-xs">
-                        {isAvailable ? 'Available' : 'Coming Soon'}
-                      </Badge>
+                      <Badge variant="default" className="text-xs">Available</Badge>
                     </div>
                     <CardDescription className="text-sm leading-relaxed">
                       {module.description}
@@ -242,8 +265,7 @@ export default function Dashboard() {
                   </CardHeader>
                 </Card>
               </motion.div>
-            );
-          })}
+            ))}
         </div>
       </div>
 
@@ -254,9 +276,6 @@ export default function Dashboard() {
           <CardDescription>
             Authentication, organisation management, and the employee/branch/department/position
             directory are live.
-            {(modules ?? []).some((m) => m.status !== 'active' && m.status !== 'beta') && (
-              <> {(modules ?? []).filter((m) => m.status !== 'active' && m.status !== 'beta').length} additional module(s) are still under development.</>
-            )}
           </CardDescription>
         </CardHeader>
       </Card>

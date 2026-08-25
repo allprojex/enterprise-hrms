@@ -118,6 +118,10 @@ function errorMessage(err: unknown): string | undefined {
   return err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
 }
 
+function isForbidden(err: unknown): boolean {
+  return !!err && typeof err === 'object' && 'status' in err && (err as { status?: number }).status === 403;
+}
+
 const CLASSIFICATION_LABEL: Record<string, string> = {
   consumable: 'Consumable',
   returnable: 'Returnable',
@@ -3524,6 +3528,9 @@ function DashboardTab({ organizationId }: { organizationId: number }) {
     query: { queryKey: getGetOfficeInventoryDashboardQueryKey(organizationId), enabled: organizationId > 0 },
   });
 
+  if (isForbidden(error)) {
+    return <QueryError title="Access denied" message="You don't have permission to view Office Inventory reporting." />;
+  }
   if (error) {
     return <QueryError title="Could not load the dashboard" message={errorMessage(error)} onRetry={() => refetch()} />;
   }

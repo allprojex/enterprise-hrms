@@ -7824,7 +7824,7 @@ export const MarkAllNotificationsReadResponse = zod.object({
  * @summary Dashboard summary
  */
 export const GetDashboardSummaryResponse = zod.object({
-  "totalEmployees": zod.number(),
+  "totalEmployees": zod.union([zod.number(),zod.null()]).describe('Null when the caller lacks employee.write (the same org_admin\/hr_manager-only tier that gates every employee-record mutation) — the broad employee.read every role holds only implies \"may view the directory,\" never \"may see an aggregate organization headcount.\"'),
   "activeModules": zod.number(),
   "unreadNotifications": zod.number(),
   "leaveMetrics": zod.union([zod.object({
@@ -7847,10 +7847,10 @@ export const GetDashboardSummaryResponse = zod.object({
 }),zod.null()]).describe('Null when the \"attendance\" module is disabled, or when the organization has not configured a timezone yet — never a zero-filled placeholder. Reuses the existing Attendance Dashboard aggregation and its own own\/team\/organization-wide visibility scope, never a second business-rules engine.'),
   "assetMetrics": zod.union([zod.object({
   "activeAssets": zod.number().describe('Assets whose status is not \"retired\" or \"lost\".')
-}),zod.null()]).describe('Null when the \"asset_management\" module is disabled for the caller\'s active organization.'),
+}),zod.null()]).describe('Null when the \"asset_management\" module is disabled for the caller\'s active organization, or when the caller lacks asset_management.reports.read (the same permission assets-dashboard.tsx\'s own endpoint requires).'),
   "inventoryMetrics": zod.union([zod.object({
   "totalItems": zod.number().describe('Office Inventory items whose status is \"active\".')
-}),zod.null()]).describe('Null when the \"office_inventory\" module is disabled for the caller\'s active organization.')
+}),zod.null()]).describe('Null when the \"office_inventory\" module is disabled for the caller\'s active organization, or when the caller lacks office_inventory.reports.read.')
 })
 
 
