@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 import { usersTable } from "./users";
 import { organizationsTable } from "./organizations";
 import { organizationMembershipsTable } from "./organization-memberships";
+import { breakGlassGrantsTable } from "./break-glass-grants";
 
 // WS-3 (Audit & Sensitive-Data Security Hardening, Owner Decision #17):
 // central category taxonomy every event_type prefix resolves to — see
@@ -67,12 +68,32 @@ export const auditEventsTable = pgTable(
     // own per-request id), never a secret, safe to hand to support/ops.
     requestId: text("request_id"),
     outcome: auditOutcomeEnum("outcome"),
+    // WS-4 (Break-Glass Access Foundation, §28-29): auto-populated (see
+    // lib/requestContext.ts / lib/auditLog.ts) from the active break-glass
+    // grant, if any, for the request that wrote this row — including the
+    // exact sensitive-read events WS-3 already produces, so an elevated
+    // read is never a second, duplicate event, only a reference on the
+    // existing one. Null for every ordinary, non-elevated request.
+    //
+    // onDelete: "restrict", not "set null" — live-verified: a FK's SET NULL
+    // action is itself implemented as an UPDATE on this table, which this
+    // workstream's own append-only trigger (0058) unconditionally rejects
+    // regardless of who/what issues it, so SET NULL could never actually
+    // execute here. RESTRICT declares the real, enforced behavior honestly:
+    // a break_glass_grants row referenced by audit history cannot be
+    // deleted through ordinary means — which matches application behavior
+    // anyway, since lib/breakGlass.ts never deletes a grant, only updates
+    // its status (revoke).
+    breakGlassGrantId: integer("break_glass_grant_id").references(() => breakGlassGrantsTable.id, {
+      onDelete: "restrict",
+    }),
   },
   (table) => [
     index("audit_events_org_time_idx").on(table.organizationId, table.occurredAt),
     index("audit_events_actor_time_idx").on(table.actorApplicationUserId, table.occurredAt),
     index("audit_events_target_idx").on(table.targetType, table.targetId),
     index("audit_events_category_idx").on(table.organizationId, table.category, table.occurredAt),
+    index("audit_events_break_glass_grant_idx").on(table.breakGlassGrantId),
   ],
 );
 

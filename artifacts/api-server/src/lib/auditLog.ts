@@ -1,6 +1,6 @@
 import { db, auditEventsTable } from "@workspace/db";
 import { resolveAuditCategory } from "./auditCategories";
-import { getCurrentRequestId } from "./requestContext";
+import { getCurrentRequestId, getCurrentBreakGlassGrantId } from "./requestContext";
 
 interface AuditEventInput {
   actorApplicationUserId?: number | null;
@@ -32,6 +32,14 @@ interface AuditEventInput {
  * (lib/auditCategories.ts, Owner Decision #17); `requestId` is read from the
  * current request's AsyncLocalStorage context if one exists
  * (lib/requestContext.ts), null for background/non-HTTP callers.
+ *
+ * WS-4 addition (Break-Glass Access Foundation, §28-29): `breakGlassGrantId`
+ * is likewise read from that same request context — set only by
+ * requireMembership.ts, only on a request actually served under an active
+ * grant. This is how an elevated sensitive read (WS-3's existing
+ * `.read`/`.revealed` events, `personnel_file.viewed`, etc.) gets tagged as
+ * elevated without becoming a second, duplicate event and without any of
+ * those call sites needing to change either.
  */
 export async function recordAuditEvent(input: AuditEventInput): Promise<void> {
   await db.insert(auditEventsTable).values({
@@ -49,5 +57,6 @@ export async function recordAuditEvent(input: AuditEventInput): Promise<void> {
     category: resolveAuditCategory(input.eventType),
     requestId: getCurrentRequestId() ?? null,
     outcome: input.outcome ?? null,
+    breakGlassGrantId: getCurrentBreakGlassGrantId() ?? null,
   });
 }

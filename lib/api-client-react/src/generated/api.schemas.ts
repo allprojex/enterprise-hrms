@@ -248,6 +248,222 @@ export interface DisablePlatformUserInput {
   reason?: string;
 }
 
+export type InstallationEnvironmentType = typeof InstallationEnvironmentType[keyof typeof InstallationEnvironmentType];
+
+
+export const InstallationEnvironmentType = {
+  development: 'development',
+  staging: 'staging',
+  demo: 'demo',
+  production: 'production',
+} as const;
+
+export type InstallationHostingModel = typeof InstallationHostingModel[keyof typeof InstallationHostingModel];
+
+
+export const InstallationHostingModel = {
+  shared: 'shared',
+  dedicated_owner_managed: 'dedicated_owner_managed',
+  dedicated_customer_managed: 'dedicated_customer_managed',
+  other: 'other',
+} as const;
+
+export type InstallationStatus = typeof InstallationStatus[keyof typeof InstallationStatus];
+
+
+export const InstallationStatus = {
+  active: 'active',
+  inactive: 'inactive',
+  decommissioned: 'decommissioned',
+} as const;
+
+export interface Installation {
+  id: number;
+  installationKey: string;
+  name: string;
+  environmentType: InstallationEnvironmentType;
+  hostingModel: InstallationHostingModel;
+  /** @nullable */
+  hostingProvider: string | null;
+  /** @nullable */
+  primaryDomain: string | null;
+  /** @nullable */
+  applicationVersion: string | null;
+  /** @nullable */
+  gitCommit: string | null;
+  /** @nullable */
+  migrationVersion: string | null;
+  /** @nullable */
+  deployedAt: string | null;
+  /** @nullable */
+  healthUrl: string | null;
+  /** @nullable */
+  extensionProfile: string | null;
+  status: InstallationStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CreateInstallationInputEnvironmentType = typeof CreateInstallationInputEnvironmentType[keyof typeof CreateInstallationInputEnvironmentType];
+
+
+export const CreateInstallationInputEnvironmentType = {
+  development: 'development',
+  staging: 'staging',
+  demo: 'demo',
+  production: 'production',
+} as const;
+
+export type CreateInstallationInputHostingModel = typeof CreateInstallationInputHostingModel[keyof typeof CreateInstallationInputHostingModel];
+
+
+export const CreateInstallationInputHostingModel = {
+  shared: 'shared',
+  dedicated_owner_managed: 'dedicated_owner_managed',
+  dedicated_customer_managed: 'dedicated_customer_managed',
+  other: 'other',
+} as const;
+
+export interface CreateInstallationInput {
+  /**
+     * Stable identifier the deployed application's own environment configuration will carry. Server-generated if omitted.
+     * @minLength 1
+     */
+  installationKey?: string;
+  /** @minLength 1 */
+  name: string;
+  environmentType: CreateInstallationInputEnvironmentType;
+  hostingModel: CreateInstallationInputHostingModel;
+  hostingProvider?: string;
+  primaryDomain?: string;
+  applicationVersion?: string;
+  gitCommit?: string;
+  migrationVersion?: string;
+  deployedAt?: string;
+  healthUrl?: string;
+  extensionProfile?: string;
+}
+
+export type UpdateInstallationInputEnvironmentType = typeof UpdateInstallationInputEnvironmentType[keyof typeof UpdateInstallationInputEnvironmentType];
+
+
+export const UpdateInstallationInputEnvironmentType = {
+  development: 'development',
+  staging: 'staging',
+  demo: 'demo',
+  production: 'production',
+} as const;
+
+export type UpdateInstallationInputHostingModel = typeof UpdateInstallationInputHostingModel[keyof typeof UpdateInstallationInputHostingModel];
+
+
+export const UpdateInstallationInputHostingModel = {
+  shared: 'shared',
+  dedicated_owner_managed: 'dedicated_owner_managed',
+  dedicated_customer_managed: 'dedicated_customer_managed',
+  other: 'other',
+} as const;
+
+export type UpdateInstallationInputStatus = typeof UpdateInstallationInputStatus[keyof typeof UpdateInstallationInputStatus];
+
+
+export const UpdateInstallationInputStatus = {
+  active: 'active',
+  inactive: 'inactive',
+  decommissioned: 'decommissioned',
+} as const;
+
+/**
+ * installationKey is immutable and cannot be changed here.
+ */
+export interface UpdateInstallationInput {
+  /** @minLength 1 */
+  name?: string;
+  environmentType?: UpdateInstallationInputEnvironmentType;
+  hostingModel?: UpdateInstallationInputHostingModel;
+  /** @nullable */
+  hostingProvider?: string | null;
+  /** @nullable */
+  primaryDomain?: string | null;
+  /** @nullable */
+  applicationVersion?: string | null;
+  /** @nullable */
+  gitCommit?: string | null;
+  /** @nullable */
+  migrationVersion?: string | null;
+  /** @nullable */
+  deployedAt?: string | null;
+  /** @nullable */
+  healthUrl?: string | null;
+  /** @nullable */
+  extensionProfile?: string | null;
+  status?: UpdateInstallationInputStatus;
+}
+
+export interface InstallationOrganizationLink {
+  id: number;
+  installationId: number;
+  organizationId: number;
+  linkedAt: string;
+  /** @nullable */
+  unlinkedAt: string | null;
+}
+
+export interface LinkInstallationOrganizationInput {
+  organizationId: number;
+}
+
+export type BreakGlassGrantStatus = typeof BreakGlassGrantStatus[keyof typeof BreakGlassGrantStatus];
+
+
+export const BreakGlassGrantStatus = {
+  active: 'active',
+  revoked: 'revoked',
+} as const;
+
+export interface BreakGlassGrant {
+  id: number;
+  actorUserId: number;
+  targetOrganizationId: number;
+  /** @nullable */
+  targetInstallationId: number | null;
+  reason: string;
+  scope: string[];
+  requestedAt: string;
+  activatedAt: string;
+  expiresAt: string;
+  /** @nullable */
+  revokedAt: string | null;
+  /** @nullable */
+  revokedBy: number | null;
+  status: BreakGlassGrantStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Safe, non-sensitive context only (e.g. a support-ticket reference) — never customer HR data.
+ */
+export type CreateBreakGlassGrantInputMetadata = { [key: string]: unknown };
+
+export interface CreateBreakGlassGrantInput {
+  targetOrganizationId: number;
+  targetInstallationId?: number;
+  /** @minLength 1 */
+  reason: string;
+  /**
+     * Explicit, real, read-only permission keys only (e.g. "employee.read"). Never "all permissions".
+     * @minItems 1
+     */
+  scope: string[];
+  /** Must be in the future and within the platform's configured maximum break-glass grant duration. */
+  expiresAt: string;
+  /** Explicit confirmation that this grant is being knowingly activated. */
+  confirm: true;
+  /** Safe, non-sensitive context only (e.g. a support-ticket reference) — never customer HR data. */
+  metadata?: CreateBreakGlassGrantInputMetadata;
+}
+
 export type TenantContextOrganizationType = typeof TenantContextOrganizationType[keyof typeof TenantContextOrganizationType];
 
 
@@ -8382,6 +8598,10 @@ export type UploadOrganizationLogoBody = {
 
 export type UploadOrganizationLogo200 = {
   logoUrl: string;
+};
+
+export type ListBreakGlassGrantsParams = {
+targetOrganizationId?: number;
 };
 
 export type UploadMyEmployeeProfilePictureBody = {

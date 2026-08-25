@@ -117,3 +117,6 @@ export * from "./office-inventory-approval-delegations";
 export * from "./office-inventory-requests";
 export * from "./office-inventory-incidents";
 export * from "./office-inventory-stocktakes";
+export * from "./installations";
+export * from "./installation-organizations";
+export * from "./break-glass-grants";

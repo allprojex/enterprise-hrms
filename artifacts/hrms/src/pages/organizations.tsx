@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Building, Users, Calendar, CheckCircle, Clock, Ban, Plus, Pencil, Globe, Copy, Star, PowerOff, Power } from 'lucide-react';
+import { Link } from 'wouter';
+import { Building, Users, Calendar, CheckCircle, Clock, Ban, Plus, Pencil, Globe, Copy, Star, PowerOff, Power, ShieldAlert } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -415,13 +416,25 @@ export default function Organizations() {
             View and manage organisations you have access to
           </p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button data-testid="button-add-organization">
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              New Organisation
-            </Button>
-          </DialogTrigger>
+        <div className="flex items-center gap-2">
+          {me?.role === 'super_admin' && (
+            // WS-4 (Installation Registry & Break-Glass Access Foundation):
+            // platform-scoped, cross-organization surface — never an
+            // organization role, same gate as DomainsPanel below.
+            <Link href="/platform-admin">
+              <Button variant="outline" data-testid="button-platform-admin">
+                <ShieldAlert className="h-4 w-4" aria-hidden="true" />
+                Platform Administration
+              </Button>
+            </Link>
+          )}
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button data-testid="button-add-organization">
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                New Organisation
+              </Button>
+            </DialogTrigger>
           <DialogContent>
             <form onSubmit={handleSubmit}>
               <DialogHeader>
@@ -477,7 +490,8 @@ export default function Organizations() {
               </DialogFooter>
             </form>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">

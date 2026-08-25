@@ -28,6 +28,12 @@ const CATEGORY_BY_PREFIX: Record<string, AuditCategory> = {
   membership: "security",
   primary_hr: "security",
   platform_user: "security",
+  // WS-4 (Break-Glass Access Foundation, Owner Decision #31): every grant
+  // lifecycle event (activated/revoked) is security-category by nature —
+  // this is the one prefix the pre-existing fail-closed default already
+  // anticipated (see this file's own comment history), registered
+  // explicitly here for clarity rather than left to fall through.
+  break_glass_grant: "security",
 
   // --- payroll ---
   payroll_banking: "payroll",
@@ -76,6 +82,9 @@ const CATEGORY_BY_PREFIX: Record<string, AuditCategory> = {
   // --- platform / configuration ---
   organization: "platform_configuration",
   organization_domain: "platform_configuration",
+  // WS-4 (Installation Registry, Owner Decision #29): deployment/runtime
+  // identity administration — platform-scoped, never HR content.
+  installation: "platform_configuration",
   module: "platform_configuration",
   master_data_item: "platform_configuration",
   numbering_config: "platform_configuration",

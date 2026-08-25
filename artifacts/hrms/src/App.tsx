@@ -22,6 +22,7 @@ import Positions from '@/pages/positions';
 import Employees from '@/pages/employees';
 import EmployeeDetail from '@/pages/employee-detail';
 import Admin from '@/pages/admin';
+import PlatformAdmin from '@/pages/platform-admin';
 import LeaveTypes from '@/pages/leave-types';
 import MyLeave from '@/pages/my-leave';
 import LeaveBalances from '@/pages/leave-balances';
@@ -156,6 +157,9 @@ function Router() {
       </Route>
       <Route path="/admin">
         {() => <SecureRoute component={Admin} />}
+      </Route>
+      <Route path="/platform-admin">
+        {() => <SecureRoute component={PlatformAdmin} />}
       </Route>
       <Route path="/leave-types">
         {() => <SecureRoute component={LeaveTypes} moduleKey="leave" />}

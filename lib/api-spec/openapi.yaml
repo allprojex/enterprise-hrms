@@ -107,6 +107,25 @@ tags:
       experience — resolved only from the caller's own request hostname,
       never from a client-supplied hostname parameter (not a tenant
       directory).
+  - name: installations
+    description: >-
+      WS-4, Owner Decision #29 — durable registry identifying each deployed
+      HRMS installation/environment and its exact software/deployment state.
+      Platform super_admin only. Not the fleet-management Control Plane
+      (deferred) — this is only the identity foundation later workstreams
+      (health, backup, update status) attach to. One installation may host
+      one or many organizations; see installation_organizations. See
+      docs/INSTALLATION_AND_BREAK_GLASS.md.
+  - name: break-glass
+    description: >-
+      WS-4, Owner Decision #31 — the explicit, reason-bound,
+      organization-scoped, permission-scoped, time-limited, revocable, fully
+      audited mechanism that lets a platform super_admin exercise a narrow,
+      explicit, read-only set of permissions against one organization's
+      data. Platform-owner status alone grants zero standing access to
+      customer HR data; only an active grant created here does, and only
+      within its own scope and expiry. See
+      docs/INSTALLATION_AND_BREAK_GLASS.md.
   - name: performance-cycles
     description: Phase 3C, W75 — Performance cycle configuration and bulk review assignment. HR/admin only (performance.manage).
   - name: performance-reviews
@@ -897,6 +916,380 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "404":
           description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /installations:
+    get:
+      operationId: listInstallations
+      tags: [installations]
+      summary: List installations
+      description: Platform super_admin only.
+      responses:
+        "200":
+          description: List of installations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Installation"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createInstallation
+      tags: [installations]
+      summary: Register a new installation
+      description: Platform super_admin only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInstallationInput"
+      responses:
+        "201":
+          description: Installation registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Installation"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: installationKey already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /installations/{id}:
+    get:
+      operationId: getInstallation
+      tags: [installations]
+      summary: Get an installation
+      description: Platform super_admin only.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Installation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Installation"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    patch:
+      operationId: updateInstallation
+      tags: [installations]
+      summary: Update installation metadata
+      description: Platform super_admin only. installationKey is immutable.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateInstallationInput"
+      responses:
+        "200":
+          description: Installation updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Installation"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /installations/{id}/organizations:
+    get:
+      operationId: listInstallationOrganizations
+      tags: [installations]
+      summary: List organizations linked to an installation
+      description: Platform super_admin only. Active links only (unlinked history is not returned here).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of active links
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InstallationOrganizationLink"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: linkInstallationOrganization
+      tags: [installations]
+      summary: Link an organization to an installation
+      description: >-
+        Platform super_admin only. Supports one installation hosting many
+        organizations (a shared deployment) — this is additive, not a
+        single-organization replacement.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LinkInstallationOrganizationInput"
+      responses:
+        "201":
+          description: Organization linked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstallationOrganizationLink"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Installation or organization not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Organization already linked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /installations/{id}/organizations/{organizationId}:
+    delete:
+      operationId: unlinkInstallationOrganization
+      tags: [installations]
+      summary: Unlink an organization from an installation
+      description: >-
+        Platform super_admin only. Soft unlink (unlinkedAt set) — the
+        association's history is kept, not deleted.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Organization unlinked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstallationOrganizationLink"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No active link found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /break-glass/grants:
+    get:
+      operationId: listBreakGlassGrants
+      tags: [break-glass]
+      summary: List break-glass grants
+      description: Platform super_admin only.
+      parameters:
+        - name: targetOrganizationId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of grants
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BreakGlassGrant"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createBreakGlassGrant
+      tags: [break-glass]
+      summary: Create and activate a break-glass grant
+      description: >-
+        Platform super_admin only (Owner Decision #31). Activated
+        immediately by the same actor who creates it — there is no separate
+        approval workflow in this foundation. scope must be a non-empty list
+        of real, read-only permission keys; expiresAt must be in the future
+        and within the platform's configured maximum duration.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBreakGlassGrantInput"
+      responses:
+        "201":
+          description: Grant activated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BreakGlassGrant"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /break-glass/grants/{id}:
+    get:
+      operationId: getBreakGlassGrant
+      tags: [break-glass]
+      summary: Get a break-glass grant
+      description: Platform super_admin only.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Grant
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BreakGlassGrant"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /break-glass/grants/{id}/revoke:
+    post:
+      operationId: revokeBreakGlassGrant
+      tags: [break-glass]
+      summary: Revoke a break-glass grant
+      description: >-
+        Platform super_admin only. Takes effect immediately on the next
+        privileged request under this grant — no session invalidation or
+        frontend flag involved.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Grant revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BreakGlassGrant"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Grant already revoked
           content:
             application/json:
               schema:
@@ -19348,6 +19741,248 @@ components:
         reason:
           type: string
           minLength: 1
+
+    Installation:
+      type: object
+      required:
+        [
+          id,
+          installationKey,
+          name,
+          environmentType,
+          hostingModel,
+          hostingProvider,
+          primaryDomain,
+          applicationVersion,
+          gitCommit,
+          migrationVersion,
+          deployedAt,
+          healthUrl,
+          extensionProfile,
+          status,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id:
+          type: integer
+        installationKey:
+          type: string
+        name:
+          type: string
+        environmentType:
+          type: string
+          enum: [development, staging, demo, production]
+        hostingModel:
+          type: string
+          enum: [shared, dedicated_owner_managed, dedicated_customer_managed, other]
+        hostingProvider:
+          type: ["string", "null"]
+        primaryDomain:
+          type: ["string", "null"]
+        applicationVersion:
+          type: ["string", "null"]
+        gitCommit:
+          type: ["string", "null"]
+        migrationVersion:
+          type: ["string", "null"]
+        deployedAt:
+          type: ["string", "null"]
+          format: date-time
+        healthUrl:
+          type: ["string", "null"]
+        extensionProfile:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, inactive, decommissioned]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateInstallationInput:
+      type: object
+      required: [name, environmentType, hostingModel]
+      properties:
+        installationKey:
+          type: string
+          description: Stable identifier the deployed application's own environment configuration will carry. Server-generated if omitted.
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        environmentType:
+          type: string
+          enum: [development, staging, demo, production]
+        hostingModel:
+          type: string
+          enum: [shared, dedicated_owner_managed, dedicated_customer_managed, other]
+        hostingProvider:
+          type: string
+        primaryDomain:
+          type: string
+        applicationVersion:
+          type: string
+        gitCommit:
+          type: string
+        migrationVersion:
+          type: string
+        deployedAt:
+          type: string
+          format: date-time
+        healthUrl:
+          type: string
+        extensionProfile:
+          type: string
+
+    UpdateInstallationInput:
+      type: object
+      description: installationKey is immutable and cannot be changed here.
+      properties:
+        name:
+          type: string
+          minLength: 1
+        environmentType:
+          type: string
+          enum: [development, staging, demo, production]
+        hostingModel:
+          type: string
+          enum: [shared, dedicated_owner_managed, dedicated_customer_managed, other]
+        hostingProvider:
+          type: ["string", "null"]
+        primaryDomain:
+          type: ["string", "null"]
+        applicationVersion:
+          type: ["string", "null"]
+        gitCommit:
+          type: ["string", "null"]
+        migrationVersion:
+          type: ["string", "null"]
+        deployedAt:
+          type: ["string", "null"]
+          format: date-time
+        healthUrl:
+          type: ["string", "null"]
+        extensionProfile:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, inactive, decommissioned]
+
+    InstallationOrganizationLink:
+      type: object
+      required: [id, installationId, organizationId, linkedAt, unlinkedAt]
+      properties:
+        id:
+          type: integer
+        installationId:
+          type: integer
+        organizationId:
+          type: integer
+        linkedAt:
+          type: string
+          format: date-time
+        unlinkedAt:
+          type: ["string", "null"]
+          format: date-time
+
+    LinkInstallationOrganizationInput:
+      type: object
+      required: [organizationId]
+      properties:
+        organizationId:
+          type: integer
+
+    BreakGlassGrant:
+      type: object
+      required:
+        [
+          id,
+          actorUserId,
+          targetOrganizationId,
+          targetInstallationId,
+          reason,
+          scope,
+          requestedAt,
+          activatedAt,
+          expiresAt,
+          revokedAt,
+          revokedBy,
+          status,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id:
+          type: integer
+        actorUserId:
+          type: integer
+        targetOrganizationId:
+          type: integer
+        targetInstallationId:
+          type: ["integer", "null"]
+        reason:
+          type: string
+        scope:
+          type: array
+          items:
+            type: string
+        requestedAt:
+          type: string
+          format: date-time
+        activatedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        revokedAt:
+          type: ["string", "null"]
+          format: date-time
+        revokedBy:
+          type: ["integer", "null"]
+        status:
+          type: string
+          enum: [active, revoked]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateBreakGlassGrantInput:
+      type: object
+      required: [targetOrganizationId, reason, scope, expiresAt, confirm]
+      properties:
+        targetOrganizationId:
+          type: integer
+        targetInstallationId:
+          type: integer
+        reason:
+          type: string
+          minLength: 1
+        scope:
+          type: array
+          minItems: 1
+          items:
+            type: string
+          description: Explicit, real, read-only permission keys only (e.g. "employee.read"). Never "all permissions".
+        expiresAt:
+          type: string
+          format: date-time
+          description: Must be in the future and within the platform's configured maximum break-glass grant duration.
+        confirm:
+          type: boolean
+          enum: [true]
+          description: Explicit confirmation that this grant is being knowingly activated.
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Safe, non-sensitive context only (e.g. a support-ticket reference) — never customer HR data.
 
     TenantContext:
       type: object

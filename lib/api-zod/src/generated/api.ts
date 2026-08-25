@@ -525,6 +525,320 @@ export const EnablePlatformUserResponse = zod.object({
 
 
 /**
+ * Platform super_admin only.
+ * @summary List installations
+ */
+export const ListInstallationsResponseItem = zod.object({
+  "id": zod.number(),
+  "installationKey": zod.string(),
+  "name": zod.string(),
+  "environmentType": zod.enum(['development', 'staging', 'demo', 'production']),
+  "hostingModel": zod.enum(['shared', 'dedicated_owner_managed', 'dedicated_customer_managed', 'other']),
+  "hostingProvider": zod.string().nullable(),
+  "primaryDomain": zod.string().nullable(),
+  "applicationVersion": zod.string().nullable(),
+  "gitCommit": zod.string().nullable(),
+  "migrationVersion": zod.string().nullable(),
+  "deployedAt": zod.coerce.date().nullable(),
+  "healthUrl": zod.string().nullable(),
+  "extensionProfile": zod.string().nullable(),
+  "status": zod.enum(['active', 'inactive', 'decommissioned']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListInstallationsResponse = zod.array(ListInstallationsResponseItem)
+
+
+/**
+ * Platform super_admin only.
+ * @summary Register a new installation
+ */
+
+
+
+
+export const CreateInstallationBody = zod.object({
+  "installationKey": zod.string().min(1).optional().describe('Stable identifier the deployed application\'s own environment configuration will carry. Server-generated if omitted.'),
+  "name": zod.string().min(1),
+  "environmentType": zod.enum(['development', 'staging', 'demo', 'production']),
+  "hostingModel": zod.enum(['shared', 'dedicated_owner_managed', 'dedicated_customer_managed', 'other']),
+  "hostingProvider": zod.string().optional(),
+  "primaryDomain": zod.string().optional(),
+  "applicationVersion": zod.string().optional(),
+  "gitCommit": zod.string().optional(),
+  "migrationVersion": zod.string().optional(),
+  "deployedAt": zod.coerce.date().optional(),
+  "healthUrl": zod.string().optional(),
+  "extensionProfile": zod.string().optional()
+})
+
+export const CreateInstallationResponse = zod.object({
+  "id": zod.number(),
+  "installationKey": zod.string(),
+  "name": zod.string(),
+  "environmentType": zod.enum(['development', 'staging', 'demo', 'production']),
+  "hostingModel": zod.enum(['shared', 'dedicated_owner_managed', 'dedicated_customer_managed', 'other']),
+  "hostingProvider": zod.string().nullable(),
+  "primaryDomain": zod.string().nullable(),
+  "applicationVersion": zod.string().nullable(),
+  "gitCommit": zod.string().nullable(),
+  "migrationVersion": zod.string().nullable(),
+  "deployedAt": zod.coerce.date().nullable(),
+  "healthUrl": zod.string().nullable(),
+  "extensionProfile": zod.string().nullable(),
+  "status": zod.enum(['active', 'inactive', 'decommissioned']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Platform super_admin only.
+ * @summary Get an installation
+ */
+export const GetInstallationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetInstallationResponse = zod.object({
+  "id": zod.number(),
+  "installationKey": zod.string(),
+  "name": zod.string(),
+  "environmentType": zod.enum(['development', 'staging', 'demo', 'production']),
+  "hostingModel": zod.enum(['shared', 'dedicated_owner_managed', 'dedicated_customer_managed', 'other']),
+  "hostingProvider": zod.string().nullable(),
+  "primaryDomain": zod.string().nullable(),
+  "applicationVersion": zod.string().nullable(),
+  "gitCommit": zod.string().nullable(),
+  "migrationVersion": zod.string().nullable(),
+  "deployedAt": zod.coerce.date().nullable(),
+  "healthUrl": zod.string().nullable(),
+  "extensionProfile": zod.string().nullable(),
+  "status": zod.enum(['active', 'inactive', 'decommissioned']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Platform super_admin only. installationKey is immutable.
+ * @summary Update installation metadata
+ */
+export const UpdateInstallationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const UpdateInstallationBody = zod.object({
+  "name": zod.string().min(1).optional(),
+  "environmentType": zod.enum(['development', 'staging', 'demo', 'production']).optional(),
+  "hostingModel": zod.enum(['shared', 'dedicated_owner_managed', 'dedicated_customer_managed', 'other']).optional(),
+  "hostingProvider": zod.string().nullish(),
+  "primaryDomain": zod.string().nullish(),
+  "applicationVersion": zod.string().nullish(),
+  "gitCommit": zod.string().nullish(),
+  "migrationVersion": zod.string().nullish(),
+  "deployedAt": zod.coerce.date().nullish(),
+  "healthUrl": zod.string().nullish(),
+  "extensionProfile": zod.string().nullish(),
+  "status": zod.enum(['active', 'inactive', 'decommissioned']).optional()
+}).describe('installationKey is immutable and cannot be changed here.')
+
+export const UpdateInstallationResponse = zod.object({
+  "id": zod.number(),
+  "installationKey": zod.string(),
+  "name": zod.string(),
+  "environmentType": zod.enum(['development', 'staging', 'demo', 'production']),
+  "hostingModel": zod.enum(['shared', 'dedicated_owner_managed', 'dedicated_customer_managed', 'other']),
+  "hostingProvider": zod.string().nullable(),
+  "primaryDomain": zod.string().nullable(),
+  "applicationVersion": zod.string().nullable(),
+  "gitCommit": zod.string().nullable(),
+  "migrationVersion": zod.string().nullable(),
+  "deployedAt": zod.coerce.date().nullable(),
+  "healthUrl": zod.string().nullable(),
+  "extensionProfile": zod.string().nullable(),
+  "status": zod.enum(['active', 'inactive', 'decommissioned']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Platform super_admin only. Active links only (unlinked history is not returned here).
+ * @summary List organizations linked to an installation
+ */
+export const ListInstallationOrganizationsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListInstallationOrganizationsResponseItem = zod.object({
+  "id": zod.number(),
+  "installationId": zod.number(),
+  "organizationId": zod.number(),
+  "linkedAt": zod.coerce.date(),
+  "unlinkedAt": zod.coerce.date().nullable()
+})
+export const ListInstallationOrganizationsResponse = zod.array(ListInstallationOrganizationsResponseItem)
+
+
+/**
+ * Platform super_admin only. Supports one installation hosting many organizations (a shared deployment) — this is additive, not a single-organization replacement.
+ * @summary Link an organization to an installation
+ */
+export const LinkInstallationOrganizationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const LinkInstallationOrganizationBody = zod.object({
+  "organizationId": zod.number()
+})
+
+export const LinkInstallationOrganizationResponse = zod.object({
+  "id": zod.number(),
+  "installationId": zod.number(),
+  "organizationId": zod.number(),
+  "linkedAt": zod.coerce.date(),
+  "unlinkedAt": zod.coerce.date().nullable()
+})
+
+
+/**
+ * Platform super_admin only. Soft unlink (unlinkedAt set) — the association's history is kept, not deleted.
+ * @summary Unlink an organization from an installation
+ */
+export const UnlinkInstallationOrganizationParams = zod.object({
+  "id": zod.coerce.number(),
+  "organizationId": zod.coerce.number()
+})
+
+export const UnlinkInstallationOrganizationResponse = zod.object({
+  "id": zod.number(),
+  "installationId": zod.number(),
+  "organizationId": zod.number(),
+  "linkedAt": zod.coerce.date(),
+  "unlinkedAt": zod.coerce.date().nullable()
+})
+
+
+/**
+ * Platform super_admin only.
+ * @summary List break-glass grants
+ */
+export const ListBreakGlassGrantsQueryParams = zod.object({
+  "targetOrganizationId": zod.coerce.number().optional()
+})
+
+export const ListBreakGlassGrantsResponseItem = zod.object({
+  "id": zod.number(),
+  "actorUserId": zod.number(),
+  "targetOrganizationId": zod.number(),
+  "targetInstallationId": zod.number().nullable(),
+  "reason": zod.string(),
+  "scope": zod.array(zod.string()),
+  "requestedAt": zod.coerce.date(),
+  "activatedAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date(),
+  "revokedAt": zod.coerce.date().nullable(),
+  "revokedBy": zod.number().nullable(),
+  "status": zod.enum(['active', 'revoked']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListBreakGlassGrantsResponse = zod.array(ListBreakGlassGrantsResponseItem)
+
+
+/**
+ * Platform super_admin only (Owner Decision #31). Activated immediately by the same actor who creates it — there is no separate approval workflow in this foundation. scope must be a non-empty list of real, read-only permission keys; expiresAt must be in the future and within the platform's configured maximum duration.
+ * @summary Create and activate a break-glass grant
+ */
+
+
+
+
+export const CreateBreakGlassGrantBody = zod.object({
+  "targetOrganizationId": zod.number(),
+  "targetInstallationId": zod.number().optional(),
+  "reason": zod.string().min(1),
+  "scope": zod.array(zod.string()).min(1).describe('Explicit, real, read-only permission keys only (e.g. \"employee.read\"). Never \"all permissions\".'),
+  "expiresAt": zod.coerce.date().describe('Must be in the future and within the platform\'s configured maximum break-glass grant duration.'),
+  "confirm": zod.literal(true).describe('Explicit confirmation that this grant is being knowingly activated.'),
+  "metadata": zod.record(zod.string(), zod.unknown()).optional().describe('Safe, non-sensitive context only (e.g. a support-ticket reference) — never customer HR data.')
+})
+
+export const CreateBreakGlassGrantResponse = zod.object({
+  "id": zod.number(),
+  "actorUserId": zod.number(),
+  "targetOrganizationId": zod.number(),
+  "targetInstallationId": zod.number().nullable(),
+  "reason": zod.string(),
+  "scope": zod.array(zod.string()),
+  "requestedAt": zod.coerce.date(),
+  "activatedAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date(),
+  "revokedAt": zod.coerce.date().nullable(),
+  "revokedBy": zod.number().nullable(),
+  "status": zod.enum(['active', 'revoked']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Platform super_admin only.
+ * @summary Get a break-glass grant
+ */
+export const GetBreakGlassGrantParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetBreakGlassGrantResponse = zod.object({
+  "id": zod.number(),
+  "actorUserId": zod.number(),
+  "targetOrganizationId": zod.number(),
+  "targetInstallationId": zod.number().nullable(),
+  "reason": zod.string(),
+  "scope": zod.array(zod.string()),
+  "requestedAt": zod.coerce.date(),
+  "activatedAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date(),
+  "revokedAt": zod.coerce.date().nullable(),
+  "revokedBy": zod.number().nullable(),
+  "status": zod.enum(['active', 'revoked']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Platform super_admin only. Takes effect immediately on the next privileged request under this grant — no session invalidation or frontend flag involved.
+ * @summary Revoke a break-glass grant
+ */
+export const RevokeBreakGlassGrantParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RevokeBreakGlassGrantResponse = zod.object({
+  "id": zod.number(),
+  "actorUserId": zod.number(),
+  "targetOrganizationId": zod.number(),
+  "targetInstallationId": zod.number().nullable(),
+  "reason": zod.string(),
+  "scope": zod.array(zod.string()),
+  "requestedAt": zod.coerce.date(),
+  "activatedAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date(),
+  "revokedAt": zod.coerce.date().nullable(),
+  "revokedBy": zod.number().nullable(),
+  "status": zod.enum(['active', 'revoked']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
  * Returns every organization the caller has an active membership in, with their role(s) and Primary HR status in each.
  * @summary List my organization memberships
  */

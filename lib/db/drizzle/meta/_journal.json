@@ -414,6 +414,13 @@
       "when": 1787632043542,
       "tag": "0058_audit_events_tamper_protection",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1787635274755,
+      "tag": "0059_damp_nextwave",
+      "breakpoints": true
     }
   ]
 }

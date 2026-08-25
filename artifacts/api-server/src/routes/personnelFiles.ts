@@ -8,7 +8,7 @@
 import { Router } from "express";
 import { CreatePersonnelFileBody } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
-import { requireMembership, type MembershipRequest } from "../middlewares/requireMembership";
+import { requireMembership, resolveOrganizationId, resolveActorMembershipId, type MembershipRequest } from "../middlewares/requireMembership";
 import { requirePermission } from "../middlewares/requirePermission";
 import { getEmployeeById } from "../lib/employees";
 import {
@@ -127,7 +127,7 @@ router.get(
       return;
     }
 
-    const organizationId = req.membership!.organizationId;
+    const organizationId = resolveOrganizationId(req);
     const employee = await getEmployeeById(organizationId, employeeId);
     if (!employee) {
       res.status(404).json({ error: "Employee not found" });
@@ -144,10 +144,12 @@ router.get(
     // a deliberate, higher-value sensitive read (a named, confidential
     // record, unlike the search endpoint below, which returns only a
     // routine list and stays unaudited to avoid noise — §16 of the frozen
-    // review).
+    // review). WS-4: actorMembershipId is null and breakGlassGrantId is
+    // auto-attached (see auditLog.ts) when this read happens under an
+    // active break-glass grant rather than a real membership.
     await recordAuditEvent({
       actorApplicationUserId: req.userId!,
-      actorMembershipId: req.membership!.id,
+      actorMembershipId: resolveActorMembershipId(req),
       organizationId,
       eventType: "personnel_file.viewed",
       targetType: "personnel_file",
@@ -173,7 +175,7 @@ router.get(
       return;
     }
 
-    const organizationId = req.membership!.organizationId;
+    const organizationId = resolveOrganizationId(req);
     const personnelFile = await getPersonnelFileById(organizationId, personnelFileId);
     if (!personnelFile) {
       res.status(404).json({ error: "Personnel file not found" });
@@ -182,7 +184,7 @@ router.get(
 
     await recordAuditEvent({
       actorApplicationUserId: req.userId!,
-      actorMembershipId: req.membership!.id,
+      actorMembershipId: resolveActorMembershipId(req),
       organizationId,
       eventType: "personnel_file.viewed",
       targetType: "personnel_file",
@@ -208,7 +210,7 @@ router.get(
       return;
     }
 
-    const organizationId = req.membership!.organizationId;
+    const organizationId = resolveOrganizationId(req);
     const results = await searchPersonnelRecords(organizationId, search);
     res.json(results);
   },

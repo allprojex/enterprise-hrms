@@ -8,7 +8,7 @@
 import { Router, type Response, type Request } from "express";
 import { CreateEmployeeBankingDetailBody, CreateEmployeeStatutoryIdentifierBody } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
-import { requireMembership, type MembershipRequest } from "../middlewares/requireMembership";
+import { requireMembership, resolveOrganizationId, resolveActorMembershipId, type MembershipRequest } from "../middlewares/requireMembership";
 import { requireModuleEnabled } from "../middlewares/requireModuleEnabled";
 import { requirePermission } from "../middlewares/requirePermission";
 import { getEmployeeById } from "../lib/employees";
@@ -53,7 +53,7 @@ async function requireKnownEmployee(req: MembershipRequest, res: Response): Prom
     res.status(400).json({ error: "Invalid employee ID" });
     return null;
   }
-  const employee = await getEmployeeById(req.membership!.organizationId, employeeId);
+  const employee = await getEmployeeById(resolveOrganizationId(req), employeeId);
   if (!employee) {
     res.status(404).json({ error: "Employee not found" });
     return null;
@@ -75,7 +75,8 @@ router.get(
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeId = await requireKnownEmployee(req, res);
     if (employeeId == null) return;
-    const detail = await getCurrentBankingDetail(req.membership!.organizationId, employeeId);
+    const organizationId = resolveOrganizationId(req);
+    const detail = await getCurrentBankingDetail(organizationId, employeeId);
     const reveal = wantsReveal(req);
 
     // Read-audit — deliberate exception to the platform's general
@@ -83,11 +84,13 @@ router.get(
     // view and a full reveal are now distinct, separately auditable events
     // — a reveal is the higher-sensitivity action and must be visible as
     // such in the audit trail, not indistinguishable from an ordinary
-    // masked view.
+    // masked view. WS-4: actorMembershipId is null and breakGlassGrantId is
+    // auto-attached when this read happens under an active break-glass
+    // grant rather than a real membership.
     await recordAuditEvent({
       actorApplicationUserId: req.userId!,
-      actorMembershipId: req.membership!.id,
-      organizationId: req.membership!.organizationId,
+      actorMembershipId: resolveActorMembershipId(req),
+      organizationId,
       eventType: reveal ? "payroll_banking.revealed" : "payroll_banking.read",
       targetType: "employee_banking_detail",
       targetId: String(employeeId),
@@ -172,13 +175,14 @@ router.get(
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeId = await requireKnownEmployee(req, res);
     if (employeeId == null) return;
-    const rows = await listBankingHistory(req.membership!.organizationId, employeeId);
+    const organizationId = resolveOrganizationId(req);
+    const rows = await listBankingHistory(organizationId, employeeId);
     const reveal = wantsReveal(req);
 
     await recordAuditEvent({
       actorApplicationUserId: req.userId!,
-      actorMembershipId: req.membership!.id,
-      organizationId: req.membership!.organizationId,
+      actorMembershipId: resolveActorMembershipId(req),
+      organizationId,
       eventType: reveal ? "payroll_banking.history_revealed" : "payroll_banking.history_read",
       targetType: "employee_banking_detail",
       targetId: String(employeeId),
@@ -203,13 +207,14 @@ router.get(
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeId = await requireKnownEmployee(req, res);
     if (employeeId == null) return;
-    const detail = await getCurrentStatutoryIdentifier(req.membership!.organizationId, employeeId);
+    const organizationId = resolveOrganizationId(req);
+    const detail = await getCurrentStatutoryIdentifier(organizationId, employeeId);
     const reveal = wantsReveal(req);
 
     await recordAuditEvent({
       actorApplicationUserId: req.userId!,
-      actorMembershipId: req.membership!.id,
-      organizationId: req.membership!.organizationId,
+      actorMembershipId: resolveActorMembershipId(req),
+      organizationId,
       eventType: reveal ? "payroll_statutory_identifier.revealed" : "payroll_statutory_identifier.read",
       targetType: "employee_statutory_identifier",
       targetId: String(employeeId),
@@ -290,13 +295,14 @@ router.get(
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeId = await requireKnownEmployee(req, res);
     if (employeeId == null) return;
-    const rows = await listStatutoryIdentifierHistory(req.membership!.organizationId, employeeId);
+    const organizationId = resolveOrganizationId(req);
+    const rows = await listStatutoryIdentifierHistory(organizationId, employeeId);
     const reveal = wantsReveal(req);
 
     await recordAuditEvent({
       actorApplicationUserId: req.userId!,
-      actorMembershipId: req.membership!.id,
-      organizationId: req.membership!.organizationId,
+      actorMembershipId: resolveActorMembershipId(req),
+      organizationId,
       eventType: reveal ? "payroll_statutory_identifier.history_revealed" : "payroll_statutory_identifier.history_read",
       targetType: "employee_statutory_identifier",
       targetId: String(employeeId),

@@ -67,6 +67,7 @@ import type {
   AuthSession,
   BackgroundCheck,
   Branch,
+  BreakGlassGrant,
   CancelJobRequisitionInput,
   CancelLearningEnrollmentInput,
   Candidate,
@@ -83,12 +84,14 @@ import type {
   CreateAssetMaintenanceInput,
   CreateBackgroundCheckInput,
   CreateBranchInput,
+  CreateBreakGlassGrantInput,
   CreateCandidateNoteInput,
   CreateDepartmentInput,
   CreateEmployeeBankingDetailBody,
   CreateEmployeeCompensationComponentBody,
   CreateEmployeeInput,
   CreateEmployeeStatutoryIdentifierBody,
+  CreateInstallationInput,
   CreateInvitationInput,
   CreateJobRequisitionInput,
   CreateLearningCourseInput,
@@ -165,6 +168,8 @@ import type {
   GetPerformanceDashboardParams,
   GrantRolePermissionInput,
   HealthStatus,
+  Installation,
+  InstallationOrganizationLink,
   InternalVacanciesResponse,
   Interview,
   InterviewListResponse,
@@ -191,12 +196,14 @@ import type {
   LeaveRequest,
   LeaveType,
   LinkEmployeeUserInput,
+  LinkInstallationOrganizationInput,
   ListApplicationsParams,
   ListAssetIncidentsParams,
   ListAssetsParams,
   ListAttendanceEventsParams,
   ListAttendanceRegisterParams,
   ListAuditEventsParams,
+  ListBreakGlassGrantsParams,
   ListCandidatesParams,
   ListEmployeeCompensationHistoryParams,
   ListEmployeesParams,
@@ -395,6 +402,7 @@ import type {
   UpdateEmployeeInput,
   UpdateEmployeeQualificationInput,
   UpdateEmployeeSkillInput,
+  UpdateInstallationInput,
   UpdateInterviewInput,
   UpdateJobRequisitionInput,
   UpdateLearningCourseInput,
@@ -2321,6 +2329,839 @@ export const useEnablePlatformUser = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getEnablePlatformUserMutationOptions(options));
+    }
+
+export const getListInstallationsUrl = () => {
+
+
+
+
+  return `/api/installations`
+}
+
+/**
+ * Platform super_admin only.
+ * @summary List installations
+ */
+export const listInstallations = async ( options?: RequestInit): Promise<Installation[]> => {
+
+  return customFetch<Installation[]>(getListInstallationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListInstallationsQueryKey = () => {
+    return [
+    `/api/installations`
+    ] as const;
+    }
+
+
+export const getListInstallationsQueryOptions = <TData = Awaited<ReturnType<typeof listInstallations>>, TError = ErrorType<ApiError>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listInstallations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListInstallationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listInstallations>>> = ({ signal }) => listInstallations({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listInstallations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListInstallationsQueryResult = NonNullable<Awaited<ReturnType<typeof listInstallations>>>
+export type ListInstallationsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List installations
+ */
+
+export function useListInstallations<TData = Awaited<ReturnType<typeof listInstallations>>, TError = ErrorType<ApiError>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listInstallations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListInstallationsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateInstallationUrl = () => {
+
+
+
+
+  return `/api/installations`
+}
+
+/**
+ * Platform super_admin only.
+ * @summary Register a new installation
+ */
+export const createInstallation = async (createInstallationInput: CreateInstallationInput, options?: RequestInit): Promise<Installation> => {
+
+  return customFetch<Installation>(getCreateInstallationUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createInstallationInput)
+  }
+);}
+
+
+
+
+
+export const getCreateInstallationMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createInstallation>>, TError,{data: BodyType<CreateInstallationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createInstallation>>, TError,{data: BodyType<CreateInstallationInput>}, TContext> => {
+
+const mutationKey = ['createInstallation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createInstallation>>, {data: BodyType<CreateInstallationInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createInstallation(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateInstallationMutationResult = NonNullable<Awaited<ReturnType<typeof createInstallation>>>
+    export type CreateInstallationMutationBody = BodyType<CreateInstallationInput>
+    export type CreateInstallationMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Register a new installation
+ */
+export const useCreateInstallation = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createInstallation>>, TError,{data: BodyType<CreateInstallationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createInstallation>>,
+        TError,
+        {data: BodyType<CreateInstallationInput>},
+        TContext
+      > => {
+      return useMutation(getCreateInstallationMutationOptions(options));
+    }
+
+export const getGetInstallationUrl = (id: number,) => {
+
+
+
+
+  return `/api/installations/${id}`
+}
+
+/**
+ * Platform super_admin only.
+ * @summary Get an installation
+ */
+export const getInstallation = async (id: number, options?: RequestInit): Promise<Installation> => {
+
+  return customFetch<Installation>(getGetInstallationUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetInstallationQueryKey = (id: number,) => {
+    return [
+    `/api/installations/${id}`
+    ] as const;
+    }
+
+
+export const getGetInstallationQueryOptions = <TData = Awaited<ReturnType<typeof getInstallation>>, TError = ErrorType<ApiError>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInstallation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetInstallationQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getInstallation>>> = ({ signal }) => getInstallation(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getInstallation>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetInstallationQueryResult = NonNullable<Awaited<ReturnType<typeof getInstallation>>>
+export type GetInstallationQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get an installation
+ */
+
+export function useGetInstallation<TData = Awaited<ReturnType<typeof getInstallation>>, TError = ErrorType<ApiError>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInstallation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetInstallationQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateInstallationUrl = (id: number,) => {
+
+
+
+
+  return `/api/installations/${id}`
+}
+
+/**
+ * Platform super_admin only. installationKey is immutable.
+ * @summary Update installation metadata
+ */
+export const updateInstallation = async (id: number,
+    updateInstallationInput: UpdateInstallationInput, options?: RequestInit): Promise<Installation> => {
+
+  return customFetch<Installation>(getUpdateInstallationUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateInstallationInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateInstallationMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateInstallation>>, TError,{id: number;data: BodyType<UpdateInstallationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateInstallation>>, TError,{id: number;data: BodyType<UpdateInstallationInput>}, TContext> => {
+
+const mutationKey = ['updateInstallation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateInstallation>>, {id: number;data: BodyType<UpdateInstallationInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateInstallation(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateInstallationMutationResult = NonNullable<Awaited<ReturnType<typeof updateInstallation>>>
+    export type UpdateInstallationMutationBody = BodyType<UpdateInstallationInput>
+    export type UpdateInstallationMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update installation metadata
+ */
+export const useUpdateInstallation = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateInstallation>>, TError,{id: number;data: BodyType<UpdateInstallationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateInstallation>>,
+        TError,
+        {id: number;data: BodyType<UpdateInstallationInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateInstallationMutationOptions(options));
+    }
+
+export const getListInstallationOrganizationsUrl = (id: number,) => {
+
+
+
+
+  return `/api/installations/${id}/organizations`
+}
+
+/**
+ * Platform super_admin only. Active links only (unlinked history is not returned here).
+ * @summary List organizations linked to an installation
+ */
+export const listInstallationOrganizations = async (id: number, options?: RequestInit): Promise<InstallationOrganizationLink[]> => {
+
+  return customFetch<InstallationOrganizationLink[]>(getListInstallationOrganizationsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListInstallationOrganizationsQueryKey = (id: number,) => {
+    return [
+    `/api/installations/${id}/organizations`
+    ] as const;
+    }
+
+
+export const getListInstallationOrganizationsQueryOptions = <TData = Awaited<ReturnType<typeof listInstallationOrganizations>>, TError = ErrorType<ApiError>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listInstallationOrganizations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListInstallationOrganizationsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listInstallationOrganizations>>> = ({ signal }) => listInstallationOrganizations(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listInstallationOrganizations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListInstallationOrganizationsQueryResult = NonNullable<Awaited<ReturnType<typeof listInstallationOrganizations>>>
+export type ListInstallationOrganizationsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List organizations linked to an installation
+ */
+
+export function useListInstallationOrganizations<TData = Awaited<ReturnType<typeof listInstallationOrganizations>>, TError = ErrorType<ApiError>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listInstallationOrganizations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListInstallationOrganizationsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getLinkInstallationOrganizationUrl = (id: number,) => {
+
+
+
+
+  return `/api/installations/${id}/organizations`
+}
+
+/**
+ * Platform super_admin only. Supports one installation hosting many organizations (a shared deployment) — this is additive, not a single-organization replacement.
+ * @summary Link an organization to an installation
+ */
+export const linkInstallationOrganization = async (id: number,
+    linkInstallationOrganizationInput: LinkInstallationOrganizationInput, options?: RequestInit): Promise<InstallationOrganizationLink> => {
+
+  return customFetch<InstallationOrganizationLink>(getLinkInstallationOrganizationUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(linkInstallationOrganizationInput)
+  }
+);}
+
+
+
+
+
+export const getLinkInstallationOrganizationMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof linkInstallationOrganization>>, TError,{id: number;data: BodyType<LinkInstallationOrganizationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof linkInstallationOrganization>>, TError,{id: number;data: BodyType<LinkInstallationOrganizationInput>}, TContext> => {
+
+const mutationKey = ['linkInstallationOrganization'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof linkInstallationOrganization>>, {id: number;data: BodyType<LinkInstallationOrganizationInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  linkInstallationOrganization(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LinkInstallationOrganizationMutationResult = NonNullable<Awaited<ReturnType<typeof linkInstallationOrganization>>>
+    export type LinkInstallationOrganizationMutationBody = BodyType<LinkInstallationOrganizationInput>
+    export type LinkInstallationOrganizationMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Link an organization to an installation
+ */
+export const useLinkInstallationOrganization = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof linkInstallationOrganization>>, TError,{id: number;data: BodyType<LinkInstallationOrganizationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof linkInstallationOrganization>>,
+        TError,
+        {id: number;data: BodyType<LinkInstallationOrganizationInput>},
+        TContext
+      > => {
+      return useMutation(getLinkInstallationOrganizationMutationOptions(options));
+    }
+
+export const getUnlinkInstallationOrganizationUrl = (id: number,
+    organizationId: number,) => {
+
+
+
+
+  return `/api/installations/${id}/organizations/${organizationId}`
+}
+
+/**
+ * Platform super_admin only. Soft unlink (unlinkedAt set) — the association's history is kept, not deleted.
+ * @summary Unlink an organization from an installation
+ */
+export const unlinkInstallationOrganization = async (id: number,
+    organizationId: number, options?: RequestInit): Promise<InstallationOrganizationLink> => {
+
+  return customFetch<InstallationOrganizationLink>(getUnlinkInstallationOrganizationUrl(id,organizationId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getUnlinkInstallationOrganizationMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unlinkInstallationOrganization>>, TError,{id: number;organizationId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof unlinkInstallationOrganization>>, TError,{id: number;organizationId: number}, TContext> => {
+
+const mutationKey = ['unlinkInstallationOrganization'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unlinkInstallationOrganization>>, {id: number;organizationId: number}> = (props) => {
+          const {id,organizationId} = props ?? {};
+
+          return  unlinkInstallationOrganization(id,organizationId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UnlinkInstallationOrganizationMutationResult = NonNullable<Awaited<ReturnType<typeof unlinkInstallationOrganization>>>
+
+    export type UnlinkInstallationOrganizationMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Unlink an organization from an installation
+ */
+export const useUnlinkInstallationOrganization = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unlinkInstallationOrganization>>, TError,{id: number;organizationId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof unlinkInstallationOrganization>>,
+        TError,
+        {id: number;organizationId: number},
+        TContext
+      > => {
+      return useMutation(getUnlinkInstallationOrganizationMutationOptions(options));
+    }
+
+export const getListBreakGlassGrantsUrl = (params?: ListBreakGlassGrantsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/break-glass/grants?${stringifiedParams}` : `/api/break-glass/grants`
+}
+
+/**
+ * Platform super_admin only.
+ * @summary List break-glass grants
+ */
+export const listBreakGlassGrants = async (params?: ListBreakGlassGrantsParams, options?: RequestInit): Promise<BreakGlassGrant[]> => {
+
+  return customFetch<BreakGlassGrant[]>(getListBreakGlassGrantsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListBreakGlassGrantsQueryKey = (params?: ListBreakGlassGrantsParams,) => {
+    return [
+    `/api/break-glass/grants`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListBreakGlassGrantsQueryOptions = <TData = Awaited<ReturnType<typeof listBreakGlassGrants>>, TError = ErrorType<ApiError>>(params?: ListBreakGlassGrantsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBreakGlassGrants>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListBreakGlassGrantsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listBreakGlassGrants>>> = ({ signal }) => listBreakGlassGrants(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listBreakGlassGrants>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListBreakGlassGrantsQueryResult = NonNullable<Awaited<ReturnType<typeof listBreakGlassGrants>>>
+export type ListBreakGlassGrantsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List break-glass grants
+ */
+
+export function useListBreakGlassGrants<TData = Awaited<ReturnType<typeof listBreakGlassGrants>>, TError = ErrorType<ApiError>>(
+ params?: ListBreakGlassGrantsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBreakGlassGrants>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListBreakGlassGrantsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateBreakGlassGrantUrl = () => {
+
+
+
+
+  return `/api/break-glass/grants`
+}
+
+/**
+ * Platform super_admin only (Owner Decision #31). Activated immediately by the same actor who creates it — there is no separate approval workflow in this foundation. scope must be a non-empty list of real, read-only permission keys; expiresAt must be in the future and within the platform's configured maximum duration.
+ * @summary Create and activate a break-glass grant
+ */
+export const createBreakGlassGrant = async (createBreakGlassGrantInput: CreateBreakGlassGrantInput, options?: RequestInit): Promise<BreakGlassGrant> => {
+
+  return customFetch<BreakGlassGrant>(getCreateBreakGlassGrantUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createBreakGlassGrantInput)
+  }
+);}
+
+
+
+
+
+export const getCreateBreakGlassGrantMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBreakGlassGrant>>, TError,{data: BodyType<CreateBreakGlassGrantInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createBreakGlassGrant>>, TError,{data: BodyType<CreateBreakGlassGrantInput>}, TContext> => {
+
+const mutationKey = ['createBreakGlassGrant'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createBreakGlassGrant>>, {data: BodyType<CreateBreakGlassGrantInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createBreakGlassGrant(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateBreakGlassGrantMutationResult = NonNullable<Awaited<ReturnType<typeof createBreakGlassGrant>>>
+    export type CreateBreakGlassGrantMutationBody = BodyType<CreateBreakGlassGrantInput>
+    export type CreateBreakGlassGrantMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Create and activate a break-glass grant
+ */
+export const useCreateBreakGlassGrant = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBreakGlassGrant>>, TError,{data: BodyType<CreateBreakGlassGrantInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createBreakGlassGrant>>,
+        TError,
+        {data: BodyType<CreateBreakGlassGrantInput>},
+        TContext
+      > => {
+      return useMutation(getCreateBreakGlassGrantMutationOptions(options));
+    }
+
+export const getGetBreakGlassGrantUrl = (id: number,) => {
+
+
+
+
+  return `/api/break-glass/grants/${id}`
+}
+
+/**
+ * Platform super_admin only.
+ * @summary Get a break-glass grant
+ */
+export const getBreakGlassGrant = async (id: number, options?: RequestInit): Promise<BreakGlassGrant> => {
+
+  return customFetch<BreakGlassGrant>(getGetBreakGlassGrantUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetBreakGlassGrantQueryKey = (id: number,) => {
+    return [
+    `/api/break-glass/grants/${id}`
+    ] as const;
+    }
+
+
+export const getGetBreakGlassGrantQueryOptions = <TData = Awaited<ReturnType<typeof getBreakGlassGrant>>, TError = ErrorType<ApiError>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBreakGlassGrant>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetBreakGlassGrantQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBreakGlassGrant>>> = ({ signal }) => getBreakGlassGrant(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBreakGlassGrant>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetBreakGlassGrantQueryResult = NonNullable<Awaited<ReturnType<typeof getBreakGlassGrant>>>
+export type GetBreakGlassGrantQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get a break-glass grant
+ */
+
+export function useGetBreakGlassGrant<TData = Awaited<ReturnType<typeof getBreakGlassGrant>>, TError = ErrorType<ApiError>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBreakGlassGrant>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetBreakGlassGrantQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRevokeBreakGlassGrantUrl = (id: number,) => {
+
+
+
+
+  return `/api/break-glass/grants/${id}/revoke`
+}
+
+/**
+ * Platform super_admin only. Takes effect immediately on the next privileged request under this grant — no session invalidation or frontend flag involved.
+ * @summary Revoke a break-glass grant
+ */
+export const revokeBreakGlassGrant = async (id: number, options?: RequestInit): Promise<BreakGlassGrant> => {
+
+  return customFetch<BreakGlassGrant>(getRevokeBreakGlassGrantUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRevokeBreakGlassGrantMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeBreakGlassGrant>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revokeBreakGlassGrant>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['revokeBreakGlassGrant'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeBreakGlassGrant>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  revokeBreakGlassGrant(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokeBreakGlassGrantMutationResult = NonNullable<Awaited<ReturnType<typeof revokeBreakGlassGrant>>>
+
+    export type RevokeBreakGlassGrantMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Revoke a break-glass grant
+ */
+export const useRevokeBreakGlassGrant = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeBreakGlassGrant>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof revokeBreakGlassGrant>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getRevokeBreakGlassGrantMutationOptions(options));
     }
 
 export const getListMyOrganizationsUrl = () => {
