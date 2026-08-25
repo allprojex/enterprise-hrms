@@ -88,6 +88,7 @@ import type { UpdateEmployeeInputEmploymentStatus } from '@workspace/api-client-
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { useEmployeePhoto } from '@/hooks/use-employee-photo';
+import { useIsHrCapable } from '@/hooks/use-hr-capable';
 import { QueryError } from '@/components/query-error';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
@@ -110,6 +111,7 @@ export default function EmployeeDetail() {
 
   const { data: currentUser } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const organizationId = currentUser?.activeOrganizationId ?? currentUser?.organizationId ?? 0;
+  const isHrCapable = useIsHrCapable(organizationId);
 
   const {
     data: employee,
@@ -979,6 +981,8 @@ export default function EmployeeDetail() {
                     {initials}
                   </AvatarFallback>
                 </Avatar>
+                {isHrCapable && (
+                <>
                 <Button
                   type="button"
                   size="icon"
@@ -1003,6 +1007,8 @@ export default function EmployeeDetail() {
                   onChange={handleFileChange}
                   data-testid="input-photo-file"
                 />
+                </>
+                )}
               </div>
               {employee.employeeNumber && (
                 <p className="text-sm text-muted-foreground font-mono">{employee.employeeNumber}</p>
@@ -1010,7 +1016,7 @@ export default function EmployeeDetail() {
               <Badge variant="secondary" className="capitalize">
                 {employee.employmentStatus.replace('_', ' ')}
               </Badge>
-              {employee.employmentStatus === 'terminated' ? (
+              {isHrCapable && (employee.employmentStatus === 'terminated' ? (
                 <div className="space-y-1 text-center">
                   {employee.separationDate && (
                     <p className="text-xs text-muted-foreground">
@@ -1321,7 +1327,7 @@ export default function EmployeeDetail() {
                     </DialogContent>
                   </Dialog>
                 </div>
-              )}
+              ))}
             </div>
 
             <div className="pt-4 border-t border-border space-y-3">
@@ -1368,6 +1374,7 @@ export default function EmployeeDetail() {
                     <p className="text-sm text-foreground" data-testid="text-linked-user">
                       {linkedMember ? `${linkedMember.firstName} ${linkedMember.lastName} (${linkedMember.email})` : `User #${employee.linkedApplicationUserId}`}
                     </p>
+                    {isHrCapable && (
                     <Button
                       type="button"
                       variant="outline"
@@ -1378,10 +1385,12 @@ export default function EmployeeDetail() {
                     >
                       Unlink
                     </Button>
+                    )}
                   </div>
                 );
               })()
             ) : (
+              isHrCapable && (
               <form onSubmit={handleLink} className="pt-4 border-t border-border space-y-2">
                 <Label htmlFor="link-user" className="flex items-center gap-2">
                   <UserPlus className="h-4 w-4" aria-hidden="true" />
@@ -1409,6 +1418,7 @@ export default function EmployeeDetail() {
                   active membership in this organisation.
                 </p>
               </form>
+              )
             )}
           </CardContent>
         </Card>
@@ -1420,7 +1430,7 @@ export default function EmployeeDetail() {
                 <CardTitle>Employee Details</CardTitle>
                 <CardDescription>Core contact and employment information</CardDescription>
               </div>
-              {!isEditing && (
+              {isHrCapable && !isEditing && (
                 <Button onClick={() => setIsEditing(true)} data-testid="button-edit-employee">
                   Edit
                 </Button>
@@ -1544,6 +1554,7 @@ export default function EmployeeDetail() {
             <CardDescription>Files attached to this employee's record</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {isHrCapable && (
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <div className="space-y-2 sm:w-64">
                 <Label htmlFor="document-category">Category</Label>
@@ -1583,6 +1594,7 @@ export default function EmployeeDetail() {
                 data-testid="input-document-file"
               />
             </div>
+            )}
 
             {(documents ?? []).length === 0 ? (
               <p className="text-sm text-muted-foreground">No documents uploaded yet.</p>
@@ -1601,6 +1613,7 @@ export default function EmployeeDetail() {
                           </p>
                         </div>
                       </div>
+                      {isHrCapable && (
                       <Button
                         type="button"
                         variant="ghost"
@@ -1612,6 +1625,7 @@ export default function EmployeeDetail() {
                       >
                         <Trash2 className="h-4 w-4" aria-hidden="true" />
                       </Button>
+                      )}
                     </li>
                   );
                 })}
@@ -1629,6 +1643,7 @@ export default function EmployeeDetail() {
             <CardDescription>Skills this employee has, from the "skill" Master Data domain</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {isHrCapable && (
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <div className="space-y-2 sm:w-56">
                 <Label htmlFor="new-skill-code">Skill</Label>
@@ -1666,6 +1681,7 @@ export default function EmployeeDetail() {
                 Add
               </Button>
             </div>
+            )}
 
             {(skills ?? []).length === 0 ? (
               <p className="text-sm text-muted-foreground">No skills recorded yet.</p>
@@ -1679,6 +1695,7 @@ export default function EmployeeDetail() {
                         <p className="text-sm font-medium text-foreground">{label}</p>
                         {skill.proficiencyLevel && <p className="text-xs text-muted-foreground">{skill.proficiencyLevel}</p>}
                       </div>
+                      {isHrCapable && (
                       <Button
                         type="button"
                         variant="ghost"
@@ -1690,6 +1707,7 @@ export default function EmployeeDetail() {
                       >
                         <Trash2 className="h-4 w-4" aria-hidden="true" />
                       </Button>
+                      )}
                     </li>
                   );
                 })}
@@ -1707,6 +1725,7 @@ export default function EmployeeDetail() {
             <CardDescription>Education and qualifications, from the "qualification_type" Master Data domain</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {isHrCapable && (
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <div className="space-y-2 sm:w-56">
                 <Label htmlFor="new-qualification-code">Qualification</Label>
@@ -1744,6 +1763,7 @@ export default function EmployeeDetail() {
                 Add
               </Button>
             </div>
+            )}
 
             {(qualifications ?? []).length === 0 ? (
               <p className="text-sm text-muted-foreground">No qualifications recorded yet.</p>
@@ -1763,6 +1783,7 @@ export default function EmployeeDetail() {
                         <p className="text-sm font-medium text-foreground">{label}</p>
                         {qualification.institution && <p className="text-xs text-muted-foreground">{qualification.institution}</p>}
                       </div>
+                      {isHrCapable && (
                       <Button
                         type="button"
                         variant="ghost"
@@ -1774,6 +1795,7 @@ export default function EmployeeDetail() {
                       >
                         <Trash2 className="h-4 w-4" aria-hidden="true" />
                       </Button>
+                      )}
                     </li>
                   );
                 })}
@@ -1791,6 +1813,7 @@ export default function EmployeeDetail() {
             <CardDescription>Certifications held, from the "certification_type" Master Data domain</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {isHrCapable && (
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <div className="space-y-2 sm:w-56">
                 <Label htmlFor="new-certification-code">Certification</Label>
@@ -1828,6 +1851,7 @@ export default function EmployeeDetail() {
                 Add
               </Button>
             </div>
+            )}
 
             {(certifications ?? []).length === 0 ? (
               <p className="text-sm text-muted-foreground">No certifications recorded yet.</p>
@@ -1849,6 +1873,7 @@ export default function EmployeeDetail() {
                           <p className="text-xs text-muted-foreground">{certification.issuingOrganization}</p>
                         )}
                       </div>
+                      {isHrCapable && (
                       <Button
                         type="button"
                         variant="ghost"
@@ -1860,6 +1885,7 @@ export default function EmployeeDetail() {
                       >
                         <Trash2 className="h-4 w-4" aria-hidden="true" />
                       </Button>
+                      )}
                     </li>
                   );
                 })}
@@ -1926,7 +1952,7 @@ export default function EmployeeDetail() {
                     The permanent personnel record (PIF) — never released or reassigned, independent of staff-number reuse.
                   </CardDescription>
                 </div>
-                {!personnelFileLoading && !personnelFile && (
+                {isHrCapable && !personnelFileLoading && !personnelFile && (
                   <Dialog open={isPersonnelFileDialogOpen} onOpenChange={setIsPersonnelFileDialogOpen}>
                     <DialogTrigger asChild>
                       <Button type="button" variant="outline" size="sm" data-testid="button-create-personnel-file">
@@ -2038,6 +2064,7 @@ export default function EmployeeDetail() {
                         )}
                       </div>
 
+                      {isHrCapable && (
                       <div className="flex flex-wrap gap-2">
                         {custody.currentCustodyState === 'in_registry' && (
                           <Dialog open={isCheckoutDialogOpen} onOpenChange={setIsCheckoutDialogOpen}>
@@ -2195,6 +2222,7 @@ export default function EmployeeDetail() {
                           </DialogContent>
                         </Dialog>
                       </div>
+                      )}
                     </>
                   ) : null}
 
@@ -2278,6 +2306,7 @@ export default function EmployeeDetail() {
               <CardDescription>Warnings and disciplinary actions — append-only, prior records are never replaced</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {isHrCapable && (
               <form onSubmit={handleAddDisciplinaryRecord} className="grid gap-3 sm:grid-cols-4 sm:items-end">
                 <div className="space-y-2">
                   <Label htmlFor="new-disciplinary-action-type">Action Type *</Label>
@@ -2329,6 +2358,7 @@ export default function EmployeeDetail() {
                   </Button>
                 </div>
               </form>
+              )}
 
               {(disciplinaryRecords ?? []).length === 0 ? (
                 <p className="text-sm text-muted-foreground">No disciplinary records.</p>
@@ -2357,7 +2387,7 @@ export default function EmployeeDetail() {
                 </CardTitle>
                 <CardDescription>Off-boarding checklist, clearance, and exit interview — attached to the separation event</CardDescription>
               </div>
-              {employee.employmentStatus === 'terminated' && (
+              {isHrCapable && employee.employmentStatus === 'terminated' && (
                 <Button
                   type="button"
                   variant="outline"
@@ -2391,6 +2421,7 @@ export default function EmployeeDetail() {
                         <Checkbox
                           checked={process.checklistCompleted}
                           onCheckedChange={(checked) => handleUpdateExitProcess(process.id, { checklistCompleted: checked === true })}
+                          disabled={!isHrCapable}
                           data-testid={`checkbox-exit-checklist-${process.id}`}
                         />
                         Checklist complete
@@ -2399,6 +2430,7 @@ export default function EmployeeDetail() {
                         <Checkbox
                           checked={process.clearanceCompleted}
                           onCheckedChange={(checked) => handleUpdateExitProcess(process.id, { clearanceCompleted: checked === true })}
+                          disabled={!isHrCapable}
                           data-testid={`checkbox-exit-clearance-${process.id}`}
                         />
                         Clearance complete
@@ -2407,6 +2439,7 @@ export default function EmployeeDetail() {
                         <Checkbox
                           checked={process.exitInterviewCompleted}
                           onCheckedChange={(checked) => handleUpdateExitProcess(process.id, { exitInterviewCompleted: checked === true })}
+                          disabled={!isHrCapable}
                           data-testid={`checkbox-exit-interview-${process.id}`}
                         />
                         Exit interview complete
@@ -2419,6 +2452,7 @@ export default function EmployeeDetail() {
                         defaultValue={process.exitInterviewNotes ?? ''}
                         onBlur={(e) => handleUpdateExitProcess(process.id, { exitInterviewNotes: e.target.value })}
                         placeholder="Notes from the exit interview"
+                        disabled={!isHrCapable}
                         data-testid={`input-exit-interview-notes-${process.id}`}
                       />
                     </div>

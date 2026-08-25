@@ -32,6 +32,7 @@ import {
 } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
 import { useEmployeePhoto } from '@/hooks/use-employee-photo';
+import { useIsHrCapable } from '@/hooks/use-hr-capable';
 import { QueryError } from '@/components/query-error';
 
 function EmployeeRowAvatar({
@@ -80,6 +81,7 @@ export default function Employees() {
   const { toast } = useToast();
   const { data: user } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const organizationId = user?.activeOrganizationId ?? user?.organizationId ?? 0;
+  const isHrCapable = useIsHrCapable(organizationId);
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -217,6 +219,7 @@ export default function Employees() {
           <h1 className="text-3xl font-bold text-foreground">Employees</h1>
           <p className="text-muted-foreground">The employee directory for your organisation</p>
         </div>
+        {isHrCapable && (
         <Dialog
           open={open}
           onOpenChange={(next) => {
@@ -317,6 +320,7 @@ export default function Employees() {
             </form>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       <div className="relative max-w-sm">

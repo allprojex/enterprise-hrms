@@ -38,6 +38,7 @@ import {
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
+import { useIsHrCapable } from '@/hooks/use-hr-capable';
 import { QueryError } from '@/components/query-error';
 
 const NONE = '__none__';
@@ -164,6 +165,7 @@ export default function Departments() {
   const { toast } = useToast();
   const { data: user } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const organizationId = user?.activeOrganizationId ?? user?.organizationId ?? 0;
+  const isHrCapable = useIsHrCapable(organizationId);
 
   const {
     data: departments,
@@ -296,6 +298,7 @@ export default function Departments() {
           <h1 className="text-3xl font-bold text-foreground">Departments</h1>
           <p className="text-muted-foreground">Organise employees into functional or organisational units</p>
         </div>
+        {isHrCapable && (
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button data-testid="button-add-department">
@@ -354,6 +357,7 @@ export default function Departments() {
             </form>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       {isLoading ? (
@@ -390,7 +394,7 @@ export default function Departments() {
                 <TableHead>Branch</TableHead>
                 <TableHead>Head</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                {isHrCapable && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -402,6 +406,7 @@ export default function Departments() {
                     <Select
                       value={department.branchId != null ? String(department.branchId) : NONE}
                       onValueChange={(v) => handleMoveBranch(department.id, v)}
+                      disabled={!isHrCapable}
                     >
                       <SelectTrigger className="w-40" data-testid={`select-move-branch-${department.id}`}>
                         <SelectValue>{department.branchId ? (branchNameById.get(department.branchId) ?? '—') : 'No branch'}</SelectValue>
@@ -424,6 +429,7 @@ export default function Departments() {
                       {department.status}
                     </Badge>
                   </TableCell>
+                  {isHrCapable && (
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Button
@@ -445,6 +451,7 @@ export default function Departments() {
                       </Button>
                     </div>
                   </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>

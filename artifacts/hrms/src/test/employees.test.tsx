@@ -12,6 +12,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Router, Route } from 'wouter';
 import { memoryLocation } from 'wouter/memory-location';
 import Employees from '@/pages/employees';
+import { useListMyOrganizations } from '@workspace/api-client-react';
 import type { PersonnelSearchResult } from '@workspace/api-client-react';
 
 const { state } = vi.hoisted(() => ({
@@ -25,6 +26,8 @@ const { state } = vi.hoisted(() => ({
 vi.mock('@workspace/api-client-react', () => ({
   useGetMe: () => ({ data: { id: 1, activeOrganizationId: 10, organizationId: 10 } }),
   getGetMeQueryKey: () => ['getMe'],
+  useListMyOrganizations: vi.fn(),
+  getListMyOrganizationsQueryKey: () => ['myOrganizations'],
 
   useListEmployees: () => ({ data: { items: [], total: 0 }, isLoading: false, error: undefined, refetch: vi.fn() }),
   getListEmployeesQueryKey: (orgId: number, params: unknown) => ['employees', orgId, params],
@@ -46,6 +49,7 @@ function resetState() {
   state.personnelResults = undefined;
   state.personnelSearchError = undefined;
   state.personnelSearchFetching = false;
+  vi.mocked(useListMyOrganizations).mockReturnValue({ data: [{ organizationId: 10, roles: ['org_admin'] }] } as never);
 }
 
 function resultRow(overrides: Partial<PersonnelSearchResult> = {}): PersonnelSearchResult {
@@ -151,5 +155,18 @@ describe('Employees directory page', () => {
       // The ordinary employee directory itself is unaffected by the 403.
       expect(screen.getByText('Employees')).toBeInTheDocument();
     });
+  });
+
+  it('never shows Add Employee to a plain employee (access-control bug regression)', () => {
+    resetState();
+    vi.mocked(useListMyOrganizations).mockReturnValue({ data: [{ organizationId: 10, roles: ['employee'] }] } as never);
+    renderPage();
+    expect(screen.queryByTestId('button-add-employee')).not.toBeInTheDocument();
+  });
+
+  it('shows Add Employee to an org_admin/hr_manager', () => {
+    resetState();
+    renderPage();
+    expect(screen.getByTestId('button-add-employee')).toBeInTheDocument();
   });
 });

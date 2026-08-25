@@ -31,6 +31,7 @@ import {
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
+import { useIsHrCapable } from '@/hooks/use-hr-capable';
 import { QueryError } from '@/components/query-error';
 
 const NONE = '__none__';
@@ -40,6 +41,7 @@ export default function Positions() {
   const { toast } = useToast();
   const { data: user } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const organizationId = user?.activeOrganizationId ?? user?.organizationId ?? 0;
+  const isHrCapable = useIsHrCapable(organizationId);
 
   const {
     data: positions,
@@ -167,6 +169,7 @@ export default function Positions() {
           <h1 className="text-3xl font-bold text-foreground">Positions</h1>
           <p className="text-muted-foreground">Define job titles employees can be assigned to</p>
         </div>
+        {isHrCapable && (
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button data-testid="button-add-position">
@@ -215,6 +218,7 @@ export default function Positions() {
             </form>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       {isLoading ? (
@@ -245,7 +249,7 @@ export default function Positions() {
                 <TableHead>Title</TableHead>
                 <TableHead>Department</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                {isHrCapable && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -256,6 +260,7 @@ export default function Positions() {
                     <Select
                       value={position.departmentId != null ? String(position.departmentId) : NONE}
                       onValueChange={(v) => handleMoveDepartment(position.id, v)}
+                      disabled={!isHrCapable}
                     >
                       <SelectTrigger className="w-40" data-testid={`select-move-department-${position.id}`}>
                         <SelectValue>{position.departmentId ? (departmentNameById.get(position.departmentId) ?? '—') : 'No department'}</SelectValue>
@@ -275,6 +280,7 @@ export default function Positions() {
                       {position.status}
                     </Badge>
                   </TableCell>
+                  {isHrCapable && (
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Button
@@ -296,6 +302,7 @@ export default function Positions() {
                       </Button>
                     </div>
                   </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>

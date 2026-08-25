@@ -13,6 +13,8 @@ const mutateMock = vi.fn();
 vi.mock('@workspace/api-client-react', () => ({
   useGetMe: () => ({ data: { organizationId: 10 } }),
   getGetMeQueryKey: () => ['getMe'],
+  useListMyOrganizations: vi.fn(),
+  getListMyOrganizationsQueryKey: () => ['myOrganizations'],
   useListBranches: vi.fn(),
   getListBranchesQueryKey: (id: number) => ['branches', id],
   useCreateBranch: () => ({ mutate: mutateMock, isPending: false }),
@@ -21,7 +23,7 @@ vi.mock('@workspace/api-client-react', () => ({
   useReactivateBranch: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
-import { useListBranches } from '@workspace/api-client-react';
+import { useListBranches, useListMyOrganizations } from '@workspace/api-client-react';
 
 function renderWithClient() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -35,6 +37,7 @@ function renderWithClient() {
 describe('Branches page', () => {
   beforeEach(() => {
     mutateMock.mockReset();
+    vi.mocked(useListMyOrganizations).mockReturnValue({ data: [{ organizationId: 10, roles: ['org_admin'] }] } as never);
   });
 
   it('shows a loading state', () => {
@@ -99,5 +102,21 @@ describe('Branches page', () => {
         expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
       );
     });
+  });
+
+  it('never shows Add/Edit/Archive controls to a plain employee (access-control bug regression)', () => {
+    vi.mocked(useListBranches).mockReturnValue({
+      data: [{ id: 1, organizationId: 10, name: 'Head Office', code: 'HQ', status: 'active', createdAt: '2026-01-01' }],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    } as never);
+    vi.mocked(useListMyOrganizations).mockReturnValue({ data: [{ organizationId: 10, roles: ['employee'] }] } as never);
+
+    renderWithClient();
+
+    expect(screen.queryByTestId('button-add-branch')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('button-edit-branch-1')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('button-toggle-branch-status-1')).not.toBeInTheDocument();
   });
 });

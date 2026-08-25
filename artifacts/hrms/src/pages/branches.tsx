@@ -27,6 +27,7 @@ import {
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
+import { useIsHrCapable } from '@/hooks/use-hr-capable';
 import { QueryError } from '@/components/query-error';
 
 export default function Branches() {
@@ -34,6 +35,7 @@ export default function Branches() {
   const { toast } = useToast();
   const { data: user } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const organizationId = user?.activeOrganizationId ?? user?.organizationId ?? 0;
+  const isHrCapable = useIsHrCapable(organizationId);
 
   const {
     data: branches,
@@ -133,6 +135,7 @@ export default function Branches() {
           <h1 className="text-3xl font-bold text-foreground">Branches</h1>
           <p className="text-muted-foreground">Manage your organisation's physical or regional locations</p>
         </div>
+        {isHrCapable && (
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button data-testid="button-add-branch">
@@ -175,6 +178,7 @@ export default function Branches() {
             </form>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       {isLoading ? (
@@ -205,7 +209,7 @@ export default function Branches() {
                 <TableHead>Name</TableHead>
                 <TableHead>Code</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                {isHrCapable && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -218,6 +222,7 @@ export default function Branches() {
                       {branch.status}
                     </Badge>
                   </TableCell>
+                  {isHrCapable && (
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Button
@@ -239,6 +244,7 @@ export default function Branches() {
                       </Button>
                     </div>
                   </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>

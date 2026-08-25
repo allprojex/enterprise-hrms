@@ -58,12 +58,18 @@ const { state } = vi.hoisted(() => ({
     performanceCycles: undefined as PerformanceCycle[] | undefined,
     performanceReviews: undefined as PerformanceReviewListResponse | undefined,
     unreturnedAssetsReport: undefined as ReportRunResult | undefined,
+    // Access-control gating (isHrCapable) — org_admin by default so every
+    // pre-existing test below (written before this gating existed) still
+    // exercises the mutating controls it expects to see.
+    myOrgRoles: ['org_admin'] as string[],
   },
 }));
 
 vi.mock('@workspace/api-client-react', () => ({
   useGetMe: () => ({ data: { id: 1, activeOrganizationId: 10, organizationId: 10 } }),
   getGetMeQueryKey: () => ['getMe'],
+  useListMyOrganizations: () => ({ data: [{ organizationId: 10, roles: state.myOrgRoles }] }),
+  getListMyOrganizationsQueryKey: () => ['myOrganizations'],
 
   useGetEmployee: () => ({
     data: state.employee,
@@ -277,6 +283,7 @@ function resetState() {
   state.performanceCycles = undefined;
   state.performanceReviews = undefined;
   state.unreturnedAssetsReport = undefined;
+  state.myOrgRoles = ['org_admin'];
 }
 
 function custodyDetail(overrides: Partial<PersonnelFileCustodyDetail> = {}): PersonnelFileCustodyDetail {
@@ -671,6 +678,36 @@ describe('Employee detail page', () => {
       expect(screen.getByTestId('button-confirm-separate')).toBeDisabled(); // no separation date typed yet — the ONLY reason
       await user.type(screen.getByTestId('input-separation-date'), '2026-06-01');
       expect(screen.getByTestId('button-confirm-separate')).toBeEnabled();
+    });
+  });
+
+  describe('Access control (bug regression): mutating controls require org_admin/hr_manager', () => {
+    it('hides every mutating control from a plain employee viewer', () => {
+      resetState();
+      state.employee = baseEmployee({ employmentStatus: 'active' });
+      state.myOrgRoles = ['employee'];
+      renderPage();
+
+      expect(screen.queryByTestId('button-upload-photo')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-edit-employee')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-transfer-employee')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-promote-employee')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-separate-employee')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-upload-document')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-add-skill')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-add-qualification')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-add-certification')).not.toBeInTheDocument();
+    });
+
+    it('shows the mutating controls to an org_admin/hr_manager viewer', () => {
+      resetState();
+      state.employee = baseEmployee({ employmentStatus: 'active' });
+      renderPage();
+
+      expect(screen.getByTestId('button-edit-employee')).toBeInTheDocument();
+      expect(screen.getByTestId('button-transfer-employee')).toBeInTheDocument();
+      expect(screen.getByTestId('button-promote-employee')).toBeInTheDocument();
+      expect(screen.getByTestId('button-separate-employee')).toBeInTheDocument();
     });
   });
 });
