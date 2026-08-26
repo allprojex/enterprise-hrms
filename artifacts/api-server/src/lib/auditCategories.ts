@@ -94,6 +94,15 @@ const CATEGORY_BY_PREFIX: Record<string, AuditCategory> = {
   // --- platform / configuration ---
   organization: "platform_configuration",
   organization_domain: "platform_configuration",
+  // WS-6 (Scheduled Jobs / Notifications Foundation, Owner Decision #13):
+  // administrative actions on the platform-wide job scheduler (manual
+  // cancel/reschedule/retry, all gated to super_admin — see
+  // routes/scheduledJobs.ts). Never routine scheduling or execution, which
+  // this codebase deliberately does not audit (§31 of the brief: "do not
+  // flood the audit table with every normal background execution") — the
+  // job row's own attemptCount/lastErrorClass/lastErrorMessage already
+  // carries that operational history.
+  scheduled_job: "platform_configuration",
   // WS-4 (Installation Registry, Owner Decision #29): deployment/runtime
   // identity administration — platform-scoped, never HR content.
   installation: "platform_configuration",

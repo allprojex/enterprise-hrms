@@ -1,5 +1,11 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+// WS-6: the web process only ever schedules jobs (never claims/executes
+// them — see src/worker.ts), but scheduleJob() validates jobType against
+// this same registry before inserting, so it must be populated here too.
+import { registerShippedJobHandlers } from "./lib/jobHandlers";
+
+registerShippedJobHandlers();
 
 const rawPort = process.env["PORT"];
 

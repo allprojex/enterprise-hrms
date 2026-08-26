@@ -1,0 +1,14 @@
+ALTER TABLE "notifications" DROP CONSTRAINT IF EXISTS "notifications_source_job_id_scheduled_jobs_id_fk";
+ALTER TABLE "notifications" DROP CONSTRAINT IF EXISTS "notifications_organization_id_organizations_id_fk";
+DROP INDEX IF EXISTS "notifications_org_idx";
+DROP INDEX IF EXISTS "notifications_user_read_idx";
+ALTER TABLE "notifications" DROP COLUMN IF EXISTS "expires_at";
+ALTER TABLE "notifications" DROP COLUMN IF EXISTS "dismissed_at";
+ALTER TABLE "notifications" DROP COLUMN IF EXISTS "action_path";
+ALTER TABLE "notifications" DROP COLUMN IF EXISTS "source_job_id";
+ALTER TABLE "notifications" DROP COLUMN IF EXISTS "source_reference_id";
+ALTER TABLE "notifications" DROP COLUMN IF EXISTS "source_reference_type";
+ALTER TABLE "notifications" DROP COLUMN IF EXISTS "organization_id";
+DROP TABLE IF EXISTS "scheduled_jobs";
+DROP TYPE IF EXISTS "public"."scheduled_job_status";
+DROP TYPE IF EXISTS "public"."scheduled_job_error_class";

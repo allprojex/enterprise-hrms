@@ -59,5 +59,24 @@ services:
       start_period: 15s
       retries: 3
 
+  # WS-6 (Scheduled Jobs / Notifications Foundation) — same image as `app`,
+  # different command (see the Dockerfile's own comment above `CMD`). Never
+  # runs due jobs via HTTP traffic; this is the only process that claims and
+  # executes scheduled_jobs rows. Dev-only, like the rest of this file — a
+  # real deployment runs this as its own service/container from the same
+  # built image.
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://hrms:hrms@db:5432/hrms
+    command: ["node", "--enable-source-maps", "artifacts/api-server/dist/worker.mjs"]
+
 volumes:
   hrms-ws1-local-pgdata:

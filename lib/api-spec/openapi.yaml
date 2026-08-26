@@ -173,6 +173,15 @@ tags:
       retention. Every state change requires document.retention.manage,
       seeded to no role by default — a deliberate per-organization
       delegation, not implied by ordinary HR/records authority.
+  - name: scheduled-jobs
+    description: >-
+      WS-6, Owner Decision #13 — the platform operational surface over the
+      database-authoritative job scheduler. Platform super_admin only, and
+      deliberately narrow: read/cancel/reschedule/retry only. There is no
+      route here to create an arbitrary job or execute one on demand —
+      domain modules create jobs through their own server-side calls to the
+      scheduler service; a jobType a client could invent has no handler and
+      fails safely. See docs/SCHEDULED_JOBS_AND_NOTIFICATIONS.md.
 
 paths:
   /healthz:
@@ -9606,7 +9615,15 @@ paths:
       operationId: listNotifications
       tags: [notifications]
       summary: List notifications
-      description: Returns notifications for the current user
+      description: >-
+        Returns notifications for the current user. `organizationId` is an
+        optional narrowing filter added in WS-6 — omitted, this returns
+        every notification for the caller exactly as before.
+      parameters:
+        - name: organizationId
+          in: query
+          schema:
+            type: integer
       responses:
         "200":
           description: List of notifications
@@ -9656,6 +9673,239 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
+
+  /notifications/{id}/dismiss:
+    patch:
+      operationId: dismissNotification
+      tags: [notifications]
+      summary: Dismiss a notification
+      description: >-
+        WS-6. IDOR-safe by construction — the lookup always includes the
+        caller's own user id, so no id resolves to another user's
+        notification.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Notification dismissed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /platform/scheduled-jobs:
+    get:
+      operationId: listScheduledJobs
+      tags: [scheduled-jobs]
+      summary: List scheduled jobs (platform super_admin only)
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [scheduled, running, completed, failed, cancelled]
+        - name: organizationId
+          in: query
+          schema:
+            type: integer
+        - name: jobType
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Scheduled jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScheduledJob"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /platform/scheduled-jobs/{id}:
+    get:
+      operationId: getScheduledJob
+      tags: [scheduled-jobs]
+      summary: Get one scheduled job (platform super_admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduledJob"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /platform/scheduled-jobs/{id}/cancel:
+    post:
+      operationId: cancelScheduledJob
+      tags: [scheduled-jobs]
+      summary: Cancel a pending job (platform super_admin only)
+      description: Only a job still in 'scheduled' status can be cancelled — a claimed/running job cannot be cancelled out from under its worker.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Cancelled job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduledJob"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Job is not in 'scheduled' status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /platform/scheduled-jobs/{id}/reschedule:
+    post:
+      operationId: rescheduleScheduledJob
+      tags: [scheduled-jobs]
+      summary: Reschedule a pending job (platform super_admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scheduledFor]
+              properties:
+                scheduledFor:
+                  type: string
+                  format: date-time
+      responses:
+        "200":
+          description: Rescheduled job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduledJob"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Job is not in 'scheduled' status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /platform/scheduled-jobs/{id}/retry:
+    post:
+      operationId: retryScheduledJob
+      tags: [scheduled-jobs]
+      summary: Manually retry a terminally failed job (platform super_admin only)
+      description: Resets attemptCount and reschedules immediately. Only a job in 'failed' status can be retried this way.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Retried job, now scheduled again
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduledJob"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Job is not in 'failed' status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /dashboard/summary:
     get:
@@ -26057,6 +26307,23 @@ components:
         createdAt:
           type: string
           format: date-time
+        organizationId:
+          type: integer
+          nullable: true
+          description: WS-6. Null for a platform-scoped notification.
+        sourceReferenceType:
+          type: string
+          nullable: true
+        sourceReferenceId:
+          type: integer
+          nullable: true
+        actionPath:
+          type: string
+          nullable: true
+        dismissedAt:
+          type: string
+          format: date-time
+          nullable: true
 
     DashboardSummary:
       type: object
@@ -31892,3 +32159,93 @@ components:
                 orphan, never a false claim that the file is still retained.
           required:
             - storageDeleted
+
+    ScheduledJob:
+      type: object
+      description: >-
+        A durable, database-authoritative unit of scheduled work (WS-6).
+        `jobType` is never client-executable content — every write and read
+        path validates it against a server-side handler registry.
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+          nullable: true
+          description: Null only for a genuinely platform-scoped job.
+        jobType:
+          type: string
+        sourceReferenceType:
+          type: string
+          nullable: true
+        sourceReferenceId:
+          type: integer
+          nullable: true
+        idempotencyKey:
+          type: string
+        payload:
+          nullable: true
+          description: Narrow, validated parameters only — never a full domain-entity snapshot.
+        status:
+          type: string
+          enum: [scheduled, running, completed, failed, cancelled]
+        priority:
+          type: integer
+        scheduledFor:
+          type: string
+          format: date-time
+        attemptCount:
+          type: integer
+        maxAttempts:
+          type: integer
+        lastAttemptAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastErrorClass:
+          type: string
+          enum: [transient, permanent]
+          nullable: true
+        lastErrorMessage:
+          type: string
+          nullable: true
+          description: Safe diagnostics only — never secrets, tokens, or confidential payload content.
+        lockedAt:
+          type: string
+          format: date-time
+          nullable: true
+        lockedBy:
+          type: string
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        failedAt:
+          type: string
+          format: date-time
+          nullable: true
+        cancelledAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdBy:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - jobType
+        - idempotencyKey
+        - status
+        - priority
+        - scheduledFor
+        - attemptCount
+        - maxAttempts
+        - createdAt
+        - updatedAt

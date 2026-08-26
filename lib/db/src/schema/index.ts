@@ -128,3 +128,4 @@ export * from "./document-retention-records";
 export * from "./document-templates";
 export * from "./document-template-versions";
 export * from "./generated-documents";
+export * from "./scheduled-jobs";

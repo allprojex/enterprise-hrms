@@ -8137,16 +8137,25 @@ export const ReactivatePositionResponse = zod.object({
 
 
 /**
- * Returns notifications for the current user
+ * Returns notifications for the current user. `organizationId` is an optional narrowing filter added in WS-6 — omitted, this returns every notification for the caller exactly as before.
  * @summary List notifications
  */
+export const ListNotificationsQueryParams = zod.object({
+  "organizationId": zod.coerce.number().optional()
+})
+
 export const ListNotificationsResponseItem = zod.object({
   "id": zod.number(),
   "title": zod.string(),
   "message": zod.string(),
   "type": zod.enum(['info', 'success', 'warning', 'alert']),
   "read": zod.boolean(),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "organizationId": zod.number().nullish().describe('WS-6. Null for a platform-scoped notification.'),
+  "sourceReferenceType": zod.string().nullish(),
+  "sourceReferenceId": zod.number().nullish(),
+  "actionPath": zod.string().nullish(),
+  "dismissedAt": zod.coerce.date().nullish()
 })
 export const ListNotificationsResponse = zod.array(ListNotificationsResponseItem)
 
@@ -8165,7 +8174,12 @@ export const MarkNotificationReadResponse = zod.object({
   "message": zod.string(),
   "type": zod.enum(['info', 'success', 'warning', 'alert']),
   "read": zod.boolean(),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "organizationId": zod.number().nullish().describe('WS-6. Null for a platform-scoped notification.'),
+  "sourceReferenceType": zod.string().nullish(),
+  "sourceReferenceId": zod.number().nullish(),
+  "actionPath": zod.string().nullish(),
+  "dismissedAt": zod.coerce.date().nullish()
 })
 
 
@@ -8176,6 +8190,210 @@ export const MarkNotificationReadResponse = zod.object({
 export const MarkAllNotificationsReadResponse = zod.object({
   "message": zod.string()
 })
+
+
+/**
+ * WS-6. IDOR-safe by construction — the lookup always includes the caller's own user id, so no id resolves to another user's notification.
+ * @summary Dismiss a notification
+ */
+export const DismissNotificationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DismissNotificationResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "message": zod.string(),
+  "type": zod.enum(['info', 'success', 'warning', 'alert']),
+  "read": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "organizationId": zod.number().nullish().describe('WS-6. Null for a platform-scoped notification.'),
+  "sourceReferenceType": zod.string().nullish(),
+  "sourceReferenceId": zod.number().nullish(),
+  "actionPath": zod.string().nullish(),
+  "dismissedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary List scheduled jobs (platform super_admin only)
+ */
+export const ListScheduledJobsQueryParams = zod.object({
+  "status": zod.enum(['scheduled', 'running', 'completed', 'failed', 'cancelled']).optional(),
+  "organizationId": zod.coerce.number().optional(),
+  "jobType": zod.coerce.string().optional(),
+  "limit": zod.coerce.number().optional(),
+  "offset": zod.coerce.number().optional()
+})
+
+export const ListScheduledJobsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number().nullish().describe('Null only for a genuinely platform-scoped job.'),
+  "jobType": zod.string(),
+  "sourceReferenceType": zod.string().nullish(),
+  "sourceReferenceId": zod.number().nullish(),
+  "idempotencyKey": zod.string(),
+  "payload": zod.unknown().nullish().describe('Narrow, validated parameters only — never a full domain-entity snapshot.'),
+  "status": zod.enum(['scheduled', 'running', 'completed', 'failed', 'cancelled']),
+  "priority": zod.number(),
+  "scheduledFor": zod.coerce.date(),
+  "attemptCount": zod.number(),
+  "maxAttempts": zod.number(),
+  "lastAttemptAt": zod.coerce.date().nullish(),
+  "lastErrorClass": zod.enum(['transient', 'permanent']).nullish(),
+  "lastErrorMessage": zod.string().nullish().describe('Safe diagnostics only — never secrets, tokens, or confidential payload content.'),
+  "lockedAt": zod.coerce.date().nullish(),
+  "lockedBy": zod.string().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "failedAt": zod.coerce.date().nullish(),
+  "cancelledAt": zod.coerce.date().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A durable, database-authoritative unit of scheduled work (WS-6). `jobType` is never client-executable content — every write and read path validates it against a server-side handler registry.')
+export const ListScheduledJobsResponse = zod.array(ListScheduledJobsResponseItem)
+
+
+/**
+ * @summary Get one scheduled job (platform super_admin only)
+ */
+export const GetScheduledJobParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetScheduledJobResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number().nullish().describe('Null only for a genuinely platform-scoped job.'),
+  "jobType": zod.string(),
+  "sourceReferenceType": zod.string().nullish(),
+  "sourceReferenceId": zod.number().nullish(),
+  "idempotencyKey": zod.string(),
+  "payload": zod.unknown().nullish().describe('Narrow, validated parameters only — never a full domain-entity snapshot.'),
+  "status": zod.enum(['scheduled', 'running', 'completed', 'failed', 'cancelled']),
+  "priority": zod.number(),
+  "scheduledFor": zod.coerce.date(),
+  "attemptCount": zod.number(),
+  "maxAttempts": zod.number(),
+  "lastAttemptAt": zod.coerce.date().nullish(),
+  "lastErrorClass": zod.enum(['transient', 'permanent']).nullish(),
+  "lastErrorMessage": zod.string().nullish().describe('Safe diagnostics only — never secrets, tokens, or confidential payload content.'),
+  "lockedAt": zod.coerce.date().nullish(),
+  "lockedBy": zod.string().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "failedAt": zod.coerce.date().nullish(),
+  "cancelledAt": zod.coerce.date().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A durable, database-authoritative unit of scheduled work (WS-6). `jobType` is never client-executable content — every write and read path validates it against a server-side handler registry.')
+
+
+/**
+ * Only a job still in 'scheduled' status can be cancelled — a claimed/running job cannot be cancelled out from under its worker.
+ * @summary Cancel a pending job (platform super_admin only)
+ */
+export const CancelScheduledJobParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const CancelScheduledJobResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number().nullish().describe('Null only for a genuinely platform-scoped job.'),
+  "jobType": zod.string(),
+  "sourceReferenceType": zod.string().nullish(),
+  "sourceReferenceId": zod.number().nullish(),
+  "idempotencyKey": zod.string(),
+  "payload": zod.unknown().nullish().describe('Narrow, validated parameters only — never a full domain-entity snapshot.'),
+  "status": zod.enum(['scheduled', 'running', 'completed', 'failed', 'cancelled']),
+  "priority": zod.number(),
+  "scheduledFor": zod.coerce.date(),
+  "attemptCount": zod.number(),
+  "maxAttempts": zod.number(),
+  "lastAttemptAt": zod.coerce.date().nullish(),
+  "lastErrorClass": zod.enum(['transient', 'permanent']).nullish(),
+  "lastErrorMessage": zod.string().nullish().describe('Safe diagnostics only — never secrets, tokens, or confidential payload content.'),
+  "lockedAt": zod.coerce.date().nullish(),
+  "lockedBy": zod.string().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "failedAt": zod.coerce.date().nullish(),
+  "cancelledAt": zod.coerce.date().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A durable, database-authoritative unit of scheduled work (WS-6). `jobType` is never client-executable content — every write and read path validates it against a server-side handler registry.')
+
+
+/**
+ * @summary Reschedule a pending job (platform super_admin only)
+ */
+export const RescheduleScheduledJobParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RescheduleScheduledJobBody = zod.object({
+  "scheduledFor": zod.coerce.date()
+})
+
+export const RescheduleScheduledJobResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number().nullish().describe('Null only for a genuinely platform-scoped job.'),
+  "jobType": zod.string(),
+  "sourceReferenceType": zod.string().nullish(),
+  "sourceReferenceId": zod.number().nullish(),
+  "idempotencyKey": zod.string(),
+  "payload": zod.unknown().nullish().describe('Narrow, validated parameters only — never a full domain-entity snapshot.'),
+  "status": zod.enum(['scheduled', 'running', 'completed', 'failed', 'cancelled']),
+  "priority": zod.number(),
+  "scheduledFor": zod.coerce.date(),
+  "attemptCount": zod.number(),
+  "maxAttempts": zod.number(),
+  "lastAttemptAt": zod.coerce.date().nullish(),
+  "lastErrorClass": zod.enum(['transient', 'permanent']).nullish(),
+  "lastErrorMessage": zod.string().nullish().describe('Safe diagnostics only — never secrets, tokens, or confidential payload content.'),
+  "lockedAt": zod.coerce.date().nullish(),
+  "lockedBy": zod.string().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "failedAt": zod.coerce.date().nullish(),
+  "cancelledAt": zod.coerce.date().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A durable, database-authoritative unit of scheduled work (WS-6). `jobType` is never client-executable content — every write and read path validates it against a server-side handler registry.')
+
+
+/**
+ * Resets attemptCount and reschedules immediately. Only a job in 'failed' status can be retried this way.
+ * @summary Manually retry a terminally failed job (platform super_admin only)
+ */
+export const RetryScheduledJobParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RetryScheduledJobResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number().nullish().describe('Null only for a genuinely platform-scoped job.'),
+  "jobType": zod.string(),
+  "sourceReferenceType": zod.string().nullish(),
+  "sourceReferenceId": zod.number().nullish(),
+  "idempotencyKey": zod.string(),
+  "payload": zod.unknown().nullish().describe('Narrow, validated parameters only — never a full domain-entity snapshot.'),
+  "status": zod.enum(['scheduled', 'running', 'completed', 'failed', 'cancelled']),
+  "priority": zod.number(),
+  "scheduledFor": zod.coerce.date(),
+  "attemptCount": zod.number(),
+  "maxAttempts": zod.number(),
+  "lastAttemptAt": zod.coerce.date().nullish(),
+  "lastErrorClass": zod.enum(['transient', 'permanent']).nullish(),
+  "lastErrorMessage": zod.string().nullish().describe('Safe diagnostics only — never secrets, tokens, or confidential payload content.'),
+  "lockedAt": zod.coerce.date().nullish(),
+  "lockedBy": zod.string().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "failedAt": zod.coerce.date().nullish(),
+  "cancelledAt": zod.coerce.date().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A durable, database-authoritative unit of scheduled work (WS-6). `jobType` is never client-executable content — every write and read path validates it against a server-side handler registry.')
 
 
 /**

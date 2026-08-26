@@ -4474,6 +4474,12 @@ export interface Notification {
   type: NotificationType;
   read: boolean;
   createdAt: string;
+  /** WS-6. Null for a platform-scoped notification. */
+  organizationId?: number | null;
+  sourceReferenceType?: string | null;
+  sourceReferenceId?: number | null;
+  actionPath?: string | null;
+  dismissedAt?: string | null;
 }
 
 export interface LeaveRequestsByStatusCounts {
@@ -8915,6 +8921,57 @@ export type DisposedDocumentResult = DocumentRetentionRecord & {
   storageDeleted: boolean;
 };
 
+export type ScheduledJobStatus = typeof ScheduledJobStatus[keyof typeof ScheduledJobStatus];
+
+
+export const ScheduledJobStatus = {
+  scheduled: 'scheduled',
+  running: 'running',
+  completed: 'completed',
+  failed: 'failed',
+  cancelled: 'cancelled',
+} as const;
+
+export type ScheduledJobLastErrorClass = typeof ScheduledJobLastErrorClass[keyof typeof ScheduledJobLastErrorClass] | null;
+
+
+export const ScheduledJobLastErrorClass = {
+  transient: 'transient',
+  permanent: 'permanent',
+} as const;
+
+/**
+ * A durable, database-authoritative unit of scheduled work (WS-6). `jobType` is never client-executable content — every write and read path validates it against a server-side handler registry.
+ */
+export interface ScheduledJob {
+  id: number;
+  /** Null only for a genuinely platform-scoped job. */
+  organizationId?: number | null;
+  jobType: string;
+  sourceReferenceType?: string | null;
+  sourceReferenceId?: number | null;
+  idempotencyKey: string;
+  /** Narrow, validated parameters only — never a full domain-entity snapshot. */
+  payload?: unknown | null;
+  status: ScheduledJobStatus;
+  priority: number;
+  scheduledFor: string;
+  attemptCount: number;
+  maxAttempts: number;
+  lastAttemptAt?: string | null;
+  lastErrorClass?: ScheduledJobLastErrorClass;
+  /** Safe diagnostics only — never secrets, tokens, or confidential payload content. */
+  lastErrorMessage?: string | null;
+  lockedAt?: string | null;
+  lockedBy?: string | null;
+  completedAt?: string | null;
+  failedAt?: string | null;
+  cancelledAt?: string | null;
+  createdBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type UploadOrganizationLogoBody = {
   file: Blob;
 };
@@ -9193,6 +9250,33 @@ export type ApplyToPublicVacancyBody = {
 
 export type ListLeaveBalanceLedgerParams = {
 leaveTypeId?: number;
+};
+
+export type ListNotificationsParams = {
+organizationId?: number;
+};
+
+export type ListScheduledJobsParams = {
+status?: ListScheduledJobsStatus;
+organizationId?: number;
+jobType?: string;
+limit?: number;
+offset?: number;
+};
+
+export type ListScheduledJobsStatus = typeof ListScheduledJobsStatus[keyof typeof ListScheduledJobsStatus];
+
+
+export const ListScheduledJobsStatus = {
+  scheduled: 'scheduled',
+  running: 'running',
+  completed: 'completed',
+  failed: 'failed',
+  cancelled: 'cancelled',
+} as const;
+
+export type RescheduleScheduledJobBody = {
+  scheduledFor: string;
 };
 
 export type ListAuditEventsParams = {

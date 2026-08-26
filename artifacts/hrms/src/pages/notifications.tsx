@@ -1,24 +1,50 @@
-import { Bell, CheckCheck, Loader2, Info, CheckCircle, AlertTriangle, AlertCircle } from 'lucide-react';
+import { Link } from 'wouter';
+import { Bell, CheckCheck, Loader2, Info, CheckCircle, AlertTriangle, AlertCircle, X, ArrowRight } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useListNotifications, getListNotificationsQueryKey, useMarkNotificationRead, useMarkAllNotificationsRead } from '@workspace/api-client-react';
+import {
+  useListNotifications,
+  getListNotificationsQueryKey,
+  useMarkNotificationRead,
+  useMarkAllNotificationsRead,
+  useDismissNotification,
+} from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import type { Notification } from '@workspace/api-client-react';
 
 export default function Notifications() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   
-  const { data: notifications, isLoading } = useListNotifications({
+  const { data: notifications, isLoading } = useListNotifications(undefined, {
     query: { queryKey: getListNotificationsQueryKey() }
   });
 
   const markReadMutation = useMarkNotificationRead();
   const markAllReadMutation = useMarkAllNotificationsRead();
+  const dismissMutation = useDismissNotification();
+
+  const handleDismiss = (id: number) => {
+    dismissMutation.mutate(
+      { id },
+      {
+        onSuccess: () => {
+          queryClient.setQueryData(getListNotificationsQueryKey(), (old: Notification[] | undefined) => old?.filter((n) => n.id !== id));
+        },
+        onError: (error) => {
+          toast({
+            title: 'Failed to dismiss notification',
+            description: error instanceof Error ? error.message : 'Please try again.',
+            variant: 'destructive',
+          });
+        },
+      },
+    );
+  };
 
   const handleMarkRead = (id: number) => {
     markReadMutation.mutate(
@@ -160,63 +186,90 @@ export default function Notifications() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {notifications.map((notification, i) => {
-            const TypeIcon = getTypeIcon(notification.type);
-            const typeColor = getTypeColor(notification.type);
-            
-            return (
-              <motion.div
-                key={notification.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
-              >
-                <Card 
-                  className={`transition-all hover:shadow-md ${!notification.read ? 'border-l-4 border-l-primary bg-muted/20' : ''}`}
-                  data-testid={`card-notification-${notification.id}`}
+          <AnimatePresence initial={false}>
+            {notifications.map((notification, i) => {
+              const TypeIcon = getTypeIcon(notification.type);
+              const typeColor = getTypeColor(notification.type);
+
+              return (
+                <motion.div
+                  key={notification.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ delay: i * 0.05 }}
                 >
-                  <CardContent className="flex items-start gap-4 p-4">
-                    <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg ${typeColor}`}>
-                      <TypeIcon className="h-5 w-5" />
-                    </div>
-                    
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <h4 className="text-sm font-semibold text-foreground">
-                          {notification.title}
-                        </h4>
-                        {!notification.read && (
-                          <Badge variant="secondary" className="text-xs flex-shrink-0">
-                            New
-                          </Badge>
-                        )}
+                  <Card
+                    className={`transition-all hover:shadow-md ${!notification.read ? 'border-l-4 border-l-primary bg-muted/20' : ''}`}
+                    data-testid={`card-notification-${notification.id}`}
+                  >
+                    <CardContent className="flex items-start gap-4 p-4">
+                      <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg ${typeColor}`}>
+                        <TypeIcon className="h-5 w-5" />
                       </div>
-                      <p className="text-sm text-muted-foreground leading-relaxed">
-                        {notification.message}
-                      </p>
-                      <div className="flex items-center justify-between gap-4 pt-2">
-                        <span className="text-xs text-muted-foreground">
-                          {formatDate(notification.createdAt)}
-                        </span>
-                        {!notification.read && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleMarkRead(notification.id)}
-                            disabled={markReadMutation.isPending}
-                            className="h-7 text-xs"
-                            data-testid={`button-mark-read-${notification.id}`}
-                          >
-                            Mark as read
-                          </Button>
-                        )}
+
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className="text-sm font-semibold text-foreground">
+                            {notification.title}
+                          </h4>
+                          <div className="flex flex-shrink-0 items-center gap-2">
+                            {!notification.read && (
+                              <Badge variant="secondary" className="text-xs">
+                                New
+                              </Badge>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => handleDismiss(notification.id)}
+                              disabled={dismissMutation.isPending}
+                              aria-label="Dismiss notification"
+                              data-testid={`button-dismiss-${notification.id}`}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                        <p className="text-sm text-muted-foreground leading-relaxed">
+                          {notification.message}
+                        </p>
+                        <div className="flex items-center justify-between gap-4 pt-2">
+                          <span className="text-xs text-muted-foreground">
+                            {formatDate(notification.createdAt)}
+                          </span>
+                          <div className="flex items-center gap-3">
+                            {notification.actionPath && (
+                              <Link
+                                href={notification.actionPath}
+                                className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                                data-testid={`link-notification-action-${notification.id}`}
+                              >
+                                View <ArrowRight className="h-3 w-3" />
+                              </Link>
+                            )}
+                            {!notification.read && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleMarkRead(notification.id)}
+                                disabled={markReadMutation.isPending}
+                                className="h-7 text-xs"
+                                data-testid={`button-mark-read-${notification.id}`}
+                              >
+                                Mark as read
+                              </Button>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            );
-          })}
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
         </div>
       )}
     </div>

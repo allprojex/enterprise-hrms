@@ -15,7 +15,11 @@ async function buildAll() {
   await rm(distDir, { recursive: true, force: true });
 
   await esbuild({
-    entryPoints: [path.resolve(artifactDir, "src/index.ts")],
+    // WS-6: two entry points, one bundle each — dist/index.mjs (web) and
+    // dist/worker.mjs (the scheduled-jobs worker process, src/worker.ts).
+    // Same build config, same externals, so the worker image needs no
+    // separate Dockerfile stage — see docs/SCHEDULED_JOBS_AND_NOTIFICATIONS.md.
+    entryPoints: [path.resolve(artifactDir, "src/index.ts"), path.resolve(artifactDir, "src/worker.ts")],
     platform: "node",
     bundle: true,
     format: "esm",

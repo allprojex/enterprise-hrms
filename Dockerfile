@@ -120,3 +120,18 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 # docs/CI_CD.md — migrations are a separate, explicit release step run once
 # per release, never implicitly on container start/restart of every replica).
 CMD ["node", "--enable-source-maps", "artifacts/api-server/dist/index.mjs"]
+
+# WS-6 (Scheduled Jobs / Notifications Foundation): the worker process runs
+# from this EXACT SAME IMAGE with a different command — build.mjs bundles
+# both artifacts/api-server/dist/index.mjs (web) and dist/worker.mjs (worker)
+# from the same source in one build, and this runtime stage already copies
+# the whole dist/ directory above, so worker.mjs is already present here.
+# No second Dockerfile, no second build. Run it as a separate container/
+# service from the same image, overriding CMD:
+#
+#   docker run <this-image> node --enable-source-maps artifacts/api-server/dist/worker.mjs
+#
+# See docker-compose.yml's own `worker` service (dev-only) and
+# docs/SCHEDULED_JOBS_AND_NOTIFICATIONS.md for the full process-model
+# rationale (§8/§49: web creates/updates scheduled work, only the worker
+# process ever claims and executes it).

@@ -17,7 +17,7 @@
  * org-scoped page, which is out of WS-4's scope).
  */
 import { useMemo, useState } from 'react';
-import { ShieldAlert, Server, Plus, Link2, Unlink, Ban } from 'lucide-react';
+import { ShieldAlert, Server, Plus, Link2, Unlink, Ban, Clock, RotateCcw, XCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -49,8 +49,18 @@ import {
   useCreateBreakGlassGrant,
   useRevokeBreakGlassGrant,
   useListOrganizations,
+  useListScheduledJobs,
+  getListScheduledJobsQueryKey,
+  useCancelScheduledJob,
+  useRetryScheduledJob,
 } from '@workspace/api-client-react';
-import type { CreateInstallationInputEnvironmentType, CreateInstallationInputHostingModel, Installation, BreakGlassGrant } from '@workspace/api-client-react';
+import type {
+  CreateInstallationInputEnvironmentType,
+  CreateInstallationInputHostingModel,
+  Installation,
+  BreakGlassGrant,
+  ListScheduledJobsStatus,
+} from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { QueryError } from '@/components/query-error';
@@ -466,6 +476,149 @@ function BreakGlassPanel() {
   );
 }
 
+const JOB_STATUS_FILTERS: ('all' | ListScheduledJobsStatus)[] = ['all', 'scheduled', 'running', 'completed', 'failed', 'cancelled'];
+
+function jobStatusBadgeVariant(status: ListScheduledJobsStatus): 'default' | 'secondary' | 'destructive' | 'outline' {
+  if (status === 'failed') return 'destructive';
+  if (status === 'running') return 'default';
+  if (status === 'completed') return 'secondary';
+  return 'outline';
+}
+
+/**
+ * WS-6 (Scheduled Jobs / Notifications Foundation, §33-34) — the minimal
+ * platform operational surface: list, filter by status, cancel a pending
+ * job, retry a terminally failed one. Deliberately not a dashboard — no
+ * charts, no health metrics, no auto-refresh. "Do not turn WS-6 into full
+ * Control Plane."
+ */
+function ScheduledJobsPanel() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [statusFilter, setStatusFilter] = useState<'all' | ListScheduledJobsStatus>('all');
+
+  const params = statusFilter === 'all' ? undefined : { status: statusFilter };
+  const { data: jobs, isLoading, error } = useListScheduledJobs(params, {
+    query: { queryKey: getListScheduledJobsQueryKey(params) },
+  });
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: getListScheduledJobsQueryKey() });
+
+  const cancelMutation = useCancelScheduledJob({
+    mutation: {
+      onSuccess: () => {
+        invalidate();
+        toast({ title: 'Job cancelled' });
+      },
+      onError: (err: unknown) => toast({ title: 'Could not cancel job', description: (err as { message?: string })?.message, variant: 'destructive' }),
+    },
+  });
+  const retryMutation = useRetryScheduledJob({
+    mutation: {
+      onSuccess: () => {
+        invalidate();
+        toast({ title: 'Job re-queued for retry' });
+      },
+      onError: (err: unknown) => toast({ title: 'Could not retry job', description: (err as { message?: string })?.message, variant: 'destructive' }),
+    },
+  });
+
+  if (isLoading) return <Skeleton className="h-40 w-full" />;
+  if (error) return <QueryError />;
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5" /> Scheduled Jobs
+          </CardTitle>
+          <CardDescription>
+            The database-authoritative job scheduler (WS-6). Operational visibility only — no job type or payload can be
+            created or executed from here; domain modules schedule their own work server-side.
+          </CardDescription>
+        </div>
+        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as 'all' | ListScheduledJobsStatus)}>
+          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {JOB_STATUS_FILTERS.map((s) => (
+              <SelectItem key={s} value={s}>
+                {s === 'all' ? 'All statuses' : s}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Job Type</TableHead>
+              <TableHead>Organization</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Attempts</TableHead>
+              <TableHead>Scheduled For</TableHead>
+              <TableHead>Last Error</TableHead>
+              <TableHead></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {(jobs ?? []).map((job) => (
+              <TableRow key={job.id} data-testid={`row-job-${job.id}`}>
+                <TableCell className="font-mono text-xs">{job.jobType}</TableCell>
+                <TableCell>{job.organizationId ?? <span className="text-muted-foreground">platform</span>}</TableCell>
+                <TableCell>
+                  <Badge variant={jobStatusBadgeVariant(job.status)} data-testid={`badge-job-status-${job.id}`}>
+                    {job.status}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  {job.attemptCount}/{job.maxAttempts}
+                </TableCell>
+                <TableCell className="text-xs">{new Date(job.scheduledFor).toLocaleString()}</TableCell>
+                <TableCell className="max-w-xs truncate text-xs text-muted-foreground" title={job.lastErrorMessage ?? undefined}>
+                  {job.lastErrorMessage ?? '—'}
+                </TableCell>
+                <TableCell>
+                  {job.status === 'scheduled' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => cancelMutation.mutate({ id: job.id })}
+                      disabled={cancelMutation.isPending}
+                      data-testid={`button-cancel-job-${job.id}`}
+                    >
+                      <XCircle className="h-3.5 w-3.5 mr-1" /> Cancel
+                    </Button>
+                  )}
+                  {job.status === 'failed' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => retryMutation.mutate({ id: job.id })}
+                      disabled={retryMutation.isPending}
+                      data-testid={`button-retry-job-${job.id}`}
+                    >
+                      <RotateCcw className="h-3.5 w-3.5 mr-1" /> Retry
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+            {(jobs ?? []).length === 0 && (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center text-muted-foreground py-6">
+                  No jobs match this filter.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function PlatformAdmin() {
   const { data: me, isLoading } = useGetMe();
 
@@ -491,6 +644,7 @@ export default function PlatformAdmin() {
       </div>
       <InstallationsPanel />
       <BreakGlassPanel />
+      <ScheduledJobsPanel />
     </div>
   );
 }

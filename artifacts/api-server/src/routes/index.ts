@@ -106,6 +106,7 @@ import officeInventoryAssetHandoffRouter from "./officeInventoryAssetHandoff";
 import organizationDocumentsRouter from "./organizationDocuments";
 import documentTemplatesRouter from "./documentTemplates";
 import documentRecordsRouter from "./documentRecords";
+import scheduledJobsRouter from "./scheduledJobs";
 
 const router: IRouter = Router();
 
@@ -233,5 +234,7 @@ router.use(officeInventoryAssetHandoffRouter);
 router.use(organizationDocumentsRouter);
 router.use(documentTemplatesRouter);
 router.use(documentRecordsRouter);
+// WS-6 — Scheduled Jobs / Notifications Foundation.
+router.use(scheduledJobsRouter);
 
 export default router;

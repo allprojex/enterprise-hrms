@@ -309,7 +309,7 @@ export function AppShell({ children }: AppShellProps) {
     error: userError,
   } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
 
-  const { data: notifications } = useListNotifications({
+  const { data: notifications } = useListNotifications(undefined, {
     query: { queryKey: getListNotificationsQueryKey() },
   });
 

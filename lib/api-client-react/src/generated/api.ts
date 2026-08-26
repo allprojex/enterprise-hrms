@@ -238,6 +238,7 @@ import type {
   ListLearningEnrollmentsParams,
   ListLeaveBalanceLedgerParams,
   ListLeaveCalendarParams,
+  ListNotificationsParams,
   ListOffersParams,
   ListOfficeInventoryIncidentsParams,
   ListOfficeInventoryStockMovementsParams,
@@ -249,6 +250,7 @@ import type {
   ListPersonnelFileMovementsParams,
   ListPublicHolidaysParams,
   ListPublicVacanciesParams,
+  ListScheduledJobsParams,
   ListVacanciesParams,
   LoginInput,
   ManagerPortalDashboard,
@@ -387,6 +389,7 @@ import type {
   ReportRunResult,
   RequestLearningEnrollmentInput,
   RequisitionApproval,
+  RescheduleScheduledJobBody,
   ResetPasswordInput,
   ResolveDepartmentHeadAsOfParams,
   ResolveOfficeInventoryStocktakeLineBody,
@@ -409,6 +412,7 @@ import type {
   RunReportParams,
   SaveInterviewScorecardInput,
   ScheduleInterviewInput,
+  ScheduledJob,
   SearchPersonnelRecordsParams,
   SelfAssessmentNotReadyError,
   SeparateEmployeeInput,
@@ -19625,21 +19629,28 @@ export const useReactivatePosition = <TError = ErrorType<ApiError>,
       return useMutation(getReactivatePositionMutationOptions(options));
     }
 
-export const getListNotificationsUrl = () => {
+export const getListNotificationsUrl = (params?: ListNotificationsParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/notifications`
+  return stringifiedParams.length > 0 ? `/api/notifications?${stringifiedParams}` : `/api/notifications`
 }
 
 /**
- * Returns notifications for the current user
+ * Returns notifications for the current user. `organizationId` is an optional narrowing filter added in WS-6 — omitted, this returns every notification for the caller exactly as before.
  * @summary List notifications
  */
-export const listNotifications = async ( options?: RequestInit): Promise<Notification[]> => {
+export const listNotifications = async (params?: ListNotificationsParams, options?: RequestInit): Promise<Notification[]> => {
 
-  return customFetch<Notification[]>(getListNotificationsUrl(),
+  return customFetch<Notification[]>(getListNotificationsUrl(params),
   {
     ...options,
     method: 'GET'
@@ -19652,23 +19663,23 @@ export const listNotifications = async ( options?: RequestInit): Promise<Notific
 
 
 
-export const getListNotificationsQueryKey = () => {
+export const getListNotificationsQueryKey = (params?: ListNotificationsParams,) => {
     return [
-    `/api/notifications`
+    `/api/notifications`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getListNotificationsQueryOptions = <TData = Awaited<ReturnType<typeof listNotifications>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNotifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListNotificationsQueryOptions = <TData = Awaited<ReturnType<typeof listNotifications>>, TError = ErrorType<unknown>>(params?: ListNotificationsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNotifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListNotificationsQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getListNotificationsQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listNotifications>>> = ({ signal }) => listNotifications({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listNotifications>>> = ({ signal }) => listNotifications(params, { signal, ...requestOptions });
 
 
 
@@ -19686,11 +19697,11 @@ export type ListNotificationsQueryError = ErrorType<unknown>
  */
 
 export function useListNotifications<TData = Awaited<ReturnType<typeof listNotifications>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNotifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: ListNotificationsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNotifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getListNotificationsQueryOptions(options)
+  const queryOptions = getListNotificationsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -19845,6 +19856,455 @@ export const useMarkAllNotificationsRead = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getMarkAllNotificationsReadMutationOptions(options));
+    }
+
+export const getDismissNotificationUrl = (id: number,) => {
+
+
+
+
+  return `/api/notifications/${id}/dismiss`
+}
+
+/**
+ * WS-6. IDOR-safe by construction — the lookup always includes the caller's own user id, so no id resolves to another user's notification.
+ * @summary Dismiss a notification
+ */
+export const dismissNotification = async (id: number, options?: RequestInit): Promise<Notification> => {
+
+  return customFetch<Notification>(getDismissNotificationUrl(id),
+  {
+    ...options,
+    method: 'PATCH'
+
+
+  }
+);}
+
+
+
+
+
+export const getDismissNotificationMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof dismissNotification>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof dismissNotification>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['dismissNotification'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof dismissNotification>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  dismissNotification(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DismissNotificationMutationResult = NonNullable<Awaited<ReturnType<typeof dismissNotification>>>
+
+    export type DismissNotificationMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Dismiss a notification
+ */
+export const useDismissNotification = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof dismissNotification>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof dismissNotification>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDismissNotificationMutationOptions(options));
+    }
+
+export const getListScheduledJobsUrl = (params?: ListScheduledJobsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/platform/scheduled-jobs?${stringifiedParams}` : `/api/platform/scheduled-jobs`
+}
+
+/**
+ * @summary List scheduled jobs (platform super_admin only)
+ */
+export const listScheduledJobs = async (params?: ListScheduledJobsParams, options?: RequestInit): Promise<ScheduledJob[]> => {
+
+  return customFetch<ScheduledJob[]>(getListScheduledJobsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListScheduledJobsQueryKey = (params?: ListScheduledJobsParams,) => {
+    return [
+    `/api/platform/scheduled-jobs`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListScheduledJobsQueryOptions = <TData = Awaited<ReturnType<typeof listScheduledJobs>>, TError = ErrorType<ApiError>>(params?: ListScheduledJobsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listScheduledJobs>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListScheduledJobsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listScheduledJobs>>> = ({ signal }) => listScheduledJobs(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listScheduledJobs>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListScheduledJobsQueryResult = NonNullable<Awaited<ReturnType<typeof listScheduledJobs>>>
+export type ListScheduledJobsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List scheduled jobs (platform super_admin only)
+ */
+
+export function useListScheduledJobs<TData = Awaited<ReturnType<typeof listScheduledJobs>>, TError = ErrorType<ApiError>>(
+ params?: ListScheduledJobsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listScheduledJobs>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListScheduledJobsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetScheduledJobUrl = (id: number,) => {
+
+
+
+
+  return `/api/platform/scheduled-jobs/${id}`
+}
+
+/**
+ * @summary Get one scheduled job (platform super_admin only)
+ */
+export const getScheduledJob = async (id: number, options?: RequestInit): Promise<ScheduledJob> => {
+
+  return customFetch<ScheduledJob>(getGetScheduledJobUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetScheduledJobQueryKey = (id: number,) => {
+    return [
+    `/api/platform/scheduled-jobs/${id}`
+    ] as const;
+    }
+
+
+export const getGetScheduledJobQueryOptions = <TData = Awaited<ReturnType<typeof getScheduledJob>>, TError = ErrorType<ApiError>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getScheduledJob>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetScheduledJobQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getScheduledJob>>> = ({ signal }) => getScheduledJob(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getScheduledJob>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetScheduledJobQueryResult = NonNullable<Awaited<ReturnType<typeof getScheduledJob>>>
+export type GetScheduledJobQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get one scheduled job (platform super_admin only)
+ */
+
+export function useGetScheduledJob<TData = Awaited<ReturnType<typeof getScheduledJob>>, TError = ErrorType<ApiError>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getScheduledJob>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetScheduledJobQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCancelScheduledJobUrl = (id: number,) => {
+
+
+
+
+  return `/api/platform/scheduled-jobs/${id}/cancel`
+}
+
+/**
+ * Only a job still in 'scheduled' status can be cancelled — a claimed/running job cannot be cancelled out from under its worker.
+ * @summary Cancel a pending job (platform super_admin only)
+ */
+export const cancelScheduledJob = async (id: number, options?: RequestInit): Promise<ScheduledJob> => {
+
+  return customFetch<ScheduledJob>(getCancelScheduledJobUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCancelScheduledJobMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelScheduledJob>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelScheduledJob>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['cancelScheduledJob'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelScheduledJob>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  cancelScheduledJob(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelScheduledJobMutationResult = NonNullable<Awaited<ReturnType<typeof cancelScheduledJob>>>
+
+    export type CancelScheduledJobMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Cancel a pending job (platform super_admin only)
+ */
+export const useCancelScheduledJob = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelScheduledJob>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelScheduledJob>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getCancelScheduledJobMutationOptions(options));
+    }
+
+export const getRescheduleScheduledJobUrl = (id: number,) => {
+
+
+
+
+  return `/api/platform/scheduled-jobs/${id}/reschedule`
+}
+
+/**
+ * @summary Reschedule a pending job (platform super_admin only)
+ */
+export const rescheduleScheduledJob = async (id: number,
+    rescheduleScheduledJobBody: RescheduleScheduledJobBody, options?: RequestInit): Promise<ScheduledJob> => {
+
+  return customFetch<ScheduledJob>(getRescheduleScheduledJobUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(rescheduleScheduledJobBody)
+  }
+);}
+
+
+
+
+
+export const getRescheduleScheduledJobMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rescheduleScheduledJob>>, TError,{id: number;data: BodyType<RescheduleScheduledJobBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rescheduleScheduledJob>>, TError,{id: number;data: BodyType<RescheduleScheduledJobBody>}, TContext> => {
+
+const mutationKey = ['rescheduleScheduledJob'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rescheduleScheduledJob>>, {id: number;data: BodyType<RescheduleScheduledJobBody>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  rescheduleScheduledJob(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RescheduleScheduledJobMutationResult = NonNullable<Awaited<ReturnType<typeof rescheduleScheduledJob>>>
+    export type RescheduleScheduledJobMutationBody = BodyType<RescheduleScheduledJobBody>
+    export type RescheduleScheduledJobMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Reschedule a pending job (platform super_admin only)
+ */
+export const useRescheduleScheduledJob = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rescheduleScheduledJob>>, TError,{id: number;data: BodyType<RescheduleScheduledJobBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rescheduleScheduledJob>>,
+        TError,
+        {id: number;data: BodyType<RescheduleScheduledJobBody>},
+        TContext
+      > => {
+      return useMutation(getRescheduleScheduledJobMutationOptions(options));
+    }
+
+export const getRetryScheduledJobUrl = (id: number,) => {
+
+
+
+
+  return `/api/platform/scheduled-jobs/${id}/retry`
+}
+
+/**
+ * Resets attemptCount and reschedules immediately. Only a job in 'failed' status can be retried this way.
+ * @summary Manually retry a terminally failed job (platform super_admin only)
+ */
+export const retryScheduledJob = async (id: number, options?: RequestInit): Promise<ScheduledJob> => {
+
+  return customFetch<ScheduledJob>(getRetryScheduledJobUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRetryScheduledJobMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retryScheduledJob>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof retryScheduledJob>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['retryScheduledJob'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof retryScheduledJob>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  retryScheduledJob(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RetryScheduledJobMutationResult = NonNullable<Awaited<ReturnType<typeof retryScheduledJob>>>
+
+    export type RetryScheduledJobMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Manually retry a terminally failed job (platform super_admin only)
+ */
+export const useRetryScheduledJob = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retryScheduledJob>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof retryScheduledJob>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getRetryScheduledJobMutationOptions(options));
     }
 
 export const getGetDashboardSummaryUrl = () => {
