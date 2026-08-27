@@ -56,6 +56,8 @@ Classification against the platform's own "Definition of Complete" (schema + mig
 
 **Custom Fields & Form Builder (§37, brief-mandatory) — GENUINELY MISSING, confirmed by exhaustive grep.** No field-type registry, validation storage, scope binding, conditional visibility, versioning, or entity-attachment mechanism exists. **Priority P1**, unchanged — not addressed by this Owner Decision set (no OD number was ever attached to it; it remains mandatory per the original brief).
 
+> **→ See §24 — WS-8 Workstream Scope Clarification (2026-08-27).** The brief's §37 detail is not present in this repository, so WS-8's scope was extracted from this document and found to be under-specified on every material question. The Owner has since recorded a dedicated scope clarification for WS-8. §24 is the authoritative scope for that workstream; this section's classification (GENUINELY MISSING, P1) is unchanged by it.
+
 **Organization Customization / Extension Framework (§7) — OWNER DECISION #3 — DEFER.** Do not build a public/general third-party plugin ecosystem now. Use configuration, optional modules, feature flags, organization extensions, and deployment-specific integrations instead. A general plugin marketplace/framework may be reconsidered later. This is unchanged from the discovery pass's recommendation.
 
 **Configuration Governance (§49) — PARTIAL.** Folded into the audit-hardening workstream (OD #16/#17).
@@ -455,3 +457,213 @@ WS-1 is the only workstream with **zero dependencies** and the largest number of
 **Validation performed for this freeze pass**: all 31 decisions are represented in §22; no contradiction found between the decision register and the recalculated roadmap; priorities in §17/§20 reflect the decisions exactly; the dependency graph (§21) reflects the Control Plane foundation's earlier sequencing; Control Plane foundation and full Control Plane UI are kept explicitly distinct throughout (§14, §17, §20); audit architecture explicitly includes break-glass access (§11, §14); sensitive-field masking is P1 (§12, §22); Skills and Succession remain P2, not indefinitely deferred (§7, §17, §22); **no implementation occurred** — this remains a documentation-only pass.
 
 **STOP AFTER ARCHITECTURE FREEZE.** No Workstream 1 (WS-1 or any other) has been started. No schema, no migrations, no permission changes, no WWM configuration, no module enablement, no production deployment, no Docker configuration, no AI, no Control Plane, no installation registry, no production changes, and no destructive security tests have been performed. Wait for explicit Owner authorization before beginning WS-1.
+
+---
+
+## 24. WS-8 Workstream Scope Clarification — Custom Fields & Form Builder
+
+**Recorded 2026-08-27. Documentation only — no implementation, schema, migration or permission change accompanied this section.**
+
+**Why this section exists.** A read-only scope extraction against §4/§17/§20/§21 established that WS-8 has only four substantive references in this document, carries **no Owner Decision number**, and points its detail at "§37" of the *original brief* — a document **not present in this repository**. Every material implementation question (which entities fields attach to, which field types, what "versioning" versions, what happens to submitted data when a definition changes) resolved to NOT SPECIFIED. WS-8 could not be implemented safely on that basis, so the Owner recorded the clarification below.
+
+**Status of the freeze.** This is a *workstream-scope clarification*, not an architecture-freeze rewrite. **None of the 31 Owner Decisions in §22 is reopened, amended or superseded.** OD #3 (defer general third-party plugin framework) is expressly preserved — see §24.19.
+
+### 24.1 Purpose and non-goals
+
+WS-8 delivers **Custom Fields + Form Builder as organization-level configuration capabilities**.
+
+WS-8 is explicitly **NOT**: a public plugin framework; arbitrary code execution; arbitrary database-schema generation; a scripting engine; a replacement for first-class HR domain fields; a workflow engine.
+
+### 24.2 Custom field principle
+
+A custom field is an **organization-defined structured data field attached to an approved entity context**. Custom fields extend records without requiring customer-specific source-code forks.
+
+They must **not** replace first-class platform fields where the concept belongs in core HRMS schema. Illustrative: "Church Membership Status" is a good custom field; "Employee Salary" is not, because Payroll already owns an authoritative compensation domain.
+
+### 24.3 Approved entity contexts (initial)
+
+Custom fields may attach to:
+
+1. **Employee**
+2. **Candidate / Application**
+3. **Onboarding**
+4. **Organization / HR Profile**
+5. **Position / Designation**
+
+**Prohibited contexts in WS-8** — these domains carry stronger integrity requirements: Payroll transaction records, Payroll runs, Leave transactions, Attendance transactions, Asset movements, Office Inventory movements, disciplinary findings, audit records, system/security identities.
+
+Future workstreams may authorize additional contexts.
+
+### 24.4 Definition vs value ownership
+
+| | Classification | Consequence |
+| --- | --- | --- |
+| Field **definition** | organization-scoped **configuration** | movable between organizations as a template |
+| Field **value** | tenant-isolated **business data** attached to a record | never travels with configuration |
+
+**Business values must not be stored inside configuration JSON.**
+
+### 24.5 Approved field types (initial registry)
+
+`short_text`, `long_text`, `integer`, `decimal`, `boolean`, `date`, `datetime`, `single_select`, `multi_select`, `email`, `phone`, `url`.
+
+**Optional, only if repository architecture supports them safely**: `employee_reference`, `master_data_reference`.
+
+**Explicitly NOT in WS-8**: arbitrary formulas, JavaScript, SQL expressions, executable scripts, calculated-code fields, HTML-injection fields, **file-upload fields**. Document/file upload remains with Documents & Records unless separately approved.
+
+### 24.6 Validation
+
+Type-appropriate, declarative validation only:
+
+- text — min length, max length, regex **only if implemented safely**
+- number — minimum, maximum
+- date — earliest/latest where useful
+- select — allowed values
+- common — required/optional, default value where semantically safe
+
+**No validation expression may contain executable code.**
+
+### 24.7 Required-field semantics — prospective only
+
+Required applies **prospectively**. Turning an optional field required must **not** retroactively invalidate or rewrite historical records. Existing records missing the newly-required value may be surfaced as **MISSING REQUIRED CUSTOM DATA**. **The system must never fabricate a value.** Organizations complete those records later.
+
+### 24.8 Scope binding
+
+A definition must declare where it applies: organization, entity context, and optionally a module/context subdivision. **Valid scopes are a server-controlled allow-list** — there is deliberately no arbitrary table-name attachment mechanism.
+
+### 24.9 Ordering
+
+Organization-defined display order is supported. Ordering is **configuration only** and changing it must never change historical values.
+
+### 24.10 Conditional visibility — IN SCOPE, constrained
+
+A constrained **declarative** rule model. Initial operators: `equals`, `not_equals`, `contains` (where the type supports it), `is_empty`, `is_not_empty`, `in`, `not_in`.
+
+**Prohibited**: JavaScript, arbitrary expressions, SQL, cross-tenant lookups, unsafe recursive logic. Conditions stay within the same approved form/context unless a specific repository-safe reference is designed.
+
+### 24.11 Definition versioning and change classification
+
+Definitions are **versioned**. A field has a **stable identity**; revisions create new versions; **historical values retain the definition version under which they were captured**. Changing a definition must never silently reinterpret historical stored values.
+
+| Safe changes | Breaking changes |
+| --- | --- |
+| label, help text, display order | changing field type |
+| optional → required (prospective) | removing a select option used historically |
+| adding a new select option | changing decimal → date, or changing a field's meaning |
+
+Breaking changes require a **new definition version or a new field** — never destructive reinterpretation. **Old values are never mutated to fit a changed type.**
+
+### 24.12 Value history
+
+Preserve history for meaningful business-data changes, capturing at minimum: field definition, entity, old value, new value, actor, timestamp. **Reuse the existing WS-3 audit architecture — do not create a duplicate audit system.**
+
+### 24.13 Archive / deactivation
+
+Fields may be deactivated/archived. Archiving removes a field from **new** data entry but does **not** delete historical values and does not remove it from historical record views where history requires it. **Definitions are never hard-deleted once values exist.**
+
+### 24.14 Sensitive custom fields
+
+A definition may be classified **NORMAL** or **SENSITIVE**. Sensitive fields integrate with WS-3 principles: a dedicated permission check for full-value access; masked/default-safe behaviour where appropriate; sensitive-read audit when a full value is revealed; **no sensitive value in logs**; no broad report/export leakage.
+
+**Custom-field definitions must not invent their own permission model.**
+
+### 24.15 Field-level permissions — deliberately not built
+
+**No arbitrary per-field ACLs in WS-8.** Authorization uses the entity/domain permission plus an optional sensitive-custom-field permission. Finer-grained field ACLs are left to a future workstream if a real customer need appears.
+
+### 24.16 Select values and Master Data
+
+Single/multi-select may source options either **(A)** from options stored with the definition, or **(B)** from an approved Master Data domain reference where the architecture supports it. Existing Master Data must not be duplicated unnecessarily.
+
+### 24.17 Reporting, export and search
+
+**Reporting/export — IN SCOPE**: authorized filters, selected custom-field columns, CSV-safe export reusing WS-1's formula-injection hardening. Sensitive fields require the sensitive-read/report permission. **Custom fields are not automatically exposed in every report.**
+
+**Global search — OUT OF SCOPE.** Custom fields are deliberately excluded from global search by default, avoiding performance problems, accidental sensitive-data exposure and inconsistent indexing. Search integration may be designed separately later.
+
+### 24.18 WS-7 import relationship
+
+Custom field **values** should be importable through WS-7 once WS-8 exists, and **WS-8 must expose a stable import adapter/service contract** for that purpose.
+
+**WS-7 implementation is not reopened by this clarification.** A WS-7 adapter may be added during WS-8 implementation **only if it can be done safely without redesigning WS-7**. Custom field **definitions** are configuration and are never employee migration rows.
+
+### 24.19 Configuration export/import readiness, and the configuration-vs-extension boundary
+
+Definitions and form definitions should be **suitable for** future organization configuration export/import. The full export/import service is **not** built in WS-8 unless already in scope elsewhere. IDs/keys must be designed so templates can move between organizations **without copying business values**.
+
+**Formal distinction established by this clarification**, and the reason OD #3 remains intact:
+
+- **WS-8 = ORGANIZATION CONFIGURATION** — use custom fields/forms when the requirement is data/configuration oriented.
+- **ORGANIZATION EXTENSION (code)** — use only when genuinely new business logic is required.
+
+This is what allows different organizations to have different custom requirements **without separate source-code forks**, satisfying the platform's core "one shared foundation" principle through configuration rather than customization.
+
+### 24.20 Form Builder — purpose and scope
+
+A structured way to compose data-entry forms from existing approved core fields (where safely exposable), custom fields, headings/sections and help text. **It does not create arbitrary database tables and does not replace domain services.**
+
+**Initial form types**: `INTERNAL HR FORM`, `EMPLOYEE ESS FORM`, `ONBOARDING FORM`, `CANDIDATE/APPLICATION FORM` — actual domain availability depends on existing route/domain architecture.
+
+### 24.21 Layout, and repeating groups
+
+**Supported**: sections, headings, field order, help/instruction text, one-column/simple grouped layout where existing UI supports it. A straightforward ordered-section editor is sufficient.
+
+**Not built**: drag-and-drop page designer (unless trivial with existing components), pixel-perfect freeform layout, arbitrary HTML, arbitrary CSS, script blocks.
+
+**Repeating/nested groups — OUT OF SCOPE.** Qualifications, certifications, dependants and similar concepts use their proper domain tables where those already exist. **A form builder must not be used to recreate normalized HR data structures.**
+
+### 24.22 Form versioning and submissions
+
+Form definitions are **versioned**. A submission retains: form identity, form version, field-definition versions, submitted values, `submittedAt`, submitter, and target entity/context. **Editing a live form later must never rewrite historical submissions.**
+
+Submissions are **business data**: organization-scoped, immutable or append-oriented after submission where appropriate, auditable, permission-controlled. Draft behaviour may be supported if simple and safe. **Submitted historical data is never silently mutated.**
+
+### 24.23 Workflow, anonymous forms, ESS and candidate forms
+
+- **Generic form approval workflow — OUT OF SCOPE.** A submission may later feed a *specialized* domain workflow (Employee Data Change, Recruitment, Onboarding). **Do not build another generic workflow engine.**
+- **Anonymous / public forms — OUT OF SCOPE.** No unauthenticated generic form publishing, which materially reduces the abuse/security surface. Recruitment may later expose specific external application forms under WS-9.
+- **ESS forms — IN SCOPE** where the form is explicitly marked for Employee ESS and the fields suit employee self-entry. An employee may submit only for **their own** employee identity unless a later authorized relationship permits otherwise.
+- **Candidate forms — IN SCOPE as a form-definition capability.** Public candidate-facing Recruitment integration belongs to **WS-9**; no anonymous candidate access is implemented here.
+
+### 24.24 Security boundary
+
+**Form definitions are never trusted from the frontend.** The server validates: form version, field membership, field types, required state, conditional visibility, organization, target entity, and permissions. **Extra/unrecognized submitted fields are rejected. No mass assignment.**
+
+**Conditional-field security**: a field that is not applicable/visible under **server-evaluated** conditions must not become writable by crafting an API request. **Rejection is preferred** for unexpected values.
+
+**Tenant isolation is mandatory.** Organization A must not view Organization B's definitions, use its field IDs, submit its forms, attach values to its entities, read its historical values, or export its data. **Direct IDOR tests are required.**
+
+### 24.25 Permissions and audit
+
+Compact permission model, evaluated at minimum as: `custom_fields.read`, `custom_fields.manage`, `custom_forms.read`, `custom_forms.manage`. Submission permissions primarily follow the target domain/context. Sensitive value reveal uses the approved sensitive-data permission model. **Manage permissions are not granted broadly by default.**
+
+Audit via WS-3: field definition created; field version created; field archived; form created/versioned/archived; sensitive custom value revealed; administrative value correction where allowed. **Do not audit every harmless form render.** Domain submissions preserve actor/time/history.
+
+### 24.26 API boundary
+
+Explicit APIs only. **Never exposed**: arbitrary entity/table binding, arbitrary validation code, arbitrary SQL, arbitrary script execution. OpenAPI and generated clients are updated deterministically.
+
+### 24.27 Schema, storage and performance principles
+
+Prefer a **compact normalized model**. Concepts likely relevant: `custom_field_definitions`, `custom_field_definition_versions`, `custom_field_values`, `custom_forms`, `custom_form_versions`, `custom_form_fields`, `custom_form_submissions`, `custom_form_submission_values`.
+
+**These are not a prescription.** Inspect actual repository patterns and choose the **smallest coherent schema**. Explicitly prohibited: one physical DB column per organization-defined field; dynamically `ALTER`-ing employee tables per custom field.
+
+**Value storage** must be type-safe and structured — not everything reduced to unvalidated text. A typed-JSON value plus field-type validation, or another repository-consistent design, is acceptable; the authoritative definition controls the expected type, and queries/reporting must preserve type semantics.
+
+**Performance**: avoid EAV-style N+1 explosions; batch custom-field values for entity lists; index organization, entity scope, entity ID and field definition. **Do not blindly index every arbitrary value.**
+
+### 24.28 WWM and production boundary
+
+**No WWM configuration.** No WWM custom fields or forms are to be created; existing WWM PIF/Leave forms are not altered; existing forms are **not** automatically migrated into WS-8. QA uses **disposable synthetic organizations** only.
+
+**Production remains untouched** — no deployment, no production migration, no WWM configuration.
+
+### 24.29 Open items still requiring Owner input before implementation
+
+None blocking. The clarification above resolves every question the scope extraction raised. Two items are conditional by design and are to be decided **from repository evidence during implementation**, not invented:
+
+1. Whether `employee_reference` / `master_data_reference` field types can be supported safely (§24.5).
+2. Whether a WS-7 import adapter can be added without redesigning WS-7 (§24.18).
+
+If either proves unsafe on inspection, it is dropped and the reason recorded — neither is mandatory.
