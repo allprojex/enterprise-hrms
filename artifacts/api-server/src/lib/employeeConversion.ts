@@ -103,6 +103,22 @@ export class PreEmploymentRequirementsNotSatisfiedError extends Error {
   }
 }
 
+/** WS-9 (§25.4) — the organization has not authorized employing this candidate. */
+export class HireNotAuthorizedError extends Error {
+  constructor() {
+    super("This hire has not been authorized — complete the hire-approval stages before converting");
+    this.name = "HireNotAuthorizedError";
+  }
+}
+
+/** WS-9 (§25.4) — the current offer is not in an accepted state. */
+export class OfferNotAcceptedError extends Error {
+  constructor(reason: string) {
+    super(reason);
+    this.name = "OfferNotAcceptedError";
+  }
+}
+
 export class AlreadyConvertedError extends Error {
   constructor() {
     super("This application has already been converted to an employee");
@@ -144,6 +160,62 @@ async function assertEligible(organizationId: number, application: Application):
     .where(and(eq(preEmploymentRequirementsTable.organizationId, organizationId), eq(preEmploymentRequirementsTable.applicationId, application.id)));
   const allResolved = requirements.every((r) => r.status === "waived" || r.status === "satisfied");
   if (!allResolved) throw new PreEmploymentRequirementsNotSatisfiedError();
+
+  await assertRecruitmentLifecycleSatisfied(organizationId, application);
+}
+
+/**
+ * WS-9 (MASTER_OWNER_REVIEW §25.4) — the Recruitment lifecycle gate.
+ *
+ * Before WS-9 an application could be converted whether or not any offer was
+ * ever issued, approved or accepted: "selected" and "authorized to employ"
+ * were one gate. This adds the missing four conditions.
+ *
+ * SCOPE. This runs only on the Recruitment conversion path. Direct employee
+ * creation, legacy import, WS-7 bulk migration, existing employees and rehire
+ * all call `createEmployee()` by other routes and are untouched — an
+ * organization that did not recruit through this system is not required to
+ * manufacture an offer in order to employ someone.
+ *
+ * PROSPECTIVE ENFORCEMENT. Existing Recruitment records predate the accept /
+ * decline statuses entirely, because no code path could write them. Applying
+ * the gate to that history would strand real, legitimately-hired candidates
+ * behind an acceptance that was never possible to record. So the gate engages
+ * only where the organization has actually adopted the new lifecycle:
+ *
+ *   - hire authorization is required only if the organization has configured
+ *     hire-approval stages at all;
+ *   - offer acceptance is required only if an offer exists for the application.
+ *
+ * An organization that configures stages and issues offers gets the full gate.
+ * One that has not yet adopted either keeps working exactly as before. What is
+ * never permitted, in any configuration, is converting against an offer that
+ * was declined, withdrawn, superseded or expired — that is a correctness rule,
+ * not an adoption question.
+ */
+async function assertRecruitmentLifecycleSatisfied(organizationId: number, application: Application): Promise<void> {
+  const { listApprovalStages } = await import("./recruitmentApprovalStages");
+  const { isHireAuthorized } = await import("./hireAuthorization");
+  const { getOfferVersionState } = await import("./offerResponses");
+
+  const hireStages = await listApprovalStages(organizationId, "hire");
+  if (hireStages.length > 0 && !(await isHireAuthorized(organizationId, application.id))) {
+    throw new HireNotAuthorizedError();
+  }
+
+  const currentVersion = await findCurrentOfferVersion(organizationId, application.id);
+  if (!currentVersion) return; // No offer was issued through this system.
+
+  const state = await getOfferVersionState(organizationId, currentVersion.id);
+  if (!state) return;
+
+  if (state.version.status === "withdrawn") throw new OfferNotAcceptedError("This offer was withdrawn");
+  if (state.version.status === "declined") throw new OfferNotAcceptedError("This offer was declined");
+  if (state.version.status === "superseded") throw new OfferNotAcceptedError("This offer version has been superseded");
+  if (state.isExpired && state.version.status !== "accepted") throw new OfferNotAcceptedError("This offer expired");
+  if (state.version.status !== "accepted") {
+    throw new OfferNotAcceptedError(`This offer has not been accepted (current status: ${state.version.status})`);
+  }
 }
 
 /** Optional data source only — never an eligibility gate (see module header). Returns null if no offer/version exists. */

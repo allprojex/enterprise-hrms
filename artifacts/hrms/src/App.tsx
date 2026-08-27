@@ -86,6 +86,8 @@ import PersonnelImport from '@/pages/personnel-import';
 import DataMigration from '@/pages/data-migration';
 import CustomFields from '@/pages/custom-fields';
 import CustomForms from '@/pages/custom-forms';
+import RecruitmentApprovalsConfig from '@/pages/recruitment-approvals-config';
+import ManualCandidateCapture from '@/pages/manual-candidate-capture';
 import { ModuleGate } from '@/components/module-gate';
 
 const queryClient = new QueryClient({
@@ -168,6 +170,18 @@ function Router() {
       </Route>
       <Route path="/data-migration">
         {() => <SecureRoute component={DataMigration} />}
+      </Route>
+      <Route path="/custom-fields">
+        {() => <SecureRoute component={CustomFields} />}
+      </Route>
+      <Route path="/custom-forms">
+        {() => <SecureRoute component={CustomForms} />}
+      </Route>
+      <Route path="/recruitment-approvals-config">
+        {() => <SecureRoute component={RecruitmentApprovalsConfig} />}
+      </Route>
+      <Route path="/add-candidate">
+        {() => <SecureRoute component={ManualCandidateCapture} />}
       </Route>
       <Route path="/admin">
         {() => <SecureRoute component={Admin} />}

@@ -17726,6 +17726,468 @@ export const GetEmployeePayrollYearToDateResponse = zod.object({
 
 
 /**
+ * @summary List the organization's configured recruitment sources (WS-9)
+ */
+export const ListRecruitmentSourcesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListRecruitmentSourcesResponse = zod.object({
+  "sources": zod.array(zod.object({
+  "code": zod.string(),
+  "label": zod.string()
+}))
+})
+
+
+/**
+ * @summary List configured approval stages for a purpose (WS-9)
+ */
+export const ListRecruitmentApprovalStagesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListRecruitmentApprovalStagesQueryParams = zod.object({
+  "purpose": zod.enum(['requisition', 'hire']).optional()
+})
+
+export const ListRecruitmentApprovalStagesResponse = zod.object({
+  "purpose": zod.string(),
+  "stages": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "purpose": zod.enum(['requisition', 'hire']),
+  "stageOrder": zod.number(),
+  "name": zod.string(),
+  "resolverType": zod.enum(['department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.unknown().nullish(),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Configure an approval stage (WS-9)
+ */
+export const CreateRecruitmentApprovalStageParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const CreateRecruitmentApprovalStageBody = zod.object({
+  "purpose": zod.enum(['requisition', 'hire']),
+  "stageOrder": zod.number(),
+  "name": zod.string(),
+  "resolverType": zod.enum(['department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.unknown().nullish()
+})
+
+export const CreateRecruitmentApprovalStageResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "purpose": zod.enum(['requisition', 'hire']),
+  "stageOrder": zod.number(),
+  "name": zod.string(),
+  "resolverType": zod.enum(['department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.unknown().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * Removing configuration never alters decisions already recorded — those carry their own snapshots.
+ * @summary Remove a configured approval stage (WS-9)
+ */
+export const DeleteRecruitmentApprovalStageParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "stageId": zod.coerce.number()
+})
+
+export const DeleteRecruitmentApprovalStageResponse = zod.void()
+
+
+/**
+ * @summary Hire authorization state, decisions and configured stages (WS-9)
+ */
+export const GetHireAuthorizationParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "applicationId": zod.coerce.number()
+})
+
+export const GetHireAuthorizationResponse = zod.object({
+  "authorization": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled']),
+  "totalStages": zod.number(),
+  "currentStageOrder": zod.number().nullish(),
+  "requestedAt": zod.coerce.date(),
+  "completedAt": zod.coerce.date().nullish()
+}).nullish(),
+  "decisions": zod.array(zod.object({
+  "id": zod.number(),
+  "hireAuthorizationId": zod.number(),
+  "stageOrder": zod.number(),
+  "stageName": zod.string(),
+  "resolverType": zod.string(),
+  "authorityBasis": zod.string(),
+  "decision": zod.enum(['approved', 'rejected']),
+  "reason": zod.string().nullish(),
+  "decidedByNameSnapshot": zod.string().nullish(),
+  "decidedAt": zod.coerce.date()
+})),
+  "stages": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "purpose": zod.enum(['requisition', 'hire']),
+  "stageOrder": zod.number(),
+  "name": zod.string(),
+  "resolverType": zod.enum(['department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.unknown().nullish(),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Raise hire authorization for an application (WS-9)
+ */
+export const RequestHireAuthorizationParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "applicationId": zod.coerce.number()
+})
+
+export const RequestHireAuthorizationResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled']),
+  "totalStages": zod.number(),
+  "currentStageOrder": zod.number().nullish(),
+  "requestedAt": zod.coerce.date(),
+  "completedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * Authority is re-resolved live from the configured stage's resolver. Holding a role never confers authority; a Department Head stage resolves through the department_heads relationship.
+ * @summary Decide the current approval stage (WS-9)
+ */
+export const DecideHireAuthorizationStageParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "id": zod.coerce.number()
+})
+
+export const DecideHireAuthorizationStageBody = zod.object({
+  "decision": zod.enum(['approved', 'rejected']).optional(),
+  "reason": zod.string().nullish()
+})
+
+export const DecideHireAuthorizationStageResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "applicationId": zod.number(),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled']),
+  "totalStages": zod.number(),
+  "currentStageOrder": zod.number().nullish(),
+  "requestedAt": zod.coerce.date(),
+  "completedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * The authorized manual capture path. Public publication is not required; an authenticated, permission-checked actor, an organization-owned vacancy and a configured recruitment source are. The public careers path's own publication requirement is unchanged.
+ * @summary Capture a candidate without a published vacancy (WS-9)
+ */
+export const CaptureManualCandidateParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const CaptureManualCandidateBody = zod.object({
+  "vacancyId": zod.number(),
+  "sourceCode": zod.string(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "email": zod.string(),
+  "phone": zod.string().nullish(),
+  "capturedAt": zod.coerce.date().nullish()
+})
+
+export const CaptureManualCandidateResponse = zod.object({
+  "candidate": zod.record(zod.string(), zod.unknown()),
+  "application": zod.record(zod.string(), zod.unknown()),
+  "reusedExistingCandidate": zod.boolean()
+})
+
+
+/**
+ * Expiry is computed from the authoritative expiry date, never from a scheduled job.
+ * @summary Derived lifecycle state of an offer version (WS-9)
+ */
+export const GetOfferVersionStateParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const GetOfferVersionStateResponse = zod.object({
+  "version": zod.record(zod.string(), zod.unknown()),
+  "isExpired": zod.boolean(),
+  "isCurrent": zod.boolean(),
+  "canRespond": zod.boolean(),
+  "response": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "offerId": zod.number(),
+  "offerVersionId": zod.number(),
+  "responseType": zod.enum(['accepted', 'declined', 'withdrawn']),
+  "channel": zod.enum(['candidate_token', 'recorded_by_staff']),
+  "reason": zod.string().nullish(),
+  "respondedAt": zod.coerce.date()
+}).nullish()
+})
+
+
+/**
+ * @summary Record a candidate's acceptance or decline (WS-9)
+ */
+export const RecordOfferResponseParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const RecordOfferResponseBody = zod.object({
+  "responseType": zod.enum(['accepted', 'declined']).optional(),
+  "reason": zod.string().nullish(),
+  "evidence": zod.unknown().nullish()
+})
+
+export const RecordOfferResponseResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "offerId": zod.number(),
+  "offerVersionId": zod.number(),
+  "responseType": zod.enum(['accepted', 'declined', 'withdrawn']),
+  "channel": zod.enum(['candidate_token', 'recorded_by_staff']),
+  "reason": zod.string().nullish(),
+  "respondedAt": zod.coerce.date()
+})
+
+
+/**
+ * Refused once the candidate has already been converted to an employee.
+ * @summary Withdraw an offer, recording a reason (WS-9)
+ */
+export const WithdrawOfferWithReasonParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const WithdrawOfferWithReasonBody = zod.object({
+  "reason": zod.string()
+})
+
+export const WithdrawOfferWithReasonResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "offerId": zod.number(),
+  "offerVersionId": zod.number(),
+  "responseType": zod.enum(['accepted', 'declined', 'withdrawn']),
+  "channel": zod.enum(['candidate_token', 'recorded_by_staff']),
+  "reason": zod.string().nullish(),
+  "respondedAt": zod.coerce.date()
+})
+
+
+/**
+ * The plaintext token is returned once and never stored — only its hash is persisted. The link is bound to this offer version, expires, is single-use and is revoked when the offer is responded to or withdrawn.
+ * @summary Issue a single-purpose candidate response link (WS-9)
+ */
+export const IssueOfferResponseLinkParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const IssueOfferResponseLinkResponse = zod.object({
+  "token": zod.string(),
+  "expiresAt": zod.coerce.date()
+})
+
+
+/**
+ * Unauthenticated and rate-limited. Returns a minimal candidate-safe projection only — never internal approval data, scorecards, notes, other candidates or unpublished vacancies.
+ * @summary Candidate view of an offer behind a response link (WS-9, public)
+ */
+export const GetPublicOfferResponseParams = zod.object({
+  "token": zod.coerce.string()
+})
+
+export const GetPublicOfferResponseResponse = zod.object({
+  "offerVersionId": zod.number(),
+  "versionNumber": zod.number(),
+  "proposedStartDate": zod.string().nullish(),
+  "employmentType": zod.string().nullish(),
+  "workplaceType": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "conditions": zod.string().nullish(),
+  "expiryDate": zod.string().nullish(),
+  "status": zod.string(),
+  "candidateFirstName": zod.string().optional()
+})
+
+
+/**
+ * @summary Accept or decline an offer via a response link (WS-9, public)
+ */
+export const SubmitPublicOfferResponseParams = zod.object({
+  "token": zod.coerce.string()
+})
+
+export const SubmitPublicOfferResponseBody = zod.object({
+  "responseType": zod.enum(['accepted', 'declined']).optional(),
+  "reason": zod.string().nullish()
+})
+
+export const SubmitPublicOfferResponseResponse = zod.object({
+  "responseType": zod.string(),
+  "respondedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Employment particulars for an offer version (WS-9)
+ */
+export const GetEmploymentParticularsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const GetEmploymentParticularsResponse = zod.object({
+  "particulars": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "offerVersionId": zod.number(),
+  "employerName": zod.string().nullish(),
+  "workerName": zod.string().nullish(),
+  "dateOfFirstAppointment": zod.coerce.date().nullish(),
+  "jobTitleOrGrade": zod.string().nullish(),
+  "payRate": zod.string().nullish(),
+  "payMethod": zod.string().nullish(),
+  "payInterval": zod.string().nullish(),
+  "hoursOfWork": zod.string().nullish(),
+  "holidayTerms": zod.string().nullish(),
+  "sickPayTerms": zod.string().nullish(),
+  "pensionTerms": zod.string().nullish(),
+  "noticeByEmployer": zod.string().nullish(),
+  "noticeByWorker": zod.string().nullish(),
+  "disciplinaryRules": zod.string().nullish(),
+  "grievanceProcedure": zod.string().nullish(),
+  "overtimeTerms": zod.string().nullish(),
+  "probationTerms": zod.string().nullish(),
+  "issuedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+}).nullish(),
+  "suggested": zod.record(zod.string(), zod.unknown()).nullish()
+})
+
+
+/**
+ * Refused once the particulars have been issued.
+ * @summary Save draft employment particulars (WS-9)
+ */
+export const SaveEmploymentParticularsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const SaveEmploymentParticularsBody = zod.object({
+  "employerName": zod.string().nullish(),
+  "workerName": zod.string().nullish(),
+  "dateOfFirstAppointment": zod.string().nullish(),
+  "jobTitleOrGrade": zod.string().nullish(),
+  "payRate": zod.string().nullish(),
+  "payMethod": zod.string().nullish(),
+  "payInterval": zod.string().nullish(),
+  "hoursOfWork": zod.string().nullish(),
+  "holidayTerms": zod.string().nullish(),
+  "sickPayTerms": zod.string().nullish(),
+  "pensionTerms": zod.string().nullish(),
+  "noticeByEmployer": zod.string().nullish(),
+  "noticeByWorker": zod.string().nullish(),
+  "disciplinaryRules": zod.string().nullish(),
+  "grievanceProcedure": zod.string().nullish(),
+  "overtimeTerms": zod.string().nullish(),
+  "probationTerms": zod.string().nullish()
+})
+
+export const SaveEmploymentParticularsResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "offerVersionId": zod.number(),
+  "employerName": zod.string().nullish(),
+  "workerName": zod.string().nullish(),
+  "dateOfFirstAppointment": zod.coerce.date().nullish(),
+  "jobTitleOrGrade": zod.string().nullish(),
+  "payRate": zod.string().nullish(),
+  "payMethod": zod.string().nullish(),
+  "payInterval": zod.string().nullish(),
+  "hoursOfWork": zod.string().nullish(),
+  "holidayTerms": zod.string().nullish(),
+  "sickPayTerms": zod.string().nullish(),
+  "pensionTerms": zod.string().nullish(),
+  "noticeByEmployer": zod.string().nullish(),
+  "noticeByWorker": zod.string().nullish(),
+  "disciplinaryRules": zod.string().nullish(),
+  "grievanceProcedure": zod.string().nullish(),
+  "overtimeTerms": zod.string().nullish(),
+  "probationTerms": zod.string().nullish(),
+  "issuedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * Freezing makes the record immutable, so a statement already furnished to a worker reproduces identically. When a template is supplied the artifact is generated through the shared document engine and bound to this offer version.
+ * @summary Freeze particulars and optionally generate the document (WS-9)
+ */
+export const IssueEmploymentParticularsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const IssueEmploymentParticularsBody = zod.object({
+  "templateId": zod.number().nullish()
+})
+
+export const IssueEmploymentParticularsResponse = zod.object({
+  "particulars": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "offerVersionId": zod.number(),
+  "employerName": zod.string().nullish(),
+  "workerName": zod.string().nullish(),
+  "dateOfFirstAppointment": zod.coerce.date().nullish(),
+  "jobTitleOrGrade": zod.string().nullish(),
+  "payRate": zod.string().nullish(),
+  "payMethod": zod.string().nullish(),
+  "payInterval": zod.string().nullish(),
+  "hoursOfWork": zod.string().nullish(),
+  "holidayTerms": zod.string().nullish(),
+  "sickPayTerms": zod.string().nullish(),
+  "pensionTerms": zod.string().nullish(),
+  "noticeByEmployer": zod.string().nullish(),
+  "noticeByWorker": zod.string().nullish(),
+  "disciplinaryRules": zod.string().nullish(),
+  "grievanceProcedure": zod.string().nullish(),
+  "overtimeTerms": zod.string().nullish(),
+  "probationTerms": zod.string().nullish(),
+  "issuedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+}),
+  "generated": zod.unknown().nullish()
+})
+
+
+/**
  * @summary Field-type registry, approved scopes and visibility operators (WS-8)
  */
 export const GetCustomFieldMetaParams = zod.object({

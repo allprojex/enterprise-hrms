@@ -29,6 +29,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { QueryError } from '@/components/query-error';
+import { OfferResponsePanel } from '@/components/recruitment/offer-response-panel';
 
 function errorMessage(err: unknown): string | undefined {
   return err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
@@ -310,6 +311,11 @@ export default function OfferDetail() {
           </ul>
         </CardContent>
       </Card>
+
+      {/* WS-9 — accept / decline / response-link, bound to this exact version. */}
+      {currentVersion && (
+        <OfferResponsePanel organizationId={organizationId} offerVersionId={currentVersion.id} />
+      )}
 
       {approvals && approvals.length > 0 && (
         <Card>

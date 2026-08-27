@@ -36,6 +36,14 @@ export const applicationsTable = pgTable(
     currentStageId: integer("current_stage_id").references(() => recruitmentStagesTable.id, { onDelete: "set null" }),
     publicId: text("public_id").notNull(),
     source: text("source").notNull().default("careers_portal"),
+    // WS-9 (MASTER_OWNER_REVIEW §25.5): the authoritative, organization-
+    // configurable source, referencing a `recruitment_source` Master Data
+    // item CODE. Nullable, and the free-text `source` column above is
+    // deliberately left untouched: every historical row keeps the literal it
+    // was written with (`careers_portal`/`internal_ess`), so nothing is
+    // silently rewritten. New writes populate both — the free-text column for
+    // continuity, this one as the validated value.
+    sourceCode: text("source_code"),
     rejectionReasonCode: text("rejection_reason_code"),
     withdrawalReasonCode: text("withdrawal_reason_code"),
     score: numeric("score", { precision: 5, scale: 2 }),

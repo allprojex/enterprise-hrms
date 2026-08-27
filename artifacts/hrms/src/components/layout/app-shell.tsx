@@ -43,6 +43,7 @@ import {
   Upload,
   DatabaseZap,
   SlidersHorizontal,
+  UserRoundPlus,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -483,6 +484,11 @@ export function AppShell({ children }: AppShellProps) {
         // correctly.
         ...(isHrCapable ? [{ href: '/custom-fields', label: 'Custom Fields', icon: SlidersHorizontal } satisfies NavItem] : []),
         ...(isHrCapable ? [{ href: '/custom-forms', label: 'Form Builder', icon: ClipboardList } satisfies NavItem] : []),
+        // WS-9 — the authorized manual capture path and the recruitment
+        // approval configuration surface. Same isHrCapable-only nav
+        // precedent; both remain permission-gated server-side.
+        ...(isHrCapable ? [{ href: '/add-candidate', label: 'Add Candidate', icon: UserRoundPlus } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/recruitment-approvals-config', label: 'Recruitment Approvals', icon: ShieldCheck } satisfies NavItem] : []),
         { href: '/branches', label: 'Branches', icon: MapPin },
         { href: '/departments', label: 'Departments', icon: Network },
         { href: '/positions', label: 'Positions', icon: Briefcase },

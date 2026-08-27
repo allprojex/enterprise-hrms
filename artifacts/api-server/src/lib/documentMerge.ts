@@ -53,6 +53,33 @@ export const MERGE_FIELDS: readonly { key: string; label: string }[] = [
   { key: "letter.date", label: "Letter date" },
   { key: "letter.effectiveDate", label: "Effective date" },
   { key: "letter.reference", label: "Letter reference" },
+  // WS-9 — employment particulars (MASTER_OWNER_REVIEW §25.8). These let an
+  // organization author its own written-statement template; every value is
+  // read from the FROZEN `employment_particulars` snapshot at generation time,
+  // never from live configuration, so a statement already furnished to a
+  // worker regenerates identically.
+  //
+  // They stay within this file's existing exclusion rule: nothing here comes
+  // from banking details, statutory identifiers or compensation components.
+  // `particulars.pay*` are the plainly-labelled terms the organization itself
+  // wrote onto the offer, not a read of Payroll.
+  { key: "particulars.employerName", label: "Employment particulars — employer name" },
+  { key: "particulars.workerName", label: "Employment particulars — worker name" },
+  { key: "particulars.dateOfFirstAppointment", label: "Employment particulars — date of first appointment" },
+  { key: "particulars.jobTitleOrGrade", label: "Employment particulars — job title or grade" },
+  { key: "particulars.payRate", label: "Employment particulars — rate of pay" },
+  { key: "particulars.payMethod", label: "Employment particulars — method of pay" },
+  { key: "particulars.payInterval", label: "Employment particulars — intervals of pay" },
+  { key: "particulars.hoursOfWork", label: "Employment particulars — hours of work" },
+  { key: "particulars.holidayTerms", label: "Employment particulars — holidays and holiday pay" },
+  { key: "particulars.sickPayTerms", label: "Employment particulars — sickness and sick pay" },
+  { key: "particulars.pensionTerms", label: "Employment particulars — pension or social security" },
+  { key: "particulars.noticeByEmployer", label: "Employment particulars — notice required from employer" },
+  { key: "particulars.noticeByWorker", label: "Employment particulars — notice required from worker" },
+  { key: "particulars.disciplinaryRules", label: "Employment particulars — disciplinary rules" },
+  { key: "particulars.grievanceProcedure", label: "Employment particulars — grievance procedure" },
+  { key: "particulars.overtimeTerms", label: "Employment particulars — overtime" },
+  { key: "particulars.probationTerms", label: "Employment particulars — probation" },
 ];
 
 const MERGE_FIELD_KEYS: ReadonlySet<string> = new Set(MERGE_FIELDS.map((f) => f.key));
@@ -150,5 +177,25 @@ export function buildSampleContext(organizationName: string): MergeContext {
     "letter.date": "1 January 2000",
     "letter.effectiveDate": "1 February 2000",
     "letter.reference": "SAMPLE/REF/0001",
+    // WS-9 employment particulars. Preview must never render a real worker's
+    // terms (§42's own concern about preview as a data-read backdoor), so
+    // every value here is obviously synthetic.
+    "particulars.employerName": organizationName,
+    "particulars.workerName": "Sample Employee",
+    "particulars.dateOfFirstAppointment": "2000-01-01",
+    "particulars.jobTitleOrGrade": "Sample Position",
+    "particulars.payRate": "0.00",
+    "particulars.payMethod": "Bank transfer",
+    "particulars.payInterval": "Monthly",
+    "particulars.hoursOfWork": "Sample hours of work",
+    "particulars.holidayTerms": "Sample holiday entitlement",
+    "particulars.sickPayTerms": "Sample sickness and sick-pay terms",
+    "particulars.pensionTerms": "Sample pension scheme details",
+    "particulars.noticeByEmployer": "Sample notice from employer",
+    "particulars.noticeByWorker": "Sample notice from worker",
+    "particulars.disciplinaryRules": "Sample disciplinary rules",
+    "particulars.grievanceProcedure": "Sample grievance procedure",
+    "particulars.overtimeTerms": "Sample overtime terms",
+    "particulars.probationTerms": "Sample probation terms",
   };
 }

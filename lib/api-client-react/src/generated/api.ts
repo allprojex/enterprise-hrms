@@ -159,6 +159,7 @@ import type {
   CustomFormWithVersion,
   DailyAttendanceSummary,
   DashboardSummary,
+  DecideHireAuthorizationStageBody,
   Department,
   DepartmentHead,
   DirectIssueBody,
@@ -190,6 +191,9 @@ import type {
   EmployeeQualification,
   EmployeeSkill,
   EmployeeStatutoryIdentifier,
+  EmploymentParticulars,
+  EmploymentParticularsDetail,
+  EmploymentParticularsInput,
   EmploymentPeriodSummary,
   EndEmployeeCompensationComponentBody,
   ExportCustomFieldValuesParams,
@@ -212,6 +216,8 @@ import type {
   GetPerformanceDashboardParams,
   GrantRolePermissionInput,
   HealthStatus,
+  HireAuthorization,
+  HireAuthorizationDetail,
   Installation,
   InstallationOrganizationLink,
   InternalVacanciesResponse,
@@ -221,6 +227,9 @@ import type {
   InterviewScorecardListResponse,
   InvitationCreated,
   InvitationPreview,
+  IssueEmploymentParticulars200,
+  IssueEmploymentParticularsBody,
+  IssueOfferResponseLink201,
   IssueRequestLineBody,
   IssueResult,
   JobRequisition,
@@ -282,12 +291,17 @@ import type {
   ListPersonnelFileMovementsParams,
   ListPublicHolidaysParams,
   ListPublicVacanciesParams,
+  ListRecruitmentApprovalStages200,
+  ListRecruitmentApprovalStagesParams,
+  ListRecruitmentSources200,
   ListScheduledJobsParams,
   ListVacanciesParams,
   LoginInput,
   ManagerPortalDashboard,
   ManagerPortalPendingActions,
   ManagerPortalTeamOverview,
+  ManualCandidateInput,
+  ManualCaptureResult,
   MarkAssetLostInput,
   MarkLearningEnrollmentAttendanceInput,
   MarkOfficeInventoryIncidentMissingBody,
@@ -318,7 +332,9 @@ import type {
   OfferApproval,
   OfferDetail,
   OfferListResponse,
+  OfferResponse,
   OfferVersion,
+  OfferVersionState,
   OfficeInventoryApprovalDelegation,
   OfficeInventoryAssetHandoffResult,
   OfficeInventoryAwaitingFulfilmentEntry,
@@ -401,6 +417,7 @@ import type {
   PromoteEmployeeInput,
   ProvideDocumentRequirementBody,
   PublicHoliday,
+  PublicOfferView,
   PublicOrganization,
   PublicVacancyDetail,
   PublicVacancyListResponse,
@@ -408,11 +425,14 @@ import type {
   ReadinessStatus,
   RecordAttendanceAdjustmentInput,
   RecordAttendanceEventInput,
+  RecordOfferResponseBody,
   RecordOfficeInventoryStocktakeCountBody,
   RecordsLocation,
   RecoverAssetInput,
   RecoverOfficeInventoryIncidentBody,
   RecoverPersonnelFileInput,
+  RecruitmentApprovalStage,
+  RecruitmentApprovalStageInput,
   RecruitmentDashboard,
   RecruitmentSettings,
   RecruitmentStage,
@@ -468,6 +488,8 @@ import type {
   SubmitApplicationScoreInput,
   SubmitCustomFormBody,
   SubmitInternalApplicationInput,
+  SubmitPublicOfferResponse201,
+  SubmitPublicOfferResponseBody,
   SwitchOrganizationInput,
   TalentPool,
   TalentPoolMember,
@@ -527,6 +549,7 @@ import type {
   VerifyDocumentRequirementBody,
   WithdrawApplicationInput,
   WithdrawOfferVersionInput,
+  WithdrawOfferWithReasonBody,
   WriteOffOfficeInventoryIncidentBody
 } from './api.schemas';
 
@@ -41295,6 +41318,1309 @@ export function useGetEmployeePayrollYearToDate<TData = Awaited<ReturnType<typeo
 
 
 
+
+export const getListRecruitmentSourcesUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/recruitment/sources`
+}
+
+/**
+ * @summary List the organization's configured recruitment sources (WS-9)
+ */
+export const listRecruitmentSources = async (organizationId: number, options?: RequestInit): Promise<ListRecruitmentSources200> => {
+
+  return customFetch<ListRecruitmentSources200>(getListRecruitmentSourcesUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListRecruitmentSourcesQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/recruitment/sources`
+    ] as const;
+    }
+
+
+export const getListRecruitmentSourcesQueryOptions = <TData = Awaited<ReturnType<typeof listRecruitmentSources>>, TError = ErrorType<ApiError>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listRecruitmentSources>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListRecruitmentSourcesQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listRecruitmentSources>>> = ({ signal }) => listRecruitmentSources(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listRecruitmentSources>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListRecruitmentSourcesQueryResult = NonNullable<Awaited<ReturnType<typeof listRecruitmentSources>>>
+export type ListRecruitmentSourcesQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List the organization's configured recruitment sources (WS-9)
+ */
+
+export function useListRecruitmentSources<TData = Awaited<ReturnType<typeof listRecruitmentSources>>, TError = ErrorType<ApiError>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listRecruitmentSources>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListRecruitmentSourcesQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListRecruitmentApprovalStagesUrl = (organizationId: number,
+    params?: ListRecruitmentApprovalStagesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/recruitment/approval-stages?${stringifiedParams}` : `/api/organizations/${organizationId}/recruitment/approval-stages`
+}
+
+/**
+ * @summary List configured approval stages for a purpose (WS-9)
+ */
+export const listRecruitmentApprovalStages = async (organizationId: number,
+    params?: ListRecruitmentApprovalStagesParams, options?: RequestInit): Promise<ListRecruitmentApprovalStages200> => {
+
+  return customFetch<ListRecruitmentApprovalStages200>(getListRecruitmentApprovalStagesUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListRecruitmentApprovalStagesQueryKey = (organizationId: number,
+    params?: ListRecruitmentApprovalStagesParams,) => {
+    return [
+    `/api/organizations/${organizationId}/recruitment/approval-stages`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListRecruitmentApprovalStagesQueryOptions = <TData = Awaited<ReturnType<typeof listRecruitmentApprovalStages>>, TError = ErrorType<ApiError>>(organizationId: number,
+    params?: ListRecruitmentApprovalStagesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listRecruitmentApprovalStages>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListRecruitmentApprovalStagesQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listRecruitmentApprovalStages>>> = ({ signal }) => listRecruitmentApprovalStages(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listRecruitmentApprovalStages>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListRecruitmentApprovalStagesQueryResult = NonNullable<Awaited<ReturnType<typeof listRecruitmentApprovalStages>>>
+export type ListRecruitmentApprovalStagesQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List configured approval stages for a purpose (WS-9)
+ */
+
+export function useListRecruitmentApprovalStages<TData = Awaited<ReturnType<typeof listRecruitmentApprovalStages>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    params?: ListRecruitmentApprovalStagesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listRecruitmentApprovalStages>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListRecruitmentApprovalStagesQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateRecruitmentApprovalStageUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/recruitment/approval-stages`
+}
+
+/**
+ * @summary Configure an approval stage (WS-9)
+ */
+export const createRecruitmentApprovalStage = async (organizationId: number,
+    recruitmentApprovalStageInput: RecruitmentApprovalStageInput, options?: RequestInit): Promise<RecruitmentApprovalStage> => {
+
+  return customFetch<RecruitmentApprovalStage>(getCreateRecruitmentApprovalStageUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(recruitmentApprovalStageInput)
+  }
+);}
+
+
+
+
+
+export const getCreateRecruitmentApprovalStageMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRecruitmentApprovalStage>>, TError,{organizationId: number;data: BodyType<RecruitmentApprovalStageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createRecruitmentApprovalStage>>, TError,{organizationId: number;data: BodyType<RecruitmentApprovalStageInput>}, TContext> => {
+
+const mutationKey = ['createRecruitmentApprovalStage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createRecruitmentApprovalStage>>, {organizationId: number;data: BodyType<RecruitmentApprovalStageInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createRecruitmentApprovalStage(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateRecruitmentApprovalStageMutationResult = NonNullable<Awaited<ReturnType<typeof createRecruitmentApprovalStage>>>
+    export type CreateRecruitmentApprovalStageMutationBody = BodyType<RecruitmentApprovalStageInput>
+    export type CreateRecruitmentApprovalStageMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Configure an approval stage (WS-9)
+ */
+export const useCreateRecruitmentApprovalStage = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRecruitmentApprovalStage>>, TError,{organizationId: number;data: BodyType<RecruitmentApprovalStageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createRecruitmentApprovalStage>>,
+        TError,
+        {organizationId: number;data: BodyType<RecruitmentApprovalStageInput>},
+        TContext
+      > => {
+      return useMutation(getCreateRecruitmentApprovalStageMutationOptions(options));
+    }
+
+export const getDeleteRecruitmentApprovalStageUrl = (organizationId: number,
+    stageId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/recruitment/approval-stages/${stageId}`
+}
+
+/**
+ * Removing configuration never alters decisions already recorded — those carry their own snapshots.
+ * @summary Remove a configured approval stage (WS-9)
+ */
+export const deleteRecruitmentApprovalStage = async (organizationId: number,
+    stageId: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteRecruitmentApprovalStageUrl(organizationId,stageId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteRecruitmentApprovalStageMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteRecruitmentApprovalStage>>, TError,{organizationId: number;stageId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteRecruitmentApprovalStage>>, TError,{organizationId: number;stageId: number}, TContext> => {
+
+const mutationKey = ['deleteRecruitmentApprovalStage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteRecruitmentApprovalStage>>, {organizationId: number;stageId: number}> = (props) => {
+          const {organizationId,stageId} = props ?? {};
+
+          return  deleteRecruitmentApprovalStage(organizationId,stageId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteRecruitmentApprovalStageMutationResult = NonNullable<Awaited<ReturnType<typeof deleteRecruitmentApprovalStage>>>
+
+    export type DeleteRecruitmentApprovalStageMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Remove a configured approval stage (WS-9)
+ */
+export const useDeleteRecruitmentApprovalStage = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteRecruitmentApprovalStage>>, TError,{organizationId: number;stageId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteRecruitmentApprovalStage>>,
+        TError,
+        {organizationId: number;stageId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteRecruitmentApprovalStageMutationOptions(options));
+    }
+
+export const getGetHireAuthorizationUrl = (organizationId: number,
+    applicationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/applications/${applicationId}/hire-authorization`
+}
+
+/**
+ * @summary Hire authorization state, decisions and configured stages (WS-9)
+ */
+export const getHireAuthorization = async (organizationId: number,
+    applicationId: number, options?: RequestInit): Promise<HireAuthorizationDetail> => {
+
+  return customFetch<HireAuthorizationDetail>(getGetHireAuthorizationUrl(organizationId,applicationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetHireAuthorizationQueryKey = (organizationId: number,
+    applicationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/applications/${applicationId}/hire-authorization`
+    ] as const;
+    }
+
+
+export const getGetHireAuthorizationQueryOptions = <TData = Awaited<ReturnType<typeof getHireAuthorization>>, TError = ErrorType<ApiError>>(organizationId: number,
+    applicationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHireAuthorization>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetHireAuthorizationQueryKey(organizationId,applicationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getHireAuthorization>>> = ({ signal }) => getHireAuthorization(organizationId,applicationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && applicationId !== null && applicationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getHireAuthorization>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetHireAuthorizationQueryResult = NonNullable<Awaited<ReturnType<typeof getHireAuthorization>>>
+export type GetHireAuthorizationQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Hire authorization state, decisions and configured stages (WS-9)
+ */
+
+export function useGetHireAuthorization<TData = Awaited<ReturnType<typeof getHireAuthorization>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    applicationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHireAuthorization>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetHireAuthorizationQueryOptions(organizationId,applicationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRequestHireAuthorizationUrl = (organizationId: number,
+    applicationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/applications/${applicationId}/hire-authorization`
+}
+
+/**
+ * @summary Raise hire authorization for an application (WS-9)
+ */
+export const requestHireAuthorization = async (organizationId: number,
+    applicationId: number, options?: RequestInit): Promise<HireAuthorization> => {
+
+  return customFetch<HireAuthorization>(getRequestHireAuthorizationUrl(organizationId,applicationId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRequestHireAuthorizationMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestHireAuthorization>>, TError,{organizationId: number;applicationId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestHireAuthorization>>, TError,{organizationId: number;applicationId: number}, TContext> => {
+
+const mutationKey = ['requestHireAuthorization'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestHireAuthorization>>, {organizationId: number;applicationId: number}> = (props) => {
+          const {organizationId,applicationId} = props ?? {};
+
+          return  requestHireAuthorization(organizationId,applicationId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestHireAuthorizationMutationResult = NonNullable<Awaited<ReturnType<typeof requestHireAuthorization>>>
+
+    export type RequestHireAuthorizationMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Raise hire authorization for an application (WS-9)
+ */
+export const useRequestHireAuthorization = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestHireAuthorization>>, TError,{organizationId: number;applicationId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestHireAuthorization>>,
+        TError,
+        {organizationId: number;applicationId: number},
+        TContext
+      > => {
+      return useMutation(getRequestHireAuthorizationMutationOptions(options));
+    }
+
+export const getDecideHireAuthorizationStageUrl = (organizationId: number,
+    id: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/hire-authorizations/${id}/decide`
+}
+
+/**
+ * Authority is re-resolved live from the configured stage's resolver. Holding a role never confers authority; a Department Head stage resolves through the department_heads relationship.
+ * @summary Decide the current approval stage (WS-9)
+ */
+export const decideHireAuthorizationStage = async (organizationId: number,
+    id: number,
+    decideHireAuthorizationStageBody: DecideHireAuthorizationStageBody, options?: RequestInit): Promise<HireAuthorization> => {
+
+  return customFetch<HireAuthorization>(getDecideHireAuthorizationStageUrl(organizationId,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(decideHireAuthorizationStageBody)
+  }
+);}
+
+
+
+
+
+export const getDecideHireAuthorizationStageMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideHireAuthorizationStage>>, TError,{organizationId: number;id: number;data: BodyType<DecideHireAuthorizationStageBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof decideHireAuthorizationStage>>, TError,{organizationId: number;id: number;data: BodyType<DecideHireAuthorizationStageBody>}, TContext> => {
+
+const mutationKey = ['decideHireAuthorizationStage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof decideHireAuthorizationStage>>, {organizationId: number;id: number;data: BodyType<DecideHireAuthorizationStageBody>}> = (props) => {
+          const {organizationId,id,data} = props ?? {};
+
+          return  decideHireAuthorizationStage(organizationId,id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DecideHireAuthorizationStageMutationResult = NonNullable<Awaited<ReturnType<typeof decideHireAuthorizationStage>>>
+    export type DecideHireAuthorizationStageMutationBody = BodyType<DecideHireAuthorizationStageBody>
+    export type DecideHireAuthorizationStageMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Decide the current approval stage (WS-9)
+ */
+export const useDecideHireAuthorizationStage = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideHireAuthorizationStage>>, TError,{organizationId: number;id: number;data: BodyType<DecideHireAuthorizationStageBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof decideHireAuthorizationStage>>,
+        TError,
+        {organizationId: number;id: number;data: BodyType<DecideHireAuthorizationStageBody>},
+        TContext
+      > => {
+      return useMutation(getDecideHireAuthorizationStageMutationOptions(options));
+    }
+
+export const getCaptureManualCandidateUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/recruitment/manual-candidates`
+}
+
+/**
+ * The authorized manual capture path. Public publication is not required; an authenticated, permission-checked actor, an organization-owned vacancy and a configured recruitment source are. The public careers path's own publication requirement is unchanged.
+ * @summary Capture a candidate without a published vacancy (WS-9)
+ */
+export const captureManualCandidate = async (organizationId: number,
+    manualCandidateInput: ManualCandidateInput, options?: RequestInit): Promise<ManualCaptureResult> => {
+
+  return customFetch<ManualCaptureResult>(getCaptureManualCandidateUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(manualCandidateInput)
+  }
+);}
+
+
+
+
+
+export const getCaptureManualCandidateMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof captureManualCandidate>>, TError,{organizationId: number;data: BodyType<ManualCandidateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof captureManualCandidate>>, TError,{organizationId: number;data: BodyType<ManualCandidateInput>}, TContext> => {
+
+const mutationKey = ['captureManualCandidate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof captureManualCandidate>>, {organizationId: number;data: BodyType<ManualCandidateInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  captureManualCandidate(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CaptureManualCandidateMutationResult = NonNullable<Awaited<ReturnType<typeof captureManualCandidate>>>
+    export type CaptureManualCandidateMutationBody = BodyType<ManualCandidateInput>
+    export type CaptureManualCandidateMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Capture a candidate without a published vacancy (WS-9)
+ */
+export const useCaptureManualCandidate = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof captureManualCandidate>>, TError,{organizationId: number;data: BodyType<ManualCandidateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof captureManualCandidate>>,
+        TError,
+        {organizationId: number;data: BodyType<ManualCandidateInput>},
+        TContext
+      > => {
+      return useMutation(getCaptureManualCandidateMutationOptions(options));
+    }
+
+export const getGetOfferVersionStateUrl = (organizationId: number,
+    versionId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/offer-versions/${versionId}/state`
+}
+
+/**
+ * Expiry is computed from the authoritative expiry date, never from a scheduled job.
+ * @summary Derived lifecycle state of an offer version (WS-9)
+ */
+export const getOfferVersionState = async (organizationId: number,
+    versionId: number, options?: RequestInit): Promise<OfferVersionState> => {
+
+  return customFetch<OfferVersionState>(getGetOfferVersionStateUrl(organizationId,versionId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOfferVersionStateQueryKey = (organizationId: number,
+    versionId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/offer-versions/${versionId}/state`
+    ] as const;
+    }
+
+
+export const getGetOfferVersionStateQueryOptions = <TData = Awaited<ReturnType<typeof getOfferVersionState>>, TError = ErrorType<ApiError>>(organizationId: number,
+    versionId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfferVersionState>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOfferVersionStateQueryKey(organizationId,versionId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOfferVersionState>>> = ({ signal }) => getOfferVersionState(organizationId,versionId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && versionId !== null && versionId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOfferVersionState>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOfferVersionStateQueryResult = NonNullable<Awaited<ReturnType<typeof getOfferVersionState>>>
+export type GetOfferVersionStateQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Derived lifecycle state of an offer version (WS-9)
+ */
+
+export function useGetOfferVersionState<TData = Awaited<ReturnType<typeof getOfferVersionState>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    versionId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfferVersionState>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOfferVersionStateQueryOptions(organizationId,versionId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRecordOfferResponseUrl = (organizationId: number,
+    versionId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/offer-versions/${versionId}/record-response`
+}
+
+/**
+ * @summary Record a candidate's acceptance or decline (WS-9)
+ */
+export const recordOfferResponse = async (organizationId: number,
+    versionId: number,
+    recordOfferResponseBody: RecordOfferResponseBody, options?: RequestInit): Promise<OfferResponse> => {
+
+  return customFetch<OfferResponse>(getRecordOfferResponseUrl(organizationId,versionId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(recordOfferResponseBody)
+  }
+);}
+
+
+
+
+
+export const getRecordOfferResponseMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordOfferResponse>>, TError,{organizationId: number;versionId: number;data: BodyType<RecordOfferResponseBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordOfferResponse>>, TError,{organizationId: number;versionId: number;data: BodyType<RecordOfferResponseBody>}, TContext> => {
+
+const mutationKey = ['recordOfferResponse'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordOfferResponse>>, {organizationId: number;versionId: number;data: BodyType<RecordOfferResponseBody>}> = (props) => {
+          const {organizationId,versionId,data} = props ?? {};
+
+          return  recordOfferResponse(organizationId,versionId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordOfferResponseMutationResult = NonNullable<Awaited<ReturnType<typeof recordOfferResponse>>>
+    export type RecordOfferResponseMutationBody = BodyType<RecordOfferResponseBody>
+    export type RecordOfferResponseMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Record a candidate's acceptance or decline (WS-9)
+ */
+export const useRecordOfferResponse = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordOfferResponse>>, TError,{organizationId: number;versionId: number;data: BodyType<RecordOfferResponseBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordOfferResponse>>,
+        TError,
+        {organizationId: number;versionId: number;data: BodyType<RecordOfferResponseBody>},
+        TContext
+      > => {
+      return useMutation(getRecordOfferResponseMutationOptions(options));
+    }
+
+export const getWithdrawOfferWithReasonUrl = (organizationId: number,
+    versionId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/offer-versions/${versionId}/withdraw-response`
+}
+
+/**
+ * Refused once the candidate has already been converted to an employee.
+ * @summary Withdraw an offer, recording a reason (WS-9)
+ */
+export const withdrawOfferWithReason = async (organizationId: number,
+    versionId: number,
+    withdrawOfferWithReasonBody: WithdrawOfferWithReasonBody, options?: RequestInit): Promise<OfferResponse> => {
+
+  return customFetch<OfferResponse>(getWithdrawOfferWithReasonUrl(organizationId,versionId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(withdrawOfferWithReasonBody)
+  }
+);}
+
+
+
+
+
+export const getWithdrawOfferWithReasonMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawOfferWithReason>>, TError,{organizationId: number;versionId: number;data: BodyType<WithdrawOfferWithReasonBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof withdrawOfferWithReason>>, TError,{organizationId: number;versionId: number;data: BodyType<WithdrawOfferWithReasonBody>}, TContext> => {
+
+const mutationKey = ['withdrawOfferWithReason'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof withdrawOfferWithReason>>, {organizationId: number;versionId: number;data: BodyType<WithdrawOfferWithReasonBody>}> = (props) => {
+          const {organizationId,versionId,data} = props ?? {};
+
+          return  withdrawOfferWithReason(organizationId,versionId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type WithdrawOfferWithReasonMutationResult = NonNullable<Awaited<ReturnType<typeof withdrawOfferWithReason>>>
+    export type WithdrawOfferWithReasonMutationBody = BodyType<WithdrawOfferWithReasonBody>
+    export type WithdrawOfferWithReasonMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Withdraw an offer, recording a reason (WS-9)
+ */
+export const useWithdrawOfferWithReason = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawOfferWithReason>>, TError,{organizationId: number;versionId: number;data: BodyType<WithdrawOfferWithReasonBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof withdrawOfferWithReason>>,
+        TError,
+        {organizationId: number;versionId: number;data: BodyType<WithdrawOfferWithReasonBody>},
+        TContext
+      > => {
+      return useMutation(getWithdrawOfferWithReasonMutationOptions(options));
+    }
+
+export const getIssueOfferResponseLinkUrl = (organizationId: number,
+    versionId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/offer-versions/${versionId}/response-link`
+}
+
+/**
+ * The plaintext token is returned once and never stored — only its hash is persisted. The link is bound to this offer version, expires, is single-use and is revoked when the offer is responded to or withdrawn.
+ * @summary Issue a single-purpose candidate response link (WS-9)
+ */
+export const issueOfferResponseLink = async (organizationId: number,
+    versionId: number, options?: RequestInit): Promise<IssueOfferResponseLink201> => {
+
+  return customFetch<IssueOfferResponseLink201>(getIssueOfferResponseLinkUrl(organizationId,versionId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getIssueOfferResponseLinkMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof issueOfferResponseLink>>, TError,{organizationId: number;versionId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof issueOfferResponseLink>>, TError,{organizationId: number;versionId: number}, TContext> => {
+
+const mutationKey = ['issueOfferResponseLink'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof issueOfferResponseLink>>, {organizationId: number;versionId: number}> = (props) => {
+          const {organizationId,versionId} = props ?? {};
+
+          return  issueOfferResponseLink(organizationId,versionId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type IssueOfferResponseLinkMutationResult = NonNullable<Awaited<ReturnType<typeof issueOfferResponseLink>>>
+
+    export type IssueOfferResponseLinkMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Issue a single-purpose candidate response link (WS-9)
+ */
+export const useIssueOfferResponseLink = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof issueOfferResponseLink>>, TError,{organizationId: number;versionId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof issueOfferResponseLink>>,
+        TError,
+        {organizationId: number;versionId: number},
+        TContext
+      > => {
+      return useMutation(getIssueOfferResponseLinkMutationOptions(options));
+    }
+
+export const getGetPublicOfferResponseUrl = (token: string,) => {
+
+
+
+
+  return `/api/offer-response/${token}`
+}
+
+/**
+ * Unauthenticated and rate-limited. Returns a minimal candidate-safe projection only — never internal approval data, scorecards, notes, other candidates or unpublished vacancies.
+ * @summary Candidate view of an offer behind a response link (WS-9, public)
+ */
+export const getPublicOfferResponse = async (token: string, options?: RequestInit): Promise<PublicOfferView> => {
+
+  return customFetch<PublicOfferView>(getGetPublicOfferResponseUrl(token),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPublicOfferResponseQueryKey = (token: string,) => {
+    return [
+    `/api/offer-response/${token}`
+    ] as const;
+    }
+
+
+export const getGetPublicOfferResponseQueryOptions = <TData = Awaited<ReturnType<typeof getPublicOfferResponse>>, TError = ErrorType<ApiError>>(token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicOfferResponse>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPublicOfferResponseQueryKey(token);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublicOfferResponse>>> = ({ signal }) => getPublicOfferResponse(token, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: token !== null && token !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPublicOfferResponse>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPublicOfferResponseQueryResult = NonNullable<Awaited<ReturnType<typeof getPublicOfferResponse>>>
+export type GetPublicOfferResponseQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Candidate view of an offer behind a response link (WS-9, public)
+ */
+
+export function useGetPublicOfferResponse<TData = Awaited<ReturnType<typeof getPublicOfferResponse>>, TError = ErrorType<ApiError>>(
+ token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicOfferResponse>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPublicOfferResponseQueryOptions(token,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSubmitPublicOfferResponseUrl = (token: string,) => {
+
+
+
+
+  return `/api/offer-response/${token}`
+}
+
+/**
+ * @summary Accept or decline an offer via a response link (WS-9, public)
+ */
+export const submitPublicOfferResponse = async (token: string,
+    submitPublicOfferResponseBody: SubmitPublicOfferResponseBody, options?: RequestInit): Promise<SubmitPublicOfferResponse201> => {
+
+  return customFetch<SubmitPublicOfferResponse201>(getSubmitPublicOfferResponseUrl(token),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(submitPublicOfferResponseBody)
+  }
+);}
+
+
+
+
+
+export const getSubmitPublicOfferResponseMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitPublicOfferResponse>>, TError,{token: string;data: BodyType<SubmitPublicOfferResponseBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitPublicOfferResponse>>, TError,{token: string;data: BodyType<SubmitPublicOfferResponseBody>}, TContext> => {
+
+const mutationKey = ['submitPublicOfferResponse'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitPublicOfferResponse>>, {token: string;data: BodyType<SubmitPublicOfferResponseBody>}> = (props) => {
+          const {token,data} = props ?? {};
+
+          return  submitPublicOfferResponse(token,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitPublicOfferResponseMutationResult = NonNullable<Awaited<ReturnType<typeof submitPublicOfferResponse>>>
+    export type SubmitPublicOfferResponseMutationBody = BodyType<SubmitPublicOfferResponseBody>
+    export type SubmitPublicOfferResponseMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Accept or decline an offer via a response link (WS-9, public)
+ */
+export const useSubmitPublicOfferResponse = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitPublicOfferResponse>>, TError,{token: string;data: BodyType<SubmitPublicOfferResponseBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitPublicOfferResponse>>,
+        TError,
+        {token: string;data: BodyType<SubmitPublicOfferResponseBody>},
+        TContext
+      > => {
+      return useMutation(getSubmitPublicOfferResponseMutationOptions(options));
+    }
+
+export const getGetEmploymentParticularsUrl = (organizationId: number,
+    versionId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/offer-versions/${versionId}/particulars`
+}
+
+/**
+ * @summary Employment particulars for an offer version (WS-9)
+ */
+export const getEmploymentParticulars = async (organizationId: number,
+    versionId: number, options?: RequestInit): Promise<EmploymentParticularsDetail> => {
+
+  return customFetch<EmploymentParticularsDetail>(getGetEmploymentParticularsUrl(organizationId,versionId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetEmploymentParticularsQueryKey = (organizationId: number,
+    versionId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/offer-versions/${versionId}/particulars`
+    ] as const;
+    }
+
+
+export const getGetEmploymentParticularsQueryOptions = <TData = Awaited<ReturnType<typeof getEmploymentParticulars>>, TError = ErrorType<ApiError>>(organizationId: number,
+    versionId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmploymentParticulars>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetEmploymentParticularsQueryKey(organizationId,versionId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEmploymentParticulars>>> = ({ signal }) => getEmploymentParticulars(organizationId,versionId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && versionId !== null && versionId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getEmploymentParticulars>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetEmploymentParticularsQueryResult = NonNullable<Awaited<ReturnType<typeof getEmploymentParticulars>>>
+export type GetEmploymentParticularsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Employment particulars for an offer version (WS-9)
+ */
+
+export function useGetEmploymentParticulars<TData = Awaited<ReturnType<typeof getEmploymentParticulars>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    versionId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmploymentParticulars>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetEmploymentParticularsQueryOptions(organizationId,versionId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSaveEmploymentParticularsUrl = (organizationId: number,
+    versionId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/offer-versions/${versionId}/particulars`
+}
+
+/**
+ * Refused once the particulars have been issued.
+ * @summary Save draft employment particulars (WS-9)
+ */
+export const saveEmploymentParticulars = async (organizationId: number,
+    versionId: number,
+    employmentParticularsInput: EmploymentParticularsInput, options?: RequestInit): Promise<EmploymentParticulars> => {
+
+  return customFetch<EmploymentParticulars>(getSaveEmploymentParticularsUrl(organizationId,versionId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(employmentParticularsInput)
+  }
+);}
+
+
+
+
+
+export const getSaveEmploymentParticularsMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveEmploymentParticulars>>, TError,{organizationId: number;versionId: number;data: BodyType<EmploymentParticularsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveEmploymentParticulars>>, TError,{organizationId: number;versionId: number;data: BodyType<EmploymentParticularsInput>}, TContext> => {
+
+const mutationKey = ['saveEmploymentParticulars'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveEmploymentParticulars>>, {organizationId: number;versionId: number;data: BodyType<EmploymentParticularsInput>}> = (props) => {
+          const {organizationId,versionId,data} = props ?? {};
+
+          return  saveEmploymentParticulars(organizationId,versionId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveEmploymentParticularsMutationResult = NonNullable<Awaited<ReturnType<typeof saveEmploymentParticulars>>>
+    export type SaveEmploymentParticularsMutationBody = BodyType<EmploymentParticularsInput>
+    export type SaveEmploymentParticularsMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Save draft employment particulars (WS-9)
+ */
+export const useSaveEmploymentParticulars = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveEmploymentParticulars>>, TError,{organizationId: number;versionId: number;data: BodyType<EmploymentParticularsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveEmploymentParticulars>>,
+        TError,
+        {organizationId: number;versionId: number;data: BodyType<EmploymentParticularsInput>},
+        TContext
+      > => {
+      return useMutation(getSaveEmploymentParticularsMutationOptions(options));
+    }
+
+export const getIssueEmploymentParticularsUrl = (organizationId: number,
+    versionId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/offer-versions/${versionId}/particulars/issue`
+}
+
+/**
+ * Freezing makes the record immutable, so a statement already furnished to a worker reproduces identically. When a template is supplied the artifact is generated through the shared document engine and bound to this offer version.
+ * @summary Freeze particulars and optionally generate the document (WS-9)
+ */
+export const issueEmploymentParticulars = async (organizationId: number,
+    versionId: number,
+    issueEmploymentParticularsBody?: IssueEmploymentParticularsBody, options?: RequestInit): Promise<IssueEmploymentParticulars200> => {
+
+  return customFetch<IssueEmploymentParticulars200>(getIssueEmploymentParticularsUrl(organizationId,versionId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(issueEmploymentParticularsBody)
+  }
+);}
+
+
+
+
+
+export const getIssueEmploymentParticularsMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof issueEmploymentParticulars>>, TError,{organizationId: number;versionId: number;data?: BodyType<IssueEmploymentParticularsBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof issueEmploymentParticulars>>, TError,{organizationId: number;versionId: number;data?: BodyType<IssueEmploymentParticularsBody>}, TContext> => {
+
+const mutationKey = ['issueEmploymentParticulars'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof issueEmploymentParticulars>>, {organizationId: number;versionId: number;data?: BodyType<IssueEmploymentParticularsBody>}> = (props) => {
+          const {organizationId,versionId,data} = props ?? {};
+
+          return  issueEmploymentParticulars(organizationId,versionId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type IssueEmploymentParticularsMutationResult = NonNullable<Awaited<ReturnType<typeof issueEmploymentParticulars>>>
+    export type IssueEmploymentParticularsMutationBody = BodyType<IssueEmploymentParticularsBody> | undefined
+    export type IssueEmploymentParticularsMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Freeze particulars and optionally generate the document (WS-9)
+ */
+export const useIssueEmploymentParticulars = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof issueEmploymentParticulars>>, TError,{organizationId: number;versionId: number;data?: BodyType<IssueEmploymentParticularsBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof issueEmploymentParticulars>>,
+        TError,
+        {organizationId: number;versionId: number;data?: BodyType<IssueEmploymentParticularsBody>},
+        TContext
+      > => {
+      return useMutation(getIssueEmploymentParticularsMutationOptions(options));
+    }
 
 export const getGetCustomFieldMetaUrl = (organizationId: number,) => {
 

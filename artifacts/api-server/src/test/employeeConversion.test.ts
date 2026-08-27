@@ -40,6 +40,9 @@ const {
   organizationSettingsTable,
   numberingSequencesTable,
   employeeNumberAllocationsTable,
+  recruitmentApprovalStagesTable,
+  hireAuthorizationsTable,
+  offerResponsesTable,
 } = vi.hoisted(() => {
   function mockTable(name: string, columns: string[]) {
     const table: Record<string, string> & { __name: string } = { __name: name } as never;
@@ -103,6 +106,14 @@ const {
       "id", "organizationId", "employeeId", "employeeNumber", "allocationMethod", "validFrom", "validTo",
       "allocatedByMembershipId", "releasedByMembershipId",
     ]),
+    // WS-9: the conversion gate additionally reads recruitment approval
+    // configuration, hire authorization and offer responses. Empty by default,
+    // which is exactly the pre-WS-9 situation these tests assert: an
+    // organization with no configured hire stages and no offer responses
+    // converts exactly as it always did.
+    recruitmentApprovalStagesTable: mockTable("recruitment_approval_stages", ["id", "organizationId", "purpose", "stageOrder", "name", "resolverType", "resolverConfig"]),
+    hireAuthorizationsTable: mockTable("hire_authorizations", ["id", "organizationId", "applicationId", "status", "totalStages", "currentStageOrder"]),
+    offerResponsesTable: mockTable("offer_responses", ["id", "organizationId", "offerId", "offerVersionId", "responseType", "channel", "respondedAt"]),
   };
 });
 
@@ -303,6 +314,9 @@ vi.mock("@workspace/db", () => ({
   organizationSettingsTable,
   numberingSequencesTable,
   employeeNumberAllocationsTable,
+  recruitmentApprovalStagesTable,
+  hireAuthorizationsTable,
+  offerResponsesTable,
   db: {
     ...makeQueryClient(),
     transaction: async (cb: (tx: ReturnType<typeof makeQueryClient>) => Promise<unknown>) => {
@@ -487,7 +501,13 @@ describe("POST /api/organizations/:organizationId/applications/:applicationId/co
     fixtures.positionRows = [{ id: 73, organizationId: ORG_ID }];
     fixtures.jobRequisitionRows[0] = { ...fixtures.jobRequisitionRows[0], departmentId: 71, branchId: 72, positionId: 73 };
     fixtures.offerRows = [{ id: 1, organizationId: ORG_ID, applicationId: APPLICATION_ID, currentVersionId: 1 }];
-    fixtures.offerVersionRows = [{ id: 1, organizationId: ORG_ID, employmentType: "full_time", proposedStartDate: "2026-09-01", location: "Accra" }];
+    // WS-9 (MASTER_OWNER_REVIEW §25.4): once an offer exists for the
+    // application, the Recruitment path requires it to be ACCEPTED before
+    // conversion. This fixture now reflects that deliberate behaviour change —
+    // it is not a workaround: a separate live suite asserts that an offer left
+    // un-accepted, declined, withdrawn, superseded or expired correctly blocks
+    // conversion.
+    fixtures.offerVersionRows = [{ id: 1, organizationId: ORG_ID, employmentType: "full_time", proposedStartDate: "2026-09-01", location: "Accra", status: "accepted" }];
 
     const res = await request(app).post(CONVERT_PATH).set("Authorization", "Bearer valid-token");
     expect(res.status).toBe(201);

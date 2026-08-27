@@ -9481,6 +9481,235 @@ export interface CustomFormSubmission {
   createdAt: string;
 }
 
+export interface RecruitmentSource {
+  code: string;
+  label: string;
+}
+
+export type RecruitmentApprovalStagePurpose = typeof RecruitmentApprovalStagePurpose[keyof typeof RecruitmentApprovalStagePurpose];
+
+
+export const RecruitmentApprovalStagePurpose = {
+  requisition: 'requisition',
+  hire: 'hire',
+} as const;
+
+export type RecruitmentApprovalStageResolverType = typeof RecruitmentApprovalStageResolverType[keyof typeof RecruitmentApprovalStageResolverType];
+
+
+export const RecruitmentApprovalStageResolverType = {
+  department_head: 'department_head',
+  permission_holder: 'permission_holder',
+  specific_membership: 'specific_membership',
+} as const;
+
+export interface RecruitmentApprovalStage {
+  id: number;
+  organizationId: number;
+  purpose: RecruitmentApprovalStagePurpose;
+  stageOrder: number;
+  name: string;
+  resolverType: RecruitmentApprovalStageResolverType;
+  resolverConfig?: unknown | null;
+  createdAt: string;
+}
+
+export type RecruitmentApprovalStageInputPurpose = typeof RecruitmentApprovalStageInputPurpose[keyof typeof RecruitmentApprovalStageInputPurpose];
+
+
+export const RecruitmentApprovalStageInputPurpose = {
+  requisition: 'requisition',
+  hire: 'hire',
+} as const;
+
+export type RecruitmentApprovalStageInputResolverType = typeof RecruitmentApprovalStageInputResolverType[keyof typeof RecruitmentApprovalStageInputResolverType];
+
+
+export const RecruitmentApprovalStageInputResolverType = {
+  department_head: 'department_head',
+  permission_holder: 'permission_holder',
+  specific_membership: 'specific_membership',
+} as const;
+
+export interface RecruitmentApprovalStageInput {
+  purpose: RecruitmentApprovalStageInputPurpose;
+  stageOrder: number;
+  name: string;
+  resolverType: RecruitmentApprovalStageInputResolverType;
+  resolverConfig?: unknown | null;
+}
+
+export type HireAuthorizationStatus = typeof HireAuthorizationStatus[keyof typeof HireAuthorizationStatus];
+
+
+export const HireAuthorizationStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+  cancelled: 'cancelled',
+} as const;
+
+export interface HireAuthorization {
+  id: number;
+  organizationId: number;
+  applicationId: number;
+  status: HireAuthorizationStatus;
+  totalStages: number;
+  currentStageOrder?: number | null;
+  requestedAt: string;
+  completedAt?: string | null;
+}
+
+export type HireAuthorizationDecisionDecision = typeof HireAuthorizationDecisionDecision[keyof typeof HireAuthorizationDecisionDecision];
+
+
+export const HireAuthorizationDecisionDecision = {
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export interface HireAuthorizationDecision {
+  id: number;
+  hireAuthorizationId: number;
+  stageOrder: number;
+  stageName: string;
+  resolverType: string;
+  authorityBasis: string;
+  decision: HireAuthorizationDecisionDecision;
+  reason?: string | null;
+  decidedByNameSnapshot?: string | null;
+  decidedAt: string;
+}
+
+export interface HireAuthorizationDetail {
+  authorization?: HireAuthorization | null;
+  decisions: HireAuthorizationDecision[];
+  stages: RecruitmentApprovalStage[];
+}
+
+export interface ManualCandidateInput {
+  vacancyId: number;
+  sourceCode: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string | null;
+  capturedAt?: string | null;
+}
+
+export type ManualCaptureResultCandidate = { [key: string]: unknown };
+
+export type ManualCaptureResultApplication = { [key: string]: unknown };
+
+export interface ManualCaptureResult {
+  candidate: ManualCaptureResultCandidate;
+  application: ManualCaptureResultApplication;
+  reusedExistingCandidate: boolean;
+}
+
+export type OfferResponseResponseType = typeof OfferResponseResponseType[keyof typeof OfferResponseResponseType];
+
+
+export const OfferResponseResponseType = {
+  accepted: 'accepted',
+  declined: 'declined',
+  withdrawn: 'withdrawn',
+} as const;
+
+export type OfferResponseChannel = typeof OfferResponseChannel[keyof typeof OfferResponseChannel];
+
+
+export const OfferResponseChannel = {
+  candidate_token: 'candidate_token',
+  recorded_by_staff: 'recorded_by_staff',
+} as const;
+
+export interface OfferResponse {
+  id: number;
+  organizationId: number;
+  offerId: number;
+  offerVersionId: number;
+  responseType: OfferResponseResponseType;
+  channel: OfferResponseChannel;
+  reason?: string | null;
+  respondedAt: string;
+}
+
+export type OfferVersionStateVersion = { [key: string]: unknown };
+
+export interface OfferVersionState {
+  version: OfferVersionStateVersion;
+  isExpired: boolean;
+  isCurrent: boolean;
+  canRespond: boolean;
+  response?: OfferResponse | null;
+}
+
+export interface PublicOfferView {
+  offerVersionId: number;
+  versionNumber: number;
+  proposedStartDate?: string | null;
+  employmentType?: string | null;
+  workplaceType?: string | null;
+  location?: string | null;
+  conditions?: string | null;
+  expiryDate?: string | null;
+  status: string;
+  candidateFirstName?: string;
+}
+
+export interface EmploymentParticulars {
+  id: number;
+  organizationId: number;
+  offerVersionId: number;
+  employerName?: string | null;
+  workerName?: string | null;
+  dateOfFirstAppointment?: string | null;
+  jobTitleOrGrade?: string | null;
+  payRate?: string | null;
+  payMethod?: string | null;
+  payInterval?: string | null;
+  hoursOfWork?: string | null;
+  holidayTerms?: string | null;
+  sickPayTerms?: string | null;
+  pensionTerms?: string | null;
+  noticeByEmployer?: string | null;
+  noticeByWorker?: string | null;
+  disciplinaryRules?: string | null;
+  grievanceProcedure?: string | null;
+  overtimeTerms?: string | null;
+  probationTerms?: string | null;
+  issuedAt?: string | null;
+  createdAt: string;
+}
+
+export interface EmploymentParticularsInput {
+  employerName?: string | null;
+  workerName?: string | null;
+  dateOfFirstAppointment?: string | null;
+  jobTitleOrGrade?: string | null;
+  payRate?: string | null;
+  payMethod?: string | null;
+  payInterval?: string | null;
+  hoursOfWork?: string | null;
+  holidayTerms?: string | null;
+  sickPayTerms?: string | null;
+  pensionTerms?: string | null;
+  noticeByEmployer?: string | null;
+  noticeByWorker?: string | null;
+  disciplinaryRules?: string | null;
+  grievanceProcedure?: string | null;
+  overtimeTerms?: string | null;
+  probationTerms?: string | null;
+}
+
+export type EmploymentParticularsDetailSuggested = { [key: string]: unknown } | null;
+
+export interface EmploymentParticularsDetail {
+  particulars?: EmploymentParticulars | null;
+  suggested?: EmploymentParticularsDetailSuggested;
+}
+
 export type UploadOrganizationLogoBody = {
   file: Blob;
 };
@@ -10437,6 +10666,90 @@ export type ListPayrollOpeningBalances200 = {
 export type GetPayrollOpeningBalance200 = {
   balance: PayrollOpeningBalance;
   locked: boolean;
+};
+
+export type ListRecruitmentSources200 = {
+  sources: RecruitmentSource[];
+};
+
+export type ListRecruitmentApprovalStagesParams = {
+purpose?: ListRecruitmentApprovalStagesPurpose;
+};
+
+export type ListRecruitmentApprovalStagesPurpose = typeof ListRecruitmentApprovalStagesPurpose[keyof typeof ListRecruitmentApprovalStagesPurpose];
+
+
+export const ListRecruitmentApprovalStagesPurpose = {
+  requisition: 'requisition',
+  hire: 'hire',
+} as const;
+
+export type ListRecruitmentApprovalStages200 = {
+  purpose: string;
+  stages: RecruitmentApprovalStage[];
+};
+
+export type DecideHireAuthorizationStageBodyDecision = typeof DecideHireAuthorizationStageBodyDecision[keyof typeof DecideHireAuthorizationStageBodyDecision];
+
+
+export const DecideHireAuthorizationStageBodyDecision = {
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export type DecideHireAuthorizationStageBody = {
+  decision?: DecideHireAuthorizationStageBodyDecision;
+  reason?: string | null;
+};
+
+export type RecordOfferResponseBodyResponseType = typeof RecordOfferResponseBodyResponseType[keyof typeof RecordOfferResponseBodyResponseType];
+
+
+export const RecordOfferResponseBodyResponseType = {
+  accepted: 'accepted',
+  declined: 'declined',
+} as const;
+
+export type RecordOfferResponseBody = {
+  responseType?: RecordOfferResponseBodyResponseType;
+  reason?: string | null;
+  evidence?: unknown | null;
+};
+
+export type WithdrawOfferWithReasonBody = {
+  reason: string;
+};
+
+export type IssueOfferResponseLink201 = {
+  token: string;
+  expiresAt: string;
+};
+
+export type SubmitPublicOfferResponseBodyResponseType = typeof SubmitPublicOfferResponseBodyResponseType[keyof typeof SubmitPublicOfferResponseBodyResponseType];
+
+
+export const SubmitPublicOfferResponseBodyResponseType = {
+  accepted: 'accepted',
+  declined: 'declined',
+} as const;
+
+export type SubmitPublicOfferResponseBody = {
+  responseType?: SubmitPublicOfferResponseBodyResponseType;
+  reason?: string | null;
+};
+
+export type SubmitPublicOfferResponse201 = {
+  responseType: string;
+  respondedAt: string;
+};
+
+export type IssueEmploymentParticularsBody = {
+  templateId?: number | null;
+};
+
+export type IssueEmploymentParticulars200 = {
+  particulars: EmploymentParticulars;
+  generated?: unknown | null;
 };
 
 export type ListCustomFieldsParams = {

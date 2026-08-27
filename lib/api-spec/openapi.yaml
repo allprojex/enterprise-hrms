@@ -21641,6 +21641,710 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  # --- WS-9: Recruitment Completion ---------------------------------------
+  /organizations/{organizationId}/recruitment/sources:
+    get:
+      operationId: listRecruitmentSources
+      tags: [recruitment-completion]
+      summary: List the organization's configured recruitment sources (WS-9)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Configured sources
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sources]
+                properties:
+                  sources:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/RecruitmentSource"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/recruitment/approval-stages:
+    get:
+      operationId: listRecruitmentApprovalStages
+      tags: [recruitment-completion]
+      summary: List configured approval stages for a purpose (WS-9)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: purpose
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [requisition, hire]
+      responses:
+        "200":
+          description: Configured stages
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [purpose, stages]
+                properties:
+                  purpose:
+                    type: string
+                  stages:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/RecruitmentApprovalStage"
+        "403":
+          description: Forbidden — requires recruitment_settings.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createRecruitmentApprovalStage
+      tags: [recruitment-completion]
+      summary: Configure an approval stage (WS-9)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecruitmentApprovalStageInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecruitmentApprovalStage"
+        "400":
+          description: Invalid configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires recruitment_settings.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/recruitment/approval-stages/{stageId}:
+    delete:
+      operationId: deleteRecruitmentApprovalStage
+      tags: [recruitment-completion]
+      summary: Remove a configured approval stage (WS-9)
+      description: Removing configuration never alters decisions already recorded — those carry their own snapshots.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: stageId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+        "403":
+          description: Forbidden — requires recruitment_settings.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/applications/{applicationId}/hire-authorization:
+    get:
+      operationId: getHireAuthorization
+      tags: [recruitment-completion]
+      summary: Hire authorization state, decisions and configured stages (WS-9)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Authorization detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HireAuthorizationDetail"
+        "403":
+          description: Forbidden — requires application.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: requestHireAuthorization
+      tags: [recruitment-completion]
+      summary: Raise hire authorization for an application (WS-9)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "201":
+          description: Raised
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HireAuthorization"
+        "400":
+          description: No hire-approval stages are configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires application.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: This application already has a hire authorization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/hire-authorizations/{id}/decide:
+    post:
+      operationId: decideHireAuthorizationStage
+      tags: [recruitment-completion]
+      summary: Decide the current approval stage (WS-9)
+      description: >-
+        Authority is re-resolved live from the configured stage's resolver.
+        Holding a role never confers authority; a Department Head stage resolves
+        through the department_heads relationship.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                decision:
+                  type: string
+                  enum: [approved, rejected]
+                reason:
+                  type: string
+                  nullable: true
+      responses:
+        "200":
+          description: Decision recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HireAuthorization"
+        "403":
+          description: Not authorized to decide this stage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Already decided or already settled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/recruitment/manual-candidates:
+    post:
+      operationId: captureManualCandidate
+      tags: [recruitment-completion]
+      summary: Capture a candidate without a published vacancy (WS-9)
+      description: >-
+        The authorized manual capture path. Public publication is not required;
+        an authenticated, permission-checked actor, an organization-owned
+        vacancy and a configured recruitment source are. The public careers
+        path's own publication requirement is unchanged.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ManualCandidateInput"
+      responses:
+        "201":
+          description: Captured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManualCaptureResult"
+        "400":
+          description: Invalid source, vacancy or candidate details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires candidate.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: This candidate already has an application for this vacancy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/offer-versions/{versionId}/state:
+    get:
+      operationId: getOfferVersionState
+      tags: [recruitment-completion]
+      summary: Derived lifecycle state of an offer version (WS-9)
+      description: Expiry is computed from the authoritative expiry date, never from a scheduled job.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: versionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Offer version state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfferVersionState"
+        "403":
+          description: Forbidden — requires offer.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/offer-versions/{versionId}/record-response:
+    post:
+      operationId: recordOfferResponse
+      tags: [recruitment-completion]
+      summary: Record a candidate's acceptance or decline (WS-9)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: versionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                responseType:
+                  type: string
+                  enum: [accepted, declined]
+                reason:
+                  type: string
+                  nullable: true
+                evidence:
+                  nullable: true
+      responses:
+        "201":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfferResponse"
+        "403":
+          description: Forbidden — requires offer.issue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Not respondable — already responded, superseded, withdrawn or expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/offer-versions/{versionId}/withdraw-response:
+    post:
+      operationId: withdrawOfferWithReason
+      tags: [recruitment-completion]
+      summary: Withdraw an offer, recording a reason (WS-9)
+      description: Refused once the candidate has already been converted to an employee.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: versionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+      responses:
+        "201":
+          description: Withdrawn
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfferResponse"
+        "403":
+          description: Forbidden — requires offer.withdraw
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Not withdrawable in the current state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/offer-versions/{versionId}/response-link:
+    post:
+      operationId: issueOfferResponseLink
+      tags: [recruitment-completion]
+      summary: Issue a single-purpose candidate response link (WS-9)
+      description: >-
+        The plaintext token is returned once and never stored — only its hash is
+        persisted. The link is bound to this offer version, expires, is
+        single-use and is revoked when the offer is responded to or withdrawn.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: versionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "201":
+          description: Link issued
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token, expiresAt]
+                properties:
+                  token:
+                    type: string
+                  expiresAt:
+                    type: string
+                    format: date-time
+        "403":
+          description: Forbidden — requires offer.issue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: This offer is not in a respondable state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /offer-response/{token}:
+    get:
+      operationId: getPublicOfferResponse
+      tags: [recruitment-completion]
+      summary: Candidate view of an offer behind a response link (WS-9, public)
+      description: >-
+        Unauthenticated and rate-limited. Returns a minimal candidate-safe
+        projection only — never internal approval data, scorecards, notes, other
+        candidates or unpublished vacancies.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Candidate-safe offer view
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicOfferView"
+        "404":
+          description: The link is not valid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: submitPublicOfferResponse
+      tags: [recruitment-completion]
+      summary: Accept or decline an offer via a response link (WS-9, public)
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                responseType:
+                  type: string
+                  enum: [accepted, declined]
+                reason:
+                  type: string
+                  nullable: true
+      responses:
+        "201":
+          description: Response recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [responseType, respondedAt]
+                properties:
+                  responseType:
+                    type: string
+                  respondedAt:
+                    type: string
+                    format: date-time
+        "404":
+          description: The link is not valid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: This offer is no longer respondable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/offer-versions/{versionId}/particulars:
+    get:
+      operationId: getEmploymentParticulars
+      tags: [recruitment-completion]
+      summary: Employment particulars for an offer version (WS-9)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: versionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Stored particulars plus suggestions while still a draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmploymentParticularsDetail"
+        "403":
+          description: Forbidden — requires offer.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    put:
+      operationId: saveEmploymentParticulars
+      tags: [recruitment-completion]
+      summary: Save draft employment particulars (WS-9)
+      description: Refused once the particulars have been issued.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: versionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmploymentParticularsInput"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmploymentParticulars"
+        "400":
+          description: Already issued and therefore immutable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires offer.issue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/offer-versions/{versionId}/particulars/issue:
+    post:
+      operationId: issueEmploymentParticulars
+      tags: [recruitment-completion]
+      summary: Freeze particulars and optionally generate the document (WS-9)
+      description: >-
+        Freezing makes the record immutable, so a statement already furnished to
+        a worker reproduces identically. When a template is supplied the
+        artifact is generated through the shared document engine and bound to
+        this offer version.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: versionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                templateId:
+                  type: integer
+                  nullable: true
+      responses:
+        "200":
+          description: Issued
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [particulars]
+                properties:
+                  particulars:
+                    $ref: "#/components/schemas/EmploymentParticulars"
+                  generated:
+                    nullable: true
+        "403":
+          description: Forbidden — requires offer.issue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   # --- WS-8: Custom Fields & Form Builder --------------------------------
   /organizations/{organizationId}/custom-fields/meta:
     get:
@@ -34779,3 +35483,372 @@ components:
           type: string
           format: date-time
       required: [id, organizationId, formId, formVersionId, scope, answers, submittedAt, createdAt]
+
+    # --- WS-9: Recruitment Completion -----------------------------------
+    RecruitmentSource:
+      type: object
+      properties:
+        code:
+          type: string
+        label:
+          type: string
+      required: [code, label]
+
+    RecruitmentApprovalStage:
+      type: object
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        purpose:
+          type: string
+          enum: [requisition, hire]
+        stageOrder:
+          type: integer
+        name:
+          type: string
+        resolverType:
+          type: string
+          enum: [department_head, permission_holder, specific_membership]
+        resolverConfig:
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, organizationId, purpose, stageOrder, name, resolverType, createdAt]
+
+    RecruitmentApprovalStageInput:
+      type: object
+      properties:
+        purpose:
+          type: string
+          enum: [requisition, hire]
+        stageOrder:
+          type: integer
+        name:
+          type: string
+        resolverType:
+          type: string
+          enum: [department_head, permission_holder, specific_membership]
+        resolverConfig:
+          nullable: true
+      required: [purpose, stageOrder, name, resolverType]
+
+    HireAuthorization:
+      type: object
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        applicationId:
+          type: integer
+        status:
+          type: string
+          enum: [pending, approved, rejected, cancelled]
+        totalStages:
+          type: integer
+        currentStageOrder:
+          type: integer
+          nullable: true
+        requestedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [id, organizationId, applicationId, status, totalStages, requestedAt]
+
+    HireAuthorizationDecision:
+      type: object
+      properties:
+        id:
+          type: integer
+        hireAuthorizationId:
+          type: integer
+        stageOrder:
+          type: integer
+        stageName:
+          type: string
+        resolverType:
+          type: string
+        authorityBasis:
+          type: string
+        decision:
+          type: string
+          enum: [approved, rejected]
+        reason:
+          type: string
+          nullable: true
+        decidedByNameSnapshot:
+          type: string
+          nullable: true
+        decidedAt:
+          type: string
+          format: date-time
+      required: [id, hireAuthorizationId, stageOrder, stageName, resolverType, authorityBasis, decision, decidedAt]
+
+    HireAuthorizationDetail:
+      type: object
+      properties:
+        authorization:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/HireAuthorization"
+        decisions:
+          type: array
+          items:
+            $ref: "#/components/schemas/HireAuthorizationDecision"
+        stages:
+          type: array
+          items:
+            $ref: "#/components/schemas/RecruitmentApprovalStage"
+      required: [decisions, stages]
+
+    ManualCandidateInput:
+      type: object
+      properties:
+        vacancyId:
+          type: integer
+        sourceCode:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        capturedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [vacancyId, sourceCode, firstName, lastName, email]
+
+    ManualCaptureResult:
+      type: object
+      properties:
+        candidate:
+          type: object
+          additionalProperties: true
+        application:
+          type: object
+          additionalProperties: true
+        reusedExistingCandidate:
+          type: boolean
+      required: [candidate, application, reusedExistingCandidate]
+
+    OfferResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        offerId:
+          type: integer
+        offerVersionId:
+          type: integer
+        responseType:
+          type: string
+          enum: [accepted, declined, withdrawn]
+        channel:
+          type: string
+          enum: [candidate_token, recorded_by_staff]
+        reason:
+          type: string
+          nullable: true
+        respondedAt:
+          type: string
+          format: date-time
+      required: [id, organizationId, offerId, offerVersionId, responseType, channel, respondedAt]
+
+    OfferVersionState:
+      type: object
+      properties:
+        version:
+          type: object
+          additionalProperties: true
+        isExpired:
+          type: boolean
+        isCurrent:
+          type: boolean
+        canRespond:
+          type: boolean
+        response:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/OfferResponse"
+      required: [version, isExpired, isCurrent, canRespond]
+
+    PublicOfferView:
+      type: object
+      properties:
+        offerVersionId:
+          type: integer
+        versionNumber:
+          type: integer
+        proposedStartDate:
+          type: string
+          nullable: true
+        employmentType:
+          type: string
+          nullable: true
+        workplaceType:
+          type: string
+          nullable: true
+        location:
+          type: string
+          nullable: true
+        conditions:
+          type: string
+          nullable: true
+        expiryDate:
+          type: string
+          nullable: true
+        status:
+          type: string
+        candidateFirstName:
+          type: string
+      required: [offerVersionId, versionNumber, status]
+
+    EmploymentParticulars:
+      type: object
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        offerVersionId:
+          type: integer
+        employerName:
+          type: string
+          nullable: true
+        workerName:
+          type: string
+          nullable: true
+        dateOfFirstAppointment:
+          type: string
+          format: date-time
+          nullable: true
+        jobTitleOrGrade:
+          type: string
+          nullable: true
+        payRate:
+          type: string
+          nullable: true
+        payMethod:
+          type: string
+          nullable: true
+        payInterval:
+          type: string
+          nullable: true
+        hoursOfWork:
+          type: string
+          nullable: true
+        holidayTerms:
+          type: string
+          nullable: true
+        sickPayTerms:
+          type: string
+          nullable: true
+        pensionTerms:
+          type: string
+          nullable: true
+        noticeByEmployer:
+          type: string
+          nullable: true
+        noticeByWorker:
+          type: string
+          nullable: true
+        disciplinaryRules:
+          type: string
+          nullable: true
+        grievanceProcedure:
+          type: string
+          nullable: true
+        overtimeTerms:
+          type: string
+          nullable: true
+        probationTerms:
+          type: string
+          nullable: true
+        issuedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, organizationId, offerVersionId, createdAt]
+
+    EmploymentParticularsInput:
+      type: object
+      properties:
+        employerName:
+          type: string
+          nullable: true
+        workerName:
+          type: string
+          nullable: true
+        dateOfFirstAppointment:
+          type: string
+          nullable: true
+        jobTitleOrGrade:
+          type: string
+          nullable: true
+        payRate:
+          type: string
+          nullable: true
+        payMethod:
+          type: string
+          nullable: true
+        payInterval:
+          type: string
+          nullable: true
+        hoursOfWork:
+          type: string
+          nullable: true
+        holidayTerms:
+          type: string
+          nullable: true
+        sickPayTerms:
+          type: string
+          nullable: true
+        pensionTerms:
+          type: string
+          nullable: true
+        noticeByEmployer:
+          type: string
+          nullable: true
+        noticeByWorker:
+          type: string
+          nullable: true
+        disciplinaryRules:
+          type: string
+          nullable: true
+        grievanceProcedure:
+          type: string
+          nullable: true
+        overtimeTerms:
+          type: string
+          nullable: true
+        probationTerms:
+          type: string
+          nullable: true
+
+    EmploymentParticularsDetail:
+      type: object
+      properties:
+        particulars:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/EmploymentParticulars"
+        suggested:
+          nullable: true
+          type: object
+          additionalProperties: true

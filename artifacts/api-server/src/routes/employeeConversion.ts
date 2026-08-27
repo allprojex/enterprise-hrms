@@ -9,6 +9,8 @@ import {
   ApplicationNotFoundForConversionError,
   ApplicationNotHiredError,
   PreEmploymentRequirementsNotSatisfiedError,
+  HireNotAuthorizedError,
+  OfferNotAcceptedError,
   AlreadyConvertedError,
 } from "../lib/employeeConversion";
 

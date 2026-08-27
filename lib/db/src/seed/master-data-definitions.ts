@@ -42,6 +42,13 @@ export const MASTER_DATA_DOMAINS: readonly MasterDataDomainDefinition[] = [
   // same shape/precedent as document_category. No default items are frozen
   // for this domain; only the domain itself is registered here.
   { key: "training_category", label: "Training Category", classification: "organization-defined" },
+  // WS-9 (MASTER_OWNER_REVIEW §25.5) — how a candidate reached the
+  // organization. `organization-defined` with NO seeded default items, on the
+  // same precedent as training_category and payroll_bank: referral, walk-in,
+  // agency, campus, physical announcement and careers portal are product
+  // *examples*, not a universal list, and seeding any of them would impose one
+  // organization's recruiting model on every other.
+  { key: "recruitment_source", label: "Recruitment Source", classification: "organization-defined" },
   // Payroll, Workstream 2 (docs/PAYROLL_IMPLEMENTATION_PLAN.md §9.3). Reuses
   // this existing domain mechanism exactly as the frozen plan requires
   // ("not new bespoke tables") — a component TYPE is a plain code/label

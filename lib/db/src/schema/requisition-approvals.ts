@@ -45,6 +45,22 @@ export const requisitionApprovalsTable = pgTable(
     decision: requisitionApprovalDecisionEnum("decision").notNull().default("pending"),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
     comment: text("comment"),
+    // --- WS-9 additive columns (MASTER_OWNER_REVIEW §25.2-25.3) -----------
+    // The `sequence` column above anticipated a real multi-step chain; WS-9
+    // supplies it. These four record WHICH configured stage a row belongs to
+    // and WHY its actor was entitled to decide, snapshotted at decision time.
+    //
+    // They are snapshots on purpose: current authority and historical decision
+    // identity are different facts. Replacing a department head, revoking a
+    // role or reconfiguring the chain must never change what an existing
+    // decision record says. All four are nullable so every pre-WS-9 row stays
+    // valid exactly as written — enforcement is prospective (§25.4).
+    stageName: text("stage_name"),
+    resolverType: text("resolver_type"),
+    /** Human-readable statement of the authority relied on, e.g. "Department head of Finance". */
+    authorityBasis: text("authority_basis"),
+    /** Actor's name as at decision time — survives renames and membership removal. */
+    decidedByNameSnapshot: text("decided_by_name_snapshot"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

@@ -22,6 +22,14 @@ const { state } = vi.hoisted(() => ({
 
 vi.mock('@workspace/api-client-react', () => ({
   useGetMe: () => ({ data: { id: 1, activeOrganizationId: 10, organizationId: 10 } }),
+
+  // WS-9 — the offer page now renders the candidate-response panel. It
+  // returns null until the server answers, so an undefined `data` here keeps
+  // these existing assertions about the offer page itself unaffected.
+  useGetOfferVersionState: () => ({ data: undefined, isLoading: false, refetch: vi.fn() }),
+  getGetOfferVersionStateQueryKey: (orgId: number, versionId: number) => ['offerVersionState', orgId, versionId],
+  useRecordOfferResponse: () => ({ mutate: vi.fn(), isPending: false }),
+  useIssueOfferResponseLink: () => ({ mutate: vi.fn(), isPending: false }),
   getGetMeQueryKey: () => ['getMe'],
   useGetOffer: () => ({ data: state.offer, isLoading: state.isLoading, error: state.error, refetch: vi.fn() }),
   getGetOfferQueryKey: (orgId: number, id: number) => ['offer', orgId, id],
