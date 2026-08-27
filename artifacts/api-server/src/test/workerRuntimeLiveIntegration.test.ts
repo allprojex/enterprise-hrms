@@ -16,8 +16,9 @@
  * production design; never a concern in CI).
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { resolveLiveDatabaseUrl } from "./liveDbGuard";
 
-const LIVE_URL = process.env.WS6_LIVE_DATABASE_URL;
+const LIVE_URL = resolveLiveDatabaseUrl("WS6_LIVE_DATABASE_URL");
 const describeLive = LIVE_URL ? describe : describe.skip;
 if (LIVE_URL) process.env.DATABASE_URL = LIVE_URL;
 

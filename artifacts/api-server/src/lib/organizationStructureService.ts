@@ -11,6 +11,13 @@ import { recordAuditEvent } from "./auditLog";
 
 export { CrossOrganizationReferenceError };
 
+// Structurally accepts either the global `db` or a transaction client, so a
+// caller building structure and employees in ONE transaction (WS-7 atomic
+// migration) can have these checks see rows that transaction has created but
+// not yet committed. Defaults to `db`, so every existing call site is
+// unchanged.
+type QueryClient = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 export class HierarchyCycleError extends Error {
   constructor() {
     super("A department cannot be its own ancestor");
@@ -43,13 +50,14 @@ export async function assertValidDepartmentPlacement(params: {
   departmentId?: number;
   branchId?: number | null;
   parentDepartmentId?: number | null;
-}): Promise<void> {
-  await assertBelongsToOrganization(branchesTable, params.branchId, params.organizationId, "Branch");
+}, client: QueryClient = db): Promise<void> {
+  await assertBelongsToOrganization(branchesTable, params.branchId, params.organizationId, "Branch", client);
   await assertBelongsToOrganization(
     departmentsTable,
     params.parentDepartmentId,
     params.organizationId,
     "Parent department",
+    client,
   );
 
   if (params.departmentId == null || params.parentDepartmentId == null) return;
@@ -70,11 +78,11 @@ export async function assertValidDepartmentPlacement(params: {
 }
 
 /** Hierarchy validation for a position: departmentId (if given) must belong to this organization. */
-export async function assertValidPositionPlacement(params: {
-  organizationId: number;
-  departmentId?: number | null;
-}): Promise<void> {
-  await assertBelongsToOrganization(departmentsTable, params.departmentId, params.organizationId, "Department");
+export async function assertValidPositionPlacement(
+  params: { organizationId: number; departmentId?: number | null },
+  client: QueryClient = db,
+): Promise<void> {
+  await assertBelongsToOrganization(departmentsTable, params.departmentId, params.organizationId, "Department", client);
 }
 
 /** Dependency validation: a branch can't be archived while departments still reference it. */

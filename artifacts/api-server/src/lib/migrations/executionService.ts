@@ -3,30 +3,38 @@
  * Split from batchService.ts (batch/source/mapping) purely for file size;
  * together they are the single orchestration layer.
  *
- * Execution model (§27-28), stated plainly because it is the decision that
- * matters most here:
+ * Execution model (§27-28) — TWO models, chosen automatically per batch by
+ * `resolveExecutionPolicy` and always disclosed to the approver before
+ * approval. Users are never left to assume an import is atomic when it is not.
  *
- *   A migration is NOT one giant transaction. It is a sequence of
- *   per-row mutations, in dependency order, each of which either succeeds
- *   and is marked `created` on its staged row, or fails and is marked
- *   `failed` with its error text — and the batch continues. That is a
- *   deliberate choice over all-or-nothing: a 20,000-row import that dies on
- *   row 19,998 and rolls everything back is useless to an HR team, whereas
- *   19,997 imported rows plus a precise list of the 3 that need fixing is
- *   actionable. `completed_with_errors` is a first-class, expected outcome.
+ *   ATOMIC — one transaction for the whole batch, in dependency order. Any
+ *   failure rolls everything back and nothing is written. Chosen when every
+ *   entity type in the batch is `transactional` (all its writes thread the
+ *   passed client) AND the batch is within ATOMIC_EXECUTION_ROW_LIMIT. This
+ *   is not theoretical: the pre-existing legacy importer already commits many
+ *   employees plus their number allocations and personnel files in a single
+ *   transaction, using exactly the primitives the employee/structure adapters
+ *   reuse.
  *
- *   The consequence — there is no automatic rollback of a partially
- *   executed migration — is a real limitation, documented as such rather
- *   than papered over. The mitigations are: nothing executes until a human
- *   approves a clean dry run; every row's fate is individually recorded and
- *   reportable; and re-running a batch only ever retries rows still
- *   `pending`, so recovery is "fix the source rows that failed and re-run",
- *   never "undo".
+ *   BATCHED_RESUMABLE — per-row, continue-on-failure, in dependency order.
+ *   Each row is marked `created` or `failed` with its error text and the batch
+ *   continues; `completed_with_errors` is a first-class outcome. Chosen when
+ *   the batch contains an entity type whose domain service commits on its own
+ *   connection (so an outer rollback could NOT undo it — claiming atomicity
+ *   there would be a FALSE guarantee, strictly worse than being honest), or
+ *   when the batch is too large to hold in one transaction safely.
  *
- *   `migration_staged_rows.executionStatus` is the idempotency guard. Only
- *   `pending` rows are ever executed, and a row is claimed by a conditional
- *   UPDATE before its adapter runs, so two concurrent executions of the same
- *   batch cannot both execute the same row.
+ * In BATCHED_RESUMABLE there is no automatic rollback. That limitation is
+ * surfaced in the UI before approval, not just documented. Mitigations:
+ * nothing executes until a human approves a clean dry run; every row's fate
+ * is individually recorded and reportable; and re-running only ever retries
+ * rows still `pending`, so recovery is "fix the failed rows and re-run",
+ * never "undo".
+ *
+ * `migration_staged_rows.executionStatus` is the idempotency guard in both
+ * models. Only `pending` rows are ever executed, and in the resumable path a
+ * row is claimed by a conditional UPDATE before its adapter runs, so two
+ * concurrent executions cannot both execute the same row.
  */
 import { createHash } from "crypto";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
@@ -40,11 +48,75 @@ import {
 } from "@workspace/db";
 import { recordAuditEvent } from "../auditLog";
 import { readOrgFile } from "../fileStorage";
-import { getEntityAdapter, orderEntityTypesByDependency, type ActorContext } from "./adapterRegistry";
+import { getEntityAdapter, orderEntityTypesByDependency, type ActorContext, type ExecutionOutcome } from "./adapterRegistry";
 import { getBatch, listSources, InvalidMigrationStateError, SourceIntegrityError, UnknownEntityTypeError } from "./batchService";
 
 /** Rows executed per transaction. Small enough to keep locks short, large enough to avoid per-row transaction overhead. */
 const EXECUTION_CHUNK_SIZE = 50;
+
+/**
+ * Largest batch still executed as ONE all-or-nothing transaction. Above this,
+ * a single transaction would hold locks on core HR tables for minutes, which
+ * is its own availability problem for a live tenant.
+ */
+export const ATOMIC_EXECUTION_ROW_LIMIT = 2_000;
+
+export type ExecutionPolicy = "atomic" | "batched_resumable";
+
+export interface ExecutionPolicyDecision {
+  policy: ExecutionPolicy;
+  totalRows: number;
+  /** Plain-language reasons, shown to the approver — never only logged. */
+  reasons: string[];
+  /** Entity types whose writes escape an outer transaction. */
+  nonTransactionalEntityTypes: string[];
+}
+
+/**
+ * Decides HOW a batch will execute, from the batch itself — never from a user
+ * choice. Two things can force the resumable model, and the approver is told
+ * which:
+ *
+ *   1. Any entity type in the batch is non-transactional (its adapter reuses
+ *      a domain service that commits on its own connection). Wrapping those
+ *      in a transaction would produce a FALSE atomicity guarantee: a rollback
+ *      would report "nothing was written" while rows had in fact committed.
+ *      Being honest about partial success is strictly safer than pretending.
+ *
+ *   2. The batch is too large to hold in one transaction safely.
+ *
+ * Otherwise the batch runs atomically — proven achievable by the pre-existing
+ * legacy importer, which commits many employees (plus their number
+ * allocations and personnel files) in a single transaction using exactly the
+ * tx-threaded primitives WS-7's employee/structure adapters reuse.
+ */
+export async function resolveExecutionPolicy(organizationId: number, batchId: number): Promise<ExecutionPolicyDecision> {
+  const sources = await listSources(organizationId, batchId);
+  const totalRows = sources.reduce((sum, s) => sum + (s.rowCount ?? 0), 0);
+
+  const nonTransactionalEntityTypes = sources
+    .filter((s) => getEntityAdapter(s.entityType)?.transactional !== true)
+    .map((s) => s.entityType);
+
+  const reasons: string[] = [];
+  if (nonTransactionalEntityTypes.length > 0) {
+    const labels = nonTransactionalEntityTypes.map((t) => getEntityAdapter(t)?.label ?? t).join(", ");
+    reasons.push(
+      `${labels} are written through services that commit independently, so this migration cannot be undone as a single unit. Rows that succeed stay committed even if later rows fail.`,
+    );
+  }
+  if (totalRows > ATOMIC_EXECUTION_ROW_LIMIT) {
+    reasons.push(
+      `This migration has ${totalRows} rows, above the ${ATOMIC_EXECUTION_ROW_LIMIT}-row limit for single-transaction execution, so it runs in resumable batches.`,
+    );
+  }
+
+  const policy: ExecutionPolicy = reasons.length === 0 ? "atomic" : "batched_resumable";
+  if (policy === "atomic") {
+    reasons.push("All-or-nothing: if any row fails, the entire migration is rolled back and nothing is written.");
+  }
+  return { policy, totalRows, reasons, nonTransactionalEntityTypes };
+}
 
 function sha256(buffer: Buffer): string {
   return createHash("sha256").update(buffer).digest("hex");
@@ -337,6 +409,12 @@ export async function executeBatch(params: {
 
   const sources = await listSources(params.organizationId, params.batchId);
   const orderedTypes = orderEntityTypesByDependency(sources.map((s) => s.entityType));
+
+  const decision = await resolveExecutionPolicy(params.organizationId, params.batchId);
+  if (decision.policy === "atomic") {
+    return executeBatchAtomically(params, sources, orderedTypes, ctx);
+  }
+
   let processed = 0;
 
   for (const entityType of orderedTypes) {
@@ -387,6 +465,112 @@ export async function executeBatch(params: {
   }
 
   return finalizeBatch(params.organizationId, params.batchId, params.actorApplicationUserId, params.actorMembershipId);
+}
+
+/**
+ * All-or-nothing execution. Every row of every entity type runs inside ONE
+ * transaction, in dependency order; any failure rolls the whole thing back
+ * and the batch ends `failed` with nothing written.
+ *
+ * Two honest caveats, both disclosed rather than hidden:
+ *
+ *  - Audit events are written by `recordAuditEvent` on the global connection
+ *    (true of every domain service in this codebase, not something WS-7
+ *    introduces), so audit rows for a rolled-back atomic batch can survive
+ *    the rollback. The batch's own `execution_failed` event records that the
+ *    data was not kept, so the trail stays interpretable.
+ *  - Staged-row bookkeeping is written after the transaction resolves, so a
+ *    process crash mid-transaction leaves rows `pending` while the database
+ *    has already rolled the data back — which is the safe direction: the
+ *    batch can simply be run again.
+ */
+async function executeBatchAtomically(
+  params: { organizationId: number; batchId: number; actorApplicationUserId: number; actorMembershipId: number },
+  sources: Awaited<ReturnType<typeof listSources>>,
+  orderedTypes: string[],
+  ctx: ActorContext,
+): Promise<ExecutionProgress> {
+  type Outcome = { rowId: number; status: ExecutionOutcome; resultId: number };
+
+  try {
+    const outcomes = await db.transaction(async (tx) => {
+      const results: Outcome[] = [];
+      for (const entityType of orderedTypes) {
+        const source = sources.find((s) => s.entityType === entityType)!;
+        const adapter = getEntityAdapter(entityType);
+        if (!adapter) throw new UnknownEntityTypeError(entityType);
+
+        const rows = await tx
+          .select()
+          .from(migrationStagedRowsTable)
+          .where(
+            and(
+              eq(migrationStagedRowsTable.sourceId, source.id),
+              eq(migrationStagedRowsTable.executionStatus, "pending"),
+              inArray(migrationStagedRowsTable.validationStatus, ["valid", "warning"]),
+            ),
+          )
+          .orderBy(asc(migrationStagedRowsTable.rowNumber));
+
+        for (const row of rows) {
+          // No try/catch: a throw here must abort the whole transaction.
+          // That is the entire point of this path.
+          const result = await adapter.executeRow(tx, row.normalizedData as Record<string, unknown>, ctx);
+          results.push({ rowId: row.id, status: result.status, resultId: result.resultId });
+        }
+      }
+      return results;
+    });
+
+    for (const o of outcomes) {
+      await db
+        .update(migrationStagedRowsTable)
+        .set({ executionStatus: o.status, executionResultId: o.resultId, executionError: null })
+        .where(eq(migrationStagedRowsTable.id, o.rowId));
+    }
+    for (const source of sources) {
+      await db
+        .update(migrationStagedRowsTable)
+        .set({ executionStatus: "skipped" })
+        .where(
+          and(
+            eq(migrationStagedRowsTable.sourceId, source.id),
+            eq(migrationStagedRowsTable.executionStatus, "pending"),
+            eq(migrationStagedRowsTable.validationStatus, "error"),
+          ),
+        );
+    }
+    return finalizeBatch(params.organizationId, params.batchId, params.actorApplicationUserId, params.actorMembershipId);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const summary = await buildReconciliation(params.organizationId, params.batchId);
+
+    await db
+      .update(migrationBatchesTable)
+      .set({ status: "failed", executionCompletedAt: new Date(), reconciliationSummary: { ...summary, atomicRollback: true, error: message } })
+      .where(eq(migrationBatchesTable.id, params.batchId));
+
+    await recordAuditEvent({
+      organizationId: params.organizationId,
+      actorApplicationUserId: params.actorApplicationUserId,
+      actorMembershipId: params.actorMembershipId,
+      eventType: "migration.batch.execution_failed",
+      targetType: "migration_batch",
+      targetId: String(params.batchId),
+      afterState: { policy: "atomic", rolledBack: true, error: message },
+      outcome: "failure",
+    });
+
+    throw new AtomicMigrationRolledBackError(message);
+  }
+}
+
+/** Thrown when an atomic batch was rolled back in full — nothing was written. */
+export class AtomicMigrationRolledBackError extends Error {
+  constructor(reason: string) {
+    super(`Migration rolled back — nothing was written. First failure: ${reason}`);
+    this.name = "AtomicMigrationRolledBackError";
+  }
 }
 
 /**

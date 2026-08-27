@@ -11,8 +11,9 @@
  * test` in CI stays hermetic.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { resolveLiveDatabaseUrl } from "./liveDbGuard";
 
-const LIVE_URL = process.env.WS7_LIVE_DATABASE_URL;
+const LIVE_URL = resolveLiveDatabaseUrl("WS7_LIVE_DATABASE_URL");
 const describeLive = LIVE_URL ? describe : describe.skip;
 if (LIVE_URL) process.env.DATABASE_URL = LIVE_URL;
 
@@ -282,6 +283,79 @@ describeLive("WS-7 — multi-entity migration, live lifecycle", () => {
   it("does not expose another organization's migration", async () => {
     const batch = await newBatch("isolation");
     await expect(batchService.getBatch(otherOrgId, batch.id)).rejects.toThrow(/not found/i);
+  });
+
+  it("reports an ATOMIC execution policy for a structure+employee batch, and rolls the whole batch back on failure", async () => {
+    const stamp = Date.now();
+    const batch = await newBatch("atomic policy");
+    await uploadAndMap(batch.id, "branch", [["Branch Code", "Branch Name"], [`AB${stamp}`, "Atomic Branch"]]);
+    // Two employees; the SECOND one duplicates the first staff number, which
+    // the dry run cannot catch (neither exists live yet) and which therefore
+    // fails at execution — exactly the case atomicity must undo entirely.
+    await uploadAndMap(batch.id, "employee", [
+      ["First Name", "Last Name", "Employee Number", "Branch Code"],
+      ["Atom", "One", `AE${stamp}`, `AB${stamp}`],
+      ["Atom", "Two", `AE${stamp}`, `AB${stamp}`],
+    ]);
+
+    const policy = await executionService.resolveExecutionPolicy(orgId, batch.id);
+    expect(policy.policy).toBe("atomic");
+    expect(policy.nonTransactionalEntityTypes).toEqual([]);
+    expect(policy.reasons.join(" ")).toMatch(/All-or-nothing/i);
+
+    await executionService.validateBatch({ organizationId: orgId, batchId: batch.id, actorApplicationUserId: userId, actorMembershipId: membershipId });
+    await executionService.approveBatch({ organizationId: orgId, batchId: batch.id, actorApplicationUserId: userId, actorMembershipId: membershipId });
+
+    await expect(
+      executionService.executeBatch({ organizationId: orgId, batchId: batch.id, actorApplicationUserId: userId, actorMembershipId: membershipId }),
+    ).rejects.toThrow(/rolled back/i);
+
+    // Nothing at all was written — not even the branch, which itself succeeded.
+    const branches = await db.select().from(schema.branchesTable).where(eq(schema.branchesTable.code, `AB${stamp}`));
+    expect(branches).toHaveLength(0);
+    const allocs = await db
+      .select()
+      .from(schema.employeeNumberAllocationsTable)
+      .where(eq(schema.employeeNumberAllocationsTable.employeeNumber, `AE${stamp}`));
+    expect(allocs).toHaveLength(0);
+
+    const reloaded = await batchService.getBatch(orgId, batch.id);
+    expect(reloaded.status).toBe("failed");
+  });
+
+  it("reports a BATCHED_RESUMABLE policy, naming the entity that prevents atomicity", async () => {
+    const stamp = Date.now();
+    const batch = await newBatch("resumable policy");
+    await uploadAndMap(batch.id, "employee", [
+      ["First Name", "Last Name", "Employee Number"],
+      ["Res", "Umable", `RE${stamp}`],
+    ]);
+    await uploadAndMap(batch.id, "qualification", [
+      ["Employee Number", "Qualification Type"],
+      [`RE${stamp}`, "bsc"],
+    ]);
+
+    const policy = await executionService.resolveExecutionPolicy(orgId, batch.id);
+    expect(policy.policy).toBe("batched_resumable");
+    expect(policy.nonTransactionalEntityTypes).toContain("qualification");
+    // The approver must be told, in words, that partial success is possible.
+    expect(policy.reasons.join(" ")).toMatch(/stay committed even if later rows fail/i);
+  });
+
+  it("does not expose payroll_opening_balance — it is blocked pending an Owner decision", async () => {
+    const batch = await newBatch("payroll blocked");
+    await expect(
+      batchService.uploadSource({
+        organizationId: orgId,
+        batchId: batch.id,
+        entityType: "payroll_opening_balance",
+        fileName: "p.csv",
+        mimeType: "text/csv",
+        buffer: csv([["Employee Number"], ["X"]]),
+        actorApplicationUserId: userId,
+        actorMembershipId: membershipId,
+      }),
+    ).rejects.toThrow(/not a supported/i);
   });
 
   it("rejects an unknown entity type instead of trusting client input", async () => {

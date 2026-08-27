@@ -131,6 +131,7 @@ export default function DataMigration() {
   const entityTypes: MigrationEntityType[] = entityTypesQuery.data?.entityTypes ?? [];
   const migration: MigrationBatch | undefined = detailQuery.data?.migration;
   const sources = detailQuery.data?.sources ?? [];
+  const executionPolicy = detailQuery.data?.executionPolicy;
 
   const selectedAdapter = useMemo(
     () => entityTypes.find((e) => e.entityType === (pendingUpload ? uploadEntityType : '')),
@@ -458,6 +459,43 @@ export default function DataMigration() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/*
+                The execution model is stated BEFORE approval, never left to
+                assumption. A migration that cannot be undone as a single unit
+                says so in plain language, with the reason.
+              */}
+              {executionPolicy && (
+                <div
+                  role="note"
+                  className={`rounded-md border p-4 ${
+                    executionPolicy.policy === 'atomic'
+                      ? 'border-blue-200 bg-blue-50 text-blue-900'
+                      : 'border-amber-300 bg-amber-50 text-amber-900'
+                  }`}
+                >
+                  <p className="flex items-center gap-2 font-medium">
+                    {executionPolicy.policy === 'atomic' ? (
+                      <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+                    ) : (
+                      <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+                    )}
+                    {executionPolicy.policy === 'atomic'
+                      ? 'This migration runs as a single all-or-nothing transaction'
+                      : 'This migration cannot be undone automatically'}
+                  </p>
+                  <ul className="mt-2 list-disc space-y-1 pl-6 text-sm">
+                    {executionPolicy.reasons.map((reason) => (
+                      <li key={reason}>{reason}</li>
+                    ))}
+                  </ul>
+                  {executionPolicy.policy !== 'atomic' && (
+                    <p className="mt-2 text-sm">
+                      Rows that fail are listed individually so they can be corrected and re-run. Re-running only
+                      retries rows that have not already been imported.
+                    </p>
+                  )}
+                </div>
+              )}
               <div className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"

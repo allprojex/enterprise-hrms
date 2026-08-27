@@ -1,35 +1,71 @@
 /**
- * WS-7 (§7 entity list — "Payroll opening balances"; disclosed
- * architectural decision, not a silent assumption) — no dedicated
- * "payroll opening balance" table exists anywhere in this codebase. This
- * adapter imports an opening balance as an ordinary open
- * `employee_compensation_component` row (reusing `createCompensationComponent`
- * from lib/payrollCompensation.ts exactly as the live Payroll UI creates
- * one) — "opening balance" is purely a migration-semantics label WS-7
- * itself applies to this action, not a schema concept the domain layer
- * distinguishes.
+ * ============================================================================
+ * NOT REGISTERED — BLOCKED PENDING OWNER DECISION. DO NOT RE-REGISTER.
+ * ============================================================================
  *
- * `componentTypeCode` is validated against the organization's own
- * Master Data (`payroll_earning_component_type` / `payroll_deduction_component_type`,
- * chosen by `category`) via `assertComponentTypeKnown` — never a fixed
- * enum this adapter invents.
+ * This adapter is deliberately excluded from `registerShippedEntityAdapters`
+ * (lib/migrations/registerEntityAdapters.ts). Because every read/write path
+ * validates `entityType` against that registry, `payroll_opening_balance`
+ * cannot be uploaded, validated or executed while it stays unregistered.
  *
- * MATERIAL FINDING, disclosed rather than silently handled:
- * `createCompensationComponent` provides NO idempotency guard equivalent to
- * `postLedgerEntry`'s `sourceReference` — its only uniqueness is a partial
- * "one open component per (employeeId, category, componentTypeCode)" index,
- * which throws `CompensationComponentCollisionError` on a genuine conflict
- * but does NOT protect against a duplicate import re-opening the same
- * component under a different `validFrom`. The only guard against a
- * mistaken double-execution of this row is therefore the orchestration
- * layer's own `migration_staged_rows.executionStatus` (only ever
- * `pending` rows are (re-)executed) — this adapter does not invent a
- * parallel idempotency mechanism the domain doesn't have.
+ * WHY IT WAS BLOCKED
  *
- * Like `postLedgerEntry`, `createCompensationComponent` does not accept a
- * `tx` QueryClient — it opens and commits its own internal transaction,
- * so this row's insert is not part of the same SQL transaction as the
- * staged-row status update that follows it (same boundary as leaveBalance.ts).
+ * WS-7's original implementation reused `createCompensationComponent` on the
+ * stated grounds that "no payroll-opening-balance table exists, so an opening
+ * balance imports as an ordinary compensation component." Post-completion
+ * reconciliation established that this reasoning was WRONG, and that the
+ * adapter as written is actively unsafe. Two defects, both confirmed by
+ * reading the live Payroll engine, not inferred:
+ *
+ * 1. AN IMPORTED BALANCE WOULD BE PAID AGAIN EVERY PERIOD, FOREVER.
+ *    `createCompensationComponent` always inserts with `validTo` unset, i.e.
+ *    an OPEN row. `resolveCompensationAsOf` (payrollCompensation.ts) treats
+ *    an open row as `validTo = Infinity` and therefore matches EVERY future
+ *    pay date, and `calculateEmployeePayroll` (payrollCalculation.ts) pushes
+ *    each resolved component's full `amount` into `grossEarnings` on every
+ *    run. A one-time opening balance of X would become a recurring earning
+ *    of X per period — taxed and pensioned as ordinary income.
+ *
+ * 2. IT COULD SILENTLY OVERWRITE A REAL SALARY.
+ *    `createCompensationComponent` closes any existing open row for the same
+ *    (employeeId, category, componentTypeCode) whose `validFrom` is earlier,
+ *    by setting its `validTo`. `componentTypeCode` here is free text mapped
+ *    from a spreadsheet column, so mapping an opening balance onto (say)
+ *    `basic_salary` would TERMINATE the employee's real salary row and
+ *    replace the rate with the balance figure. This directly violates the
+ *    "no silent salary overwrite" constraint.
+ *
+ * THE ACTUAL GAP
+ *
+ * A compensation component is an effective-dated RATE ("this person is paid
+ * X per period from validFrom"), not a BALANCE. The platform models no
+ * balance/brought-forward/year-to-date concept anywhere: none of the 15
+ * payroll tables carries a cumulative figure, `payroll_run_lines` holds only
+ * per-period amounts, and `employee_statutory_identifiers` holds SSNIT/TIN
+ * identifiers but no contributed-to-date or PAYE-paid-to-date amounts. A
+ * mid-year cutover therefore cannot compute correct graduated PAYE or apply
+ * the annual pension ceiling.
+ *
+ * The frozen Master Owner Review names "Payroll opening balances" as an
+ * importable entity but never defines it — there is no schema, no semantics
+ * and no Owner Decision behind it anywhere in the frozen documents.
+ *
+ * SMALLEST PROPOSED ADDITION (requires Owner approval before any code)
+ *
+ *   - a per-(organizationId, employeeId, taxYear) brought-forward record
+ *     holding gross / PAYE / pensionable / pension-contributed to-date
+ *     figures, which the calculation engine READS for graduated-tax and
+ *     ceiling purposes but NEVER re-pays; and
+ *   - an explicit cutover marker on the payroll period model so "the first
+ *     period after migration" is representable.
+ *
+ * Both are new Payroll domain concepts. They are deliberately NOT built here:
+ * inventing payroll accounting without Owner sign-off is exactly what this
+ * workstream was told not to do.
+ *
+ * The code below is retained UNCHANGED as the concrete artifact of what was
+ * built and why it is unsafe. It must not be registered until the above is
+ * resolved.
  */
 import { createCompensationComponent, assertComponentTypeKnown, UnknownComponentTypeError, CompensationComponentCollisionError } from "../../payrollCompensation";
 import type { EntityAdapter, CanonicalField, NormalizeResult, PlanResult } from "../adapterRegistry";
@@ -64,6 +100,9 @@ export const payrollOpeningBalanceAdapter: EntityAdapter = {
   entityType: "payroll_opening_balance",
   label: "Payroll Opening Balances",
   dependsOn: ["employee"],
+  // Moot while unregistered; recorded for accuracy — createCompensationComponent
+  // opens its own transaction, so its writes would escape an outer one.
+  transactional: false,
   fields: FIELDS,
 
   normalizeRow(raw): NormalizeResult {

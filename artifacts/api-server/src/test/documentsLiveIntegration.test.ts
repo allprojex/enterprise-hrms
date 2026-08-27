@@ -23,8 +23,9 @@
  * (§52/§62).
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { resolveLiveDatabaseUrl } from "./liveDbGuard";
 
-const LIVE_URL = process.env.WS5_LIVE_DATABASE_URL;
+const LIVE_URL = resolveLiveDatabaseUrl("WS5_LIVE_DATABASE_URL");
 const describeLive = LIVE_URL ? describe : describe.skip;
 
 // @workspace/db reads DATABASE_URL at import time, so it must be pointed at

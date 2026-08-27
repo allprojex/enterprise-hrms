@@ -82,6 +82,12 @@ export const employeeAdapter: EntityAdapter = {
   entityType: "employee",
   label: "Employees",
   dependsOn: ["branch", "department", "position"],
+  // tx.insert + allocateLegacy/GeneratedEmployeeNumber(tx) +
+  // createLegacyPersonnelFile(tx) — every write is tx-threaded, the same
+  // set the (genuinely atomic) legacy importer already commits in one
+  // transaction. Audit events are written outside it; see
+  // executionService.ts for why that is acceptable and disclosed.
+  transactional: true,
   fields: EMPLOYEE_FIELDS,
 
   normalizeRow(raw): NormalizeResult {
@@ -161,7 +167,11 @@ export const employeeAdapter: EntityAdapter = {
     if (data.positionTitle && !position?.found) throw new Error(`Position "${data.positionTitle}" was not found`);
 
     const refs = { branchId: branch?.id ?? null, departmentId: department?.id ?? null, positionId: position?.id ?? null };
-    await assertEmployeeReferencesValid(ctx.organizationId, refs);
+    // `tx` is passed so that in atomic execution this cross-organization
+    // ownership check can see structure rows created earlier in the SAME
+    // transaction. Without it an atomic batch importing a department and its
+    // employees together would reject every employee.
+    await assertEmployeeReferencesValid(ctx.organizationId, refs, tx);
 
     const [inserted] = await tx
       .insert(employeesTable)

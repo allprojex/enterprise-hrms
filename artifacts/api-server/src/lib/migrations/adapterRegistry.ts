@@ -65,6 +65,22 @@ export interface EntityAdapter {
   label: string;
   /** Other entity types that must fully execute before this one — see referenceResolution.ts for how a dependency reference is checked. */
   dependsOn: readonly string[];
+  /**
+   * True only if EVERY write `executeRow` performs goes through the
+   * `QueryClient` it is handed — so an outer transaction rolling back really
+   * does undo all of this entity's work.
+   *
+   * False means the adapter reuses a domain service that opens its own
+   * connection/transaction internally (e.g. `postLedgerEntry`,
+   * `recordEmploymentPeriodEvent`, `addEmployeeQualification`), whose writes
+   * therefore ESCAPE any transaction this layer opens. Including such an
+   * entity in a batch makes whole-batch atomicity impossible to honour —
+   * and claiming it anyway would be worse than not claiming it, because the
+   * administrator would be told "nothing was written" while rows had in fact
+   * committed. This flag is what lets `resolveExecutionPolicy` tell the two
+   * cases apart honestly instead of guessing.
+   */
+  transactional: boolean;
   fields: readonly CanonicalField[];
   /** Pure and synchronous: coerces/validates one mapped row. Never touches the database — cross-entity reference checks happen in `planRow`. */
   normalizeRow(raw: Record<string, string>): NormalizeResult;

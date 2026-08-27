@@ -268,6 +268,7 @@ import type {
   MasterDataItem,
   MembershipSummary,
   MessageResponse,
+  MigrationApprovalResult,
   MigrationBatch,
   MigrationEntityTypeList,
   MigrationExecutionProgress,
@@ -41637,9 +41638,9 @@ export const getApproveMigrationUrl = (organizationId: number,
  * @summary Approve a validated migration, freezing its source checksums (WS-7)
  */
 export const approveMigration = async (organizationId: number,
-    migrationId: number, options?: RequestInit): Promise<MigrationBatch> => {
+    migrationId: number, options?: RequestInit): Promise<MigrationApprovalResult> => {
 
-  return customFetch<MigrationBatch>(getApproveMigrationUrl(organizationId,migrationId),
+  return customFetch<MigrationApprovalResult>(getApproveMigrationUrl(organizationId,migrationId),
   {
     ...options,
     method: 'POST'

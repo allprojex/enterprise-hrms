@@ -33,6 +33,8 @@ export const qualificationAdapter: EntityAdapter = {
   entityType: "qualification",
   label: "Qualifications",
   dependsOn: ["employee"],
+  // addEmployeeQualification writes via the global db.
+  transactional: false,
   fields: QUALIFICATION_FIELDS,
 
   normalizeRow(raw): NormalizeResult {
@@ -88,6 +90,8 @@ export const certificationAdapter: EntityAdapter = {
   entityType: "certification",
   label: "Certifications",
   dependsOn: ["employee"],
+  // addEmployeeCertification writes via the global db.
+  transactional: false,
   fields: CERTIFICATION_FIELDS,
 
   normalizeRow(raw): NormalizeResult {

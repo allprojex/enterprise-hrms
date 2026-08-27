@@ -63,6 +63,8 @@ export const leaveBalanceAdapter: EntityAdapter = {
   entityType: "leave_balance",
   label: "Leave Balances",
   dependsOn: ["employee"],
+  // postLedgerEntry writes via the global db.
+  transactional: false,
   fields: FIELDS,
 
   normalizeRow(raw): NormalizeResult {

@@ -9157,6 +9157,28 @@ export interface MigrationReconciliationTotals {
   pending: number;
 }
 
+export type MigrationExecutionPolicyPolicy = typeof MigrationExecutionPolicyPolicy[keyof typeof MigrationExecutionPolicyPolicy];
+
+
+export const MigrationExecutionPolicyPolicy = {
+  atomic: 'atomic',
+  batched_resumable: 'batched_resumable',
+} as const;
+
+/**
+ * How this migration will execute, decided automatically from its entity set and size. Surfaced before approval so an administrator is never left to assume an import is atomic when it is not.
+ */
+export interface MigrationExecutionPolicy {
+  policy: MigrationExecutionPolicyPolicy;
+  totalRows: number;
+  reasons: string[];
+  nonTransactionalEntityTypes: string[];
+}
+
+export type MigrationApprovalResult = MigrationBatch & {
+  executionPolicy: MigrationExecutionPolicy;
+};
+
 export interface MigrationReconciliation {
   entities: MigrationEntityReconciliation[];
   totals: MigrationReconciliationTotals;
@@ -10118,6 +10140,7 @@ export type CreateMigrationBody = {
 export type GetMigration200 = {
   migration: MigrationBatch;
   sources: MigrationSource[];
+  executionPolicy: MigrationExecutionPolicy;
 };
 
 export type UploadMigrationSourceBody = {

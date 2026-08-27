@@ -21613,7 +21613,7 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [migration, sources]
+                required: [migration, sources, executionPolicy]
                 properties:
                   migration:
                     $ref: "#/components/schemas/MigrationBatch"
@@ -21621,6 +21621,8 @@ paths:
                     type: array
                     items:
                       $ref: "#/components/schemas/MigrationSource"
+                  executionPolicy:
+                    $ref: "#/components/schemas/MigrationExecutionPolicy"
         "403":
           description: Forbidden — requires migration.read
           content:
@@ -21874,7 +21876,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MigrationBatch"
+                $ref: "#/components/schemas/MigrationApprovalResult"
         "400":
           description: Not validated, or still has error rows
           content:
@@ -21948,6 +21950,12 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "409":
           description: A source file changed after approval
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: An atomic migration was rolled back in full — nothing was written
           content:
             application/json:
               schema:
@@ -33155,6 +33163,37 @@ components:
         pending:
           type: integer
       required: [sourceRows, created, matched, skipped, failed, pending]
+
+    MigrationExecutionPolicy:
+      type: object
+      description: >-
+        How this migration will execute, decided automatically from its entity
+        set and size. Surfaced before approval so an administrator is never
+        left to assume an import is atomic when it is not.
+      properties:
+        policy:
+          type: string
+          enum: [atomic, batched_resumable]
+        totalRows:
+          type: integer
+        reasons:
+          type: array
+          items:
+            type: string
+        nonTransactionalEntityTypes:
+          type: array
+          items:
+            type: string
+      required: [policy, totalRows, reasons, nonTransactionalEntityTypes]
+
+    MigrationApprovalResult:
+      allOf:
+        - $ref: "#/components/schemas/MigrationBatch"
+        - type: object
+          properties:
+            executionPolicy:
+              $ref: "#/components/schemas/MigrationExecutionPolicy"
+          required: [executionPolicy]
 
     MigrationReconciliation:
       type: object

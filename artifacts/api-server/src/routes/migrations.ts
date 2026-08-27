@@ -45,6 +45,8 @@ import {
   executeBatch,
   getBatchIssues,
   validateBatch,
+  resolveExecutionPolicy,
+  AtomicMigrationRolledBackError,
 } from "../lib/migrations/executionService";
 import { enqueueMigrationExecution } from "../lib/migrations/jobHandler";
 import { MIGRATION_FILE_LIMITS, MigrationFileParseError } from "../lib/migrations/fileParsing";
@@ -72,6 +74,12 @@ function handleMigrationError(err: unknown, res: import("express").Response): bo
   }
   if (err instanceof SourceIntegrityError) {
     res.status(409).json({ error: err.message });
+    return true;
+  }
+  if (err instanceof AtomicMigrationRolledBackError) {
+    // 422: the request was well-formed and authorized, but the data could
+    // not be applied. Nothing was written — the message says so explicitly.
+    res.status(422).json({ error: err.message, rolledBack: true });
     return true;
   }
   if (err instanceof multer.MulterError) {
@@ -168,7 +176,14 @@ router.get(
       const organizationId = req.membership!.organizationId;
       const batchId = Number(req.params.migrationId);
       const batch = await getBatch(organizationId, batchId);
-      res.json({ migration: batch, sources: await listSources(organizationId, batchId) });
+      res.json({
+        migration: batch,
+        sources: await listSources(organizationId, batchId),
+        // Surfaced on every read so the approval screen can state the
+        // execution model BEFORE approval, rather than leaving the
+        // administrator to assume an import is atomic when it is not.
+        executionPolicy: await resolveExecutionPolicy(organizationId, batchId),
+      });
     } catch (err) {
       if (handleMigrationError(err, res)) return;
       throw err;
@@ -287,13 +302,17 @@ router.post(
   requirePermission("migration.execute"),
   async (req: MembershipRequest, res): Promise<void> => {
     try {
+      const organizationId = req.membership!.organizationId;
+      const batchId = Number(req.params.migrationId);
       const batch = await approveBatch({
-        organizationId: req.membership!.organizationId,
-        batchId: Number(req.params.migrationId),
+        organizationId,
+        batchId,
         actorApplicationUserId: req.userId!,
         actorMembershipId: req.membership!.id,
       });
-      res.json(batch);
+      // Echo the execution model back with the approval, so the decision the
+      // approver just made is recorded in the response they received.
+      res.json({ ...batch, executionPolicy: await resolveExecutionPolicy(organizationId, batchId) });
     } catch (err) {
       if (handleMigrationError(err, res)) return;
       throw err;

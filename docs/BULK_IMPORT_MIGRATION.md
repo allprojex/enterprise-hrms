@@ -2,9 +2,13 @@
 
 Imports an organization's existing records into the platform — organizational
 structure, employees with their historical staff/PIF numbers, employment
-history, qualifications, certifications, leave opening balances and payroll
-opening balances — from CSV or Excel, with a full dry run before anything is
-written.
+history, qualifications, certifications and leave opening balances — from CSV
+or Excel, with a full dry run before anything is written.
+
+> **Payroll opening balances are NOT importable.** The frozen brief names them,
+> but the platform has no opening-balance concept and the first implementation
+> was unsafe. The entity type is blocked pending an Owner decision — see
+> [Payroll opening balances](#payroll-opening-balances-blocked).
 
 This is the engine used to onboard an organization that already has years of
 records. It is not a general-purpose data-loading tool: every entity type it
@@ -35,7 +39,7 @@ audit and permissions. An adapter owns only three things for its own entity:
 | `executeRow` | mutating | perform the actual write, by calling an existing domain service |
 
 An adapter never writes SQL of its own where a domain service exists. Every
-one of the nine reuses the platform's real creation paths — the same code the
+one of the eight registered adapters reuses the platform's real creation paths — the same code the
 live UI uses — so an imported record is indistinguishable from a
 hand-entered one and inherits that domain's own validation and audit trail.
 
@@ -54,7 +58,7 @@ from the order files were uploaded):
 | `qualification` | employee | `addEmployeeQualification` |
 | `certification` | employee | `addEmployeeCertification` |
 | `leave_balance` | employee | `postLedgerEntry` (`opening_balance`) |
-| `payroll_opening_balance` | employee | `createCompensationComponent`, `assertComponentTypeKnown` |
+| ~~`payroll_opening_balance`~~ | — | **BLOCKED — not registered.** See *Payroll opening balances* below. |
 
 ---
 
@@ -155,25 +159,86 @@ a 409 rather than silently imported.
 
 ---
 
-## Execution, idempotency and the rollback boundary
+## Execution model: two policies, chosen automatically
 
-**A migration is not one giant transaction.** It is a sequence of per-row
-mutations in dependency order. Each row either succeeds and is marked
-`created`, or fails and is marked `failed` with its error text — and the
-batch continues. `completed_with_errors` is a first-class, expected outcome.
+A migration executes under one of two models. The model is **decided by the
+system**, not chosen by the user, and is **always shown before approval** —
+an administrator is never left to assume an import is atomic when it is not.
 
-This is a deliberate choice. A 20,000-row import that dies on row 19,998 and
-rolls everything back is useless to an HR team; 19,997 imported rows plus a
-precise list of the 3 that need fixing is actionable.
+### ATOMIC
 
-**The consequence is that there is no automatic rollback of a partially
-executed migration.** This is a real limitation, stated plainly rather than
-papered over. The mitigations are:
+The whole batch runs in **one transaction**, in dependency order. Any failure
+rolls everything back and **nothing is written**; the batch ends `failed` and
+the API returns `422` with `rolledBack: true`.
+
+Chosen when both hold:
+
+- every entity type in the batch is `transactional` (all its writes thread the
+  transaction client it is handed), **and**
+- the batch is within `ATOMIC_EXECUTION_ROW_LIMIT` (2,000 rows) — beyond that
+  a single transaction would hold locks on core HR tables for minutes, which
+  is its own availability problem for a live tenant.
+
+This is not theoretical. The pre-existing legacy importer already commits many
+employees plus their number allocations and personnel files in a single
+transaction, using exactly the primitives the `employee`/`branch`/`department`/
+`position` adapters reuse.
+
+Two disclosed caveats:
+
+- Audit events are written on the global connection — true of every domain
+  service in this codebase, not something this workstream introduces — so
+  audit rows for a rolled-back batch can survive the rollback. The batch's own
+  `execution_failed` event records that the data was not kept.
+- A process crash mid-transaction leaves staged rows `pending` while the
+  database has already rolled the data back. That is the safe direction: the
+  batch can simply be run again.
+
+### BATCHED_RESUMABLE
+
+Per-row, continue-on-failure, in dependency order. Each row is marked
+`created` or `failed` with its error text and the batch continues.
+`completed_with_errors` is a first-class outcome.
+
+Chosen when either holds:
+
+- the batch contains an entity type whose domain service commits on its own
+  connection (`employment_history`, `qualification`, `certification`,
+  `leave_balance`), **or**
+- the batch exceeds the atomic row limit.
+
+**Why not force a transaction anyway?** Because for those entity types a
+rollback could not actually undo the writes. Wrapping them would produce a
+*false* atomicity guarantee — the administrator would be told "nothing was
+written" while rows had in fact committed. Being honest about partial success
+is strictly safer than pretending.
+
+**In this model there is no automatic rollback.** That limitation is surfaced
+in the UI before approval — naming the specific entity types responsible — not
+merely documented here. The mitigations are:
 
 1. Nothing executes until a human approves a clean dry run.
 2. Every row's fate is individually recorded and reportable.
 3. Re-running a batch only ever retries rows still `pending`, so recovery is
    "fix the failed source rows and re-run", never "undo".
+
+### Traceability and correction
+
+Every committed record traces back through
+`migration_staged_rows.executionResultId` → `migration_sources` (entity type,
+file, checksum) → `migration_batches`. The reconciliation report states
+precisely what was committed, and its buckets sum to the source row count, so
+a silently dropped row is arithmetically impossible to hide.
+
+Retry cannot duplicate a successful row: only `pending` rows are ever
+executed, and each is claimed by a conditional `UPDATE ... WHERE
+executionStatus = 'pending'` before its adapter runs. A migration therefore
+cannot accidentally replay rows that already succeeded.
+
+There is deliberately **no automated reverse-SQL rollback**. Correcting a
+partially executed migration is a supervised activity: read the reconciliation
+report, fix the offending source rows, and re-run — which picks up only what
+has not yet been imported.
 
 **Idempotency** has three layers:
 
@@ -316,3 +381,129 @@ code change.
 This is what keeps the engine organization-neutral: onboarding a new
 customer with an unusual spreadsheet requires a mapping, never a code
 change or a per-customer adapter.
+
+---
+
+## Payroll opening balances (BLOCKED)
+
+The frozen Master Owner Review lists "Payroll opening balances" among the
+entities WS-7 must import. **This capability is not delivered.** The entity
+type is built but deliberately unregistered, so it cannot be uploaded,
+validated or executed.
+
+### Why it was blocked
+
+WS-7 first implemented it by reusing `createCompensationComponent`, reasoning
+that "no payroll-opening-balance table exists, so an opening balance imports as
+an ordinary compensation component." Post-completion reconciliation established
+that this reasoning was wrong and the implementation actively unsafe. Two
+defects, both confirmed against the live Payroll engine:
+
+1. **An imported balance would be paid again every period, forever.**
+   `createCompensationComponent` always inserts an *open* row (`validTo` unset).
+   `resolveCompensationAsOf` treats an open row as `validTo = Infinity`, so it
+   matches every future pay date, and `calculateEmployeePayroll` adds each
+   resolved component's full amount to `grossEarnings` on every run. A one-time
+   opening balance of X becomes a recurring earning of X per period — taxed and
+   pensioned as ordinary income.
+
+2. **It could silently overwrite a real salary.** That function closes any
+   existing open row for the same `(employeeId, category, componentTypeCode)`
+   with an earlier `validFrom`. Because `componentTypeCode` is free text mapped
+   from a spreadsheet column, mapping an opening balance onto `basic_salary`
+   would terminate the employee's real salary row and replace the rate with the
+   balance figure — violating the "no silent salary overwrite" constraint.
+
+### The actual gap
+
+A compensation component is an effective-dated **rate** ("this person is paid X
+per period from `validFrom`"), not a **balance**. The platform models no
+balance, brought-forward or year-to-date concept anywhere: none of the fifteen
+payroll tables carries a cumulative figure, `payroll_run_lines` holds only
+per-period amounts, and `employee_statutory_identifiers` holds SSNIT/TIN
+identifiers but no contributed-to-date or PAYE-paid-to-date amounts.
+Consequently a mid-year cutover cannot compute correct graduated PAYE or apply
+the annual pension ceiling.
+
+The frozen documents name the requirement but never define it — no schema, no
+semantics, and no Owner Decision behind it.
+
+### Smallest proposed addition — requires Owner approval
+
+- a per-`(organizationId, employeeId, taxYear)` brought-forward record holding
+  gross / PAYE / pensionable / pension-contributed to-date figures, which the
+  calculation engine **reads** for graduated-tax and ceiling purposes but
+  **never re-pays**; and
+- an explicit cutover marker on the payroll period model, so "the first period
+  after migration" is representable.
+
+Both are new Payroll domain concepts and are deliberately not built. Inventing
+payroll accounting without Owner sign-off is out of scope.
+
+### Interim guidance
+
+Payroll opening balances must be entered through the existing Payroll surfaces
+under Payroll's own permissions, with a human deciding the correct
+representation per employee. No historical payroll runs, payslips, payment
+batches or GL history are fabricated by this engine — it has never written any
+of those, and does not now.
+
+---
+
+## Relationship to the existing Legacy Import — end state
+
+Both importers exist. They are not two competing implementations of the same
+thing, and the end state is defined:
+
+| | Legacy Import | Data Migration (WS-7) |
+| --- | --- | --- |
+| Path | `/personnel-records/import/{preview,commit}` | `/migrations/*` |
+| Scope | one CSV, employees only | many files, eight entity types with cross-entity references |
+| State | stateless; validate-then-commit in one call | persistent, reviewable batch |
+| Execution | always atomic (single transaction) | atomic or batched-resumable, disclosed before approval |
+| Permissions | `personnel_file.manage` + `employee_number.allocate` | `migration.read` / `.manage` / `.execute` |
+
+**Authoritative importer:** Data Migration (WS-7). All new work targets it.
+
+**Compatibility importer:** Legacy Import, retained **unmodified**. It is
+shipped, in use, has its own permissions and its own contract, and no evidence
+was found that removing it would be safe.
+
+**Deprecation condition:** once the Data Migration UI has covered the
+single-file employee case in production for one full onboarding cycle, Legacy
+Import is marked deprecated in the UI and its OpenAPI operations flagged
+`deprecated: true`.
+
+**Removal condition:** removal only after (a) it is deprecated as above, (b)
+access logs show no calls for a full release cycle, and (c) the Owner
+authorizes removal. Until all three hold it stays, untouched.
+
+Deliberately **not** done: routing the legacy endpoints through the new
+orchestration engine. That would change the observable behaviour of a working,
+shipped API (stateless single-call commit becomes a multi-step batch) for no
+benefit to its existing callers, and would put the compatibility surface at
+risk of regressions from future WS-7 changes. Duplication of a ~485-line module
+is the cheaper risk.
+
+---
+
+## Development and test database safety
+
+Destructive live-integration suites (`*LiveIntegration.test.ts`, the WS-7
+lifecycle suite) create real organizations, users, employees and ledger rows.
+Two independent guards apply:
+
+1. **Opt-in by dedicated variable.** Each suite runs only when its own
+   `WS5_/WS6_/WS7_LIVE_DATABASE_URL` is set, and skips otherwise — so an
+   ordinary `pnpm test` and CI never touch a real database.
+2. **Fail-closed host check** (`src/test/liveDbGuard.ts`). Even with the
+   variable set, a suite refuses to run against a non-local host. Override
+   requires `ALLOW_NONLOCAL_TEST_DB=1`, an explicit and auditable act. An
+   unsafe host **throws rather than skipping**, so a misconfiguration is loud.
+
+The guard is host-shaped, not a denylist of any particular deployment: nothing
+hard-codes a project reference, hostname or credential, so it stays correct for
+every deployment of this platform. Its error message names the offending host
+but never echoes credentials.
+
+Recommended local target is the `docker-compose` `db` service on port 5433.

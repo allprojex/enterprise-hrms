@@ -39,6 +39,8 @@ export const branchAdapter: EntityAdapter = {
   entityType: "branch",
   label: "Branches",
   dependsOn: [],
+  // Only tx.insert — fully rolls back with an outer transaction.
+  transactional: true,
   fields: BRANCH_FIELDS,
 
   normalizeRow(raw): NormalizeResult {
@@ -89,6 +91,8 @@ export const departmentAdapter: EntityAdapter = {
   entityType: "department",
   label: "Departments",
   dependsOn: ["branch"],
+  // tx.insert + a read-only placement assert.
+  transactional: true,
   fields: DEPARTMENT_FIELDS,
 
   normalizeRow(raw): NormalizeResult {
@@ -134,7 +138,8 @@ export const departmentAdapter: EntityAdapter = {
     }
 
     try {
-      await assertValidDepartmentPlacement({ organizationId: ctx.organizationId, branchId, parentDepartmentId: null });
+      // tx passed so an atomic batch sees a branch created earlier in the same transaction.
+      await assertValidDepartmentPlacement({ organizationId: ctx.organizationId, branchId, parentDepartmentId: null }, tx);
       const [department] = await tx
         .insert(departmentsTable)
         .values({ organizationId: ctx.organizationId, code: data.code as string, name: data.name as string, branchId })
@@ -159,6 +164,7 @@ export const positionAdapter: EntityAdapter = {
   entityType: "position",
   label: "Positions",
   dependsOn: ["department"],
+  transactional: true,
   fields: POSITION_FIELDS,
 
   normalizeRow(raw): NormalizeResult {
@@ -200,7 +206,7 @@ export const positionAdapter: EntityAdapter = {
     }
 
     try {
-      await assertValidPositionPlacement({ organizationId: ctx.organizationId, departmentId });
+      await assertValidPositionPlacement({ organizationId: ctx.organizationId, departmentId }, tx);
       const [position] = await tx
         .insert(positionsTable)
         .values({ organizationId: ctx.organizationId, title: data.title as string, departmentId })

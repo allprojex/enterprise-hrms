@@ -81,11 +81,19 @@ export async function assertEmployeeReferencesValid(
     positionId?: number | null;
     reportingManagerId?: number | null;
   },
+  /**
+   * Optional transaction client, defaulting to the global `db` so every
+   * pre-existing caller is unchanged. A caller creating structure and
+   * employees in ONE transaction (WS-7 atomic migration) passes its `tx`,
+   * so these checks see the department/branch/position that transaction has
+   * just created but not yet committed.
+   */
+  client: QueryClient = db,
 ): Promise<void> {
-  await assertBelongsToOrganization(departmentsTable, refs.departmentId, organizationId, "Department");
-  await assertBelongsToOrganization(branchesTable, refs.branchId, organizationId, "Branch");
-  await assertBelongsToOrganization(positionsTable, refs.positionId, organizationId, "Position");
-  await assertBelongsToOrganization(employeesTable, refs.reportingManagerId, organizationId, "Reporting manager");
+  await assertBelongsToOrganization(departmentsTable, refs.departmentId, organizationId, "Department", client);
+  await assertBelongsToOrganization(branchesTable, refs.branchId, organizationId, "Branch", client);
+  await assertBelongsToOrganization(positionsTable, refs.positionId, organizationId, "Position", client);
+  await assertBelongsToOrganization(employeesTable, refs.reportingManagerId, organizationId, "Reporting manager", client);
 }
 
 // Structurally accepts either the global `db` or a `db.transaction(...)`

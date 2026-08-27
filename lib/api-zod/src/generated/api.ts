@@ -17692,7 +17692,13 @@ export const GetMigrationResponse = zod.object({
   "rowCount": zod.number().nullish(),
   "status": zod.enum(['uploaded', 'mapped', 'validated']),
   "createdAt": zod.coerce.date()
-}))
+})),
+  "executionPolicy": zod.object({
+  "policy": zod.enum(['atomic', 'batched_resumable']),
+  "totalRows": zod.number(),
+  "reasons": zod.array(zod.string()),
+  "nonTransactionalEntityTypes": zod.array(zod.string())
+}).describe('How this migration will execute, decided automatically from its entity set and size. Surfaced before approval so an administrator is never left to assume an import is atomic when it is not.')
 })
 
 
@@ -17829,7 +17835,14 @@ export const ApproveMigrationResponse = zod.object({
   "executionCompletedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-})
+}).and(zod.object({
+  "executionPolicy": zod.object({
+  "policy": zod.enum(['atomic', 'batched_resumable']),
+  "totalRows": zod.number(),
+  "reasons": zod.array(zod.string()),
+  "nonTransactionalEntityTypes": zod.array(zod.string())
+}).describe('How this migration will execute, decided automatically from its entity set and size. Surfaced before approval so an administrator is never left to assume an import is atomic when it is not.')
+}))
 
 
 /**

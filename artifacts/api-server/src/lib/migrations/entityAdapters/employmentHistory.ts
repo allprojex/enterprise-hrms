@@ -50,6 +50,9 @@ export const employmentHistoryAdapter: EntityAdapter = {
   entityType: "employment_history",
   label: "Employment History",
   dependsOn: ["employee", "branch", "department", "position"],
+  // recordEmploymentPeriodEvent writes via the global db — escapes any
+  // outer transaction.
+  transactional: false,
   fields: FIELDS,
 
   normalizeRow(raw): NormalizeResult {
