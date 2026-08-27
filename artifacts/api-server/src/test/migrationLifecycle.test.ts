@@ -342,20 +342,88 @@ describeLive("WS-7 — multi-entity migration, live lifecycle", () => {
     expect(policy.reasons.join(" ")).toMatch(/stay committed even if later rows fail/i);
   });
 
-  it("does not expose payroll_opening_balance — it is blocked pending an Owner decision", async () => {
-    const batch = await newBatch("payroll blocked");
+  it("imports payroll opening balances through the migration engine, atomically and idempotently", async () => {
+    const stamp = Date.now();
+    const year = new Date().getUTCFullYear();
+    const batch = await newBatch("payroll opening balances");
+
+    await uploadAndMap(batch.id, "employee", [
+      ["First Name", "Last Name", "Employee Number"],
+      ["Pay", "Roll", `PR${stamp}`],
+    ]);
+    await uploadAndMap(batch.id, "payroll_opening_balance", [
+      ["Employee Number", "Tax Year", "Cutover Date", "Currency", "Gross Earnings YTD", "Taxable Income YTD", "PAYE YTD", "Pensionable Earnings YTD", "Employee Pension YTD", "Employer Pension YTD"],
+      [`PR${stamp}`, String(year), `${year}-06-01`, "GHS", "60000", "54000", "9000", "60000", "3300", "7800"],
+    ]);
+
+    // Both entity types thread the transaction client, so the batch qualifies
+    // for all-or-nothing execution.
+    const policy = await executionService.resolveExecutionPolicy(orgId, batch.id);
+    expect(policy.policy).toBe("atomic");
+
+    const validation = await executionService.validateBatch({ organizationId: orgId, batchId: batch.id, actorApplicationUserId: userId, actorMembershipId: membershipId });
+    expect(validation.totalErrors).toBe(0);
+    await executionService.approveBatch({ organizationId: orgId, batchId: batch.id, actorApplicationUserId: userId, actorMembershipId: membershipId });
+    const progress = await executionService.executeBatch({ organizationId: orgId, batchId: batch.id, actorApplicationUserId: userId, actorMembershipId: membershipId });
+    expect(progress.failed).toBe(0);
+    expect(progress.created).toBe(2);
+
+    const balances = await db
+      .select()
+      .from(schema.payrollOpeningBalancesTable)
+      .where(eq(schema.payrollOpeningBalancesTable.organizationId, orgId));
+    expect(balances).toHaveLength(1);
+    expect(balances[0].grossEarnings).toBe("60000.00");
+    // Traceable back to the batch that produced it.
+    expect(balances[0].sourceReferenceId).toBe(batch.id);
+    // And it created NO compensation component — the whole point.
+    const comps = await db
+      .select()
+      .from(schema.employeeCompensationComponentsTable)
+      .where(eq(schema.employeeCompensationComponentsTable.employeeId, balances[0].employeeId));
+    expect(comps).toHaveLength(0);
+
+    // A second batch importing the same employee-year is refused at dry run.
+    const replay = await newBatch("payroll replay");
+    await uploadAndMap(replay.id, "payroll_opening_balance", [
+      ["Employee Number", "Tax Year", "Cutover Date", "Currency", "Gross Earnings YTD", "Taxable Income YTD", "PAYE YTD", "Pensionable Earnings YTD", "Employee Pension YTD", "Employer Pension YTD"],
+      [`PR${stamp}`, String(year), `${year}-06-01`, "GHS", "1", "1", "1", "1", "1", "1"],
+    ]);
+    const replayValidation = await executionService.validateBatch({ organizationId: orgId, batchId: replay.id, actorApplicationUserId: userId, actorMembershipId: membershipId });
+    expect(replayValidation.totalErrors).toBe(1);
+    const issues = await executionService.getBatchIssues(orgId, replay.id);
+    expect(JSON.stringify(issues)).toMatch(/already exists/i);
+  });
+
+  it("L. rolls an opening balance back with the rest of a failed atomic batch", async () => {
+    const stamp = Date.now();
+    const year = new Date().getUTCFullYear();
+    const batch = await newBatch("atomic payroll rollback");
+
+    await uploadAndMap(batch.id, "employee", [
+      ["First Name", "Last Name", "Employee Number"],
+      ["Roll", "Back", `RB${stamp}`],
+      // Duplicate staff number — passes dry run (neither exists live yet),
+      // fails at execution, so the whole batch must unwind.
+      ["Roll", "Back2", `RB${stamp}`],
+    ]);
+    await uploadAndMap(batch.id, "payroll_opening_balance", [
+      ["Employee Number", "Tax Year", "Cutover Date", "Currency", "Gross Earnings YTD", "Taxable Income YTD", "PAYE YTD", "Pensionable Earnings YTD", "Employee Pension YTD", "Employer Pension YTD"],
+      [`RB${stamp}`, String(year), `${year}-06-01`, "GHS", "100", "100", "10", "100", "5", "12"],
+    ]);
+
+    await executionService.validateBatch({ organizationId: orgId, batchId: batch.id, actorApplicationUserId: userId, actorMembershipId: membershipId });
+    await executionService.approveBatch({ organizationId: orgId, batchId: batch.id, actorApplicationUserId: userId, actorMembershipId: membershipId });
     await expect(
-      batchService.uploadSource({
-        organizationId: orgId,
-        batchId: batch.id,
-        entityType: "payroll_opening_balance",
-        fileName: "p.csv",
-        mimeType: "text/csv",
-        buffer: csv([["Employee Number"], ["X"]]),
-        actorApplicationUserId: userId,
-        actorMembershipId: membershipId,
-      }),
-    ).rejects.toThrow(/not a supported/i);
+      executionService.executeBatch({ organizationId: orgId, batchId: batch.id, actorApplicationUserId: userId, actorMembershipId: membershipId }),
+    ).rejects.toThrow(/rolled back/i);
+
+    // No opening balance survived the rollback.
+    const allocs = await db
+      .select()
+      .from(schema.employeeNumberAllocationsTable)
+      .where(eq(schema.employeeNumberAllocationsTable.employeeNumber, `RB${stamp}`));
+    expect(allocs).toHaveLength(0);
   });
 
   it("rejects an unknown entity type instead of trusting client input", async () => {

@@ -39,7 +39,7 @@ import { postLedgerEntry, LeaveBalanceValidationError, DuplicateLedgerEntryError
 import { resolveApplicablePolicy } from "../../leaveRequests";
 import { getEmployeeById } from "../../employees";
 import type { EntityAdapter, CanonicalField, NormalizeResult, PlanResult } from "../adapterRegistry";
-import { requiredString, optionalString, parseDate, parseNumber, toDateOnlyString } from "../normalizeHelpers";
+import { requiredString, optionalString, parseDate, parseNumber, toDateOnlyString, toDate } from "../normalizeHelpers";
 import { resolveEmployeeRef } from "../referenceResolution";
 
 const FIELDS: readonly CanonicalField[] = [
@@ -128,7 +128,7 @@ export const leaveBalanceAdapter: EntityAdapter = {
         employeeId: employee.id,
         entryType: "opening_balance",
         amount: data.amount as number,
-        effectiveDate: toDateOnlyString(data.effectiveDate as Date),
+        effectiveDate: toDateOnlyString(toDate(data.effectiveDate)!),
         reason: (data.reason as string | null) ?? "Imported opening balance (WS-7 migration)",
         leaveTypeId: leaveType.id,
         sourceReference: `migration:${ctx.batchId}:leave_balance:${data.employeeNumber}:${leaveType.id}`,

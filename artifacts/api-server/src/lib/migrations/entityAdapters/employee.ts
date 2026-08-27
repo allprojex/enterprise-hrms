@@ -34,7 +34,7 @@ import { assertEmployeeReferencesValid } from "../../employees";
 import { allocateGeneratedEmployeeNumber, allocateLegacyEmployeeNumber, auditEmployeeNumberAllocated } from "../../numbering";
 import { createLegacyPersonnelFile, PifNumberCollisionError } from "../../personnelFiles";
 import type { EntityAdapter, CanonicalField, NormalizeResult, PlanResult } from "../adapterRegistry";
-import { requiredString, optionalString, parseDate, parseEnum } from "../normalizeHelpers";
+import { requiredString, optionalString, parseDate, parseEnum, toDate } from "../normalizeHelpers";
 import { resolveBranchRef, resolveDepartmentRef, resolvePositionRef } from "../referenceResolution";
 
 const EMPLOYEE_FIELDS: readonly CanonicalField[] = [
@@ -183,10 +183,10 @@ export const employeeAdapter: EntityAdapter = {
         workEmail: (data.workEmail as string | null) ?? null,
         phoneNumber: (data.phoneNumber as string | null) ?? null,
         gender: (data.gender as (typeof genderEnum.enumValues)[number] | null) ?? undefined,
-        dateOfBirth: (data.dateOfBirth as Date | null) ?? undefined,
+        dateOfBirth: toDate(data.dateOfBirth) ?? undefined,
         maritalStatus: (data.maritalStatus as (typeof maritalStatusEnum.enumValues)[number] | null) ?? undefined,
         employmentType: (data.employmentType as (typeof employmentTypeEnum.enumValues)[number] | null) ?? undefined,
-        hireDate: (data.hireDate as Date | null) ?? undefined,
+        hireDate: toDate(data.hireDate) ?? undefined,
         ...refs,
         createdBy: ctx.actorApplicationUserId,
         updatedBy: ctx.actorApplicationUserId,

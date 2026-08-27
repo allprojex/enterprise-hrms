@@ -2,13 +2,12 @@
 
 Imports an organization's existing records into the platform — organizational
 structure, employees with their historical staff/PIF numbers, employment
-history, qualifications, certifications and leave opening balances — from CSV
-or Excel, with a full dry run before anything is written.
+history, qualifications, certifications, leave opening balances and payroll
+opening balances — from CSV or Excel, with a full dry run before anything is written.
 
-> **Payroll opening balances are NOT importable.** The frozen brief names them,
-> but the platform has no opening-balance concept and the first implementation
-> was unsafe. The entity type is blocked pending an Owner decision — see
-> [Payroll opening balances](#payroll-opening-balances-blocked).
+> **Payroll opening balances** are imported as their own domain — brought-forward
+> historical totals that are never paid. See
+> [Payroll opening balances](#payroll-opening-balances).
 
 This is the engine used to onboard an organization that already has years of
 records. It is not a general-purpose data-loading tool: every entity type it
@@ -39,7 +38,7 @@ audit and permissions. An adapter owns only three things for its own entity:
 | `executeRow` | mutating | perform the actual write, by calling an existing domain service |
 
 An adapter never writes SQL of its own where a domain service exists. Every
-one of the eight registered adapters reuses the platform's real creation paths — the same code the
+one of the nine registered adapters reuses the platform's real creation paths — the same code the
 live UI uses — so an imported record is indistinguishable from a
 hand-entered one and inherits that domain's own validation and audit trail.
 
@@ -58,7 +57,7 @@ from the order files were uploaded):
 | `qualification` | employee | `addEmployeeQualification` |
 | `certification` | employee | `addEmployeeCertification` |
 | `leave_balance` | employee | `postLedgerEntry` (`opening_balance`) |
-| ~~`payroll_opening_balance`~~ | — | **BLOCKED — not registered.** See *Payroll opening balances* below. |
+| `payroll_opening_balance` | employee | `createPayrollOpeningBalance` (dedicated domain — never compensation) |
 
 ---
 
@@ -384,69 +383,132 @@ change or a per-customer adapter.
 
 ---
 
-## Payroll opening balances (BLOCKED)
+## Payroll opening balances
 
-The frozen Master Owner Review lists "Payroll opening balances" among the
-entities WS-7 must import. **This capability is not delivered.** The entity
-type is built but deliberately unregistered, so it cannot be uploaded,
-validated or executed.
+A payroll opening balance is **brought-forward payroll/statutory history** for
+payroll already processed OUTSIDE this HRMS, before the organization's cutover
+into it partway through a tax year. It establishes the employee's starting
+position for year-to-date reporting and statutory returns.
 
-### Why it was blocked
+It is **not** compensation, not a salary, not a payroll run, not a payslip, not
+a payment and not a journal. **Nothing here is ever paid.**
 
-WS-7 first implemented it by reusing `createCompensationComponent`, reasoning
-that "no payroll-opening-balance table exists, so an opening balance imports as
-an ordinary compensation component." Post-completion reconciliation established
-that this reasoning was wrong and the implementation actively unsafe. Two
-defects, both confirmed against the live Payroll engine:
+### Why not compensation components
 
-1. **An imported balance would be paid again every period, forever.**
-   `createCompensationComponent` always inserts an *open* row (`validTo` unset).
-   `resolveCompensationAsOf` treats an open row as `validTo = Infinity`, so it
-   matches every future pay date, and `calculateEmployeePayroll` adds each
-   resolved component's full amount to `grossEarnings` on every run. A one-time
-   opening balance of X becomes a recurring earning of X per period — taxed and
-   pensioned as ordinary income.
+An earlier implementation reused `createCompensationComponent` and was
+withdrawn. A component is an effective-dated **rate**, not a balance:
 
-2. **It could silently overwrite a real salary.** That function closes any
-   existing open row for the same `(employeeId, category, componentTypeCode)`
-   with an earlier `validFrom`. Because `componentTypeCode` is free text mapped
-   from a spreadsheet column, mapping an opening balance onto `basic_salary`
-   would terminate the employee's real salary row and replace the rate with the
-   balance figure — violating the "no silent salary overwrite" constraint.
+- `createCompensationComponent` always inserts an OPEN row (`validTo` unset).
+  `resolveCompensationAsOf` treats an open row as `validTo = Infinity`, so it
+  matches every future pay date, and `calculateEmployeePayroll` adds its full
+  amount to `grossEarnings` on every run. A one-time balance would have been
+  **paid again every period, forever**, taxed and pensioned as ordinary income.
+- It also closes any earlier open row for the same
+  `(employeeId, category, componentTypeCode)`, so a balance mapped onto
+  `basic_salary` would have **silently terminated the employee's real salary
+  row**.
 
-### The actual gap
+Opening balances are now their own table and their own service, and the
+adapter never touches compensation. A live test asserts that importing one
+creates **zero** compensation components.
 
-A compensation component is an effective-dated **rate** ("this person is paid X
-per period from `validFrom`"), not a **balance**. The platform models no
-balance, brought-forward or year-to-date concept anywhere: none of the fifteen
-payroll tables carries a cumulative figure, `payroll_run_lines` holds only
-per-period amounts, and `employee_statutory_identifiers` holds SSNIT/TIN
-identifiers but no contributed-to-date or PAYE-paid-to-date amounts.
-Consequently a mid-year cutover cannot compute correct graduated PAYE or apply
-the annual pension ceiling.
+### Fields, and why exactly these
 
-The frozen documents name the requirement but never define it — no schema, no
-semantics, and no Owner Decision behind it.
+The six stored measures mirror, one-for-one, the statutory-meaningful columns
+`payroll_run_lines` already records per period — `grossEarnings`,
+`taxableIncome`, `payeAmount`, `pensionableEarnings`,
+`employeePensionDeduction`, `employerPensionContribution`. A year-to-date
+figure is the sum of those across a year, so brought-forward values must be
+denominated identically or they cannot be added to in-system runs.
 
-### Smallest proposed addition — requires Owner approval
+`netPay` and `otherDeductions` are deliberately **omitted**: neither is a
+statutory return figure and neither has a consumer.
 
-- a per-`(organizationId, employeeId, taxYear)` brought-forward record holding
-  gross / PAYE / pensionable / pension-contributed to-date figures, which the
-  calculation engine **reads** for graduated-tax and ceiling purposes but
-  **never re-pays**; and
-- an explicit cutover marker on the payroll period model, so "the first period
-  after migration" is representable.
+### Tax year and cutover
 
-Both are new Payroll domain concepts and are deliberately not built. Inventing
-payroll accounting without Owner sign-off is out of scope.
+`taxYear` is a plain integer. No second calendar system was invented —
+`payroll_periods` already carries its year in `periodKey` ("2026-01") and
+`startDate`. `cutoverDate` is the date from which this HRMS becomes
+authoritative; it must fall inside `taxYear`, and a future tax year is
+rejected because an opening balance is by definition historical.
 
-### Interim guidance
+### The engine is not modified
 
-Payroll opening balances must be entered through the existing Payroll surfaces
-under Payroll's own permissions, with a human deciding the correct
-representation per employee. No historical payroll runs, payslips, payment
-batches or GL history are fabricated by this engine — it has never written any
-of those, and does not now.
+Verified against the live engine rather than assumed: **no statutory
+calculation in this platform takes a cumulative input.**
+
+- PAYE applies graduated bands to the **current period's** taxable income.
+- The SSNIT ceiling clamps the **current period's** pensionable earnings
+  (`clampMinor(pensionableEarningsRaw, min, max)`) — it is an insurable-earnings
+  bound, not an annual cap.
+- Bonus tax annualises the **current** basic salary (`basicSalary × 12`).
+
+A repository-wide search found zero pre-existing year-to-date computation.
+`payrollCalculation.ts` is therefore untouched, and that is precisely what
+structurally guarantees a brought-forward amount can never leak into
+current-period pay. Changing any of those formulas to consume YTD would mean
+reinterpreting Ghana statutory rules — a separate Owner decision, explicitly
+out of scope here.
+
+### Year-to-date
+
+`getEmployeeYearToDate(org, employee, taxYear)` is the one integration point:
+
+```
+year-to-date = brought-forward history + payroll finalized inside this HRMS
+```
+
+Only `locked` runs are summed — a draft or merely calculated run is not
+finalized payroll and must not inflate a statutory figure. The two halves stay
+separately visible (`broughtForward` / `inSystem`) so a reader can always see
+what came from before cutover.
+
+Payslips are unchanged: they show current-period figures and do not display
+year-to-date, so there is nothing for an opening balance to appear in. No
+existing report shows YTD either, so none required modification.
+
+### Lock and correction
+
+Editable while no payroll run for that employee and tax year has reached
+`locked`. Once one has, the record is locked, `lockedAt` is stamped, and
+amendment is refused with `409`. Finalized payroll history is never silently
+rewritten; a correction after lock goes through Payroll's existing correction
+mechanism.
+
+### Uniqueness and idempotency
+
+`UNIQUE(organizationId, employeeId, taxYear)` — exactly one authoritative
+record per employee per year. This is a database-level guarantee, stronger
+than staged-row status alone: a replayed migration collides here rather than
+duplicating payroll history. The dry run also surfaces the duplicate as a
+validation error before execution.
+
+### Migration traceability
+
+Each record keeps `sourceReferenceType`/`sourceReferenceId` (the migration
+batch). The source spreadsheet itself is never stored in the payroll row, and
+audit metadata carries scalar summaries only — never row contents.
+
+### Permissions and audit
+
+`payroll.opening_balance.read` / `payroll.opening_balance.manage`.
+Deliberately **not** folded into `payroll.compensation.*`: the whole point of
+this domain is that an opening balance is not compensation, and reusing those
+keys would re-conflate them in the authorization model. Like every other
+payroll key, both are registered but granted to **no role** — payroll
+authority is an explicit per-organization delegation, never implied by HR
+authority. Importing additionally requires WS-7's `migration.execute`.
+
+Audited under the `payroll` category: `payroll_opening_balance.imported`,
+`.read`, `.updated`.
+
+### Transaction support
+
+`createPayrollOpeningBalance` accepts the transaction client it is handed and
+performs a single insert through it, with no nested `db.transaction`. The
+adapter is therefore `transactional: true` and **eligible for ATOMIC
+execution** — a live test proves an opening balance is rolled back with the
+rest of a failed small batch.
 
 ---
 

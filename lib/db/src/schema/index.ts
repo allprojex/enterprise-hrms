@@ -133,3 +133,4 @@ export * from "./migration-batches";
 export * from "./migration-sources";
 export * from "./migration-saved-mappings";
 export * from "./migration-staged-rows";
+export * from "./payroll-opening-balances";

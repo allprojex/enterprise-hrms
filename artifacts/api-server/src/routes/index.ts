@@ -24,6 +24,7 @@ import legacyImportRouter from "./legacyImport";
 // different permission keys — and the disposition is documented in
 // docs/BULK_IMPORT_MIGRATION.md.
 import migrationsRouter from "./migrations";
+import payrollOpeningBalancesRouter from "./payrollOpeningBalances";
 import employeeSkillsQualificationsRouter from "./employeeSkillsQualifications";
 import employeeDisciplinaryRecordsRouter from "./employeeDisciplinaryRecords";
 import employeeExitProcessRouter from "./employeeExitProcess";
@@ -136,6 +137,7 @@ router.use(personnelFileCustodyRouter);
 router.use(personnelReportingRouter);
 router.use(legacyImportRouter);
 router.use(migrationsRouter);
+router.use(payrollOpeningBalancesRouter);
 router.use(employeeSkillsQualificationsRouter);
 router.use(employeeDisciplinaryRecordsRouter);
 router.use(employeeExitProcessRouter);

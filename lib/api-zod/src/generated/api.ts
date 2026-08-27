@@ -17577,6 +17577,155 @@ export const DisposeDocumentResponse = zod.object({
 
 
 /**
+ * Brought-forward payroll/statutory totals established at migration cutover. These are historical record only — they are never paid, never become compensation, and never produce a run, payslip or payment.
+ * @summary List imported payroll opening balances (WS-7 closure)
+ */
+export const ListPayrollOpeningBalancesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListPayrollOpeningBalancesQueryParams = zod.object({
+  "taxYear": zod.coerce.number().optional()
+})
+
+export const ListPayrollOpeningBalancesResponse = zod.object({
+  "balances": zod.array(zod.object({
+  "grossEarnings": zod.string(),
+  "taxableIncome": zod.string(),
+  "payeAmount": zod.string(),
+  "pensionableEarnings": zod.string(),
+  "employeePensionDeduction": zod.string(),
+  "employerPensionContribution": zod.string()
+}).describe('Brought-forward totals, denominated exactly as payroll_run_lines records the same measures per period, so the two can be summed.').and(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "taxYear": zod.number(),
+  "cutoverDate": zod.coerce.date(),
+  "currency": zod.string(),
+  "sourceReferenceType": zod.string().nullish(),
+  "sourceReferenceId": zod.number().nullish(),
+  "lockedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})))
+})
+
+
+/**
+ * @summary Get one employee's opening balance for a tax year (WS-7 closure)
+ */
+export const GetPayrollOpeningBalanceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number(),
+  "taxYear": zod.coerce.number()
+})
+
+export const GetPayrollOpeningBalanceResponse = zod.object({
+  "balance": zod.object({
+  "grossEarnings": zod.string(),
+  "taxableIncome": zod.string(),
+  "payeAmount": zod.string(),
+  "pensionableEarnings": zod.string(),
+  "employeePensionDeduction": zod.string(),
+  "employerPensionContribution": zod.string()
+}).describe('Brought-forward totals, denominated exactly as payroll_run_lines records the same measures per period, so the two can be summed.').and(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "taxYear": zod.number(),
+  "cutoverDate": zod.coerce.date(),
+  "currency": zod.string(),
+  "sourceReferenceType": zod.string().nullish(),
+  "sourceReferenceId": zod.number().nullish(),
+  "lockedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})),
+  "locked": zod.boolean()
+})
+
+
+/**
+ * Refused once any payroll run for that employee and tax year has been locked — finalized payroll history is never silently rewritten.
+ * @summary Amend an opening balance before it is locked (WS-7 closure)
+ */
+export const UpdatePayrollOpeningBalanceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number(),
+  "taxYear": zod.coerce.number()
+})
+
+export const UpdatePayrollOpeningBalanceBody = zod.object({
+  "grossEarnings": zod.string(),
+  "taxableIncome": zod.string(),
+  "payeAmount": zod.string(),
+  "pensionableEarnings": zod.string(),
+  "employeePensionDeduction": zod.string(),
+  "employerPensionContribution": zod.string()
+}).describe('Brought-forward totals, denominated exactly as payroll_run_lines records the same measures per period, so the two can be summed.')
+
+export const UpdatePayrollOpeningBalanceResponse = zod.object({
+  "grossEarnings": zod.string(),
+  "taxableIncome": zod.string(),
+  "payeAmount": zod.string(),
+  "pensionableEarnings": zod.string(),
+  "employeePensionDeduction": zod.string(),
+  "employerPensionContribution": zod.string()
+}).describe('Brought-forward totals, denominated exactly as payroll_run_lines records the same measures per period, so the two can be summed.').and(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "taxYear": zod.number(),
+  "cutoverDate": zod.coerce.date(),
+  "currency": zod.string(),
+  "sourceReferenceType": zod.string().nullish(),
+  "sourceReferenceId": zod.number().nullish(),
+  "lockedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+
+
+/**
+ * Sums brought-forward history and payroll finalized (locked) inside this system, keeping the two halves separately visible. Draft and merely calculated runs are excluded.
+ * @summary Year-to-date totals, brought-forward plus in-system (WS-7 closure)
+ */
+export const GetEmployeePayrollYearToDateParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number(),
+  "taxYear": zod.coerce.number()
+})
+
+export const GetEmployeePayrollYearToDateResponse = zod.object({
+  "grossEarnings": zod.string(),
+  "taxableIncome": zod.string(),
+  "payeAmount": zod.string(),
+  "pensionableEarnings": zod.string(),
+  "employeePensionDeduction": zod.string(),
+  "employerPensionContribution": zod.string()
+}).describe('Brought-forward totals, denominated exactly as payroll_run_lines records the same measures per period, so the two can be summed.').and(zod.object({
+  "taxYear": zod.number(),
+  "broughtForward": zod.object({
+  "grossEarnings": zod.string(),
+  "taxableIncome": zod.string(),
+  "payeAmount": zod.string(),
+  "pensionableEarnings": zod.string(),
+  "employeePensionDeduction": zod.string(),
+  "employerPensionContribution": zod.string()
+}).describe('Brought-forward totals, denominated exactly as payroll_run_lines records the same measures per period, so the two can be summed.').nullish(),
+  "inSystem": zod.object({
+  "grossEarnings": zod.string(),
+  "taxableIncome": zod.string(),
+  "payeAmount": zod.string(),
+  "pensionableEarnings": zod.string(),
+  "employeePensionDeduction": zod.string(),
+  "employerPensionContribution": zod.string()
+}).describe('Brought-forward totals, denominated exactly as payroll_run_lines records the same measures per period, so the two can be summed.')
+}))
+
+
+/**
  * The server-defined allow-list. Each entry carries its canonical fields (so a client can render a mapping UI) and its dependsOn list (so a client can explain why structure must accompany employees).
  * @summary List the entity types a migration can import, in dependency order (WS-7)
  */

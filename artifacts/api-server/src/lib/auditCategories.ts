@@ -38,6 +38,11 @@ const CATEGORY_BY_PREFIX: Record<string, AuditCategory> = {
   // --- payroll ---
   payroll_banking: "payroll",
   payroll_compensation: "payroll",
+  // WS-7 closure: brought-forward payroll/statutory history imported at
+  // migration cutover. Payroll-category, not "hr" and not the migration
+  // batch's own platform_configuration category — the record itself is
+  // payroll data and belongs with payroll's audit visibility rules.
+  payroll_opening_balance: "payroll",
   payroll_correction: "payroll",
   payroll_input_reference: "payroll",
   payroll_payment_batch: "payroll",

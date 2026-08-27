@@ -9184,6 +9184,38 @@ export interface MigrationReconciliation {
   totals: MigrationReconciliationTotals;
 }
 
+/**
+ * Brought-forward totals, denominated exactly as payroll_run_lines records the same measures per period, so the two can be summed.
+ */
+export interface PayrollOpeningBalanceAmounts {
+  grossEarnings: string;
+  taxableIncome: string;
+  payeAmount: string;
+  pensionableEarnings: string;
+  employeePensionDeduction: string;
+  employerPensionContribution: string;
+}
+
+export type PayrollOpeningBalance = PayrollOpeningBalanceAmounts & ({
+  id: number;
+  organizationId: number;
+  employeeId: number;
+  taxYear: number;
+  cutoverDate: string;
+  currency: string;
+  sourceReferenceType?: string | null;
+  sourceReferenceId?: number | null;
+  lockedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+});
+
+export type PayrollYearToDate = PayrollOpeningBalanceAmounts & ({
+  taxYear: number;
+  broughtForward?: PayrollOpeningBalanceAmounts | null;
+  inSystem: PayrollOpeningBalanceAmounts;
+});
+
 export type UploadOrganizationLogoBody = {
   file: Blob;
 };
@@ -10127,6 +10159,19 @@ export type SetDocumentLegalHoldBody = {
 
 export type DisposeDocumentBody = {
   reason: string;
+};
+
+export type ListPayrollOpeningBalancesParams = {
+taxYear?: number;
+};
+
+export type ListPayrollOpeningBalances200 = {
+  balances: PayrollOpeningBalance[];
+};
+
+export type GetPayrollOpeningBalance200 = {
+  balance: PayrollOpeningBalance;
+  locked: boolean;
 };
 
 export type ListMigrations200 = {

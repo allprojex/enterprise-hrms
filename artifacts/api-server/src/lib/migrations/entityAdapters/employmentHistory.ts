@@ -24,7 +24,7 @@
  */
 import { recordEmploymentPeriodEvent } from "../../employmentLifecycleService";
 import type { EntityAdapter, CanonicalField, NormalizeResult, PlanResult } from "../adapterRegistry";
-import { requiredString, optionalString, parseDate } from "../normalizeHelpers";
+import { requiredString, optionalString, parseDate, toDate } from "../normalizeHelpers";
 import { resolveEmployeeRef } from "../referenceResolution";
 
 // The event types the codebase's own live workflows already use
@@ -95,7 +95,7 @@ export const employmentHistoryAdapter: EntityAdapter = {
       organizationId: ctx.organizationId,
       employeeId: employee.id,
       eventType: data.eventType as string,
-      effectiveDate: data.effectiveDate as Date,
+      effectiveDate: toDate(data.effectiveDate)!,
       newState,
       actorApplicationUserId: ctx.actorApplicationUserId,
       actorMembershipId: ctx.actorMembershipId,

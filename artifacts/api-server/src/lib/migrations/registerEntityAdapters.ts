@@ -21,6 +21,7 @@ import { employeeAdapter } from "./entityAdapters/employee";
 import { employmentHistoryAdapter } from "./entityAdapters/employmentHistory";
 import { qualificationAdapter, certificationAdapter } from "./entityAdapters/qualificationsAndCertifications";
 import { leaveBalanceAdapter } from "./entityAdapters/leaveBalance";
+import { payrollOpeningBalanceAdapter } from "./entityAdapters/payrollOpeningBalance";
 
 let adaptersRegistered = false;
 
@@ -42,16 +43,11 @@ export function registerShippedEntityAdapters(): void {
   registerEntityAdapter(certificationAdapter);
   registerEntityAdapter(leaveBalanceAdapter);
 
-  // `payroll_opening_balance` is DELIBERATELY NOT REGISTERED — see
-  // entityAdapters/payrollOpeningBalance.ts for the full analysis. In short:
-  // this platform has no opening-balance concept, and the compensation
-  // component the adapter reused is an effective-dated *rate*, not a
-  // balance. Registering it would let an imported "opening balance" be paid
-  // again every period and could silently supersede an employee's real
-  // salary row. Blocked pending an Owner decision on the smallest correct
-  // Payroll addition. Because every read/write path validates entityType
-  // against this registry, leaving it unregistered blocks upload,
-  // validation and execution for that type completely.
+  // Re-registered at WS-7 closure. The earlier withdrawal is resolved: this
+  // adapter now writes to the dedicated payroll_opening_balances domain and
+  // never touches compensation, so an imported balance can no longer be
+  // re-paid or supersede a salary row.
+  registerEntityAdapter(payrollOpeningBalanceAdapter);
 
   // The WS-6 job type that executes a large migration in the worker
   // process. Registered here (rather than in lib/jobHandlers.ts alongside

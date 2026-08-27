@@ -21454,6 +21454,193 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  # --- WS-7 closure: Payroll Opening Balances -----------------------------
+  /organizations/{organizationId}/payroll/opening-balances:
+    get:
+      operationId: listPayrollOpeningBalances
+      tags: [payroll]
+      summary: List imported payroll opening balances (WS-7 closure)
+      description: >-
+        Brought-forward payroll/statutory totals established at migration
+        cutover. These are historical record only — they are never paid, never
+        become compensation, and never produce a run, payslip or payment.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: taxYear
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Opening balances
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [balances]
+                properties:
+                  balances:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PayrollOpeningBalance"
+        "403":
+          description: Forbidden — requires payroll.opening_balance.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/payroll/opening-balances/{employeeId}/{taxYear}:
+    get:
+      operationId: getPayrollOpeningBalance
+      tags: [payroll]
+      summary: Get one employee's opening balance for a tax year (WS-7 closure)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: taxYear
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Opening balance
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [balance, locked]
+                properties:
+                  balance:
+                    $ref: "#/components/schemas/PayrollOpeningBalance"
+                  locked:
+                    type: boolean
+        "403":
+          description: Forbidden — requires payroll.opening_balance.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    put:
+      operationId: updatePayrollOpeningBalance
+      tags: [payroll]
+      summary: Amend an opening balance before it is locked (WS-7 closure)
+      description: >-
+        Refused once any payroll run for that employee and tax year has been
+        locked — finalized payroll history is never silently rewritten.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: taxYear
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PayrollOpeningBalanceAmounts"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollOpeningBalance"
+        "400":
+          description: Invalid amounts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires payroll.opening_balance.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Locked by finalized payroll
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/payroll/year-to-date/{employeeId}/{taxYear}:
+    get:
+      operationId: getEmployeePayrollYearToDate
+      tags: [payroll]
+      summary: Year-to-date totals, brought-forward plus in-system (WS-7 closure)
+      description: >-
+        Sums brought-forward history and payroll finalized (locked) inside this
+        system, keeping the two halves separately visible. Draft and merely
+        calculated runs are excluded.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: taxYear
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Year-to-date totals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollYearToDate"
+        "403":
+          description: Forbidden — requires payroll.report.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   # --- WS-7: Bulk Import / Multi-Entity Migration -------------------------
   /organizations/{organizationId}/migrations/entity-types:
     get:
@@ -33205,3 +33392,81 @@ components:
         totals:
           $ref: "#/components/schemas/MigrationReconciliationTotals"
       required: [entities, totals]
+
+    # --- WS-7 closure: Payroll Opening Balances -------------------------
+    PayrollOpeningBalanceAmounts:
+      type: object
+      description: >-
+        Brought-forward totals, denominated exactly as payroll_run_lines
+        records the same measures per period, so the two can be summed.
+      properties:
+        grossEarnings:
+          type: string
+        taxableIncome:
+          type: string
+        payeAmount:
+          type: string
+        pensionableEarnings:
+          type: string
+        employeePensionDeduction:
+          type: string
+        employerPensionContribution:
+          type: string
+      required:
+        - grossEarnings
+        - taxableIncome
+        - payeAmount
+        - pensionableEarnings
+        - employeePensionDeduction
+        - employerPensionContribution
+
+    PayrollOpeningBalance:
+      allOf:
+        - $ref: "#/components/schemas/PayrollOpeningBalanceAmounts"
+        - type: object
+          properties:
+            id:
+              type: integer
+            organizationId:
+              type: integer
+            employeeId:
+              type: integer
+            taxYear:
+              type: integer
+            cutoverDate:
+              type: string
+              format: date-time
+            currency:
+              type: string
+            sourceReferenceType:
+              type: string
+              nullable: true
+            sourceReferenceId:
+              type: integer
+              nullable: true
+            lockedAt:
+              type: string
+              format: date-time
+              nullable: true
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+          required: [id, organizationId, employeeId, taxYear, cutoverDate, currency, createdAt, updatedAt]
+
+    PayrollYearToDate:
+      allOf:
+        - $ref: "#/components/schemas/PayrollOpeningBalanceAmounts"
+        - type: object
+          properties:
+            taxYear:
+              type: integer
+            broughtForward:
+              nullable: true
+              allOf:
+                - $ref: "#/components/schemas/PayrollOpeningBalanceAmounts"
+            inSystem:
+              $ref: "#/components/schemas/PayrollOpeningBalanceAmounts"
+          required: [taxYear, inSystem]

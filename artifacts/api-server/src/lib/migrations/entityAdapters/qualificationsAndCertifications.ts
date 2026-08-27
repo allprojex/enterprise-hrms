@@ -16,7 +16,7 @@
  */
 import { addEmployeeQualification, addEmployeeCertification } from "../../employeeSkillsQualifications";
 import type { EntityAdapter, CanonicalField, NormalizeResult, PlanResult } from "../adapterRegistry";
-import { requiredString, optionalString, parseDate } from "../normalizeHelpers";
+import { requiredString, optionalString, parseDate, toDate } from "../normalizeHelpers";
 import { resolveEmployeeRef } from "../referenceResolution";
 
 const QUALIFICATION_FIELDS: readonly CanonicalField[] = [
@@ -67,8 +67,8 @@ export const qualificationAdapter: EntityAdapter = {
       qualificationTypeCode: data.qualificationTypeCode as string,
       institution: data.institution as string | null,
       fieldOfStudy: data.fieldOfStudy as string | null,
-      startDate: data.startDate as Date | null,
-      endDate: data.endDate as Date | null,
+      startDate: toDate(data.startDate),
+      endDate: toDate(data.endDate),
       grade: data.grade as string | null,
       actorApplicationUserId: ctx.actorApplicationUserId,
       actorMembershipId: ctx.actorMembershipId,
@@ -122,8 +122,8 @@ export const certificationAdapter: EntityAdapter = {
       employeeId: employee.id,
       certificationTypeCode: data.certificationTypeCode as string,
       issuingOrganization: data.issuingOrganization as string | null,
-      issueDate: data.issueDate as Date | null,
-      expiryDate: data.expiryDate as Date | null,
+      issueDate: toDate(data.issueDate),
+      expiryDate: toDate(data.expiryDate),
       credentialId: data.credentialId as string | null,
       actorApplicationUserId: ctx.actorApplicationUserId,
       actorMembershipId: ctx.actorMembershipId,

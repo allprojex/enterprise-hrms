@@ -187,6 +187,7 @@ import type {
   GetMigration200,
   GetMigrationIssues200,
   GetOfficeInventoryStockBalanceParams,
+  GetPayrollOpeningBalance200,
   GetPayrollReportParams,
   GetPerformanceDashboardParams,
   GrantRolePermissionInput,
@@ -249,6 +250,8 @@ import type {
   ListOfficeInventoryStocktakesParams,
   ListOrganizationDocumentsParams,
   ListPayrollInputReferencesParams,
+  ListPayrollOpeningBalances200,
+  ListPayrollOpeningBalancesParams,
   ListPayrollStatutoryRuleVersionsParams,
   ListPerformanceReviewsParams,
   ListPersonnelFileMovementsParams,
@@ -326,6 +329,8 @@ import type {
   PayrollCorrection,
   PayrollCorrectionWithTrace,
   PayrollInputReference,
+  PayrollOpeningBalance,
+  PayrollOpeningBalanceAmounts,
   PayrollPaymentBatch,
   PayrollPaymentBatchCreateResult,
   PayrollPaymentBatchDetail,
@@ -337,6 +342,7 @@ import type {
   PayrollRunValidationErrorBody,
   PayrollStatutoryRuleVersion,
   PayrollStatutoryRuleVersionDetail,
+  PayrollYearToDate,
   Payslip,
   PerformanceCycle,
   PerformanceDashboard,
@@ -40919,6 +40925,348 @@ export const useDisposeDocument = <TError = ErrorType<ApiError>,
       > => {
       return useMutation(getDisposeDocumentMutationOptions(options));
     }
+
+export const getListPayrollOpeningBalancesUrl = (organizationId: number,
+    params?: ListPayrollOpeningBalancesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/payroll/opening-balances?${stringifiedParams}` : `/api/organizations/${organizationId}/payroll/opening-balances`
+}
+
+/**
+ * Brought-forward payroll/statutory totals established at migration cutover. These are historical record only — they are never paid, never become compensation, and never produce a run, payslip or payment.
+ * @summary List imported payroll opening balances (WS-7 closure)
+ */
+export const listPayrollOpeningBalances = async (organizationId: number,
+    params?: ListPayrollOpeningBalancesParams, options?: RequestInit): Promise<ListPayrollOpeningBalances200> => {
+
+  return customFetch<ListPayrollOpeningBalances200>(getListPayrollOpeningBalancesUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPayrollOpeningBalancesQueryKey = (organizationId: number,
+    params?: ListPayrollOpeningBalancesParams,) => {
+    return [
+    `/api/organizations/${organizationId}/payroll/opening-balances`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListPayrollOpeningBalancesQueryOptions = <TData = Awaited<ReturnType<typeof listPayrollOpeningBalances>>, TError = ErrorType<ApiError>>(organizationId: number,
+    params?: ListPayrollOpeningBalancesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPayrollOpeningBalances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPayrollOpeningBalancesQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPayrollOpeningBalances>>> = ({ signal }) => listPayrollOpeningBalances(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPayrollOpeningBalances>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPayrollOpeningBalancesQueryResult = NonNullable<Awaited<ReturnType<typeof listPayrollOpeningBalances>>>
+export type ListPayrollOpeningBalancesQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List imported payroll opening balances (WS-7 closure)
+ */
+
+export function useListPayrollOpeningBalances<TData = Awaited<ReturnType<typeof listPayrollOpeningBalances>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    params?: ListPayrollOpeningBalancesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPayrollOpeningBalances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPayrollOpeningBalancesQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPayrollOpeningBalanceUrl = (organizationId: number,
+    employeeId: number,
+    taxYear: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/opening-balances/${employeeId}/${taxYear}`
+}
+
+/**
+ * @summary Get one employee's opening balance for a tax year (WS-7 closure)
+ */
+export const getPayrollOpeningBalance = async (organizationId: number,
+    employeeId: number,
+    taxYear: number, options?: RequestInit): Promise<GetPayrollOpeningBalance200> => {
+
+  return customFetch<GetPayrollOpeningBalance200>(getGetPayrollOpeningBalanceUrl(organizationId,employeeId,taxYear),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPayrollOpeningBalanceQueryKey = (organizationId: number,
+    employeeId: number,
+    taxYear: number,) => {
+    return [
+    `/api/organizations/${organizationId}/payroll/opening-balances/${employeeId}/${taxYear}`
+    ] as const;
+    }
+
+
+export const getGetPayrollOpeningBalanceQueryOptions = <TData = Awaited<ReturnType<typeof getPayrollOpeningBalance>>, TError = ErrorType<ApiError>>(organizationId: number,
+    employeeId: number,
+    taxYear: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayrollOpeningBalance>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPayrollOpeningBalanceQueryKey(organizationId,employeeId,taxYear);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPayrollOpeningBalance>>> = ({ signal }) => getPayrollOpeningBalance(organizationId,employeeId,taxYear, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && employeeId !== null && employeeId !== undefined && taxYear !== null && taxYear !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPayrollOpeningBalance>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPayrollOpeningBalanceQueryResult = NonNullable<Awaited<ReturnType<typeof getPayrollOpeningBalance>>>
+export type GetPayrollOpeningBalanceQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get one employee's opening balance for a tax year (WS-7 closure)
+ */
+
+export function useGetPayrollOpeningBalance<TData = Awaited<ReturnType<typeof getPayrollOpeningBalance>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    employeeId: number,
+    taxYear: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayrollOpeningBalance>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPayrollOpeningBalanceQueryOptions(organizationId,employeeId,taxYear,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdatePayrollOpeningBalanceUrl = (organizationId: number,
+    employeeId: number,
+    taxYear: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/opening-balances/${employeeId}/${taxYear}`
+}
+
+/**
+ * Refused once any payroll run for that employee and tax year has been locked — finalized payroll history is never silently rewritten.
+ * @summary Amend an opening balance before it is locked (WS-7 closure)
+ */
+export const updatePayrollOpeningBalance = async (organizationId: number,
+    employeeId: number,
+    taxYear: number,
+    payrollOpeningBalanceAmounts: PayrollOpeningBalanceAmounts, options?: RequestInit): Promise<PayrollOpeningBalance> => {
+
+  return customFetch<PayrollOpeningBalance>(getUpdatePayrollOpeningBalanceUrl(organizationId,employeeId,taxYear),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(payrollOpeningBalanceAmounts)
+  }
+);}
+
+
+
+
+
+export const getUpdatePayrollOpeningBalanceMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePayrollOpeningBalance>>, TError,{organizationId: number;employeeId: number;taxYear: number;data: BodyType<PayrollOpeningBalanceAmounts>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updatePayrollOpeningBalance>>, TError,{organizationId: number;employeeId: number;taxYear: number;data: BodyType<PayrollOpeningBalanceAmounts>}, TContext> => {
+
+const mutationKey = ['updatePayrollOpeningBalance'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePayrollOpeningBalance>>, {organizationId: number;employeeId: number;taxYear: number;data: BodyType<PayrollOpeningBalanceAmounts>}> = (props) => {
+          const {organizationId,employeeId,taxYear,data} = props ?? {};
+
+          return  updatePayrollOpeningBalance(organizationId,employeeId,taxYear,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdatePayrollOpeningBalanceMutationResult = NonNullable<Awaited<ReturnType<typeof updatePayrollOpeningBalance>>>
+    export type UpdatePayrollOpeningBalanceMutationBody = BodyType<PayrollOpeningBalanceAmounts>
+    export type UpdatePayrollOpeningBalanceMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Amend an opening balance before it is locked (WS-7 closure)
+ */
+export const useUpdatePayrollOpeningBalance = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePayrollOpeningBalance>>, TError,{organizationId: number;employeeId: number;taxYear: number;data: BodyType<PayrollOpeningBalanceAmounts>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updatePayrollOpeningBalance>>,
+        TError,
+        {organizationId: number;employeeId: number;taxYear: number;data: BodyType<PayrollOpeningBalanceAmounts>},
+        TContext
+      > => {
+      return useMutation(getUpdatePayrollOpeningBalanceMutationOptions(options));
+    }
+
+export const getGetEmployeePayrollYearToDateUrl = (organizationId: number,
+    employeeId: number,
+    taxYear: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/payroll/year-to-date/${employeeId}/${taxYear}`
+}
+
+/**
+ * Sums brought-forward history and payroll finalized (locked) inside this system, keeping the two halves separately visible. Draft and merely calculated runs are excluded.
+ * @summary Year-to-date totals, brought-forward plus in-system (WS-7 closure)
+ */
+export const getEmployeePayrollYearToDate = async (organizationId: number,
+    employeeId: number,
+    taxYear: number, options?: RequestInit): Promise<PayrollYearToDate> => {
+
+  return customFetch<PayrollYearToDate>(getGetEmployeePayrollYearToDateUrl(organizationId,employeeId,taxYear),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetEmployeePayrollYearToDateQueryKey = (organizationId: number,
+    employeeId: number,
+    taxYear: number,) => {
+    return [
+    `/api/organizations/${organizationId}/payroll/year-to-date/${employeeId}/${taxYear}`
+    ] as const;
+    }
+
+
+export const getGetEmployeePayrollYearToDateQueryOptions = <TData = Awaited<ReturnType<typeof getEmployeePayrollYearToDate>>, TError = ErrorType<ApiError>>(organizationId: number,
+    employeeId: number,
+    taxYear: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmployeePayrollYearToDate>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetEmployeePayrollYearToDateQueryKey(organizationId,employeeId,taxYear);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEmployeePayrollYearToDate>>> = ({ signal }) => getEmployeePayrollYearToDate(organizationId,employeeId,taxYear, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && employeeId !== null && employeeId !== undefined && taxYear !== null && taxYear !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getEmployeePayrollYearToDate>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetEmployeePayrollYearToDateQueryResult = NonNullable<Awaited<ReturnType<typeof getEmployeePayrollYearToDate>>>
+export type GetEmployeePayrollYearToDateQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Year-to-date totals, brought-forward plus in-system (WS-7 closure)
+ */
+
+export function useGetEmployeePayrollYearToDate<TData = Awaited<ReturnType<typeof getEmployeePayrollYearToDate>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    employeeId: number,
+    taxYear: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmployeePayrollYearToDate>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetEmployeePayrollYearToDateQueryOptions(organizationId,employeeId,taxYear,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListMigrationEntityTypesUrl = (organizationId: number,) => {
 

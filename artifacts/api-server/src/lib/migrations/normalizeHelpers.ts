@@ -83,3 +83,23 @@ export function parseNumber(raw: string | undefined, field: string, label: strin
 export function toDateOnlyString(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
+
+/**
+ * Reads a date back out of a staged row.
+ *
+ * `normalizeRow` produces real `Date` objects, but a staged row is persisted
+ * as JSONB — so by the time `planRow`/`executeRow` sees it, every date has
+ * round-tripped through JSON and is an ISO **string**, not a `Date`. Casting
+ * it back with `as Date` compiles happily and then fails at runtime the first
+ * time anything calls a Date method on it. Every adapter reads its dates
+ * through this instead.
+ */
+export function toDate(value: unknown): Date | null {
+  if (value == null) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (typeof value === "string" || typeof value === "number") {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  return null;
+}

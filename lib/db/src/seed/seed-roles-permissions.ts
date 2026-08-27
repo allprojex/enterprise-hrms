@@ -363,6 +363,16 @@ const PERMISSIONS = [
   { key: "payroll.statutory.approve", resource: "payroll", action: "statutory.approve" },
   { key: "payroll.compensation.read", resource: "payroll", action: "compensation.read" },
   { key: "payroll.compensation.manage", resource: "payroll", action: "compensation.manage" },
+  // WS-7 closure — brought-forward payroll/statutory history at migration
+  // cutover. Deliberately NOT folded into payroll.compensation.*: the Owner
+  // decision that created this domain is precisely that an opening balance
+  // is not compensation, and gating it on the compensation keys would
+  // re-conflate the two in the authorization model. Like every other
+  // payroll key above, these are registered but granted to NO role — payroll
+  // authority is an explicit per-organization delegation, never implied by
+  // HR authority (see the block comment above).
+  { key: "payroll.opening_balance.read", resource: "payroll", action: "opening_balance.read" },
+  { key: "payroll.opening_balance.manage", resource: "payroll", action: "opening_balance.manage" },
   { key: "payroll.banking.read", resource: "payroll", action: "banking.read" },
   { key: "payroll.banking.manage", resource: "payroll", action: "banking.manage" },
   { key: "payroll.statutory_identifiers.read", resource: "payroll", action: "statutory_identifiers.read" },
