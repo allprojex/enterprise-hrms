@@ -104,6 +104,8 @@ Unchanged from the discovery pass — drawn directly from `docs/GHANA_HR_EMPLOYE
 
 **Do not rebuild**: employee numbering engine, PIF/personnel-file model, candidate→employee conversion path, probation/confirmation mechanism, probation-review-Performance linkage, statutory identifiers, Recruitment's stage/pipeline architecture, Assets/Office Inventory custody, Separation/exit architecture.
 
+> **→ See §25 — WS-9 Workstream Scope Clarification (2026-08-27).** The Recruitment slice of the gap list above (publication-free capture, offer accept/decline, source configurability, the approval-chain question, and Schedule 1 particulars) left several implementation questions genuinely open — most consequentially whether multi-step approval chains should be built at all, and whether offer status should gate conversion. The Owner has recorded a dedicated scope clarification for WS-9. §25 is the authoritative scope for that workstream; the classifications in this section are unchanged by it.
+
 ---
 
 ## 7. Employee Lifecycle Extensions (§23–§36) — Owner Decisions Recorded
@@ -667,3 +669,216 @@ None blocking. The clarification above resolves every question the scope extract
 2. Whether a WS-7 import adapter can be added without redesigning WS-7 (§24.18).
 
 If either proves unsafe on inspection, it is dropped and the reason recorded — neither is mandatory.
+
+---
+
+## 25. WS-9 Workstream Scope Clarification — Recruitment Completion
+
+**Recorded 2026-08-27. Documentation only — no implementation, schema, migration or permission change accompanied this section.**
+
+**Why this section exists.** WS-9's frozen bundle (§20) names five items but leaves several implementation questions genuinely open — most consequentially whether multi-step approval chains should be built at all (§18 marks them *"OPTIONAL — confirm original intent before building"*) and whether offer status should gate employee conversion (the reconciliation's §30.2 leaves it undecided). The Owner has resolved those questions here.
+
+**Status of the freeze.** This is a *workstream-scope clarification*, not an architecture-freeze rewrite. **None of the 31 Owner Decisions in §22 is reopened, amended or superseded.** OD #14's ruling — extract shared authority/delegation primitives, do **not** replace working domain workflows with one generic workflow engine — is expressly preserved and constrains §25.2 below.
+
+### 25.1 WS-9 is completion, not reconstruction
+
+The following are **already built and must not be rebuilt**: requisitions; vacancies; organization-configurable pipeline stages; multiple interview rounds; interview panels and their external-panelist data structure; conflict declarations; per-interviewer scorecards with draft/submitted/finalized behaviour and bias-prevention visibility; screening/shortlisting via the stage pipeline; interview reschedule (cancel + create) and no-show handling; reference/background-check capability; immutable offer versions; offer approval and its decision history; candidate→employee conversion; duplicate-employee protection; employee numbering and PIF handoff; the five-tier Recruitment permission architecture; internal candidate handling.
+
+This restates §6's own "do not rebuild" list for the Recruitment slice and is binding on WS-9.
+
+### 25.2 Recruitment approval chains — BUILD, Recruitment-specific
+
+Configurable **multi-stage** Recruitment approval is approved. It is Recruitment-specific: **no second general workflow engine may be built** (OD #14), and existing authority/delegation primitives are reused where appropriate.
+
+Organizations configure which stages apply — examples include Department Head, HR, Finance, Management, Executive, or another approved organization authority. **None of these is a hard-coded mandatory stage**; an organization may configure fewer, more, or different stages.
+
+**Authority resolution** comes from relationships, permissions, organization configuration and delegation where supported. A role *name* never implies approver status: holding `hr_manager`, `department_head` or `org_admin` does not by itself make someone an approver. **Department Head authority must resolve through the existing authoritative Department Head relationship model (`department_heads`), not a role-name check** — this closes the gap the reconciliation's §5 flagged explicitly ("Do not assume Department Head approval is wired in here; it is not").
+
+Stages use **server-defined authority-resolver types**. Configuration is explicit and readable; arbitrary code or workflow expressions are prohibited.
+
+### 25.3 Separating selection from authorization to hire
+
+The reconciliation's §8 records that *"selected"* and *"authorized to employ"* are conflated into a single gate. WS-9 must separate them:
+
+| Decision | Meaning |
+| --- | --- |
+| **Requisition approval** | the organization authorizes *recruiting for* a role |
+| **Approval to hire / final selection** | the organization authorizes *employing this specific candidate* |
+
+The smallest Recruitment-specific model that separates these is required — **without replacing the working requisition architecture**.
+
+**Approval history** preserves stage, actor, **authority basis**, decision, timestamp, reason/comment where appropriate, historical actor identity, and replacement/delegation semantics. **Earlier stage decisions are never overwritten.**
+
+### 25.4 Offer status now gates conversion — for the Recruitment path only
+
+For the **normal Recruitment workflow**, candidate→employee conversion requires **all four**:
+
+1. final selection / authorization to hire complete;
+2. the current offer **approved**;
+3. the current offer **accepted**;
+4. the offer not withdrawn, superseded or expired.
+
+A declined or withdrawn offer must never convert to an employee through the Recruitment path.
+
+**This gating is scoped to Recruitment conversion and must not break**: direct employee creation; legacy employee import; WS-7 bulk migration; existing employees; or rehire where owned elsewhere. An organization can still create or import employees without running Recruitment when Recruitment was not the source of hire — that is the explicit boundary.
+
+**Legacy compatibility**: existing Recruitment records may predate offer acceptance entirely (the accept/decline statuses were never reachable). Enforcement is **prospective**. Already-converted employees must not become invalid, and **historical conversions are never rewritten**.
+
+### 25.5 Recruitment source becomes Master Data
+
+`source` stops being authoritative free text. A Recruitment source domain — `recruitment_source` — is introduced following existing Master Data conventions, with stable codes/keys.
+
+Organizations may configure sources such as online/public application, internal announcement, physical/offline announcement, employee referral, walk-in, recruitment agency, direct sourcing, campus/institutional recruitment, or another organization-defined source. **These are product examples, not mandatory universal values.**
+
+**Historical free-text source data must be preserved safely** — the two values in practice today (`careers_portal`, `internal_ess`) are real history, not noise.
+
+### 25.6 Publication-free capture — the invariant is deliberately superseded
+
+A candidate/application must **no longer require a publicly published vacancy**.
+
+The current code states this invariant about itself — `candidates.ts`'s schema comment asserts *"every candidate row is created through the public careers apply endpoint"*, `candidates.ts` has no POST/PATCH, `applications.ts` has no POST, and both apply paths gate on `vacancy.status === "published"`. **That invariant is now intentionally superseded**, and the refactor must be done carefully rather than by loosening the existing check.
+
+Two valid capture paths result:
+
+| Path | Requirements |
+| --- | --- |
+| **A — Public / online application** | published vacancy **required** (unchanged) |
+| **B — Authorized internal/manual capture** | public publication **not** required; authorized HR/Recruitment actor required; configured recruitment source required; properly audited |
+
+**The public route's publication check is not weakened.** Unpublished and internal-only vacancies must never be exposed through public APIs.
+
+Authorized Recruitment users may create a candidate, link to the appropriate vacancy/requisition where applicable, record the configured source and capture date, capture required candidate information, upload CV/supporting documents through the existing secure document infrastructure, and enter the candidate into the existing pipeline. **No second candidate model may be created.**
+
+### 25.7 Source and publication are orthogonal
+
+**Source** and **publication status** are distinct concepts and must not be conflated. A physical-announcement, referral or walk-in source may accompany an unpublished vacancy; an internal source may accompany internal-only visibility; a public-website source usually accompanies a published one. **Source values must not automatically control publication** unless an organization's own configuration explicitly defines that relationship.
+
+### 25.8 Employment particulars — Act 651 Schedule 1
+
+Structured employment-term data implementing Ghana Labour Act, 2003 (Act 651) **§13** — the employer must, subject to the contract terms, provide the worker **within two months** of commencement with a written statement of the main terms in the form set out in **Schedule 1**, signed by employer and worker. **The authoritative Act text must be used when implementing the exact particulars; earlier secondary summaries are not sufficient.**
+
+**Terminology**: these are **employment particulars**. The product feature is **not** branded "Ghana Schedule I Form" except where a generated statutory document itself requires it; underlying fields use ordinary HR terminology.
+
+The model must be sufficient to represent: employer name; employee name; date of first appointment; job title or grade; rate, method and intervals of pay; hours of work; holiday periods and holiday-pay details; sickness/injury incapacity conditions and sick-pay details, if any; social-security or pension scheme details; notice required from employer; notice required from worker; applicable disciplinary rules; grievance/dispute procedure; and overtime payment details, if any.
+
+**Schedule 1 numbers notice as one item with employer and worker sub-parts. Preserve the legal meaning rather than forcing exactly thirteen physical columns.**
+
+### 25.9 Ownership and snapshotting of particulars
+
+Authoritative data must **not** be duplicated unnecessarily — organization, employee/candidate, position/grade, compensation, working hours, Leave/holiday policy, pension/statutory configuration and disciplinary/grievance policy already have owners.
+
+But **an issued employment document must remain historically reproducible**. WS-9 must therefore determine the correct combination of **authoritative reference before issuance** and **immutable snapshot at offer/document issuance**.
+
+**Old signed employment particulars must never change because a policy or setting was edited later.**
+
+Proposed particulars belong with the immutable offer revision **or** a strictly linked versioned employment-terms snapshot — extending `offer_versions`, or a linked `employment_particulars`/terms version record, chosen on repository design and normalization grounds. **Mutable current-policy references must not be embedded in historical offer versions without snapshotting.**
+
+- **Probation**: capture where applicable. **No universal duration may be hard-coded** — not three months, not six, not any figure. §29 of the reconciliation records that the numeric duration was *not* established as a universal Ghana rule.
+- **Notice**: capture the applicable terms; **no single universal notice period may be hard-coded**. Resolve from applicable employment terms, organization configuration, and legal/domain rules already supported. **No new Ghana legal calculations without authoritative evidence.**
+- **Leave/holiday**: reuse Leave policy/configuration; **do not duplicate the Leave engine**. Snapshot issued terms where historical reproducibility requires it.
+
+### 25.10 Document generation — WS-5 only
+
+WS-5's engine is used. **No second PDF/template engine may be built.** Recruitment generates the offer document and, where appropriate, the appointment/employment-particulars document, using organization templates and branding. **The generated artifact is immutable and tied to the correct offer and template version.**
+
+**Boundary**: WS-9 owns only enough structured Recruitment employment terms to complete offer and acceptance. It does **not** become the post-hire Documents/Onboarding workstream — WS-10 owns onboarding, handbook and induction; later lifecycle workstreams own confirmation, promotion and transfer.
+
+### 25.11 Offer responses — accept, decline, withdraw
+
+All three terminal concepts already exist in the status enum and are currently **unreachable**. Each becomes reachable through a proper domain action.
+
+- **Accept** records the offer and **exact offer version** accepted, the candidate, `acceptedAt`, and acceptance actor/evidence/context. **An accepted offer never silently switches to a newer revision**; a subsequent revision requires its own acceptance.
+- **Decline** records the exact offer version, `declinedAt`, actor/source of response, and a reason where the organization's configuration requires one. Decline is terminal **for that revision**. **Candidate history is never deleted.**
+- **Withdraw** is available to an authorized Recruitment/HR actor on an eligible offer, recording the exact version, `withdrawnAt`, `withdrawnBy` and reason. **Withdrawal never erases prior approval or history.** Behaviour after acceptance must be defined deliberately: **ordinary withdrawal after a completed conversion is to be prevented** unless a separate lawful downstream process applies.
+
+**Expiry**: the field exists; WS-9 makes it operational. Expiry state must be deterministic, an expired offer cannot be newly accepted without an authorized explicit extension or revision, and WS-6 may provide scheduled reminders. **No excessive reminder workflows.**
+
+**Revision**: the existing immutable revision/supersession architecture is preserved. **Only the current eligible approved version can receive a new candidate response**, and historical responses stay attached to their own version.
+
+### 25.12 Signature and evidence
+
+**No electronic-signature platform is built in WS-9.** Practical evidence of acceptance is sufficient: an authenticated candidate action where the architecture allows; recorded HR/manual acceptance evidence; the acceptance timestamp; and a document/evidence reference through WS-5 where appropriate.
+
+**If candidate portal authentication does not exist, a full account system must not be invented solely for offer acceptance.**
+
+### 25.13 Candidate response without an account — reuse the existing precedent
+
+Where candidates have no accounts, a secure response mechanism is required. **An existing mechanism must be reused rather than invented**: `applications.statusCheckToken` / `statusCheckTokenExpiresAt`, with its unique index and a dedicated rate limiter on `/careers/:orgSlug/application-status/:token`, is the established precedent for a candidate-facing, tokenized, rate-limited endpoint.
+
+Any offer-response token must be: high-entropy; expiring; **single-purpose**; bound to one candidate, one offer and **one offer version**, with one allowed action; replay-protected; **revocable when the offer is superseded or withdrawn**; never written to logs; stored hashed where practical; rate-limited; and audited on response. **Sequential IDs must not be exposed, and reusable general authentication tokens must not be used.**
+
+### 25.14 Public anti-abuse
+
+The careers portal is unauthenticated and must carry baseline anti-abuse controls: **rate limiting, payload limits, duplicate/replay safeguards, server-side validation, the existing secure document validation, and safe error behaviour.**
+
+Rate limiting already exists on the public apply and status endpoints (`applyRateLimiter`, `statusCheckRateLimiter`) — WS-9 extends the baseline rather than starting from nothing.
+
+**CAPTCHA is provider-optional and configurable.** The product must **not** be hard-coded to one vendor; the architecture permits *disabled*, *an approved provider configured*, and *future provider replacement*. If adding a provider in WS-9 would require an unnecessary external-service commitment, WS-9 establishes the **interface and configuration gate**, implements the other anti-abuse controls now, and **documents that decision**.
+
+### 25.15 CV and document security
+
+WS-5's document validation/storage infrastructure is reused where possible. **Public CV uploads are untrusted** and require file-size limits, supported MIME/types, magic-byte validation where it exists, private storage, a tenant/vacancy relationship, safe filename handling, and authorization for later staff download.
+
+**Malware/AV scanning does not exist in this platform and must not be claimed.** It remains a disclosed security follow-up.
+
+### 25.16 Public data minimization
+
+Public Recruitment APIs expose only what a candidate needs. They must never leak internal requisition approval data, interview scorecards, internal notes, other candidates, unpublished vacancies, employee data, or internal organization configuration.
+
+### 25.17 WS-8 candidate forms
+
+WS-8 provides candidate/application form definitions, versioning and submissions. WS-9 integrates that architecture where it cleanly improves configurable application capture. **No second form builder may be created.**
+
+Public candidate integration requires a **controlled anonymous/public bridge designed specifically for Recruitment**. **Generic WS-8 forms are never exposed anonymously** — that boundary was set in §24.23 and is unchanged.
+
+### 25.18 Notifications
+
+WS-6 is used **only where genuinely needed**: approval required; offer issued/available; offer approaching expiry; offer response recorded. **Email and SMS channels are not built** — WS-6 did not implement them. In-app notification is used where recipients are authenticated users; a public candidate notification channel remains limited by the actual candidate identity/contact architecture.
+
+### 25.19 Permissions, isolation, audit, privacy
+
+The existing five-tier Recruitment permission model is preserved. **New keys only where a genuinely new authority cannot be represented safely.** Relationship-derived Department Head authority is never replaced by a broad role-name permission.
+
+**Tenant isolation is mandatory**, with direct IDOR testing across candidate, application, vacancy, source, approval chain, offer, offer-response token, employment-particulars generation, candidate documents and conversion.
+
+**Audit via WS-3**: manual candidate created; source assigned/changed; requisition and hire-approval stage decisions; offer issued, accepted, declined, withdrawn, superseded; employment particulars generated; candidate converted to employee. **Existing correctly-recorded audit events are not duplicated.**
+
+**Candidate privacy**: the full retention/purge system is **not** built here. WS-9 must nonetheless avoid duplicate candidate records, preserve candidate history, protect candidate documents, restrict internal notes, tenant-isolate everything, and avoid logging CV or personal content. **The future retention boundary is documented as unresolved.**
+
+### 25.20 Conversion is not rebuilt
+
+Only the **eligibility guard** changes, per §25.4. The single authoritative creation path, the `candidate_employee_links` DB uniqueness guarantees in both directions, and the existing identity protections remain authoritative and untouched.
+
+**Historical integrity**: old applications, interviews, scorecards, offer versions and previously converted employees are never rewritten. New rules apply prospectively.
+
+### 25.21 Frontend scope
+
+Only the UI required by this bundle: manual candidate capture; source selection; Recruitment approval stages and status; offer response and status; employment particulars; access to generated offer/particulars documents; and public application configuration where appropriate.
+
+**Already-working interview and pipeline pages must not be redesigned merely for consistency.** Recruitment source configuration integrates with the existing Master Data management UI rather than a separate source-administration module.
+
+### 25.22 Legal, practice, product and configuration — kept distinct
+
+| Classification | Items |
+| --- | --- |
+| **LEGAL REQUIREMENT** | Act 651 §§12–13 and Schedule 1 written particulars, where applicable |
+| **CIHRM PROFESSIONAL PRACTICE** | structured recruitment/selection process — already substantially supported, **not law** |
+| **PRODUCT CAPABILITY** | structured capture, versioning, document generation, historical snapshot, publication-free capture |
+| **ORGANIZATION CONFIGURATION** | actual employment terms, probation duration, source list, approval chain, signatory/template |
+
+**CIHRM practice must never be labelled as law**, and no numeric probation duration may be presented as a Ghana legal requirement.
+
+### 25.23 WWM and production boundary
+
+**No WWM configuration.** No WWM Recruitment approval stages, no seeded WWM sources, no WWM signatory, no published WWM vacancy, no WWM candidate, no generated WWM offer, no altered WWM permissions. QA uses **disposable synthetic organizations** only.
+
+**Production remains untouched** — no deployment, no production migration, no changes to any live careers surface.
+
+### 25.24 Open items still requiring Owner input before implementation
+
+None blocking. Two items are conditional by design and are to be decided **from repository evidence during implementation**, not invented:
+
+1. Whether employment particulars extend `offer_versions` or become a linked versioned terms record (§25.9) — a normalization judgement.
+2. Whether a CAPTCHA provider is wired in WS-9 or only its interface and configuration gate (§25.14) — decided on whether it would force an unnecessary external-service commitment.
+
+Either resolution must be recorded with its reason.
