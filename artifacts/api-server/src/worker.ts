@@ -16,6 +16,10 @@ import { randomUUID } from "crypto";
 import { logger } from "./lib/logger";
 import { pool } from "@workspace/db";
 import { registerShippedJobHandlers } from "./lib/jobHandlers";
+// WS-7: large/chunked migration execution runs as a job in this process
+// (see lib/migrations/jobHandler.ts), so the entity-adapter registry must
+// be populated here too, not just in the web process.
+import { registerShippedEntityAdapters } from "./lib/migrations/registerEntityAdapters";
 import { createWorkerRuntime } from "./lib/workerRuntime";
 
 // installationKey (WS-4 deployment identity) + a fresh id for this process +
@@ -26,6 +30,7 @@ import { createWorkerRuntime } from "./lib/workerRuntime";
 const WORKER_ID = `${process.env.INSTALLATION_KEY ?? "local"}:${process.pid}:${randomUUID().slice(0, 8)}`;
 
 registerShippedJobHandlers();
+registerShippedEntityAdapters();
 
 const runtime = createWorkerRuntime({
   workerId: WORKER_ID,

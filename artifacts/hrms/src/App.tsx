@@ -83,6 +83,7 @@ import RecruitmentDashboard from '@/pages/recruitment-dashboard';
 import RecruitmentReports from '@/pages/recruitment-reports';
 import PersonnelReports from '@/pages/personnel-reports';
 import PersonnelImport from '@/pages/personnel-import';
+import DataMigration from '@/pages/data-migration';
 import { ModuleGate } from '@/components/module-gate';
 
 const queryClient = new QueryClient({
@@ -162,6 +163,9 @@ function Router() {
       </Route>
       <Route path="/personnel-import">
         {() => <SecureRoute component={PersonnelImport} />}
+      </Route>
+      <Route path="/data-migration">
+        {() => <SecureRoute component={DataMigration} />}
       </Route>
       <Route path="/admin">
         {() => <SecureRoute component={Admin} />}

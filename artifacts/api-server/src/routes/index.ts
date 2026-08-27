@@ -15,6 +15,15 @@ import recordsLocationsRouter from "./recordsLocations";
 import personnelFileCustodyRouter from "./personnelFileCustody";
 import personnelReportingRouter from "./personnelReporting";
 import legacyImportRouter from "./legacyImport";
+// WS-7 — the multi-entity migration engine. Deliberately mounted ALONGSIDE
+// legacyImportRouter, which is left completely unmodified: that route pair
+// (/personnel-records/import/preview|commit) is a shipped, in-use
+// compatibility surface with its own permissions and its own single-file
+// CSV contract, and breaking it to funnel users into the new engine would
+// be a regression for no benefit. The two do not collide — different paths,
+// different permission keys — and the disposition is documented in
+// docs/BULK_IMPORT_MIGRATION.md.
+import migrationsRouter from "./migrations";
 import employeeSkillsQualificationsRouter from "./employeeSkillsQualifications";
 import employeeDisciplinaryRecordsRouter from "./employeeDisciplinaryRecords";
 import employeeExitProcessRouter from "./employeeExitProcess";
@@ -126,6 +135,7 @@ router.use(recordsLocationsRouter);
 router.use(personnelFileCustodyRouter);
 router.use(personnelReportingRouter);
 router.use(legacyImportRouter);
+router.use(migrationsRouter);
 router.use(employeeSkillsQualificationsRouter);
 router.use(employeeDisciplinaryRecordsRouter);
 router.use(employeeExitProcessRouter);

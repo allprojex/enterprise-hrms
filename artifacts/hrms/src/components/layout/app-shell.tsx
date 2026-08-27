@@ -41,6 +41,7 @@ import {
   Warehouse,
   Compass,
   Upload,
+  DatabaseZap,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -468,6 +469,13 @@ export function AppShell({ children }: AppShellProps) {
         // authorized.
         ...(isHrCapable ? [{ href: '/personnel-reports', label: 'Personnel Reports', icon: FileBarChart } satisfies NavItem] : []),
         ...(isHrCapable ? [{ href: '/personnel-import', label: 'Legacy Import', icon: Upload } satisfies NavItem] : []),
+        // WS-7 — the multi-entity migration engine, shown alongside (not
+        // instead of) Legacy Import: that page still handles the simple
+        // single-file employee case, this one handles a whole organization.
+        // Same isHrCapable-only nav precedent; the backend remains
+        // migration.*-gated, so a non-HR caller who navigates directly is
+        // still correctly authorized.
+        ...(isHrCapable ? [{ href: '/data-migration', label: 'Data Migration', icon: DatabaseZap } satisfies NavItem] : []),
         { href: '/branches', label: 'Branches', icon: MapPin },
         { href: '/departments', label: 'Departments', icon: Network },
         { href: '/positions', label: 'Positions', icon: Briefcase },

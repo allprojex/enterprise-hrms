@@ -103,6 +103,18 @@ const CATEGORY_BY_PREFIX: Record<string, AuditCategory> = {
   // job row's own attemptCount/lastErrorClass/lastErrorMessage already
   // carries that operational history.
   scheduled_job: "platform_configuration",
+  // WS-7 (Bulk Import / Multi-Entity Migration): the migration BATCH
+  // lifecycle only — created, source uploaded/mapped, validated, approved,
+  // executed, cancelled. Deliberately platform_configuration rather than
+  // "hr", even though the rows a migration writes are HR content: every
+  // such row is already audited under its own domain prefix by the domain
+  // primitive that writes it (employee_number.*, personnel_file.*,
+  // employee_qualification.*, leave_balance.*, payroll_compensation.*),
+  // so categorizing the batch envelope as "hr" too would double-file the
+  // same import under two categories. What `migration.*` records is the
+  // administrative act of running an import — the same shape as
+  // scheduled_job above.
+  migration: "platform_configuration",
   // WS-4 (Installation Registry, Owner Decision #29): deployment/runtime
   // identity administration — platform-scoped, never HR content.
   installation: "platform_configuration",

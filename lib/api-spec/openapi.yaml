@@ -21454,6 +21454,627 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  # --- WS-7: Bulk Import / Multi-Entity Migration -------------------------
+  /organizations/{organizationId}/migrations/entity-types:
+    get:
+      operationId: listMigrationEntityTypes
+      tags: [migrations]
+      summary: List the entity types a migration can import, in dependency order (WS-7)
+      description: >-
+        The server-defined allow-list. Each entry carries its canonical
+        fields (so a client can render a mapping UI) and its dependsOn list
+        (so a client can explain why structure must accompany employees).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Supported entity types
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MigrationEntityTypeList"
+        "403":
+          description: Forbidden — requires migration.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/migrations/templates/{entityType}:
+    get:
+      operationId: getMigrationTemplate
+      tags: [migrations]
+      summary: Download a CSV starter template for one entity type (WS-7)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: entityType
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: CSV template
+          content:
+            text/csv:
+              schema:
+                type: string
+        "403":
+          description: Forbidden — requires migration.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Unknown entity type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/migrations:
+    get:
+      operationId: listMigrations
+      tags: [migrations]
+      summary: List migration batches (WS-7)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Migration batches
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [migrations]
+                properties:
+                  migrations:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/MigrationBatch"
+        "403":
+          description: Forbidden — requires migration.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createMigration
+      tags: [migrations]
+      summary: Create a migration batch (WS-7)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MigrationBatch"
+        "400":
+          description: A migration name is required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires migration.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/migrations/{migrationId}:
+    get:
+      operationId: getMigration
+      tags: [migrations]
+      summary: Get one migration batch and its sources (WS-7)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: migrationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Migration batch with sources
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [migration, sources]
+                properties:
+                  migration:
+                    $ref: "#/components/schemas/MigrationBatch"
+                  sources:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/MigrationSource"
+        "403":
+          description: Forbidden — requires migration.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/migrations/{migrationId}/sources:
+    post:
+      operationId: uploadMigrationSource
+      tags: [migrations]
+      summary: Upload a CSV/XLSX source file for one entity type (WS-7)
+      description: >-
+        multipart/form-data, field "file". CSV or XLSX, 20MB / 50,000 rows /
+        200 columns maximum. Returns the parsed headers, a sample of rows and
+        a conservative auto-mapping proposal. Re-uploading for an entity type
+        already present replaces it and returns the batch to draft.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: migrationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, entityType]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                entityType:
+                  type: string
+                sheetName:
+                  type: string
+      responses:
+        "201":
+          description: Uploaded and parsed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MigrationSourceUploadResult"
+        "400":
+          description: Unsupported/malformed file, or unknown entity type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires migration.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Migration not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/migrations/{migrationId}/sources/{sourceId}/mapping:
+    put:
+      operationId: setMigrationSourceMapping
+      tags: [migrations]
+      summary: Confirm a column mapping and stage every row (WS-7)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: migrationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: sourceId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mapping]
+              properties:
+                mapping:
+                  type: object
+                  additionalProperties:
+                    type: string
+      responses:
+        "200":
+          description: Mapping saved and rows staged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MigrationMappingResult"
+        "400":
+          description: Invalid mapping (unknown field, duplicate target, missing required field)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires migration.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Migration or source not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: The stored file no longer matches its recorded checksum
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/migrations/{migrationId}/validate:
+    post:
+      operationId: validateMigration
+      tags: [migrations]
+      summary: Run the dry run (WS-7)
+      description: >-
+        Read-only. Re-plans every staged row against live data in dependency
+        order; a reference satisfied by an earlier source in the same batch
+        counts as resolvable. Safe to run repeatedly.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: migrationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Per-entity validation summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MigrationValidationResult"
+        "400":
+          description: Not in a validatable state, or sources still unmapped
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires migration.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Migration not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/migrations/{migrationId}/issues:
+    get:
+      operationId: getMigrationIssues
+      tags: [migrations]
+      summary: List staged rows with dry-run errors or warnings (WS-7)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: migrationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Row-level issues
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [issues]
+                properties:
+                  issues:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/MigrationRowIssue"
+        "403":
+          description: Forbidden — requires migration.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Migration not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/migrations/{migrationId}/approve:
+    post:
+      operationId: approveMigration
+      tags: [migrations]
+      summary: Approve a validated migration, freezing its source checksums (WS-7)
+      description: >-
+        Refuses a batch that still has error rows. Snapshots every source's
+        sha256 so execution can prove nothing changed after review.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: migrationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MigrationBatch"
+        "400":
+          description: Not validated, or still has error rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires migration.execute
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Migration not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/migrations/{migrationId}/execute:
+    post:
+      operationId: executeMigration
+      tags: [migrations]
+      summary: Execute an approved migration (WS-7)
+      description: >-
+        Small migrations run synchronously and return a finished result.
+        Larger ones are handed to the background worker and return 202 —
+        poll the migration for progress. Re-running only ever picks up rows
+        still pending, so this is safe to retry.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: migrationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Executed synchronously
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MigrationExecutionProgress"
+        "202":
+          description: Queued for background execution
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MigrationExecutionQueued"
+        "400":
+          description: Not in an executable state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires migration.execute
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Migration not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: A source file changed after approval
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/migrations/{migrationId}/reconciliation:
+    get:
+      operationId: getMigrationReconciliation
+      tags: [migrations]
+      summary: Per-entity reconciliation totals (WS-7)
+      description: >-
+        Every staged row lands in exactly one bucket and the buckets sum to
+        the source row count, so a silently dropped row is arithmetically
+        impossible to hide.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: migrationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Reconciliation summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MigrationReconciliation"
+        "403":
+          description: Forbidden — requires migration.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Migration not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/migrations/{migrationId}/reconciliation.csv:
+    get:
+      operationId: downloadMigrationReconciliation
+      tags: [migrations]
+      summary: Download the reconciliation report as CSV (WS-7)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: migrationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: CSV reconciliation report
+          content:
+            text/csv:
+              schema:
+                type: string
+        "403":
+          description: Forbidden — requires migration.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Migration not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/migrations/{migrationId}/cancel:
+    post:
+      operationId: cancelMigration
+      tags: [migrations]
+      summary: Cancel a migration that has not executed (WS-7)
+      description: >-
+        Only a draft/mapped/validated/approved migration can be cancelled.
+        A running or finished one cannot, because cancelling would imply
+        undoing committed rows, which this engine deliberately does not do.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: migrationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MigrationBatch"
+        "400":
+          description: Not in a cancellable state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires migration.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Migration not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -32249,3 +32870,299 @@ components:
         - maxAttempts
         - createdAt
         - updatedAt
+
+    # --- WS-7: Bulk Import / Multi-Entity Migration ---------------------
+    MigrationCanonicalField:
+      type: object
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        required:
+          type: boolean
+        type:
+          type: string
+          enum: [string, number, date, enum, boolean]
+        enumValues:
+          type: array
+          nullable: true
+          items:
+            type: string
+      required: [key, label, required, type]
+
+    MigrationEntityType:
+      type: object
+      properties:
+        entityType:
+          type: string
+        label:
+          type: string
+        dependsOn:
+          type: array
+          items:
+            type: string
+        fields:
+          type: array
+          items:
+            $ref: "#/components/schemas/MigrationCanonicalField"
+      required: [entityType, label, dependsOn, fields]
+
+    MigrationEntityTypeList:
+      type: object
+      properties:
+        entityTypes:
+          type: array
+          items:
+            $ref: "#/components/schemas/MigrationEntityType"
+      required: [entityTypes]
+
+    MigrationBatch:
+      type: object
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        name:
+          type: string
+        status:
+          type: string
+          enum:
+            - draft
+            - mapped
+            - validated
+            - approved
+            - running
+            - completed
+            - completed_with_errors
+            - failed
+            - cancelled
+        approvedBy:
+          type: integer
+          nullable: true
+        approvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        executionStartedAt:
+          type: string
+          format: date-time
+          nullable: true
+        executionCompletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, organizationId, name, status, createdAt, updatedAt]
+
+    MigrationSource:
+      type: object
+      properties:
+        id:
+          type: integer
+        batchId:
+          type: integer
+        entityType:
+          type: string
+        fileName:
+          type: string
+        mimeType:
+          type: string
+        fileSize:
+          type: integer
+        sha256Digest:
+          type: string
+        sheetName:
+          type: string
+          nullable: true
+        rowCount:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          enum: [uploaded, mapped, validated]
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, batchId, entityType, fileName, mimeType, fileSize, sha256Digest, status, createdAt]
+
+    MigrationSourceUploadResult:
+      type: object
+      properties:
+        source:
+          $ref: "#/components/schemas/MigrationSource"
+        headers:
+          type: array
+          items:
+            type: string
+        rowCount:
+          type: integer
+        sampleRows:
+          type: array
+          items:
+            type: array
+            items:
+              type: string
+        autoMapping:
+          type: object
+          additionalProperties:
+            type: string
+        unmappedHeaders:
+          type: array
+          items:
+            type: string
+        missingRequiredFields:
+          type: array
+          items:
+            type: string
+      required: [source, headers, rowCount, sampleRows, autoMapping, unmappedHeaders, missingRequiredFields]
+
+    MigrationMappingResult:
+      type: object
+      properties:
+        source:
+          $ref: "#/components/schemas/MigrationSource"
+        stagedRowCount:
+          type: integer
+        rowsWithErrors:
+          type: integer
+      required: [source, stagedRowCount, rowsWithErrors]
+
+    MigrationEntityValidationSummary:
+      type: object
+      properties:
+        entityType:
+          type: string
+        label:
+          type: string
+        total:
+          type: integer
+        valid:
+          type: integer
+        warnings:
+          type: integer
+        errors:
+          type: integer
+      required: [entityType, label, total, valid, warnings, errors]
+
+    MigrationValidationResult:
+      type: object
+      properties:
+        batchId:
+          type: integer
+        status:
+          type: string
+        entities:
+          type: array
+          items:
+            $ref: "#/components/schemas/MigrationEntityValidationSummary"
+        totalRows:
+          type: integer
+        totalErrors:
+          type: integer
+      required: [batchId, status, entities, totalRows, totalErrors]
+
+    MigrationRowIssue:
+      type: object
+      properties:
+        entityType:
+          type: string
+        rowNumber:
+          type: integer
+        validationStatus:
+          type: string
+          enum: [pending, valid, warning, error]
+        messages:
+          nullable: true
+      required: [entityType, rowNumber, validationStatus]
+
+    MigrationExecutionProgress:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [synchronous]
+        batchId:
+          type: integer
+        status:
+          type: string
+        created:
+          type: integer
+        matched:
+          type: integer
+        skipped:
+          type: integer
+        failed:
+          type: integer
+        remaining:
+          type: integer
+      required: [batchId, status, created, matched, skipped, failed, remaining]
+
+    MigrationExecutionQueued:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [background]
+        batchId:
+          type: integer
+        totalRows:
+          type: integer
+        message:
+          type: string
+      required: [mode, batchId, totalRows, message]
+
+    MigrationEntityReconciliation:
+      type: object
+      properties:
+        entityType:
+          type: string
+        label:
+          type: string
+        sourceRows:
+          type: integer
+        created:
+          type: integer
+        matched:
+          type: integer
+        skipped:
+          type: integer
+        failed:
+          type: integer
+        pending:
+          type: integer
+      required: [entityType, label, sourceRows, created, matched, skipped, failed, pending]
+
+    MigrationReconciliationTotals:
+      type: object
+      properties:
+        sourceRows:
+          type: integer
+        created:
+          type: integer
+        matched:
+          type: integer
+        skipped:
+          type: integer
+        failed:
+          type: integer
+        pending:
+          type: integer
+      required: [sourceRows, created, matched, skipped, failed, pending]
+
+    MigrationReconciliation:
+      type: object
+      properties:
+        entities:
+          type: array
+          items:
+            $ref: "#/components/schemas/MigrationEntityReconciliation"
+        totals:
+          $ref: "#/components/schemas/MigrationReconciliationTotals"
+      required: [entities, totals]

@@ -8972,6 +8972,196 @@ export interface ScheduledJob {
   updatedAt: string;
 }
 
+export type MigrationCanonicalFieldType = typeof MigrationCanonicalFieldType[keyof typeof MigrationCanonicalFieldType];
+
+
+export const MigrationCanonicalFieldType = {
+  string: 'string',
+  number: 'number',
+  date: 'date',
+  enum: 'enum',
+  boolean: 'boolean',
+} as const;
+
+export interface MigrationCanonicalField {
+  key: string;
+  label: string;
+  required: boolean;
+  type: MigrationCanonicalFieldType;
+  enumValues?: string[] | null;
+}
+
+export interface MigrationEntityType {
+  entityType: string;
+  label: string;
+  dependsOn: string[];
+  fields: MigrationCanonicalField[];
+}
+
+export interface MigrationEntityTypeList {
+  entityTypes: MigrationEntityType[];
+}
+
+export type MigrationBatchStatus = typeof MigrationBatchStatus[keyof typeof MigrationBatchStatus];
+
+
+export const MigrationBatchStatus = {
+  draft: 'draft',
+  mapped: 'mapped',
+  validated: 'validated',
+  approved: 'approved',
+  running: 'running',
+  completed: 'completed',
+  completed_with_errors: 'completed_with_errors',
+  failed: 'failed',
+  cancelled: 'cancelled',
+} as const;
+
+export interface MigrationBatch {
+  id: number;
+  organizationId: number;
+  name: string;
+  status: MigrationBatchStatus;
+  approvedBy?: number | null;
+  approvedAt?: string | null;
+  executionStartedAt?: string | null;
+  executionCompletedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type MigrationSourceStatus = typeof MigrationSourceStatus[keyof typeof MigrationSourceStatus];
+
+
+export const MigrationSourceStatus = {
+  uploaded: 'uploaded',
+  mapped: 'mapped',
+  validated: 'validated',
+} as const;
+
+export interface MigrationSource {
+  id: number;
+  batchId: number;
+  entityType: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  sha256Digest: string;
+  sheetName?: string | null;
+  rowCount?: number | null;
+  status: MigrationSourceStatus;
+  createdAt: string;
+}
+
+export type MigrationSourceUploadResultAutoMapping = {[key: string]: string};
+
+export interface MigrationSourceUploadResult {
+  source: MigrationSource;
+  headers: string[];
+  rowCount: number;
+  sampleRows: string[][];
+  autoMapping: MigrationSourceUploadResultAutoMapping;
+  unmappedHeaders: string[];
+  missingRequiredFields: string[];
+}
+
+export interface MigrationMappingResult {
+  source: MigrationSource;
+  stagedRowCount: number;
+  rowsWithErrors: number;
+}
+
+export interface MigrationEntityValidationSummary {
+  entityType: string;
+  label: string;
+  total: number;
+  valid: number;
+  warnings: number;
+  errors: number;
+}
+
+export interface MigrationValidationResult {
+  batchId: number;
+  status: string;
+  entities: MigrationEntityValidationSummary[];
+  totalRows: number;
+  totalErrors: number;
+}
+
+export type MigrationRowIssueValidationStatus = typeof MigrationRowIssueValidationStatus[keyof typeof MigrationRowIssueValidationStatus];
+
+
+export const MigrationRowIssueValidationStatus = {
+  pending: 'pending',
+  valid: 'valid',
+  warning: 'warning',
+  error: 'error',
+} as const;
+
+export interface MigrationRowIssue {
+  entityType: string;
+  rowNumber: number;
+  validationStatus: MigrationRowIssueValidationStatus;
+  messages?: unknown | null;
+}
+
+export type MigrationExecutionProgressMode = typeof MigrationExecutionProgressMode[keyof typeof MigrationExecutionProgressMode];
+
+
+export const MigrationExecutionProgressMode = {
+  synchronous: 'synchronous',
+} as const;
+
+export interface MigrationExecutionProgress {
+  mode?: MigrationExecutionProgressMode;
+  batchId: number;
+  status: string;
+  created: number;
+  matched: number;
+  skipped: number;
+  failed: number;
+  remaining: number;
+}
+
+export type MigrationExecutionQueuedMode = typeof MigrationExecutionQueuedMode[keyof typeof MigrationExecutionQueuedMode];
+
+
+export const MigrationExecutionQueuedMode = {
+  background: 'background',
+} as const;
+
+export interface MigrationExecutionQueued {
+  mode: MigrationExecutionQueuedMode;
+  batchId: number;
+  totalRows: number;
+  message: string;
+}
+
+export interface MigrationEntityReconciliation {
+  entityType: string;
+  label: string;
+  sourceRows: number;
+  created: number;
+  matched: number;
+  skipped: number;
+  failed: number;
+  pending: number;
+}
+
+export interface MigrationReconciliationTotals {
+  sourceRows: number;
+  created: number;
+  matched: number;
+  skipped: number;
+  failed: number;
+  pending: number;
+}
+
+export interface MigrationReconciliation {
+  entities: MigrationEntityReconciliation[];
+  totals: MigrationReconciliationTotals;
+}
+
 export type UploadOrganizationLogoBody = {
   file: Blob;
 };
@@ -9915,5 +10105,34 @@ export type SetDocumentLegalHoldBody = {
 
 export type DisposeDocumentBody = {
   reason: string;
+};
+
+export type ListMigrations200 = {
+  migrations: MigrationBatch[];
+};
+
+export type CreateMigrationBody = {
+  name: string;
+};
+
+export type GetMigration200 = {
+  migration: MigrationBatch;
+  sources: MigrationSource[];
+};
+
+export type UploadMigrationSourceBody = {
+  file: Blob;
+  entityType: string;
+  sheetName?: string;
+};
+
+export type SetMigrationSourceMappingBodyMapping = {[key: string]: string};
+
+export type SetMigrationSourceMappingBody = {
+  mapping: SetMigrationSourceMappingBodyMapping;
+};
+
+export type GetMigrationIssues200 = {
+  issues: MigrationRowIssue[];
 };
 

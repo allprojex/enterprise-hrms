@@ -4,8 +4,13 @@ import { logger } from "./lib/logger";
 // them — see src/worker.ts), but scheduleJob() validates jobType against
 // this same registry before inserting, so it must be populated here too.
 import { registerShippedJobHandlers } from "./lib/jobHandlers";
+// WS-7: entity adapters must also be registered in the web process — the
+// migration routes validate `entityType` against this same registry before
+// creating a migration_sources row.
+import { registerShippedEntityAdapters } from "./lib/migrations/registerEntityAdapters";
 
 registerShippedJobHandlers();
+registerShippedEntityAdapters();
 
 const rawPort = process.env["PORT"];
 

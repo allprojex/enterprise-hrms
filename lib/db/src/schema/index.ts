@@ -129,3 +129,7 @@ export * from "./document-templates";
 export * from "./document-template-versions";
 export * from "./generated-documents";
 export * from "./scheduled-jobs";
+export * from "./migration-batches";
+export * from "./migration-sources";
+export * from "./migration-saved-mappings";
+export * from "./migration-staged-rows";

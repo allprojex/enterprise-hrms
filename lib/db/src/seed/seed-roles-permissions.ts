@@ -454,6 +454,37 @@ const PERMISSIONS = [
   { key: "document.retention.manage", resource: "document", action: "retention.manage" },
   { key: "document_template.read", resource: "document_template", action: "read" },
   { key: "document_template.manage", resource: "document_template", action: "manage" },
+  // WS-7 — Bulk Import / Multi-Entity Migration. A dedicated three-key
+  // triad rather than reusing employee.write/personnel_file.manage: a
+  // migration writes across SIX domains at once (structure, employees,
+  // staff/PIF numbers, employment history, qualifications/certifications,
+  // leave balances, payroll compensation), so no single existing key is
+  // semantically correct for it, and composing the full union of underlying
+  // keys on every route would make "who can run an import" impossible to
+  // reason about or delegate.
+  //
+  //   .read    — view migration batches, their staged rows, dry-run results
+  //              and reconciliation reports. Read-only; sees imported HR
+  //              content only insofar as it is staged data awaiting import.
+  //   .manage  — create a batch, upload/map sources, run validation and the
+  //              dry run, cancel a batch. Everything EXCEPT committing.
+  //   .execute — approve an already-validated batch and commit it to live
+  //              data. Deliberately separable from .manage on the same
+  //              least-privilege reasoning W116 used for
+  //              personnel_file.movement.write and WS-5 used for
+  //              document.retention.manage: preparing an import is not
+  //              authorizing it, and a bulk commit is the single most
+  //              consequential write this platform offers.
+  //
+  // Granted below to org_admin only (all three). hr_manager receives
+  // `.read` alone — an HR manager can see and audit a migration in
+  // progress, but running one is an organization-administration act, per
+  // the Owner's "dedicated narrow authority" instruction for this
+  // workstream. super_admin receives all three via the pre-existing blanket
+  // grant.
+  { key: "migration.read", resource: "migration", action: "read" },
+  { key: "migration.manage", resource: "migration", action: "manage" },
+  { key: "migration.execute", resource: "migration", action: "execute" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -551,6 +582,11 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "document.verify",
     "document_template.read",
     "document_template.manage",
+    // WS-7 — org_admin holds the full migration triad: preparing, approving
+    // and committing a bulk import is an organization-administration act.
+    "migration.read",
+    "migration.manage",
+    "migration.execute",
   ],
   hr_manager: [
     "organization.read",
@@ -645,6 +681,11 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "document.verify",
     "document_template.read",
     "document_template.manage",
+    // WS-7 — read-only, deliberately narrower than org_admin (and narrower
+    // than the WS-5/WS-6 precedent of giving hr_manager the same set): an
+    // HR manager can see and audit a migration, but preparing/approving/
+    // committing one is reserved to organization administration.
+    "migration.read",
   ],
   employee: [
     "organization.read",

@@ -17576,3 +17576,345 @@ export const DisposeDocumentResponse = zod.object({
 }))
 
 
+/**
+ * The server-defined allow-list. Each entry carries its canonical fields (so a client can render a mapping UI) and its dependsOn list (so a client can explain why structure must accompany employees).
+ * @summary List the entity types a migration can import, in dependency order (WS-7)
+ */
+export const ListMigrationEntityTypesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListMigrationEntityTypesResponse = zod.object({
+  "entityTypes": zod.array(zod.object({
+  "entityType": zod.string(),
+  "label": zod.string(),
+  "dependsOn": zod.array(zod.string()),
+  "fields": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "required": zod.boolean(),
+  "type": zod.enum(['string', 'number', 'date', 'enum', 'boolean']),
+  "enumValues": zod.array(zod.string()).nullish()
+}))
+}))
+})
+
+
+/**
+ * @summary Download a CSV starter template for one entity type (WS-7)
+ */
+export const GetMigrationTemplateParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "entityType": zod.coerce.string()
+})
+
+export const GetMigrationTemplateResponse = zod.unknown()
+
+
+/**
+ * @summary List migration batches (WS-7)
+ */
+export const ListMigrationsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListMigrationsResponse = zod.object({
+  "migrations": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "status": zod.enum(['draft', 'mapped', 'validated', 'approved', 'running', 'completed', 'completed_with_errors', 'failed', 'cancelled']),
+  "approvedBy": zod.number().nullish(),
+  "approvedAt": zod.coerce.date().nullish(),
+  "executionStartedAt": zod.coerce.date().nullish(),
+  "executionCompletedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Create a migration batch (WS-7)
+ */
+export const CreateMigrationParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const CreateMigrationBody = zod.object({
+  "name": zod.string()
+})
+
+export const CreateMigrationResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "status": zod.enum(['draft', 'mapped', 'validated', 'approved', 'running', 'completed', 'completed_with_errors', 'failed', 'cancelled']),
+  "approvedBy": zod.number().nullish(),
+  "approvedAt": zod.coerce.date().nullish(),
+  "executionStartedAt": zod.coerce.date().nullish(),
+  "executionCompletedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get one migration batch and its sources (WS-7)
+ */
+export const GetMigrationParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "migrationId": zod.coerce.number()
+})
+
+export const GetMigrationResponse = zod.object({
+  "migration": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "status": zod.enum(['draft', 'mapped', 'validated', 'approved', 'running', 'completed', 'completed_with_errors', 'failed', 'cancelled']),
+  "approvedBy": zod.number().nullish(),
+  "approvedAt": zod.coerce.date().nullish(),
+  "executionStartedAt": zod.coerce.date().nullish(),
+  "executionCompletedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "sources": zod.array(zod.object({
+  "id": zod.number(),
+  "batchId": zod.number(),
+  "entityType": zod.string(),
+  "fileName": zod.string(),
+  "mimeType": zod.string(),
+  "fileSize": zod.number(),
+  "sha256Digest": zod.string(),
+  "sheetName": zod.string().nullish(),
+  "rowCount": zod.number().nullish(),
+  "status": zod.enum(['uploaded', 'mapped', 'validated']),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * multipart/form-data, field "file". CSV or XLSX, 20MB / 50,000 rows / 200 columns maximum. Returns the parsed headers, a sample of rows and a conservative auto-mapping proposal. Re-uploading for an entity type already present replaces it and returns the batch to draft.
+ * @summary Upload a CSV/XLSX source file for one entity type (WS-7)
+ */
+export const UploadMigrationSourceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "migrationId": zod.coerce.number()
+})
+
+export const UploadMigrationSourceBody = zod.object({
+  "file": zod.instanceof(File),
+  "entityType": zod.string(),
+  "sheetName": zod.string().optional()
+})
+
+export const UploadMigrationSourceResponse = zod.object({
+  "source": zod.object({
+  "id": zod.number(),
+  "batchId": zod.number(),
+  "entityType": zod.string(),
+  "fileName": zod.string(),
+  "mimeType": zod.string(),
+  "fileSize": zod.number(),
+  "sha256Digest": zod.string(),
+  "sheetName": zod.string().nullish(),
+  "rowCount": zod.number().nullish(),
+  "status": zod.enum(['uploaded', 'mapped', 'validated']),
+  "createdAt": zod.coerce.date()
+}),
+  "headers": zod.array(zod.string()),
+  "rowCount": zod.number(),
+  "sampleRows": zod.array(zod.array(zod.string())),
+  "autoMapping": zod.record(zod.string(), zod.string()),
+  "unmappedHeaders": zod.array(zod.string()),
+  "missingRequiredFields": zod.array(zod.string())
+})
+
+
+/**
+ * @summary Confirm a column mapping and stage every row (WS-7)
+ */
+export const SetMigrationSourceMappingParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "migrationId": zod.coerce.number(),
+  "sourceId": zod.coerce.number()
+})
+
+export const SetMigrationSourceMappingBody = zod.object({
+  "mapping": zod.record(zod.string(), zod.string())
+})
+
+export const SetMigrationSourceMappingResponse = zod.object({
+  "source": zod.object({
+  "id": zod.number(),
+  "batchId": zod.number(),
+  "entityType": zod.string(),
+  "fileName": zod.string(),
+  "mimeType": zod.string(),
+  "fileSize": zod.number(),
+  "sha256Digest": zod.string(),
+  "sheetName": zod.string().nullish(),
+  "rowCount": zod.number().nullish(),
+  "status": zod.enum(['uploaded', 'mapped', 'validated']),
+  "createdAt": zod.coerce.date()
+}),
+  "stagedRowCount": zod.number(),
+  "rowsWithErrors": zod.number()
+})
+
+
+/**
+ * Read-only. Re-plans every staged row against live data in dependency order; a reference satisfied by an earlier source in the same batch counts as resolvable. Safe to run repeatedly.
+ * @summary Run the dry run (WS-7)
+ */
+export const ValidateMigrationParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "migrationId": zod.coerce.number()
+})
+
+export const ValidateMigrationResponse = zod.object({
+  "batchId": zod.number(),
+  "status": zod.string(),
+  "entities": zod.array(zod.object({
+  "entityType": zod.string(),
+  "label": zod.string(),
+  "total": zod.number(),
+  "valid": zod.number(),
+  "warnings": zod.number(),
+  "errors": zod.number()
+})),
+  "totalRows": zod.number(),
+  "totalErrors": zod.number()
+})
+
+
+/**
+ * @summary List staged rows with dry-run errors or warnings (WS-7)
+ */
+export const GetMigrationIssuesParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "migrationId": zod.coerce.number()
+})
+
+export const GetMigrationIssuesResponse = zod.object({
+  "issues": zod.array(zod.object({
+  "entityType": zod.string(),
+  "rowNumber": zod.number(),
+  "validationStatus": zod.enum(['pending', 'valid', 'warning', 'error']),
+  "messages": zod.unknown().nullish()
+}))
+})
+
+
+/**
+ * Refuses a batch that still has error rows. Snapshots every source's sha256 so execution can prove nothing changed after review.
+ * @summary Approve a validated migration, freezing its source checksums (WS-7)
+ */
+export const ApproveMigrationParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "migrationId": zod.coerce.number()
+})
+
+export const ApproveMigrationResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "status": zod.enum(['draft', 'mapped', 'validated', 'approved', 'running', 'completed', 'completed_with_errors', 'failed', 'cancelled']),
+  "approvedBy": zod.number().nullish(),
+  "approvedAt": zod.coerce.date().nullish(),
+  "executionStartedAt": zod.coerce.date().nullish(),
+  "executionCompletedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Small migrations run synchronously and return a finished result. Larger ones are handed to the background worker and return 202 — poll the migration for progress. Re-running only ever picks up rows still pending, so this is safe to retry.
+ * @summary Execute an approved migration (WS-7)
+ */
+export const ExecuteMigrationParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "migrationId": zod.coerce.number()
+})
+
+export const ExecuteMigrationResponse = zod.object({
+  "mode": zod.enum(['synchronous']).optional(),
+  "batchId": zod.number(),
+  "status": zod.string(),
+  "created": zod.number(),
+  "matched": zod.number(),
+  "skipped": zod.number(),
+  "failed": zod.number(),
+  "remaining": zod.number()
+})
+
+
+/**
+ * Every staged row lands in exactly one bucket and the buckets sum to the source row count, so a silently dropped row is arithmetically impossible to hide.
+ * @summary Per-entity reconciliation totals (WS-7)
+ */
+export const GetMigrationReconciliationParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "migrationId": zod.coerce.number()
+})
+
+export const GetMigrationReconciliationResponse = zod.object({
+  "entities": zod.array(zod.object({
+  "entityType": zod.string(),
+  "label": zod.string(),
+  "sourceRows": zod.number(),
+  "created": zod.number(),
+  "matched": zod.number(),
+  "skipped": zod.number(),
+  "failed": zod.number(),
+  "pending": zod.number()
+})),
+  "totals": zod.object({
+  "sourceRows": zod.number(),
+  "created": zod.number(),
+  "matched": zod.number(),
+  "skipped": zod.number(),
+  "failed": zod.number(),
+  "pending": zod.number()
+})
+})
+
+
+/**
+ * @summary Download the reconciliation report as CSV (WS-7)
+ */
+export const DownloadMigrationReconciliationParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "migrationId": zod.coerce.number()
+})
+
+export const DownloadMigrationReconciliationResponse = zod.unknown()
+
+
+/**
+ * Only a draft/mapped/validated/approved migration can be cancelled. A running or finished one cannot, because cancelling would imply undoing committed rows, which this engine deliberately does not do.
+ * @summary Cancel a migration that has not executed (WS-7)
+ */
+export const CancelMigrationParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "migrationId": zod.coerce.number()
+})
+
+export const CancelMigrationResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "status": zod.enum(['draft', 'mapped', 'validated', 'approved', 'running', 'completed', 'completed_with_errors', 'failed', 'cancelled']),
+  "approvedBy": zod.number().nullish(),
+  "approvedAt": zod.coerce.date().nullish(),
+  "executionStartedAt": zod.coerce.date().nullish(),
+  "executionCompletedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+

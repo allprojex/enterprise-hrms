@@ -104,6 +104,7 @@ import type {
   CreateLeaveRequestInput,
   CreateLeaveTypeInput,
   CreateMasterDataItemInput,
+  CreateMigrationBody,
   CreateOfferInput,
   CreateOfficeInventoryAdjustmentBody,
   CreateOfficeInventoryAssetHandoffBody,
@@ -183,6 +184,8 @@ import type {
   GetAttendanceDailySummaryParams,
   GetAttendanceDashboardParams,
   GetDocumentExpiryStateParams,
+  GetMigration200,
+  GetMigrationIssues200,
   GetOfficeInventoryStockBalanceParams,
   GetPayrollReportParams,
   GetPerformanceDashboardParams,
@@ -238,6 +241,7 @@ import type {
   ListLearningEnrollmentsParams,
   ListLeaveBalanceLedgerParams,
   ListLeaveCalendarParams,
+  ListMigrations200,
   ListNotificationsParams,
   ListOffersParams,
   ListOfficeInventoryIncidentsParams,
@@ -264,6 +268,14 @@ import type {
   MasterDataItem,
   MembershipSummary,
   MessageResponse,
+  MigrationBatch,
+  MigrationEntityTypeList,
+  MigrationExecutionProgress,
+  MigrationExecutionQueued,
+  MigrationMappingResult,
+  MigrationReconciliation,
+  MigrationSourceUploadResult,
+  MigrationValidationResult,
   Module,
   MoveApplicationStageInput,
   MyCertificationsResponse,
@@ -417,6 +429,7 @@ import type {
   SelfAssessmentNotReadyError,
   SeparateEmployeeInput,
   SetDocumentLegalHoldBody,
+  SetMigrationSourceMappingBody,
   SetPrimaryHrInput,
   SubmitApplicationScoreInput,
   SubmitInternalApplicationInput,
@@ -468,6 +481,7 @@ import type {
   UpdateVacancyInput,
   UploadEmployeeDocumentBody,
   UploadEmployeeProfilePictureBody,
+  UploadMigrationSourceBody,
   UploadMyEmployeeProfilePictureBody,
   UploadOrganizationLogo200,
   UploadOrganizationLogoBody,
@@ -40903,5 +40917,1096 @@ export const useDisposeDocument = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getDisposeDocumentMutationOptions(options));
+    }
+
+export const getListMigrationEntityTypesUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/migrations/entity-types`
+}
+
+/**
+ * The server-defined allow-list. Each entry carries its canonical fields (so a client can render a mapping UI) and its dependsOn list (so a client can explain why structure must accompany employees).
+ * @summary List the entity types a migration can import, in dependency order (WS-7)
+ */
+export const listMigrationEntityTypes = async (organizationId: number, options?: RequestInit): Promise<MigrationEntityTypeList> => {
+
+  return customFetch<MigrationEntityTypeList>(getListMigrationEntityTypesUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMigrationEntityTypesQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/migrations/entity-types`
+    ] as const;
+    }
+
+
+export const getListMigrationEntityTypesQueryOptions = <TData = Awaited<ReturnType<typeof listMigrationEntityTypes>>, TError = ErrorType<ApiError>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMigrationEntityTypes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMigrationEntityTypesQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMigrationEntityTypes>>> = ({ signal }) => listMigrationEntityTypes(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMigrationEntityTypes>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMigrationEntityTypesQueryResult = NonNullable<Awaited<ReturnType<typeof listMigrationEntityTypes>>>
+export type ListMigrationEntityTypesQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List the entity types a migration can import, in dependency order (WS-7)
+ */
+
+export function useListMigrationEntityTypes<TData = Awaited<ReturnType<typeof listMigrationEntityTypes>>, TError = ErrorType<ApiError>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMigrationEntityTypes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMigrationEntityTypesQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetMigrationTemplateUrl = (organizationId: number,
+    entityType: string,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/migrations/templates/${entityType}`
+}
+
+/**
+ * @summary Download a CSV starter template for one entity type (WS-7)
+ */
+export const getMigrationTemplate = async (organizationId: number,
+    entityType: string, options?: RequestInit): Promise<string> => {
+
+  return customFetch<string>(getGetMigrationTemplateUrl(organizationId,entityType),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMigrationTemplateQueryKey = (organizationId: number,
+    entityType: string,) => {
+    return [
+    `/api/organizations/${organizationId}/migrations/templates/${entityType}`
+    ] as const;
+    }
+
+
+export const getGetMigrationTemplateQueryOptions = <TData = Awaited<ReturnType<typeof getMigrationTemplate>>, TError = ErrorType<ApiError>>(organizationId: number,
+    entityType: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigrationTemplate>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMigrationTemplateQueryKey(organizationId,entityType);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMigrationTemplate>>> = ({ signal }) => getMigrationTemplate(organizationId,entityType, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && entityType !== null && entityType !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMigrationTemplate>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMigrationTemplateQueryResult = NonNullable<Awaited<ReturnType<typeof getMigrationTemplate>>>
+export type GetMigrationTemplateQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Download a CSV starter template for one entity type (WS-7)
+ */
+
+export function useGetMigrationTemplate<TData = Awaited<ReturnType<typeof getMigrationTemplate>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    entityType: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigrationTemplate>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMigrationTemplateQueryOptions(organizationId,entityType,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListMigrationsUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/migrations`
+}
+
+/**
+ * @summary List migration batches (WS-7)
+ */
+export const listMigrations = async (organizationId: number, options?: RequestInit): Promise<ListMigrations200> => {
+
+  return customFetch<ListMigrations200>(getListMigrationsUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMigrationsQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/migrations`
+    ] as const;
+    }
+
+
+export const getListMigrationsQueryOptions = <TData = Awaited<ReturnType<typeof listMigrations>>, TError = ErrorType<ApiError>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMigrations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMigrationsQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMigrations>>> = ({ signal }) => listMigrations(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMigrations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMigrationsQueryResult = NonNullable<Awaited<ReturnType<typeof listMigrations>>>
+export type ListMigrationsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List migration batches (WS-7)
+ */
+
+export function useListMigrations<TData = Awaited<ReturnType<typeof listMigrations>>, TError = ErrorType<ApiError>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMigrations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMigrationsQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateMigrationUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/migrations`
+}
+
+/**
+ * @summary Create a migration batch (WS-7)
+ */
+export const createMigration = async (organizationId: number,
+    createMigrationBody: CreateMigrationBody, options?: RequestInit): Promise<MigrationBatch> => {
+
+  return customFetch<MigrationBatch>(getCreateMigrationUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createMigrationBody)
+  }
+);}
+
+
+
+
+
+export const getCreateMigrationMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMigration>>, TError,{organizationId: number;data: BodyType<CreateMigrationBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createMigration>>, TError,{organizationId: number;data: BodyType<CreateMigrationBody>}, TContext> => {
+
+const mutationKey = ['createMigration'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createMigration>>, {organizationId: number;data: BodyType<CreateMigrationBody>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createMigration(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateMigrationMutationResult = NonNullable<Awaited<ReturnType<typeof createMigration>>>
+    export type CreateMigrationMutationBody = BodyType<CreateMigrationBody>
+    export type CreateMigrationMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Create a migration batch (WS-7)
+ */
+export const useCreateMigration = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMigration>>, TError,{organizationId: number;data: BodyType<CreateMigrationBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createMigration>>,
+        TError,
+        {organizationId: number;data: BodyType<CreateMigrationBody>},
+        TContext
+      > => {
+      return useMutation(getCreateMigrationMutationOptions(options));
+    }
+
+export const getGetMigrationUrl = (organizationId: number,
+    migrationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/migrations/${migrationId}`
+}
+
+/**
+ * @summary Get one migration batch and its sources (WS-7)
+ */
+export const getMigration = async (organizationId: number,
+    migrationId: number, options?: RequestInit): Promise<GetMigration200> => {
+
+  return customFetch<GetMigration200>(getGetMigrationUrl(organizationId,migrationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMigrationQueryKey = (organizationId: number,
+    migrationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/migrations/${migrationId}`
+    ] as const;
+    }
+
+
+export const getGetMigrationQueryOptions = <TData = Awaited<ReturnType<typeof getMigration>>, TError = ErrorType<ApiError>>(organizationId: number,
+    migrationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigration>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMigrationQueryKey(organizationId,migrationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMigration>>> = ({ signal }) => getMigration(organizationId,migrationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && migrationId !== null && migrationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMigration>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMigrationQueryResult = NonNullable<Awaited<ReturnType<typeof getMigration>>>
+export type GetMigrationQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get one migration batch and its sources (WS-7)
+ */
+
+export function useGetMigration<TData = Awaited<ReturnType<typeof getMigration>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    migrationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigration>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMigrationQueryOptions(organizationId,migrationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUploadMigrationSourceUrl = (organizationId: number,
+    migrationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/migrations/${migrationId}/sources`
+}
+
+/**
+ * multipart/form-data, field "file". CSV or XLSX, 20MB / 50,000 rows / 200 columns maximum. Returns the parsed headers, a sample of rows and a conservative auto-mapping proposal. Re-uploading for an entity type already present replaces it and returns the batch to draft.
+ * @summary Upload a CSV/XLSX source file for one entity type (WS-7)
+ */
+export const uploadMigrationSource = async (organizationId: number,
+    migrationId: number,
+    uploadMigrationSourceBody: UploadMigrationSourceBody, options?: RequestInit): Promise<MigrationSourceUploadResult> => {
+    const formData = new FormData();
+formData.append(`file`, uploadMigrationSourceBody.file);
+formData.append(`entityType`, uploadMigrationSourceBody.entityType);
+if(uploadMigrationSourceBody.sheetName !== undefined) {
+ formData.append(`sheetName`, uploadMigrationSourceBody.sheetName);
+ }
+
+  return customFetch<MigrationSourceUploadResult>(getUploadMigrationSourceUrl(organizationId,migrationId),
+  {
+    ...options,
+    method: 'POST'
+    ,
+    body: formData
+  }
+);}
+
+
+
+
+
+export const getUploadMigrationSourceMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadMigrationSource>>, TError,{organizationId: number;migrationId: number;data: BodyType<UploadMigrationSourceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadMigrationSource>>, TError,{organizationId: number;migrationId: number;data: BodyType<UploadMigrationSourceBody>}, TContext> => {
+
+const mutationKey = ['uploadMigrationSource'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadMigrationSource>>, {organizationId: number;migrationId: number;data: BodyType<UploadMigrationSourceBody>}> = (props) => {
+          const {organizationId,migrationId,data} = props ?? {};
+
+          return  uploadMigrationSource(organizationId,migrationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadMigrationSourceMutationResult = NonNullable<Awaited<ReturnType<typeof uploadMigrationSource>>>
+    export type UploadMigrationSourceMutationBody = BodyType<UploadMigrationSourceBody>
+    export type UploadMigrationSourceMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Upload a CSV/XLSX source file for one entity type (WS-7)
+ */
+export const useUploadMigrationSource = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadMigrationSource>>, TError,{organizationId: number;migrationId: number;data: BodyType<UploadMigrationSourceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof uploadMigrationSource>>,
+        TError,
+        {organizationId: number;migrationId: number;data: BodyType<UploadMigrationSourceBody>},
+        TContext
+      > => {
+      return useMutation(getUploadMigrationSourceMutationOptions(options));
+    }
+
+export const getSetMigrationSourceMappingUrl = (organizationId: number,
+    migrationId: number,
+    sourceId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/migrations/${migrationId}/sources/${sourceId}/mapping`
+}
+
+/**
+ * @summary Confirm a column mapping and stage every row (WS-7)
+ */
+export const setMigrationSourceMapping = async (organizationId: number,
+    migrationId: number,
+    sourceId: number,
+    setMigrationSourceMappingBody: SetMigrationSourceMappingBody, options?: RequestInit): Promise<MigrationMappingResult> => {
+
+  return customFetch<MigrationMappingResult>(getSetMigrationSourceMappingUrl(organizationId,migrationId,sourceId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(setMigrationSourceMappingBody)
+  }
+);}
+
+
+
+
+
+export const getSetMigrationSourceMappingMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setMigrationSourceMapping>>, TError,{organizationId: number;migrationId: number;sourceId: number;data: BodyType<SetMigrationSourceMappingBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setMigrationSourceMapping>>, TError,{organizationId: number;migrationId: number;sourceId: number;data: BodyType<SetMigrationSourceMappingBody>}, TContext> => {
+
+const mutationKey = ['setMigrationSourceMapping'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setMigrationSourceMapping>>, {organizationId: number;migrationId: number;sourceId: number;data: BodyType<SetMigrationSourceMappingBody>}> = (props) => {
+          const {organizationId,migrationId,sourceId,data} = props ?? {};
+
+          return  setMigrationSourceMapping(organizationId,migrationId,sourceId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetMigrationSourceMappingMutationResult = NonNullable<Awaited<ReturnType<typeof setMigrationSourceMapping>>>
+    export type SetMigrationSourceMappingMutationBody = BodyType<SetMigrationSourceMappingBody>
+    export type SetMigrationSourceMappingMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Confirm a column mapping and stage every row (WS-7)
+ */
+export const useSetMigrationSourceMapping = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setMigrationSourceMapping>>, TError,{organizationId: number;migrationId: number;sourceId: number;data: BodyType<SetMigrationSourceMappingBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setMigrationSourceMapping>>,
+        TError,
+        {organizationId: number;migrationId: number;sourceId: number;data: BodyType<SetMigrationSourceMappingBody>},
+        TContext
+      > => {
+      return useMutation(getSetMigrationSourceMappingMutationOptions(options));
+    }
+
+export const getValidateMigrationUrl = (organizationId: number,
+    migrationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/migrations/${migrationId}/validate`
+}
+
+/**
+ * Read-only. Re-plans every staged row against live data in dependency order; a reference satisfied by an earlier source in the same batch counts as resolvable. Safe to run repeatedly.
+ * @summary Run the dry run (WS-7)
+ */
+export const validateMigration = async (organizationId: number,
+    migrationId: number, options?: RequestInit): Promise<MigrationValidationResult> => {
+
+  return customFetch<MigrationValidationResult>(getValidateMigrationUrl(organizationId,migrationId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getValidateMigrationMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof validateMigration>>, TError,{organizationId: number;migrationId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof validateMigration>>, TError,{organizationId: number;migrationId: number}, TContext> => {
+
+const mutationKey = ['validateMigration'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof validateMigration>>, {organizationId: number;migrationId: number}> = (props) => {
+          const {organizationId,migrationId} = props ?? {};
+
+          return  validateMigration(organizationId,migrationId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ValidateMigrationMutationResult = NonNullable<Awaited<ReturnType<typeof validateMigration>>>
+
+    export type ValidateMigrationMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Run the dry run (WS-7)
+ */
+export const useValidateMigration = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof validateMigration>>, TError,{organizationId: number;migrationId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof validateMigration>>,
+        TError,
+        {organizationId: number;migrationId: number},
+        TContext
+      > => {
+      return useMutation(getValidateMigrationMutationOptions(options));
+    }
+
+export const getGetMigrationIssuesUrl = (organizationId: number,
+    migrationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/migrations/${migrationId}/issues`
+}
+
+/**
+ * @summary List staged rows with dry-run errors or warnings (WS-7)
+ */
+export const getMigrationIssues = async (organizationId: number,
+    migrationId: number, options?: RequestInit): Promise<GetMigrationIssues200> => {
+
+  return customFetch<GetMigrationIssues200>(getGetMigrationIssuesUrl(organizationId,migrationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMigrationIssuesQueryKey = (organizationId: number,
+    migrationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/migrations/${migrationId}/issues`
+    ] as const;
+    }
+
+
+export const getGetMigrationIssuesQueryOptions = <TData = Awaited<ReturnType<typeof getMigrationIssues>>, TError = ErrorType<ApiError>>(organizationId: number,
+    migrationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigrationIssues>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMigrationIssuesQueryKey(organizationId,migrationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMigrationIssues>>> = ({ signal }) => getMigrationIssues(organizationId,migrationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && migrationId !== null && migrationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMigrationIssues>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMigrationIssuesQueryResult = NonNullable<Awaited<ReturnType<typeof getMigrationIssues>>>
+export type GetMigrationIssuesQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List staged rows with dry-run errors or warnings (WS-7)
+ */
+
+export function useGetMigrationIssues<TData = Awaited<ReturnType<typeof getMigrationIssues>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    migrationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigrationIssues>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMigrationIssuesQueryOptions(organizationId,migrationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getApproveMigrationUrl = (organizationId: number,
+    migrationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/migrations/${migrationId}/approve`
+}
+
+/**
+ * Refuses a batch that still has error rows. Snapshots every source's sha256 so execution can prove nothing changed after review.
+ * @summary Approve a validated migration, freezing its source checksums (WS-7)
+ */
+export const approveMigration = async (organizationId: number,
+    migrationId: number, options?: RequestInit): Promise<MigrationBatch> => {
+
+  return customFetch<MigrationBatch>(getApproveMigrationUrl(organizationId,migrationId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getApproveMigrationMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveMigration>>, TError,{organizationId: number;migrationId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveMigration>>, TError,{organizationId: number;migrationId: number}, TContext> => {
+
+const mutationKey = ['approveMigration'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveMigration>>, {organizationId: number;migrationId: number}> = (props) => {
+          const {organizationId,migrationId} = props ?? {};
+
+          return  approveMigration(organizationId,migrationId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveMigrationMutationResult = NonNullable<Awaited<ReturnType<typeof approveMigration>>>
+
+    export type ApproveMigrationMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Approve a validated migration, freezing its source checksums (WS-7)
+ */
+export const useApproveMigration = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveMigration>>, TError,{organizationId: number;migrationId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveMigration>>,
+        TError,
+        {organizationId: number;migrationId: number},
+        TContext
+      > => {
+      return useMutation(getApproveMigrationMutationOptions(options));
+    }
+
+export const getExecuteMigrationUrl = (organizationId: number,
+    migrationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/migrations/${migrationId}/execute`
+}
+
+/**
+ * Small migrations run synchronously and return a finished result. Larger ones are handed to the background worker and return 202 — poll the migration for progress. Re-running only ever picks up rows still pending, so this is safe to retry.
+ * @summary Execute an approved migration (WS-7)
+ */
+export const executeMigration = async (organizationId: number,
+    migrationId: number, options?: RequestInit): Promise<MigrationExecutionProgress | MigrationExecutionQueued> => {
+
+  return customFetch<MigrationExecutionProgress | MigrationExecutionQueued>(getExecuteMigrationUrl(organizationId,migrationId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getExecuteMigrationMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof executeMigration>>, TError,{organizationId: number;migrationId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof executeMigration>>, TError,{organizationId: number;migrationId: number}, TContext> => {
+
+const mutationKey = ['executeMigration'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof executeMigration>>, {organizationId: number;migrationId: number}> = (props) => {
+          const {organizationId,migrationId} = props ?? {};
+
+          return  executeMigration(organizationId,migrationId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ExecuteMigrationMutationResult = NonNullable<Awaited<ReturnType<typeof executeMigration>>>
+
+    export type ExecuteMigrationMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Execute an approved migration (WS-7)
+ */
+export const useExecuteMigration = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof executeMigration>>, TError,{organizationId: number;migrationId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof executeMigration>>,
+        TError,
+        {organizationId: number;migrationId: number},
+        TContext
+      > => {
+      return useMutation(getExecuteMigrationMutationOptions(options));
+    }
+
+export const getGetMigrationReconciliationUrl = (organizationId: number,
+    migrationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/migrations/${migrationId}/reconciliation`
+}
+
+/**
+ * Every staged row lands in exactly one bucket and the buckets sum to the source row count, so a silently dropped row is arithmetically impossible to hide.
+ * @summary Per-entity reconciliation totals (WS-7)
+ */
+export const getMigrationReconciliation = async (organizationId: number,
+    migrationId: number, options?: RequestInit): Promise<MigrationReconciliation> => {
+
+  return customFetch<MigrationReconciliation>(getGetMigrationReconciliationUrl(organizationId,migrationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMigrationReconciliationQueryKey = (organizationId: number,
+    migrationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/migrations/${migrationId}/reconciliation`
+    ] as const;
+    }
+
+
+export const getGetMigrationReconciliationQueryOptions = <TData = Awaited<ReturnType<typeof getMigrationReconciliation>>, TError = ErrorType<ApiError>>(organizationId: number,
+    migrationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigrationReconciliation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMigrationReconciliationQueryKey(organizationId,migrationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMigrationReconciliation>>> = ({ signal }) => getMigrationReconciliation(organizationId,migrationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && migrationId !== null && migrationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMigrationReconciliation>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMigrationReconciliationQueryResult = NonNullable<Awaited<ReturnType<typeof getMigrationReconciliation>>>
+export type GetMigrationReconciliationQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Per-entity reconciliation totals (WS-7)
+ */
+
+export function useGetMigrationReconciliation<TData = Awaited<ReturnType<typeof getMigrationReconciliation>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    migrationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMigrationReconciliation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMigrationReconciliationQueryOptions(organizationId,migrationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDownloadMigrationReconciliationUrl = (organizationId: number,
+    migrationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/migrations/${migrationId}/reconciliation.csv`
+}
+
+/**
+ * @summary Download the reconciliation report as CSV (WS-7)
+ */
+export const downloadMigrationReconciliation = async (organizationId: number,
+    migrationId: number, options?: RequestInit): Promise<string> => {
+
+  return customFetch<string>(getDownloadMigrationReconciliationUrl(organizationId,migrationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadMigrationReconciliationQueryKey = (organizationId: number,
+    migrationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/migrations/${migrationId}/reconciliation.csv`
+    ] as const;
+    }
+
+
+export const getDownloadMigrationReconciliationQueryOptions = <TData = Awaited<ReturnType<typeof downloadMigrationReconciliation>>, TError = ErrorType<ApiError>>(organizationId: number,
+    migrationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadMigrationReconciliation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadMigrationReconciliationQueryKey(organizationId,migrationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadMigrationReconciliation>>> = ({ signal }) => downloadMigrationReconciliation(organizationId,migrationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && migrationId !== null && migrationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadMigrationReconciliation>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DownloadMigrationReconciliationQueryResult = NonNullable<Awaited<ReturnType<typeof downloadMigrationReconciliation>>>
+export type DownloadMigrationReconciliationQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Download the reconciliation report as CSV (WS-7)
+ */
+
+export function useDownloadMigrationReconciliation<TData = Awaited<ReturnType<typeof downloadMigrationReconciliation>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    migrationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadMigrationReconciliation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDownloadMigrationReconciliationQueryOptions(organizationId,migrationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCancelMigrationUrl = (organizationId: number,
+    migrationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/migrations/${migrationId}/cancel`
+}
+
+/**
+ * Only a draft/mapped/validated/approved migration can be cancelled. A running or finished one cannot, because cancelling would imply undoing committed rows, which this engine deliberately does not do.
+ * @summary Cancel a migration that has not executed (WS-7)
+ */
+export const cancelMigration = async (organizationId: number,
+    migrationId: number, options?: RequestInit): Promise<MigrationBatch> => {
+
+  return customFetch<MigrationBatch>(getCancelMigrationUrl(organizationId,migrationId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCancelMigrationMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelMigration>>, TError,{organizationId: number;migrationId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelMigration>>, TError,{organizationId: number;migrationId: number}, TContext> => {
+
+const mutationKey = ['cancelMigration'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelMigration>>, {organizationId: number;migrationId: number}> = (props) => {
+          const {organizationId,migrationId} = props ?? {};
+
+          return  cancelMigration(organizationId,migrationId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelMigrationMutationResult = NonNullable<Awaited<ReturnType<typeof cancelMigration>>>
+
+    export type CancelMigrationMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Cancel a migration that has not executed (WS-7)
+ */
+export const useCancelMigration = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelMigration>>, TError,{organizationId: number;migrationId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelMigration>>,
+        TError,
+        {organizationId: number;migrationId: number},
+        TContext
+      > => {
+      return useMutation(getCancelMigrationMutationOptions(options));
     }
 
