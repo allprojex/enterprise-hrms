@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'wouter';
 import { ArrowLeft, Loader2, Mail, Phone, Building, Network, Briefcase, Camera, UserPlus, UserCheck, UserX, RotateCcw, FileText, Upload, Trash2, Award, GraduationCap, Sparkles, Plus, ArrowLeftRight, TrendingUp, BadgeCheck, ShieldAlert, LogOut, IdCard, History, MapPin, AlertTriangle, PackageSearch } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { CustomFieldValuesPanel } from '@/components/custom-fields/custom-field-values-panel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -2462,6 +2463,11 @@ export default function EmployeeDetail() {
             )}
           </CardContent>
         </Card>
+
+        {/* WS-8 — renders only when this organization has configured employee custom fields. */}
+        <div className="lg:col-span-3">
+          <CustomFieldValuesPanel organizationId={organizationId} scope="employee" entityId={employeeId} readOnly={!isHrCapable} />
+        </div>
       </div>
     </div>
   );

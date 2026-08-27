@@ -21641,6 +21641,909 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  # --- WS-8: Custom Fields & Form Builder --------------------------------
+  /organizations/{organizationId}/custom-fields/meta:
+    get:
+      operationId: getCustomFieldMeta
+      tags: [custom-fields]
+      summary: Field-type registry, approved scopes and visibility operators (WS-8)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Registry metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomFieldMeta"
+        "403":
+          description: Forbidden — requires custom_fields.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/custom-fields:
+    get:
+      operationId: listCustomFields
+      tags: [custom-fields]
+      summary: List custom field definitions for a scope (WS-8)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: scope
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: includeArchived
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Definitions with their current versions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [fields]
+                properties:
+                  fields:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CustomFieldWithVersion"
+        "400":
+          description: Unknown scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires custom_fields.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createCustomField
+      tags: [custom-fields]
+      summary: Define a custom field (WS-8)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomFieldInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomFieldWithVersion"
+        "400":
+          description: Invalid scope, type or configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires custom_fields.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: A field with this key already exists for this scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/custom-fields/{definitionId}:
+    get:
+      operationId: getCustomField
+      tags: [custom-fields]
+      summary: Get a custom field with its version history (WS-8)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: definitionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Definition, current version, history and used choices
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomFieldDetail"
+        "403":
+          description: Forbidden — requires custom_fields.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/custom-fields/{definitionId}/versions:
+    post:
+      operationId: createCustomFieldVersion
+      tags: [custom-fields]
+      summary: Create the next version of a custom field (WS-8)
+      description: >-
+        Safe changes create a new version. A breaking change (field type,
+        removing a choice already in use, changing a master data domain) is
+        refused with 409 once values exist, so captured data is never
+        reinterpreted.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: definitionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomFieldVersionInput"
+      responses:
+        "201":
+          description: New version created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomFieldWithVersion"
+        "400":
+          description: Invalid configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires custom_fields.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Breaking change refused
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/custom-fields/{definitionId}/archive:
+    post:
+      operationId: archiveCustomField
+      tags: [custom-fields]
+      summary: Archive or restore a custom field (WS-8)
+      description: Archiving removes a field from new data entry and never deletes stored values.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: definitionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                archived:
+                  type: boolean
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomFieldDefinition"
+        "403":
+          description: Forbidden — requires custom_fields.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/custom-fields/{scope}/export.csv:
+    get:
+      operationId: exportCustomFieldValues
+      tags: [custom-fields]
+      summary: Export custom field values as CSV (WS-8)
+      description: >-
+        Sensitive columns are omitted entirely unless the caller holds
+        custom_fields.sensitive.read. Output uses the platform's
+        formula-injection-safe CSV writer.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: scope
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: entityIds
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: CSV export
+          content:
+            text/csv:
+              schema:
+                type: string
+        "400":
+          description: entityIds is required, or unknown scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/custom-field-values/{scope}/{entityId}:
+    get:
+      operationId: getCustomFieldValues
+      tags: [custom-fields]
+      summary: Read custom field values for one record (WS-8)
+      description: >-
+        Returns every field in display order with server-evaluated visibility
+        and missing-required status. Sensitive values are masked unless
+        reveal=true and the caller holds custom_fields.sensitive.read.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: scope
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: entityId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: reveal
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Resolved values
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomFieldValueList"
+        "403":
+          description: Forbidden — requires the target domain's read permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Record not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    put:
+      operationId: setCustomFieldValues
+      tags: [custom-fields]
+      summary: Set custom field values for one record (WS-8)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: scope
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: entityId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [values]
+              properties:
+                values:
+                  type: object
+                  additionalProperties: true
+      responses:
+        "200":
+          description: Values written
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomFieldValueList"
+        "400":
+          description: Validation failed, or a field is not part of this record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires the target domain's write permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Record not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: A field is not applicable to this record under its visibility conditions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/custom-field-values/{scope}/{entityId}/{definitionId}/reveal:
+    get:
+      operationId: revealCustomFieldValue
+      tags: [custom-fields]
+      summary: Reveal one sensitive custom field value (WS-8)
+      description: Audited as a sensitive read.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: scope
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: entityId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: definitionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The full value
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [definitionId, fieldKey, label]
+                properties:
+                  definitionId:
+                    type: integer
+                  fieldKey:
+                    type: string
+                  label:
+                    type: string
+                  value:
+                    nullable: true
+        "403":
+          description: Forbidden — requires custom_fields.sensitive.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/custom-forms:
+    get:
+      operationId: listCustomForms
+      tags: [custom-forms]
+      summary: List custom forms (WS-8)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Forms
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [forms]
+                properties:
+                  forms:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CustomForm"
+        "403":
+          description: Forbidden — requires custom_forms.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createCustomForm
+      tags: [custom-forms]
+      summary: Create a custom form with its first draft version (WS-8)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomFormInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomFormWithVersion"
+        "400":
+          description: Invalid layout, scope or field reference
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires custom_forms.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: A form with this key already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/custom-forms/{formId}:
+    get:
+      operationId: getCustomForm
+      tags: [custom-forms]
+      summary: Get a form with its versions (WS-8)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: formId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Form detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomFormDetail"
+        "403":
+          description: Forbidden — requires custom_forms.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/custom-forms/{formId}/versions:
+    post:
+      operationId: createCustomFormVersion
+      tags: [custom-forms]
+      summary: Create the next draft version of a form (WS-8)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: formId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomFormVersionInput"
+      responses:
+        "201":
+          description: Draft created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomFormVersion"
+        "400":
+          description: Invalid layout
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires custom_forms.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/custom-forms/{formId}/versions/{versionId}/publish:
+    post:
+      operationId: publishCustomFormVersion
+      tags: [custom-forms]
+      summary: Publish a draft version, retiring the previous one (WS-8)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: formId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: versionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Published
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomFormVersion"
+        "400":
+          description: Not publishable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires custom_forms.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/custom-forms/{formId}/archive:
+    post:
+      operationId: archiveCustomForm
+      tags: [custom-forms]
+      summary: Archive or restore a form (WS-8)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: formId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                archived:
+                  type: boolean
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomForm"
+        "403":
+          description: Forbidden — requires custom_forms.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/custom-forms/{formId}/render:
+    get:
+      operationId: renderCustomForm
+      tags: [custom-forms]
+      summary: Get the published version and its field definitions for rendering (WS-8)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: formId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Renderable form
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomFormRender"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No published version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/custom-forms/{formId}/submissions:
+    post:
+      operationId: submitCustomForm
+      tags: [custom-forms]
+      summary: Submit a form (WS-8)
+      description: >-
+        The submitted formVersionId must match the currently published version.
+        For employee_ess forms the target employee is resolved server-side from
+        the caller's own identity and any supplied entityId is ignored.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: formId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [formVersionId, answers]
+              properties:
+                formVersionId:
+                  type: integer
+                entityId:
+                  type: integer
+                  nullable: true
+                answers:
+                  type: object
+                  additionalProperties: true
+      responses:
+        "201":
+          description: Submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomFormSubmission"
+        "400":
+          description: Validation failed, form not published, or version superseded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: A field is not applicable under its visibility conditions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/custom-form-submissions:
+    get:
+      operationId: listCustomFormSubmissions
+      tags: [custom-forms]
+      summary: List form submissions (WS-8)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: formId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: scope
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: entityId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Submissions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [submissions]
+                properties:
+                  submissions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CustomFormSubmission"
+        "403":
+          description: Forbidden — requires custom_forms.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/custom-form-submissions/{submissionId}:
+    get:
+      operationId: getCustomFormSubmission
+      tags: [custom-forms]
+      summary: Get one submission with the form version it was captured under (WS-8)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: submissionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Submission and its captured version
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [submission, version]
+                properties:
+                  submission:
+                    $ref: "#/components/schemas/CustomFormSubmission"
+                  version:
+                    $ref: "#/components/schemas/CustomFormVersion"
+        "403":
+          description: Forbidden — requires custom_forms.read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   # --- WS-7: Bulk Import / Multi-Entity Migration -------------------------
   /organizations/{organizationId}/migrations/entity-types:
     get:
@@ -33470,3 +34373,409 @@ components:
             inSystem:
               $ref: "#/components/schemas/PayrollOpeningBalanceAmounts"
           required: [taxYear, inSystem]
+
+    # --- WS-8: Custom Fields & Form Builder -----------------------------
+    CustomFieldMeta:
+      type: object
+      properties:
+        fieldTypes:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              label:
+                type: string
+              usesOptions:
+                type: boolean
+              usesReference:
+                type: boolean
+            required: [type, label, usesOptions, usesReference]
+        scopes:
+          type: array
+          items:
+            type: object
+            properties:
+              scope:
+                type: string
+              label:
+                type: string
+              bindable:
+                type: boolean
+            required: [scope, label, bindable]
+        visibilityOperators:
+          type: array
+          items:
+            type: string
+      required: [fieldTypes, scopes, visibilityOperators]
+
+    CustomFieldDefinition:
+      type: object
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        scope:
+          type: string
+        fieldKey:
+          type: string
+        status:
+          type: string
+          enum: [active, archived]
+        archivedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, organizationId, scope, fieldKey, status, createdAt, updatedAt]
+
+    CustomFieldDefinitionVersion:
+      type: object
+      properties:
+        id:
+          type: integer
+        definitionId:
+          type: integer
+        versionNumber:
+          type: integer
+        label:
+          type: string
+        helpText:
+          type: string
+          nullable: true
+        fieldType:
+          type: string
+        required:
+          type: boolean
+        sensitivity:
+          type: string
+          enum: [normal, sensitive]
+        displayOrder:
+          type: integer
+        validation:
+          nullable: true
+        options:
+          nullable: true
+        visibility:
+          nullable: true
+        isCurrent:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, definitionId, versionNumber, label, fieldType, required, sensitivity, displayOrder, isCurrent, createdAt]
+
+    CustomFieldWithVersion:
+      type: object
+      properties:
+        definition:
+          $ref: "#/components/schemas/CustomFieldDefinition"
+        version:
+          $ref: "#/components/schemas/CustomFieldDefinitionVersion"
+      required: [definition, version]
+
+    CustomFieldDetail:
+      allOf:
+        - $ref: "#/components/schemas/CustomFieldWithVersion"
+        - type: object
+          properties:
+            versions:
+              type: array
+              items:
+                $ref: "#/components/schemas/CustomFieldDefinitionVersion"
+            usedChoiceValues:
+              type: array
+              items:
+                type: string
+          required: [versions, usedChoiceValues]
+
+    CustomFieldInput:
+      type: object
+      properties:
+        scope:
+          type: string
+        fieldKey:
+          type: string
+        label:
+          type: string
+        helpText:
+          type: string
+          nullable: true
+        fieldType:
+          type: string
+        required:
+          type: boolean
+        sensitivity:
+          type: string
+          enum: [normal, sensitive]
+        displayOrder:
+          type: integer
+        validation:
+          nullable: true
+        options:
+          nullable: true
+        visibility:
+          nullable: true
+      required: [scope, fieldKey, label, fieldType]
+
+    CustomFieldVersionInput:
+      type: object
+      properties:
+        label:
+          type: string
+        helpText:
+          type: string
+          nullable: true
+        fieldType:
+          type: string
+        required:
+          type: boolean
+        sensitivity:
+          type: string
+          enum: [normal, sensitive]
+        displayOrder:
+          type: integer
+        validation:
+          nullable: true
+        options:
+          nullable: true
+        visibility:
+          nullable: true
+      required: [label, fieldType]
+
+    ResolvedCustomFieldValue:
+      type: object
+      properties:
+        definitionId:
+          type: integer
+        fieldKey:
+          type: string
+        label:
+          type: string
+        helpText:
+          type: string
+          nullable: true
+        fieldType:
+          type: string
+        required:
+          type: boolean
+        sensitivity:
+          type: string
+          enum: [normal, sensitive]
+        displayOrder:
+          type: integer
+        options:
+          nullable: true
+        visibility:
+          nullable: true
+        value:
+          nullable: true
+        masked:
+          type: boolean
+        visible:
+          type: boolean
+        missingRequired:
+          type: boolean
+        capturedVersionId:
+          type: integer
+          nullable: true
+        capturedVersionNumber:
+          type: integer
+          nullable: true
+      required:
+        - definitionId
+        - fieldKey
+        - label
+        - fieldType
+        - required
+        - sensitivity
+        - displayOrder
+        - masked
+        - visible
+        - missingRequired
+
+    CustomFieldValueList:
+      type: object
+      properties:
+        scope:
+          type: string
+        entityId:
+          type: integer
+        values:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResolvedCustomFieldValue"
+        revealed:
+          type: boolean
+        written:
+          type: integer
+        cleared:
+          type: integer
+      required: [values]
+
+    CustomForm:
+      type: object
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        formKey:
+          type: string
+        formType:
+          type: string
+          enum: [internal_hr, employee_ess, onboarding, candidate_application]
+        scope:
+          type: string
+        status:
+          type: string
+          enum: [active, archived]
+        archivedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, organizationId, formKey, formType, scope, status, createdAt, updatedAt]
+
+    CustomFormVersion:
+      type: object
+      properties:
+        id:
+          type: integer
+        formId:
+          type: integer
+        versionNumber:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        layout:
+          type: object
+          additionalProperties: true
+        status:
+          type: string
+          enum: [draft, published, archived]
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, formId, versionNumber, title, layout, status, createdAt]
+
+    CustomFormWithVersion:
+      type: object
+      properties:
+        form:
+          $ref: "#/components/schemas/CustomForm"
+        version:
+          $ref: "#/components/schemas/CustomFormVersion"
+      required: [form, version]
+
+    CustomFormDetail:
+      type: object
+      properties:
+        form:
+          $ref: "#/components/schemas/CustomForm"
+        versions:
+          type: array
+          items:
+            $ref: "#/components/schemas/CustomFormVersion"
+        publishedVersion:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/CustomFormVersion"
+      required: [form, versions]
+
+    CustomFormRender:
+      type: object
+      properties:
+        form:
+          $ref: "#/components/schemas/CustomForm"
+        version:
+          $ref: "#/components/schemas/CustomFormVersion"
+        fields:
+          type: array
+          items:
+            $ref: "#/components/schemas/CustomFieldWithVersion"
+      required: [form, version, fields]
+
+    CustomFormInput:
+      type: object
+      properties:
+        formKey:
+          type: string
+        formType:
+          type: string
+          enum: [internal_hr, employee_ess, onboarding, candidate_application]
+        scope:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        layout:
+          type: object
+          additionalProperties: true
+      required: [formKey, formType, scope, title, layout]
+
+    CustomFormVersionInput:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        layout:
+          type: object
+          additionalProperties: true
+      required: [title, layout]
+
+    CustomFormSubmission:
+      type: object
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        formId:
+          type: integer
+        formVersionId:
+          type: integer
+        scope:
+          type: string
+        entityId:
+          type: integer
+          nullable: true
+        answers:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        submittedByMembershipId:
+          type: integer
+          nullable: true
+        submittedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, organizationId, formId, formVersionId, scope, answers, submittedAt, createdAt]

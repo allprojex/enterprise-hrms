@@ -17726,6 +17726,710 @@ export const GetEmployeePayrollYearToDateResponse = zod.object({
 
 
 /**
+ * @summary Field-type registry, approved scopes and visibility operators (WS-8)
+ */
+export const GetCustomFieldMetaParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetCustomFieldMetaResponse = zod.object({
+  "fieldTypes": zod.array(zod.object({
+  "type": zod.string(),
+  "label": zod.string(),
+  "usesOptions": zod.boolean(),
+  "usesReference": zod.boolean()
+})),
+  "scopes": zod.array(zod.object({
+  "scope": zod.string(),
+  "label": zod.string(),
+  "bindable": zod.boolean()
+})),
+  "visibilityOperators": zod.array(zod.string())
+})
+
+
+/**
+ * @summary List custom field definitions for a scope (WS-8)
+ */
+export const ListCustomFieldsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListCustomFieldsQueryParams = zod.object({
+  "scope": zod.coerce.string(),
+  "includeArchived": zod.coerce.string().optional()
+})
+
+export const ListCustomFieldsResponse = zod.object({
+  "fields": zod.array(zod.object({
+  "definition": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "scope": zod.string(),
+  "fieldKey": zod.string(),
+  "status": zod.enum(['active', 'archived']),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "version": zod.object({
+  "id": zod.number(),
+  "definitionId": zod.number(),
+  "versionNumber": zod.number(),
+  "label": zod.string(),
+  "helpText": zod.string().nullish(),
+  "fieldType": zod.string(),
+  "required": zod.boolean(),
+  "sensitivity": zod.enum(['normal', 'sensitive']),
+  "displayOrder": zod.number(),
+  "validation": zod.unknown().nullish(),
+  "options": zod.unknown().nullish(),
+  "visibility": zod.unknown().nullish(),
+  "isCurrent": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+}))
+})
+
+
+/**
+ * @summary Define a custom field (WS-8)
+ */
+export const CreateCustomFieldParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const CreateCustomFieldBody = zod.object({
+  "scope": zod.string(),
+  "fieldKey": zod.string(),
+  "label": zod.string(),
+  "helpText": zod.string().nullish(),
+  "fieldType": zod.string(),
+  "required": zod.boolean().optional(),
+  "sensitivity": zod.enum(['normal', 'sensitive']).optional(),
+  "displayOrder": zod.number().optional(),
+  "validation": zod.unknown().nullish(),
+  "options": zod.unknown().nullish(),
+  "visibility": zod.unknown().nullish()
+})
+
+export const CreateCustomFieldResponse = zod.object({
+  "definition": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "scope": zod.string(),
+  "fieldKey": zod.string(),
+  "status": zod.enum(['active', 'archived']),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "version": zod.object({
+  "id": zod.number(),
+  "definitionId": zod.number(),
+  "versionNumber": zod.number(),
+  "label": zod.string(),
+  "helpText": zod.string().nullish(),
+  "fieldType": zod.string(),
+  "required": zod.boolean(),
+  "sensitivity": zod.enum(['normal', 'sensitive']),
+  "displayOrder": zod.number(),
+  "validation": zod.unknown().nullish(),
+  "options": zod.unknown().nullish(),
+  "visibility": zod.unknown().nullish(),
+  "isCurrent": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+})
+
+
+/**
+ * @summary Get a custom field with its version history (WS-8)
+ */
+export const GetCustomFieldParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "definitionId": zod.coerce.number()
+})
+
+export const GetCustomFieldResponse = zod.object({
+  "definition": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "scope": zod.string(),
+  "fieldKey": zod.string(),
+  "status": zod.enum(['active', 'archived']),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "version": zod.object({
+  "id": zod.number(),
+  "definitionId": zod.number(),
+  "versionNumber": zod.number(),
+  "label": zod.string(),
+  "helpText": zod.string().nullish(),
+  "fieldType": zod.string(),
+  "required": zod.boolean(),
+  "sensitivity": zod.enum(['normal', 'sensitive']),
+  "displayOrder": zod.number(),
+  "validation": zod.unknown().nullish(),
+  "options": zod.unknown().nullish(),
+  "visibility": zod.unknown().nullish(),
+  "isCurrent": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+}).and(zod.object({
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "definitionId": zod.number(),
+  "versionNumber": zod.number(),
+  "label": zod.string(),
+  "helpText": zod.string().nullish(),
+  "fieldType": zod.string(),
+  "required": zod.boolean(),
+  "sensitivity": zod.enum(['normal', 'sensitive']),
+  "displayOrder": zod.number(),
+  "validation": zod.unknown().nullish(),
+  "options": zod.unknown().nullish(),
+  "visibility": zod.unknown().nullish(),
+  "isCurrent": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})),
+  "usedChoiceValues": zod.array(zod.string())
+}))
+
+
+/**
+ * Safe changes create a new version. A breaking change (field type, removing a choice already in use, changing a master data domain) is refused with 409 once values exist, so captured data is never reinterpreted.
+ * @summary Create the next version of a custom field (WS-8)
+ */
+export const CreateCustomFieldVersionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "definitionId": zod.coerce.number()
+})
+
+export const CreateCustomFieldVersionBody = zod.object({
+  "label": zod.string(),
+  "helpText": zod.string().nullish(),
+  "fieldType": zod.string(),
+  "required": zod.boolean().optional(),
+  "sensitivity": zod.enum(['normal', 'sensitive']).optional(),
+  "displayOrder": zod.number().optional(),
+  "validation": zod.unknown().nullish(),
+  "options": zod.unknown().nullish(),
+  "visibility": zod.unknown().nullish()
+})
+
+export const CreateCustomFieldVersionResponse = zod.object({
+  "definition": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "scope": zod.string(),
+  "fieldKey": zod.string(),
+  "status": zod.enum(['active', 'archived']),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "version": zod.object({
+  "id": zod.number(),
+  "definitionId": zod.number(),
+  "versionNumber": zod.number(),
+  "label": zod.string(),
+  "helpText": zod.string().nullish(),
+  "fieldType": zod.string(),
+  "required": zod.boolean(),
+  "sensitivity": zod.enum(['normal', 'sensitive']),
+  "displayOrder": zod.number(),
+  "validation": zod.unknown().nullish(),
+  "options": zod.unknown().nullish(),
+  "visibility": zod.unknown().nullish(),
+  "isCurrent": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+})
+
+
+/**
+ * Archiving removes a field from new data entry and never deletes stored values.
+ * @summary Archive or restore a custom field (WS-8)
+ */
+export const ArchiveCustomFieldParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "definitionId": zod.coerce.number()
+})
+
+export const ArchiveCustomFieldBody = zod.object({
+  "archived": zod.boolean().optional()
+})
+
+export const ArchiveCustomFieldResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "scope": zod.string(),
+  "fieldKey": zod.string(),
+  "status": zod.enum(['active', 'archived']),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Sensitive columns are omitted entirely unless the caller holds custom_fields.sensitive.read. Output uses the platform's formula-injection-safe CSV writer.
+ * @summary Export custom field values as CSV (WS-8)
+ */
+export const ExportCustomFieldValuesParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "scope": zod.coerce.string()
+})
+
+export const ExportCustomFieldValuesQueryParams = zod.object({
+  "entityIds": zod.coerce.string()
+})
+
+export const ExportCustomFieldValuesResponse = zod.unknown()
+
+
+/**
+ * Returns every field in display order with server-evaluated visibility and missing-required status. Sensitive values are masked unless reveal=true and the caller holds custom_fields.sensitive.read.
+ * @summary Read custom field values for one record (WS-8)
+ */
+export const GetCustomFieldValuesParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "scope": zod.coerce.string(),
+  "entityId": zod.coerce.number()
+})
+
+export const GetCustomFieldValuesQueryParams = zod.object({
+  "reveal": zod.coerce.string().optional()
+})
+
+export const GetCustomFieldValuesResponse = zod.object({
+  "scope": zod.string().optional(),
+  "entityId": zod.number().optional(),
+  "values": zod.array(zod.object({
+  "definitionId": zod.number(),
+  "fieldKey": zod.string(),
+  "label": zod.string(),
+  "helpText": zod.string().nullish(),
+  "fieldType": zod.string(),
+  "required": zod.boolean(),
+  "sensitivity": zod.enum(['normal', 'sensitive']),
+  "displayOrder": zod.number(),
+  "options": zod.unknown().nullish(),
+  "visibility": zod.unknown().nullish(),
+  "value": zod.unknown().nullish(),
+  "masked": zod.boolean(),
+  "visible": zod.boolean(),
+  "missingRequired": zod.boolean(),
+  "capturedVersionId": zod.number().nullish(),
+  "capturedVersionNumber": zod.number().nullish()
+})),
+  "revealed": zod.boolean().optional(),
+  "written": zod.number().optional(),
+  "cleared": zod.number().optional()
+})
+
+
+/**
+ * @summary Set custom field values for one record (WS-8)
+ */
+export const SetCustomFieldValuesParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "scope": zod.coerce.string(),
+  "entityId": zod.coerce.number()
+})
+
+export const SetCustomFieldValuesBody = zod.object({
+  "values": zod.record(zod.string(), zod.unknown())
+})
+
+export const SetCustomFieldValuesResponse = zod.object({
+  "scope": zod.string().optional(),
+  "entityId": zod.number().optional(),
+  "values": zod.array(zod.object({
+  "definitionId": zod.number(),
+  "fieldKey": zod.string(),
+  "label": zod.string(),
+  "helpText": zod.string().nullish(),
+  "fieldType": zod.string(),
+  "required": zod.boolean(),
+  "sensitivity": zod.enum(['normal', 'sensitive']),
+  "displayOrder": zod.number(),
+  "options": zod.unknown().nullish(),
+  "visibility": zod.unknown().nullish(),
+  "value": zod.unknown().nullish(),
+  "masked": zod.boolean(),
+  "visible": zod.boolean(),
+  "missingRequired": zod.boolean(),
+  "capturedVersionId": zod.number().nullish(),
+  "capturedVersionNumber": zod.number().nullish()
+})),
+  "revealed": zod.boolean().optional(),
+  "written": zod.number().optional(),
+  "cleared": zod.number().optional()
+})
+
+
+/**
+ * Audited as a sensitive read.
+ * @summary Reveal one sensitive custom field value (WS-8)
+ */
+export const RevealCustomFieldValueParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "scope": zod.coerce.string(),
+  "entityId": zod.coerce.number(),
+  "definitionId": zod.coerce.number()
+})
+
+export const RevealCustomFieldValueResponse = zod.object({
+  "definitionId": zod.number(),
+  "fieldKey": zod.string(),
+  "label": zod.string(),
+  "value": zod.unknown().nullish()
+})
+
+
+/**
+ * @summary List custom forms (WS-8)
+ */
+export const ListCustomFormsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListCustomFormsResponse = zod.object({
+  "forms": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "formKey": zod.string(),
+  "formType": zod.enum(['internal_hr', 'employee_ess', 'onboarding', 'candidate_application']),
+  "scope": zod.string(),
+  "status": zod.enum(['active', 'archived']),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Create a custom form with its first draft version (WS-8)
+ */
+export const CreateCustomFormParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const CreateCustomFormBody = zod.object({
+  "formKey": zod.string(),
+  "formType": zod.enum(['internal_hr', 'employee_ess', 'onboarding', 'candidate_application']),
+  "scope": zod.string(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "layout": zod.record(zod.string(), zod.unknown())
+})
+
+export const CreateCustomFormResponse = zod.object({
+  "form": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "formKey": zod.string(),
+  "formType": zod.enum(['internal_hr', 'employee_ess', 'onboarding', 'candidate_application']),
+  "scope": zod.string(),
+  "status": zod.enum(['active', 'archived']),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "version": zod.object({
+  "id": zod.number(),
+  "formId": zod.number(),
+  "versionNumber": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "layout": zod.record(zod.string(), zod.unknown()),
+  "status": zod.enum(['draft', 'published', 'archived']),
+  "publishedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+})
+
+
+/**
+ * @summary Get a form with its versions (WS-8)
+ */
+export const GetCustomFormParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "formId": zod.coerce.number()
+})
+
+export const GetCustomFormResponse = zod.object({
+  "form": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "formKey": zod.string(),
+  "formType": zod.enum(['internal_hr', 'employee_ess', 'onboarding', 'candidate_application']),
+  "scope": zod.string(),
+  "status": zod.enum(['active', 'archived']),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "formId": zod.number(),
+  "versionNumber": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "layout": zod.record(zod.string(), zod.unknown()),
+  "status": zod.enum(['draft', 'published', 'archived']),
+  "publishedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})),
+  "publishedVersion": zod.object({
+  "id": zod.number(),
+  "formId": zod.number(),
+  "versionNumber": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "layout": zod.record(zod.string(), zod.unknown()),
+  "status": zod.enum(['draft', 'published', 'archived']),
+  "publishedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+}).nullish()
+})
+
+
+/**
+ * @summary Create the next draft version of a form (WS-8)
+ */
+export const CreateCustomFormVersionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "formId": zod.coerce.number()
+})
+
+export const CreateCustomFormVersionBody = zod.object({
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "layout": zod.record(zod.string(), zod.unknown())
+})
+
+export const CreateCustomFormVersionResponse = zod.object({
+  "id": zod.number(),
+  "formId": zod.number(),
+  "versionNumber": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "layout": zod.record(zod.string(), zod.unknown()),
+  "status": zod.enum(['draft', 'published', 'archived']),
+  "publishedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Publish a draft version, retiring the previous one (WS-8)
+ */
+export const PublishCustomFormVersionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "formId": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const PublishCustomFormVersionResponse = zod.object({
+  "id": zod.number(),
+  "formId": zod.number(),
+  "versionNumber": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "layout": zod.record(zod.string(), zod.unknown()),
+  "status": zod.enum(['draft', 'published', 'archived']),
+  "publishedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Archive or restore a form (WS-8)
+ */
+export const ArchiveCustomFormParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "formId": zod.coerce.number()
+})
+
+export const ArchiveCustomFormBody = zod.object({
+  "archived": zod.boolean().optional()
+})
+
+export const ArchiveCustomFormResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "formKey": zod.string(),
+  "formType": zod.enum(['internal_hr', 'employee_ess', 'onboarding', 'candidate_application']),
+  "scope": zod.string(),
+  "status": zod.enum(['active', 'archived']),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get the published version and its field definitions for rendering (WS-8)
+ */
+export const RenderCustomFormParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "formId": zod.coerce.number()
+})
+
+export const RenderCustomFormResponse = zod.object({
+  "form": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "formKey": zod.string(),
+  "formType": zod.enum(['internal_hr', 'employee_ess', 'onboarding', 'candidate_application']),
+  "scope": zod.string(),
+  "status": zod.enum(['active', 'archived']),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "version": zod.object({
+  "id": zod.number(),
+  "formId": zod.number(),
+  "versionNumber": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "layout": zod.record(zod.string(), zod.unknown()),
+  "status": zod.enum(['draft', 'published', 'archived']),
+  "publishedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+}),
+  "fields": zod.array(zod.object({
+  "definition": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "scope": zod.string(),
+  "fieldKey": zod.string(),
+  "status": zod.enum(['active', 'archived']),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "version": zod.object({
+  "id": zod.number(),
+  "definitionId": zod.number(),
+  "versionNumber": zod.number(),
+  "label": zod.string(),
+  "helpText": zod.string().nullish(),
+  "fieldType": zod.string(),
+  "required": zod.boolean(),
+  "sensitivity": zod.enum(['normal', 'sensitive']),
+  "displayOrder": zod.number(),
+  "validation": zod.unknown().nullish(),
+  "options": zod.unknown().nullish(),
+  "visibility": zod.unknown().nullish(),
+  "isCurrent": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+}))
+})
+
+
+/**
+ * The submitted formVersionId must match the currently published version. For employee_ess forms the target employee is resolved server-side from the caller's own identity and any supplied entityId is ignored.
+ * @summary Submit a form (WS-8)
+ */
+export const SubmitCustomFormParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "formId": zod.coerce.number()
+})
+
+export const SubmitCustomFormBody = zod.object({
+  "formVersionId": zod.number(),
+  "entityId": zod.number().nullish(),
+  "answers": zod.record(zod.string(), zod.unknown())
+})
+
+export const SubmitCustomFormResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "formId": zod.number(),
+  "formVersionId": zod.number(),
+  "scope": zod.string(),
+  "entityId": zod.number().nullish(),
+  "answers": zod.array(zod.record(zod.string(), zod.unknown())),
+  "submittedByMembershipId": zod.number().nullish(),
+  "submittedAt": zod.coerce.date(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List form submissions (WS-8)
+ */
+export const ListCustomFormSubmissionsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListCustomFormSubmissionsQueryParams = zod.object({
+  "formId": zod.coerce.number().optional(),
+  "scope": zod.coerce.string().optional(),
+  "entityId": zod.coerce.number().optional()
+})
+
+export const ListCustomFormSubmissionsResponse = zod.object({
+  "submissions": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "formId": zod.number(),
+  "formVersionId": zod.number(),
+  "scope": zod.string(),
+  "entityId": zod.number().nullish(),
+  "answers": zod.array(zod.record(zod.string(), zod.unknown())),
+  "submittedByMembershipId": zod.number().nullish(),
+  "submittedAt": zod.coerce.date(),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Get one submission with the form version it was captured under (WS-8)
+ */
+export const GetCustomFormSubmissionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "submissionId": zod.coerce.number()
+})
+
+export const GetCustomFormSubmissionResponse = zod.object({
+  "submission": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "formId": zod.number(),
+  "formVersionId": zod.number(),
+  "scope": zod.string(),
+  "entityId": zod.number().nullish(),
+  "answers": zod.array(zod.record(zod.string(), zod.unknown())),
+  "submittedByMembershipId": zod.number().nullish(),
+  "submittedAt": zod.coerce.date(),
+  "createdAt": zod.coerce.date()
+}),
+  "version": zod.object({
+  "id": zod.number(),
+  "formId": zod.number(),
+  "versionNumber": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "layout": zod.record(zod.string(), zod.unknown()),
+  "status": zod.enum(['draft', 'published', 'archived']),
+  "publishedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+})
+
+
+/**
  * The server-defined allow-list. Each entry carries its canonical fields (so a client can render a mapping UI) and its dependsOn list (so a client can explain why structure must accompany employees).
  * @summary List the entity types a migration can import, in dependency order (WS-7)
  */

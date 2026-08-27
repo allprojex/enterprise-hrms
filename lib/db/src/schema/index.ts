@@ -134,3 +134,5 @@ export * from "./migration-sources";
 export * from "./migration-saved-mappings";
 export * from "./migration-staged-rows";
 export * from "./payroll-opening-balances";
+export * from "./custom-fields";
+export * from "./custom-forms";

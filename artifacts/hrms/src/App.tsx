@@ -84,6 +84,8 @@ import RecruitmentReports from '@/pages/recruitment-reports';
 import PersonnelReports from '@/pages/personnel-reports';
 import PersonnelImport from '@/pages/personnel-import';
 import DataMigration from '@/pages/data-migration';
+import CustomFields from '@/pages/custom-fields';
+import CustomForms from '@/pages/custom-forms';
 import { ModuleGate } from '@/components/module-gate';
 
 const queryClient = new QueryClient({

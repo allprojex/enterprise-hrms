@@ -42,6 +42,7 @@ import {
   Compass,
   Upload,
   DatabaseZap,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -476,6 +477,12 @@ export function AppShell({ children }: AppShellProps) {
         // migration.*-gated, so a non-HR caller who navigates directly is
         // still correctly authorized.
         ...(isHrCapable ? [{ href: '/data-migration', label: 'Data Migration', icon: DatabaseZap } satisfies NavItem] : []),
+        // WS-8 — organization configuration surfaces. Same isHrCapable-only
+        // nav precedent; the backend remains custom_fields.*/custom_forms.*
+        // gated, so a non-HR caller navigating directly is still authorized
+        // correctly.
+        ...(isHrCapable ? [{ href: '/custom-fields', label: 'Custom Fields', icon: SlidersHorizontal } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/custom-forms', label: 'Form Builder', icon: ClipboardList } satisfies NavItem] : []),
         { href: '/branches', label: 'Branches', icon: MapPin },
         { href: '/departments', label: 'Departments', icon: Network },
         { href: '/positions', label: 'Positions', icon: Briefcase },

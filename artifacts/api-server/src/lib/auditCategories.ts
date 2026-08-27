@@ -125,6 +125,15 @@ const CATEGORY_BY_PREFIX: Record<string, AuditCategory> = {
   installation: "platform_configuration",
   module: "platform_configuration",
   master_data_item: "platform_configuration",
+  // WS-8 — custom field and form DEFINITIONS are organization configuration,
+  // so their lifecycle events belong with the other configuration prefixes.
+  // A sensitive custom VALUE reveal is a different thing and is categorized
+  // by the domain it was read from, via custom_field_value below.
+  custom_field: "platform_configuration",
+  custom_form: "platform_configuration",
+  // Reading/correcting an actual stored value is HR content, not configuration.
+  custom_field_value: "hr",
+  custom_form_submission: "hr",
   numbering_config: "platform_configuration",
   branch: "platform_configuration",
   department: "platform_configuration",

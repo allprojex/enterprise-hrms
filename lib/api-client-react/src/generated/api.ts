@@ -47,6 +47,8 @@ import type {
   ApproveJobRequisitionInput,
   ApproveOfferVersionInput,
   ApproveOfficeInventoryRequestLineBody,
+  ArchiveCustomFieldBody,
+  ArchiveCustomFormBody,
   Asset,
   AssetAssignment,
   AssetDashboard,
@@ -140,6 +142,21 @@ import type {
   CreateReferenceCheckInput,
   CreateTalentPoolInput,
   CreateVacancyInput,
+  CustomFieldDefinition,
+  CustomFieldDetail,
+  CustomFieldInput,
+  CustomFieldMeta,
+  CustomFieldValueList,
+  CustomFieldVersionInput,
+  CustomFieldWithVersion,
+  CustomForm,
+  CustomFormDetail,
+  CustomFormInput,
+  CustomFormRender,
+  CustomFormSubmission,
+  CustomFormVersion,
+  CustomFormVersionInput,
+  CustomFormWithVersion,
   DailyAttendanceSummary,
   DashboardSummary,
   Department,
@@ -175,6 +192,7 @@ import type {
   EmployeeStatutoryIdentifier,
   EmploymentPeriodSummary,
   EndEmployeeCompensationComponentBody,
+  ExportCustomFieldValuesParams,
   FinalizePerformanceReviewInput,
   ForgotPasswordInput,
   GenerateDocumentFromTemplateBody,
@@ -183,6 +201,8 @@ import type {
   GeneratedDocument,
   GetAttendanceDailySummaryParams,
   GetAttendanceDashboardParams,
+  GetCustomFieldValuesParams,
+  GetCustomFormSubmission200,
   GetDocumentExpiryStateParams,
   GetMigration200,
   GetMigrationIssues200,
@@ -229,6 +249,11 @@ import type {
   ListAuditEventsParams,
   ListBreakGlassGrantsParams,
   ListCandidatesParams,
+  ListCustomFields200,
+  ListCustomFieldsParams,
+  ListCustomFormSubmissions200,
+  ListCustomFormSubmissionsParams,
+  ListCustomForms200,
   ListDisposalEligibleDocumentsParams,
   ListDocumentRequirementsParams,
   ListDocumentRetentionRecordsParams,
@@ -417,6 +442,7 @@ import type {
   RetireAssetInput,
   ReturnAssetInput,
   ReturnPersonnelFileInput,
+  RevealCustomFieldValue200,
   ReviewAssetIncidentInput,
   ReviewOfficeInventoryIncidentBody,
   RevokeLearningCertificateInput,
@@ -435,10 +461,12 @@ import type {
   SearchPersonnelRecordsParams,
   SelfAssessmentNotReadyError,
   SeparateEmployeeInput,
+  SetCustomFieldValuesBody,
   SetDocumentLegalHoldBody,
   SetMigrationSourceMappingBody,
   SetPrimaryHrInput,
   SubmitApplicationScoreInput,
+  SubmitCustomFormBody,
   SubmitInternalApplicationInput,
   SwitchOrganizationInput,
   TalentPool,
@@ -41256,6 +41284,1622 @@ export function useGetEmployeePayrollYearToDate<TData = Awaited<ReturnType<typeo
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetEmployeePayrollYearToDateQueryOptions(organizationId,employeeId,taxYear,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetCustomFieldMetaUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/custom-fields/meta`
+}
+
+/**
+ * @summary Field-type registry, approved scopes and visibility operators (WS-8)
+ */
+export const getCustomFieldMeta = async (organizationId: number, options?: RequestInit): Promise<CustomFieldMeta> => {
+
+  return customFetch<CustomFieldMeta>(getGetCustomFieldMetaUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCustomFieldMetaQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/custom-fields/meta`
+    ] as const;
+    }
+
+
+export const getGetCustomFieldMetaQueryOptions = <TData = Awaited<ReturnType<typeof getCustomFieldMeta>>, TError = ErrorType<ApiError>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCustomFieldMeta>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCustomFieldMetaQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCustomFieldMeta>>> = ({ signal }) => getCustomFieldMeta(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCustomFieldMeta>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCustomFieldMetaQueryResult = NonNullable<Awaited<ReturnType<typeof getCustomFieldMeta>>>
+export type GetCustomFieldMetaQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Field-type registry, approved scopes and visibility operators (WS-8)
+ */
+
+export function useGetCustomFieldMeta<TData = Awaited<ReturnType<typeof getCustomFieldMeta>>, TError = ErrorType<ApiError>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCustomFieldMeta>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCustomFieldMetaQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListCustomFieldsUrl = (organizationId: number,
+    params: ListCustomFieldsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/custom-fields?${stringifiedParams}` : `/api/organizations/${organizationId}/custom-fields`
+}
+
+/**
+ * @summary List custom field definitions for a scope (WS-8)
+ */
+export const listCustomFields = async (organizationId: number,
+    params: ListCustomFieldsParams, options?: RequestInit): Promise<ListCustomFields200> => {
+
+  return customFetch<ListCustomFields200>(getListCustomFieldsUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCustomFieldsQueryKey = (organizationId: number,
+    params?: ListCustomFieldsParams,) => {
+    return [
+    `/api/organizations/${organizationId}/custom-fields`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListCustomFieldsQueryOptions = <TData = Awaited<ReturnType<typeof listCustomFields>>, TError = ErrorType<ApiError>>(organizationId: number,
+    params: ListCustomFieldsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCustomFields>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCustomFieldsQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCustomFields>>> = ({ signal }) => listCustomFields(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCustomFields>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCustomFieldsQueryResult = NonNullable<Awaited<ReturnType<typeof listCustomFields>>>
+export type ListCustomFieldsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List custom field definitions for a scope (WS-8)
+ */
+
+export function useListCustomFields<TData = Awaited<ReturnType<typeof listCustomFields>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    params: ListCustomFieldsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCustomFields>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCustomFieldsQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateCustomFieldUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/custom-fields`
+}
+
+/**
+ * @summary Define a custom field (WS-8)
+ */
+export const createCustomField = async (organizationId: number,
+    customFieldInput: CustomFieldInput, options?: RequestInit): Promise<CustomFieldWithVersion> => {
+
+  return customFetch<CustomFieldWithVersion>(getCreateCustomFieldUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(customFieldInput)
+  }
+);}
+
+
+
+
+
+export const getCreateCustomFieldMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCustomField>>, TError,{organizationId: number;data: BodyType<CustomFieldInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCustomField>>, TError,{organizationId: number;data: BodyType<CustomFieldInput>}, TContext> => {
+
+const mutationKey = ['createCustomField'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCustomField>>, {organizationId: number;data: BodyType<CustomFieldInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createCustomField(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCustomFieldMutationResult = NonNullable<Awaited<ReturnType<typeof createCustomField>>>
+    export type CreateCustomFieldMutationBody = BodyType<CustomFieldInput>
+    export type CreateCustomFieldMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Define a custom field (WS-8)
+ */
+export const useCreateCustomField = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCustomField>>, TError,{organizationId: number;data: BodyType<CustomFieldInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createCustomField>>,
+        TError,
+        {organizationId: number;data: BodyType<CustomFieldInput>},
+        TContext
+      > => {
+      return useMutation(getCreateCustomFieldMutationOptions(options));
+    }
+
+export const getGetCustomFieldUrl = (organizationId: number,
+    definitionId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/custom-fields/${definitionId}`
+}
+
+/**
+ * @summary Get a custom field with its version history (WS-8)
+ */
+export const getCustomField = async (organizationId: number,
+    definitionId: number, options?: RequestInit): Promise<CustomFieldDetail> => {
+
+  return customFetch<CustomFieldDetail>(getGetCustomFieldUrl(organizationId,definitionId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCustomFieldQueryKey = (organizationId: number,
+    definitionId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/custom-fields/${definitionId}`
+    ] as const;
+    }
+
+
+export const getGetCustomFieldQueryOptions = <TData = Awaited<ReturnType<typeof getCustomField>>, TError = ErrorType<ApiError>>(organizationId: number,
+    definitionId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCustomField>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCustomFieldQueryKey(organizationId,definitionId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCustomField>>> = ({ signal }) => getCustomField(organizationId,definitionId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && definitionId !== null && definitionId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCustomField>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCustomFieldQueryResult = NonNullable<Awaited<ReturnType<typeof getCustomField>>>
+export type GetCustomFieldQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get a custom field with its version history (WS-8)
+ */
+
+export function useGetCustomField<TData = Awaited<ReturnType<typeof getCustomField>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    definitionId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCustomField>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCustomFieldQueryOptions(organizationId,definitionId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateCustomFieldVersionUrl = (organizationId: number,
+    definitionId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/custom-fields/${definitionId}/versions`
+}
+
+/**
+ * Safe changes create a new version. A breaking change (field type, removing a choice already in use, changing a master data domain) is refused with 409 once values exist, so captured data is never reinterpreted.
+ * @summary Create the next version of a custom field (WS-8)
+ */
+export const createCustomFieldVersion = async (organizationId: number,
+    definitionId: number,
+    customFieldVersionInput: CustomFieldVersionInput, options?: RequestInit): Promise<CustomFieldWithVersion> => {
+
+  return customFetch<CustomFieldWithVersion>(getCreateCustomFieldVersionUrl(organizationId,definitionId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(customFieldVersionInput)
+  }
+);}
+
+
+
+
+
+export const getCreateCustomFieldVersionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCustomFieldVersion>>, TError,{organizationId: number;definitionId: number;data: BodyType<CustomFieldVersionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCustomFieldVersion>>, TError,{organizationId: number;definitionId: number;data: BodyType<CustomFieldVersionInput>}, TContext> => {
+
+const mutationKey = ['createCustomFieldVersion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCustomFieldVersion>>, {organizationId: number;definitionId: number;data: BodyType<CustomFieldVersionInput>}> = (props) => {
+          const {organizationId,definitionId,data} = props ?? {};
+
+          return  createCustomFieldVersion(organizationId,definitionId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCustomFieldVersionMutationResult = NonNullable<Awaited<ReturnType<typeof createCustomFieldVersion>>>
+    export type CreateCustomFieldVersionMutationBody = BodyType<CustomFieldVersionInput>
+    export type CreateCustomFieldVersionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Create the next version of a custom field (WS-8)
+ */
+export const useCreateCustomFieldVersion = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCustomFieldVersion>>, TError,{organizationId: number;definitionId: number;data: BodyType<CustomFieldVersionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createCustomFieldVersion>>,
+        TError,
+        {organizationId: number;definitionId: number;data: BodyType<CustomFieldVersionInput>},
+        TContext
+      > => {
+      return useMutation(getCreateCustomFieldVersionMutationOptions(options));
+    }
+
+export const getArchiveCustomFieldUrl = (organizationId: number,
+    definitionId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/custom-fields/${definitionId}/archive`
+}
+
+/**
+ * Archiving removes a field from new data entry and never deletes stored values.
+ * @summary Archive or restore a custom field (WS-8)
+ */
+export const archiveCustomField = async (organizationId: number,
+    definitionId: number,
+    archiveCustomFieldBody: ArchiveCustomFieldBody, options?: RequestInit): Promise<CustomFieldDefinition> => {
+
+  return customFetch<CustomFieldDefinition>(getArchiveCustomFieldUrl(organizationId,definitionId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(archiveCustomFieldBody)
+  }
+);}
+
+
+
+
+
+export const getArchiveCustomFieldMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveCustomField>>, TError,{organizationId: number;definitionId: number;data: BodyType<ArchiveCustomFieldBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof archiveCustomField>>, TError,{organizationId: number;definitionId: number;data: BodyType<ArchiveCustomFieldBody>}, TContext> => {
+
+const mutationKey = ['archiveCustomField'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof archiveCustomField>>, {organizationId: number;definitionId: number;data: BodyType<ArchiveCustomFieldBody>}> = (props) => {
+          const {organizationId,definitionId,data} = props ?? {};
+
+          return  archiveCustomField(organizationId,definitionId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ArchiveCustomFieldMutationResult = NonNullable<Awaited<ReturnType<typeof archiveCustomField>>>
+    export type ArchiveCustomFieldMutationBody = BodyType<ArchiveCustomFieldBody>
+    export type ArchiveCustomFieldMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Archive or restore a custom field (WS-8)
+ */
+export const useArchiveCustomField = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveCustomField>>, TError,{organizationId: number;definitionId: number;data: BodyType<ArchiveCustomFieldBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof archiveCustomField>>,
+        TError,
+        {organizationId: number;definitionId: number;data: BodyType<ArchiveCustomFieldBody>},
+        TContext
+      > => {
+      return useMutation(getArchiveCustomFieldMutationOptions(options));
+    }
+
+export const getExportCustomFieldValuesUrl = (organizationId: number,
+    scope: string,
+    params: ExportCustomFieldValuesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/custom-fields/${scope}/export.csv?${stringifiedParams}` : `/api/organizations/${organizationId}/custom-fields/${scope}/export.csv`
+}
+
+/**
+ * Sensitive columns are omitted entirely unless the caller holds custom_fields.sensitive.read. Output uses the platform's formula-injection-safe CSV writer.
+ * @summary Export custom field values as CSV (WS-8)
+ */
+export const exportCustomFieldValues = async (organizationId: number,
+    scope: string,
+    params: ExportCustomFieldValuesParams, options?: RequestInit): Promise<string> => {
+
+  return customFetch<string>(getExportCustomFieldValuesUrl(organizationId,scope,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getExportCustomFieldValuesQueryKey = (organizationId: number,
+    scope: string,
+    params?: ExportCustomFieldValuesParams,) => {
+    return [
+    `/api/organizations/${organizationId}/custom-fields/${scope}/export.csv`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getExportCustomFieldValuesQueryOptions = <TData = Awaited<ReturnType<typeof exportCustomFieldValues>>, TError = ErrorType<ApiError>>(organizationId: number,
+    scope: string,
+    params: ExportCustomFieldValuesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportCustomFieldValues>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getExportCustomFieldValuesQueryKey(organizationId,scope,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof exportCustomFieldValues>>> = ({ signal }) => exportCustomFieldValues(organizationId,scope,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && scope !== null && scope !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof exportCustomFieldValues>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ExportCustomFieldValuesQueryResult = NonNullable<Awaited<ReturnType<typeof exportCustomFieldValues>>>
+export type ExportCustomFieldValuesQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Export custom field values as CSV (WS-8)
+ */
+
+export function useExportCustomFieldValues<TData = Awaited<ReturnType<typeof exportCustomFieldValues>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    scope: string,
+    params: ExportCustomFieldValuesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportCustomFieldValues>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getExportCustomFieldValuesQueryOptions(organizationId,scope,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetCustomFieldValuesUrl = (organizationId: number,
+    scope: string,
+    entityId: number,
+    params?: GetCustomFieldValuesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/custom-field-values/${scope}/${entityId}?${stringifiedParams}` : `/api/organizations/${organizationId}/custom-field-values/${scope}/${entityId}`
+}
+
+/**
+ * Returns every field in display order with server-evaluated visibility and missing-required status. Sensitive values are masked unless reveal=true and the caller holds custom_fields.sensitive.read.
+ * @summary Read custom field values for one record (WS-8)
+ */
+export const getCustomFieldValues = async (organizationId: number,
+    scope: string,
+    entityId: number,
+    params?: GetCustomFieldValuesParams, options?: RequestInit): Promise<CustomFieldValueList> => {
+
+  return customFetch<CustomFieldValueList>(getGetCustomFieldValuesUrl(organizationId,scope,entityId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCustomFieldValuesQueryKey = (organizationId: number,
+    scope: string,
+    entityId: number,
+    params?: GetCustomFieldValuesParams,) => {
+    return [
+    `/api/organizations/${organizationId}/custom-field-values/${scope}/${entityId}`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetCustomFieldValuesQueryOptions = <TData = Awaited<ReturnType<typeof getCustomFieldValues>>, TError = ErrorType<ApiError>>(organizationId: number,
+    scope: string,
+    entityId: number,
+    params?: GetCustomFieldValuesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCustomFieldValues>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCustomFieldValuesQueryKey(organizationId,scope,entityId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCustomFieldValues>>> = ({ signal }) => getCustomFieldValues(organizationId,scope,entityId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && scope !== null && scope !== undefined && entityId !== null && entityId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCustomFieldValues>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCustomFieldValuesQueryResult = NonNullable<Awaited<ReturnType<typeof getCustomFieldValues>>>
+export type GetCustomFieldValuesQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Read custom field values for one record (WS-8)
+ */
+
+export function useGetCustomFieldValues<TData = Awaited<ReturnType<typeof getCustomFieldValues>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    scope: string,
+    entityId: number,
+    params?: GetCustomFieldValuesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCustomFieldValues>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCustomFieldValuesQueryOptions(organizationId,scope,entityId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSetCustomFieldValuesUrl = (organizationId: number,
+    scope: string,
+    entityId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/custom-field-values/${scope}/${entityId}`
+}
+
+/**
+ * @summary Set custom field values for one record (WS-8)
+ */
+export const setCustomFieldValues = async (organizationId: number,
+    scope: string,
+    entityId: number,
+    setCustomFieldValuesBody: SetCustomFieldValuesBody, options?: RequestInit): Promise<CustomFieldValueList> => {
+
+  return customFetch<CustomFieldValueList>(getSetCustomFieldValuesUrl(organizationId,scope,entityId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(setCustomFieldValuesBody)
+  }
+);}
+
+
+
+
+
+export const getSetCustomFieldValuesMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setCustomFieldValues>>, TError,{organizationId: number;scope: string;entityId: number;data: BodyType<SetCustomFieldValuesBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setCustomFieldValues>>, TError,{organizationId: number;scope: string;entityId: number;data: BodyType<SetCustomFieldValuesBody>}, TContext> => {
+
+const mutationKey = ['setCustomFieldValues'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setCustomFieldValues>>, {organizationId: number;scope: string;entityId: number;data: BodyType<SetCustomFieldValuesBody>}> = (props) => {
+          const {organizationId,scope,entityId,data} = props ?? {};
+
+          return  setCustomFieldValues(organizationId,scope,entityId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetCustomFieldValuesMutationResult = NonNullable<Awaited<ReturnType<typeof setCustomFieldValues>>>
+    export type SetCustomFieldValuesMutationBody = BodyType<SetCustomFieldValuesBody>
+    export type SetCustomFieldValuesMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Set custom field values for one record (WS-8)
+ */
+export const useSetCustomFieldValues = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setCustomFieldValues>>, TError,{organizationId: number;scope: string;entityId: number;data: BodyType<SetCustomFieldValuesBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setCustomFieldValues>>,
+        TError,
+        {organizationId: number;scope: string;entityId: number;data: BodyType<SetCustomFieldValuesBody>},
+        TContext
+      > => {
+      return useMutation(getSetCustomFieldValuesMutationOptions(options));
+    }
+
+export const getRevealCustomFieldValueUrl = (organizationId: number,
+    scope: string,
+    entityId: number,
+    definitionId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/custom-field-values/${scope}/${entityId}/${definitionId}/reveal`
+}
+
+/**
+ * Audited as a sensitive read.
+ * @summary Reveal one sensitive custom field value (WS-8)
+ */
+export const revealCustomFieldValue = async (organizationId: number,
+    scope: string,
+    entityId: number,
+    definitionId: number, options?: RequestInit): Promise<RevealCustomFieldValue200> => {
+
+  return customFetch<RevealCustomFieldValue200>(getRevealCustomFieldValueUrl(organizationId,scope,entityId,definitionId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getRevealCustomFieldValueQueryKey = (organizationId: number,
+    scope: string,
+    entityId: number,
+    definitionId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/custom-field-values/${scope}/${entityId}/${definitionId}/reveal`
+    ] as const;
+    }
+
+
+export const getRevealCustomFieldValueQueryOptions = <TData = Awaited<ReturnType<typeof revealCustomFieldValue>>, TError = ErrorType<ApiError>>(organizationId: number,
+    scope: string,
+    entityId: number,
+    definitionId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof revealCustomFieldValue>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getRevealCustomFieldValueQueryKey(organizationId,scope,entityId,definitionId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof revealCustomFieldValue>>> = ({ signal }) => revealCustomFieldValue(organizationId,scope,entityId,definitionId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && scope !== null && scope !== undefined && entityId !== null && entityId !== undefined && definitionId !== null && definitionId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof revealCustomFieldValue>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type RevealCustomFieldValueQueryResult = NonNullable<Awaited<ReturnType<typeof revealCustomFieldValue>>>
+export type RevealCustomFieldValueQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Reveal one sensitive custom field value (WS-8)
+ */
+
+export function useRevealCustomFieldValue<TData = Awaited<ReturnType<typeof revealCustomFieldValue>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    scope: string,
+    entityId: number,
+    definitionId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof revealCustomFieldValue>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getRevealCustomFieldValueQueryOptions(organizationId,scope,entityId,definitionId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListCustomFormsUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/custom-forms`
+}
+
+/**
+ * @summary List custom forms (WS-8)
+ */
+export const listCustomForms = async (organizationId: number, options?: RequestInit): Promise<ListCustomForms200> => {
+
+  return customFetch<ListCustomForms200>(getListCustomFormsUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCustomFormsQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/custom-forms`
+    ] as const;
+    }
+
+
+export const getListCustomFormsQueryOptions = <TData = Awaited<ReturnType<typeof listCustomForms>>, TError = ErrorType<ApiError>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCustomForms>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCustomFormsQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCustomForms>>> = ({ signal }) => listCustomForms(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCustomForms>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCustomFormsQueryResult = NonNullable<Awaited<ReturnType<typeof listCustomForms>>>
+export type ListCustomFormsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List custom forms (WS-8)
+ */
+
+export function useListCustomForms<TData = Awaited<ReturnType<typeof listCustomForms>>, TError = ErrorType<ApiError>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCustomForms>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCustomFormsQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateCustomFormUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/custom-forms`
+}
+
+/**
+ * @summary Create a custom form with its first draft version (WS-8)
+ */
+export const createCustomForm = async (organizationId: number,
+    customFormInput: CustomFormInput, options?: RequestInit): Promise<CustomFormWithVersion> => {
+
+  return customFetch<CustomFormWithVersion>(getCreateCustomFormUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(customFormInput)
+  }
+);}
+
+
+
+
+
+export const getCreateCustomFormMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCustomForm>>, TError,{organizationId: number;data: BodyType<CustomFormInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCustomForm>>, TError,{organizationId: number;data: BodyType<CustomFormInput>}, TContext> => {
+
+const mutationKey = ['createCustomForm'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCustomForm>>, {organizationId: number;data: BodyType<CustomFormInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createCustomForm(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCustomFormMutationResult = NonNullable<Awaited<ReturnType<typeof createCustomForm>>>
+    export type CreateCustomFormMutationBody = BodyType<CustomFormInput>
+    export type CreateCustomFormMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Create a custom form with its first draft version (WS-8)
+ */
+export const useCreateCustomForm = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCustomForm>>, TError,{organizationId: number;data: BodyType<CustomFormInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createCustomForm>>,
+        TError,
+        {organizationId: number;data: BodyType<CustomFormInput>},
+        TContext
+      > => {
+      return useMutation(getCreateCustomFormMutationOptions(options));
+    }
+
+export const getGetCustomFormUrl = (organizationId: number,
+    formId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/custom-forms/${formId}`
+}
+
+/**
+ * @summary Get a form with its versions (WS-8)
+ */
+export const getCustomForm = async (organizationId: number,
+    formId: number, options?: RequestInit): Promise<CustomFormDetail> => {
+
+  return customFetch<CustomFormDetail>(getGetCustomFormUrl(organizationId,formId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCustomFormQueryKey = (organizationId: number,
+    formId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/custom-forms/${formId}`
+    ] as const;
+    }
+
+
+export const getGetCustomFormQueryOptions = <TData = Awaited<ReturnType<typeof getCustomForm>>, TError = ErrorType<ApiError>>(organizationId: number,
+    formId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCustomForm>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCustomFormQueryKey(organizationId,formId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCustomForm>>> = ({ signal }) => getCustomForm(organizationId,formId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && formId !== null && formId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCustomForm>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCustomFormQueryResult = NonNullable<Awaited<ReturnType<typeof getCustomForm>>>
+export type GetCustomFormQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get a form with its versions (WS-8)
+ */
+
+export function useGetCustomForm<TData = Awaited<ReturnType<typeof getCustomForm>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    formId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCustomForm>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCustomFormQueryOptions(organizationId,formId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateCustomFormVersionUrl = (organizationId: number,
+    formId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/custom-forms/${formId}/versions`
+}
+
+/**
+ * @summary Create the next draft version of a form (WS-8)
+ */
+export const createCustomFormVersion = async (organizationId: number,
+    formId: number,
+    customFormVersionInput: CustomFormVersionInput, options?: RequestInit): Promise<CustomFormVersion> => {
+
+  return customFetch<CustomFormVersion>(getCreateCustomFormVersionUrl(organizationId,formId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(customFormVersionInput)
+  }
+);}
+
+
+
+
+
+export const getCreateCustomFormVersionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCustomFormVersion>>, TError,{organizationId: number;formId: number;data: BodyType<CustomFormVersionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCustomFormVersion>>, TError,{organizationId: number;formId: number;data: BodyType<CustomFormVersionInput>}, TContext> => {
+
+const mutationKey = ['createCustomFormVersion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCustomFormVersion>>, {organizationId: number;formId: number;data: BodyType<CustomFormVersionInput>}> = (props) => {
+          const {organizationId,formId,data} = props ?? {};
+
+          return  createCustomFormVersion(organizationId,formId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCustomFormVersionMutationResult = NonNullable<Awaited<ReturnType<typeof createCustomFormVersion>>>
+    export type CreateCustomFormVersionMutationBody = BodyType<CustomFormVersionInput>
+    export type CreateCustomFormVersionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Create the next draft version of a form (WS-8)
+ */
+export const useCreateCustomFormVersion = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCustomFormVersion>>, TError,{organizationId: number;formId: number;data: BodyType<CustomFormVersionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createCustomFormVersion>>,
+        TError,
+        {organizationId: number;formId: number;data: BodyType<CustomFormVersionInput>},
+        TContext
+      > => {
+      return useMutation(getCreateCustomFormVersionMutationOptions(options));
+    }
+
+export const getPublishCustomFormVersionUrl = (organizationId: number,
+    formId: number,
+    versionId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/custom-forms/${formId}/versions/${versionId}/publish`
+}
+
+/**
+ * @summary Publish a draft version, retiring the previous one (WS-8)
+ */
+export const publishCustomFormVersion = async (organizationId: number,
+    formId: number,
+    versionId: number, options?: RequestInit): Promise<CustomFormVersion> => {
+
+  return customFetch<CustomFormVersion>(getPublishCustomFormVersionUrl(organizationId,formId,versionId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getPublishCustomFormVersionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishCustomFormVersion>>, TError,{organizationId: number;formId: number;versionId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof publishCustomFormVersion>>, TError,{organizationId: number;formId: number;versionId: number}, TContext> => {
+
+const mutationKey = ['publishCustomFormVersion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof publishCustomFormVersion>>, {organizationId: number;formId: number;versionId: number}> = (props) => {
+          const {organizationId,formId,versionId} = props ?? {};
+
+          return  publishCustomFormVersion(organizationId,formId,versionId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PublishCustomFormVersionMutationResult = NonNullable<Awaited<ReturnType<typeof publishCustomFormVersion>>>
+
+    export type PublishCustomFormVersionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Publish a draft version, retiring the previous one (WS-8)
+ */
+export const usePublishCustomFormVersion = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishCustomFormVersion>>, TError,{organizationId: number;formId: number;versionId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof publishCustomFormVersion>>,
+        TError,
+        {organizationId: number;formId: number;versionId: number},
+        TContext
+      > => {
+      return useMutation(getPublishCustomFormVersionMutationOptions(options));
+    }
+
+export const getArchiveCustomFormUrl = (organizationId: number,
+    formId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/custom-forms/${formId}/archive`
+}
+
+/**
+ * @summary Archive or restore a form (WS-8)
+ */
+export const archiveCustomForm = async (organizationId: number,
+    formId: number,
+    archiveCustomFormBody: ArchiveCustomFormBody, options?: RequestInit): Promise<CustomForm> => {
+
+  return customFetch<CustomForm>(getArchiveCustomFormUrl(organizationId,formId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(archiveCustomFormBody)
+  }
+);}
+
+
+
+
+
+export const getArchiveCustomFormMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveCustomForm>>, TError,{organizationId: number;formId: number;data: BodyType<ArchiveCustomFormBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof archiveCustomForm>>, TError,{organizationId: number;formId: number;data: BodyType<ArchiveCustomFormBody>}, TContext> => {
+
+const mutationKey = ['archiveCustomForm'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof archiveCustomForm>>, {organizationId: number;formId: number;data: BodyType<ArchiveCustomFormBody>}> = (props) => {
+          const {organizationId,formId,data} = props ?? {};
+
+          return  archiveCustomForm(organizationId,formId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ArchiveCustomFormMutationResult = NonNullable<Awaited<ReturnType<typeof archiveCustomForm>>>
+    export type ArchiveCustomFormMutationBody = BodyType<ArchiveCustomFormBody>
+    export type ArchiveCustomFormMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Archive or restore a form (WS-8)
+ */
+export const useArchiveCustomForm = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveCustomForm>>, TError,{organizationId: number;formId: number;data: BodyType<ArchiveCustomFormBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof archiveCustomForm>>,
+        TError,
+        {organizationId: number;formId: number;data: BodyType<ArchiveCustomFormBody>},
+        TContext
+      > => {
+      return useMutation(getArchiveCustomFormMutationOptions(options));
+    }
+
+export const getRenderCustomFormUrl = (organizationId: number,
+    formId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/custom-forms/${formId}/render`
+}
+
+/**
+ * @summary Get the published version and its field definitions for rendering (WS-8)
+ */
+export const renderCustomForm = async (organizationId: number,
+    formId: number, options?: RequestInit): Promise<CustomFormRender> => {
+
+  return customFetch<CustomFormRender>(getRenderCustomFormUrl(organizationId,formId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getRenderCustomFormQueryKey = (organizationId: number,
+    formId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/custom-forms/${formId}/render`
+    ] as const;
+    }
+
+
+export const getRenderCustomFormQueryOptions = <TData = Awaited<ReturnType<typeof renderCustomForm>>, TError = ErrorType<ApiError>>(organizationId: number,
+    formId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof renderCustomForm>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getRenderCustomFormQueryKey(organizationId,formId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof renderCustomForm>>> = ({ signal }) => renderCustomForm(organizationId,formId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && formId !== null && formId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof renderCustomForm>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type RenderCustomFormQueryResult = NonNullable<Awaited<ReturnType<typeof renderCustomForm>>>
+export type RenderCustomFormQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get the published version and its field definitions for rendering (WS-8)
+ */
+
+export function useRenderCustomForm<TData = Awaited<ReturnType<typeof renderCustomForm>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    formId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof renderCustomForm>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getRenderCustomFormQueryOptions(organizationId,formId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSubmitCustomFormUrl = (organizationId: number,
+    formId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/custom-forms/${formId}/submissions`
+}
+
+/**
+ * The submitted formVersionId must match the currently published version. For employee_ess forms the target employee is resolved server-side from the caller's own identity and any supplied entityId is ignored.
+ * @summary Submit a form (WS-8)
+ */
+export const submitCustomForm = async (organizationId: number,
+    formId: number,
+    submitCustomFormBody: SubmitCustomFormBody, options?: RequestInit): Promise<CustomFormSubmission> => {
+
+  return customFetch<CustomFormSubmission>(getSubmitCustomFormUrl(organizationId,formId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(submitCustomFormBody)
+  }
+);}
+
+
+
+
+
+export const getSubmitCustomFormMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitCustomForm>>, TError,{organizationId: number;formId: number;data: BodyType<SubmitCustomFormBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitCustomForm>>, TError,{organizationId: number;formId: number;data: BodyType<SubmitCustomFormBody>}, TContext> => {
+
+const mutationKey = ['submitCustomForm'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitCustomForm>>, {organizationId: number;formId: number;data: BodyType<SubmitCustomFormBody>}> = (props) => {
+          const {organizationId,formId,data} = props ?? {};
+
+          return  submitCustomForm(organizationId,formId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitCustomFormMutationResult = NonNullable<Awaited<ReturnType<typeof submitCustomForm>>>
+    export type SubmitCustomFormMutationBody = BodyType<SubmitCustomFormBody>
+    export type SubmitCustomFormMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Submit a form (WS-8)
+ */
+export const useSubmitCustomForm = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitCustomForm>>, TError,{organizationId: number;formId: number;data: BodyType<SubmitCustomFormBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitCustomForm>>,
+        TError,
+        {organizationId: number;formId: number;data: BodyType<SubmitCustomFormBody>},
+        TContext
+      > => {
+      return useMutation(getSubmitCustomFormMutationOptions(options));
+    }
+
+export const getListCustomFormSubmissionsUrl = (organizationId: number,
+    params?: ListCustomFormSubmissionsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/custom-form-submissions?${stringifiedParams}` : `/api/organizations/${organizationId}/custom-form-submissions`
+}
+
+/**
+ * @summary List form submissions (WS-8)
+ */
+export const listCustomFormSubmissions = async (organizationId: number,
+    params?: ListCustomFormSubmissionsParams, options?: RequestInit): Promise<ListCustomFormSubmissions200> => {
+
+  return customFetch<ListCustomFormSubmissions200>(getListCustomFormSubmissionsUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCustomFormSubmissionsQueryKey = (organizationId: number,
+    params?: ListCustomFormSubmissionsParams,) => {
+    return [
+    `/api/organizations/${organizationId}/custom-form-submissions`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListCustomFormSubmissionsQueryOptions = <TData = Awaited<ReturnType<typeof listCustomFormSubmissions>>, TError = ErrorType<ApiError>>(organizationId: number,
+    params?: ListCustomFormSubmissionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCustomFormSubmissions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCustomFormSubmissionsQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCustomFormSubmissions>>> = ({ signal }) => listCustomFormSubmissions(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCustomFormSubmissions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCustomFormSubmissionsQueryResult = NonNullable<Awaited<ReturnType<typeof listCustomFormSubmissions>>>
+export type ListCustomFormSubmissionsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List form submissions (WS-8)
+ */
+
+export function useListCustomFormSubmissions<TData = Awaited<ReturnType<typeof listCustomFormSubmissions>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    params?: ListCustomFormSubmissionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCustomFormSubmissions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCustomFormSubmissionsQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetCustomFormSubmissionUrl = (organizationId: number,
+    submissionId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/custom-form-submissions/${submissionId}`
+}
+
+/**
+ * @summary Get one submission with the form version it was captured under (WS-8)
+ */
+export const getCustomFormSubmission = async (organizationId: number,
+    submissionId: number, options?: RequestInit): Promise<GetCustomFormSubmission200> => {
+
+  return customFetch<GetCustomFormSubmission200>(getGetCustomFormSubmissionUrl(organizationId,submissionId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCustomFormSubmissionQueryKey = (organizationId: number,
+    submissionId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/custom-form-submissions/${submissionId}`
+    ] as const;
+    }
+
+
+export const getGetCustomFormSubmissionQueryOptions = <TData = Awaited<ReturnType<typeof getCustomFormSubmission>>, TError = ErrorType<ApiError>>(organizationId: number,
+    submissionId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCustomFormSubmission>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCustomFormSubmissionQueryKey(organizationId,submissionId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCustomFormSubmission>>> = ({ signal }) => getCustomFormSubmission(organizationId,submissionId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && submissionId !== null && submissionId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCustomFormSubmission>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCustomFormSubmissionQueryResult = NonNullable<Awaited<ReturnType<typeof getCustomFormSubmission>>>
+export type GetCustomFormSubmissionQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get one submission with the form version it was captured under (WS-8)
+ */
+
+export function useGetCustomFormSubmission<TData = Awaited<ReturnType<typeof getCustomFormSubmission>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    submissionId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCustomFormSubmission>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCustomFormSubmissionQueryOptions(organizationId,submissionId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -67,6 +67,15 @@ const { state } = vi.hoisted(() => ({
 
 vi.mock('@workspace/api-client-react', () => ({
   useGetMe: () => ({ data: { id: 1, activeOrganizationId: 10, organizationId: 10 } }),
+
+  // WS-8 — the employee page now renders the shared custom-fields panel.
+  // It hides itself when an organization has configured no fields, which is
+  // what an empty list here simulates, so these existing assertions are
+  // unaffected by the panel's presence.
+  useGetCustomFieldValues: () => ({ data: { values: [] }, isLoading: false, refetch: vi.fn() }),
+  getGetCustomFieldValuesQueryKey: (orgId: number, scope: string, entityId: number) => ['customFieldValues', orgId, scope, entityId],
+  useSetCustomFieldValues: () => ({ mutate: vi.fn(), isPending: false }),
+
   getGetMeQueryKey: () => ['getMe'],
   useListMyOrganizations: () => ({ data: [{ organizationId: 10, roles: state.myOrgRoles }] }),
   getListMyOrganizationsQueryKey: () => ['myOrganizations'],

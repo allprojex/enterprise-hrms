@@ -492,6 +492,17 @@ const PERMISSIONS = [
   // the Owner's "dedicated narrow authority" instruction for this
   // workstream. super_admin receives all three via the pre-existing blanket
   // grant.
+  // WS-8 — Custom Fields & Form Builder (see MASTER_OWNER_REVIEW §24.25).
+  // A compact four-key model, deliberately NOT per-field ACLs (§24.15):
+  // authorization for a VALUE follows the target domain permission
+  // (employee.read/.write, candidate.*, position.*, organization.*), while
+  // these four gate the CONFIGURATION surface. Revealing a sensitive custom
+  // value additionally requires custom_fields.sensitive.read.
+  { key: "custom_fields.read", resource: "custom_fields", action: "read" },
+  { key: "custom_fields.manage", resource: "custom_fields", action: "manage" },
+  { key: "custom_fields.sensitive.read", resource: "custom_fields", action: "sensitive.read" },
+  { key: "custom_forms.read", resource: "custom_forms", action: "read" },
+  { key: "custom_forms.manage", resource: "custom_forms", action: "manage" },
   { key: "migration.read", resource: "migration", action: "read" },
   { key: "migration.manage", resource: "migration", action: "manage" },
   { key: "migration.execute", resource: "migration", action: "execute" },
@@ -597,6 +608,14 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "migration.read",
     "migration.manage",
     "migration.execute",
+    // WS-8 — organization administration owns configuration.
+    // custom_fields.sensitive.read is registered but granted to NO role,
+    // following the payroll precedent: revealing sensitive data is an
+    // explicit per-organization delegation, never implied by admin rights.
+    "custom_fields.read",
+    "custom_fields.manage",
+    "custom_forms.read",
+    "custom_forms.manage",
   ],
   hr_manager: [
     "organization.read",
@@ -691,6 +710,12 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "document.verify",
     "document_template.read",
     "document_template.manage",
+    // WS-8 — an HR manager reads field configuration (needed to make sense of
+    // what appears on employee records) and manages forms, but does not define
+    // the underlying fields, which is an organization-configuration act.
+    "custom_fields.read",
+    "custom_forms.read",
+    "custom_forms.manage",
     // WS-7 — read-only, deliberately narrower than org_admin (and narrower
     // than the WS-5/WS-6 precedent of giving hr_manager the same set): an
     // HR manager can see and audit a migration, but preparing/approving/

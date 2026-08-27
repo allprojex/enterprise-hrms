@@ -25,6 +25,7 @@ import legacyImportRouter from "./legacyImport";
 // docs/BULK_IMPORT_MIGRATION.md.
 import migrationsRouter from "./migrations";
 import payrollOpeningBalancesRouter from "./payrollOpeningBalances";
+import customFieldsRouter from "./customFields";
 import employeeSkillsQualificationsRouter from "./employeeSkillsQualifications";
 import employeeDisciplinaryRecordsRouter from "./employeeDisciplinaryRecords";
 import employeeExitProcessRouter from "./employeeExitProcess";
@@ -138,6 +139,7 @@ router.use(personnelReportingRouter);
 router.use(legacyImportRouter);
 router.use(migrationsRouter);
 router.use(payrollOpeningBalancesRouter);
+router.use(customFieldsRouter);
 router.use(employeeSkillsQualificationsRouter);
 router.use(employeeDisciplinaryRecordsRouter);
 router.use(employeeExitProcessRouter);

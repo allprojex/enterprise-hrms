@@ -9216,6 +9216,271 @@ export type PayrollYearToDate = PayrollOpeningBalanceAmounts & ({
   inSystem: PayrollOpeningBalanceAmounts;
 });
 
+export type CustomFieldMetaFieldTypesItem = {
+  type: string;
+  label: string;
+  usesOptions: boolean;
+  usesReference: boolean;
+};
+
+export type CustomFieldMetaScopesItem = {
+  scope: string;
+  label: string;
+  bindable: boolean;
+};
+
+export interface CustomFieldMeta {
+  fieldTypes: CustomFieldMetaFieldTypesItem[];
+  scopes: CustomFieldMetaScopesItem[];
+  visibilityOperators: string[];
+}
+
+export type CustomFieldDefinitionStatus = typeof CustomFieldDefinitionStatus[keyof typeof CustomFieldDefinitionStatus];
+
+
+export const CustomFieldDefinitionStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface CustomFieldDefinition {
+  id: number;
+  organizationId: number;
+  scope: string;
+  fieldKey: string;
+  status: CustomFieldDefinitionStatus;
+  archivedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CustomFieldDefinitionVersionSensitivity = typeof CustomFieldDefinitionVersionSensitivity[keyof typeof CustomFieldDefinitionVersionSensitivity];
+
+
+export const CustomFieldDefinitionVersionSensitivity = {
+  normal: 'normal',
+  sensitive: 'sensitive',
+} as const;
+
+export interface CustomFieldDefinitionVersion {
+  id: number;
+  definitionId: number;
+  versionNumber: number;
+  label: string;
+  helpText?: string | null;
+  fieldType: string;
+  required: boolean;
+  sensitivity: CustomFieldDefinitionVersionSensitivity;
+  displayOrder: number;
+  validation?: unknown | null;
+  options?: unknown | null;
+  visibility?: unknown | null;
+  isCurrent: boolean;
+  createdAt: string;
+}
+
+export interface CustomFieldWithVersion {
+  definition: CustomFieldDefinition;
+  version: CustomFieldDefinitionVersion;
+}
+
+export type CustomFieldDetail = CustomFieldWithVersion & {
+  versions: CustomFieldDefinitionVersion[];
+  usedChoiceValues: string[];
+};
+
+export type CustomFieldInputSensitivity = typeof CustomFieldInputSensitivity[keyof typeof CustomFieldInputSensitivity];
+
+
+export const CustomFieldInputSensitivity = {
+  normal: 'normal',
+  sensitive: 'sensitive',
+} as const;
+
+export interface CustomFieldInput {
+  scope: string;
+  fieldKey: string;
+  label: string;
+  helpText?: string | null;
+  fieldType: string;
+  required?: boolean;
+  sensitivity?: CustomFieldInputSensitivity;
+  displayOrder?: number;
+  validation?: unknown | null;
+  options?: unknown | null;
+  visibility?: unknown | null;
+}
+
+export type CustomFieldVersionInputSensitivity = typeof CustomFieldVersionInputSensitivity[keyof typeof CustomFieldVersionInputSensitivity];
+
+
+export const CustomFieldVersionInputSensitivity = {
+  normal: 'normal',
+  sensitive: 'sensitive',
+} as const;
+
+export interface CustomFieldVersionInput {
+  label: string;
+  helpText?: string | null;
+  fieldType: string;
+  required?: boolean;
+  sensitivity?: CustomFieldVersionInputSensitivity;
+  displayOrder?: number;
+  validation?: unknown | null;
+  options?: unknown | null;
+  visibility?: unknown | null;
+}
+
+export type ResolvedCustomFieldValueSensitivity = typeof ResolvedCustomFieldValueSensitivity[keyof typeof ResolvedCustomFieldValueSensitivity];
+
+
+export const ResolvedCustomFieldValueSensitivity = {
+  normal: 'normal',
+  sensitive: 'sensitive',
+} as const;
+
+export interface ResolvedCustomFieldValue {
+  definitionId: number;
+  fieldKey: string;
+  label: string;
+  helpText?: string | null;
+  fieldType: string;
+  required: boolean;
+  sensitivity: ResolvedCustomFieldValueSensitivity;
+  displayOrder: number;
+  options?: unknown | null;
+  visibility?: unknown | null;
+  value?: unknown | null;
+  masked: boolean;
+  visible: boolean;
+  missingRequired: boolean;
+  capturedVersionId?: number | null;
+  capturedVersionNumber?: number | null;
+}
+
+export interface CustomFieldValueList {
+  scope?: string;
+  entityId?: number;
+  values: ResolvedCustomFieldValue[];
+  revealed?: boolean;
+  written?: number;
+  cleared?: number;
+}
+
+export type CustomFormFormType = typeof CustomFormFormType[keyof typeof CustomFormFormType];
+
+
+export const CustomFormFormType = {
+  internal_hr: 'internal_hr',
+  employee_ess: 'employee_ess',
+  onboarding: 'onboarding',
+  candidate_application: 'candidate_application',
+} as const;
+
+export type CustomFormStatus = typeof CustomFormStatus[keyof typeof CustomFormStatus];
+
+
+export const CustomFormStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export interface CustomForm {
+  id: number;
+  organizationId: number;
+  formKey: string;
+  formType: CustomFormFormType;
+  scope: string;
+  status: CustomFormStatus;
+  archivedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CustomFormVersionLayout = { [key: string]: unknown };
+
+export type CustomFormVersionStatus = typeof CustomFormVersionStatus[keyof typeof CustomFormVersionStatus];
+
+
+export const CustomFormVersionStatus = {
+  draft: 'draft',
+  published: 'published',
+  archived: 'archived',
+} as const;
+
+export interface CustomFormVersion {
+  id: number;
+  formId: number;
+  versionNumber: number;
+  title: string;
+  description?: string | null;
+  layout: CustomFormVersionLayout;
+  status: CustomFormVersionStatus;
+  publishedAt?: string | null;
+  createdAt: string;
+}
+
+export interface CustomFormWithVersion {
+  form: CustomForm;
+  version: CustomFormVersion;
+}
+
+export interface CustomFormDetail {
+  form: CustomForm;
+  versions: CustomFormVersion[];
+  publishedVersion?: CustomFormVersion | null;
+}
+
+export interface CustomFormRender {
+  form: CustomForm;
+  version: CustomFormVersion;
+  fields: CustomFieldWithVersion[];
+}
+
+export type CustomFormInputFormType = typeof CustomFormInputFormType[keyof typeof CustomFormInputFormType];
+
+
+export const CustomFormInputFormType = {
+  internal_hr: 'internal_hr',
+  employee_ess: 'employee_ess',
+  onboarding: 'onboarding',
+  candidate_application: 'candidate_application',
+} as const;
+
+export type CustomFormInputLayout = { [key: string]: unknown };
+
+export interface CustomFormInput {
+  formKey: string;
+  formType: CustomFormInputFormType;
+  scope: string;
+  title: string;
+  description?: string | null;
+  layout: CustomFormInputLayout;
+}
+
+export type CustomFormVersionInputLayout = { [key: string]: unknown };
+
+export interface CustomFormVersionInput {
+  title: string;
+  description?: string | null;
+  layout: CustomFormVersionInputLayout;
+}
+
+export type CustomFormSubmissionAnswersItem = { [key: string]: unknown };
+
+export interface CustomFormSubmission {
+  id: number;
+  organizationId: number;
+  formId: number;
+  formVersionId: number;
+  scope: string;
+  entityId?: number | null;
+  answers: CustomFormSubmissionAnswersItem[];
+  submittedByMembershipId?: number | null;
+  submittedAt: string;
+  createdAt: string;
+}
+
 export type UploadOrganizationLogoBody = {
   file: Blob;
 };
@@ -10172,6 +10437,71 @@ export type ListPayrollOpeningBalances200 = {
 export type GetPayrollOpeningBalance200 = {
   balance: PayrollOpeningBalance;
   locked: boolean;
+};
+
+export type ListCustomFieldsParams = {
+scope: string;
+includeArchived?: string;
+};
+
+export type ListCustomFields200 = {
+  fields: CustomFieldWithVersion[];
+};
+
+export type ArchiveCustomFieldBody = {
+  archived?: boolean;
+};
+
+export type ExportCustomFieldValuesParams = {
+entityIds: string;
+};
+
+export type GetCustomFieldValuesParams = {
+reveal?: string;
+};
+
+export type SetCustomFieldValuesBodyValues = { [key: string]: unknown };
+
+export type SetCustomFieldValuesBody = {
+  values: SetCustomFieldValuesBodyValues;
+};
+
+export type RevealCustomFieldValue200 = {
+  definitionId: number;
+  fieldKey: string;
+  label: string;
+  value?: unknown | null;
+};
+
+export type ListCustomForms200 = {
+  forms: CustomForm[];
+};
+
+export type ArchiveCustomFormBody = {
+  archived?: boolean;
+};
+
+export type SubmitCustomFormBodyAnswers = { [key: string]: unknown };
+
+export type SubmitCustomFormBody = {
+  formVersionId: number;
+  entityId?: number | null;
+  answers: SubmitCustomFormBodyAnswers;
+};
+
+export type ListCustomFormSubmissionsParams = {
+formId?: number;
+scope?: string;
+entityId?: number;
+};
+
+export type ListCustomFormSubmissions200 = {
+  submissions: CustomFormSubmission[];
+};
+
+export type GetCustomFormSubmission200 = {
+  submission: CustomFormSubmission;
+  version: CustomFormVersion;
 };
 
 export type ListMigrations200 = {
