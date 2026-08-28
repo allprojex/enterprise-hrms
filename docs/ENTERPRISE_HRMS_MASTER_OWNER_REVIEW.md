@@ -97,7 +97,7 @@ Unchanged from the discovery pass — drawn directly from `docs/GHANA_HR_EMPLOYE
 | Induction/orientation | MISSING, deliberately descoped historically | **WS-10 scope frozen in §26** (§26.22: specialization of the checklist engine, not a separate engine) |
 | ESS activation | COMPLETE as mechanism; no onboarding-completion gate | No such signal exists anywhere — **§26.23 freezes this as deliberate: WS-10 introduces no ESS gate** |
 | Onboarding workflow/checklist | MISSING | No task/checklist engine anywhere — **WS-10 scope frozen in §26** |
-| Probation | PARTIAL, more built than assumed | Real `confirmEmployee()` mechanism; no duration engine, no extension-as-event |
+| Probation | PARTIAL, more built than assumed | Real `confirmEmployee()` mechanism; no duration engine, no extension-as-event — **WS-11 architecture frozen in §27** (§27.8 unsuccessful outcome never auto-separates; §27.9 extension-as-event) |
 | Probation review | Linked to Performance correctly | — |
 
 **Genuine platform gaps** (ranked, unchanged): (1) publication-free candidate capture; (2) offer acceptance/decline; (3) onboarding checklist engine; (4) induction; (5) handbook acknowledgement; (6) document generation (unblocks #1's Ghana-compliance dimension, #5, and all §31 HR Letters); (7) candidate-source configurability; (8) employee-document checklist; (9) multi-step approval chains; (10) offer particulars for Ghana Schedule I; (11) `reportingManagerId` not carried through conversion; (12) field-level masking on SSNIT/TIN/bank details (**now P1**, OD #23).
@@ -114,9 +114,9 @@ Unchanged from the discovery pass — drawn directly from `docs/GHANA_HR_EMPLOYE
 |---|---|---|---|---|
 | 23 | Training & Development | ALREADY IMPLEMENTED as Learning module | — (no OD needed) | Unchanged; dev-plans layer remains P3 |
 | 24 | Skills / Competencies | ALREADY IMPLEMENTED (base) | **OWNER DECISION #5 — APPROVED FOR ROADMAP, P2.** Do not defer indefinitely. Support skills inventory, competency frameworks, role competencies, proficiency, assessment, gaps, development linkage, Recruitment linkage, Succession linkage. Organizations may choose whether to enable/use it. | Firmed onto the P2 roadmap, not left open-ended |
-| 25 | Career & Internal Mobility | ALREADY IMPLEMENTED (permanent transfers) | **OWNER DECISION #6 — APPROVED FOR ROADMAP, P2.** Reuse `employment_periods` architecture. Support effective-dated acting appointments, secondments, temporary assignments. Sequence after the scheduling/notification foundation. | Approved, sequencing condition set explicitly |
+| 25 | Career & Internal Mobility | ALREADY IMPLEMENTED (permanent transfers) | **OWNER DECISION #6 — APPROVED FOR ROADMAP, P2.** Reuse `employment_periods` architecture. Support effective-dated acting appointments, secondments, temporary assignments. Sequence after the scheduling/notification foundation. | Approved, sequencing condition set explicitly — **implemented under WS-11, architecture frozen in §27** (§27.12 acting, §27.13 secondment, §27.14 the four distinct concepts) |
 | 26 | Succession / Talent | GENUINELY MISSING (internal-employee sense) | **OWNER DECISION #7 — APPROVED FOR ROADMAP, P2.** Do not treat existing Talent Pools as automatically equivalent to Succession. Preserve existing capability (recruitment Talent Pools, unchanged). Add Succession only for genuinely missing concepts: critical roles, successors, readiness, development gaps, succession plans. Avoid duplication. | Approved; naming/scope confusion explicitly resolved |
-| 27 | Contract / Employment Term Mgmt | PARTIAL | **OWNER DECISION #8 — APPROVED.** Reuse `employment_periods`/existing employment-history infrastructure. Support expiry, renewal, extension, amendment, reminders, historical integrity. | Approved unchanged |
+| 27 | Contract / Employment Term Mgmt | PARTIAL | **OWNER DECISION #8 — APPROVED.** Reuse `employment_periods`/existing employment-history infrastructure. Support expiry, renewal, extension, amendment, reminders, historical integrity. | Approved unchanged — **implemented under WS-11, architecture frozen in §27**; §27.1 corrects "PARTIAL" to *no contract term model exists at all*, and §27.5 records that `employment_periods` alone cannot hold a live term |
 | 28 | Employee Relations / Grievance | PARTIAL (disciplinary log only, no grievance) | **OWNER DECISION #9 — APPROVED.** Disciplinary cases and grievances are distinct business concepts. May share document infrastructure, evidence infrastructure, security primitives, audit — but must not be conflated into one record type. | Approved unchanged; confirms two separate schemas |
 | 29 | Employee Welfare | GENUINELY MISSING | — (no OD; brief instructs no medical records) | Unchanged, P3 |
 | 30 | Benefits | GENUINELY MISSING | — (no OD) | Unchanged, P2/P3, must not duplicate compensation components |
@@ -1114,3 +1114,246 @@ None blocking. Three items are conditional by design and are to be decided **fro
 3. Whether handbook assignment and acknowledgement are one table or two (§26.17) — decided on whether an assignment can meaningfully exist without an acknowledgement obligation.
 
 Either resolution must be recorded with its reason.
+
+## 27. WS-11 Workstream Architecture Freeze — Employment Lifecycle Events Expansion
+
+Recorded by the Owner after a read-only extraction found WS-11's bundle carried real architectural forks with employment-law consequences, which must not be guessed. This section is **purely additive**. The 31 Owner Decisions in §22 are untouched; OD #2, #6 and #8 are implemented, not amended. WS-1 through WS-10 remain complete and are not reopened.
+
+WS-11 is **P2** and depends on **WS-6** (complete). Nothing in the dependency graph depends on WS-11.
+
+**Priority note.** WS-11 is P2, but **OD #8 (Contract Expiry / Renewal) is P1** while OD #2 and #6 are P2. A P1 decision therefore sits inside a P2 workstream. This is recorded, not resolved: if delivery must be split, the contract-term work is the P1 half.
+
+### 27.1 Corrected repository facts (mandatory reconciliation)
+
+An earlier extraction claim was wrong and is corrected here. Verified at `c42845e`:
+
+1. **`employment_periods` receives only three event types** from the live lifecycle services: `transfer`, `promotion` and `confirmation` — all written by `employees.ts` through `recordEmploymentPeriodEvent`.
+2. **Separation and rehire do NOT write `employment_periods`.** `separateEmployee()` and `rehireEmployee()` call `recordAuditEvent` only, producing `employee.separated` / `employee.rehired` **audit** events. This is a deliberate W15-predates-W22 artifact noted in the schema header, not a defect.
+3. **Consequence:** the Employment History surface backed by `employment_periods` — including the read-only card on `employee-detail.tsx` — is **not a complete record of major employment lifecycle events**. It omits the two most consequential ones.
+4. **`eventType` is `text`, free by design.** The schema header states each consuming workstream defines its own values "without a schema change here".
+5. **WS-7's `employmentHistory` import adapter accepts arbitrary `eventType` strings** (present, ≤64 characters). Its own comment refuses to "force an imported history row into a stricter taxonomy than the domain itself enforces". **Arbitrary event strings therefore already exist in production data.**
+6. **No contract term model exists anywhere.** `"contract"` is only an `employmentType` enum value; there is no `contractStartDate`, no `contractEndDate`, no contract table, no expiry logic.
+7. **Acting appointments and secondment do not exist** in any form.
+8. **Document generation now exists** (WS-5: `document_templates`, `document_template_versions`, `generated_documents`, `documentGeneration.ts`, `documentMerge.ts`). Earlier statements in this document that "zero document-generation capability exists" described the discovery-era repository and are **superseded**.
+
+### 27.2 Decision A — Employment history authority
+
+**`employment_periods` is the authoritative append-only BUSINESS LIFECYCLE HISTORY.** `audit_events` remains the SECURITY / OPERATIONAL AUDIT TRAIL. They are complementary and **must never be conflated**: one answers "what happened to this person's employment", the other "who did what in this system, when".
+
+Note that `recordEmploymentPeriodEvent` already writes both — a lifecycle row plus a mirrored `employment_period.${eventType}` audit row. That existing behaviour is correct and is preserved.
+
+System-generated lifecycle history should ultimately comprise:
+
+| Event | Disposition |
+| --- | --- |
+| `transfer`, `promotion`, `confirmation` | **Already exist.** Unchanged. |
+| `separation`, `rehire` | **ADD** (Decision B) — forward-only. |
+| `probation_extension`, `probation_unsuccessful` | **ADD** (Decisions G, H). |
+| `contract_renewal` | **ADD** (Decision F). |
+| `acting_start`, `acting_end` | **ADD** (Decision K). |
+| `secondment_start`, `secondment_end` | **ADD** (Decision L). |
+| Contract **expiry** | **NOT an automatic event.** A date passing is not an act. Expiry is *derived* state (Decision E); an event is written only when an authorized person records an action. |
+| Hire / commencement | **DEFERRED, with a stated reason.** `createEmployee` is shared by Recruitment conversion, manual creation, legacy import and WS-7 migration. Emitting a hire event there would fabricate hundreds of events with imported or unknown dates on every bulk import — exactly what Decision B forbids. If a hire event is ever added it must fire only on canonical single-employee creation paths where a real hire date is known, and **never** from an import path that already carries its own history. |
+
+Do not add an event merely because it appears in a list.
+
+### 27.3 Decision B — The separation/rehire gap
+
+**Close it, forward-only.** Future separation and rehire actions append a lifecycle event **in addition to** their existing audit event.
+
+Explicitly forbidden: removing or weakening the existing audit events; rewriting any existing row; **fabricating historical events for existing employees**; backfilling uncertain dates; inferring events from current `employmentStatus`. An employee who is `terminated` today with no lifecycle event stays that way — the absence is honest, and inventing a date would be worse than the gap.
+
+If a backfill is ever wanted it is an explicit, authorized data-reconciliation exercise with real source evidence, never an automatic migration.
+
+### 27.4 Decision C — Event-type strategy
+
+**`employment_periods.eventType` must NOT become a database enum.** Doing so would invalidate legitimate imported history (fact 5 above) and break WS-7.
+
+Instead:
+
+1. A **server-defined registry of system event types** (a TypeScript constant/registry, the same discipline as WS-9's resolvers and WS-10's task kinds) — the closed set the platform itself may write.
+2. **Write-time validation in the lifecycle services**: a system-generated event must name a registered type.
+3. **Legacy and imported strings are preserved and remain readable** — never rejected, never rewritten, never migrated into the registry.
+4. **Payload/`newState` shape validation per known system type**, so a controlled event carries the fields its consumers expect.
+5. **Unknown historical types render as-is** in history surfaces (the existing UI already renders the raw string).
+
+This gives forward control without destroying migration compatibility.
+
+### 27.5 Decision D — Contract term location
+
+**A dedicated employment-term domain (option C).** Not current-fields-only, not `employment_periods` alone, and not `employment_particulars`.
+
+Reasons, from repository evidence:
+
+- **`employment_periods` cannot answer "when does this contract expire?"** It is an append-only event log with no current-state fields. OD #8's "reuse `employment_periods`" is satisfied for the **history** of renewals, but a live term needs a queryable record.
+- **A single `contractEndDate` on `employees` destroys history**, which OD #8 ("historical integrity") forbids and §8 of the clarification brief rejects outright.
+- **`employment_particulars` is the wrong home**, and its own header says why: it is the *written statement of terms*, keyed one-to-one on `offerVersionId` and **frozen at issuance**. It is a document's content, not a live tracker, and it cannot serve employees who never had an offer.
+
+The term model must support permanent employment, fixed-term employment, renewal, expiry, historical terms, changed terms, rehire under a new term, and multiple employment periods across a person's history.
+
+**A pre-recorded contract is honoured here.** WS-9's `employment_particulars` header anticipated exactly this moment: *"later workstreams (confirmation, promotion, transfer, service letters) need particulars without an offer at all, and a one-to-one row keyed on `offerVersionId` today can gain a second nullable owner column later without disturbing offers."* WS-11 may take up that option so a renewal or confirmation can issue particulars without inventing a second particulars model. Whether it does so is an implementation judgement to be recorded with its reason.
+
+### 27.6 Decision E — Contract expiry behaviour
+
+**Contract expiry must NEVER silently terminate employment.** This is frozen.
+
+Scheduled infrastructure **may**: detect upcoming expiry, raise reminders, surface expired/overdue state as derived information, notify authorized users, and populate an HR action queue.
+
+Termination or separation **requires an explicit authorized lifecycle action** through the existing separation service.
+
+The reason is factual, not cautious: an expiry date reaching today does not prove employment ceased. Renewal, extension, administrative delay, statutory requirements or an organizational decision may all intervene, and the system cannot know which. A future organization-configurable policy could authorize a safe automated action, but no such policy is approved now.
+
+### 27.7 Decision F — Contract renewal
+
+Renewal is a **distinct lifecycle event plus a new term record**. It preserves the prior term, the new term, the effective date, the actor, a reason/reference, and a supporting document where applicable.
+
+**Historical contract terms are never overwritten.** A renewal chain must remain readable end to end.
+
+### 27.8 Decision G — Unsuccessful probation outcome
+
+**An unsuccessful probation outcome must NEVER automatically separate an employee.** This is frozen, and it is the sharpest employment-law boundary in WS-11.
+
+The outcome action must: record the probation outcome as a lifecycle event; preserve the Performance review reference where one exists (the same optional `probationReviewId` validation `confirmEmployee()` already performs); surface an HR action; and leave the employment decision to an authorized organizational process.
+
+If employment does end, it ends through the **authoritative separation service**. WS-11 must not create a second termination path inside probation — §6's "do not rebuild the separation architecture" ruling applies directly.
+
+### 27.9 Decision H — Probation extension
+
+Build extension as a **real effective-dated lifecycle event**, capturing at minimum: employee, previous expected end, new expected end, effective date, reason, authorized actor, supporting document/reference where applicable, and creation timestamp. History stays append-only, and the original probation record is never overwritten.
+
+**Current derived probation end** comes from the latest controlled extension event where one exists, falling back to `employees.probationEndDate`. Only registered system events participate (Decision N); an arbitrary imported string never moves a live date.
+
+`confirmEmployee()` and `employment_periods` remain the extension point. **No second probation mechanism** — the §21 ruling stands.
+
+### 27.10 Decision I — Probation reminders
+
+**WS-6 only.** No second scheduler. Reminder handlers **re-fetch authoritative state** and no-op permanently when stale, following the pattern WS-10 established. Reminder timing is **organization-configurable**; no WWM timing and no numeric default may be hard-coded. Reminders **never mutate employment state** (Decision J).
+
+### 27.11 Decision J — Scheduled-job mutation boundary
+
+Frozen as a **platform-wide enterprise safety rule**, not merely a WS-11 rule.
+
+Scheduled jobs **may**: calculate, detect, remind, notify, queue, and mark derived operational state where safe.
+
+Scheduled jobs **must NOT** independently make consequential employment decisions — termination, confirmation, promotion, transfer, failed-probation separation, or contract-renewal acceptance — unless a future, explicitly approved workflow establishes that authority.
+
+Note this qualifies OD #13's phrase "acting/secondment auto-revert": a job may detect that an acting appointment's expected end has passed and surface or queue it, but **ending it is an authorized action**, not a silent background write. Where an organization later wants true auto-revert, that is a configurable policy decision requiring its own approval.
+
+### 27.12 Decision K — Acting appointments
+
+**Implement in WS-11** (OD #2 + OD #6, both approved for roadmap, sequencing condition "after WS-6" now satisfied).
+
+Model as an **effective-dated temporary assignment** preserving: the substantive position, the acting position/function, effective start, expected end, actual end, reason, authority, department/position references, and full history.
+
+**An acting appointment must NEVER overwrite the employee's substantive `positionId`.** Doing so would silently convert a temporary duty into an apparent permanent promotion and destroy substantive history — the single most damaging misreading available here.
+
+Likewise, **`acting` and `seconded` must NOT be added to `employmentStatus`**. That enum answers *whether and how someone is employed*; acting and secondment answer *where they are currently working*. Conflating them would corrupt every existing consumer of employment status.
+
+The established effective-dated precedent is `department_heads` — `validFrom`/`validTo` as a half-open interval with a partial unique index guaranteeing one open row, and a point-in-time resolver. §6 of this document calls that pattern the strongest in the audit and notes it is reused across seven or more schema files. It is the recommended model.
+
+**UI:** where an employee is acting, surfaces should show **Substantive Position** and **Acting As** as distinct facts.
+
+### 27.13 Decision L — Secondment
+
+**Implement in WS-11, deliberately scoped for V1.**
+
+Preserve: the same `employees.id` (no second employee record, ever), the substantive employment relationship with the home organization, a **descriptive destination**, an internal/external classification where useful, effective start, expected end, actual return/end, reason, authority, and document references.
+
+**Cross-organization secondment inside the platform is OUT OF SCOPE for V1.** V1 records the destination **descriptively only**. Moving a person between tenants would cross the organization-isolation boundary that every other part of this platform enforces, and no frozen decision authorizes it.
+
+**Secondment transfers no historical ownership.** Leave, Attendance, Performance, Assets, Office Inventory and Personnel Files records remain owned by the home organization and attached to the same employee. A secondment is an assignment fact, not a data migration.
+
+### 27.14 Decision M — Four distinct concepts
+
+Frozen. These must never collapse into one generic "transfer":
+
+| Concept | Meaning |
+| --- | --- |
+| **Transfer** | Permanent/ordinary organizational placement change. |
+| **Promotion** | Substantive advancement or change of position. |
+| **Acting appointment** | Temporary responsibility while the substantive appointment is preserved. |
+| **Secondment** | Temporary placement outside the normal substantive assignment, with return/end semantics. |
+
+### 27.15 Decision N — Current state versus history
+
+**Separated.** `employment_periods` holds append-only historical events. Current employment state is held by the authoritative employee/employment records and derived only where explicitly designed.
+
+**Only controlled, registered system events may participate in deterministic state derivation.** The platform must never scan arbitrary free-text imported event strings and infer current state from them.
+
+### 27.16 Decision O — Document integration
+
+**WS-5 only. Documents are not rebuilt.**
+
+WS-11 events that may optionally reference or generate a document: probation extension, confirmation, unsuccessful probation outcome, contract renewal, a contract-expiry action, acting appointment, secondment, and separation where already supported.
+
+`document_templates.categoryCode` is **free text and organization-scoped**, so WS-11 needs no new template-type enum: an organization defines its own categories. The organization decides the template, whether a document is required at all, the wording, the branding, and any acknowledgement.
+
+**No Ghana letter wording, and no statutory form text, may be hard-coded** into the platform. Only an organization's own generated document may carry statutory form wording — the rule `employment_particulars` already records.
+
+### 27.17 Decision P — Organization configuration
+
+Configurable, never hard-coded:
+
+- whether probation applies, and by employment type
+- default probation duration (**no numeric default may be hard-coded — not three months, not six, not any figure**)
+- probation reminder schedule
+- whether extensions are permitted, and any organization-chosen limit
+- contract-expiry reminder windows
+- whether acting appointments are used
+- whether secondments are used
+- required reason/document rules per event
+- responsible authority for each lifecycle action
+
+Configuration must never weaken tenant isolation, authorization or historical integrity. An organization may choose its policy; it may not choose to be less secure or to rewrite history.
+
+### 27.18 Decision Q — Legal, practice, product and configuration
+
+| Classification | Items |
+| --- | --- |
+| **LEGAL REQUIREMENT (Ghana)** | Probation of "reasonable duration determined in advance" (Act 651 §66(b)/§98(d); LI 1833 Reg. 5) — **secondary-sourced, and no numeric maximum is verifiable**. Notice periods (§17(1)): 3+ years — one month; under 3 years — two weeks; week-to-week — seven days. |
+| **PROFESSIONAL PRACTICE** | Structured confirmation and probation review. **Nothing on record for acting appointments or secondment** — the Ghana lifecycle reconciliation contains zero mentions of either. |
+| **PRODUCT CAPABILITY** | The event engine, effective dating, the term model, reminders, document integration. |
+| **ORGANIZATION CONFIGURATION** | Probation duration and applicability, reminder timing, extension rules, authorities, whether acting/secondment are used at all. |
+
+The "maximum six months" figure circulating in secondary sources is **explicitly not corroborated** and must never be treated as statutory fact or encoded as a default.
+
+The product is **Enterprise HRMS**. The strings "Ghana HR", "Ghana mode" and "CIHRM compliant" must not appear in product UI, and **no CIHRM certification or compliance is claimed**.
+
+### 27.19 Decision R — Imported-history compatibility
+
+WS-7 imported history is **historical evidence**, not a controlled business operation. WS-11 must:
+
+- **preserve** arbitrary imported event types and render them;
+- **never reject** existing history because a type is not in the new registry;
+- **never reinterpret** an arbitrary imported string as a trusted state transition;
+- **never execute lifecycle side effects** from imported history.
+
+System-generated lifecycle events are controlled operations. The two must remain distinguishable.
+
+### 27.20 Decision S — Cross-module side-effect boundary
+
+**A lifecycle event must not silently mutate another module's authoritative business records** unless an existing domain service explicitly owns that transition. This restates and extends the boundary §26.24 established for onboarding.
+
+| Module | WS-11 may | WS-11 must not |
+| --- | --- | --- |
+| **Leave, Attendance** | reference; surface balances or records for context | mutate balances, policies or records because a lifecycle event occurred |
+| **Payroll** | reference where enabled and the caller holds Payroll authority | mutate compensation, or expose salary/bank/statutory data through a lifecycle surface |
+| **Performance** | reference a probation review (the existing validated link) | create, alter or auto-complete reviews |
+| **Assets, Office Inventory** | **warn** about outstanding custody on separation | silently return assets, move stock, or alter custody |
+| **Personnel Files** | reference | allocate or reassign PIF numbers |
+| **ESS, Manager Portal** | surface own-scope and responsibility-scope history | expose organization-wide lifecycle data to ordinary employees |
+
+Previously approved separation boundaries are preserved unchanged.
+
+### 27.21 Protected capabilities — do not rebuild
+
+`employees.id` identity, employee numbering, PIF, transfer, promotion, confirmation, the separation service, the rehire service, Recruitment conversion, Onboarding (WS-10), the Performance probation linkage, WS-5 Documents, the WS-6 scheduler, WS-3 audit, and WS-8 custom fields/forms. **WS-11 extends lifecycle behaviour around them.**
+
+### 27.22 Open items still requiring decision at implementation time
+
+None blocking. Four are conditional by design and are to be decided **from repository evidence during implementation**, each recorded with its reason:
+
+1. Whether the employment-term model is one table or an envelope/term-version pair (§27.5) — a normalization judgement against the renewal-chain requirement.
+2. Whether acting and secondment share one effective-dated assignment table with a discriminator, or take one table each (§27.12–27.13).
+3. Whether WS-11 takes up `employment_particulars`' pre-recorded second-owner column, or defers it (§27.5).
+4. Whether the event-type registry lives beside the lifecycle service or in `@workspace/db` alongside the schema (§27.4).
