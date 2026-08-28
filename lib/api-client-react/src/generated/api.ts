@@ -34,6 +34,7 @@ import type {
   AddMemberInput,
   AddOrganizationDocumentVersionBody,
   AddPerformanceReviewEvidenceBody,
+  AddSupplementaryTaskInput,
   AddTalentPoolMemberInput,
   AdjustLeaveBalanceInput,
   AdvanceLearningEnrollmentProgressInput,
@@ -56,6 +57,8 @@ import type {
   AssetIncident,
   AssetListResponse,
   AssetMaintenance,
+  AssignAcknowledgementInput,
+  AssignAcknowledgementResult,
   AssignAssetInput,
   AssignDepartmentHeadBody,
   AssignLearningEnrollmentsInput,
@@ -73,6 +76,7 @@ import type {
   BreakGlassGrant,
   CancelJobRequisitionInput,
   CancelLearningEnrollmentInput,
+  CancelOnboardingInput,
   Candidate,
   CandidateListResponse,
   CandidateNote,
@@ -80,6 +84,7 @@ import type {
   CheckoutPersonnelFileInput,
   CommitPersonnelImportBody,
   CompleteLearningEnrollmentInput,
+  CompleteOnboardingTaskInput,
   ConfirmEmployeeInput,
   ConversionResult,
   CopyRoleTemplateInput,
@@ -120,6 +125,8 @@ import type {
   CreateOfficeInventoryStoreBody,
   CreateOfficeInventoryTransferBody,
   CreateOfficeInventoryWriteOffBody,
+  CreateOnboardingTemplateInput,
+  CreateOnboardingTemplateVersionInput,
   CreateOrganizationDocumentBody,
   CreateOrganizationDomainInput,
   CreateOrganizationInput,
@@ -168,6 +175,8 @@ import type {
   DismissAssetIncidentInput,
   DisposeDocumentBody,
   DisposedDocumentResult,
+  DocumentAcknowledgement,
+  DocumentAcknowledgementList,
   DocumentCategory,
   DocumentCategorySettings,
   DocumentCategorySettingsInput,
@@ -282,6 +291,7 @@ import type {
   ListOfficeInventoryIncidentsParams,
   ListOfficeInventoryStockMovementsParams,
   ListOfficeInventoryStocktakesParams,
+  ListOnboardingParams,
   ListOrganizationDocumentsParams,
   ListPayrollInputReferencesParams,
   ListPayrollOpeningBalances200,
@@ -326,6 +336,7 @@ import type {
   MyEmploymentHistoryResponse,
   MyInternalApplicationSubmitResult,
   MyInternalApplicationsResponse,
+  MyOnboarding,
   MyQualificationsResponse,
   MySkillsResponse,
   Notification,
@@ -357,6 +368,20 @@ import type {
   OfficeInventoryStocktakeLineView,
   OfficeInventoryStore,
   OfficeInventoryTransferResult,
+  OnboardingDetail,
+  OnboardingInductionDetail,
+  OnboardingInstance,
+  OnboardingResponsibilityList,
+  OnboardingSummaryList,
+  OnboardingTask,
+  OnboardingTaskDefinitionInput,
+  OnboardingTemplate,
+  OnboardingTemplateList,
+  OnboardingTemplateTask,
+  OnboardingTemplateTaskList,
+  OnboardingTemplateVersion,
+  OnboardingTemplateVersionList,
+  OnboardingTemplateWithVersion,
   Organization,
   OrganizationConfig,
   OrganizationDocument,
@@ -421,10 +446,12 @@ import type {
   PublicOrganization,
   PublicVacancyDetail,
   PublicVacancyListResponse,
+  RaiseReacknowledgementsResult,
   RateCompetencyInput,
   ReadinessStatus,
   RecordAttendanceAdjustmentInput,
   RecordAttendanceEventInput,
+  RecordInductionAttendanceInput,
   RecordOfferResponseBody,
   RecordOfficeInventoryStocktakeCountBody,
   RecordsLocation,
@@ -476,6 +503,7 @@ import type {
   RunRecruitmentReportParams,
   RunReportParams,
   SaveInterviewScorecardInput,
+  ScheduleInductionInput,
   ScheduleInterviewInput,
   ScheduledJob,
   SearchPersonnelRecordsParams,
@@ -485,6 +513,7 @@ import type {
   SetDocumentLegalHoldBody,
   SetMigrationSourceMappingBody,
   SetPrimaryHrInput,
+  StartOnboardingInput,
   SubmitApplicationScoreInput,
   SubmitCustomFormBody,
   SubmitInternalApplicationInput,
@@ -518,6 +547,7 @@ import type {
   UpdateOfferVersionInput,
   UpdateOfficeInventoryItemBody,
   UpdateOfficeInventoryStoreBody,
+  UpdateOnboardingTemplateInput,
   UpdateOrganizationConfigInput,
   UpdateOrganizationDocumentBody,
   UpdateOrganizationInput,
@@ -547,6 +577,7 @@ import type {
   Vacancy,
   VacancyListResponse,
   VerifyDocumentRequirementBody,
+  WaiveOnboardingTaskInput,
   WithdrawApplicationInput,
   WithdrawOfferVersionInput,
   WithdrawOfferWithReasonBody,
@@ -45328,4 +45359,1913 @@ export const useCancelMigration = <TError = ErrorType<ApiError>,
       > => {
       return useMutation(getCancelMigrationMutationOptions(options));
     }
+
+export const getListOnboardingTemplatesUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/onboarding-templates`
+}
+
+/**
+ * Returns the organization's onboarding templates with their active version, if any. Gated by the onboarding module and onboarding.read.
+ * @summary List onboarding templates
+ */
+export const listOnboardingTemplates = async (organizationId: number, options?: RequestInit): Promise<OnboardingTemplateList> => {
+
+  return customFetch<OnboardingTemplateList>(getListOnboardingTemplatesUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOnboardingTemplatesQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/onboarding-templates`
+    ] as const;
+    }
+
+
+export const getListOnboardingTemplatesQueryOptions = <TData = Awaited<ReturnType<typeof listOnboardingTemplates>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOnboardingTemplates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOnboardingTemplatesQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOnboardingTemplates>>> = ({ signal }) => listOnboardingTemplates(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOnboardingTemplates>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOnboardingTemplatesQueryResult = NonNullable<Awaited<ReturnType<typeof listOnboardingTemplates>>>
+export type ListOnboardingTemplatesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List onboarding templates
+ */
+
+export function useListOnboardingTemplates<TData = Awaited<ReturnType<typeof listOnboardingTemplates>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOnboardingTemplates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOnboardingTemplatesQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateOnboardingTemplateUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/onboarding-templates`
+}
+
+/**
+ * Creates a template together with its first draft version. Gated by onboarding.configure — configuration authority is deliberately separate from operating someone's onboarding.
+ * @summary Create an onboarding template
+ */
+export const createOnboardingTemplate = async (organizationId: number,
+    createOnboardingTemplateInput: CreateOnboardingTemplateInput, options?: RequestInit): Promise<OnboardingTemplateWithVersion> => {
+
+  return customFetch<OnboardingTemplateWithVersion>(getCreateOnboardingTemplateUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createOnboardingTemplateInput)
+  }
+);}
+
+
+
+
+
+export const getCreateOnboardingTemplateMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOnboardingTemplate>>, TError,{organizationId: number;data: BodyType<CreateOnboardingTemplateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createOnboardingTemplate>>, TError,{organizationId: number;data: BodyType<CreateOnboardingTemplateInput>}, TContext> => {
+
+const mutationKey = ['createOnboardingTemplate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createOnboardingTemplate>>, {organizationId: number;data: BodyType<CreateOnboardingTemplateInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createOnboardingTemplate(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateOnboardingTemplateMutationResult = NonNullable<Awaited<ReturnType<typeof createOnboardingTemplate>>>
+    export type CreateOnboardingTemplateMutationBody = BodyType<CreateOnboardingTemplateInput>
+    export type CreateOnboardingTemplateMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Create an onboarding template
+ */
+export const useCreateOnboardingTemplate = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOnboardingTemplate>>, TError,{organizationId: number;data: BodyType<CreateOnboardingTemplateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createOnboardingTemplate>>,
+        TError,
+        {organizationId: number;data: BodyType<CreateOnboardingTemplateInput>},
+        TContext
+      > => {
+      return useMutation(getCreateOnboardingTemplateMutationOptions(options));
+    }
+
+export const getUpdateOnboardingTemplateUrl = (organizationId: number,
+    templateId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/onboarding-templates/${templateId}`
+}
+
+/**
+ * @summary Update an onboarding template's name or applicability
+ */
+export const updateOnboardingTemplate = async (organizationId: number,
+    templateId: number,
+    updateOnboardingTemplateInput: UpdateOnboardingTemplateInput, options?: RequestInit): Promise<OnboardingTemplate> => {
+
+  return customFetch<OnboardingTemplate>(getUpdateOnboardingTemplateUrl(organizationId,templateId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateOnboardingTemplateInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateOnboardingTemplateMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateOnboardingTemplate>>, TError,{organizationId: number;templateId: number;data: BodyType<UpdateOnboardingTemplateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateOnboardingTemplate>>, TError,{organizationId: number;templateId: number;data: BodyType<UpdateOnboardingTemplateInput>}, TContext> => {
+
+const mutationKey = ['updateOnboardingTemplate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateOnboardingTemplate>>, {organizationId: number;templateId: number;data: BodyType<UpdateOnboardingTemplateInput>}> = (props) => {
+          const {organizationId,templateId,data} = props ?? {};
+
+          return  updateOnboardingTemplate(organizationId,templateId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateOnboardingTemplateMutationResult = NonNullable<Awaited<ReturnType<typeof updateOnboardingTemplate>>>
+    export type UpdateOnboardingTemplateMutationBody = BodyType<UpdateOnboardingTemplateInput>
+    export type UpdateOnboardingTemplateMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update an onboarding template's name or applicability
+ */
+export const useUpdateOnboardingTemplate = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateOnboardingTemplate>>, TError,{organizationId: number;templateId: number;data: BodyType<UpdateOnboardingTemplateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateOnboardingTemplate>>,
+        TError,
+        {organizationId: number;templateId: number;data: BodyType<UpdateOnboardingTemplateInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateOnboardingTemplateMutationOptions(options));
+    }
+
+export const getListOnboardingTemplateVersionsUrl = (organizationId: number,
+    templateId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/onboarding-templates/${templateId}/versions`
+}
+
+/**
+ * @summary List a template's versions
+ */
+export const listOnboardingTemplateVersions = async (organizationId: number,
+    templateId: number, options?: RequestInit): Promise<OnboardingTemplateVersionList> => {
+
+  return customFetch<OnboardingTemplateVersionList>(getListOnboardingTemplateVersionsUrl(organizationId,templateId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOnboardingTemplateVersionsQueryKey = (organizationId: number,
+    templateId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/onboarding-templates/${templateId}/versions`
+    ] as const;
+    }
+
+
+export const getListOnboardingTemplateVersionsQueryOptions = <TData = Awaited<ReturnType<typeof listOnboardingTemplateVersions>>, TError = ErrorType<unknown>>(organizationId: number,
+    templateId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOnboardingTemplateVersions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOnboardingTemplateVersionsQueryKey(organizationId,templateId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOnboardingTemplateVersions>>> = ({ signal }) => listOnboardingTemplateVersions(organizationId,templateId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && templateId !== null && templateId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOnboardingTemplateVersions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOnboardingTemplateVersionsQueryResult = NonNullable<Awaited<ReturnType<typeof listOnboardingTemplateVersions>>>
+export type ListOnboardingTemplateVersionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List a template's versions
+ */
+
+export function useListOnboardingTemplateVersions<TData = Awaited<ReturnType<typeof listOnboardingTemplateVersions>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    templateId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOnboardingTemplateVersions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOnboardingTemplateVersionsQueryOptions(organizationId,templateId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateOnboardingTemplateVersionUrl = (organizationId: number,
+    templateId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/onboarding-templates/${templateId}/versions`
+}
+
+/**
+ * Creates a new draft, optionally copying an existing version's tasks. The source version is never modified — onboarding already issued from it keeps running unchanged.
+ * @summary Start a new draft version
+ */
+export const createOnboardingTemplateVersion = async (organizationId: number,
+    templateId: number,
+    createOnboardingTemplateVersionInput: CreateOnboardingTemplateVersionInput, options?: RequestInit): Promise<OnboardingTemplateVersion> => {
+
+  return customFetch<OnboardingTemplateVersion>(getCreateOnboardingTemplateVersionUrl(organizationId,templateId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createOnboardingTemplateVersionInput)
+  }
+);}
+
+
+
+
+
+export const getCreateOnboardingTemplateVersionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOnboardingTemplateVersion>>, TError,{organizationId: number;templateId: number;data: BodyType<CreateOnboardingTemplateVersionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createOnboardingTemplateVersion>>, TError,{organizationId: number;templateId: number;data: BodyType<CreateOnboardingTemplateVersionInput>}, TContext> => {
+
+const mutationKey = ['createOnboardingTemplateVersion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createOnboardingTemplateVersion>>, {organizationId: number;templateId: number;data: BodyType<CreateOnboardingTemplateVersionInput>}> = (props) => {
+          const {organizationId,templateId,data} = props ?? {};
+
+          return  createOnboardingTemplateVersion(organizationId,templateId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateOnboardingTemplateVersionMutationResult = NonNullable<Awaited<ReturnType<typeof createOnboardingTemplateVersion>>>
+    export type CreateOnboardingTemplateVersionMutationBody = BodyType<CreateOnboardingTemplateVersionInput>
+    export type CreateOnboardingTemplateVersionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Start a new draft version
+ */
+export const useCreateOnboardingTemplateVersion = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOnboardingTemplateVersion>>, TError,{organizationId: number;templateId: number;data: BodyType<CreateOnboardingTemplateVersionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createOnboardingTemplateVersion>>,
+        TError,
+        {organizationId: number;templateId: number;data: BodyType<CreateOnboardingTemplateVersionInput>},
+        TContext
+      > => {
+      return useMutation(getCreateOnboardingTemplateVersionMutationOptions(options));
+    }
+
+export const getListOnboardingTemplateTasksUrl = (organizationId: number,
+    versionId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/onboarding-template-versions/${versionId}/tasks`
+}
+
+/**
+ * @summary List a version's task definitions
+ */
+export const listOnboardingTemplateTasks = async (organizationId: number,
+    versionId: number, options?: RequestInit): Promise<OnboardingTemplateTaskList> => {
+
+  return customFetch<OnboardingTemplateTaskList>(getListOnboardingTemplateTasksUrl(organizationId,versionId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOnboardingTemplateTasksQueryKey = (organizationId: number,
+    versionId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/onboarding-template-versions/${versionId}/tasks`
+    ] as const;
+    }
+
+
+export const getListOnboardingTemplateTasksQueryOptions = <TData = Awaited<ReturnType<typeof listOnboardingTemplateTasks>>, TError = ErrorType<unknown>>(organizationId: number,
+    versionId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOnboardingTemplateTasks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOnboardingTemplateTasksQueryKey(organizationId,versionId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOnboardingTemplateTasks>>> = ({ signal }) => listOnboardingTemplateTasks(organizationId,versionId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && versionId !== null && versionId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOnboardingTemplateTasks>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOnboardingTemplateTasksQueryResult = NonNullable<Awaited<ReturnType<typeof listOnboardingTemplateTasks>>>
+export type ListOnboardingTemplateTasksQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List a version's task definitions
+ */
+
+export function useListOnboardingTemplateTasks<TData = Awaited<ReturnType<typeof listOnboardingTemplateTasks>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    versionId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOnboardingTemplateTasks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOnboardingTemplateTasksQueryOptions(organizationId,versionId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAddOnboardingTemplateTaskUrl = (organizationId: number,
+    versionId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/onboarding-template-versions/${versionId}/tasks`
+}
+
+/**
+ * Only a draft version may be edited. Publishing freezes the definition so instances that snapshotted it stay reproducible.
+ * @summary Add a task definition to a draft version
+ */
+export const addOnboardingTemplateTask = async (organizationId: number,
+    versionId: number,
+    onboardingTaskDefinitionInput: OnboardingTaskDefinitionInput, options?: RequestInit): Promise<OnboardingTemplateTask> => {
+
+  return customFetch<OnboardingTemplateTask>(getAddOnboardingTemplateTaskUrl(organizationId,versionId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(onboardingTaskDefinitionInput)
+  }
+);}
+
+
+
+
+
+export const getAddOnboardingTemplateTaskMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addOnboardingTemplateTask>>, TError,{organizationId: number;versionId: number;data: BodyType<OnboardingTaskDefinitionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addOnboardingTemplateTask>>, TError,{organizationId: number;versionId: number;data: BodyType<OnboardingTaskDefinitionInput>}, TContext> => {
+
+const mutationKey = ['addOnboardingTemplateTask'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addOnboardingTemplateTask>>, {organizationId: number;versionId: number;data: BodyType<OnboardingTaskDefinitionInput>}> = (props) => {
+          const {organizationId,versionId,data} = props ?? {};
+
+          return  addOnboardingTemplateTask(organizationId,versionId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddOnboardingTemplateTaskMutationResult = NonNullable<Awaited<ReturnType<typeof addOnboardingTemplateTask>>>
+    export type AddOnboardingTemplateTaskMutationBody = BodyType<OnboardingTaskDefinitionInput>
+    export type AddOnboardingTemplateTaskMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Add a task definition to a draft version
+ */
+export const useAddOnboardingTemplateTask = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addOnboardingTemplateTask>>, TError,{organizationId: number;versionId: number;data: BodyType<OnboardingTaskDefinitionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addOnboardingTemplateTask>>,
+        TError,
+        {organizationId: number;versionId: number;data: BodyType<OnboardingTaskDefinitionInput>},
+        TContext
+      > => {
+      return useMutation(getAddOnboardingTemplateTaskMutationOptions(options));
+    }
+
+export const getDeleteOnboardingTemplateTaskUrl = (organizationId: number,
+    versionId: number,
+    taskId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/onboarding-template-versions/${versionId}/tasks/${taskId}`
+}
+
+/**
+ * @summary Remove a task definition from a draft version
+ */
+export const deleteOnboardingTemplateTask = async (organizationId: number,
+    versionId: number,
+    taskId: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteOnboardingTemplateTaskUrl(organizationId,versionId,taskId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteOnboardingTemplateTaskMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteOnboardingTemplateTask>>, TError,{organizationId: number;versionId: number;taskId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteOnboardingTemplateTask>>, TError,{organizationId: number;versionId: number;taskId: number}, TContext> => {
+
+const mutationKey = ['deleteOnboardingTemplateTask'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteOnboardingTemplateTask>>, {organizationId: number;versionId: number;taskId: number}> = (props) => {
+          const {organizationId,versionId,taskId} = props ?? {};
+
+          return  deleteOnboardingTemplateTask(organizationId,versionId,taskId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteOnboardingTemplateTaskMutationResult = NonNullable<Awaited<ReturnType<typeof deleteOnboardingTemplateTask>>>
+
+    export type DeleteOnboardingTemplateTaskMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Remove a task definition from a draft version
+ */
+export const useDeleteOnboardingTemplateTask = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteOnboardingTemplateTask>>, TError,{organizationId: number;versionId: number;taskId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteOnboardingTemplateTask>>,
+        TError,
+        {organizationId: number;versionId: number;taskId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteOnboardingTemplateTaskMutationOptions(options));
+    }
+
+export const getActivateOnboardingTemplateVersionUrl = (organizationId: number,
+    versionId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/onboarding-template-versions/${versionId}/activate`
+}
+
+/**
+ * Makes this the version new onboarding starts from, archiving any previously active version of the same template. Existing instances retain the version they snapshotted.
+ * @summary Publish a draft version
+ */
+export const activateOnboardingTemplateVersion = async (organizationId: number,
+    versionId: number, options?: RequestInit): Promise<OnboardingTemplateVersion> => {
+
+  return customFetch<OnboardingTemplateVersion>(getActivateOnboardingTemplateVersionUrl(organizationId,versionId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getActivateOnboardingTemplateVersionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof activateOnboardingTemplateVersion>>, TError,{organizationId: number;versionId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof activateOnboardingTemplateVersion>>, TError,{organizationId: number;versionId: number}, TContext> => {
+
+const mutationKey = ['activateOnboardingTemplateVersion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof activateOnboardingTemplateVersion>>, {organizationId: number;versionId: number}> = (props) => {
+          const {organizationId,versionId} = props ?? {};
+
+          return  activateOnboardingTemplateVersion(organizationId,versionId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ActivateOnboardingTemplateVersionMutationResult = NonNullable<Awaited<ReturnType<typeof activateOnboardingTemplateVersion>>>
+
+    export type ActivateOnboardingTemplateVersionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Publish a draft version
+ */
+export const useActivateOnboardingTemplateVersion = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof activateOnboardingTemplateVersion>>, TError,{organizationId: number;versionId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof activateOnboardingTemplateVersion>>,
+        TError,
+        {organizationId: number;versionId: number},
+        TContext
+      > => {
+      return useMutation(getActivateOnboardingTemplateVersionMutationOptions(options));
+    }
+
+export const getArchiveOnboardingTemplateVersionUrl = (organizationId: number,
+    versionId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/onboarding-template-versions/${versionId}/archive`
+}
+
+/**
+ * @summary Archive a template version
+ */
+export const archiveOnboardingTemplateVersion = async (organizationId: number,
+    versionId: number, options?: RequestInit): Promise<OnboardingTemplateVersion> => {
+
+  return customFetch<OnboardingTemplateVersion>(getArchiveOnboardingTemplateVersionUrl(organizationId,versionId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getArchiveOnboardingTemplateVersionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveOnboardingTemplateVersion>>, TError,{organizationId: number;versionId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof archiveOnboardingTemplateVersion>>, TError,{organizationId: number;versionId: number}, TContext> => {
+
+const mutationKey = ['archiveOnboardingTemplateVersion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof archiveOnboardingTemplateVersion>>, {organizationId: number;versionId: number}> = (props) => {
+          const {organizationId,versionId} = props ?? {};
+
+          return  archiveOnboardingTemplateVersion(organizationId,versionId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ArchiveOnboardingTemplateVersionMutationResult = NonNullable<Awaited<ReturnType<typeof archiveOnboardingTemplateVersion>>>
+
+    export type ArchiveOnboardingTemplateVersionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Archive a template version
+ */
+export const useArchiveOnboardingTemplateVersion = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveOnboardingTemplateVersion>>, TError,{organizationId: number;versionId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof archiveOnboardingTemplateVersion>>,
+        TError,
+        {organizationId: number;versionId: number},
+        TContext
+      > => {
+      return useMutation(getArchiveOnboardingTemplateVersionMutationOptions(options));
+    }
+
+export const getListOnboardingUrl = (organizationId: number,
+    params?: ListOnboardingParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/onboarding?${stringifiedParams}` : `/api/organizations/${organizationId}/onboarding`
+}
+
+/**
+ * HR view. Requires onboarding.read; ordinary employees use /my-onboarding instead and never see organization-wide data.
+ * @summary List onboarding across the organization
+ */
+export const listOnboarding = async (organizationId: number,
+    params?: ListOnboardingParams, options?: RequestInit): Promise<OnboardingSummaryList> => {
+
+  return customFetch<OnboardingSummaryList>(getListOnboardingUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOnboardingQueryKey = (organizationId: number,
+    params?: ListOnboardingParams,) => {
+    return [
+    `/api/organizations/${organizationId}/onboarding`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListOnboardingQueryOptions = <TData = Awaited<ReturnType<typeof listOnboarding>>, TError = ErrorType<unknown>>(organizationId: number,
+    params?: ListOnboardingParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOnboarding>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOnboardingQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOnboarding>>> = ({ signal }) => listOnboarding(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOnboarding>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOnboardingQueryResult = NonNullable<Awaited<ReturnType<typeof listOnboarding>>>
+export type ListOnboardingQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List onboarding across the organization
+ */
+
+export function useListOnboarding<TData = Awaited<ReturnType<typeof listOnboarding>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    params?: ListOnboardingParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOnboarding>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOnboardingQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getStartOnboardingUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/onboarding`
+}
+
+/**
+ * Onboarding never creates an employee. The employee must already exist through Recruitment conversion, manual creation or import. A candidate record is not required, so legacy and manually created staff can be onboarded. Idempotent — an employee can hold only one open onboarding.
+ * @summary Start onboarding for an existing employee
+ */
+export const startOnboarding = async (organizationId: number,
+    startOnboardingInput: StartOnboardingInput, options?: RequestInit): Promise<OnboardingInstance> => {
+
+  return customFetch<OnboardingInstance>(getStartOnboardingUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(startOnboardingInput)
+  }
+);}
+
+
+
+
+
+export const getStartOnboardingMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startOnboarding>>, TError,{organizationId: number;data: BodyType<StartOnboardingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof startOnboarding>>, TError,{organizationId: number;data: BodyType<StartOnboardingInput>}, TContext> => {
+
+const mutationKey = ['startOnboarding'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof startOnboarding>>, {organizationId: number;data: BodyType<StartOnboardingInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  startOnboarding(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StartOnboardingMutationResult = NonNullable<Awaited<ReturnType<typeof startOnboarding>>>
+    export type StartOnboardingMutationBody = BodyType<StartOnboardingInput>
+    export type StartOnboardingMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Start onboarding for an existing employee
+ */
+export const useStartOnboarding = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startOnboarding>>, TError,{organizationId: number;data: BodyType<StartOnboardingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof startOnboarding>>,
+        TError,
+        {organizationId: number;data: BodyType<StartOnboardingInput>},
+        TContext
+      > => {
+      return useMutation(getStartOnboardingMutationOptions(options));
+    }
+
+export const getGetOnboardingUrl = (organizationId: number,
+    instanceId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/onboarding/${instanceId}`
+}
+
+/**
+ * @summary Get one onboarding with its tasks, progress and acknowledgements
+ */
+export const getOnboarding = async (organizationId: number,
+    instanceId: number, options?: RequestInit): Promise<OnboardingDetail> => {
+
+  return customFetch<OnboardingDetail>(getGetOnboardingUrl(organizationId,instanceId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOnboardingQueryKey = (organizationId: number,
+    instanceId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/onboarding/${instanceId}`
+    ] as const;
+    }
+
+
+export const getGetOnboardingQueryOptions = <TData = Awaited<ReturnType<typeof getOnboarding>>, TError = ErrorType<ApiError>>(organizationId: number,
+    instanceId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOnboarding>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOnboardingQueryKey(organizationId,instanceId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOnboarding>>> = ({ signal }) => getOnboarding(organizationId,instanceId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && instanceId !== null && instanceId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOnboarding>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOnboardingQueryResult = NonNullable<Awaited<ReturnType<typeof getOnboarding>>>
+export type GetOnboardingQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get one onboarding with its tasks, progress and acknowledgements
+ */
+
+export function useGetOnboarding<TData = Awaited<ReturnType<typeof getOnboarding>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    instanceId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOnboarding>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOnboardingQueryOptions(organizationId,instanceId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCancelOnboardingUrl = (organizationId: number,
+    instanceId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/onboarding/${instanceId}/cancel`
+}
+
+/**
+ * Requires a reason. Preserves completed tasks, evidence and acknowledgements, and stops future reminders. This is not a separation — employment is unaffected.
+ * @summary Cancel an onboarding
+ */
+export const cancelOnboarding = async (organizationId: number,
+    instanceId: number,
+    cancelOnboardingInput: CancelOnboardingInput, options?: RequestInit): Promise<OnboardingInstance> => {
+
+  return customFetch<OnboardingInstance>(getCancelOnboardingUrl(organizationId,instanceId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(cancelOnboardingInput)
+  }
+);}
+
+
+
+
+
+export const getCancelOnboardingMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelOnboarding>>, TError,{organizationId: number;instanceId: number;data: BodyType<CancelOnboardingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelOnboarding>>, TError,{organizationId: number;instanceId: number;data: BodyType<CancelOnboardingInput>}, TContext> => {
+
+const mutationKey = ['cancelOnboarding'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelOnboarding>>, {organizationId: number;instanceId: number;data: BodyType<CancelOnboardingInput>}> = (props) => {
+          const {organizationId,instanceId,data} = props ?? {};
+
+          return  cancelOnboarding(organizationId,instanceId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelOnboardingMutationResult = NonNullable<Awaited<ReturnType<typeof cancelOnboarding>>>
+    export type CancelOnboardingMutationBody = BodyType<CancelOnboardingInput>
+    export type CancelOnboardingMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Cancel an onboarding
+ */
+export const useCancelOnboarding = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelOnboarding>>, TError,{organizationId: number;instanceId: number;data: BodyType<CancelOnboardingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelOnboarding>>,
+        TError,
+        {organizationId: number;instanceId: number;data: BodyType<CancelOnboardingInput>},
+        TContext
+      > => {
+      return useMutation(getCancelOnboardingMutationOptions(options));
+    }
+
+export const getAddSupplementaryOnboardingTaskUrl = (organizationId: number,
+    instanceId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/onboarding/${instanceId}/supplementary-tasks`
+}
+
+/**
+ * The controlled correction path for onboarding that has already completed. Appends a new task rather than reopening or rewriting completed history.
+ * @summary Add a supplementary task to an onboarding
+ */
+export const addSupplementaryOnboardingTask = async (organizationId: number,
+    instanceId: number,
+    addSupplementaryTaskInput: AddSupplementaryTaskInput, options?: RequestInit): Promise<OnboardingTask> => {
+
+  return customFetch<OnboardingTask>(getAddSupplementaryOnboardingTaskUrl(organizationId,instanceId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(addSupplementaryTaskInput)
+  }
+);}
+
+
+
+
+
+export const getAddSupplementaryOnboardingTaskMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addSupplementaryOnboardingTask>>, TError,{organizationId: number;instanceId: number;data: BodyType<AddSupplementaryTaskInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addSupplementaryOnboardingTask>>, TError,{organizationId: number;instanceId: number;data: BodyType<AddSupplementaryTaskInput>}, TContext> => {
+
+const mutationKey = ['addSupplementaryOnboardingTask'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addSupplementaryOnboardingTask>>, {organizationId: number;instanceId: number;data: BodyType<AddSupplementaryTaskInput>}> = (props) => {
+          const {organizationId,instanceId,data} = props ?? {};
+
+          return  addSupplementaryOnboardingTask(organizationId,instanceId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddSupplementaryOnboardingTaskMutationResult = NonNullable<Awaited<ReturnType<typeof addSupplementaryOnboardingTask>>>
+    export type AddSupplementaryOnboardingTaskMutationBody = BodyType<AddSupplementaryTaskInput>
+    export type AddSupplementaryOnboardingTaskMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Add a supplementary task to an onboarding
+ */
+export const useAddSupplementaryOnboardingTask = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addSupplementaryOnboardingTask>>, TError,{organizationId: number;instanceId: number;data: BodyType<AddSupplementaryTaskInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addSupplementaryOnboardingTask>>,
+        TError,
+        {organizationId: number;instanceId: number;data: BodyType<AddSupplementaryTaskInput>},
+        TContext
+      > => {
+      return useMutation(getAddSupplementaryOnboardingTaskMutationOptions(options));
+    }
+
+export const getCompleteOnboardingTaskUrl = (organizationId: number,
+    taskId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/onboarding-tasks/${taskId}/complete`
+}
+
+/**
+ * A reference task (asset, inventory, access, personnel file) is refused unless the referenced module already shows the expected state, and a document task follows Documents & Records' own verification. Use a waiver where the authoritative state genuinely cannot be met.
+ * @summary Complete an onboarding task
+ */
+export const completeOnboardingTask = async (organizationId: number,
+    taskId: number,
+    completeOnboardingTaskInput: CompleteOnboardingTaskInput, options?: RequestInit): Promise<OnboardingTask> => {
+
+  return customFetch<OnboardingTask>(getCompleteOnboardingTaskUrl(organizationId,taskId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(completeOnboardingTaskInput)
+  }
+);}
+
+
+
+
+
+export const getCompleteOnboardingTaskMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeOnboardingTask>>, TError,{organizationId: number;taskId: number;data: BodyType<CompleteOnboardingTaskInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof completeOnboardingTask>>, TError,{organizationId: number;taskId: number;data: BodyType<CompleteOnboardingTaskInput>}, TContext> => {
+
+const mutationKey = ['completeOnboardingTask'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof completeOnboardingTask>>, {organizationId: number;taskId: number;data: BodyType<CompleteOnboardingTaskInput>}> = (props) => {
+          const {organizationId,taskId,data} = props ?? {};
+
+          return  completeOnboardingTask(organizationId,taskId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CompleteOnboardingTaskMutationResult = NonNullable<Awaited<ReturnType<typeof completeOnboardingTask>>>
+    export type CompleteOnboardingTaskMutationBody = BodyType<CompleteOnboardingTaskInput>
+    export type CompleteOnboardingTaskMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Complete an onboarding task
+ */
+export const useCompleteOnboardingTask = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeOnboardingTask>>, TError,{organizationId: number;taskId: number;data: BodyType<CompleteOnboardingTaskInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof completeOnboardingTask>>,
+        TError,
+        {organizationId: number;taskId: number;data: BodyType<CompleteOnboardingTaskInput>},
+        TContext
+      > => {
+      return useMutation(getCompleteOnboardingTaskMutationOptions(options));
+    }
+
+export const getWaiveOnboardingTaskUrl = (organizationId: number,
+    taskId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/onboarding-tasks/${taskId}/waive`
+}
+
+/**
+ * Requires authority and a reason, and is audited. A waived required task no longer blocks completion.
+ * @summary Waive an onboarding task
+ */
+export const waiveOnboardingTask = async (organizationId: number,
+    taskId: number,
+    waiveOnboardingTaskInput: WaiveOnboardingTaskInput, options?: RequestInit): Promise<OnboardingTask> => {
+
+  return customFetch<OnboardingTask>(getWaiveOnboardingTaskUrl(organizationId,taskId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(waiveOnboardingTaskInput)
+  }
+);}
+
+
+
+
+
+export const getWaiveOnboardingTaskMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof waiveOnboardingTask>>, TError,{organizationId: number;taskId: number;data: BodyType<WaiveOnboardingTaskInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof waiveOnboardingTask>>, TError,{organizationId: number;taskId: number;data: BodyType<WaiveOnboardingTaskInput>}, TContext> => {
+
+const mutationKey = ['waiveOnboardingTask'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof waiveOnboardingTask>>, {organizationId: number;taskId: number;data: BodyType<WaiveOnboardingTaskInput>}> = (props) => {
+          const {organizationId,taskId,data} = props ?? {};
+
+          return  waiveOnboardingTask(organizationId,taskId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type WaiveOnboardingTaskMutationResult = NonNullable<Awaited<ReturnType<typeof waiveOnboardingTask>>>
+    export type WaiveOnboardingTaskMutationBody = BodyType<WaiveOnboardingTaskInput>
+    export type WaiveOnboardingTaskMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Waive an onboarding task
+ */
+export const useWaiveOnboardingTask = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof waiveOnboardingTask>>, TError,{organizationId: number;taskId: number;data: BodyType<WaiveOnboardingTaskInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof waiveOnboardingTask>>,
+        TError,
+        {organizationId: number;taskId: number;data: BodyType<WaiveOnboardingTaskInput>},
+        TContext
+      > => {
+      return useMutation(getWaiveOnboardingTaskMutationOptions(options));
+    }
+
+export const getScheduleOnboardingInductionUrl = (organizationId: number,
+    taskId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/onboarding-tasks/${taskId}/induction`
+}
+
+/**
+ * Session logistics only — facilitator, time, delivery mode and venue. There is no course, curriculum or enrollment here; Learning remains a separate module.
+ * @summary Schedule or reschedule an induction session
+ */
+export const scheduleOnboardingInduction = async (organizationId: number,
+    taskId: number,
+    scheduleInductionInput: ScheduleInductionInput, options?: RequestInit): Promise<OnboardingInductionDetail> => {
+
+  return customFetch<OnboardingInductionDetail>(getScheduleOnboardingInductionUrl(organizationId,taskId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(scheduleInductionInput)
+  }
+);}
+
+
+
+
+
+export const getScheduleOnboardingInductionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof scheduleOnboardingInduction>>, TError,{organizationId: number;taskId: number;data: BodyType<ScheduleInductionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof scheduleOnboardingInduction>>, TError,{organizationId: number;taskId: number;data: BodyType<ScheduleInductionInput>}, TContext> => {
+
+const mutationKey = ['scheduleOnboardingInduction'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof scheduleOnboardingInduction>>, {organizationId: number;taskId: number;data: BodyType<ScheduleInductionInput>}> = (props) => {
+          const {organizationId,taskId,data} = props ?? {};
+
+          return  scheduleOnboardingInduction(organizationId,taskId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ScheduleOnboardingInductionMutationResult = NonNullable<Awaited<ReturnType<typeof scheduleOnboardingInduction>>>
+    export type ScheduleOnboardingInductionMutationBody = BodyType<ScheduleInductionInput>
+    export type ScheduleOnboardingInductionMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Schedule or reschedule an induction session
+ */
+export const useScheduleOnboardingInduction = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof scheduleOnboardingInduction>>, TError,{organizationId: number;taskId: number;data: BodyType<ScheduleInductionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof scheduleOnboardingInduction>>,
+        TError,
+        {organizationId: number;taskId: number;data: BodyType<ScheduleInductionInput>},
+        TContext
+      > => {
+      return useMutation(getScheduleOnboardingInductionMutationOptions(options));
+    }
+
+export const getRecordInductionAttendanceUrl = (organizationId: number,
+    taskId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/onboarding-tasks/${taskId}/induction/attendance`
+}
+
+/**
+ * @summary Record attendance at an induction session
+ */
+export const recordInductionAttendance = async (organizationId: number,
+    taskId: number,
+    recordInductionAttendanceInput: RecordInductionAttendanceInput, options?: RequestInit): Promise<OnboardingInductionDetail> => {
+
+  return customFetch<OnboardingInductionDetail>(getRecordInductionAttendanceUrl(organizationId,taskId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(recordInductionAttendanceInput)
+  }
+);}
+
+
+
+
+
+export const getRecordInductionAttendanceMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordInductionAttendance>>, TError,{organizationId: number;taskId: number;data: BodyType<RecordInductionAttendanceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordInductionAttendance>>, TError,{organizationId: number;taskId: number;data: BodyType<RecordInductionAttendanceInput>}, TContext> => {
+
+const mutationKey = ['recordInductionAttendance'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordInductionAttendance>>, {organizationId: number;taskId: number;data: BodyType<RecordInductionAttendanceInput>}> = (props) => {
+          const {organizationId,taskId,data} = props ?? {};
+
+          return  recordInductionAttendance(organizationId,taskId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordInductionAttendanceMutationResult = NonNullable<Awaited<ReturnType<typeof recordInductionAttendance>>>
+    export type RecordInductionAttendanceMutationBody = BodyType<RecordInductionAttendanceInput>
+    export type RecordInductionAttendanceMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Record attendance at an induction session
+ */
+export const useRecordInductionAttendance = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordInductionAttendance>>, TError,{organizationId: number;taskId: number;data: BodyType<RecordInductionAttendanceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordInductionAttendance>>,
+        TError,
+        {organizationId: number;taskId: number;data: BodyType<RecordInductionAttendanceInput>},
+        TContext
+      > => {
+      return useMutation(getRecordInductionAttendanceMutationOptions(options));
+    }
+
+export const getListOutstandingAcknowledgementsUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/document-acknowledgements`
+}
+
+/**
+ * @summary List outstanding handbook and policy acknowledgements
+ */
+export const listOutstandingAcknowledgements = async (organizationId: number, options?: RequestInit): Promise<DocumentAcknowledgementList> => {
+
+  return customFetch<DocumentAcknowledgementList>(getListOutstandingAcknowledgementsUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOutstandingAcknowledgementsQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/document-acknowledgements`
+    ] as const;
+    }
+
+
+export const getListOutstandingAcknowledgementsQueryOptions = <TData = Awaited<ReturnType<typeof listOutstandingAcknowledgements>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOutstandingAcknowledgements>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOutstandingAcknowledgementsQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOutstandingAcknowledgements>>> = ({ signal }) => listOutstandingAcknowledgements(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOutstandingAcknowledgements>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOutstandingAcknowledgementsQueryResult = NonNullable<Awaited<ReturnType<typeof listOutstandingAcknowledgements>>>
+export type ListOutstandingAcknowledgementsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List outstanding handbook and policy acknowledgements
+ */
+
+export function useListOutstandingAcknowledgements<TData = Awaited<ReturnType<typeof listOutstandingAcknowledgements>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOutstandingAcknowledgements>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOutstandingAcknowledgementsQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAssignDocumentAcknowledgementUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/document-acknowledgements`
+}
+
+/**
+ * Raises one acknowledgement obligation per employee against the document's current version. The audience is a fixed set of attributes, not a query. Re-running is safe — existing obligations are not duplicated.
+ * @summary Assign a document to an audience for acknowledgement
+ */
+export const assignDocumentAcknowledgement = async (organizationId: number,
+    assignAcknowledgementInput: AssignAcknowledgementInput, options?: RequestInit): Promise<AssignAcknowledgementResult> => {
+
+  return customFetch<AssignAcknowledgementResult>(getAssignDocumentAcknowledgementUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(assignAcknowledgementInput)
+  }
+);}
+
+
+
+
+
+export const getAssignDocumentAcknowledgementMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof assignDocumentAcknowledgement>>, TError,{organizationId: number;data: BodyType<AssignAcknowledgementInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof assignDocumentAcknowledgement>>, TError,{organizationId: number;data: BodyType<AssignAcknowledgementInput>}, TContext> => {
+
+const mutationKey = ['assignDocumentAcknowledgement'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof assignDocumentAcknowledgement>>, {organizationId: number;data: BodyType<AssignAcknowledgementInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  assignDocumentAcknowledgement(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AssignDocumentAcknowledgementMutationResult = NonNullable<Awaited<ReturnType<typeof assignDocumentAcknowledgement>>>
+    export type AssignDocumentAcknowledgementMutationBody = BodyType<AssignAcknowledgementInput>
+    export type AssignDocumentAcknowledgementMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Assign a document to an audience for acknowledgement
+ */
+export const useAssignDocumentAcknowledgement = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof assignDocumentAcknowledgement>>, TError,{organizationId: number;data: BodyType<AssignAcknowledgementInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof assignDocumentAcknowledgement>>,
+        TError,
+        {organizationId: number;data: BodyType<AssignAcknowledgementInput>},
+        TContext
+      > => {
+      return useMutation(getAssignDocumentAcknowledgementMutationOptions(options));
+    }
+
+export const getRaiseReacknowledgementsUrl = (organizationId: number,
+    documentId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/documents/${documentId}/reacknowledge`
+}
+
+/**
+ * Applies only to documents the organization configured to require re-acknowledgement. Earlier acknowledgements are preserved as historical evidence against their own version and are never rewritten.
+ * @summary Raise fresh acknowledgement obligations for a new document version
+ */
+export const raiseReacknowledgements = async (organizationId: number,
+    documentId: number, options?: RequestInit): Promise<RaiseReacknowledgementsResult> => {
+
+  return customFetch<RaiseReacknowledgementsResult>(getRaiseReacknowledgementsUrl(organizationId,documentId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRaiseReacknowledgementsMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof raiseReacknowledgements>>, TError,{organizationId: number;documentId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof raiseReacknowledgements>>, TError,{organizationId: number;documentId: number}, TContext> => {
+
+const mutationKey = ['raiseReacknowledgements'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof raiseReacknowledgements>>, {organizationId: number;documentId: number}> = (props) => {
+          const {organizationId,documentId} = props ?? {};
+
+          return  raiseReacknowledgements(organizationId,documentId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RaiseReacknowledgementsMutationResult = NonNullable<Awaited<ReturnType<typeof raiseReacknowledgements>>>
+
+    export type RaiseReacknowledgementsMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Raise fresh acknowledgement obligations for a new document version
+ */
+export const useRaiseReacknowledgements = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof raiseReacknowledgements>>, TError,{organizationId: number;documentId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof raiseReacknowledgements>>,
+        TError,
+        {organizationId: number;documentId: number},
+        TContext
+      > => {
+      return useMutation(getRaiseReacknowledgementsMutationOptions(options));
+    }
+
+export const getGetMyOnboardingUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/my-onboarding`
+}
+
+/**
+ * Employee self-service. The employee is resolved server-side from the authenticated identity; any employee id in the request is ignored. Returns null when the caller has no onboarding.
+ * @summary Get the caller's own onboarding
+ */
+export const getMyOnboarding = async (organizationId: number, options?: RequestInit): Promise<MyOnboarding> => {
+
+  return customFetch<MyOnboarding>(getGetMyOnboardingUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyOnboardingQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/my-onboarding`
+    ] as const;
+    }
+
+
+export const getGetMyOnboardingQueryOptions = <TData = Awaited<ReturnType<typeof getMyOnboarding>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyOnboarding>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyOnboardingQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyOnboarding>>> = ({ signal }) => getMyOnboarding(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyOnboarding>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMyOnboardingQueryResult = NonNullable<Awaited<ReturnType<typeof getMyOnboarding>>>
+export type GetMyOnboardingQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the caller's own onboarding
+ */
+
+export function useGetMyOnboarding<TData = Awaited<ReturnType<typeof getMyOnboarding>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyOnboarding>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMyOnboardingQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAcknowledgeDocumentUrl = (organizationId: number,
+    acknowledgementId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/my-acknowledgements/${acknowledgementId}/acknowledge`
+}
+
+/**
+ * Records that the caller acknowledged the exact assigned version. This is an acknowledgement of receipt, not an electronic signature.
+ * @summary Confirm receipt of an assigned document
+ */
+export const acknowledgeDocument = async (organizationId: number,
+    acknowledgementId: number, options?: RequestInit): Promise<DocumentAcknowledgement> => {
+
+  return customFetch<DocumentAcknowledgement>(getAcknowledgeDocumentUrl(organizationId,acknowledgementId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAcknowledgeDocumentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acknowledgeDocument>>, TError,{organizationId: number;acknowledgementId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof acknowledgeDocument>>, TError,{organizationId: number;acknowledgementId: number}, TContext> => {
+
+const mutationKey = ['acknowledgeDocument'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof acknowledgeDocument>>, {organizationId: number;acknowledgementId: number}> = (props) => {
+          const {organizationId,acknowledgementId} = props ?? {};
+
+          return  acknowledgeDocument(organizationId,acknowledgementId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AcknowledgeDocumentMutationResult = NonNullable<Awaited<ReturnType<typeof acknowledgeDocument>>>
+
+    export type AcknowledgeDocumentMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Confirm receipt of an assigned document
+ */
+export const useAcknowledgeDocument = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acknowledgeDocument>>, TError,{organizationId: number;acknowledgementId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof acknowledgeDocument>>,
+        TError,
+        {organizationId: number;acknowledgementId: number},
+        TContext
+      > => {
+      return useMutation(getAcknowledgeDocumentMutationOptions(options));
+    }
+
+export const getListOnboardingResponsibilitiesUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/onboarding-responsibilities`
+}
+
+/**
+ * Manager and Department Head view. Returns only tasks whose resolver currently points at the caller — holding a managerial position confers no organization-wide onboarding visibility.
+ * @summary List onboarding tasks the caller is currently responsible for
+ */
+export const listOnboardingResponsibilities = async (organizationId: number, options?: RequestInit): Promise<OnboardingResponsibilityList> => {
+
+  return customFetch<OnboardingResponsibilityList>(getListOnboardingResponsibilitiesUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOnboardingResponsibilitiesQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/onboarding-responsibilities`
+    ] as const;
+    }
+
+
+export const getListOnboardingResponsibilitiesQueryOptions = <TData = Awaited<ReturnType<typeof listOnboardingResponsibilities>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOnboardingResponsibilities>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOnboardingResponsibilitiesQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOnboardingResponsibilities>>> = ({ signal }) => listOnboardingResponsibilities(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOnboardingResponsibilities>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOnboardingResponsibilitiesQueryResult = NonNullable<Awaited<ReturnType<typeof listOnboardingResponsibilities>>>
+export type ListOnboardingResponsibilitiesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List onboarding tasks the caller is currently responsible for
+ */
+
+export function useListOnboardingResponsibilities<TData = Awaited<ReturnType<typeof listOnboardingResponsibilities>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOnboardingResponsibilities>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOnboardingResponsibilitiesQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 

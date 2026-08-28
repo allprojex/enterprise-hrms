@@ -26,6 +26,7 @@
  */
 import { z } from "zod/v4";
 import { registerJobHandler, zodPayloadParser } from "./jobHandlerRegistry";
+import { registerOnboardingJobHandlers } from "./onboarding/reminders";
 import { notifyUser, type RecipientSpec } from "./notifications";
 
 const recipientSpecSchema: z.ZodType<RecipientSpec> = z.union([
@@ -86,4 +87,12 @@ export function registerShippedJobHandlers(): void {
       });
     },
   });
+
+  // WS-10 — onboarding's own reminder handlers, registered from here so both
+  // entrypoints pick them up without either needing to know about onboarding,
+  // and so scheduleJob()'s jobType validation accepts them in the web process
+  // too. They are separate handlers rather than reuses of reminder.notify
+  // because §26.14 requires each to re-fetch authoritative onboarding state and
+  // no-op when stale, which a domain-neutral notifier cannot do.
+  registerOnboardingJobHandlers();
 }

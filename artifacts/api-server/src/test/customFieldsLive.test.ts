@@ -328,18 +328,25 @@ describeLive("WS-8 — custom fields & forms, live", () => {
     expect((field.version.validation as any)?.__proto__?.polluted).toBeUndefined();
     expect((field.version.validation as any).maxLength).toBe(10);
 
-    // Onboarding is definable but not yet bindable — WS-10's contract.
+    // Onboarding was definable-but-not-bindable when WS-8 shipped, and this
+    // assertion originally proved that. WS-10 has since supplied the
+    // authoritative `onboarding_instances` record and fulfilled the recorded
+    // contract, so the scope is now bindable and the expectation changes with
+    // it: binding is no longer refused for the SCOPE, only for an entity that
+    // does not exist in this organization. WS-10's own suite proves the
+    // positive case against a real onboarding record.
     const onboardingField = await defs.createCustomField(mk({ scope: "onboarding" }));
     expect(onboardingField.definition.scope).toBe("onboarding");
+    expect(scopes.requireScopeSpec("onboarding").bindable).toBe(true);
     await expect(
       values.setValuesForEntity({
         organizationId: orgId,
         scope: "onboarding",
-        entityId: 1,
+        entityId: 999_999_999,
         values: { [onboardingField.definition.id]: "x" },
         actorMembershipId: membershipId,
       }),
-    ).rejects.toThrow(scopes.ScopeNotYetBindableError);
+    ).rejects.toThrow(scopes.CustomFieldEntityNotFoundError);
   });
 
   it("validates values against the definition's type and bounds", async () => {

@@ -19,6 +19,24 @@ export interface ModuleDefinition {
 
 export const MODULE_DEFINITIONS: readonly ModuleDefinition[] = [
   {
+    key: "onboarding",
+    name: "Onboarding",
+    description: "Onboarding checklists, induction, and handbook/policy acknowledgement.",
+    category: "hr-operations",
+    version: "1.0.0",
+    status: "active",
+    // Consistent with every other module here: no organization silently gains
+    // onboarding. It is enabled deliberately, per organization.
+    defaultEnabled: false,
+    // Deliberately empty. Onboarding references Recruitment, Assets, Office
+    // Inventory and Payroll where those modules happen to be enabled, but it
+    // must not REQUIRE any of them — §26.35 requires that an existing,
+    // migrated or manually created employee can be onboarded with no
+    // Recruitment record at all.
+    requiredModuleKeys: [],
+    optionalModuleKeys: ["recruitment", "asset_management", "office_inventory", "employee_self_service"],
+  },
+  {
     key: "recruitment",
     name: "Recruitment",
     description: "Job requisitions, candidate pipelines, and hiring workflows.",

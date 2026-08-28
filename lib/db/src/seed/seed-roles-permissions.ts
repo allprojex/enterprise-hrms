@@ -506,6 +506,22 @@ const PERMISSIONS = [
   { key: "migration.read", resource: "migration", action: "read" },
   { key: "migration.manage", resource: "migration", action: "manage" },
   { key: "migration.execute", resource: "migration", action: "execute" },
+  // WS-10 — Onboarding, Induction & Handbook.
+  //
+  // The compact four-key model frozen in §26.31, deliberately not a matrix.
+  // `onboarding.configure` gates the TEMPLATE surface (organization
+  // configuration); `onboarding.manage` gates operating someone's onboarding
+  // (starting, waiving, cancelling, assigning a handbook);
+  // `onboarding.task.complete` is the narrower right to complete a task on
+  // another person's behalf; `onboarding.read` is HR-wide visibility.
+  //
+  // No acknowledgement key is minted: an employee acknowledging their OWN
+  // assigned document is authorized by self-scope (their employee_user_link),
+  // never by a permission grant — and assigning is already `onboarding.manage`.
+  { key: "onboarding.read", resource: "onboarding", action: "read" },
+  { key: "onboarding.manage", resource: "onboarding", action: "manage" },
+  { key: "onboarding.configure", resource: "onboarding", action: "configure" },
+  { key: "onboarding.task.complete", resource: "onboarding", action: "task.complete" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -616,6 +632,12 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "custom_fields.manage",
     "custom_forms.read",
     "custom_forms.manage",
+    // WS-10 — organization administration owns onboarding configuration and
+    // operation alike.
+    "onboarding.read",
+    "onboarding.manage",
+    "onboarding.configure",
+    "onboarding.task.complete",
   ],
   hr_manager: [
     "organization.read",
@@ -721,6 +743,13 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     // HR manager can see and audit a migration, but preparing/approving/
     // committing one is reserved to organization administration.
     "migration.read",
+    // WS-10 — an HR manager runs onboarding day to day (starts it, completes
+    // and waives tasks, assigns handbooks) but does not define the templates
+    // themselves, which is an organization-configuration act. This mirrors the
+    // WS-8 split exactly: `onboarding.configure` is withheld here.
+    "onboarding.read",
+    "onboarding.manage",
+    "onboarding.task.complete",
   ],
   employee: [
     "organization.read",

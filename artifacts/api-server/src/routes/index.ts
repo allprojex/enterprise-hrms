@@ -37,6 +37,7 @@ import leaveApprovalsRouter from "./leaveApprovals";
 import leaveCalendarRouter from "./leaveCalendar";
 import publicHolidaysRouter from "./publicHolidays";
 import recruitmentSettingsRouter from "./recruitmentSettings";
+import onboardingRouter from "./onboarding";
 import recruitmentWorkflowsRouter from "./recruitmentWorkflows";
 import jobRequisitionsRouter from "./jobRequisitions";
 import vacanciesRouter from "./vacancies";
@@ -152,6 +153,10 @@ router.use(leaveApprovalsRouter);
 router.use(leaveCalendarRouter);
 router.use(publicHolidaysRouter);
 router.use(recruitmentSettingsRouter);
+// WS-10. Its paths are all literal prefixes (/onboarding, /onboarding-tasks,
+// /onboarding-templates, /my-onboarding, /document-acknowledgements) and do not
+// collide with any sibling router's :id-style params.
+router.use(onboardingRouter);
 router.use(recruitmentWorkflowsRouter);
 router.use(jobRequisitionsRouter);
 router.use(vacanciesRouter);

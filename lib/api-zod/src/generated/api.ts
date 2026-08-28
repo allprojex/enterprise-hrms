@@ -19246,3 +19246,964 @@ export const CancelMigrationResponse = zod.object({
 })
 
 
+/**
+ * Returns the organization's onboarding templates with their active version, if any. Gated by the onboarding module and onboarding.read.
+ * @summary List onboarding templates
+ */
+export const ListOnboardingTemplatesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListOnboardingTemplatesResponse = zod.object({
+  "templates": zod.array(zod.object({
+  "template": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "branchId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "positionId": zod.number().nullish(),
+  "employmentType": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+}),
+  "activeVersion": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateId": zod.number(),
+  "versionNumber": zod.number(),
+  "status": zod.enum(['draft', 'active', 'archived']),
+  "changeNote": zod.string().nullish(),
+  "activatedAt": zod.coerce.date().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional()
+}).nullish(),
+  "versionCount": zod.number()
+}))
+})
+
+
+/**
+ * Creates a template together with its first draft version. Gated by onboarding.configure — configuration authority is deliberately separate from operating someone's onboarding.
+ * @summary Create an onboarding template
+ */
+export const CreateOnboardingTemplateParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const createOnboardingTemplateBodyNameMax = 160;
+
+
+
+export const CreateOnboardingTemplateBody = zod.object({
+  "name": zod.string().min(1).max(createOnboardingTemplateBodyNameMax),
+  "description": zod.string().nullish(),
+  "branchId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "positionId": zod.number().nullish(),
+  "employmentType": zod.string().nullish()
+})
+
+export const CreateOnboardingTemplateResponse = zod.object({
+  "template": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "branchId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "positionId": zod.number().nullish(),
+  "employmentType": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+}),
+  "version": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateId": zod.number(),
+  "versionNumber": zod.number(),
+  "status": zod.enum(['draft', 'active', 'archived']),
+  "changeNote": zod.string().nullish(),
+  "activatedAt": zod.coerce.date().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional()
+})
+})
+
+
+/**
+ * @summary Update an onboarding template's name or applicability
+ */
+export const UpdateOnboardingTemplateParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "templateId": zod.coerce.number()
+})
+
+export const updateOnboardingTemplateBodyNameMax = 160;
+
+
+
+export const UpdateOnboardingTemplateBody = zod.object({
+  "name": zod.string().min(1).max(updateOnboardingTemplateBodyNameMax).optional(),
+  "description": zod.string().nullish(),
+  "branchId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "positionId": zod.number().nullish(),
+  "employmentType": zod.string().nullish()
+})
+
+export const UpdateOnboardingTemplateResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "branchId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "positionId": zod.number().nullish(),
+  "employmentType": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List a template's versions
+ */
+export const ListOnboardingTemplateVersionsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "templateId": zod.coerce.number()
+})
+
+export const ListOnboardingTemplateVersionsResponse = zod.object({
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateId": zod.number(),
+  "versionNumber": zod.number(),
+  "status": zod.enum(['draft', 'active', 'archived']),
+  "changeNote": zod.string().nullish(),
+  "activatedAt": zod.coerce.date().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional()
+}))
+})
+
+
+/**
+ * Creates a new draft, optionally copying an existing version's tasks. The source version is never modified — onboarding already issued from it keeps running unchanged.
+ * @summary Start a new draft version
+ */
+export const CreateOnboardingTemplateVersionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "templateId": zod.coerce.number()
+})
+
+export const CreateOnboardingTemplateVersionBody = zod.object({
+  "copyFromVersionId": zod.number().nullish(),
+  "changeNote": zod.string().nullish()
+})
+
+export const CreateOnboardingTemplateVersionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateId": zod.number(),
+  "versionNumber": zod.number(),
+  "status": zod.enum(['draft', 'active', 'archived']),
+  "changeNote": zod.string().nullish(),
+  "activatedAt": zod.coerce.date().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional()
+})
+
+
+/**
+ * @summary List a version's task definitions
+ */
+export const ListOnboardingTemplateTasksParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const ListOnboardingTemplateTasksResponse = zod.object({
+  "tasks": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateVersionId": zod.number(),
+  "displayOrder": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "taskKind": zod.enum(['general', 'document', 'acknowledgement', 'induction', 'asset_reference', 'inventory_reference', 'access_reference', 'payroll_reference', 'personnel_file_reference']),
+  "required": zod.boolean(),
+  "responsibleResolver": zod.enum(['employee_self', 'reporting_manager', 'department_head', 'permission_holder', 'specific_membership']),
+  "responsiblePermissionKey": zod.string().nullish(),
+  "responsibleMembershipId": zod.number().nullish(),
+  "dueBasis": zod.enum(['onboarding_start', 'commencement_date', 'dependency_completion']).nullish(),
+  "dueOffsetDays": zod.number().nullish(),
+  "dependsOnTemplateTaskId": zod.number().nullish(),
+  "documentCategoryCode": zod.string().nullish(),
+  "acknowledgementDocumentId": zod.number().nullish()
+}))
+})
+
+
+/**
+ * Only a draft version may be edited. Publishing freezes the definition so instances that snapshotted it stay reproducible.
+ * @summary Add a task definition to a draft version
+ */
+export const AddOnboardingTemplateTaskParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const addOnboardingTemplateTaskBodyTitleMax = 200;
+
+
+
+export const AddOnboardingTemplateTaskBody = zod.object({
+  "title": zod.string().min(1).max(addOnboardingTemplateTaskBodyTitleMax),
+  "description": zod.string().nullish(),
+  "taskKind": zod.enum(['general', 'document', 'acknowledgement', 'induction', 'asset_reference', 'inventory_reference', 'access_reference', 'payroll_reference', 'personnel_file_reference']).optional(),
+  "required": zod.boolean().optional(),
+  "responsibleResolver": zod.enum(['employee_self', 'reporting_manager', 'department_head', 'permission_holder', 'specific_membership']).optional(),
+  "responsiblePermissionKey": zod.string().nullish(),
+  "responsibleMembershipId": zod.number().nullish(),
+  "dueBasis": zod.enum(['onboarding_start', 'commencement_date', 'dependency_completion']).nullish(),
+  "dueOffsetDays": zod.number().nullish(),
+  "dependsOnTemplateTaskId": zod.number().nullish(),
+  "documentCategoryCode": zod.string().nullish(),
+  "acknowledgementDocumentId": zod.number().nullish()
+})
+
+export const AddOnboardingTemplateTaskResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateVersionId": zod.number(),
+  "displayOrder": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "taskKind": zod.enum(['general', 'document', 'acknowledgement', 'induction', 'asset_reference', 'inventory_reference', 'access_reference', 'payroll_reference', 'personnel_file_reference']),
+  "required": zod.boolean(),
+  "responsibleResolver": zod.enum(['employee_self', 'reporting_manager', 'department_head', 'permission_holder', 'specific_membership']),
+  "responsiblePermissionKey": zod.string().nullish(),
+  "responsibleMembershipId": zod.number().nullish(),
+  "dueBasis": zod.enum(['onboarding_start', 'commencement_date', 'dependency_completion']).nullish(),
+  "dueOffsetDays": zod.number().nullish(),
+  "dependsOnTemplateTaskId": zod.number().nullish(),
+  "documentCategoryCode": zod.string().nullish(),
+  "acknowledgementDocumentId": zod.number().nullish()
+})
+
+
+/**
+ * @summary Remove a task definition from a draft version
+ */
+export const DeleteOnboardingTemplateTaskParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "versionId": zod.coerce.number(),
+  "taskId": zod.coerce.number()
+})
+
+export const DeleteOnboardingTemplateTaskResponse = zod.void()
+
+
+/**
+ * Makes this the version new onboarding starts from, archiving any previously active version of the same template. Existing instances retain the version they snapshotted.
+ * @summary Publish a draft version
+ */
+export const ActivateOnboardingTemplateVersionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const ActivateOnboardingTemplateVersionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateId": zod.number(),
+  "versionNumber": zod.number(),
+  "status": zod.enum(['draft', 'active', 'archived']),
+  "changeNote": zod.string().nullish(),
+  "activatedAt": zod.coerce.date().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional()
+})
+
+
+/**
+ * @summary Archive a template version
+ */
+export const ArchiveOnboardingTemplateVersionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const ArchiveOnboardingTemplateVersionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateId": zod.number(),
+  "versionNumber": zod.number(),
+  "status": zod.enum(['draft', 'active', 'archived']),
+  "changeNote": zod.string().nullish(),
+  "activatedAt": zod.coerce.date().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional()
+})
+
+
+/**
+ * HR view. Requires onboarding.read; ordinary employees use /my-onboarding instead and never see organization-wide data.
+ * @summary List onboarding across the organization
+ */
+export const ListOnboardingParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListOnboardingQueryParams = zod.object({
+  "status": zod.enum(['not_started', 'in_progress', 'completed', 'cancelled']).optional(),
+  "overdueOnly": zod.coerce.boolean().optional()
+})
+
+export const ListOnboardingResponse = zod.object({
+  "items": zod.array(zod.object({
+  "instance": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "templateId": zod.number(),
+  "templateVersionId": zod.number(),
+  "status": zod.enum(['not_started', 'in_progress', 'completed', 'cancelled']),
+  "startDate": zod.coerce.date(),
+  "commencementDate": zod.coerce.date().nullish(),
+  "candidateId": zod.number().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "cancelledAt": zod.coerce.date().nullish(),
+  "cancellationReason": zod.string().nullish()
+}),
+  "employeeName": zod.string().nullish(),
+  "employeeNumber": zod.string().nullish(),
+  "templateName": zod.string().nullish(),
+  "progress": zod.object({
+  "total": zod.number(),
+  "required": zod.number(),
+  "completed": zod.number(),
+  "waived": zod.number(),
+  "pending": zod.number(),
+  "cancelled": zod.number(),
+  "overdue": zod.number(),
+  "completionPercentage": zod.number().describe('Informational only — completion is decided by required-task state.'),
+  "status": zod.enum(['not_started', 'in_progress', 'completed', 'cancelled'])
+})
+}))
+})
+
+
+/**
+ * Onboarding never creates an employee. The employee must already exist through Recruitment conversion, manual creation or import. A candidate record is not required, so legacy and manually created staff can be onboarded. Idempotent — an employee can hold only one open onboarding.
+ * @summary Start onboarding for an existing employee
+ */
+export const StartOnboardingParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const StartOnboardingBody = zod.object({
+  "employeeId": zod.number(),
+  "templateVersionId": zod.number().nullish().describe('Optional override; otherwise the most specific applicable active template is used.')
+})
+
+export const StartOnboardingResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "templateId": zod.number(),
+  "templateVersionId": zod.number(),
+  "status": zod.enum(['not_started', 'in_progress', 'completed', 'cancelled']),
+  "startDate": zod.coerce.date(),
+  "commencementDate": zod.coerce.date().nullish(),
+  "candidateId": zod.number().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "cancelledAt": zod.coerce.date().nullish(),
+  "cancellationReason": zod.string().nullish()
+})
+
+
+/**
+ * @summary Get one onboarding with its tasks, progress and acknowledgements
+ */
+export const GetOnboardingParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "instanceId": zod.coerce.number()
+})
+
+export const GetOnboardingResponse = zod.object({
+  "instance": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "templateId": zod.number(),
+  "templateVersionId": zod.number(),
+  "status": zod.enum(['not_started', 'in_progress', 'completed', 'cancelled']),
+  "startDate": zod.coerce.date(),
+  "commencementDate": zod.coerce.date().nullish(),
+  "candidateId": zod.number().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "cancelledAt": zod.coerce.date().nullish(),
+  "cancellationReason": zod.string().nullish()
+}),
+  "employeeName": zod.string().nullish(),
+  "employeeNumber": zod.string().nullish(),
+  "templateName": zod.string().nullish(),
+  "templateVersionNumber": zod.number().nullish(),
+  "progress": zod.object({
+  "total": zod.number(),
+  "required": zod.number(),
+  "completed": zod.number(),
+  "waived": zod.number(),
+  "pending": zod.number(),
+  "cancelled": zod.number(),
+  "overdue": zod.number(),
+  "completionPercentage": zod.number().describe('Informational only — completion is decided by required-task state.'),
+  "status": zod.enum(['not_started', 'in_progress', 'completed', 'cancelled'])
+}),
+  "tasks": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "instanceId": zod.number(),
+  "displayOrder": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "taskKind": zod.enum(['general', 'document', 'acknowledgement', 'induction', 'asset_reference', 'inventory_reference', 'access_reference', 'payroll_reference', 'personnel_file_reference']),
+  "required": zod.boolean(),
+  "status": zod.enum(['pending', 'completed', 'waived', 'cancelled']),
+  "dueAt": zod.coerce.date().nullish(),
+  "overdue": zod.boolean().describe('Derived from the due date and current state — never stored.'),
+  "completedAt": zod.coerce.date().nullish(),
+  "completedByName": zod.string().nullish(),
+  "completionNotes": zod.string().nullish(),
+  "waivedAt": zod.coerce.date().nullish(),
+  "waivedByName": zod.string().nullish(),
+  "waiverReason": zod.string().nullish(),
+  "documentRequirementId": zod.number().nullish(),
+  "responsibleResolver": zod.enum(['employee_self', 'reporting_manager', 'department_head', 'permission_holder', 'specific_membership']).optional(),
+  "responsibleBasis": zod.string().optional().describe('Why the current responsible party holds this task.'),
+  "responsibleMembershipIds": zod.array(zod.number()).optional()
+}).and(zod.object({
+  "induction": zod.object({
+  "id": zod.number(),
+  "taskId": zod.number(),
+  "facilitatorMembershipId": zod.number().nullish(),
+  "scheduledAt": zod.coerce.date().nullish(),
+  "deliveryMode": zod.enum(['in_person', 'virtual', 'hybrid']).nullish(),
+  "location": zod.string().nullish(),
+  "meetingDetails": zod.string().nullish(),
+  "attendedAt": zod.coerce.date().nullish(),
+  "attendanceNotes": zod.string().nullish(),
+  "rescheduleCount": zod.number(),
+  "lastRescheduledAt": zod.coerce.date().nullish(),
+  "lastRescheduleReason": zod.string().nullish()
+}).nullish(),
+  "referenceSatisfied": zod.boolean().nullish(),
+  "referenceDetail": zod.string().nullish()
+}))),
+  "acknowledgements": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "documentId": zod.number(),
+  "documentVersionId": zod.number(),
+  "documentTitle": zod.string().nullish(),
+  "versionNumber": zod.number().nullish(),
+  "status": zod.enum(['pending', 'acknowledged']),
+  "audience": zod.enum(['all_employees', 'branch', 'department', 'position', 'employment_type', 'specific_employees', 'onboarding']),
+  "onboardingInstanceId": zod.number().nullish(),
+  "assignedAt": zod.coerce.date(),
+  "dueAt": zod.coerce.date().nullish(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "acknowledgedByName": zod.string().nullish()
+}))
+})
+
+
+/**
+ * Requires a reason. Preserves completed tasks, evidence and acknowledgements, and stops future reminders. This is not a separation — employment is unaffected.
+ * @summary Cancel an onboarding
+ */
+export const CancelOnboardingParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "instanceId": zod.coerce.number()
+})
+
+export const cancelOnboardingBodyReasonMax = 1000;
+
+
+
+export const CancelOnboardingBody = zod.object({
+  "reason": zod.string().min(1).max(cancelOnboardingBodyReasonMax)
+})
+
+export const CancelOnboardingResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "templateId": zod.number(),
+  "templateVersionId": zod.number(),
+  "status": zod.enum(['not_started', 'in_progress', 'completed', 'cancelled']),
+  "startDate": zod.coerce.date(),
+  "commencementDate": zod.coerce.date().nullish(),
+  "candidateId": zod.number().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "cancelledAt": zod.coerce.date().nullish(),
+  "cancellationReason": zod.string().nullish()
+})
+
+
+/**
+ * The controlled correction path for onboarding that has already completed. Appends a new task rather than reopening or rewriting completed history.
+ * @summary Add a supplementary task to an onboarding
+ */
+export const AddSupplementaryOnboardingTaskParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "instanceId": zod.coerce.number()
+})
+
+export const addSupplementaryOnboardingTaskBodyTitleMax = 200;
+
+export const addSupplementaryOnboardingTaskBodyReasonMax = 1000;
+
+
+
+export const AddSupplementaryOnboardingTaskBody = zod.object({
+  "title": zod.string().min(1).max(addSupplementaryOnboardingTaskBodyTitleMax),
+  "description": zod.string().nullish(),
+  "required": zod.boolean().optional(),
+  "reason": zod.string().min(1).max(addSupplementaryOnboardingTaskBodyReasonMax)
+})
+
+export const AddSupplementaryOnboardingTaskResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "instanceId": zod.number(),
+  "displayOrder": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "taskKind": zod.enum(['general', 'document', 'acknowledgement', 'induction', 'asset_reference', 'inventory_reference', 'access_reference', 'payroll_reference', 'personnel_file_reference']),
+  "required": zod.boolean(),
+  "status": zod.enum(['pending', 'completed', 'waived', 'cancelled']),
+  "dueAt": zod.coerce.date().nullish(),
+  "overdue": zod.boolean().describe('Derived from the due date and current state — never stored.'),
+  "completedAt": zod.coerce.date().nullish(),
+  "completedByName": zod.string().nullish(),
+  "completionNotes": zod.string().nullish(),
+  "waivedAt": zod.coerce.date().nullish(),
+  "waivedByName": zod.string().nullish(),
+  "waiverReason": zod.string().nullish(),
+  "documentRequirementId": zod.number().nullish(),
+  "responsibleResolver": zod.enum(['employee_self', 'reporting_manager', 'department_head', 'permission_holder', 'specific_membership']).optional(),
+  "responsibleBasis": zod.string().optional().describe('Why the current responsible party holds this task.'),
+  "responsibleMembershipIds": zod.array(zod.number()).optional()
+})
+
+
+/**
+ * A reference task (asset, inventory, access, personnel file) is refused unless the referenced module already shows the expected state, and a document task follows Documents & Records' own verification. Use a waiver where the authoritative state genuinely cannot be met.
+ * @summary Complete an onboarding task
+ */
+export const CompleteOnboardingTaskParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "taskId": zod.coerce.number()
+})
+
+export const completeOnboardingTaskBodyNotesMax = 1000;
+
+
+
+export const CompleteOnboardingTaskBody = zod.object({
+  "notes": zod.string().max(completeOnboardingTaskBodyNotesMax).nullish()
+})
+
+export const CompleteOnboardingTaskResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "instanceId": zod.number(),
+  "displayOrder": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "taskKind": zod.enum(['general', 'document', 'acknowledgement', 'induction', 'asset_reference', 'inventory_reference', 'access_reference', 'payroll_reference', 'personnel_file_reference']),
+  "required": zod.boolean(),
+  "status": zod.enum(['pending', 'completed', 'waived', 'cancelled']),
+  "dueAt": zod.coerce.date().nullish(),
+  "overdue": zod.boolean().describe('Derived from the due date and current state — never stored.'),
+  "completedAt": zod.coerce.date().nullish(),
+  "completedByName": zod.string().nullish(),
+  "completionNotes": zod.string().nullish(),
+  "waivedAt": zod.coerce.date().nullish(),
+  "waivedByName": zod.string().nullish(),
+  "waiverReason": zod.string().nullish(),
+  "documentRequirementId": zod.number().nullish(),
+  "responsibleResolver": zod.enum(['employee_self', 'reporting_manager', 'department_head', 'permission_holder', 'specific_membership']).optional(),
+  "responsibleBasis": zod.string().optional().describe('Why the current responsible party holds this task.'),
+  "responsibleMembershipIds": zod.array(zod.number()).optional()
+})
+
+
+/**
+ * Requires authority and a reason, and is audited. A waived required task no longer blocks completion.
+ * @summary Waive an onboarding task
+ */
+export const WaiveOnboardingTaskParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "taskId": zod.coerce.number()
+})
+
+export const waiveOnboardingTaskBodyReasonMax = 1000;
+
+
+
+export const WaiveOnboardingTaskBody = zod.object({
+  "reason": zod.string().min(1).max(waiveOnboardingTaskBodyReasonMax)
+})
+
+export const WaiveOnboardingTaskResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "instanceId": zod.number(),
+  "displayOrder": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "taskKind": zod.enum(['general', 'document', 'acknowledgement', 'induction', 'asset_reference', 'inventory_reference', 'access_reference', 'payroll_reference', 'personnel_file_reference']),
+  "required": zod.boolean(),
+  "status": zod.enum(['pending', 'completed', 'waived', 'cancelled']),
+  "dueAt": zod.coerce.date().nullish(),
+  "overdue": zod.boolean().describe('Derived from the due date and current state — never stored.'),
+  "completedAt": zod.coerce.date().nullish(),
+  "completedByName": zod.string().nullish(),
+  "completionNotes": zod.string().nullish(),
+  "waivedAt": zod.coerce.date().nullish(),
+  "waivedByName": zod.string().nullish(),
+  "waiverReason": zod.string().nullish(),
+  "documentRequirementId": zod.number().nullish(),
+  "responsibleResolver": zod.enum(['employee_self', 'reporting_manager', 'department_head', 'permission_holder', 'specific_membership']).optional(),
+  "responsibleBasis": zod.string().optional().describe('Why the current responsible party holds this task.'),
+  "responsibleMembershipIds": zod.array(zod.number()).optional()
+})
+
+
+/**
+ * Session logistics only — facilitator, time, delivery mode and venue. There is no course, curriculum or enrollment here; Learning remains a separate module.
+ * @summary Schedule or reschedule an induction session
+ */
+export const ScheduleOnboardingInductionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "taskId": zod.coerce.number()
+})
+
+export const scheduleOnboardingInductionBodyLocationMax = 300;
+
+export const scheduleOnboardingInductionBodyMeetingDetailsMax = 1000;
+
+export const scheduleOnboardingInductionBodyRescheduleReasonMax = 500;
+
+
+
+export const ScheduleOnboardingInductionBody = zod.object({
+  "facilitatorMembershipId": zod.number().nullish(),
+  "scheduledAt": zod.coerce.date().nullish(),
+  "deliveryMode": zod.enum(['in_person', 'virtual', 'hybrid']).nullish(),
+  "location": zod.string().max(scheduleOnboardingInductionBodyLocationMax).nullish(),
+  "meetingDetails": zod.string().max(scheduleOnboardingInductionBodyMeetingDetailsMax).nullish(),
+  "rescheduleReason": zod.string().max(scheduleOnboardingInductionBodyRescheduleReasonMax).nullish()
+})
+
+export const ScheduleOnboardingInductionResponse = zod.object({
+  "id": zod.number(),
+  "taskId": zod.number(),
+  "facilitatorMembershipId": zod.number().nullish(),
+  "scheduledAt": zod.coerce.date().nullish(),
+  "deliveryMode": zod.enum(['in_person', 'virtual', 'hybrid']).nullish(),
+  "location": zod.string().nullish(),
+  "meetingDetails": zod.string().nullish(),
+  "attendedAt": zod.coerce.date().nullish(),
+  "attendanceNotes": zod.string().nullish(),
+  "rescheduleCount": zod.number(),
+  "lastRescheduledAt": zod.coerce.date().nullish(),
+  "lastRescheduleReason": zod.string().nullish()
+})
+
+
+/**
+ * @summary Record attendance at an induction session
+ */
+export const RecordInductionAttendanceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "taskId": zod.coerce.number()
+})
+
+export const recordInductionAttendanceBodyAttendanceNotesMax = 1000;
+
+
+
+export const RecordInductionAttendanceBody = zod.object({
+  "attendedAt": zod.coerce.date(),
+  "attendanceNotes": zod.string().max(recordInductionAttendanceBodyAttendanceNotesMax).nullish()
+})
+
+export const RecordInductionAttendanceResponse = zod.object({
+  "id": zod.number(),
+  "taskId": zod.number(),
+  "facilitatorMembershipId": zod.number().nullish(),
+  "scheduledAt": zod.coerce.date().nullish(),
+  "deliveryMode": zod.enum(['in_person', 'virtual', 'hybrid']).nullish(),
+  "location": zod.string().nullish(),
+  "meetingDetails": zod.string().nullish(),
+  "attendedAt": zod.coerce.date().nullish(),
+  "attendanceNotes": zod.string().nullish(),
+  "rescheduleCount": zod.number(),
+  "lastRescheduledAt": zod.coerce.date().nullish(),
+  "lastRescheduleReason": zod.string().nullish()
+})
+
+
+/**
+ * @summary List outstanding handbook and policy acknowledgements
+ */
+export const ListOutstandingAcknowledgementsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListOutstandingAcknowledgementsResponse = zod.object({
+  "acknowledgements": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "documentId": zod.number(),
+  "documentVersionId": zod.number(),
+  "documentTitle": zod.string().nullish(),
+  "versionNumber": zod.number().nullish(),
+  "status": zod.enum(['pending', 'acknowledged']),
+  "audience": zod.enum(['all_employees', 'branch', 'department', 'position', 'employment_type', 'specific_employees', 'onboarding']),
+  "onboardingInstanceId": zod.number().nullish(),
+  "assignedAt": zod.coerce.date(),
+  "dueAt": zod.coerce.date().nullish(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "acknowledgedByName": zod.string().nullish()
+}))
+})
+
+
+/**
+ * Raises one acknowledgement obligation per employee against the document's current version. The audience is a fixed set of attributes, not a query. Re-running is safe — existing obligations are not duplicated.
+ * @summary Assign a document to an audience for acknowledgement
+ */
+export const AssignDocumentAcknowledgementParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const AssignDocumentAcknowledgementBody = zod.object({
+  "documentId": zod.number(),
+  "audience": zod.enum(['all_employees', 'branch', 'department', 'position', 'employment_type', 'specific_employees', 'onboarding']),
+  "branchId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "positionId": zod.number().nullish(),
+  "employmentType": zod.string().nullish(),
+  "employeeIds": zod.array(zod.number()).nullish(),
+  "dueAt": zod.coerce.date().nullish()
+})
+
+export const AssignDocumentAcknowledgementResponse = zod.object({
+  "assigned": zod.number(),
+  "alreadyAssigned": zod.number()
+})
+
+
+/**
+ * Applies only to documents the organization configured to require re-acknowledgement. Earlier acknowledgements are preserved as historical evidence against their own version and are never rewritten.
+ * @summary Raise fresh acknowledgement obligations for a new document version
+ */
+export const RaiseReacknowledgementsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "documentId": zod.coerce.number()
+})
+
+export const RaiseReacknowledgementsResponse = zod.object({
+  "raised": zod.number()
+})
+
+
+/**
+ * Employee self-service. The employee is resolved server-side from the authenticated identity; any employee id in the request is ignored. Returns null when the caller has no onboarding.
+ * @summary Get the caller's own onboarding
+ */
+export const GetMyOnboardingParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetMyOnboardingResponse = zod.object({
+  "onboarding": zod.object({
+  "instance": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "templateId": zod.number(),
+  "templateVersionId": zod.number(),
+  "status": zod.enum(['not_started', 'in_progress', 'completed', 'cancelled']),
+  "startDate": zod.coerce.date(),
+  "commencementDate": zod.coerce.date().nullish(),
+  "candidateId": zod.number().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "cancelledAt": zod.coerce.date().nullish(),
+  "cancellationReason": zod.string().nullish()
+}),
+  "employeeName": zod.string().nullish(),
+  "employeeNumber": zod.string().nullish(),
+  "templateName": zod.string().nullish(),
+  "templateVersionNumber": zod.number().nullish(),
+  "progress": zod.object({
+  "total": zod.number(),
+  "required": zod.number(),
+  "completed": zod.number(),
+  "waived": zod.number(),
+  "pending": zod.number(),
+  "cancelled": zod.number(),
+  "overdue": zod.number(),
+  "completionPercentage": zod.number().describe('Informational only — completion is decided by required-task state.'),
+  "status": zod.enum(['not_started', 'in_progress', 'completed', 'cancelled'])
+}),
+  "tasks": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "instanceId": zod.number(),
+  "displayOrder": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "taskKind": zod.enum(['general', 'document', 'acknowledgement', 'induction', 'asset_reference', 'inventory_reference', 'access_reference', 'payroll_reference', 'personnel_file_reference']),
+  "required": zod.boolean(),
+  "status": zod.enum(['pending', 'completed', 'waived', 'cancelled']),
+  "dueAt": zod.coerce.date().nullish(),
+  "overdue": zod.boolean().describe('Derived from the due date and current state — never stored.'),
+  "completedAt": zod.coerce.date().nullish(),
+  "completedByName": zod.string().nullish(),
+  "completionNotes": zod.string().nullish(),
+  "waivedAt": zod.coerce.date().nullish(),
+  "waivedByName": zod.string().nullish(),
+  "waiverReason": zod.string().nullish(),
+  "documentRequirementId": zod.number().nullish(),
+  "responsibleResolver": zod.enum(['employee_self', 'reporting_manager', 'department_head', 'permission_holder', 'specific_membership']).optional(),
+  "responsibleBasis": zod.string().optional().describe('Why the current responsible party holds this task.'),
+  "responsibleMembershipIds": zod.array(zod.number()).optional()
+}).and(zod.object({
+  "induction": zod.object({
+  "id": zod.number(),
+  "taskId": zod.number(),
+  "facilitatorMembershipId": zod.number().nullish(),
+  "scheduledAt": zod.coerce.date().nullish(),
+  "deliveryMode": zod.enum(['in_person', 'virtual', 'hybrid']).nullish(),
+  "location": zod.string().nullish(),
+  "meetingDetails": zod.string().nullish(),
+  "attendedAt": zod.coerce.date().nullish(),
+  "attendanceNotes": zod.string().nullish(),
+  "rescheduleCount": zod.number(),
+  "lastRescheduledAt": zod.coerce.date().nullish(),
+  "lastRescheduleReason": zod.string().nullish()
+}).nullish(),
+  "referenceSatisfied": zod.boolean().nullish(),
+  "referenceDetail": zod.string().nullish()
+}))),
+  "acknowledgements": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "documentId": zod.number(),
+  "documentVersionId": zod.number(),
+  "documentTitle": zod.string().nullish(),
+  "versionNumber": zod.number().nullish(),
+  "status": zod.enum(['pending', 'acknowledged']),
+  "audience": zod.enum(['all_employees', 'branch', 'department', 'position', 'employment_type', 'specific_employees', 'onboarding']),
+  "onboardingInstanceId": zod.number().nullish(),
+  "assignedAt": zod.coerce.date(),
+  "dueAt": zod.coerce.date().nullish(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "acknowledgedByName": zod.string().nullish()
+}))
+}).nullish(),
+  "acknowledgements": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "documentId": zod.number(),
+  "documentVersionId": zod.number(),
+  "documentTitle": zod.string().nullish(),
+  "versionNumber": zod.number().nullish(),
+  "status": zod.enum(['pending', 'acknowledged']),
+  "audience": zod.enum(['all_employees', 'branch', 'department', 'position', 'employment_type', 'specific_employees', 'onboarding']),
+  "onboardingInstanceId": zod.number().nullish(),
+  "assignedAt": zod.coerce.date(),
+  "dueAt": zod.coerce.date().nullish(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "acknowledgedByName": zod.string().nullish()
+}))
+})
+
+
+/**
+ * Records that the caller acknowledged the exact assigned version. This is an acknowledgement of receipt, not an electronic signature.
+ * @summary Confirm receipt of an assigned document
+ */
+export const AcknowledgeDocumentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "acknowledgementId": zod.coerce.number()
+})
+
+export const AcknowledgeDocumentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "documentId": zod.number(),
+  "documentVersionId": zod.number(),
+  "documentTitle": zod.string().nullish(),
+  "versionNumber": zod.number().nullish(),
+  "status": zod.enum(['pending', 'acknowledged']),
+  "audience": zod.enum(['all_employees', 'branch', 'department', 'position', 'employment_type', 'specific_employees', 'onboarding']),
+  "onboardingInstanceId": zod.number().nullish(),
+  "assignedAt": zod.coerce.date(),
+  "dueAt": zod.coerce.date().nullish(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "acknowledgedByName": zod.string().nullish()
+})
+
+
+/**
+ * Manager and Department Head view. Returns only tasks whose resolver currently points at the caller — holding a managerial position confers no organization-wide onboarding visibility.
+ * @summary List onboarding tasks the caller is currently responsible for
+ */
+export const ListOnboardingResponsibilitiesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListOnboardingResponsibilitiesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "task": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "instanceId": zod.number(),
+  "displayOrder": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "taskKind": zod.enum(['general', 'document', 'acknowledgement', 'induction', 'asset_reference', 'inventory_reference', 'access_reference', 'payroll_reference', 'personnel_file_reference']),
+  "required": zod.boolean(),
+  "status": zod.enum(['pending', 'completed', 'waived', 'cancelled']),
+  "dueAt": zod.coerce.date().nullish(),
+  "overdue": zod.boolean().describe('Derived from the due date and current state — never stored.'),
+  "completedAt": zod.coerce.date().nullish(),
+  "completedByName": zod.string().nullish(),
+  "completionNotes": zod.string().nullish(),
+  "waivedAt": zod.coerce.date().nullish(),
+  "waivedByName": zod.string().nullish(),
+  "waiverReason": zod.string().nullish(),
+  "documentRequirementId": zod.number().nullish(),
+  "responsibleResolver": zod.enum(['employee_self', 'reporting_manager', 'department_head', 'permission_holder', 'specific_membership']).optional(),
+  "responsibleBasis": zod.string().optional().describe('Why the current responsible party holds this task.'),
+  "responsibleMembershipIds": zod.array(zod.number()).optional()
+}),
+  "instanceId": zod.number(),
+  "employeeId": zod.number(),
+  "employeeName": zod.string().nullish()
+}))
+})
+
+

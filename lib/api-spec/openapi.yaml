@@ -42,6 +42,8 @@ tags:
     description: Reporting Foundation operations
   - name: self-service
     description: Employee Self-Service operations
+  - name: onboarding
+    description: Onboarding, induction, and handbook/policy acknowledgement operations
   - name: recruitment
     description: Recruitment Configuration operations (settings, workflows, stages)
   - name: vacancies
@@ -23877,8 +23879,1306 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+
+  /organizations/{organizationId}/onboarding-templates:
+    get:
+      operationId: listOnboardingTemplates
+      tags: [onboarding]
+      summary: List onboarding templates
+      description: >-
+        Returns the organization's onboarding templates with their active
+        version, if any. Gated by the onboarding module and onboarding.read.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Onboarding templates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingTemplateList"
+    post:
+      operationId: createOnboardingTemplate
+      tags: [onboarding]
+      summary: Create an onboarding template
+      description: >-
+        Creates a template together with its first draft version. Gated by
+        onboarding.configure — configuration authority is deliberately
+        separate from operating someone's onboarding.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOnboardingTemplateInput"
+      responses:
+        "201":
+          description: Template created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingTemplateWithVersion"
+        "400":
+          description: Invalid template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/onboarding-templates/{templateId}:
+    patch:
+      operationId: updateOnboardingTemplate
+      tags: [onboarding]
+      summary: Update an onboarding template's name or applicability
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOnboardingTemplateInput"
+      responses:
+        "200":
+          description: Template updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingTemplate"
+        "404":
+          description: Template not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/onboarding-templates/{templateId}/versions:
+    get:
+      operationId: listOnboardingTemplateVersions
+      tags: [onboarding]
+      summary: List a template's versions
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Template versions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingTemplateVersionList"
+    post:
+      operationId: createOnboardingTemplateVersion
+      tags: [onboarding]
+      summary: Start a new draft version
+      description: >-
+        Creates a new draft, optionally copying an existing version's tasks.
+        The source version is never modified — onboarding already issued from
+        it keeps running unchanged.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOnboardingTemplateVersionInput"
+      responses:
+        "201":
+          description: Draft version created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingTemplateVersion"
+        "404":
+          description: Template not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/onboarding-template-versions/{versionId}/tasks:
+    get:
+      operationId: listOnboardingTemplateTasks
+      tags: [onboarding]
+      summary: List a version's task definitions
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: versionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Task definitions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingTemplateTaskList"
+    post:
+      operationId: addOnboardingTemplateTask
+      tags: [onboarding]
+      summary: Add a task definition to a draft version
+      description: >-
+        Only a draft version may be edited. Publishing freezes the definition
+        so instances that snapshotted it stay reproducible.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: versionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OnboardingTaskDefinitionInput"
+      responses:
+        "201":
+          description: Task added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingTemplateTask"
+        "400":
+          description: Invalid task definition, or the version is not a draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Version not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/onboarding-template-versions/{versionId}/tasks/{taskId}:
+    delete:
+      operationId: deleteOnboardingTemplateTask
+      tags: [onboarding]
+      summary: Remove a task definition from a draft version
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: versionId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Task removed
+        "400":
+          description: The version is not a draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/onboarding-template-versions/{versionId}/activate:
+    post:
+      operationId: activateOnboardingTemplateVersion
+      tags: [onboarding]
+      summary: Publish a draft version
+      description: >-
+        Makes this the version new onboarding starts from, archiving any
+        previously active version of the same template. Existing instances
+        retain the version they snapshotted.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: versionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Version activated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingTemplateVersion"
+        "400":
+          description: The version cannot be activated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/onboarding-template-versions/{versionId}/archive:
+    post:
+      operationId: archiveOnboardingTemplateVersion
+      tags: [onboarding]
+      summary: Archive a template version
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: versionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Version archived
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingTemplateVersion"
+        "404":
+          description: Version not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/onboarding:
+    get:
+      operationId: listOnboarding
+      tags: [onboarding]
+      summary: List onboarding across the organization
+      description: >-
+        HR view. Requires onboarding.read; ordinary employees use
+        /my-onboarding instead and never see organization-wide data.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [not_started, in_progress, completed, cancelled]
+        - name: overdueOnly
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Onboarding list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingSummaryList"
+    post:
+      operationId: startOnboarding
+      tags: [onboarding]
+      summary: Start onboarding for an existing employee
+      description: >-
+        Onboarding never creates an employee. The employee must already exist
+        through Recruitment conversion, manual creation or import. A candidate
+        record is not required, so legacy and manually created staff can be
+        onboarded. Idempotent — an employee can hold only one open onboarding.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartOnboardingInput"
+      responses:
+        "201":
+          description: Onboarding started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingInstance"
+        "400":
+          description: No applicable template, or the employee was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: This employee already has open onboarding
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/onboarding/{instanceId}:
+    get:
+      operationId: getOnboarding
+      tags: [onboarding]
+      summary: Get one onboarding with its tasks, progress and acknowledgements
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: instanceId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Onboarding detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingDetail"
+        "404":
+          description: Onboarding not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/onboarding/{instanceId}/cancel:
+    post:
+      operationId: cancelOnboarding
+      tags: [onboarding]
+      summary: Cancel an onboarding
+      description: >-
+        Requires a reason. Preserves completed tasks, evidence and
+        acknowledgements, and stops future reminders. This is not a
+        separation — employment is unaffected.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: instanceId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancelOnboardingInput"
+      responses:
+        "200":
+          description: Onboarding cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingInstance"
+        "400":
+          description: A reason is required, or the onboarding is not open
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/onboarding/{instanceId}/supplementary-tasks:
+    post:
+      operationId: addSupplementaryOnboardingTask
+      tags: [onboarding]
+      summary: Add a supplementary task to an onboarding
+      description: >-
+        The controlled correction path for onboarding that has already
+        completed. Appends a new task rather than reopening or rewriting
+        completed history.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: instanceId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddSupplementaryTaskInput"
+      responses:
+        "201":
+          description: Task added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingTask"
+        "400":
+          description: A reason is required, or the onboarding is cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/onboarding-tasks/{taskId}/complete:
+    post:
+      operationId: completeOnboardingTask
+      tags: [onboarding]
+      summary: Complete an onboarding task
+      description: >-
+        A reference task (asset, inventory, access, personnel file) is refused
+        unless the referenced module already shows the expected state, and a
+        document task follows Documents & Records' own verification. Use a
+        waiver where the authoritative state genuinely cannot be met.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompleteOnboardingTaskInput"
+      responses:
+        "200":
+          description: Task completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingTask"
+        "400":
+          description: The task is already resolved, or the onboarding is closed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Payroll authority is required for a payroll setup task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: The referenced state does not yet exist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/onboarding-tasks/{taskId}/waive:
+    post:
+      operationId: waiveOnboardingTask
+      tags: [onboarding]
+      summary: Waive an onboarding task
+      description: >-
+        Requires authority and a reason, and is audited. A waived required
+        task no longer blocks completion.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WaiveOnboardingTaskInput"
+      responses:
+        "200":
+          description: Task waived
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingTask"
+        "400":
+          description: A reason is required, or the task is already resolved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/onboarding-tasks/{taskId}/induction:
+    patch:
+      operationId: scheduleOnboardingInduction
+      tags: [onboarding]
+      summary: Schedule or reschedule an induction session
+      description: >-
+        Session logistics only — facilitator, time, delivery mode and venue.
+        There is no course, curriculum or enrollment here; Learning remains a
+        separate module.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScheduleInductionInput"
+      responses:
+        "200":
+          description: Induction updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingInductionDetail"
+        "404":
+          description: Induction task not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/onboarding-tasks/{taskId}/induction/attendance:
+    post:
+      operationId: recordInductionAttendance
+      tags: [onboarding]
+      summary: Record attendance at an induction session
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordInductionAttendanceInput"
+      responses:
+        "200":
+          description: Attendance recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingInductionDetail"
+        "404":
+          description: Induction task not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/document-acknowledgements:
+    get:
+      operationId: listOutstandingAcknowledgements
+      tags: [onboarding]
+      summary: List outstanding handbook and policy acknowledgements
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Outstanding acknowledgements
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentAcknowledgementList"
+    post:
+      operationId: assignDocumentAcknowledgement
+      tags: [onboarding]
+      summary: Assign a document to an audience for acknowledgement
+      description: >-
+        Raises one acknowledgement obligation per employee against the
+        document's current version. The audience is a fixed set of attributes,
+        not a query. Re-running is safe — existing obligations are not
+        duplicated.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignAcknowledgementInput"
+      responses:
+        "200":
+          description: Assignment result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssignAcknowledgementResult"
+        "400":
+          description: The document or audience is not valid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/documents/{documentId}/reacknowledge:
+    post:
+      operationId: raiseReacknowledgements
+      tags: [onboarding]
+      summary: Raise fresh acknowledgement obligations for a new document version
+      description: >-
+        Applies only to documents the organization configured to require
+        re-acknowledgement. Earlier acknowledgements are preserved as
+        historical evidence against their own version and are never rewritten.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Re-acknowledgement result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RaiseReacknowledgementsResult"
+        "400":
+          description: The document has no current version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/my-onboarding:
+    get:
+      operationId: getMyOnboarding
+      tags: [onboarding]
+      summary: Get the caller's own onboarding
+      description: >-
+        Employee self-service. The employee is resolved server-side from the
+        authenticated identity; any employee id in the request is ignored.
+        Returns null when the caller has no onboarding.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The caller's own onboarding, or null
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyOnboarding"
+
+  /organizations/{organizationId}/my-acknowledgements/{acknowledgementId}/acknowledge:
+    post:
+      operationId: acknowledgeDocument
+      tags: [onboarding]
+      summary: Confirm receipt of an assigned document
+      description: >-
+        Records that the caller acknowledged the exact assigned version. This
+        is an acknowledgement of receipt, not an electronic signature.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: acknowledgementId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Acknowledged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentAcknowledgement"
+        "403":
+          description: This acknowledgement belongs to someone else
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Acknowledgement not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/onboarding-responsibilities:
+    get:
+      operationId: listOnboardingResponsibilities
+      tags: [onboarding]
+      summary: List onboarding tasks the caller is currently responsible for
+      description: >-
+        Manager and Department Head view. Returns only tasks whose resolver
+        currently points at the caller — holding a managerial position confers
+        no organization-wide onboarding visibility.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Tasks the caller is responsible for
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingResponsibilityList"
 components:
   schemas:
+
+    OnboardingTemplateStatus:
+      type: string
+      enum: [draft, active, archived]
+    OnboardingInstanceStatus:
+      type: string
+      enum: [not_started, in_progress, completed, cancelled]
+    OnboardingTaskStatus:
+      type: string
+      enum: [pending, completed, waived, cancelled]
+    OnboardingTaskKind:
+      type: string
+      enum:
+        - general
+        - document
+        - acknowledgement
+        - induction
+        - asset_reference
+        - inventory_reference
+        - access_reference
+        - payroll_reference
+        - personnel_file_reference
+    OnboardingResponsibilityResolver:
+      type: string
+      enum: [employee_self, reporting_manager, department_head, permission_holder, specific_membership]
+    OnboardingDueBasis:
+      type: string
+      enum: [onboarding_start, commencement_date, dependency_completion]
+    InductionDeliveryMode:
+      type: string
+      enum: [in_person, virtual, hybrid]
+    AcknowledgementStatus:
+      type: string
+      enum: [pending, acknowledged]
+    AcknowledgementAudience:
+      type: string
+      enum: [all_employees, branch, department, position, employment_type, specific_employees, onboarding]
+
+    OnboardingTemplate:
+      type: object
+      required: [id, organizationId, name, createdAt]
+      properties:
+        id: { type: integer }
+        organizationId: { type: integer }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        branchId: { type: integer, nullable: true }
+        departmentId: { type: integer, nullable: true }
+        positionId: { type: integer, nullable: true }
+        employmentType: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    OnboardingTemplateVersion:
+      type: object
+      required: [id, organizationId, templateId, versionNumber, status]
+      properties:
+        id: { type: integer }
+        organizationId: { type: integer }
+        templateId: { type: integer }
+        versionNumber: { type: integer }
+        status: { $ref: "#/components/schemas/OnboardingTemplateStatus" }
+        changeNote: { type: string, nullable: true }
+        activatedAt: { type: string, format: date-time, nullable: true }
+        archivedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    OnboardingTemplateVersionList:
+      type: object
+      required: [versions]
+      properties:
+        versions:
+          type: array
+          items:
+            $ref: "#/components/schemas/OnboardingTemplateVersion"
+
+    OnboardingTemplateWithVersion:
+      type: object
+      required: [template, version]
+      properties:
+        template: { $ref: "#/components/schemas/OnboardingTemplate" }
+        version: { $ref: "#/components/schemas/OnboardingTemplateVersion" }
+
+    OnboardingTemplateListItem:
+      type: object
+      required: [template, versionCount]
+      properties:
+        template: { $ref: "#/components/schemas/OnboardingTemplate" }
+        activeVersion:
+          allOf:
+            - $ref: "#/components/schemas/OnboardingTemplateVersion"
+          nullable: true
+        versionCount: { type: integer }
+
+    OnboardingTemplateList:
+      type: object
+      required: [templates]
+      properties:
+        templates:
+          type: array
+          items:
+            $ref: "#/components/schemas/OnboardingTemplateListItem"
+
+    OnboardingTemplateTask:
+      type: object
+      required: [id, organizationId, templateVersionId, displayOrder, title, taskKind, required, responsibleResolver]
+      properties:
+        id: { type: integer }
+        organizationId: { type: integer }
+        templateVersionId: { type: integer }
+        displayOrder: { type: integer }
+        title: { type: string }
+        description: { type: string, nullable: true }
+        taskKind: { $ref: "#/components/schemas/OnboardingTaskKind" }
+        required: { type: boolean }
+        responsibleResolver: { $ref: "#/components/schemas/OnboardingResponsibilityResolver" }
+        responsiblePermissionKey: { type: string, nullable: true }
+        responsibleMembershipId: { type: integer, nullable: true }
+        dueBasis:
+          allOf:
+            - $ref: "#/components/schemas/OnboardingDueBasis"
+          nullable: true
+        dueOffsetDays: { type: integer, nullable: true }
+        dependsOnTemplateTaskId: { type: integer, nullable: true }
+        documentCategoryCode: { type: string, nullable: true }
+        acknowledgementDocumentId: { type: integer, nullable: true }
+
+    OnboardingTemplateTaskList:
+      type: object
+      required: [tasks]
+      properties:
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/OnboardingTemplateTask"
+
+    CreateOnboardingTemplateInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 160 }
+        description: { type: string, nullable: true }
+        branchId: { type: integer, nullable: true }
+        departmentId: { type: integer, nullable: true }
+        positionId: { type: integer, nullable: true }
+        employmentType: { type: string, nullable: true }
+
+    UpdateOnboardingTemplateInput:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 160 }
+        description: { type: string, nullable: true }
+        branchId: { type: integer, nullable: true }
+        departmentId: { type: integer, nullable: true }
+        positionId: { type: integer, nullable: true }
+        employmentType: { type: string, nullable: true }
+
+    CreateOnboardingTemplateVersionInput:
+      type: object
+      properties:
+        copyFromVersionId: { type: integer, nullable: true }
+        changeNote: { type: string, nullable: true }
+
+    OnboardingTaskDefinitionInput:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: string, nullable: true }
+        taskKind: { $ref: "#/components/schemas/OnboardingTaskKind" }
+        required: { type: boolean }
+        responsibleResolver: { $ref: "#/components/schemas/OnboardingResponsibilityResolver" }
+        responsiblePermissionKey: { type: string, nullable: true }
+        responsibleMembershipId: { type: integer, nullable: true }
+        dueBasis:
+          allOf:
+            - $ref: "#/components/schemas/OnboardingDueBasis"
+          nullable: true
+        dueOffsetDays: { type: integer, nullable: true }
+        dependsOnTemplateTaskId: { type: integer, nullable: true }
+        documentCategoryCode: { type: string, nullable: true }
+        acknowledgementDocumentId: { type: integer, nullable: true }
+
+    OnboardingInstance:
+      type: object
+      required: [id, organizationId, employeeId, templateId, templateVersionId, status, startDate]
+      properties:
+        id: { type: integer }
+        organizationId: { type: integer }
+        employeeId: { type: integer }
+        templateId: { type: integer }
+        templateVersionId: { type: integer }
+        status: { $ref: "#/components/schemas/OnboardingInstanceStatus" }
+        startDate: { type: string, format: date-time }
+        commencementDate: { type: string, format: date-time, nullable: true }
+        candidateId: { type: integer, nullable: true }
+        completedAt: { type: string, format: date-time, nullable: true }
+        cancelledAt: { type: string, format: date-time, nullable: true }
+        cancellationReason: { type: string, nullable: true }
+
+    OnboardingTask:
+      type: object
+      required: [id, organizationId, instanceId, displayOrder, title, taskKind, required, status, overdue]
+      properties:
+        id: { type: integer }
+        organizationId: { type: integer }
+        instanceId: { type: integer }
+        displayOrder: { type: integer }
+        title: { type: string }
+        description: { type: string, nullable: true }
+        taskKind: { $ref: "#/components/schemas/OnboardingTaskKind" }
+        required: { type: boolean }
+        status: { $ref: "#/components/schemas/OnboardingTaskStatus" }
+        dueAt: { type: string, format: date-time, nullable: true }
+        overdue:
+          type: boolean
+          description: Derived from the due date and current state — never stored.
+        completedAt: { type: string, format: date-time, nullable: true }
+        completedByName: { type: string, nullable: true }
+        completionNotes: { type: string, nullable: true }
+        waivedAt: { type: string, format: date-time, nullable: true }
+        waivedByName: { type: string, nullable: true }
+        waiverReason: { type: string, nullable: true }
+        documentRequirementId: { type: integer, nullable: true }
+        responsibleResolver: { $ref: "#/components/schemas/OnboardingResponsibilityResolver" }
+        responsibleBasis:
+          type: string
+          description: Why the current responsible party holds this task.
+        responsibleMembershipIds:
+          type: array
+          items: { type: integer }
+
+    OnboardingProgress:
+      type: object
+      required: [total, required, completed, waived, pending, cancelled, overdue, completionPercentage, status]
+      properties:
+        total: { type: integer }
+        required: { type: integer }
+        completed: { type: integer }
+        waived: { type: integer }
+        pending: { type: integer }
+        cancelled: { type: integer }
+        overdue: { type: integer }
+        completionPercentage:
+          type: integer
+          description: Informational only — completion is decided by required-task state.
+        status: { $ref: "#/components/schemas/OnboardingInstanceStatus" }
+
+    OnboardingSummary:
+      type: object
+      required: [instance, progress]
+      properties:
+        instance: { $ref: "#/components/schemas/OnboardingInstance" }
+        employeeName: { type: string, nullable: true }
+        employeeNumber: { type: string, nullable: true }
+        templateName: { type: string, nullable: true }
+        progress: { $ref: "#/components/schemas/OnboardingProgress" }
+
+    OnboardingSummaryList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OnboardingSummary"
+
+    OnboardingInductionDetail:
+      type: object
+      required: [id, taskId, rescheduleCount]
+      properties:
+        id: { type: integer }
+        taskId: { type: integer }
+        facilitatorMembershipId: { type: integer, nullable: true }
+        scheduledAt: { type: string, format: date-time, nullable: true }
+        deliveryMode:
+          allOf:
+            - $ref: "#/components/schemas/InductionDeliveryMode"
+          nullable: true
+        location: { type: string, nullable: true }
+        meetingDetails: { type: string, nullable: true }
+        attendedAt: { type: string, format: date-time, nullable: true }
+        attendanceNotes: { type: string, nullable: true }
+        rescheduleCount: { type: integer }
+        lastRescheduledAt: { type: string, format: date-time, nullable: true }
+        lastRescheduleReason: { type: string, nullable: true }
+
+    OnboardingTaskDetail:
+      allOf:
+        - $ref: "#/components/schemas/OnboardingTask"
+        - type: object
+          properties:
+            induction:
+              allOf:
+                - $ref: "#/components/schemas/OnboardingInductionDetail"
+              nullable: true
+            referenceSatisfied: { type: boolean, nullable: true }
+            referenceDetail: { type: string, nullable: true }
+
+    OnboardingDetail:
+      type: object
+      required: [instance, tasks, progress, acknowledgements]
+      properties:
+        instance: { $ref: "#/components/schemas/OnboardingInstance" }
+        employeeName: { type: string, nullable: true }
+        employeeNumber: { type: string, nullable: true }
+        templateName: { type: string, nullable: true }
+        templateVersionNumber: { type: integer, nullable: true }
+        progress: { $ref: "#/components/schemas/OnboardingProgress" }
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/OnboardingTaskDetail"
+        acknowledgements:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocumentAcknowledgement"
+
+    StartOnboardingInput:
+      type: object
+      required: [employeeId]
+      properties:
+        employeeId: { type: integer }
+        templateVersionId:
+          type: integer
+          nullable: true
+          description: Optional override; otherwise the most specific applicable active template is used.
+
+    CancelOnboardingInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 1000 }
+
+    AddSupplementaryTaskInput:
+      type: object
+      required: [title, reason]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: string, nullable: true }
+        required: { type: boolean }
+        reason: { type: string, minLength: 1, maxLength: 1000 }
+
+    CompleteOnboardingTaskInput:
+      type: object
+      properties:
+        notes: { type: string, nullable: true, maxLength: 1000 }
+
+    WaiveOnboardingTaskInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 1000 }
+
+    ScheduleInductionInput:
+      type: object
+      properties:
+        facilitatorMembershipId: { type: integer, nullable: true }
+        scheduledAt: { type: string, format: date-time, nullable: true }
+        deliveryMode:
+          allOf:
+            - $ref: "#/components/schemas/InductionDeliveryMode"
+          nullable: true
+        location: { type: string, nullable: true, maxLength: 300 }
+        meetingDetails: { type: string, nullable: true, maxLength: 1000 }
+        rescheduleReason: { type: string, nullable: true, maxLength: 500 }
+
+    RecordInductionAttendanceInput:
+      type: object
+      required: [attendedAt]
+      properties:
+        attendedAt: { type: string, format: date-time }
+        attendanceNotes: { type: string, nullable: true, maxLength: 1000 }
+
+    DocumentAcknowledgement:
+      type: object
+      required: [id, organizationId, employeeId, documentId, documentVersionId, status, audience, assignedAt]
+      properties:
+        id: { type: integer }
+        organizationId: { type: integer }
+        employeeId: { type: integer }
+        documentId: { type: integer }
+        documentVersionId: { type: integer }
+        documentTitle: { type: string, nullable: true }
+        versionNumber: { type: integer, nullable: true }
+        status: { $ref: "#/components/schemas/AcknowledgementStatus" }
+        audience: { $ref: "#/components/schemas/AcknowledgementAudience" }
+        onboardingInstanceId: { type: integer, nullable: true }
+        assignedAt: { type: string, format: date-time }
+        dueAt: { type: string, format: date-time, nullable: true }
+        acknowledgedAt: { type: string, format: date-time, nullable: true }
+        acknowledgedByName: { type: string, nullable: true }
+
+    DocumentAcknowledgementList:
+      type: object
+      required: [acknowledgements]
+      properties:
+        acknowledgements:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocumentAcknowledgement"
+
+    AssignAcknowledgementInput:
+      type: object
+      required: [documentId, audience]
+      properties:
+        documentId: { type: integer }
+        audience: { $ref: "#/components/schemas/AcknowledgementAudience" }
+        branchId: { type: integer, nullable: true }
+        departmentId: { type: integer, nullable: true }
+        positionId: { type: integer, nullable: true }
+        employmentType: { type: string, nullable: true }
+        employeeIds:
+          type: array
+          nullable: true
+          items: { type: integer }
+        dueAt: { type: string, format: date-time, nullable: true }
+
+    AssignAcknowledgementResult:
+      type: object
+      required: [assigned, alreadyAssigned]
+      properties:
+        assigned: { type: integer }
+        alreadyAssigned: { type: integer }
+
+    RaiseReacknowledgementsResult:
+      type: object
+      required: [raised]
+      properties:
+        raised: { type: integer }
+
+    MyOnboarding:
+      type: object
+      required: [acknowledgements]
+      properties:
+        onboarding:
+          allOf:
+            - $ref: "#/components/schemas/OnboardingDetail"
+          nullable: true
+        acknowledgements:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocumentAcknowledgement"
+
+    OnboardingResponsibilityItem:
+      type: object
+      required: [task, instanceId, employeeId]
+      properties:
+        task: { $ref: "#/components/schemas/OnboardingTask" }
+        instanceId: { type: integer }
+        employeeId: { type: integer }
+        employeeName: { type: string, nullable: true }
+
+    OnboardingResponsibilityList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OnboardingResponsibilityItem"
     HealthStatus:
       type: object
       properties:

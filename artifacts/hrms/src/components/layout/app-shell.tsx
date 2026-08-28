@@ -489,6 +489,10 @@ export function AppShell({ children }: AppShellProps) {
         // precedent; both remain permission-gated server-side.
         ...(isHrCapable ? [{ href: '/add-candidate', label: 'Add Candidate', icon: UserRoundPlus } satisfies NavItem] : []),
         ...(isHrCapable ? [{ href: '/recruitment-approvals-config', label: 'Recruitment Approvals', icon: ShieldCheck } satisfies NavItem] : []),
+        // WS-10. HR-capable only for the organization-wide view; every employee
+        // reaches their own onboarding through Self-Service instead. Both remain
+        // permission-gated and module-gated server-side.
+        ...(isHrCapable ? [{ href: '/onboarding', label: 'Onboarding', icon: ClipboardCheck } satisfies NavItem] : []),
         { href: '/branches', label: 'Branches', icon: MapPin },
         { href: '/departments', label: 'Departments', icon: Network },
         { href: '/positions', label: 'Positions', icon: Briefcase },
@@ -505,6 +509,11 @@ export function AppShell({ children }: AppShellProps) {
       label: 'Self-Service',
       items: [
         { href: '/self-service', label: 'Employee Self-Service', icon: CalendarClock },
+        // WS-10 — every employee reaches their OWN onboarding here. Unconditional
+        // for the same reason the Manager Portal is: the page resolves the
+        // caller's own employee record server-side and renders an empty state
+        // when there is nothing to show, rather than hiding a nav entry.
+        { href: '/my-onboarding', label: 'My Onboarding', icon: ClipboardCheck },
         // Phase 3G, W111 — unconditional nav visibility (frozen plan §25):
         // manager eligibility is a pure live reportingManagerId
         // relationship, never a role, so there is no role flag to gate this

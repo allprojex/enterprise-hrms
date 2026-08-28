@@ -8,12 +8,12 @@
  * movements, disciplinary findings, audit records, security identities) are
  * absent from that enum, so there is no request that can reach them.
  *
- * `onboarding` is deliberately present as a definable scope with NO entity
- * table: WS-10 has not built an onboarding domain yet, and WS-8 must not invent
- * one. Definitions and forms may be configured against it now; attaching a
- * value to a specific onboarding record is refused until WS-10 supplies the
- * authoritative entity and registers it here. That is the whole integration
- * contract — one line in this table.
+ * `onboarding` was originally present as a definable scope with NO entity
+ * table, because WS-8 shipped before an onboarding domain existed and must not
+ * invent one. WS-10 has now supplied the authoritative record
+ * (`onboarding_instances`), so the scope is bindable and resolves like any
+ * other: `bindable: true` plus one branch in the lookup below. That was the
+ * whole integration contract, and nothing else about WS-8 changed.
  */
 import { and, eq } from "drizzle-orm";
 import {
@@ -23,6 +23,7 @@ import {
   applicationsTable,
   positionsTable,
   organizationsTable,
+  onboardingInstancesTable,
   type CustomFieldScope,
 } from "@workspace/db";
 
@@ -72,11 +73,14 @@ export const SCOPES: readonly ScopeSpec[] = [
     writePermission: "organization.update",
   },
   {
-    // WS-10 contract: flip `bindable` to true and add the entity lookup below
-    // once an authoritative onboarding record exists. Nothing else changes.
+    // WS-10 shipped the authoritative record, so this is now bindable.
+    // Permissions stay on the employee keys deliberately: a custom value
+    // attached to an onboarding record is data about that employee, and §24.15
+    // established that value authorization follows the target domain rather
+    // than becoming a second authorization model.
     scope: "onboarding",
     label: "Onboarding",
-    bindable: false,
+    bindable: true,
     readPermission: "employee.read",
     writePermission: "employee.write",
   },
@@ -125,7 +129,9 @@ export async function assertEntityInOrganization(scope: string, entityId: number
         ? candidatesTable
         : spec.scope === "application"
           ? applicationsTable
-          : positionsTable;
+          : spec.scope === "onboarding"
+            ? onboardingInstancesTable
+            : positionsTable;
 
   const [row] = await db
     .select({ id: table.id })

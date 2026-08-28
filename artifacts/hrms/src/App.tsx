@@ -87,6 +87,9 @@ import DataMigration from '@/pages/data-migration';
 import CustomFields from '@/pages/custom-fields';
 import CustomForms from '@/pages/custom-forms';
 import RecruitmentApprovalsConfig from '@/pages/recruitment-approvals-config';
+import Onboarding from '@/pages/onboarding';
+import OnboardingDetail from '@/pages/onboarding-detail';
+import MyOnboarding from '@/pages/my-onboarding';
 import ManualCandidateCapture from '@/pages/manual-candidate-capture';
 import { ModuleGate } from '@/components/module-gate';
 
@@ -179,6 +182,15 @@ function Router() {
       </Route>
       <Route path="/recruitment-approvals-config">
         {() => <SecureRoute component={RecruitmentApprovalsConfig} />}
+      </Route>
+      <Route path="/onboarding">
+        {() => <SecureRoute component={Onboarding} moduleKey="onboarding" />}
+      </Route>
+      <Route path="/onboarding/:instanceId">
+        {() => <SecureRoute component={OnboardingDetail} moduleKey="onboarding" />}
+      </Route>
+      <Route path="/my-onboarding">
+        {() => <SecureRoute component={MyOnboarding} moduleKey="onboarding" />}
       </Route>
       <Route path="/add-candidate">
         {() => <SecureRoute component={ManualCandidateCapture} />}

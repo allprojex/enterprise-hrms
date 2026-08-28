@@ -5,6 +5,431 @@
  * Enterprise HRMS API
  * OpenAPI spec version: 0.1.0
  */
+export type OnboardingTemplateStatus = typeof OnboardingTemplateStatus[keyof typeof OnboardingTemplateStatus];
+
+
+export const OnboardingTemplateStatus = {
+  draft: 'draft',
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export type OnboardingInstanceStatus = typeof OnboardingInstanceStatus[keyof typeof OnboardingInstanceStatus];
+
+
+export const OnboardingInstanceStatus = {
+  not_started: 'not_started',
+  in_progress: 'in_progress',
+  completed: 'completed',
+  cancelled: 'cancelled',
+} as const;
+
+export type OnboardingTaskStatus = typeof OnboardingTaskStatus[keyof typeof OnboardingTaskStatus];
+
+
+export const OnboardingTaskStatus = {
+  pending: 'pending',
+  completed: 'completed',
+  waived: 'waived',
+  cancelled: 'cancelled',
+} as const;
+
+export type OnboardingTaskKind = typeof OnboardingTaskKind[keyof typeof OnboardingTaskKind];
+
+
+export const OnboardingTaskKind = {
+  general: 'general',
+  document: 'document',
+  acknowledgement: 'acknowledgement',
+  induction: 'induction',
+  asset_reference: 'asset_reference',
+  inventory_reference: 'inventory_reference',
+  access_reference: 'access_reference',
+  payroll_reference: 'payroll_reference',
+  personnel_file_reference: 'personnel_file_reference',
+} as const;
+
+export type OnboardingResponsibilityResolver = typeof OnboardingResponsibilityResolver[keyof typeof OnboardingResponsibilityResolver];
+
+
+export const OnboardingResponsibilityResolver = {
+  employee_self: 'employee_self',
+  reporting_manager: 'reporting_manager',
+  department_head: 'department_head',
+  permission_holder: 'permission_holder',
+  specific_membership: 'specific_membership',
+} as const;
+
+export type OnboardingDueBasis = typeof OnboardingDueBasis[keyof typeof OnboardingDueBasis];
+
+
+export const OnboardingDueBasis = {
+  onboarding_start: 'onboarding_start',
+  commencement_date: 'commencement_date',
+  dependency_completion: 'dependency_completion',
+} as const;
+
+export type InductionDeliveryMode = typeof InductionDeliveryMode[keyof typeof InductionDeliveryMode];
+
+
+export const InductionDeliveryMode = {
+  in_person: 'in_person',
+  virtual: 'virtual',
+  hybrid: 'hybrid',
+} as const;
+
+export type AcknowledgementStatus = typeof AcknowledgementStatus[keyof typeof AcknowledgementStatus];
+
+
+export const AcknowledgementStatus = {
+  pending: 'pending',
+  acknowledged: 'acknowledged',
+} as const;
+
+export type AcknowledgementAudience = typeof AcknowledgementAudience[keyof typeof AcknowledgementAudience];
+
+
+export const AcknowledgementAudience = {
+  all_employees: 'all_employees',
+  branch: 'branch',
+  department: 'department',
+  position: 'position',
+  employment_type: 'employment_type',
+  specific_employees: 'specific_employees',
+  onboarding: 'onboarding',
+} as const;
+
+export interface OnboardingTemplate {
+  id: number;
+  organizationId: number;
+  name: string;
+  description?: string | null;
+  branchId?: number | null;
+  departmentId?: number | null;
+  positionId?: number | null;
+  employmentType?: string | null;
+  createdAt: string;
+}
+
+export interface OnboardingTemplateVersion {
+  id: number;
+  organizationId: number;
+  templateId: number;
+  versionNumber: number;
+  status: OnboardingTemplateStatus;
+  changeNote?: string | null;
+  activatedAt?: string | null;
+  archivedAt?: string | null;
+  createdAt?: string;
+}
+
+export interface OnboardingTemplateVersionList {
+  versions: OnboardingTemplateVersion[];
+}
+
+export interface OnboardingTemplateWithVersion {
+  template: OnboardingTemplate;
+  version: OnboardingTemplateVersion;
+}
+
+export interface OnboardingTemplateListItem {
+  template: OnboardingTemplate;
+  activeVersion?: OnboardingTemplateVersion | null;
+  versionCount: number;
+}
+
+export interface OnboardingTemplateList {
+  templates: OnboardingTemplateListItem[];
+}
+
+export interface OnboardingTemplateTask {
+  id: number;
+  organizationId: number;
+  templateVersionId: number;
+  displayOrder: number;
+  title: string;
+  description?: string | null;
+  taskKind: OnboardingTaskKind;
+  required: boolean;
+  responsibleResolver: OnboardingResponsibilityResolver;
+  responsiblePermissionKey?: string | null;
+  responsibleMembershipId?: number | null;
+  dueBasis?: OnboardingDueBasis | null;
+  dueOffsetDays?: number | null;
+  dependsOnTemplateTaskId?: number | null;
+  documentCategoryCode?: string | null;
+  acknowledgementDocumentId?: number | null;
+}
+
+export interface OnboardingTemplateTaskList {
+  tasks: OnboardingTemplateTask[];
+}
+
+export interface CreateOnboardingTemplateInput {
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  name: string;
+  description?: string | null;
+  branchId?: number | null;
+  departmentId?: number | null;
+  positionId?: number | null;
+  employmentType?: string | null;
+}
+
+export interface UpdateOnboardingTemplateInput {
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  name?: string;
+  description?: string | null;
+  branchId?: number | null;
+  departmentId?: number | null;
+  positionId?: number | null;
+  employmentType?: string | null;
+}
+
+export interface CreateOnboardingTemplateVersionInput {
+  copyFromVersionId?: number | null;
+  changeNote?: string | null;
+}
+
+export interface OnboardingTaskDefinitionInput {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  title: string;
+  description?: string | null;
+  taskKind?: OnboardingTaskKind;
+  required?: boolean;
+  responsibleResolver?: OnboardingResponsibilityResolver;
+  responsiblePermissionKey?: string | null;
+  responsibleMembershipId?: number | null;
+  dueBasis?: OnboardingDueBasis | null;
+  dueOffsetDays?: number | null;
+  dependsOnTemplateTaskId?: number | null;
+  documentCategoryCode?: string | null;
+  acknowledgementDocumentId?: number | null;
+}
+
+export interface OnboardingInstance {
+  id: number;
+  organizationId: number;
+  employeeId: number;
+  templateId: number;
+  templateVersionId: number;
+  status: OnboardingInstanceStatus;
+  startDate: string;
+  commencementDate?: string | null;
+  candidateId?: number | null;
+  completedAt?: string | null;
+  cancelledAt?: string | null;
+  cancellationReason?: string | null;
+}
+
+export interface OnboardingTask {
+  id: number;
+  organizationId: number;
+  instanceId: number;
+  displayOrder: number;
+  title: string;
+  description?: string | null;
+  taskKind: OnboardingTaskKind;
+  required: boolean;
+  status: OnboardingTaskStatus;
+  dueAt?: string | null;
+  /** Derived from the due date and current state — never stored. */
+  overdue: boolean;
+  completedAt?: string | null;
+  completedByName?: string | null;
+  completionNotes?: string | null;
+  waivedAt?: string | null;
+  waivedByName?: string | null;
+  waiverReason?: string | null;
+  documentRequirementId?: number | null;
+  responsibleResolver?: OnboardingResponsibilityResolver;
+  /** Why the current responsible party holds this task. */
+  responsibleBasis?: string;
+  responsibleMembershipIds?: number[];
+}
+
+export interface OnboardingProgress {
+  total: number;
+  required: number;
+  completed: number;
+  waived: number;
+  pending: number;
+  cancelled: number;
+  overdue: number;
+  /** Informational only — completion is decided by required-task state. */
+  completionPercentage: number;
+  status: OnboardingInstanceStatus;
+}
+
+export interface OnboardingSummary {
+  instance: OnboardingInstance;
+  employeeName?: string | null;
+  employeeNumber?: string | null;
+  templateName?: string | null;
+  progress: OnboardingProgress;
+}
+
+export interface OnboardingSummaryList {
+  items: OnboardingSummary[];
+}
+
+export interface OnboardingInductionDetail {
+  id: number;
+  taskId: number;
+  facilitatorMembershipId?: number | null;
+  scheduledAt?: string | null;
+  deliveryMode?: InductionDeliveryMode | null;
+  location?: string | null;
+  meetingDetails?: string | null;
+  attendedAt?: string | null;
+  attendanceNotes?: string | null;
+  rescheduleCount: number;
+  lastRescheduledAt?: string | null;
+  lastRescheduleReason?: string | null;
+}
+
+export type OnboardingTaskDetail = OnboardingTask & ({
+  induction?: OnboardingInductionDetail | null;
+  referenceSatisfied?: boolean | null;
+  referenceDetail?: string | null;
+});
+
+export interface DocumentAcknowledgement {
+  id: number;
+  organizationId: number;
+  employeeId: number;
+  documentId: number;
+  documentVersionId: number;
+  documentTitle?: string | null;
+  versionNumber?: number | null;
+  status: AcknowledgementStatus;
+  audience: AcknowledgementAudience;
+  onboardingInstanceId?: number | null;
+  assignedAt: string;
+  dueAt?: string | null;
+  acknowledgedAt?: string | null;
+  acknowledgedByName?: string | null;
+}
+
+export interface OnboardingDetail {
+  instance: OnboardingInstance;
+  employeeName?: string | null;
+  employeeNumber?: string | null;
+  templateName?: string | null;
+  templateVersionNumber?: number | null;
+  progress: OnboardingProgress;
+  tasks: OnboardingTaskDetail[];
+  acknowledgements: DocumentAcknowledgement[];
+}
+
+export interface StartOnboardingInput {
+  employeeId: number;
+  /** Optional override; otherwise the most specific applicable active template is used. */
+  templateVersionId?: number | null;
+}
+
+export interface CancelOnboardingInput {
+  /**
+     * @minLength 1
+     * @maxLength 1000
+     */
+  reason: string;
+}
+
+export interface AddSupplementaryTaskInput {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  title: string;
+  description?: string | null;
+  required?: boolean;
+  /**
+     * @minLength 1
+     * @maxLength 1000
+     */
+  reason: string;
+}
+
+export interface CompleteOnboardingTaskInput {
+  /** @maxLength 1000 */
+  notes?: string | null;
+}
+
+export interface WaiveOnboardingTaskInput {
+  /**
+     * @minLength 1
+     * @maxLength 1000
+     */
+  reason: string;
+}
+
+export interface ScheduleInductionInput {
+  facilitatorMembershipId?: number | null;
+  scheduledAt?: string | null;
+  deliveryMode?: InductionDeliveryMode | null;
+  /** @maxLength 300 */
+  location?: string | null;
+  /** @maxLength 1000 */
+  meetingDetails?: string | null;
+  /** @maxLength 500 */
+  rescheduleReason?: string | null;
+}
+
+export interface RecordInductionAttendanceInput {
+  attendedAt: string;
+  /** @maxLength 1000 */
+  attendanceNotes?: string | null;
+}
+
+export interface DocumentAcknowledgementList {
+  acknowledgements: DocumentAcknowledgement[];
+}
+
+export interface AssignAcknowledgementInput {
+  documentId: number;
+  audience: AcknowledgementAudience;
+  branchId?: number | null;
+  departmentId?: number | null;
+  positionId?: number | null;
+  employmentType?: string | null;
+  employeeIds?: number[] | null;
+  dueAt?: string | null;
+}
+
+export interface AssignAcknowledgementResult {
+  assigned: number;
+  alreadyAssigned: number;
+}
+
+export interface RaiseReacknowledgementsResult {
+  raised: number;
+}
+
+export interface MyOnboarding {
+  onboarding?: OnboardingDetail | null;
+  acknowledgements: DocumentAcknowledgement[];
+}
+
+export interface OnboardingResponsibilityItem {
+  task: OnboardingTask;
+  instanceId: number;
+  employeeId: number;
+  employeeName?: string | null;
+}
+
+export interface OnboardingResponsibilityList {
+  items: OnboardingResponsibilityItem[];
+}
+
 export interface HealthStatus {
   status: string;
   version?: string;
@@ -10846,4 +11271,19 @@ export type SetMigrationSourceMappingBody = {
 export type GetMigrationIssues200 = {
   issues: MigrationRowIssue[];
 };
+
+export type ListOnboardingParams = {
+status?: ListOnboardingStatus;
+overdueOnly?: boolean;
+};
+
+export type ListOnboardingStatus = typeof ListOnboardingStatus[keyof typeof ListOnboardingStatus];
+
+
+export const ListOnboardingStatus = {
+  not_started: 'not_started',
+  in_progress: 'in_progress',
+  completed: 'completed',
+  cancelled: 'cancelled',
+} as const;
 

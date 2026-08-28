@@ -81,6 +81,8 @@ import {
 import { recordAuditEvent } from "./auditLog";
 import { createEmployee } from "./employees";
 import { isUniqueViolation } from "./dbErrors";
+import { logger } from "./logger";
+import { startOnboarding, NoApplicableTemplateError } from "./onboarding/instances";
 
 export class ApplicationNotFoundForConversionError extends Error {
   constructor() {
@@ -259,6 +261,12 @@ export interface ConversionResult {
   employeeId: number;
   /** True only when an existing employee (an internal candidate) was reused rather than a new one created. */
   reusedExistingEmployee: boolean;
+  /**
+   * WS-10 — the onboarding started for this hire, or null when the
+   * organization has configured no applicable template (or onboarding could
+   * not be started; the conversion itself still succeeded).
+   */
+  onboardingInstanceId: number | null;
 }
 
 export async function convertApplicationToEmployee(params: {
@@ -362,7 +370,38 @@ export async function convertApplicationToEmployee(params: {
       afterState: { applicationId: application.id, candidateId: candidate.id },
     });
 
-    return { link, employeeId, reusedExistingEmployee };
+    // WS-10 (§26.34) — start formal onboarding, if this organization has
+    // configured a template that applies.
+    //
+    // Deliberately OUTSIDE the transaction above and deliberately non-fatal: a
+    // conversion that has already committed must not be reported as failed
+    // because a downstream checklist could not be raised, and re-running the
+    // conversion would hit AlreadyConvertedError anyway. The handoff is itself
+    // idempotent (an open instance per employee is unique at the database), so
+    // a retry through the explicit start-onboarding action is safe.
+    let onboardingInstanceId: number | null = null;
+    try {
+      const started = await startOnboarding({
+        organizationId: params.organizationId,
+        employeeId,
+        candidateId: candidate.id,
+        actorApplicationUserId: params.actorApplicationUserId,
+        actorMembershipId: params.actorMembershipId,
+        reuseExisting: true,
+      });
+      onboardingInstanceId = started.instance.id;
+    } catch (err) {
+      // No applicable template is the ordinary case for an organization that
+      // has not configured onboarding — not an error worth surfacing.
+      if (!(err instanceof NoApplicableTemplateError)) {
+        logger.warn(
+          { err, organizationId: params.organizationId, employeeId },
+          "employee converted but onboarding could not be started",
+        );
+      }
+    }
+
+    return { link, employeeId, reusedExistingEmployee, onboardingInstanceId };
   } catch (err) {
     const translated = isUniqueViolation(err) ? new AlreadyConvertedError() : err;
     await recordAuditEvent({

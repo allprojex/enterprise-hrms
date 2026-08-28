@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, pgEnum, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, boolean, pgEnum, timestamp, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { organizationsTable } from "./organizations";
@@ -33,6 +33,14 @@ export const organizationDocumentsTable = pgTable(
     description: text("description"),
     status: organizationDocumentStatusEnum("status").notNull().default("active"),
     currentVersionId: integer("current_version_id"),
+    // WS-10 (§26.18, §26.20) — whether this document carries an acknowledgement
+    // obligation at all, and whether a newly effective version raises a fresh
+    // one. Both are organization configuration: §26.18 forbids hard-coding a
+    // policy taxonomy, and §26.20 forbids forcing every revision to require
+    // re-acknowledgement. Defaults are false so no existing document silently
+    // acquires an obligation.
+    requiresAcknowledgement: boolean("requires_acknowledgement").notNull().default(false),
+    reacknowledgeOnNewVersion: boolean("reacknowledge_on_new_version").notNull().default(false),
     createdBy: integer("created_by").references(() => usersTable.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
