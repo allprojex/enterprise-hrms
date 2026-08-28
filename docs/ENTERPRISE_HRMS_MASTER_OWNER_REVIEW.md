@@ -117,13 +117,13 @@ Unchanged from the discovery pass — drawn directly from `docs/GHANA_HR_EMPLOYE
 | 25 | Career & Internal Mobility | ALREADY IMPLEMENTED (permanent transfers) | **OWNER DECISION #6 — APPROVED FOR ROADMAP, P2.** Reuse `employment_periods` architecture. Support effective-dated acting appointments, secondments, temporary assignments. Sequence after the scheduling/notification foundation. | Approved, sequencing condition set explicitly — **implemented under WS-11, architecture frozen in §27** (§27.12 acting, §27.13 secondment, §27.14 the four distinct concepts) |
 | 26 | Succession / Talent | GENUINELY MISSING (internal-employee sense) | **OWNER DECISION #7 — APPROVED FOR ROADMAP, P2.** Do not treat existing Talent Pools as automatically equivalent to Succession. Preserve existing capability (recruitment Talent Pools, unchanged). Add Succession only for genuinely missing concepts: critical roles, successors, readiness, development gaps, succession plans. Avoid duplication. | Approved; naming/scope confusion explicitly resolved |
 | 27 | Contract / Employment Term Mgmt | PARTIAL | **OWNER DECISION #8 — APPROVED.** Reuse `employment_periods`/existing employment-history infrastructure. Support expiry, renewal, extension, amendment, reminders, historical integrity. | Approved unchanged — **implemented under WS-11, architecture frozen in §27**; §27.1 corrects "PARTIAL" to *no contract term model exists at all*, and §27.5 records that `employment_periods` alone cannot hold a live term |
-| 28 | Employee Relations / Grievance | PARTIAL (disciplinary log only, no grievance) | **OWNER DECISION #9 — APPROVED.** Disciplinary cases and grievances are distinct business concepts. May share document infrastructure, evidence infrastructure, security primitives, audit — but must not be conflated into one record type. | Approved unchanged; confirms two separate schemas |
+| 28 | Employee Relations / Grievance | PARTIAL (disciplinary log only, no grievance) | **OWNER DECISION #9 — APPROVED.** Disciplinary cases and grievances are distinct business concepts. May share document infrastructure, evidence infrastructure, security primitives, audit — but must not be conflated into one record type. | Approved unchanged; confirms two separate schemas — **WS-12 architecture frozen in §28** (§28.2 legacy disciplinary history preserved, never rewritten; §28.4 grievance is a distinct schema; §28.5 explicit ESS visibility model) |
 | 29 | Employee Welfare | GENUINELY MISSING | — (no OD; brief instructs no medical records) | Unchanged, P3 |
 | 30 | Benefits | GENUINELY MISSING | — (no OD) | Unchanged, P2/P3, must not duplicate compensation components |
 | 31 | HR Letters | GENUINELY MISSING (root cause: no document generation) | Owned by OD #4 | Unchanged, P1 |
 | 32 | HR Service Requests | GENUINELY MISSING as generic mechanism | **OWNER DECISION #10 — APPROVED WITH CHANGE.** Do not build every simple HR request as an unrelated implementation. Design a configurable shared HR Service Request foundation for suitable requests (employment letter, document request, HR inquiry, simple organization-defined requests). Where a request has specialized domain behavior, approvals, or legal/business logic, keep the specialized domain workflow. Do not create a giant generic workflow engine. | **Changed** from "per-type, following precedent" to a hybrid: shared foundation for simple/generic requests, specialized workflow preserved where warranted |
 | 33 | Employee Data Change Approval | GENUINELY MISSING | **OWNER DECISION #11 — APPROVED.** Use a proven request/approval shape. Sensitive fields must be configurable. Preserve requested value, previous value where appropriate, verification, approval/rejection, effective update, actor, timestamps, audit/history. | Approved unchanged |
-| 34 | Offboarding / Clearance | PARTIAL (thin) | **OWNER DECISION #12 — APPROVED.** Build structured clearance integrated with authoritative owning modules (Assets, Office Inventory, Personnel Files/Documents, IT/access, department clearance, HR, Payroll handoff). Do not duplicate those modules' records. | Approved unchanged |
+| 34 | Offboarding / Clearance | PARTIAL (thin) | **OWNER DECISION #12 — APPROVED.** Build structured clearance integrated with authoritative owning modules (Assets, Office Inventory, Personnel Files/Documents, IT/access, department clearance, HR, Payroll handoff). Do not duplicate those modules' records. | Approved unchanged — **WS-12 architecture frozen in §28**; §28.1 corrects "PARTIAL (thin)" to *three booleans with no clearance items at all*, §28.6 permits offboarding to begin from a recorded separation basis, §28.7 freezes that offboarding never terminates employment, and §28.9–28.10 keep Assets and Office Inventory observe-only |
 | 35 | Workplace Incidents | GENUINELY MISSING | — (no OD) | Unchanged, P2, must stay separate from Assets/Inventory incidents |
 | 36 | HR Compliance Calendar | GENUINELY MISSING | — (no OD; depends on OD #13) | Unchanged, P2 |
 
@@ -1357,3 +1357,234 @@ None blocking. Four are conditional by design and are to be decided **from repos
 2. Whether acting and secondment share one effective-dated assignment table with a discriminator, or take one table each (§27.12–27.13).
 3. Whether WS-11 takes up `employment_particulars`' pre-recorded second-owner column, or defers it (§27.5).
 4. Whether the event-type registry lives beside the lifecycle service or in `@workspace/db` alongside the schema (§27.4).
+
+---
+
+## 28. WS-12 Workstream Architecture Freeze — Employee Relations & Offboarding Clearance
+
+Recorded by the Owner after a read-only Pass-1 reconciliation found that two of WS-12's three pillars **already have shipped, live, permissioned implementations** that the workstream register described only as "PARTIAL", and that a third pillar's integration surface had already been built by WS-11. Six genuine forks were put to the Owner and answered before this section was written; they are recorded below as Decisions A, E, D, J, P and N respectively.
+
+This section is **purely additive**. The 31 Owner Decisions in §22 are untouched. **OD #9 and OD #12 are implemented, not amended**; OD #14 (no giant generic workflow engine), OD #18 (sensitive read auditing) and OD #20 (platform user disablement) constrain it. WS-1 through WS-11 remain complete and are not reopened.
+
+WS-12 is **P1** and depends on **WS-5 (light)**, which is complete. WS-13 does not depend on it.
+
+### 28.1 Corrected repository facts (mandatory reconciliation)
+
+Verified read-only at `7c95030`, migration ledger `0067`. The workstream register's "PARTIAL (thin)" descriptions are correct but materially understate what exists:
+
+1. **`employee_disciplinary_records` already exists and is live** (Phase 2A, W28). It is **append-only by design** — its own header states there is no update or delete path — with five business columns: free-text `actionType`, `description`, `actionDate`, `recordedBy`. It has live routes, a dedicated `employee.disciplinary.read` permission narrower than `employee.read`, writes gated on `employee.write`, tests, and a panel on `employee-detail.tsx`. It has **no** stages, investigation, notice, response, hearing, findings, outcome, appeal, warning validity or document linkage.
+2. **Grievance is genuinely greenfield.** No grievance case management exists anywhere. The only repository hits are `employment_particulars.grievanceProcedure` — a **text clause printed into appointment letters**, not a record type.
+3. **`employee_exit_processes` already exists and is live** (Phase 2A, W29). It carries **three booleans** (`checklistCompleted`, `clearanceCompleted`, `exitInterviewCompleted`) plus free-text `exitInterviewNotes`. It is correctly keyed per separation cycle — it snapshots `separationDate` at creation so an employee separated, rehired and separated again receives a distinct row that never overwrites a prior one. It has **no** checklist items, clearance items, responsible parties, evidence, approvers or questionnaire.
+4. **`createEmployeeExitProcess` today throws `EmployeeNotSeparatedError` unless `employmentStatus === "terminated"`.** Offboarding can currently begin only *after* separation is already effected. Decision E changes this deliberately and with an explicit control.
+5. **WS-11 already shipped the clearance read surface.** `GET /organizations/:organizationId/employees/:employeeId/separation-readiness` reads open `asset_assignments`, employee-held `office_inventory_stock_movements` and `personnel_files`, and returns structured warnings with `blocksSeparation: false`. WS-12 extends this reader; it does not invent one.
+6. **Assets already model the entire custody lifecycle.** `asset_assignments` carries issue, acknowledgement, `custodyEndedAt`, `receivedByMembershipId`, `returnNotes` and `assetAssignmentEndReasonEnum` (`returned` / `lost` / `transferred` / `retired`); `assets` carries `asset_condition` (`new`/`good`/`fair`/`poor`/`damaged`); `asset_incidents` and `asset_evidence` exist. **Every asset-return field the WS-12 brief enumerates already exists.**
+7. **Office Inventory distinguishes `consumable` from `returnable`** in `officeInventoryItemClassificationEnum`, and its schema header states that a durable individually-tracked item "belongs in Assets from the start". **Only `returnable` items are clearance-relevant.**
+8. **`employee_documents` has no confidentiality dimension** — only a free-text `categoryCode` from the `document_category` Master Data domain. Disciplinary and grievance evidence therefore has no confidentiality control today.
+9. **Disciplinary and exit audit currently sit in the ordinary `"hr"` category** (`auditCategories.ts`: `employee_disciplinary_record: "hr"`, `employee_exit_process: "hr"`), even though **OD #18 explicitly names "disciplinary/grievance evidence"** for sensitive-read auditing. That decision is presently unimplemented for the exact data it named.
+10. **§24.3 explicitly prohibits Custom Fields on "disciplinary findings".** WS-8 is therefore not available as the extensibility mechanism for findings, though it remains available for exit-interview questionnaires, which are not prohibited.
+11. **Organization Admin already holds `employee.disciplinary.read`** in the shipped seed. Decision P preserves that rather than silently revoking it.
+
+### 28.2 Decision A — Legacy disciplinary history is preserved, never rewritten
+
+**`employee_disciplinary_records` is frozen as immutable legacy disciplinary history.** The new structured case architecture is built **alongside** it.
+
+Legacy rows **must not** be migrated into fabricated case structures. Allegations, hearings, findings, stages, appeals, warnings and outcomes that were never historically recorded **must not be inferred**. A flat legacy row records what someone actually wrote down; manufacturing a case around it would invent evidence in the one domain where invented evidence is most damaging.
+
+Both surfaces may appear on the employee record, each subject to its own permission. This mirrors §27.3's forward-only treatment of the separation/rehire history gap: the platform closes a gap prospectively rather than backfilling a past it cannot prove.
+
+### 28.3 Decision B — Structured disciplinary case architecture
+
+A disciplinary **case** is the new authoritative structured record: subject employee, category, severity, current stage, status, opened and closed dates, responsible officer, confidentiality.
+
+Case chronology is **append-only events** — allegation recorded, notice issued, response received, hearing held, finding recorded, outcome recorded, appeal lodged, appeal decided. A later event never overwrites an earlier one, following the same reasoning that made the legacy table append-only.
+
+Stages, categories and outcome types are **organization-configured**, not hard-coded: organizations differ in both terminology and number of stages, and §28.18 governs how. Warning outcomes may carry a validity expiry where the organization's policy defines one. **No Ghana-specific disciplinary wording is hard-coded**, consistent with §27.18 and OD #22's treatment of Ghana as an operating baseline rather than a hard-coded jurisdiction.
+
+**The system never determines fault.** Every finding and outcome is a recorded human decision.
+
+### 28.4 Decision C — Grievance is a distinct schema
+
+OD #9's "distinct record types" is implemented literally: grievance cases are **their own tables**, not a discriminator on disciplinary cases.
+
+They are not the same shape. In a disciplinary case the employee is the respondent; in a grievance the employee is the complainant, and there may be a separate respondent who is another employee, a unit, or nobody identified. Confidentiality obligations differ, visibility differs, and the escalation path differs. Collapsing them would force one visibility model onto two populations with opposed interests.
+
+Grievance carries: submission, category, respondent context where applicable, description, confidentiality, acknowledgement, assignment, investigation, meetings, findings, resolution, escalation, appeal where applicable, closure, supporting documents, chronology and audit.
+
+### 28.5 Decision D — Grievance visibility in Employee Self-Service
+
+**Employees may submit their own grievances through ESS**, and may see their own submission, its acknowledgement, appropriate case status, requests directed to them, meetings or hearings they are permitted to know about, and the appropriate final resolution communication.
+
+Employees **must not** automatically see confidential HR notes, investigator working notes, internal deliberations, restricted evidence, information about another employee they are not authorized to receive, draft findings or outcomes, or protected audit information.
+
+**The visibility model must be designed explicitly and field-by-field.** Exposing the complete grievance record to ESS and relying on the employee to be uninterested in the rest is not an implementation of this decision. Every ESS-visible field is an allow-list entry; the default is not visible.
+
+### 28.6 Decision E — When offboarding may begin
+
+Offboarding **may begin before actual separation**, but only where an **authoritative recorded future separation basis** exists — an accepted or approved resignation, retirement, approved termination, confirmed contract end, or another separation state already supported by the authoritative Employment Lifecycle architecture.
+
+**An offboarding case must never become a substitute for a valid separation basis.** An arbitrary offboarding record started against no recorded basis is precisely what this control forbids.
+
+The architecture must therefore distinguish, where the applicable dates require the sequence:
+
+**recorded future separation basis → offboarding initiated → clearance in progress → actual employment separation → final offboarding completion**
+
+This deliberately relaxes the shipped `EmployeeNotSeparatedError` precondition recorded in §28.1(4). The relaxation is the point: clearance that can only start after termination starts too late to be useful during a notice period. The precondition is replaced by a **stricter, more specific** one — a recorded basis — not removed.
+
+### 28.7 Decision F — Offboarding never terminates employment
+
+**Starting or completing offboarding must not itself terminate employment.** WS-11 remains authoritative for employment separation and for `employment_periods` history.
+
+This is the same boundary §27.6 froze for contract expiry and §27.8 froze for unsuccessful probation, applied to a third surface: a checklist reaching 100% is not a legal act. Completing every clearance item produces a *ready* state and nothing more; the separation itself is an explicit authorized act through the existing separation service.
+
+WS-12 must not call `separateEmployee()` from any clearance, checklist or scheduled-job path.
+
+### 28.8 Decision G — Clearance architecture
+
+Clearance is **template → instance**, with the instance **copied from the template at initiation**, never joined live to it. This is the WS-10 precedent (§26): publishing a revised template must not rewrite clearance already in progress.
+
+A clearance item carries: responsible department or unit, responsible approver, required or optional, status, comment, evidence reference, completion date, return or rejection, and escalation.
+
+**Waiver and override are the deliberate escape hatch**, and both require a **mandatory reason** and are audited — the same treatment WS-10 gave task waivers.
+
+**Final HR clearance is a distinct terminal act**, not the arithmetic result of the item list.
+
+**Organizations define their own clearance requirements.** No universal checklist is hard-coded. The three booleans on `employee_exit_processes` are superseded as inputs: they may be **derived** from real clearance items, never trusted as settable flags — the same reasoning §26 applied to onboarding completion.
+
+### 28.9 Decision H — Assets integration is observe-only
+
+Per OD #12's "no duplication of their records", **Assets remains authoritative for asset records.** WS-12 creates no competing asset register.
+
+Clearance **reads** open `asset_assignments` and surfaces outstanding custody, condition, missing and damaged states from the fields §28.1(6) confirms already exist. An asset is returned **in the Assets module**, by the Assets service, recorded against `custodyEndedAt` / `receivedByMembershipId` / `returnNotes` / the end-reason enum; clearance observes the outcome.
+
+**Marking a clearance item complete must never end an asset assignment, alter custody or change asset condition.** A test must prove that completing clearance returns nothing. This restates §27.20 and §26.24 for a third consumer.
+
+Financial recovery for a missing or damaged asset is **not** computed in WS-12.
+
+### 28.10 Decision I — Office Inventory integration
+
+The same observe-only rule applies, with one additional constraint: **only `returnable` items are clearance-relevant.** Consumables are never clearance items — §28.1(7) records that the classification enum already draws this line, and pretending every issued inventory record is an individually assigned asset would produce clearance items nobody can ever satisfy.
+
+Clearance must not move stock, create a request, or issue or receive anything.
+
+### 28.11 Decision J — Confidential evidence extends WS-5, additively
+
+**No second document store.** Employee-relations and offboarding documents use the existing Documents & Records architecture: disciplinary notices, responses, hearing records, findings, warning letters, grievance documents, investigation documents, resignation letters, separation correspondence, clearance evidence, exit and handover documents.
+
+WS-5's existing polymorphic `sourceType` / `sourceId` pointer is the linkage; WS-12 adds its own source types and creates no document FK on its own records.
+
+**WS-5 gains the minimum confidentiality/security dimension required for Employee Relations evidence.** Any such schema change must be **additive and backward compatible**, and must not alter the behaviour of documents that predate it. Existing document behaviour is not weakened, re-gated or migrated.
+
+### 28.12 Decision K — Sensitive-read auditing (OD #18 implemented)
+
+Disciplinary and grievance evidence covered by OD #18 **must use sensitive-read auditing**. §28.1(9) records that this decision is currently unimplemented for the exact data it named; WS-12 closes that.
+
+Auditing must remain **risk-based, not noisy**, exactly as OD #18 requires. **No alternative audit system is created** — WS-3 infrastructure is extended (OD #16).
+
+Every consequential mutation is audited with actor, organization, employee, action, reason where required, effective date, relevant before/after metadata, request id and timestamp. **Case chronology does not replace audit, and audit does not replace case chronology**; the two serve different purposes, as §27 already established for lifecycle events.
+
+### 28.13 Decision L — Identity and access boundary
+
+WS-12 distinguishes three separate things and must not conflate them: **clearance tracking**, an **access-revocation task**, and **actual identity or access mutation**.
+
+WS-12 owns the first two. The third belongs to Identity & Access and OD #20 (Platform User Disablement). **No automated destructive access action is created in WS-12.** Clearance records whether revocation was performed and by whom; it does not perform it, and no second access-control mechanism is invented.
+
+### 28.14 Decision M — Payroll boundary
+
+**Integration contract only.** Final settlement belongs to Payroll. WS-12 builds no payroll calculation of any kind and stores no authoritative payroll state.
+
+Clearance may carry a final-settlement item resolved by someone holding Payroll authority. **No amounts are computed, stored or displayed through a WS-12 surface**, consistent with §27.20's rule that a lifecycle surface never exposes salary, banking or statutory data.
+
+### 28.15 Decision N — Exit interviews, and rehire eligibility withheld
+
+**Configurable exit interviews are included in WS-12.** They reuse the existing WS-8 Custom Fields / Form Builder architecture rather than introducing another questionnaire engine — the WS-10 `onboarding` scope precedent, where a shipped authoritative record made a scope bindable with one lookup branch. Exit interviews are **not** among §24.3's prohibited domains.
+
+Responses are tied to the **correct offboarding and separation cycle** — the per-cycle keying §28.1(3) already establishes — and protected by appropriate HR permissions.
+
+**Rehire eligibility is NOT authorized in WS-12. No rehire-eligibility field may be added.** It is deferred until a separate Owner Decision defines who may set it, permitted values, whether a reason is mandatory, who may view it, whether the employee may view it, whether it expires, whether it may be changed, and the audit requirements for changes. That flag carries real legal weight and is not to be introduced as an implementation detail.
+
+### 28.16 Decision O — Cross-module side-effect boundary
+
+Restating §27.20 and §26.24 for WS-12:
+
+| Module | WS-12 may | WS-12 must not |
+| --- | --- | --- |
+| **Assets** | read open custody; surface outstanding, missing, damaged | return an asset, end custody, alter condition, create a competing register |
+| **Office Inventory** | read employee-held `returnable` custody | move stock, create a request, issue or receive |
+| **Personnel Files** | reference; record a custody-confirmation item | allocate, reassign or close a PIF |
+| **Payroll** | expose a settlement item to a Payroll-authorized actor | compute, store or display amounts |
+| **Identity & Access** | record a revocation task and its completion | disable accounts, revoke sessions or mutate roles |
+| **Employment Lifecycle (WS-11)** | read separation basis and history; initiate from a recorded basis | separate, rehire, or write `employment_periods` |
+| **Recruitment, Onboarding, Performance** | reference | mutate |
+| **ESS / Manager Portal** | surface own-scope and responsibility-scope per §28.5 | expose confidential case content to ordinary employees |
+
+### 28.17 Decision P — Permissions
+
+Reconciled against existing conventions before minting keys.
+
+**Existing shipped Organization Admin disciplinary access is preserved.** `employee.disciplinary.read` stays exactly as seeded; silently revoking a shipped authorization is the change §27.21's protected-capabilities rule warns against, and it is not made here.
+
+**New grievance access requires an explicit grievance permission.** Organization Admin status alone must not automatically grant access to confidential grievance records — the grant must be an explicit permission assignment through the existing role/permission architecture, not an implication of role name.
+
+New keys are the minimum required for genuinely new actions, covering employee-relations case management, grievance read and management, offboarding management, and a clearance-acting capability for approvers who are not HR. Employee self-scope covers an employee's own grievance per §28.5 and mints no key of its own — the WS-10 precedent. Super Admin and control-plane rules (OD #29, #31) are unchanged; break-glass access remains governed by §22 OD #31.
+
+### 28.18 Decision Q — Organization configuration
+
+Configurable per organization: disciplinary categories, stages and outcome types; warning types and durations; grievance categories; clearance templates, responsible units and required items; exit-interview templates; offboarding workflow rules.
+
+Delivered through the existing organization-settings and master-data conventions. **No new configuration engine is built**, and nothing is made configurable merely because it theoretically could be.
+
+### 28.19 Decision R — Custom Fields boundary
+
+Exit-interview questionnaires reuse WS-8 (§28.15). **Disciplinary findings must not** — §24.3 prohibits Custom Fields on disciplinary findings, and that prohibition stands. Findings use typed columns owned by WS-12.
+
+### 28.20 Decision S — Scheduled jobs and notifications
+
+WS-6 only, in-app only; no email or SMS capability exists in this platform.
+
+Legitimate reminders: case assignment, hearing date, response due, grievance acknowledgement due, overdue grievance action, clearance assignment, overdue clearance, unresolved asset or inventory return, final-clearance readiness.
+
+**Scheduled jobs must not mutate sensitive Employee Relations outcomes.** §27.11 froze this as a platform-wide safety rule and it applies with full force here: no job may record a finding, decide an outcome, close a case, waive a clearance item, complete clearance or separate an employee. Handlers re-fetch authoritative state and no-op permanently when stale, following the shipped `onboarding.*` and `employment.*` handler pattern and its naming convention.
+
+### 28.21 Decision T — AI boundary
+
+**No autonomous disciplinary decisions, grievance findings, termination recommendations, guilt or innocence determinations, or automatic employee sanctions.** Human authority is unambiguous and non-delegable in this domain.
+
+Should administrative assistance such as summarization, classification assistance or drafting ever be useful, it is permitted only inside the already-approved AI governance boundary (OD #24, #25, #26), with explicit confirmation and execution-time recheck. **No AI capability is proposed or built in WS-12.**
+
+### 28.22 Decision U — Bulk migration
+
+The existing WS-7 framework is the only importer. **No separate importer is built.**
+
+**Historical workflow events must not be fabricated from incomplete legacy data** — the §27.3 and §28.2 principle applied to import. Legacy disciplinary, grievance or clearance history import is **deferred**: adapters may be added later through the existing framework when real source data justifies them.
+
+### 28.23 Decision V — Reporting boundary
+
+Minimum P1 read-models only: open disciplinary cases, case ageing, grievance status, grievance ageing, employees currently offboarding, outstanding clearance, outstanding assigned assets, completed offboarding.
+
+All permission-filtered and confidentiality-aware — a report must never become the route by which confidential case content reaches a caller who could not read the case itself. **WS-12 is not an analytics workstream.**
+
+### 28.24 Tenant isolation and security
+
+Every WS-12 entity is organization-scoped under existing tenant invariants, with explicit `organizationId` predicates and RLS enabled with zero policies (repository convention; the application layer remains the primary control).
+
+**Explicit IDOR tests are mandatory** for: case read and write, cross-organization approver assignment, cross-organization clearance action, cross-organization document attachment, cross-organization asset and inventory reference, cross-organization exit process, grievance ESS self-scope, and forged scheduled-job payloads. No cross-organization identifier may permit reading, writing, approving, clearing, attaching documents to, or discovering another tenant's records.
+
+### 28.25 Protected capabilities — do not rebuild
+
+`employees.id` identity, employee numbering, PIF, the separation service, the rehire service, `employment_periods` and the WS-11 lifecycle services, Recruitment conversion, Onboarding (WS-10), WS-5 Documents, the WS-6 scheduler, WS-3 audit, WS-8 custom fields and forms, the Assets custody model, the Office Inventory ledger, and the existing `employee_disciplinary_records` and `employee_exit_processes` surfaces. **WS-12 extends behaviour around them.**
+
+### 28.26 WS-11.1 follow-on scope remains deferred
+
+The WS-11 follow-on items — organization-configured acting auto-revert, configurable employment types, contract extension and amendment, additional lifecycle event capabilities, temporary assignment support, accepted-offer to employment-term handoff, lifecycle letter generation, additional acting and probation metadata, and write-side Employment Lifecycle UI — are **preserved as WS-11.1 and must not be implemented as part of WS-12**.
+
+If implementation discovers a genuine blocking dependency on one of them, **stop and report the dependency** rather than silently changing WS-11.
+
+### 28.27 Open items still requiring decision at implementation time
+
+None blocking. Q1 through Q6 are resolved above. The following are conditional by design and are to be decided **from repository evidence during implementation**, each recorded with its reason:
+
+1. Whether disciplinary and grievance cases share one chronology-event table with a discriminator or take one each (§28.3, §28.4) — a normalization judgement that must not weaken the §28.4 ruling that the **case** records themselves are distinct.
+2. Whether the WS-5 confidentiality dimension (§28.11) is a column on `employee_documents`, a document-category setting, or a separate access-control record — to be chosen for the smallest additive, backward-compatible change.
+3. Whether clearance items reference `document_requirements` (which already supplies required/provided/verified/rejected/expiry) or carry their own evidence pointer (§28.8) — the §26.1 reasoning applies and should be re-checked against real clearance semantics.
+4. Whether the exit-interview questionnaire binds a new WS-8 scope or attaches to the existing employee scope (§28.15) — following the WS-10 precedent where a shipped authoritative record made a scope bindable.
+5. Whether the three legacy booleans on `employee_exit_processes` are derived in the read model or retained as denormalized cache columns (§28.8) — they must never be independently settable either way.
