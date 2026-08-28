@@ -12,6 +12,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db, employmentPeriodsTable, employeesTable, type EmploymentPeriod } from "@workspace/db";
 import { assertBelongsToOrganization } from "./orgScopedRefs";
+import { assertSystemEventType, assertNewStateShape } from "./employmentLifecycle/eventTypes";
 import { recordAuditEvent } from "./auditLog";
 
 /**
@@ -31,8 +32,30 @@ export async function recordEmploymentPeriodEvent(params: {
   newState: unknown;
   actorApplicationUserId: number;
   actorMembershipId: number;
+  /**
+   * WS-11 (§27.4, §27.19) — which kind of write this is.
+   *
+   * "system" (the default) is a controlled business operation: the event type
+   * must be REGISTERED and its `newState` shape is checked. That is what stops
+   * a caller inventing, say, a "confirmation" through some other route.
+   *
+   * "import" is WS-7 replaying historical evidence. Those rows legitimately
+   * carry arbitrary `eventType` strings — the adapter's own comment refuses to
+   * "force an imported history row into a stricter taxonomy than the domain
+   * itself enforces" — so they are stored as given, never rejected. They are
+   * also inert: `isSystemEventType` returns false for them, so they can never
+   * participate in state derivation.
+   *
+   * The registry constrains what the system WRITES, not what the table HOLDS.
+   */
+  source?: "system" | "import";
 }): Promise<EmploymentPeriod> {
   await assertBelongsToOrganization(employeesTable, params.employeeId, params.organizationId, "Employee");
+
+  if ((params.source ?? "system") === "system") {
+    assertSystemEventType(params.eventType);
+    assertNewStateShape(params.eventType, params.newState);
+  }
 
   const [period] = await db
     .insert(employmentPeriodsTable)

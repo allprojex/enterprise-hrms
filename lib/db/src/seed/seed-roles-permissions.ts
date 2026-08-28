@@ -518,6 +518,18 @@ const PERMISSIONS = [
   // No acknowledgement key is minted: an employee acknowledging their OWN
   // assigned document is authorized by self-scope (their employee_user_link),
   // never by a permission grant — and assigning is already `onboarding.manage`.
+  // WS-11 — Employment Lifecycle Events Expansion (§27).
+  //
+  // Three keys, deliberately not a matrix. Confirmation, transfer, promotion,
+  // separation and rehire keep their existing `employee.write` gate untouched —
+  // §27.21 forbids redesigning those services, and re-gating them would be a
+  // silent authorization change to shipped behaviour.
+  //
+  // These three cover only what WS-11 adds: contract terms, probation
+  // extension/outcome, and acting/secondment assignments.
+  { key: "employment_lifecycle.read", resource: "employment_lifecycle", action: "read" },
+  { key: "employment_lifecycle.manage", resource: "employment_lifecycle", action: "manage" },
+  { key: "employment_lifecycle.configure", resource: "employment_lifecycle", action: "configure" },
   { key: "onboarding.read", resource: "onboarding", action: "read" },
   { key: "onboarding.manage", resource: "onboarding", action: "manage" },
   { key: "onboarding.configure", resource: "onboarding", action: "configure" },
@@ -632,6 +644,11 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "custom_fields.manage",
     "custom_forms.read",
     "custom_forms.manage",
+    // WS-11 — organization administration owns lifecycle configuration and
+    // operation alike.
+    "employment_lifecycle.read",
+    "employment_lifecycle.manage",
+    "employment_lifecycle.configure",
     // WS-10 — organization administration owns onboarding configuration and
     // operation alike.
     "onboarding.read",
@@ -743,6 +760,13 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     // HR manager can see and audit a migration, but preparing/approving/
     // committing one is reserved to organization administration.
     "migration.read",
+    // WS-11 — an HR manager operates the employment lifecycle day to day
+    // (contract terms, probation extension/outcome, acting and secondment) but
+    // does not set the organization's lifecycle POLICY. `configure` is withheld
+    // here, mirroring the WS-8/WS-10 split: configuration authority is not the
+    // same thing as operational authority (§27.17).
+    "employment_lifecycle.read",
+    "employment_lifecycle.manage",
     // WS-10 — an HR manager runs onboarding day to day (starts it, completes
     // and waives tasks, assigns handbooks) but does not define the templates
     // themselves, which is an organization-configuration act. This mirrors the

@@ -82,6 +82,7 @@ import type {
   CandidateNote,
   CandidateTag,
   CheckoutPersonnelFileInput,
+  CloseEmploymentTermInput,
   CommitPersonnelImportBody,
   CompleteLearningEnrollmentInput,
   CompleteOnboardingTaskInput,
@@ -102,6 +103,7 @@ import type {
   CreateEmployeeCompensationComponentBody,
   CreateEmployeeInput,
   CreateEmployeeStatutoryIdentifierBody,
+  CreateEmploymentTermInput,
   CreateInstallationInput,
   CreateInvitationInput,
   CreateJobRequisitionInput,
@@ -200,12 +202,21 @@ import type {
   EmployeeQualification,
   EmployeeSkill,
   EmployeeStatutoryIdentifier,
+  EmploymentAssignment,
+  EmploymentAssignmentList,
+  EmploymentLifecycleState,
   EmploymentParticulars,
   EmploymentParticularsDetail,
   EmploymentParticularsInput,
   EmploymentPeriodSummary,
+  EmploymentTerm,
+  EmploymentTermList,
+  EmploymentTermRenewal,
+  EndAssignmentInput,
   EndEmployeeCompensationComponentBody,
+  ExpiringTermList,
   ExportCustomFieldValuesParams,
+  ExtendProbationInput,
   FinalizePerformanceReviewInput,
   ForgotPasswordInput,
   GenerateDocumentFromTemplateBody,
@@ -278,6 +289,8 @@ import type {
   ListDocumentTemplatesParams,
   ListEmployeeCompensationHistoryParams,
   ListEmployeesParams,
+  ListEmploymentAssignmentsParams,
+  ListExpiringEmploymentTermsParams,
   ListGeneratedDocumentsParams,
   ListInterviewsParams,
   ListJobRequisitionsParams,
@@ -439,6 +452,7 @@ import type {
   PreviewPersonnelImportBody,
   PrimaryHrAssignment,
   PrimaryHrAssignmentOrNull,
+  ProbationState,
   PromoteEmployeeInput,
   ProvideDocumentRequirementBody,
   PublicHoliday,
@@ -454,6 +468,7 @@ import type {
   RecordInductionAttendanceInput,
   RecordOfferResponseBody,
   RecordOfficeInventoryStocktakeCountBody,
+  RecordProbationOutcomeInput,
   RecordsLocation,
   RecoverAssetInput,
   RecoverOfficeInventoryIncidentBody,
@@ -470,6 +485,7 @@ import type {
   RejectLeaveRequestInput,
   RejectOfficeInventoryRequestLineBody,
   RejectPerformanceReviewGoalInput,
+  RenewEmploymentTermInput,
   ReopenApplicationInput,
   ReopenPerformanceReviewInput,
   ReplacePerformanceRatingScaleLevelsInput,
@@ -509,10 +525,12 @@ import type {
   SearchPersonnelRecordsParams,
   SelfAssessmentNotReadyError,
   SeparateEmployeeInput,
+  SeparationReadiness,
   SetCustomFieldValuesBody,
   SetDocumentLegalHoldBody,
   SetMigrationSourceMappingBody,
   SetPrimaryHrInput,
+  StartAssignmentInput,
   StartOnboardingInput,
   SubmitApplicationScoreInput,
   SubmitCustomFormBody,
@@ -47257,6 +47275,963 @@ export function useListOnboardingResponsibilities<TData = Awaited<ReturnType<typ
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListOnboardingResponsibilitiesQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetEmploymentLifecycleUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/employment-lifecycle`
+}
+
+/**
+ * Returns current state (active employment term, open acting appointment, open secondment, probation) separately from history, so a client never has to infer the present from unordered rows. History includes imported events, which are rendered as recorded and carry no system meaning.
+ * @summary Get an employee's current lifecycle state and full history
+ */
+export const getEmploymentLifecycle = async (organizationId: number,
+    employeeId: number, options?: RequestInit): Promise<EmploymentLifecycleState> => {
+
+  return customFetch<EmploymentLifecycleState>(getGetEmploymentLifecycleUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetEmploymentLifecycleQueryKey = (organizationId: number,
+    employeeId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/employees/${employeeId}/employment-lifecycle`
+    ] as const;
+    }
+
+
+export const getGetEmploymentLifecycleQueryOptions = <TData = Awaited<ReturnType<typeof getEmploymentLifecycle>>, TError = ErrorType<ApiError>>(organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmploymentLifecycle>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetEmploymentLifecycleQueryKey(organizationId,employeeId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEmploymentLifecycle>>> = ({ signal }) => getEmploymentLifecycle(organizationId,employeeId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && employeeId !== null && employeeId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getEmploymentLifecycle>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetEmploymentLifecycleQueryResult = NonNullable<Awaited<ReturnType<typeof getEmploymentLifecycle>>>
+export type GetEmploymentLifecycleQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get an employee's current lifecycle state and full history
+ */
+
+export function useGetEmploymentLifecycle<TData = Awaited<ReturnType<typeof getEmploymentLifecycle>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmploymentLifecycle>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetEmploymentLifecycleQueryOptions(organizationId,employeeId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListEmploymentTermsUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/employment-terms`
+}
+
+/**
+ * @summary List an employee's employment terms, newest first
+ */
+export const listEmploymentTerms = async (organizationId: number,
+    employeeId: number, options?: RequestInit): Promise<EmploymentTermList> => {
+
+  return customFetch<EmploymentTermList>(getListEmploymentTermsUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListEmploymentTermsQueryKey = (organizationId: number,
+    employeeId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/employees/${employeeId}/employment-terms`
+    ] as const;
+    }
+
+
+export const getListEmploymentTermsQueryOptions = <TData = Awaited<ReturnType<typeof listEmploymentTerms>>, TError = ErrorType<unknown>>(organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmploymentTerms>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListEmploymentTermsQueryKey(organizationId,employeeId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEmploymentTerms>>> = ({ signal }) => listEmploymentTerms(organizationId,employeeId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && employeeId !== null && employeeId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEmploymentTerms>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListEmploymentTermsQueryResult = NonNullable<Awaited<ReturnType<typeof listEmploymentTerms>>>
+export type ListEmploymentTermsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List an employee's employment terms, newest first
+ */
+
+export function useListEmploymentTerms<TData = Awaited<ReturnType<typeof listEmploymentTerms>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmploymentTerms>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListEmploymentTermsQueryOptions(organizationId,employeeId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateEmploymentTermUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/employment-terms`
+}
+
+/**
+ * An employee may hold at most one active term. A fixed term requires an end date; a permanent term must not have one.
+ * @summary Create an employment term
+ */
+export const createEmploymentTerm = async (organizationId: number,
+    employeeId: number,
+    createEmploymentTermInput: CreateEmploymentTermInput, options?: RequestInit): Promise<EmploymentTerm> => {
+
+  return customFetch<EmploymentTerm>(getCreateEmploymentTermUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createEmploymentTermInput)
+  }
+);}
+
+
+
+
+
+export const getCreateEmploymentTermMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createEmploymentTerm>>, TError,{organizationId: number;employeeId: number;data: BodyType<CreateEmploymentTermInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createEmploymentTerm>>, TError,{organizationId: number;employeeId: number;data: BodyType<CreateEmploymentTermInput>}, TContext> => {
+
+const mutationKey = ['createEmploymentTerm'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createEmploymentTerm>>, {organizationId: number;employeeId: number;data: BodyType<CreateEmploymentTermInput>}> = (props) => {
+          const {organizationId,employeeId,data} = props ?? {};
+
+          return  createEmploymentTerm(organizationId,employeeId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateEmploymentTermMutationResult = NonNullable<Awaited<ReturnType<typeof createEmploymentTerm>>>
+    export type CreateEmploymentTermMutationBody = BodyType<CreateEmploymentTermInput>
+    export type CreateEmploymentTermMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Create an employment term
+ */
+export const useCreateEmploymentTerm = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createEmploymentTerm>>, TError,{organizationId: number;employeeId: number;data: BodyType<CreateEmploymentTermInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createEmploymentTerm>>,
+        TError,
+        {organizationId: number;employeeId: number;data: BodyType<CreateEmploymentTermInput>},
+        TContext
+      > => {
+      return useMutation(getCreateEmploymentTermMutationOptions(options));
+    }
+
+export const getRenewEmploymentTermUrl = (organizationId: number,
+    termId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employment-terms/${termId}/renew`
+}
+
+/**
+ * Supersedes the current term and creates a new one linked back to it. The prior term is preserved unchanged, so the renewal chain stays readable end to end.
+ * @summary Renew an employment term
+ */
+export const renewEmploymentTerm = async (organizationId: number,
+    termId: number,
+    renewEmploymentTermInput: RenewEmploymentTermInput, options?: RequestInit): Promise<EmploymentTermRenewal> => {
+
+  return customFetch<EmploymentTermRenewal>(getRenewEmploymentTermUrl(organizationId,termId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(renewEmploymentTermInput)
+  }
+);}
+
+
+
+
+
+export const getRenewEmploymentTermMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof renewEmploymentTerm>>, TError,{organizationId: number;termId: number;data: BodyType<RenewEmploymentTermInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof renewEmploymentTerm>>, TError,{organizationId: number;termId: number;data: BodyType<RenewEmploymentTermInput>}, TContext> => {
+
+const mutationKey = ['renewEmploymentTerm'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof renewEmploymentTerm>>, {organizationId: number;termId: number;data: BodyType<RenewEmploymentTermInput>}> = (props) => {
+          const {organizationId,termId,data} = props ?? {};
+
+          return  renewEmploymentTerm(organizationId,termId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RenewEmploymentTermMutationResult = NonNullable<Awaited<ReturnType<typeof renewEmploymentTerm>>>
+    export type RenewEmploymentTermMutationBody = BodyType<RenewEmploymentTermInput>
+    export type RenewEmploymentTermMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Renew an employment term
+ */
+export const useRenewEmploymentTerm = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof renewEmploymentTerm>>, TError,{organizationId: number;termId: number;data: BodyType<RenewEmploymentTermInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof renewEmploymentTerm>>,
+        TError,
+        {organizationId: number;termId: number;data: BodyType<RenewEmploymentTermInput>},
+        TContext
+      > => {
+      return useMutation(getRenewEmploymentTermMutationOptions(options));
+    }
+
+export const getCloseEmploymentTermUrl = (organizationId: number,
+    termId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employment-terms/${termId}/close`
+}
+
+/**
+ * Records that the term ended. This does NOT separate the employee and does not change employment status — the employment decision is a separate authorized action.
+ * @summary Close an employment term without renewing it
+ */
+export const closeEmploymentTerm = async (organizationId: number,
+    termId: number,
+    closeEmploymentTermInput: CloseEmploymentTermInput, options?: RequestInit): Promise<EmploymentTerm> => {
+
+  return customFetch<EmploymentTerm>(getCloseEmploymentTermUrl(organizationId,termId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(closeEmploymentTermInput)
+  }
+);}
+
+
+
+
+
+export const getCloseEmploymentTermMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closeEmploymentTerm>>, TError,{organizationId: number;termId: number;data: BodyType<CloseEmploymentTermInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof closeEmploymentTerm>>, TError,{organizationId: number;termId: number;data: BodyType<CloseEmploymentTermInput>}, TContext> => {
+
+const mutationKey = ['closeEmploymentTerm'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof closeEmploymentTerm>>, {organizationId: number;termId: number;data: BodyType<CloseEmploymentTermInput>}> = (props) => {
+          const {organizationId,termId,data} = props ?? {};
+
+          return  closeEmploymentTerm(organizationId,termId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CloseEmploymentTermMutationResult = NonNullable<Awaited<ReturnType<typeof closeEmploymentTerm>>>
+    export type CloseEmploymentTermMutationBody = BodyType<CloseEmploymentTermInput>
+    export type CloseEmploymentTermMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Close an employment term without renewing it
+ */
+export const useCloseEmploymentTerm = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closeEmploymentTerm>>, TError,{organizationId: number;termId: number;data: BodyType<CloseEmploymentTermInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof closeEmploymentTerm>>,
+        TError,
+        {organizationId: number;termId: number;data: BodyType<CloseEmploymentTermInput>},
+        TContext
+      > => {
+      return useMutation(getCloseEmploymentTermMutationOptions(options));
+    }
+
+export const getListExpiringEmploymentTermsUrl = (organizationId: number,
+    params?: ListExpiringEmploymentTermsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/employment-terms/expiring?${stringifiedParams}` : `/api/organizations/${organizationId}/employment-terms/expiring`
+}
+
+/**
+ * The HR action queue. Expiry state is derived from dates and the given instant, never stored. Nothing here changes employment.
+ * @summary List terms approaching or past their end date
+ */
+export const listExpiringEmploymentTerms = async (organizationId: number,
+    params?: ListExpiringEmploymentTermsParams, options?: RequestInit): Promise<ExpiringTermList> => {
+
+  return customFetch<ExpiringTermList>(getListExpiringEmploymentTermsUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListExpiringEmploymentTermsQueryKey = (organizationId: number,
+    params?: ListExpiringEmploymentTermsParams,) => {
+    return [
+    `/api/organizations/${organizationId}/employment-terms/expiring`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListExpiringEmploymentTermsQueryOptions = <TData = Awaited<ReturnType<typeof listExpiringEmploymentTerms>>, TError = ErrorType<unknown>>(organizationId: number,
+    params?: ListExpiringEmploymentTermsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listExpiringEmploymentTerms>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListExpiringEmploymentTermsQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listExpiringEmploymentTerms>>> = ({ signal }) => listExpiringEmploymentTerms(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listExpiringEmploymentTerms>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListExpiringEmploymentTermsQueryResult = NonNullable<Awaited<ReturnType<typeof listExpiringEmploymentTerms>>>
+export type ListExpiringEmploymentTermsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List terms approaching or past their end date
+ */
+
+export function useListExpiringEmploymentTerms<TData = Awaited<ReturnType<typeof listExpiringEmploymentTerms>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    params?: ListExpiringEmploymentTermsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listExpiringEmploymentTerms>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListExpiringEmploymentTermsQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getExtendProbationUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/probation/extend`
+}
+
+/**
+ * Records an effective-dated extension event and moves the expected probation end. The previous expected end is preserved in history.
+ * @summary Extend an employee's probation
+ */
+export const extendProbation = async (organizationId: number,
+    employeeId: number,
+    extendProbationInput: ExtendProbationInput, options?: RequestInit): Promise<ProbationState> => {
+
+  return customFetch<ProbationState>(getExtendProbationUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(extendProbationInput)
+  }
+);}
+
+
+
+
+
+export const getExtendProbationMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof extendProbation>>, TError,{organizationId: number;employeeId: number;data: BodyType<ExtendProbationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof extendProbation>>, TError,{organizationId: number;employeeId: number;data: BodyType<ExtendProbationInput>}, TContext> => {
+
+const mutationKey = ['extendProbation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof extendProbation>>, {organizationId: number;employeeId: number;data: BodyType<ExtendProbationInput>}> = (props) => {
+          const {organizationId,employeeId,data} = props ?? {};
+
+          return  extendProbation(organizationId,employeeId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ExtendProbationMutationResult = NonNullable<Awaited<ReturnType<typeof extendProbation>>>
+    export type ExtendProbationMutationBody = BodyType<ExtendProbationInput>
+    export type ExtendProbationMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Extend an employee's probation
+ */
+export const useExtendProbation = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof extendProbation>>, TError,{organizationId: number;employeeId: number;data: BodyType<ExtendProbationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof extendProbation>>,
+        TError,
+        {organizationId: number;employeeId: number;data: BodyType<ExtendProbationInput>},
+        TContext
+      > => {
+      return useMutation(getExtendProbationMutationOptions(options));
+    }
+
+export const getRecordUnsuccessfulProbationUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/probation/unsuccessful`
+}
+
+/**
+ * Records the outcome and surfaces it for HR action. This deliberately does NOT separate the employee and does not change employment status — if employment is to end, that is a separate authorized separation.
+ * @summary Record an unsuccessful probation outcome
+ */
+export const recordUnsuccessfulProbation = async (organizationId: number,
+    employeeId: number,
+    recordProbationOutcomeInput: RecordProbationOutcomeInput, options?: RequestInit): Promise<ProbationState> => {
+
+  return customFetch<ProbationState>(getRecordUnsuccessfulProbationUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(recordProbationOutcomeInput)
+  }
+);}
+
+
+
+
+
+export const getRecordUnsuccessfulProbationMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordUnsuccessfulProbation>>, TError,{organizationId: number;employeeId: number;data: BodyType<RecordProbationOutcomeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordUnsuccessfulProbation>>, TError,{organizationId: number;employeeId: number;data: BodyType<RecordProbationOutcomeInput>}, TContext> => {
+
+const mutationKey = ['recordUnsuccessfulProbation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordUnsuccessfulProbation>>, {organizationId: number;employeeId: number;data: BodyType<RecordProbationOutcomeInput>}> = (props) => {
+          const {organizationId,employeeId,data} = props ?? {};
+
+          return  recordUnsuccessfulProbation(organizationId,employeeId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordUnsuccessfulProbationMutationResult = NonNullable<Awaited<ReturnType<typeof recordUnsuccessfulProbation>>>
+    export type RecordUnsuccessfulProbationMutationBody = BodyType<RecordProbationOutcomeInput>
+    export type RecordUnsuccessfulProbationMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Record an unsuccessful probation outcome
+ */
+export const useRecordUnsuccessfulProbation = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordUnsuccessfulProbation>>, TError,{organizationId: number;employeeId: number;data: BodyType<RecordProbationOutcomeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordUnsuccessfulProbation>>,
+        TError,
+        {organizationId: number;employeeId: number;data: BodyType<RecordProbationOutcomeInput>},
+        TContext
+      > => {
+      return useMutation(getRecordUnsuccessfulProbationMutationOptions(options));
+    }
+
+export const getListEmploymentAssignmentsUrl = (organizationId: number,
+    employeeId: number,
+    params?: ListEmploymentAssignmentsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/employees/${employeeId}/assignments?${stringifiedParams}` : `/api/organizations/${organizationId}/employees/${employeeId}/assignments`
+}
+
+/**
+ * @summary List an employee's acting appointments and secondments
+ */
+export const listEmploymentAssignments = async (organizationId: number,
+    employeeId: number,
+    params?: ListEmploymentAssignmentsParams, options?: RequestInit): Promise<EmploymentAssignmentList> => {
+
+  return customFetch<EmploymentAssignmentList>(getListEmploymentAssignmentsUrl(organizationId,employeeId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListEmploymentAssignmentsQueryKey = (organizationId: number,
+    employeeId: number,
+    params?: ListEmploymentAssignmentsParams,) => {
+    return [
+    `/api/organizations/${organizationId}/employees/${employeeId}/assignments`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListEmploymentAssignmentsQueryOptions = <TData = Awaited<ReturnType<typeof listEmploymentAssignments>>, TError = ErrorType<unknown>>(organizationId: number,
+    employeeId: number,
+    params?: ListEmploymentAssignmentsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmploymentAssignments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListEmploymentAssignmentsQueryKey(organizationId,employeeId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEmploymentAssignments>>> = ({ signal }) => listEmploymentAssignments(organizationId,employeeId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && employeeId !== null && employeeId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEmploymentAssignments>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListEmploymentAssignmentsQueryResult = NonNullable<Awaited<ReturnType<typeof listEmploymentAssignments>>>
+export type ListEmploymentAssignmentsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List an employee's acting appointments and secondments
+ */
+
+export function useListEmploymentAssignments<TData = Awaited<ReturnType<typeof listEmploymentAssignments>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    employeeId: number,
+    params?: ListEmploymentAssignmentsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmploymentAssignments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListEmploymentAssignmentsQueryOptions(organizationId,employeeId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getStartEmploymentAssignmentUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/assignments`
+}
+
+/**
+ * The employee's substantive position is never changed by this action. An acting appointment records the position being acted in alongside the substantive one; a secondment records a descriptive destination.
+ * @summary Start an acting appointment or secondment
+ */
+export const startEmploymentAssignment = async (organizationId: number,
+    employeeId: number,
+    startAssignmentInput: StartAssignmentInput, options?: RequestInit): Promise<EmploymentAssignment> => {
+
+  return customFetch<EmploymentAssignment>(getStartEmploymentAssignmentUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(startAssignmentInput)
+  }
+);}
+
+
+
+
+
+export const getStartEmploymentAssignmentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startEmploymentAssignment>>, TError,{organizationId: number;employeeId: number;data: BodyType<StartAssignmentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof startEmploymentAssignment>>, TError,{organizationId: number;employeeId: number;data: BodyType<StartAssignmentInput>}, TContext> => {
+
+const mutationKey = ['startEmploymentAssignment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof startEmploymentAssignment>>, {organizationId: number;employeeId: number;data: BodyType<StartAssignmentInput>}> = (props) => {
+          const {organizationId,employeeId,data} = props ?? {};
+
+          return  startEmploymentAssignment(organizationId,employeeId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StartEmploymentAssignmentMutationResult = NonNullable<Awaited<ReturnType<typeof startEmploymentAssignment>>>
+    export type StartEmploymentAssignmentMutationBody = BodyType<StartAssignmentInput>
+    export type StartEmploymentAssignmentMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Start an acting appointment or secondment
+ */
+export const useStartEmploymentAssignment = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startEmploymentAssignment>>, TError,{organizationId: number;employeeId: number;data: BodyType<StartAssignmentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof startEmploymentAssignment>>,
+        TError,
+        {organizationId: number;employeeId: number;data: BodyType<StartAssignmentInput>},
+        TContext
+      > => {
+      return useMutation(getStartEmploymentAssignmentMutationOptions(options));
+    }
+
+export const getEndEmploymentAssignmentUrl = (organizationId: number,
+    assignmentId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/assignments/${assignmentId}/end`
+}
+
+/**
+ * Closes the temporary record. Nothing is restored, because the substantive position was never overwritten.
+ * @summary End an acting appointment or secondment
+ */
+export const endEmploymentAssignment = async (organizationId: number,
+    assignmentId: number,
+    endAssignmentInput: EndAssignmentInput, options?: RequestInit): Promise<EmploymentAssignment> => {
+
+  return customFetch<EmploymentAssignment>(getEndEmploymentAssignmentUrl(organizationId,assignmentId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(endAssignmentInput)
+  }
+);}
+
+
+
+
+
+export const getEndEmploymentAssignmentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endEmploymentAssignment>>, TError,{organizationId: number;assignmentId: number;data: BodyType<EndAssignmentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof endEmploymentAssignment>>, TError,{organizationId: number;assignmentId: number;data: BodyType<EndAssignmentInput>}, TContext> => {
+
+const mutationKey = ['endEmploymentAssignment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof endEmploymentAssignment>>, {organizationId: number;assignmentId: number;data: BodyType<EndAssignmentInput>}> = (props) => {
+          const {organizationId,assignmentId,data} = props ?? {};
+
+          return  endEmploymentAssignment(organizationId,assignmentId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EndEmploymentAssignmentMutationResult = NonNullable<Awaited<ReturnType<typeof endEmploymentAssignment>>>
+    export type EndEmploymentAssignmentMutationBody = BodyType<EndAssignmentInput>
+    export type EndEmploymentAssignmentMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary End an acting appointment or secondment
+ */
+export const useEndEmploymentAssignment = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endEmploymentAssignment>>, TError,{organizationId: number;assignmentId: number;data: BodyType<EndAssignmentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof endEmploymentAssignment>>,
+        TError,
+        {organizationId: number;assignmentId: number;data: BodyType<EndAssignmentInput>},
+        TContext
+      > => {
+      return useMutation(getEndEmploymentAssignmentMutationOptions(options));
+    }
+
+export const getGetSeparationReadinessUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/separation-readiness`
+}
+
+/**
+ * Reports outstanding asset custody, inventory custody and personnel-file state so an authorized user can see them before separating someone. These are WARNINGS ONLY — nothing here returns an asset, moves stock, closes a file, or blocks separation.
+ * @summary Factual warnings about outstanding accountability before separation
+ */
+export const getSeparationReadiness = async (organizationId: number,
+    employeeId: number, options?: RequestInit): Promise<SeparationReadiness> => {
+
+  return customFetch<SeparationReadiness>(getGetSeparationReadinessUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSeparationReadinessQueryKey = (organizationId: number,
+    employeeId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/employees/${employeeId}/separation-readiness`
+    ] as const;
+    }
+
+
+export const getGetSeparationReadinessQueryOptions = <TData = Awaited<ReturnType<typeof getSeparationReadiness>>, TError = ErrorType<unknown>>(organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSeparationReadiness>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSeparationReadinessQueryKey(organizationId,employeeId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSeparationReadiness>>> = ({ signal }) => getSeparationReadiness(organizationId,employeeId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && employeeId !== null && employeeId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSeparationReadiness>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSeparationReadinessQueryResult = NonNullable<Awaited<ReturnType<typeof getSeparationReadiness>>>
+export type GetSeparationReadinessQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Factual warnings about outstanding accountability before separation
+ */
+
+export function useGetSeparationReadiness<TData = Awaited<ReturnType<typeof getSeparationReadiness>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSeparationReadiness>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSeparationReadinessQueryOptions(organizationId,employeeId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

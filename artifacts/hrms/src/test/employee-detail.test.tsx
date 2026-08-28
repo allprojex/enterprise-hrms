@@ -129,6 +129,17 @@ vi.mock('@workspace/api-client-react', () => ({
   }),
   getListEmployeeEmploymentHistoryQueryKey: (orgId: number, empId: number) => ['employeeEmploymentHistory', orgId, empId],
 
+  // WS-11 — the Employment Lifecycle panel on this page. Returns undefined data
+  // by default so the panel renders nothing and every pre-existing assertion in
+  // this file is unaffected; the panel has its own live coverage.
+  useGetEmploymentLifecycle: () => ({
+    data: undefined,
+    isLoading: false,
+    error: undefined,
+    refetch: vi.fn(),
+  }),
+  getGetEmploymentLifecycleQueryKey: (orgId: number, empId: number) => ['employmentLifecycle', orgId, empId],
+
   useTransferEmployee: () => ({ mutate: vi.fn(), isPending: false }),
   usePromoteEmployee: () => ({ mutate: vi.fn(), isPending: false }),
   useConfirmEmployee: () => ({ mutate: vi.fn(), isPending: false }),

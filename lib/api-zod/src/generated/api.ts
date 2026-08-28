@@ -20207,3 +20207,465 @@ export const ListOnboardingResponsibilitiesResponse = zod.object({
 })
 
 
+/**
+ * Returns current state (active employment term, open acting appointment, open secondment, probation) separately from history, so a client never has to infer the present from unordered rows. History includes imported events, which are rendered as recorded and carry no system meaning.
+ * @summary Get an employee's current lifecycle state and full history
+ */
+export const GetEmploymentLifecycleParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const GetEmploymentLifecycleResponse = zod.object({
+  "employeeId": zod.number(),
+  "substantivePositionId": zod.number().nullish(),
+  "substantivePositionTitle": zod.string().nullish(),
+  "currentTerm": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "termType": zod.enum(['permanent', 'fixed_term']),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date().nullish(),
+  "status": zod.enum(['active', 'superseded', 'closed']),
+  "renewedFromTermId": zod.number().nullish(),
+  "reason": zod.string().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional(),
+  "expiryState": zod.enum(['not_applicable', 'current', 'expiring_soon', 'expired']).nullish().describe('Derived from the term\'s dates and the current instant — never stored.')
+}).nullish(),
+  "currentActingAssignment": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "assignmentType": zod.enum(['acting', 'secondment']),
+  "actingPositionId": zod.number().nullish(),
+  "actingPositionTitle": zod.string().nullish(),
+  "actingDepartmentId": zod.number().nullish(),
+  "destinationDescription": zod.string().nullish(),
+  "destinationType": zod.enum(['internal', 'external']).nullish(),
+  "startDate": zod.coerce.date(),
+  "expectedEndDate": zod.coerce.date().nullish(),
+  "actualEndDate": zod.coerce.date().nullish(),
+  "reason": zod.string().nullish(),
+  "endReason": zod.string().nullish(),
+  "overdue": zod.boolean().optional().describe('Derived — open past its expected end. Never stored, and never acted on automatically.'),
+  "createdAt": zod.coerce.date().optional()
+}).nullish(),
+  "currentSecondment": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "assignmentType": zod.enum(['acting', 'secondment']),
+  "actingPositionId": zod.number().nullish(),
+  "actingPositionTitle": zod.string().nullish(),
+  "actingDepartmentId": zod.number().nullish(),
+  "destinationDescription": zod.string().nullish(),
+  "destinationType": zod.enum(['internal', 'external']).nullish(),
+  "startDate": zod.coerce.date(),
+  "expectedEndDate": zod.coerce.date().nullish(),
+  "actualEndDate": zod.coerce.date().nullish(),
+  "reason": zod.string().nullish(),
+  "endReason": zod.string().nullish(),
+  "overdue": zod.boolean().optional().describe('Derived — open past its expected end. Never stored, and never acted on automatically.'),
+  "createdAt": zod.coerce.date().optional()
+}).nullish(),
+  "probation": zod.object({
+  "employeeId": zod.number(),
+  "onProbation": zod.boolean(),
+  "probationEndDate": zod.coerce.date().nullish(),
+  "probationEndSource": zod.enum(['extension_event', 'employee_record', 'none']).optional(),
+  "extensionCount": zod.number(),
+  "unsuccessfulOutcomeRecorded": zod.boolean().describe('An outcome was recorded. Employment status is unaffected by it.')
+}),
+  "history": zod.array(zod.object({
+  "id": zod.number(),
+  "eventType": zod.string().describe('Free text. Imported history may carry any value.'),
+  "label": zod.string().describe('Friendly label for a registered event, or the raw string for imported history.'),
+  "isSystemEvent": zod.boolean().describe('False for imported\/legacy history. Such events are displayed as recorded and never participate in state derivation.'),
+  "effectiveDate": zod.coerce.date(),
+  "previousState": zod.unknown().nullish(),
+  "newState": zod.unknown().nullish(),
+  "createdAt": zod.coerce.date().optional()
+}))
+})
+
+
+/**
+ * @summary List an employee's employment terms, newest first
+ */
+export const ListEmploymentTermsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const ListEmploymentTermsResponse = zod.object({
+  "terms": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "termType": zod.enum(['permanent', 'fixed_term']),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date().nullish(),
+  "status": zod.enum(['active', 'superseded', 'closed']),
+  "renewedFromTermId": zod.number().nullish(),
+  "reason": zod.string().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional(),
+  "expiryState": zod.enum(['not_applicable', 'current', 'expiring_soon', 'expired']).nullish().describe('Derived from the term\'s dates and the current instant — never stored.')
+}))
+})
+
+
+/**
+ * An employee may hold at most one active term. A fixed term requires an end date; a permanent term must not have one.
+ * @summary Create an employment term
+ */
+export const CreateEmploymentTermParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const createEmploymentTermBodyReasonMax = 1000;
+
+
+
+export const CreateEmploymentTermBody = zod.object({
+  "termType": zod.enum(['permanent', 'fixed_term']),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date().nullish(),
+  "reason": zod.string().max(createEmploymentTermBodyReasonMax).nullish()
+})
+
+export const CreateEmploymentTermResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "termType": zod.enum(['permanent', 'fixed_term']),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date().nullish(),
+  "status": zod.enum(['active', 'superseded', 'closed']),
+  "renewedFromTermId": zod.number().nullish(),
+  "reason": zod.string().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional(),
+  "expiryState": zod.enum(['not_applicable', 'current', 'expiring_soon', 'expired']).nullish().describe('Derived from the term\'s dates and the current instant — never stored.')
+})
+
+
+/**
+ * Supersedes the current term and creates a new one linked back to it. The prior term is preserved unchanged, so the renewal chain stays readable end to end.
+ * @summary Renew an employment term
+ */
+export const RenewEmploymentTermParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "termId": zod.coerce.number()
+})
+
+export const renewEmploymentTermBodyReasonMax = 1000;
+
+
+
+export const RenewEmploymentTermBody = zod.object({
+  "termType": zod.enum(['permanent', 'fixed_term']),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date().nullish(),
+  "reason": zod.string().max(renewEmploymentTermBodyReasonMax).nullish()
+})
+
+export const RenewEmploymentTermResponse = zod.object({
+  "previous": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "termType": zod.enum(['permanent', 'fixed_term']),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date().nullish(),
+  "status": zod.enum(['active', 'superseded', 'closed']),
+  "renewedFromTermId": zod.number().nullish(),
+  "reason": zod.string().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional(),
+  "expiryState": zod.enum(['not_applicable', 'current', 'expiring_soon', 'expired']).nullish().describe('Derived from the term\'s dates and the current instant — never stored.')
+}),
+  "renewed": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "termType": zod.enum(['permanent', 'fixed_term']),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date().nullish(),
+  "status": zod.enum(['active', 'superseded', 'closed']),
+  "renewedFromTermId": zod.number().nullish(),
+  "reason": zod.string().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional(),
+  "expiryState": zod.enum(['not_applicable', 'current', 'expiring_soon', 'expired']).nullish().describe('Derived from the term\'s dates and the current instant — never stored.')
+})
+})
+
+
+/**
+ * Records that the term ended. This does NOT separate the employee and does not change employment status — the employment decision is a separate authorized action.
+ * @summary Close an employment term without renewing it
+ */
+export const CloseEmploymentTermParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "termId": zod.coerce.number()
+})
+
+export const closeEmploymentTermBodyReasonMax = 1000;
+
+
+
+export const CloseEmploymentTermBody = zod.object({
+  "reason": zod.string().max(closeEmploymentTermBodyReasonMax).nullish()
+})
+
+export const CloseEmploymentTermResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "termType": zod.enum(['permanent', 'fixed_term']),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date().nullish(),
+  "status": zod.enum(['active', 'superseded', 'closed']),
+  "renewedFromTermId": zod.number().nullish(),
+  "reason": zod.string().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional(),
+  "expiryState": zod.enum(['not_applicable', 'current', 'expiring_soon', 'expired']).nullish().describe('Derived from the term\'s dates and the current instant — never stored.')
+})
+
+
+/**
+ * The HR action queue. Expiry state is derived from dates and the given instant, never stored. Nothing here changes employment.
+ * @summary List terms approaching or past their end date
+ */
+export const ListExpiringEmploymentTermsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListExpiringEmploymentTermsQueryParams = zod.object({
+  "asOf": zod.date().optional().describe('Evaluate expiry as at this instant instead of now.')
+})
+
+export const ListExpiringEmploymentTermsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "term": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "termType": zod.enum(['permanent', 'fixed_term']),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date().nullish(),
+  "status": zod.enum(['active', 'superseded', 'closed']),
+  "renewedFromTermId": zod.number().nullish(),
+  "reason": zod.string().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional(),
+  "expiryState": zod.enum(['not_applicable', 'current', 'expiring_soon', 'expired']).nullish().describe('Derived from the term\'s dates and the current instant — never stored.')
+}),
+  "state": zod.enum(['not_applicable', 'current', 'expiring_soon', 'expired']),
+  "employeeName": zod.string().nullish()
+}))
+})
+
+
+/**
+ * Records an effective-dated extension event and moves the expected probation end. The previous expected end is preserved in history.
+ * @summary Extend an employee's probation
+ */
+export const ExtendProbationParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const extendProbationBodyReasonMax = 1000;
+
+
+
+export const ExtendProbationBody = zod.object({
+  "newProbationEndDate": zod.coerce.date(),
+  "effectiveDate": zod.coerce.date(),
+  "reason": zod.string().min(1).max(extendProbationBodyReasonMax),
+  "probationReviewId": zod.number().nullish()
+})
+
+export const ExtendProbationResponse = zod.object({
+  "employeeId": zod.number(),
+  "onProbation": zod.boolean(),
+  "probationEndDate": zod.coerce.date().nullish(),
+  "probationEndSource": zod.enum(['extension_event', 'employee_record', 'none']).optional(),
+  "extensionCount": zod.number(),
+  "unsuccessfulOutcomeRecorded": zod.boolean().describe('An outcome was recorded. Employment status is unaffected by it.')
+})
+
+
+/**
+ * Records the outcome and surfaces it for HR action. This deliberately does NOT separate the employee and does not change employment status — if employment is to end, that is a separate authorized separation.
+ * @summary Record an unsuccessful probation outcome
+ */
+export const RecordUnsuccessfulProbationParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const recordUnsuccessfulProbationBodyReasonMax = 1000;
+
+
+
+export const RecordUnsuccessfulProbationBody = zod.object({
+  "effectiveDate": zod.coerce.date(),
+  "reason": zod.string().min(1).max(recordUnsuccessfulProbationBodyReasonMax),
+  "probationReviewId": zod.number().nullish()
+})
+
+export const RecordUnsuccessfulProbationResponse = zod.object({
+  "employeeId": zod.number(),
+  "onProbation": zod.boolean(),
+  "probationEndDate": zod.coerce.date().nullish(),
+  "probationEndSource": zod.enum(['extension_event', 'employee_record', 'none']).optional(),
+  "extensionCount": zod.number(),
+  "unsuccessfulOutcomeRecorded": zod.boolean().describe('An outcome was recorded. Employment status is unaffected by it.')
+})
+
+
+/**
+ * @summary List an employee's acting appointments and secondments
+ */
+export const ListEmploymentAssignmentsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const ListEmploymentAssignmentsQueryParams = zod.object({
+  "assignmentType": zod.enum(['acting', 'secondment']).optional()
+})
+
+export const ListEmploymentAssignmentsResponse = zod.object({
+  "assignments": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "assignmentType": zod.enum(['acting', 'secondment']),
+  "actingPositionId": zod.number().nullish(),
+  "actingPositionTitle": zod.string().nullish(),
+  "actingDepartmentId": zod.number().nullish(),
+  "destinationDescription": zod.string().nullish(),
+  "destinationType": zod.enum(['internal', 'external']).nullish(),
+  "startDate": zod.coerce.date(),
+  "expectedEndDate": zod.coerce.date().nullish(),
+  "actualEndDate": zod.coerce.date().nullish(),
+  "reason": zod.string().nullish(),
+  "endReason": zod.string().nullish(),
+  "overdue": zod.boolean().optional().describe('Derived — open past its expected end. Never stored, and never acted on automatically.'),
+  "createdAt": zod.coerce.date().optional()
+}))
+})
+
+
+/**
+ * The employee's substantive position is never changed by this action. An acting appointment records the position being acted in alongside the substantive one; a secondment records a descriptive destination.
+ * @summary Start an acting appointment or secondment
+ */
+export const StartEmploymentAssignmentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const startEmploymentAssignmentBodyDestinationDescriptionMax = 500;
+
+export const startEmploymentAssignmentBodyReasonMax = 1000;
+
+
+
+export const StartEmploymentAssignmentBody = zod.object({
+  "assignmentType": zod.enum(['acting', 'secondment']),
+  "actingPositionId": zod.number().nullish(),
+  "actingDepartmentId": zod.number().nullish(),
+  "destinationDescription": zod.string().max(startEmploymentAssignmentBodyDestinationDescriptionMax).nullish(),
+  "destinationType": zod.enum(['internal', 'external']).nullish(),
+  "startDate": zod.coerce.date(),
+  "expectedEndDate": zod.coerce.date().nullish(),
+  "reason": zod.string().max(startEmploymentAssignmentBodyReasonMax).nullish()
+})
+
+export const StartEmploymentAssignmentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "assignmentType": zod.enum(['acting', 'secondment']),
+  "actingPositionId": zod.number().nullish(),
+  "actingPositionTitle": zod.string().nullish(),
+  "actingDepartmentId": zod.number().nullish(),
+  "destinationDescription": zod.string().nullish(),
+  "destinationType": zod.enum(['internal', 'external']).nullish(),
+  "startDate": zod.coerce.date(),
+  "expectedEndDate": zod.coerce.date().nullish(),
+  "actualEndDate": zod.coerce.date().nullish(),
+  "reason": zod.string().nullish(),
+  "endReason": zod.string().nullish(),
+  "overdue": zod.boolean().optional().describe('Derived — open past its expected end. Never stored, and never acted on automatically.'),
+  "createdAt": zod.coerce.date().optional()
+})
+
+
+/**
+ * Closes the temporary record. Nothing is restored, because the substantive position was never overwritten.
+ * @summary End an acting appointment or secondment
+ */
+export const EndEmploymentAssignmentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "assignmentId": zod.coerce.number()
+})
+
+export const endEmploymentAssignmentBodyEndReasonMax = 1000;
+
+
+
+export const EndEmploymentAssignmentBody = zod.object({
+  "actualEndDate": zod.coerce.date(),
+  "endReason": zod.string().max(endEmploymentAssignmentBodyEndReasonMax).nullish()
+})
+
+export const EndEmploymentAssignmentResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "assignmentType": zod.enum(['acting', 'secondment']),
+  "actingPositionId": zod.number().nullish(),
+  "actingPositionTitle": zod.string().nullish(),
+  "actingDepartmentId": zod.number().nullish(),
+  "destinationDescription": zod.string().nullish(),
+  "destinationType": zod.enum(['internal', 'external']).nullish(),
+  "startDate": zod.coerce.date(),
+  "expectedEndDate": zod.coerce.date().nullish(),
+  "actualEndDate": zod.coerce.date().nullish(),
+  "reason": zod.string().nullish(),
+  "endReason": zod.string().nullish(),
+  "overdue": zod.boolean().optional().describe('Derived — open past its expected end. Never stored, and never acted on automatically.'),
+  "createdAt": zod.coerce.date().optional()
+})
+
+
+/**
+ * Reports outstanding asset custody, inventory custody and personnel-file state so an authorized user can see them before separating someone. These are WARNINGS ONLY — nothing here returns an asset, moves stock, closes a file, or blocks separation.
+ * @summary Factual warnings about outstanding accountability before separation
+ */
+export const GetSeparationReadinessParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const GetSeparationReadinessResponse = zod.object({
+  "employeeId": zod.number(),
+  "warnings": zod.array(zod.object({
+  "kind": zod.enum(['assets', 'office_inventory', 'personnel_file']),
+  "count": zod.number(),
+  "message": zod.string()
+})),
+  "blocksSeparation": zod.boolean().describe('Always false — these are advisory only and never prevent separation.')
+})
+
+

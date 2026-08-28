@@ -42,6 +42,8 @@ tags:
     description: Reporting Foundation operations
   - name: self-service
     description: Employee Self-Service operations
+  - name: employment-lifecycle
+    description: Employment terms, probation extension/outcome, acting appointments, and secondments
   - name: onboarding
     description: Onboarding, induction, and handbook/policy acknowledgement operations
   - name: recruitment
@@ -24717,8 +24719,704 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OnboardingResponsibilityList"
+
+  /organizations/{organizationId}/employees/{employeeId}/employment-lifecycle:
+    get:
+      operationId: getEmploymentLifecycle
+      tags: [employment-lifecycle]
+      summary: Get an employee's current lifecycle state and full history
+      description: >-
+        Returns current state (active employment term, open acting appointment,
+        open secondment, probation) separately from history, so a client never
+        has to infer the present from unordered rows. History includes imported
+        events, which are rendered as recorded and carry no system meaning.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Lifecycle state and history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmploymentLifecycleState"
+        "404":
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}/employment-terms:
+    get:
+      operationId: listEmploymentTerms
+      tags: [employment-lifecycle]
+      summary: List an employee's employment terms, newest first
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Employment terms
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmploymentTermList"
+    post:
+      operationId: createEmploymentTerm
+      tags: [employment-lifecycle]
+      summary: Create an employment term
+      description: >-
+        An employee may hold at most one active term. A fixed term requires an
+        end date; a permanent term must not have one.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEmploymentTermInput"
+      responses:
+        "201":
+          description: Term created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmploymentTerm"
+        "400":
+          description: Invalid term, or the employee was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: This employee already has an active term
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employment-terms/{termId}/renew:
+    post:
+      operationId: renewEmploymentTerm
+      tags: [employment-lifecycle]
+      summary: Renew an employment term
+      description: >-
+        Supersedes the current term and creates a new one linked back to it. The
+        prior term is preserved unchanged, so the renewal chain stays readable
+        end to end.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: termId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RenewEmploymentTermInput"
+      responses:
+        "200":
+          description: Renewed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmploymentTermRenewal"
+        "400":
+          description: Invalid term dates, or the term is not active
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Term not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employment-terms/{termId}/close:
+    post:
+      operationId: closeEmploymentTerm
+      tags: [employment-lifecycle]
+      summary: Close an employment term without renewing it
+      description: >-
+        Records that the term ended. This does NOT separate the employee and
+        does not change employment status — the employment decision is a
+        separate authorized action.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: termId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CloseEmploymentTermInput"
+      responses:
+        "200":
+          description: Closed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmploymentTerm"
+        "400":
+          description: The term is not active
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employment-terms/expiring:
+    get:
+      operationId: listExpiringEmploymentTerms
+      tags: [employment-lifecycle]
+      summary: List terms approaching or past their end date
+      description: >-
+        The HR action queue. Expiry state is derived from dates and the given
+        instant, never stored. Nothing here changes employment.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: asOf
+          in: query
+          required: false
+          description: Evaluate expiry as at this instant instead of now.
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Expiring and expired terms
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExpiringTermList"
+
+  /organizations/{organizationId}/employees/{employeeId}/probation/extend:
+    post:
+      operationId: extendProbation
+      tags: [employment-lifecycle]
+      summary: Extend an employee's probation
+      description: >-
+        Records an effective-dated extension event and moves the expected
+        probation end. The previous expected end is preserved in history.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExtendProbationInput"
+      responses:
+        "200":
+          description: Probation extended
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProbationState"
+        "400":
+          description: Not on probation, invalid date, extensions not permitted, or the limit was reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}/probation/unsuccessful:
+    post:
+      operationId: recordUnsuccessfulProbation
+      tags: [employment-lifecycle]
+      summary: Record an unsuccessful probation outcome
+      description: >-
+        Records the outcome and surfaces it for HR action. This deliberately
+        does NOT separate the employee and does not change employment status —
+        if employment is to end, that is a separate authorized separation.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordProbationOutcomeInput"
+      responses:
+        "200":
+          description: Outcome recorded; employment unchanged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProbationState"
+        "400":
+          description: Not on probation, or a reason is missing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}/assignments:
+    get:
+      operationId: listEmploymentAssignments
+      tags: [employment-lifecycle]
+      summary: List an employee's acting appointments and secondments
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: assignmentType
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [acting, secondment]
+      responses:
+        "200":
+          description: Assignments
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmploymentAssignmentList"
+    post:
+      operationId: startEmploymentAssignment
+      tags: [employment-lifecycle]
+      summary: Start an acting appointment or secondment
+      description: >-
+        The employee's substantive position is never changed by this action. An
+        acting appointment records the position being acted in alongside the
+        substantive one; a secondment records a descriptive destination.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartAssignmentInput"
+      responses:
+        "201":
+          description: Assignment started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmploymentAssignment"
+        "400":
+          description: Invalid assignment, or this capability is not enabled for the organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: An assignment of this type is already open for this employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/assignments/{assignmentId}/end:
+    post:
+      operationId: endEmploymentAssignment
+      tags: [employment-lifecycle]
+      summary: End an acting appointment or secondment
+      description: >-
+        Closes the temporary record. Nothing is restored, because the
+        substantive position was never overwritten.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: assignmentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EndAssignmentInput"
+      responses:
+        "200":
+          description: Assignment ended
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmploymentAssignment"
+        "400":
+          description: Already ended, or invalid end date
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Assignment not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}/separation-readiness:
+    get:
+      operationId: getSeparationReadiness
+      tags: [employment-lifecycle]
+      summary: Factual warnings about outstanding accountability before separation
+      description: >-
+        Reports outstanding asset custody, inventory custody and personnel-file
+        state so an authorized user can see them before separating someone.
+        These are WARNINGS ONLY — nothing here returns an asset, moves stock,
+        closes a file, or blocks separation.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Outstanding accountability warnings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SeparationReadiness"
 components:
   schemas:
+
+    EmploymentTermType:
+      type: string
+      enum: [permanent, fixed_term]
+    EmploymentTermStatus:
+      type: string
+      enum: [active, superseded, closed]
+    TermExpiryState:
+      type: string
+      enum: [not_applicable, current, expiring_soon, expired]
+    EmploymentAssignmentType:
+      type: string
+      enum: [acting, secondment]
+    SecondmentDestinationType:
+      type: string
+      enum: [internal, external]
+
+    EmploymentTerm:
+      type: object
+      required: [id, organizationId, employeeId, termType, startDate, status]
+      properties:
+        id: { type: integer }
+        organizationId: { type: integer }
+        employeeId: { type: integer }
+        termType: { $ref: "#/components/schemas/EmploymentTermType" }
+        startDate: { type: string, format: date-time }
+        endDate: { type: string, format: date-time, nullable: true }
+        status: { $ref: "#/components/schemas/EmploymentTermStatus" }
+        renewedFromTermId: { type: integer, nullable: true }
+        reason: { type: string, nullable: true }
+        closedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        expiryState:
+          allOf:
+            - $ref: "#/components/schemas/TermExpiryState"
+          nullable: true
+          description: Derived from the term's dates and the current instant — never stored.
+
+    EmploymentTermList:
+      type: object
+      required: [terms]
+      properties:
+        terms:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmploymentTerm"
+
+    EmploymentTermRenewal:
+      type: object
+      required: [previous, renewed]
+      properties:
+        previous: { $ref: "#/components/schemas/EmploymentTerm" }
+        renewed: { $ref: "#/components/schemas/EmploymentTerm" }
+
+    ExpiringTermItem:
+      type: object
+      required: [term, state]
+      properties:
+        term: { $ref: "#/components/schemas/EmploymentTerm" }
+        state: { $ref: "#/components/schemas/TermExpiryState" }
+        employeeName: { type: string, nullable: true }
+
+    ExpiringTermList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExpiringTermItem"
+
+    CreateEmploymentTermInput:
+      type: object
+      required: [termType, startDate]
+      properties:
+        termType: { $ref: "#/components/schemas/EmploymentTermType" }
+        startDate: { type: string, format: date-time }
+        endDate: { type: string, format: date-time, nullable: true }
+        reason: { type: string, nullable: true, maxLength: 1000 }
+
+    RenewEmploymentTermInput:
+      type: object
+      required: [termType, startDate]
+      properties:
+        termType: { $ref: "#/components/schemas/EmploymentTermType" }
+        startDate: { type: string, format: date-time }
+        endDate: { type: string, format: date-time, nullable: true }
+        reason: { type: string, nullable: true, maxLength: 1000 }
+
+    CloseEmploymentTermInput:
+      type: object
+      properties:
+        reason: { type: string, nullable: true, maxLength: 1000 }
+
+    EmploymentAssignment:
+      type: object
+      required: [id, organizationId, employeeId, assignmentType, startDate]
+      properties:
+        id: { type: integer }
+        organizationId: { type: integer }
+        employeeId: { type: integer }
+        assignmentType: { $ref: "#/components/schemas/EmploymentAssignmentType" }
+        actingPositionId: { type: integer, nullable: true }
+        actingPositionTitle: { type: string, nullable: true }
+        actingDepartmentId: { type: integer, nullable: true }
+        destinationDescription: { type: string, nullable: true }
+        destinationType:
+          allOf:
+            - $ref: "#/components/schemas/SecondmentDestinationType"
+          nullable: true
+        startDate: { type: string, format: date-time }
+        expectedEndDate: { type: string, format: date-time, nullable: true }
+        actualEndDate: { type: string, format: date-time, nullable: true }
+        reason: { type: string, nullable: true }
+        endReason: { type: string, nullable: true }
+        overdue:
+          type: boolean
+          description: Derived — open past its expected end. Never stored, and never acted on automatically.
+        createdAt: { type: string, format: date-time }
+
+    EmploymentAssignmentList:
+      type: object
+      required: [assignments]
+      properties:
+        assignments:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmploymentAssignment"
+
+    StartAssignmentInput:
+      type: object
+      required: [assignmentType, startDate]
+      properties:
+        assignmentType: { $ref: "#/components/schemas/EmploymentAssignmentType" }
+        actingPositionId: { type: integer, nullable: true }
+        actingDepartmentId: { type: integer, nullable: true }
+        destinationDescription: { type: string, nullable: true, maxLength: 500 }
+        destinationType:
+          allOf:
+            - $ref: "#/components/schemas/SecondmentDestinationType"
+          nullable: true
+        startDate: { type: string, format: date-time }
+        expectedEndDate: { type: string, format: date-time, nullable: true }
+        reason: { type: string, nullable: true, maxLength: 1000 }
+
+    EndAssignmentInput:
+      type: object
+      required: [actualEndDate]
+      properties:
+        actualEndDate: { type: string, format: date-time }
+        endReason: { type: string, nullable: true, maxLength: 1000 }
+
+    ProbationState:
+      type: object
+      required: [employeeId, onProbation, extensionCount, unsuccessfulOutcomeRecorded]
+      properties:
+        employeeId: { type: integer }
+        onProbation: { type: boolean }
+        probationEndDate: { type: string, format: date-time, nullable: true }
+        probationEndSource:
+          type: string
+          enum: [extension_event, employee_record, none]
+        extensionCount: { type: integer }
+        unsuccessfulOutcomeRecorded:
+          type: boolean
+          description: An outcome was recorded. Employment status is unaffected by it.
+
+    ExtendProbationInput:
+      type: object
+      required: [newProbationEndDate, effectiveDate, reason]
+      properties:
+        newProbationEndDate: { type: string, format: date-time }
+        effectiveDate: { type: string, format: date-time }
+        reason: { type: string, minLength: 1, maxLength: 1000 }
+        probationReviewId: { type: integer, nullable: true }
+
+    RecordProbationOutcomeInput:
+      type: object
+      required: [effectiveDate, reason]
+      properties:
+        effectiveDate: { type: string, format: date-time }
+        reason: { type: string, minLength: 1, maxLength: 1000 }
+        probationReviewId: { type: integer, nullable: true }
+
+    EmploymentLifecycleEvent:
+      type: object
+      required: [id, eventType, effectiveDate, isSystemEvent, label]
+      properties:
+        id: { type: integer }
+        eventType:
+          type: string
+          description: Free text. Imported history may carry any value.
+        label:
+          type: string
+          description: Friendly label for a registered event, or the raw string for imported history.
+        isSystemEvent:
+          type: boolean
+          description: >-
+            False for imported/legacy history. Such events are displayed as
+            recorded and never participate in state derivation.
+        effectiveDate: { type: string, format: date-time }
+        previousState: { nullable: true }
+        newState: { nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    EmploymentLifecycleState:
+      type: object
+      required: [employeeId, history, probation]
+      properties:
+        employeeId: { type: integer }
+        substantivePositionId: { type: integer, nullable: true }
+        substantivePositionTitle: { type: string, nullable: true }
+        currentTerm:
+          allOf:
+            - $ref: "#/components/schemas/EmploymentTerm"
+          nullable: true
+        currentActingAssignment:
+          allOf:
+            - $ref: "#/components/schemas/EmploymentAssignment"
+          nullable: true
+        currentSecondment:
+          allOf:
+            - $ref: "#/components/schemas/EmploymentAssignment"
+          nullable: true
+        probation: { $ref: "#/components/schemas/ProbationState" }
+        history:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmploymentLifecycleEvent"
+
+    SeparationWarning:
+      type: object
+      required: [kind, count, message]
+      properties:
+        kind:
+          type: string
+          enum: [assets, office_inventory, personnel_file]
+        count: { type: integer }
+        message: { type: string }
+
+    SeparationReadiness:
+      type: object
+      required: [employeeId, warnings, blocksSeparation]
+      properties:
+        employeeId: { type: integer }
+        warnings:
+          type: array
+          items:
+            $ref: "#/components/schemas/SeparationWarning"
+        blocksSeparation:
+          type: boolean
+          description: Always false — these are advisory only and never prevent separation.
 
     OnboardingTemplateStatus:
       type: string

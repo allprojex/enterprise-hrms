@@ -91,6 +91,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useEmployeePhoto } from '@/hooks/use-employee-photo';
 import { useIsHrCapable } from '@/hooks/use-hr-capable';
 import { QueryError } from '@/components/query-error';
+import { EmploymentLifecyclePanel } from '@/components/employment/employment-lifecycle-panel';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 const NONE_PROBATION_REVIEW = '__none__';
@@ -1895,6 +1896,8 @@ export default function EmployeeDetail() {
           </CardContent>
         </Card>
 
+        <EmploymentLifecyclePanel organizationId={organizationId} employeeId={employeeId} />
+
         <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -1902,7 +1905,7 @@ export default function EmployeeDetail() {
               Employment History
             </CardTitle>
             <CardDescription>
-              Internal movement (transfer, promotion, confirmation) recorded through this employee's own record — read-only, most recent first.
+              Dated employment events recorded through this employee's own record — read-only, most recent first. Imported events appear exactly as recorded.
             </CardDescription>
           </CardHeader>
           <CardContent>

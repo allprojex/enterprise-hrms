@@ -289,7 +289,50 @@ interface NamespaceDefinition {
   moduleKey?: string;
 }
 
+// WS-11 — Employment Lifecycle Events Expansion (§27.17).
+//
+// Every value here is an ORGANIZATION POLICY choice, which is why none of them
+// has a statutory default. In particular there is deliberately no default
+// probation duration: §27.18 records that Ghana's Act 651 requires only a
+// "reasonable duration determined in advance" with no verifiable numeric
+// maximum, and that the widely repeated "six months" figure is uncorroborated.
+// Encoding any number here would turn an unverified claim into product
+// behaviour for every organization on the platform.
+//
+// `defaultProbationDurationDays` is therefore optional with no default: an
+// organization that sets it gets a suggested probation end when one is created,
+// and an organization that does not is simply never offered one.
+const employmentLifecycleConfigSchema = z
+  .object({
+    // Probation
+    defaultProbationDurationDays: z.number().int().min(1).max(1095).optional(),
+    probationReminderDaysBefore: z.number().int().min(0).max(365).optional(),
+    probationExtensionsAllowed: z.boolean().optional(),
+    maxProbationExtensions: z.number().int().min(1).max(10).optional(),
+    // Contract terms
+    contractExpiryReminderDaysBefore: z.number().int().min(0).max(365).optional(),
+    // Whether these capabilities are used at all by this organization
+    actingAppointmentsEnabled: z.boolean().optional(),
+    secondmentsEnabled: z.boolean().optional(),
+  })
+  .passthrough();
+
 export const CONFIG_NAMESPACES: Record<string, NamespaceDefinition> = {
+  employment_lifecycle: {
+    schemaVersion: 1,
+    schema: employmentLifecycleConfigSchema,
+    defaults: () => ({
+      // Reminder lead times are ordinary operational defaults, not statutory
+      // claims, and remain fully overridable.
+      probationReminderDaysBefore: 14,
+      contractExpiryReminderDaysBefore: 30,
+      probationExtensionsAllowed: true,
+      actingAppointmentsEnabled: true,
+      secondmentsEnabled: true,
+      // No defaultProbationDurationDays and no maxProbationExtensions on
+      // purpose — see the note above.
+    }),
+  },
   general: {
     schemaVersion: 1,
     schema: generalConfigSchema,

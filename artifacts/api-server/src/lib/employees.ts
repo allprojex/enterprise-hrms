@@ -296,11 +296,33 @@ export async function separateEmployee(params: {
     actorApplicationUserId: params.actorApplicationUserId,
     actorMembershipId: params.actorMembershipId,
     organizationId: params.organizationId,
+    // WS-11 (§27.3) — this audit event is UNCHANGED and is not weakened. The
+    // lifecycle-history event appended below is additional, not a replacement.
     eventType: "employee.separated",
     targetType: "employee",
     targetId: String(params.employeeId),
     beforeState: { employmentStatus: before.employmentStatus, separationDate: before.separationDate, separationReason: before.separationReason },
     afterState: { employmentStatus: updated.employmentStatus, separationDate: updated.separationDate, separationReason: updated.separationReason },
+  });
+
+  // WS-11 (§27.3) — close the lifecycle-history gap, FORWARD ONLY. Separation
+  // previously produced an audit event but no `employment_periods` row, so the
+  // Employment History surface omitted it. New separations now append one.
+  // Nothing backfills the past: an employee already terminated without an event
+  // keeps that honest absence rather than gaining an invented date.
+  await recordEmploymentPeriodEvent({
+    organizationId: params.organizationId,
+    employeeId: params.employeeId,
+    eventType: "separation",
+    effectiveDate: params.separationDate,
+    previousState: { employmentStatus: before.employmentStatus },
+    newState: {
+      employmentStatus: updated.employmentStatus,
+      separationDate: updated.separationDate,
+      ...(updated.separationReason ? { separationReason: updated.separationReason } : {}),
+    },
+    actorApplicationUserId: params.actorApplicationUserId,
+    actorMembershipId: params.actorMembershipId,
   });
 
   return updated;
@@ -332,11 +354,32 @@ export async function rehireEmployee(params: {
     actorApplicationUserId: params.actorApplicationUserId,
     actorMembershipId: params.actorMembershipId,
     organizationId: params.organizationId,
+    // WS-11 (§27.3) — unchanged and not weakened; the lifecycle event below is
+    // additional.
     eventType: "employee.rehired",
     targetType: "employee",
     targetId: String(params.employeeId),
     beforeState: { employmentStatus: before.employmentStatus, separationDate: before.separationDate, separationReason: before.separationReason },
     afterState: { employmentStatus: updated.employmentStatus },
+  });
+
+  // WS-11 (§27.3). The rehire keeps the SAME employees.id and the same history —
+  // the prior separation event stays exactly where it is, and this appends the
+  // return beside it. `effectiveDate` is the rehire instant because no earlier
+  // date is known; inventing one would be the fabrication §27.3 forbids.
+  await recordEmploymentPeriodEvent({
+    organizationId: params.organizationId,
+    employeeId: params.employeeId,
+    eventType: "rehire",
+    effectiveDate: new Date(),
+    previousState: {
+      employmentStatus: before.employmentStatus,
+      separationDate: before.separationDate,
+      separationReason: before.separationReason,
+    },
+    newState: { employmentStatus: updated.employmentStatus },
+    actorApplicationUserId: params.actorApplicationUserId,
+    actorMembershipId: params.actorMembershipId,
   });
 
   return updated;

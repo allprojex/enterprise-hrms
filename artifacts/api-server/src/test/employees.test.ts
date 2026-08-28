@@ -453,7 +453,7 @@ describe("POST /api/organizations/:organizationId/employees/:employeeId/separate
     mockSession({ id: 1 });
     mockActiveMembership({ id: 5, organizationId: 10 });
     mockPermissions(["employee.write", "employee.notes.read"]);
-    fixtures.employeeRows = [{ id: 42, firstName: "Ada", lastName: "Lovelace", employmentStatus: "active" }];
+    fixtures.employeeRows = [{ id: 42, organizationId: 10, firstName: "Ada", lastName: "Lovelace", employmentStatus: "active" }];
 
     const res = await request(app)
       .post("/api/organizations/10/employees/42/separate")
@@ -495,7 +495,7 @@ describe("POST /api/organizations/:organizationId/employees/:employeeId/rehire",
     mockSession({ id: 1 });
     mockActiveMembership({ id: 5, organizationId: 10 });
     mockPermissions(["employee.read"]);
-    fixtures.employeeRows = [{ id: 42, firstName: "Ada", lastName: "Lovelace", employmentStatus: "terminated" }];
+    fixtures.employeeRows = [{ id: 42, organizationId: 10, firstName: "Ada", lastName: "Lovelace", employmentStatus: "terminated" }];
 
     const res = await request(app)
       .post("/api/organizations/10/employees/42/rehire")
@@ -510,7 +510,11 @@ describe("POST /api/organizations/:organizationId/employees/:employeeId/rehire",
     mockActiveMembership({ id: 5, organizationId: 10 });
     mockPermissions(["employee.write", "employee.notes.read"]);
     fixtures.employeeRows = [
-      { id: 42, firstName: "Ada", lastName: "Lovelace", employmentStatus: "terminated", separationDate: new Date(), separationReason: "resigned" },
+      // organizationId is required from WS-11 onward: rehire now appends an
+      // employment_periods event, and that shared write path asserts the
+      // employee belongs to the organization — as transfer/promotion/
+      // confirmation already did.
+      { id: 42, organizationId: 10, firstName: "Ada", lastName: "Lovelace", employmentStatus: "terminated", separationDate: new Date(), separationReason: "resigned" },
     ];
 
     const res = await request(app)

@@ -5,6 +5,235 @@
  * Enterprise HRMS API
  * OpenAPI spec version: 0.1.0
  */
+export type EmploymentTermType = typeof EmploymentTermType[keyof typeof EmploymentTermType];
+
+
+export const EmploymentTermType = {
+  permanent: 'permanent',
+  fixed_term: 'fixed_term',
+} as const;
+
+export type EmploymentTermStatus = typeof EmploymentTermStatus[keyof typeof EmploymentTermStatus];
+
+
+export const EmploymentTermStatus = {
+  active: 'active',
+  superseded: 'superseded',
+  closed: 'closed',
+} as const;
+
+export type TermExpiryState = typeof TermExpiryState[keyof typeof TermExpiryState];
+
+
+export const TermExpiryState = {
+  not_applicable: 'not_applicable',
+  current: 'current',
+  expiring_soon: 'expiring_soon',
+  expired: 'expired',
+} as const;
+
+export type EmploymentAssignmentType = typeof EmploymentAssignmentType[keyof typeof EmploymentAssignmentType];
+
+
+export const EmploymentAssignmentType = {
+  acting: 'acting',
+  secondment: 'secondment',
+} as const;
+
+export type SecondmentDestinationType = typeof SecondmentDestinationType[keyof typeof SecondmentDestinationType];
+
+
+export const SecondmentDestinationType = {
+  internal: 'internal',
+  external: 'external',
+} as const;
+
+export interface EmploymentTerm {
+  id: number;
+  organizationId: number;
+  employeeId: number;
+  termType: EmploymentTermType;
+  startDate: string;
+  endDate?: string | null;
+  status: EmploymentTermStatus;
+  renewedFromTermId?: number | null;
+  reason?: string | null;
+  closedAt?: string | null;
+  createdAt?: string;
+  /** Derived from the term's dates and the current instant — never stored. */
+  expiryState?: TermExpiryState | null;
+}
+
+export interface EmploymentTermList {
+  terms: EmploymentTerm[];
+}
+
+export interface EmploymentTermRenewal {
+  previous: EmploymentTerm;
+  renewed: EmploymentTerm;
+}
+
+export interface ExpiringTermItem {
+  term: EmploymentTerm;
+  state: TermExpiryState;
+  employeeName?: string | null;
+}
+
+export interface ExpiringTermList {
+  items: ExpiringTermItem[];
+}
+
+export interface CreateEmploymentTermInput {
+  termType: EmploymentTermType;
+  startDate: string;
+  endDate?: string | null;
+  /** @maxLength 1000 */
+  reason?: string | null;
+}
+
+export interface RenewEmploymentTermInput {
+  termType: EmploymentTermType;
+  startDate: string;
+  endDate?: string | null;
+  /** @maxLength 1000 */
+  reason?: string | null;
+}
+
+export interface CloseEmploymentTermInput {
+  /** @maxLength 1000 */
+  reason?: string | null;
+}
+
+export interface EmploymentAssignment {
+  id: number;
+  organizationId: number;
+  employeeId: number;
+  assignmentType: EmploymentAssignmentType;
+  actingPositionId?: number | null;
+  actingPositionTitle?: string | null;
+  actingDepartmentId?: number | null;
+  destinationDescription?: string | null;
+  destinationType?: SecondmentDestinationType | null;
+  startDate: string;
+  expectedEndDate?: string | null;
+  actualEndDate?: string | null;
+  reason?: string | null;
+  endReason?: string | null;
+  /** Derived — open past its expected end. Never stored, and never acted on automatically. */
+  overdue?: boolean;
+  createdAt?: string;
+}
+
+export interface EmploymentAssignmentList {
+  assignments: EmploymentAssignment[];
+}
+
+export interface StartAssignmentInput {
+  assignmentType: EmploymentAssignmentType;
+  actingPositionId?: number | null;
+  actingDepartmentId?: number | null;
+  /** @maxLength 500 */
+  destinationDescription?: string | null;
+  destinationType?: SecondmentDestinationType | null;
+  startDate: string;
+  expectedEndDate?: string | null;
+  /** @maxLength 1000 */
+  reason?: string | null;
+}
+
+export interface EndAssignmentInput {
+  actualEndDate: string;
+  /** @maxLength 1000 */
+  endReason?: string | null;
+}
+
+export type ProbationStateProbationEndSource = typeof ProbationStateProbationEndSource[keyof typeof ProbationStateProbationEndSource];
+
+
+export const ProbationStateProbationEndSource = {
+  extension_event: 'extension_event',
+  employee_record: 'employee_record',
+  none: 'none',
+} as const;
+
+export interface ProbationState {
+  employeeId: number;
+  onProbation: boolean;
+  probationEndDate?: string | null;
+  probationEndSource?: ProbationStateProbationEndSource;
+  extensionCount: number;
+  /** An outcome was recorded. Employment status is unaffected by it. */
+  unsuccessfulOutcomeRecorded: boolean;
+}
+
+export interface ExtendProbationInput {
+  newProbationEndDate: string;
+  effectiveDate: string;
+  /**
+     * @minLength 1
+     * @maxLength 1000
+     */
+  reason: string;
+  probationReviewId?: number | null;
+}
+
+export interface RecordProbationOutcomeInput {
+  effectiveDate: string;
+  /**
+     * @minLength 1
+     * @maxLength 1000
+     */
+  reason: string;
+  probationReviewId?: number | null;
+}
+
+export interface EmploymentLifecycleEvent {
+  id: number;
+  /** Free text. Imported history may carry any value. */
+  eventType: string;
+  /** Friendly label for a registered event, or the raw string for imported history. */
+  label: string;
+  /** False for imported/legacy history. Such events are displayed as recorded and never participate in state derivation. */
+  isSystemEvent: boolean;
+  effectiveDate: string;
+  previousState?: unknown | null;
+  newState?: unknown | null;
+  createdAt?: string;
+}
+
+export interface EmploymentLifecycleState {
+  employeeId: number;
+  substantivePositionId?: number | null;
+  substantivePositionTitle?: string | null;
+  currentTerm?: EmploymentTerm | null;
+  currentActingAssignment?: EmploymentAssignment | null;
+  currentSecondment?: EmploymentAssignment | null;
+  probation: ProbationState;
+  history: EmploymentLifecycleEvent[];
+}
+
+export type SeparationWarningKind = typeof SeparationWarningKind[keyof typeof SeparationWarningKind];
+
+
+export const SeparationWarningKind = {
+  assets: 'assets',
+  office_inventory: 'office_inventory',
+  personnel_file: 'personnel_file',
+} as const;
+
+export interface SeparationWarning {
+  kind: SeparationWarningKind;
+  count: number;
+  message: string;
+}
+
+export interface SeparationReadiness {
+  employeeId: number;
+  warnings: SeparationWarning[];
+  /** Always false — these are advisory only and never prevent separation. */
+  blocksSeparation: boolean;
+}
+
 export type OnboardingTemplateStatus = typeof OnboardingTemplateStatus[keyof typeof OnboardingTemplateStatus];
 
 
@@ -11285,5 +11514,24 @@ export const ListOnboardingStatus = {
   in_progress: 'in_progress',
   completed: 'completed',
   cancelled: 'cancelled',
+} as const;
+
+export type ListExpiringEmploymentTermsParams = {
+/**
+ * Evaluate expiry as at this instant instead of now.
+ */
+asOf?: string;
+};
+
+export type ListEmploymentAssignmentsParams = {
+assignmentType?: ListEmploymentAssignmentsAssignmentType;
+};
+
+export type ListEmploymentAssignmentsAssignmentType = typeof ListEmploymentAssignmentsAssignmentType[keyof typeof ListEmploymentAssignmentsAssignmentType];
+
+
+export const ListEmploymentAssignmentsAssignmentType = {
+  acting: 'acting',
+  secondment: 'secondment',
 } as const;
 

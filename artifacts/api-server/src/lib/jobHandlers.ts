@@ -27,6 +27,7 @@
 import { z } from "zod/v4";
 import { registerJobHandler, zodPayloadParser } from "./jobHandlerRegistry";
 import { registerOnboardingJobHandlers } from "./onboarding/reminders";
+import { registerEmploymentLifecycleJobHandlers } from "./employmentLifecycle/reminders";
 import { notifyUser, type RecipientSpec } from "./notifications";
 
 const recipientSpecSchema: z.ZodType<RecipientSpec> = z.union([
@@ -95,4 +96,10 @@ export function registerShippedJobHandlers(): void {
   // because §26.14 requires each to re-fetch authoritative onboarding state and
   // no-op when stale, which a domain-neutral notifier cannot do.
   registerOnboardingJobHandlers();
+
+  // WS-11 — employment lifecycle reminders. Separate handlers rather than
+  // reuses of reminder.notify because §27.10 requires each to re-fetch
+  // authoritative state and no-op when stale. They are observers only: §27.11
+  // forbids a scheduled job making a consequential employment decision.
+  registerEmploymentLifecycleJobHandlers();
 }

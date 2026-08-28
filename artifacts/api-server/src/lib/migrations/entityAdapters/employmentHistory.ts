@@ -99,6 +99,12 @@ export const employmentHistoryAdapter: EntityAdapter = {
       newState,
       actorApplicationUserId: ctx.actorApplicationUserId,
       actorMembershipId: ctx.actorMembershipId,
+      // WS-11 (§27.19). Imported history is historical EVIDENCE, not a
+      // controlled business operation: its arbitrary event types are preserved
+      // exactly as supplied and are never validated against WS-11's system
+      // registry, which would reject legitimate customer history. They are also
+      // inert — no imported string can ever drive a state transition.
+      source: "import",
     });
     return { status: "created", resultId: period.id };
   },
