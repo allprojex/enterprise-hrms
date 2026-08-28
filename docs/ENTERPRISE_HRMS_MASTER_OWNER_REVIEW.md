@@ -90,13 +90,13 @@ Unchanged from the discovery pass — drawn directly from `docs/GHANA_HR_EMPLOYE
 | Candidate→Employee conversion | COMPLETE, structurally sound | Single authoritative path, DB-enforced no-duplication |
 | Employee numbering | COMPLETE | Generic, organization-configurable, must never be duplicated |
 | PIF/Personnel File | COMPLETE | Physical custody only |
-| Employee documents (checklist) | PARTIAL/MISSING | Now folded under OD #4 |
+| Employee documents (checklist) | PARTIAL/MISSING | Now folded under OD #4 — narrowed by §26.1: WS-5's `document_requirements` already supplies the required/provided/verified/expiry primitive |
 | Statutory/SSNIT handling | COMPLETE, permission-gated + audited | Field-level masking now **P1** per OD #23 |
-| Handbook/policy acknowledgement | MISSING | Zero "handbook" hits anywhere |
+| Handbook/policy acknowledgement | MISSING | Zero "handbook" hits anywhere — **WS-10 scope frozen in §26** (§26.17: WS-5 document + acknowledgement layer) |
 | Job description | CONFIGURATION-ONLY | Lives only on transient `vacancies` |
-| Induction/orientation | MISSING, deliberately descoped historically | — |
-| ESS activation | COMPLETE as mechanism; no onboarding-completion gate | No such signal exists anywhere |
-| Onboarding workflow/checklist | MISSING | No task/checklist engine anywhere |
+| Induction/orientation | MISSING, deliberately descoped historically | **WS-10 scope frozen in §26** (§26.22: specialization of the checklist engine, not a separate engine) |
+| ESS activation | COMPLETE as mechanism; no onboarding-completion gate | No such signal exists anywhere — **§26.23 freezes this as deliberate: WS-10 introduces no ESS gate** |
+| Onboarding workflow/checklist | MISSING | No task/checklist engine anywhere — **WS-10 scope frozen in §26** |
 | Probation | PARTIAL, more built than assumed | Real `confirmEmployee()` mechanism; no duration engine, no extension-as-event |
 | Probation review | Linked to Performance correctly | — |
 
@@ -880,5 +880,237 @@ None blocking. Two items are conditional by design and are to be decided **from 
 
 1. Whether employment particulars extend `offer_versions` or become a linked versioned terms record (§25.9) — a normalization judgement.
 2. Whether a CAPTCHA provider is wired in WS-9 or only its interface and configuration gate (§25.14) — decided on whether it would force an unnecessary external-service commitment.
+
+Either resolution must be recorded with its reason.
+
+## 26. WS-10 Workstream Scope Clarification — Onboarding, Induction & Handbook
+
+Recorded by the Owner after a read-only frozen-scope extraction found WS-10's three-item bundle ("Checklist/workflow engine, Induction as specialization, Handbook versioning + acknowledgement") carried **no attached Owner Decision** and left the majority of its architecture unstated. This section is **purely additive**. The 31 Owner Decisions in §22 are untouched and none is reopened; OD #14's "no second general workflow engine" ruling is expressly preserved and constrains §26.11 below.
+
+WS-10 is **P1/P2** and depends on **WS-5 (Documents & Records)** and **WS-6 (Scheduled Jobs / Notifications)**, both complete. **WS-19 depends on WS-10.**
+
+### 26.1 Repository findings that materially shaped this clarification
+
+Three facts were verified in the repository before freezing, and they change what WS-10 must build:
+
+1. **`document_requirements` already exists** (WS-5) and is exactly the required/provided/verified/rejected/expiry primitive this workstream needs: `ownerType` ∈ {employee, candidate, organization}, `ownerId`, `categoryCode`, `required`, `status` ∈ {pending, provided, verified, rejected}, `verifiedBy`/`verifiedAt`, `expiryDate`, `rejectionReason`, and a polymorphic `fulfilledDocumentTable`/`fulfilledDocumentId` pointing at the concrete row that satisfied it. **Its own header names WS-10 as an intended consumer.** A unique index constrains it to one requirement per `(organization, ownerType, ownerId, categoryCode)`.
+2. **`organization_documents` + `organization_document_versions` already exist** (WS-5, OD #4) and the table header explicitly names **"handbook, HR policy"** as its purpose. Versions carry `versionNumber`, `status` ∈ {current, superseded}, `effectiveDate`, `expiryDate`, `changeNote`, `supersededAt`.
+3. This **narrows ranked gap #8**. The earlier finding that `employee_documents` has no required/verified/expiry columns is correct but incomplete: WS-5 solved the checklist need in a *separate* table rather than by widening `employee_documents`. WS-10 therefore has **no document-requirement table to build**.
+
+### 26.2 Lifecycle boundary — frozen
+
+`RECRUITMENT` (candidate selected → approved to hire → offer → **offer acceptance**) → `PRE-ONBOARDING` (permitted preparation before commencement) → `EMPLOYEE IDENTITY CREATED` (canonical `employees.id` exists) → `FORMAL EMPLOYEE ONBOARDING` (tasks, documents, handbook/policies, induction, access/setup, asset/inventory references, completion) → `ACTIVE EMPLOYMENT` (Attendance, Leave, Performance, Learning, Assets/Inventory, Payroll if enabled).
+
+**Probation is not part of this chain.** It remains its own existing capability (`confirmEmployee()`, `employment_periods`) and is expanded under **WS-11**.
+
+### 26.3 Pre-onboarding — minimum bridge only
+
+Pre-onboarding may begin **after an offer has been formally accepted** and may carry pre-employment document requests, instructions, commencement information, required forms and administrative preparation.
+
+**Do not build a large separate pre-onboarding engine, and do not duplicate the task engine across the candidate and employee phases.** Given §26.1, the document dimension of pre-onboarding is **already satisfied** by `document_requirements` with `ownerType = 'candidate'` — no new table is required for it. Implement only the smallest bridge the remaining dimensions genuinely need, preferring existing Recruitment/Offer architecture where it offers a cleaner one.
+
+Before `employees.id` exists, **candidate identity remains authoritative**. Any pre-onboarding state must link forward through the existing candidate→employee conversion relationship (`candidate_employee_links`, `candidates.linkedInternalEmployeeId`).
+
+### 26.4 Employee-identity boundary — frozen
+
+Formal onboarding attaches to **`employees.id`**. Do **not** create `onboarding_employee`, a temporary employee identity, a duplicate person record, or a separate onboarding staff identity. All onboarding history must resolve to the same `employees.id` used across the HRMS.
+
+### 26.5 Candidate who never commences
+
+Do not fabricate an active employee lifecycle. Preserve candidate/recruitment history; close or cancel pre-onboarding cleanly; record reason/status. Formal employee onboarding **must not start** unless employee identity was actually created through the approved conversion process. **Recruitment history is never silently deleted.**
+
+### 26.6 Template model
+
+Onboarding is organization-configurable around **template → template version → instance → tasks**. Templates may vary by organization, branch, department, position/designation, employment type, or other narrowly approved applicability criteria. **No WWM onboarding is hard-coded.**
+
+### 26.7 Template versioning
+
+Templates are versioned. An instance **snapshots or binds to the exact template version** at creation. Later template edits must never rewrite an onboarding in progress or already completed — the same snapshot discipline as WS-8 field versions and WS-9 employment particulars.
+
+Template lifecycle: **`draft` → `active` → `archived`.** Only `active` versions create new instances; existing instances retain their original version.
+
+### 26.8 Status model — frozen
+
+| Entity | States |
+| --- | --- |
+| Onboarding instance | `not_started`, `in_progress`, `completed`, `cancelled` |
+| Task | `pending`, `completed`, `waived`, `cancelled` |
+| Acknowledgement | `pending`, `acknowledged` |
+| Template | `draft`, `active`, `archived` |
+
+**`overdue` is DERIVED** — from `dueAt` + unfinished state + current time — and is **not** a persisted lifecycle status. Do not invent additional states unless repository evidence creates a genuine requirement.
+
+### 26.9 Task model
+
+A task may support: title, description/instructions, required-or-optional, responsible party/resolver, due-date rule, completion state, `completedBy`, `completedAt`, evidence/reference, waiver where authorized, notes, order, and dependency where genuinely useful.
+
+**Do not build a generic project-management system.**
+
+### 26.10 Required vs optional, waiver, and completion
+
+Required tasks block completion unless **completed** or **explicitly waived by an authorized user**. Optional tasks never block. A waiver requires **authority, reason, actor, timestamp and audit**.
+
+Onboarding is **complete** when every required task is completed or validly waived. Completion is **server-derived** and must never be inferred from a percentage.
+
+### 26.11 Responsibility resolvers
+
+Use **relationship-derived authority, never fragile role-name strings** — the same ruling already recorded for Recruitment in §25.2. Initial resolver types may include: the employee, an HR permission holder, the reporting manager, the Department Head (through the temporal `department_heads` model), a specific user/membership, and the organization administrator only where a configuration task genuinely requires it.
+
+**No arbitrary expression DSL** — consistent with OD #14.
+
+### 26.12 Responsibility history
+
+When a manager, Department Head or membership changes: **completed history is never rewritten** — who actually completed a task stays recorded. Pending work re-resolves authority under the documented resolver semantics. This mirrors the authority-basis snapshot proven in WS-9.
+
+### 26.13 Due dates
+
+Due-date rules are relative to meaningful dates only: onboarding start, employee commencement/start date, or task-dependency completion. The rule model stays constrained. **No arbitrary executable scheduling expressions.** WS-6 owns the scheduler.
+
+### 26.14 WS-6 reminder contract
+
+WS-6 is used for upcoming task reminders, overdue task reminders, handbook/policy acknowledgement reminders and induction reminders where configured. Register **only allow-listed job types**, with migration-safe idempotency, narrow payload identifiers, authoritative state re-fetch, and stale-reminder no-op/cancel semantics.
+
+**In-app notification only. No email or SMS in WS-10.**
+
+### 26.15 Required-document architecture
+
+**Do not rebuild document storage, and do not build a document-requirement table.** WS-5 is authoritative and, per §26.1, `document_requirements` already provides required/optional, provided, verified, rejected, missing and expiry against employee, candidate and organization owners. WS-10 consumes it and links onboarding tasks to it. Do not turn `employee_documents` into a parallel workflow engine.
+
+### 26.16 PIF, personnel file and staff numbering
+
+**Neither is rebuilt.** Onboarding may carry a reference task such as "Personnel File/PIF setup completed" or reference authoritative state, but physical custody stays in the Personnel Files domain and must not be merged into onboarding tables. Employee-number allocation remains the existing numbering engine's; onboarding may **reference whether a staff number exists** but must never generate or reassign one.
+
+### 26.17 Handbook architecture — frozen
+
+**HANDBOOK = a WS-5 organization document + a WS-10 assignment/acknowledgement layer.** No second handbook document-storage subsystem. WS-5 supplies documents, versions, storage, effective versions, audit and retention (all confirmed present in §26.1). WS-10 adds only: assignment, recipient, acknowledgement, acknowledgement timestamp, acknowledged version, outstanding status.
+
+### 26.18 Policy acknowledgement scope
+
+The same mechanism serves the **Employee Handbook, Code of Conduct and organization HR policies**. **No fixed policy taxonomy is hard-coded** — organizations decide which document categories require acknowledgement.
+
+### 26.19 Acknowledgement semantics
+
+An acknowledgement records: employee, document, **exact document version**, `assignedAt`, `dueAt` where configured, `acknowledgedAt`, actor/employee identity, and method/status.
+
+Acknowledgement is **not** a legal electronic signature. Use **ACKNOWLEDGED / RECEIVED / READ CONFIRMATION** wording — **never "SIGNED"** — unless a real e-signature capability is explicitly implemented. (WS-9 likewise built no e-signature platform.)
+
+### 26.20 Re-acknowledgement
+
+When a new version becomes effective, organizations **configure** whether re-acknowledgement is required. If required, the new obligation points at the **new version**; the previous acknowledgement remains historical evidence and is **never overwritten**.
+
+### 26.21 Handbook assignment audience
+
+Assignment may target: all employees, branch, department, position/designation, employment type, or explicit employee selection. The audience resolver stays constrained — **no arbitrary rules engine**.
+
+### 26.22 Induction
+
+Induction is a **specialization of the onboarding checklist engine**, not an unrelated workflow engine. An induction task/template may represent HR induction, organization orientation, department induction, role induction, IT/security orientation, workplace procedures, or safety orientation. **Content remains organization configuration.**
+
+Specialization may support facilitator/responsible person, scheduled date/time, location or meeting details, attendance/completion, evidence/notes, reschedule and completion.
+
+**No training-course/LMS functionality** — the Learning module remains separate. Evidence may reference a WS-5 document, uploaded evidence, an attendance/completion record, or notes; **reuse WS-5 for anything file-shaped — no duplicate blob storage.**
+
+### 26.23 Gating decisions — both frozen NEGATIVE
+
+**No automatic ESS gate.** Onboarding completion must **not** become a universal prerequisite for ESS access. Existing ESS behaviour (module + role, per §6 row 98) is unchanged. WS-10 must not lock employees out until onboarding is 100% complete. A future workstream may authorize configurable access dependencies; WS-10 may not.
+
+**No automatic probation gate.** Probation start must **not** depend on onboarding completion. **No second probation mechanism** (§21). Probation extension-as-event, reminders and unsuccessful outcome belong to **WS-11**.
+
+### 26.24 Module boundaries — reference, never merge
+
+| Domain | WS-10 may | WS-10 must not |
+| --- | --- | --- |
+| **Assets** | carry a task such as "Required asset assigned"; reference an existing assignment; verify it exists; link to the Asset workflow | duplicate asset custody; auto-create asset records absent an explicit authorized Asset action |
+| **Office Inventory** | carry "Required Inventory issued"; reference request/issue/custody; verify completion; link to the Inventory workflow | duplicate inventory custody; **reduce stock because a task was ticked** |
+| **Access provisioning** | track account-linked, invitation-sent, ESS-access-verified and organization-defined access checks | create a second identity system; bypass membership/role provisioning; fabricate account access — **WS-2 is authoritative** |
+| **Payroll** | reference "Payroll setup completed", only where Payroll is enabled **and** the user holds Payroll authority | expose Payroll-sensitive data; enable Payroll automatically |
+| **Leave** | reference setup completion where useful | mutate Leave balances or policies on onboarding completion |
+
+Assets and Office Inventory remain **confirmed separate** (§19) and must not be merged.
+
+### 26.25 Reporting and progress
+
+Provide at minimum: total tasks, required tasks, completed, waived, pending, overdue, completion percentage, overall status. **Percentage alone is never authoritative completion** (see §26.10).
+
+### 26.26 Surfaces and visibility
+
+- **HR (authorized):** active onboarding, upcoming tasks, overdue tasks, document gaps, acknowledgement gaps, induction status. Permission-aware. **Organization-wide onboarding data is never exposed to ordinary employees.**
+- **Employee (ESS):** their **own** onboarding tasks, required documents, assigned handbook/policies, acknowledgement actions, induction information and completed/pending state — **own scope only**.
+- **Manager / Department Head:** only the onboarding work they are responsible for through a relationship resolver. **No global onboarding visibility.**
+
+### 26.27 Configuration authority
+
+Organization Admin / authorized HR configuration manages templates, task definitions, applicability, responsible resolver, required/optional, due-date rules, induction specialization, document requirements, acknowledgements and Asset/Inventory reference tasks. **Configuration authority stays separate from sensitive operational access** — the same split WS-8 established.
+
+### 26.28 Cancellation and reopening
+
+Cancelling an instance requires **authority and a reason**, preserves history, stops future WS-6 reminders for that onboarding, does not delete completed evidence, and **does not terminate employment** (separation remains a separate domain).
+
+**Completed onboarding is not casually reopened.** A material correction uses an explicit audited administrative correction or a supplementary task. Completed state and history are never erased.
+
+### 26.29 Audit (WS-3)
+
+Audit: template created/versioned/activated/archived; instance created; task completed; task waived; task reassigned where administrative; onboarding completed; onboarding cancelled; handbook/policy assigned; acknowledgement recorded; induction completed/rescheduled. **Do not audit list views.**
+
+### 26.30 Sensitive data and tenant isolation
+
+Onboarding must not become a data-exfiltration shortcut. Respect WS-3 masking, document permissions, Payroll permissions, Asset/Inventory permissions, employee self-scope and organization isolation. **Task descriptions must not embed unnecessary sensitive data.**
+
+Isolation is mandatory: Org A cannot view Org B's template, start onboarding for Org B's employee, complete Org B's task, acknowledge Org B's policy, access Org B's induction, or reference Org B's document, asset or inventory record. **Direct IDOR tests are required.**
+
+Note for implementation: `document_requirements` uses a **polymorphic** `ownerType`/`ownerId` pair with no database FK, so the owning workflow — here WS-10 — is responsible for validating `ownerId` against the right table and organization before writing. That obligation is stated in the table's own header and must be honoured.
+
+### 26.31 Permission model
+
+Keep it compact. Evaluate at minimum `onboarding.read`, `onboarding.manage`, `onboarding.configure`, `onboarding.task.complete` — plus handbook/policy acknowledgement keys **only if a genuinely distinct authority is required**. ESS own-actions use **self-scope, not broad `onboarding.read`**. **Do not proliferate keys.**
+
+### 26.32 Schema principle
+
+Candidate concepts: `onboarding_templates`, `onboarding_template_versions`, `onboarding_template_tasks`, `onboarding_instances`, `onboarding_tasks`, `onboarding_acknowledgements`, handbook assignments, and induction specialization fields.
+
+**Do not mechanically create every listed table.** Use the **smallest coherent normalized schema** after inspecting existing patterns, and do not duplicate document, employee, asset or inventory tables. Per §26.1 and §26.15, **no document-requirement table is to be created.**
+
+### 26.33 API, integration and codegen
+
+Explicit domain APIs only — **no generic arbitrary workflow endpoints** (OD #14). Update OpenAPI and regenerate clients deterministically.
+
+- **WS-5:** reuse document requirements, organization documents, versions, verification, expiry, retention and generated documents. **Do not fork document logic.**
+- **WS-6:** allow-listed job types only; no email/SMS.
+- **WS-8:** WS-10 creates the authoritative onboarding entity, then **flips the `onboarding` scope's `bindable` flag and adds the entity lookup in `lib/customFields/scopes.ts`** — the contract WS-8 recorded in advance. Nothing else about WS-8 changes, and **no second custom-form submission model** is created.
+
+### 26.34 Conversion handoff
+
+At candidate→employee conversion: preserve candidate identity/history; create or link the formal onboarding instance **if configured**; carry eligible pre-onboarding completion and evidence forward; **do not duplicate already-satisfied requirements**; map to `employees.id`. **This handoff must be idempotent.**
+
+### 26.35 Employee creation boundary
+
+**WS-10 must not create employees.** Recruitment conversion and the canonical employee-creation paths remain authoritative. Onboarding is started for an existing employee through an **explicit onboarding start action**.
+
+Organizations may start onboarding for an existing employee **without any Recruitment record** — supporting legacy/imported employees, manual hires, and re-onboarding for a new role or process where organization policy permits. **A candidate record is never required.**
+
+### 26.36 Legal, practice, product and configuration — kept distinct
+
+| Classification | Items |
+| --- | --- |
+| **LEGAL REQUIREMENT** | none identified for onboarding, induction or handbook in the sources reviewed |
+| **CIHRM PROFESSIONAL PRACTICE** | handbook/Code of Conduct issuance and acknowledgement; induction/orientation — **not statute** |
+| **PRODUCT CAPABILITY** | the checklist engine, versioning, assignment/acknowledgement mechanism, induction specialization |
+| **ORGANIZATION CONFIGURATION** | actual tasks, handbook content, policy set, induction content, responsibilities, due-date rules |
+
+Do not name any capability **"Ghana onboarding"** or **"CIHRM onboarding"** — use ordinary HR terminology. Handbook acknowledgement and induction **align with** Ghana professional HR practice reviewed earlier but are **not to be represented as statutory requirements** unless independently supported by law. **Do not claim CIHRM certification or compliance.**
+
+### 26.37 WWM and production boundary
+
+**No WWM configuration** — no WWM onboarding templates, no uploaded WWM handbook, no assigned WWM policies, no started WWM employee onboarding, no configured WWM induction, no altered WWM assets/inventory, no WWM deployment. QA uses **disposable synthetic organizations** only.
+
+**Production remains untouched** — no deployment, no production migration, no production configuration.
+
+### 26.38 Open items still requiring Owner input before implementation
+
+None blocking. Three items are conditional by design and are to be decided **from repository evidence during implementation**, not invented:
+
+1. Whether the pre-onboarding bridge (§26.3) needs any new table at all beyond `document_requirements` with `ownerType = 'candidate'`, or whether existing Recruitment/Offer architecture already carries the remaining dimensions.
+2. Whether induction specialization is expressed as columns on the task tables or a linked detail row (§26.22) — a normalization judgement.
+3. Whether handbook assignment and acknowledgement are one table or two (§26.17) — decided on whether an assignment can meaningfully exist without an acknowledgement obligation.
 
 Either resolution must be recorded with its reason.
