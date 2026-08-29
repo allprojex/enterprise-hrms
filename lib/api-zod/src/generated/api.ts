@@ -23392,3 +23392,1129 @@ export const GetRequestReportsResponse = zod.object({
 }).describe('Each half is null when the caller may not read that half.')
 
 
+/**
+ * @summary The organization's skills catalogue
+ */
+export const ListSkillsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListSkillsQueryParams = zod.object({
+  "activeOnly": zod.coerce.boolean().optional()
+})
+
+export const ListSkillsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "code": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "category": zod.enum(['technical', 'behavioural', 'leadership', 'functional', 'compliance', 'other']),
+  "active": zod.boolean(),
+  "proficiencyApplicable": zod.boolean().optional(),
+  "evidenceExpected": zod.boolean().optional(),
+  "certificationApplicable": zod.boolean().optional(),
+  "sourceMasterDataCode": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+})
+export const ListSkillsResponse = zod.array(ListSkillsResponseItem)
+
+
+/**
+ * One catalogue serves every organization type (§30.2). The code is stable and organization-unique; renaming never rewrites history.
+ * @summary Add a skill to the catalogue
+ */
+export const CreateSkillParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+
+
+
+export const CreateSkillBody = zod.object({
+  "code": zod.string().min(1),
+  "name": zod.string().min(1),
+  "description": zod.string().nullish(),
+  "category": zod.enum(['technical', 'behavioural', 'leadership', 'functional', 'compliance', 'other']).optional(),
+  "proficiencyApplicable": zod.boolean().optional(),
+  "evidenceExpected": zod.boolean().optional(),
+  "certificationApplicable": zod.boolean().optional()
+})
+
+export const CreateSkillResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "code": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "category": zod.enum(['technical', 'behavioural', 'leadership', 'functional', 'compliance', 'other']),
+  "active": zod.boolean(),
+  "proficiencyApplicable": zod.boolean().optional(),
+  "evidenceExpected": zod.boolean().optional(),
+  "certificationApplicable": zod.boolean().optional(),
+  "sourceMasterDataCode": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+})
+
+
+/**
+ * Retiring sets `active` false. It never deletes the skill, because existing employee records and position requirements point at it (§30.2).
+ * @summary Amend or retire a catalogue skill
+ */
+export const UpdateSkillParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "skillId": zod.coerce.number()
+})
+
+
+
+
+export const UpdateSkillBody = zod.object({
+  "name": zod.string().min(1).optional(),
+  "description": zod.string().nullish(),
+  "category": zod.enum(['technical', 'behavioural', 'leadership', 'functional', 'compliance', 'other']).optional(),
+  "active": zod.boolean().optional(),
+  "proficiencyApplicable": zod.boolean().optional(),
+  "evidenceExpected": zod.boolean().optional(),
+  "certificationApplicable": zod.boolean().optional()
+})
+
+export const UpdateSkillResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "code": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "category": zod.enum(['technical', 'behavioural', 'leadership', 'functional', 'compliance', 'other']),
+  "active": zod.boolean(),
+  "proficiencyApplicable": zod.boolean().optional(),
+  "evidenceExpected": zod.boolean().optional(),
+  "certificationApplicable": zod.boolean().optional(),
+  "sourceMasterDataCode": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+})
+
+
+/**
+ * Idempotent and one-way (§30.4). Master Data is read here and never written, and re-running imports nothing already imported.
+ * @summary Import the existing skill Master Data domain into the catalogue
+ */
+export const ImportSkillsFromMasterDataParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ImportSkillsFromMasterDataResponse = zod.object({
+  "imported": zod.number(),
+  "skipped": zod.number().describe('Already present from an earlier import — the operation is idempotent.')
+})
+
+
+/**
+ * @summary The active proficiency scale and its levels
+ */
+export const GetProficiencyScaleParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetProficiencyScaleResponse = zod.object({
+  "scale": zod.union([zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "active": zod.boolean(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+}),zod.null()]),
+  "levels": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "scaleId": zod.number(),
+  "ordinal": zod.number().describe('Position in the scale. Immutable once levels exist — see §30.3.'),
+  "label": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+}))
+})
+
+
+/**
+ * Publishing a new scale archives the incumbent rather than editing it (§30.3). Historical assessments keep pointing at the levels they were recorded against, so a past judgement is never silently reinterpreted.
+ * @summary Define a new proficiency scale
+ */
+export const CreateProficiencyScaleParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+
+export const createProficiencyScaleBodyLevelsMin = 2;
+
+
+
+export const CreateProficiencyScaleBody = zod.object({
+  "name": zod.string().min(1),
+  "description": zod.string().nullish(),
+  "levels": zod.array(zod.object({
+  "label": zod.string().min(1),
+  "description": zod.string().nullish()
+})).min(createProficiencyScaleBodyLevelsMin).describe('In order, lowest first. The order is fixed at creation.')
+})
+
+export const CreateProficiencyScaleResponse = zod.object({
+  "scale": zod.union([zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "active": zod.boolean(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+}),zod.null()]),
+  "levels": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "scaleId": zod.number(),
+  "ordinal": zod.number().describe('Position in the scale. Immutable once levels exist — see §30.3.'),
+  "label": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+}))
+})
+
+
+/**
+ * Labels may change; ORDER MAY NOT. There is no ordinal in this payload, because reordering would reinterpret every assessment already recorded against the level (§30.3).
+ * @summary Relabel a proficiency level
+ */
+export const RelabelProficiencyLevelParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "levelId": zod.coerce.number()
+})
+
+
+
+
+export const RelabelProficiencyLevelBody = zod.object({
+  "label": zod.string().min(1).optional(),
+  "description": zod.string().nullish()
+}).describe('No ordinal — a level\'s order may never be changed (§30.3).')
+
+export const RelabelProficiencyLevelResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "scaleId": zod.number(),
+  "ordinal": zod.number().describe('Position in the scale. Immutable once levels exist — see §30.3.'),
+  "label": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Employee skill records
+ */
+export const ListEmployeeSkillRecordsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListEmployeeSkillRecordsQueryParams = zod.object({
+  "employeeId": zod.coerce.number().optional(),
+  "skillId": zod.coerce.number().optional()
+})
+
+export const ListEmployeeSkillRecordsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "skillId": zod.number(),
+  "status": zod.enum(['claimed', 'assessed', 'verified', 'rejected']),
+  "source": zod.enum(['employee_self_service', 'hr_entry', 'assessment', 'import']),
+  "claimedLevelId": zod.number().nullish(),
+  "verifiedLevelId": zod.number().nullish().describe('Set only by the verification path (§30.6).'),
+  "verifiedAt": zod.string().nullish(),
+  "verifiedByUserId": zod.number().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "certificationId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+})
+export const ListEmployeeSkillRecordsResponse = zod.array(ListEmployeeSkillRecordsResponseItem)
+
+
+/**
+ * The history is append-only (§30.7): an assessment is never edited or deleted, so a reader can always see what was judged, by whom and when.
+ * @summary One record with its full assessment history
+ */
+export const GetEmployeeSkillRecordParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "recordId": zod.coerce.number()
+})
+
+export const GetEmployeeSkillRecordResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "skillId": zod.number(),
+  "status": zod.enum(['claimed', 'assessed', 'verified', 'rejected']),
+  "source": zod.enum(['employee_self_service', 'hr_entry', 'assessment', 'import']),
+  "claimedLevelId": zod.number().nullish(),
+  "verifiedLevelId": zod.number().nullish().describe('Set only by the verification path (§30.6).'),
+  "verifiedAt": zod.string().nullish(),
+  "verifiedByUserId": zod.number().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "certificationId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+}).and(zod.object({
+  "assessments": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "recordId": zod.number(),
+  "kind": zod.enum(['assessment', 'verification', 'rejection']),
+  "levelId": zod.number().nullish(),
+  "assessorRole": zod.enum(['hr', 'reporting_manager']),
+  "assessorUserId": zod.number().nullish(),
+  "assessorMembershipId": zod.number().nullish(),
+  "assessedAt": zod.string(),
+  "notes": zod.string().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "createdAt": zod.string().optional()
+}))
+}))
+
+
+/**
+ * Source is fixed by the route as hr_entry and never taken from the body. A record starts CLAIMED — recording it verifies nothing (§30.5).
+ * @summary Record a skill against an employee (HR entry)
+ */
+export const ClaimEmployeeSkillParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const ClaimEmployeeSkillBody = zod.object({
+  "skillId": zod.number(),
+  "claimedLevelId": zod.number().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "certificationId": zod.number().nullish(),
+  "notes": zod.string().nullish()
+}).describe('No source field — the route fixes it as hr_entry.')
+
+export const ClaimEmployeeSkillResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "skillId": zod.number(),
+  "status": zod.enum(['claimed', 'assessed', 'verified', 'rejected']),
+  "source": zod.enum(['employee_self_service', 'hr_entry', 'assessment', 'import']),
+  "claimedLevelId": zod.number().nullish(),
+  "verifiedLevelId": zod.number().nullish().describe('Set only by the verification path (§30.6).'),
+  "verifiedAt": zod.string().nullish(),
+  "verifiedByUserId": zod.number().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "certificationId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+})
+
+
+/**
+ * HR holding skill_assessment.record, or the employee's authoritative reporting manager, may assess (§30.8). Manager authority is resolved from the employee record, never from a role name and never from the body. Recording an assessment does NOT verify the claim.
+ * @summary Record an assessment
+ */
+export const AssessEmployeeSkillParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "recordId": zod.coerce.number()
+})
+
+export const AssessEmployeeSkillBody = zod.object({
+  "levelId": zod.number(),
+  "assessedAt": zod.string(),
+  "notes": zod.string().nullish(),
+  "evidenceDocumentId": zod.number().nullish()
+}).describe('No assessorRole — the server resolves the actor\'s authority (§30.8).')
+
+export const AssessEmployeeSkillResponse = zod.object({
+  "record": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "skillId": zod.number(),
+  "status": zod.enum(['claimed', 'assessed', 'verified', 'rejected']),
+  "source": zod.enum(['employee_self_service', 'hr_entry', 'assessment', 'import']),
+  "claimedLevelId": zod.number().nullish(),
+  "verifiedLevelId": zod.number().nullish().describe('Set only by the verification path (§30.6).'),
+  "verifiedAt": zod.string().nullish(),
+  "verifiedByUserId": zod.number().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "certificationId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+}),
+  "assessment": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "recordId": zod.number(),
+  "kind": zod.enum(['assessment', 'verification', 'rejection']),
+  "levelId": zod.number().nullish(),
+  "assessorRole": zod.enum(['hr', 'reporting_manager']),
+  "assessorUserId": zod.number().nullish(),
+  "assessorMembershipId": zod.number().nullish(),
+  "assessedAt": zod.string(),
+  "notes": zod.string().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "createdAt": zod.string().optional()
+})
+})
+
+
+/**
+ * The only path that sets a verified level (§30.6). Self-verification is refused on the actor's own employee link.
+ * @summary Verify a claimed skill
+ */
+export const VerifyEmployeeSkillParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "recordId": zod.coerce.number()
+})
+
+export const VerifyEmployeeSkillBody = zod.object({
+  "levelId": zod.number().nullish().describe('The level being confirmed. Required when the skill uses proficiency levels — \"verified, at some unstated standard\" is not recordable. Omit only for a skill that carries no proficiency.'),
+  "assessedAt": zod.string(),
+  "notes": zod.string().nullish()
+})
+
+export const VerifyEmployeeSkillResponse = zod.object({
+  "record": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "skillId": zod.number(),
+  "status": zod.enum(['claimed', 'assessed', 'verified', 'rejected']),
+  "source": zod.enum(['employee_self_service', 'hr_entry', 'assessment', 'import']),
+  "claimedLevelId": zod.number().nullish(),
+  "verifiedLevelId": zod.number().nullish().describe('Set only by the verification path (§30.6).'),
+  "verifiedAt": zod.string().nullish(),
+  "verifiedByUserId": zod.number().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "certificationId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+}),
+  "assessment": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "recordId": zod.number(),
+  "kind": zod.enum(['assessment', 'verification', 'rejection']),
+  "levelId": zod.number().nullish(),
+  "assessorRole": zod.enum(['hr', 'reporting_manager']),
+  "assessorUserId": zod.number().nullish(),
+  "assessorMembershipId": zod.number().nullish(),
+  "assessedAt": zod.string(),
+  "notes": zod.string().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "createdAt": zod.string().optional()
+})
+})
+
+
+/**
+ * @summary Reject a claimed skill
+ */
+export const RejectEmployeeSkillParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "recordId": zod.coerce.number()
+})
+
+
+
+
+export const RejectEmployeeSkillBody = zod.object({
+  "reason": zod.string().min(1),
+  "assessedAt": zod.string()
+})
+
+export const RejectEmployeeSkillResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "skillId": zod.number(),
+  "status": zod.enum(['claimed', 'assessed', 'verified', 'rejected']),
+  "source": zod.enum(['employee_self_service', 'hr_entry', 'assessment', 'import']),
+  "claimedLevelId": zod.number().nullish(),
+  "verifiedLevelId": zod.number().nullish().describe('Set only by the verification path (§30.6).'),
+  "verifiedAt": zod.string().nullish(),
+  "verifiedByUserId": zod.number().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "certificationId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+})
+
+
+/**
+ * @summary My own skill records
+ */
+export const ListMySkillsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListMySkillsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "skillId": zod.number(),
+  "status": zod.enum(['claimed', 'assessed', 'verified', 'rejected']),
+  "source": zod.enum(['employee_self_service', 'hr_entry', 'assessment', 'import']),
+  "claimedLevelId": zod.number().nullish(),
+  "verifiedLevelId": zod.number().nullish().describe('Set only by the verification path (§30.6).'),
+  "verifiedAt": zod.string().nullish(),
+  "verifiedByUserId": zod.number().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "certificationId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+})
+export const ListMySkillsResponse = zod.array(ListMySkillsResponseItem)
+
+
+/**
+ * No permission key gates this: the right comes from the employee link, resolved server-side (§30.18, §30.22). The body carries no employee identifier, so nobody can claim onto another employee's record.
+ * @summary Claim a skill for myself
+ */
+export const ClaimMySkillParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ClaimMySkillBody = zod.object({
+  "skillId": zod.number(),
+  "claimedLevelId": zod.number().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "certificationId": zod.number().nullish(),
+  "notes": zod.string().nullish()
+}).describe('No employeeId — the subject is my own employee link, resolved server-side (§30.18).')
+
+export const ClaimMySkillResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "skillId": zod.number(),
+  "status": zod.enum(['claimed', 'assessed', 'verified', 'rejected']),
+  "source": zod.enum(['employee_self_service', 'hr_entry', 'assessment', 'import']),
+  "claimedLevelId": zod.number().nullish(),
+  "verifiedLevelId": zod.number().nullish().describe('Set only by the verification path (§30.6).'),
+  "verifiedAt": zod.string().nullish(),
+  "verifiedByUserId": zod.number().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "certificationId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+})
+
+
+/**
+ * @summary The skills I may claim, and the active level labels
+ */
+export const ListMySkillOptionsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListMySkillOptionsResponse = zod.object({
+  "skills": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "category": zod.enum(['technical', 'behavioural', 'leadership', 'functional', 'compliance', 'other']),
+  "proficiencyApplicable": zod.boolean()
+})),
+  "levels": zod.array(zod.object({
+  "id": zod.number(),
+  "label": zod.string()
+}))
+})
+
+
+/**
+ * The position comes from my employee record, never from the query string (§30.18). This surface carries no succession content of any kind.
+ * @summary My gaps against my own current position
+ */
+export const GetMySkillGapsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetMySkillGapsResponse = zod.object({
+  "positionId": zod.number().nullable(),
+  "gaps": zod.array(zod.object({
+  "skillId": zod.number(),
+  "skillName": zod.string(),
+  "mandatory": zod.boolean(),
+  "requiredLevelOrdinal": zod.number().nullish(),
+  "requiredLevelLabel": zod.string().nullish(),
+  "verifiedLevelOrdinal": zod.number().nullish(),
+  "verifiedLevelLabel": zod.string().nullish(),
+  "hasUnverifiedClaim": zod.boolean().describe('Shown separately and never counted toward a requirement (§30.6).'),
+  "evidenceExpired": zod.boolean().describe('The backing certification has lapsed, so the evidence is no longer current (§30.20).'),
+  "state": zod.enum(['no_verified_evidence', 'below_requirement', 'meets_requirement', 'exceeds_requirement'])
+}))
+})
+
+
+/**
+ * @summary A position's skill requirements
+ */
+export const ListPositionSkillRequirementsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "positionId": zod.coerce.number()
+})
+
+export const ListPositionSkillRequirementsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "positionId": zod.number(),
+  "skillId": zod.number(),
+  "minimumLevelId": zod.number().nullish(),
+  "mandatory": zod.boolean(),
+  "active": zod.boolean(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+})
+export const ListPositionSkillRequirementsResponse = zod.array(ListPositionSkillRequirementsResponseItem)
+
+
+/**
+ * Adding a requirement changes nobody's employment and blocks nothing (§30.9). It makes a gap visible; a human decides what follows.
+ * @summary Require a skill for a position
+ */
+export const AddPositionRequirementParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "positionId": zod.coerce.number()
+})
+
+export const AddPositionRequirementBody = zod.object({
+  "skillId": zod.number(),
+  "minimumLevelId": zod.number().nullish(),
+  "mandatory": zod.boolean().optional()
+})
+
+export const AddPositionRequirementResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "positionId": zod.number(),
+  "skillId": zod.number(),
+  "minimumLevelId": zod.number().nullish(),
+  "mandatory": zod.boolean(),
+  "active": zod.boolean(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Withdraw a position skill requirement
+ */
+export const RemovePositionRequirementParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "requirementId": zod.coerce.number()
+})
+
+export const RemovePositionRequirementResponse = zod.void()
+
+
+/**
+ * ONLY VERIFIED CAPABILITY COUNTS (§30.6). A claimed-but-unverified skill is reported through hasUnverifiedClaim and never satisfies a requirement, and no_verified_evidence is a distinct state from below_requirement — a caller must not render the first as lacking the skill.
+ * @summary One employee measured against one position
+ */
+export const GetEmployeeSkillGapsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const GetEmployeeSkillGapsQueryParams = zod.object({
+  "positionId": zod.coerce.number()
+})
+
+export const GetEmployeeSkillGapsResponse = zod.object({
+  "gaps": zod.array(zod.object({
+  "skillId": zod.number(),
+  "skillName": zod.string(),
+  "mandatory": zod.boolean(),
+  "requiredLevelOrdinal": zod.number().nullish(),
+  "requiredLevelLabel": zod.string().nullish(),
+  "verifiedLevelOrdinal": zod.number().nullish(),
+  "verifiedLevelLabel": zod.string().nullish(),
+  "hasUnverifiedClaim": zod.boolean().describe('Shown separately and never counted toward a requirement (§30.6).'),
+  "evidenceExpired": zod.boolean().describe('The backing certification has lapsed, so the evidence is no longer current (§30.20).'),
+  "state": zod.enum(['no_verified_evidence', 'below_requirement', 'meets_requirement', 'exceeds_requirement'])
+}))
+})
+
+
+/**
+ * @summary The organization's readiness bands
+ */
+export const ListReadinessLevelsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListReadinessLevelsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "ordinal": zod.number().describe('Nearest-term first. A band, not a score (§30.13).'),
+  "label": zod.string(),
+  "description": zod.string().nullish(),
+  "active": zod.boolean(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+})
+export const ListReadinessLevelsResponse = zod.array(ListReadinessLevelsResponseItem)
+
+
+/**
+ * A readiness band is a human judgement of how soon somebody could step up. It is not a score and nothing computes it (§30.13).
+ * @summary Define a readiness band
+ */
+export const CreateReadinessLevelParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+
+
+
+export const CreateReadinessLevelBody = zod.object({
+  "ordinal": zod.number().min(1),
+  "label": zod.string().min(1),
+  "description": zod.string().nullish()
+})
+
+export const CreateReadinessLevelResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "ordinal": zod.number().describe('Nearest-term first. A band, not a score (§30.13).'),
+  "label": zod.string(),
+  "description": zod.string().nullish(),
+  "active": zod.boolean(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+})
+
+
+/**
+ * NOT a sensitive read: no candidate, rationale or confidential note is returned here (§30.17).
+ * @summary Which positions are succession-managed
+ */
+export const ListSuccessionPlansParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListSuccessionPlansResponseItem = zod.object({
+  "id": zod.number(),
+  "positionId": zod.number(),
+  "status": zod.enum(['active', 'under_review', 'closed']),
+  "reviewDueAt": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+}).describe('Carries no confidential note — see §30.17.')
+export const ListSuccessionPlansResponse = zod.array(ListSuccessionPlansResponseItem)
+
+
+/**
+ * Marks the position as succession-managed. It changes nothing about the position itself and appoints nobody (§30.11, §30.16).
+ * @summary Open a succession plan for a position
+ */
+export const CreateSuccessionPlanParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const CreateSuccessionPlanBody = zod.object({
+  "positionId": zod.number(),
+  "criticalityNotes": zod.string().nullish(),
+  "reviewDueAt": zod.string().nullish()
+})
+
+export const CreateSuccessionPlanResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "positionId": zod.number(),
+  "status": zod.enum(['active', 'under_review', 'closed']),
+  "criticalityNotes": zod.string().nullish().describe('Confidential. Returned only on the sensitive-read path.'),
+  "reviewDueAt": zod.string().nullish(),
+  "closedAt": zod.string().nullish(),
+  "closedBy": zod.number().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+})
+
+
+/**
+ * Requires succession.confidential.read, deliberately narrower than succession.read, and recorded as a sensitive read under Owner Decision #18 (§30.17).
+ * @summary One plan, including its confidential criticality notes
+ */
+export const GetSuccessionPlanParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "planId": zod.coerce.number()
+})
+
+export const GetSuccessionPlanResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "positionId": zod.number(),
+  "status": zod.enum(['active', 'under_review', 'closed']),
+  "criticalityNotes": zod.string().nullish().describe('Confidential. Returned only on the sensitive-read path.'),
+  "reviewDueAt": zod.string().nullish(),
+  "closedAt": zod.string().nullish(),
+  "closedBy": zod.number().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Amend or close a succession plan
+ */
+export const UpdateSuccessionPlanParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "planId": zod.coerce.number()
+})
+
+export const UpdateSuccessionPlanBody = zod.object({
+  "status": zod.enum(['active', 'under_review', 'closed']).optional(),
+  "criticalityNotes": zod.string().nullish(),
+  "reviewDueAt": zod.string().nullish()
+})
+
+export const UpdateSuccessionPlanResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "positionId": zod.number(),
+  "status": zod.enum(['active', 'under_review', 'closed']),
+  "criticalityNotes": zod.string().nullish().describe('Confidential. Returned only on the sensitive-read path.'),
+  "reviewDueAt": zod.string().nullish(),
+  "closedAt": zod.string().nullish(),
+  "closedBy": zod.number().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+})
+
+
+/**
+ * Confidential, and a sensitive read (§30.17). Grouped by readiness band for presentation only — there is NO rank, score or ordering position, and none may be added (§30.12).
+ * @summary The candidate pool for a plan
+ */
+export const ListSuccessionCandidatesParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "planId": zod.coerce.number()
+})
+
+export const ListSuccessionCandidatesQueryParams = zod.object({
+  "includeRemoved": zod.coerce.boolean().optional()
+})
+
+export const ListSuccessionCandidatesResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "planId": zod.number(),
+  "employeeId": zod.number(),
+  "status": zod.enum(['active', 'removed', 'appointed']),
+  "readinessLevelId": zod.number().nullish(),
+  "readinessLabel": zod.string().nullish(),
+  "readinessOrdinal": zod.number().nullish(),
+  "rationale": zod.string().nullish().describe('Confidential.'),
+  "nominatedByUserId": zod.number().nullish(),
+  "nominatedAt": zod.string().nullish(),
+  "removedAt": zod.string().nullish(),
+  "removedBy": zod.number().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+}).describe('There is deliberately no rank, score or ordering position on this object (§30.12). readinessOrdinal groups candidates into bands; it does not order them within one.')
+export const ListSuccessionCandidatesResponse = zod.array(ListSuccessionCandidatesResponseItem)
+
+
+/**
+ * Nominating records a view. It appoints nobody, promises nothing and changes no employment state (§30.16).
+ * @summary Nominate a candidate
+ */
+export const NominateSuccessionCandidateParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "planId": zod.coerce.number()
+})
+
+export const NominateSuccessionCandidateBody = zod.object({
+  "employeeId": zod.number(),
+  "readinessLevelId": zod.number().nullish(),
+  "rationale": zod.string().nullish()
+})
+
+export const NominateSuccessionCandidateResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "planId": zod.number(),
+  "employeeId": zod.number(),
+  "status": zod.enum(['active', 'removed', 'appointed']),
+  "readinessLevelId": zod.number().nullish(),
+  "readinessLabel": zod.string().nullish(),
+  "readinessOrdinal": zod.number().nullish(),
+  "rationale": zod.string().nullish().describe('Confidential.'),
+  "nominatedByUserId": zod.number().nullish(),
+  "nominatedAt": zod.string().nullish(),
+  "removedAt": zod.string().nullish(),
+  "removedBy": zod.number().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+}).describe('There is deliberately no rank, score or ordering position on this object (§30.12). readinessOrdinal groups candidates into bands; it does not order them within one.')
+
+
+/**
+ * A human chooses this band. Nothing computes it, and no scheduled job can reach this path (§30.13, §30.21).
+ * @summary Set a candidate's readiness band
+ */
+export const SetSuccessionReadinessParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "candidateId": zod.coerce.number()
+})
+
+export const SetSuccessionReadinessBody = zod.object({
+  "readinessLevelId": zod.number(),
+  "notes": zod.string().nullish()
+})
+
+export const SetSuccessionReadinessResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "planId": zod.number(),
+  "employeeId": zod.number(),
+  "status": zod.enum(['active', 'removed', 'appointed']),
+  "readinessLevelId": zod.number().nullish(),
+  "readinessLabel": zod.string().nullish(),
+  "readinessOrdinal": zod.number().nullish(),
+  "rationale": zod.string().nullish().describe('Confidential.'),
+  "nominatedByUserId": zod.number().nullish(),
+  "nominatedAt": zod.string().nullish(),
+  "removedAt": zod.string().nullish(),
+  "removedBy": zod.number().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+}).describe('There is deliberately no rank, score or ordering position on this object (§30.12). readinessOrdinal groups candidates into bands; it does not order them within one.')
+
+
+/**
+ * The candidate row is retained and marked removed; the chronology keeps the reason (§30.12).
+ * @summary Remove a candidate from a plan
+ */
+export const RemoveSuccessionCandidateParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "candidateId": zod.coerce.number()
+})
+
+
+
+
+export const RemoveSuccessionCandidateBody = zod.object({
+  "reason": zod.string().min(1)
+})
+
+export const RemoveSuccessionCandidateResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "planId": zod.number(),
+  "employeeId": zod.number(),
+  "status": zod.enum(['active', 'removed', 'appointed']),
+  "readinessLevelId": zod.number().nullish(),
+  "readinessLabel": zod.string().nullish(),
+  "readinessOrdinal": zod.number().nullish(),
+  "rationale": zod.string().nullish().describe('Confidential.'),
+  "nominatedByUserId": zod.number().nullish(),
+  "nominatedAt": zod.string().nullish(),
+  "removedAt": zod.string().nullish(),
+  "removedBy": zod.number().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+}).describe('There is deliberately no rank, score or ordering position on this object (§30.12). readinessOrdinal groups candidates into bands; it does not order them within one.')
+
+
+/**
+ * @summary A candidate's append-only readiness chronology
+ */
+export const ListSuccessionCandidateEventsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "candidateId": zod.coerce.number()
+})
+
+export const ListSuccessionCandidateEventsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "candidateId": zod.number(),
+  "eventType": zod.enum(['nominated', 'readiness_changed', 'rationale_updated', 'removed', 'reinstated', 'appointed_elsewhere']),
+  "previousReadinessLevelId": zod.number().nullish(),
+  "newReadinessLevelId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "actorUserId": zod.number().nullish(),
+  "actorMembershipId": zod.number().nullish(),
+  "occurredAt": zod.string(),
+  "createdAt": zod.string().optional()
+})
+export const ListSuccessionCandidateEventsResponse = zod.array(ListSuccessionCandidateEventsResponseItem)
+
+
+/**
+ * Counts only. No candidate identity, rationale or note — a coverage report must never become the route by which confidential succession content reaches a caller who could not read the plan itself (§30.25).
+ * @summary Succession coverage counts
+ */
+export const GetSuccessionCoverageParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetSuccessionCoverageResponse = zod.object({
+  "coverage": zod.array(zod.object({
+  "planId": zod.number(),
+  "positionId": zod.number(),
+  "positionTitle": zod.string(),
+  "status": zod.string(),
+  "candidateCount": zod.number(),
+  "nearestTermReadyCount": zod.number().describe('Candidates in the nearest-term readiness band. Never a rank.'),
+  "hasNoCandidates": zod.boolean()
+}))
+})
+
+
+/**
+ * @summary Recorded development actions
+ */
+export const ListDevelopmentActionsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListDevelopmentActionsQueryParams = zod.object({
+  "employeeId": zod.coerce.number().optional()
+})
+
+export const ListDevelopmentActionsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "skillId": zod.number().nullish(),
+  "successionCandidateId": zod.number().nullish(),
+  "action": zod.string(),
+  "status": zod.enum(['open', 'in_progress', 'completed', 'cancelled']),
+  "targetDate": zod.string().nullish(),
+  "learningCourseId": zod.number().nullish(),
+  "learningEnrollmentId": zod.number().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "responsibleMembershipId": zod.number().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+})
+export const ListDevelopmentActionsResponse = zod.array(ListDevelopmentActionsResponseItem)
+
+
+/**
+ * Learning references are validated for organization ownership and then left alone (§30.14). Nothing enrols anybody, and no enrolment happens automatically because a gap exists.
+ * @summary Record a development action
+ */
+export const CreateDevelopmentActionParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+
+
+export const CreateDevelopmentActionBody = zod.object({
+  "employeeId": zod.number(),
+  "action": zod.string().min(1),
+  "skillId": zod.number().nullish(),
+  "successionCandidateId": zod.number().nullish(),
+  "targetDate": zod.string().nullish(),
+  "learningCourseId": zod.number().nullish(),
+  "learningEnrollmentId": zod.number().nullish(),
+  "evidenceDocumentId": zod.number().nullish()
+})
+
+export const CreateDevelopmentActionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "skillId": zod.number().nullish(),
+  "successionCandidateId": zod.number().nullish(),
+  "action": zod.string(),
+  "status": zod.enum(['open', 'in_progress', 'completed', 'cancelled']),
+  "targetDate": zod.string().nullish(),
+  "learningCourseId": zod.number().nullish(),
+  "learningEnrollmentId": zod.number().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "responsibleMembershipId": zod.number().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Progress or close a development action
+ */
+export const UpdateDevelopmentActionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "actionId": zod.coerce.number()
+})
+
+
+
+
+export const UpdateDevelopmentActionBody = zod.object({
+  "action": zod.string().min(1).optional(),
+  "status": zod.enum(['open', 'in_progress', 'completed', 'cancelled']).optional(),
+  "targetDate": zod.string().nullish()
+})
+
+export const UpdateDevelopmentActionResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "skillId": zod.number().nullish(),
+  "successionCandidateId": zod.number().nullish(),
+  "action": zod.string(),
+  "status": zod.enum(['open', 'in_progress', 'completed', 'cancelled']),
+  "targetDate": zod.string().nullish(),
+  "learningCourseId": zod.number().nullish(),
+  "learningEnrollmentId": zod.number().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "responsibleMembershipId": zod.number().nullish(),
+  "createdBy": zod.number().nullish(),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+})
+
+

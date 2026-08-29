@@ -181,6 +181,19 @@ const CATEGORY_BY_PREFIX: Record<string, AuditCategory> = {
   service_request: "hr",
   service_request_type: "hr",
   request_approval_stage: "hr",
+  // WS-14 (§30.23). "hr" for the same reason every people-process prefix above
+  // is: an HR auditor holding OD #17's category-scoped `audit.read.hr` must be
+  // able to see capability decisions and succession decisions together. The
+  // sensitivity of succession is enforced by its own permission and by the
+  // sensitive-read path, not by hiding its trail from HR.
+  skill: "hr",
+  proficiency_scale: "hr",
+  employee_skill_record: "hr",
+  position_skill_requirement: "hr",
+  readiness_level: "hr",
+  succession_plan: "hr",
+  succession_candidate: "hr",
+  development_action: "hr",
   employee_number: "hr",
   employee_qualification: "hr",
   employee_skill: "hr",

@@ -17,6 +17,9 @@ import {
   customFormsTable,
   customFormSubmissionsTable,
   generatedDocumentsTable,
+  employeeCertificationsTable,
+  skillsTable,
+  learningEnrollmentsTable,
 } from "@workspace/db";
 
 // Structurally accepts either the global `db` or a `db.transaction(...)`
@@ -52,7 +55,14 @@ type ScopedTable =
   // cross-tenant proof every other reference here already gets.
   | typeof customFormsTable
   | typeof customFormSubmissionsTable
-  | typeof generatedDocumentsTable;
+  | typeof generatedDocumentsTable
+  // WS-14 (§30.20) — a certification is a client-supplied reference when it is
+  // linked as skill evidence, so it needs the same cross-tenant proof.
+  | typeof employeeCertificationsTable
+  // WS-14 (§30.9, §30.14) — skill and Learning enrolment references are
+  // client-supplied on WS-14 surfaces and need the same cross-tenant proof.
+  | typeof skillsTable
+  | typeof learningEnrollmentsTable;
 
 /**
  * Verifies a foreign key (department/branch/position/employee id) actually

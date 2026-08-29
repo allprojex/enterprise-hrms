@@ -113,9 +113,9 @@ Unchanged from the discovery pass — drawn directly from `docs/GHANA_HR_EMPLOYE
 | # | Capability | Discovery Classification | Owner Decision | Approved disposition |
 |---|---|---|---|---|
 | 23 | Training & Development | ALREADY IMPLEMENTED as Learning module | — (no OD needed) | Unchanged; dev-plans layer remains P3 |
-| 24 | Skills / Competencies | ALREADY IMPLEMENTED (base) | **OWNER DECISION #5 — APPROVED FOR ROADMAP, P2.** Do not defer indefinitely. Support skills inventory, competency frameworks, role competencies, proficiency, assessment, gaps, development linkage, Recruitment linkage, Succession linkage. Organizations may choose whether to enable/use it. | Firmed onto the P2 roadmap, not left open-ended — **WS-14 architecture frozen in §30**; §30.1 corrects “ALREADY IMPLEMENTED (base)” to *a free-text proficiency string with no scale, verification, assessor, evidence, expiry or history*, and §30.2 keeps one Skills catalogue rather than minting a second “competency” entity beside Performance’s shipped one |
+| 24 | Skills / Competencies | ALREADY IMPLEMENTED (base) | **OWNER DECISION #5 — APPROVED FOR ROADMAP, P2.** Do not defer indefinitely. Support skills inventory, competency frameworks, role competencies, proficiency, assessment, gaps, development linkage, Recruitment linkage, Succession linkage. Organizations may choose whether to enable/use it. | Firmed onto the P2 roadmap, not left open-ended — **WS-14 architecture frozen in §30**; §30.1 corrects “ALREADY IMPLEMENTED (base)” to *a free-text proficiency string with no scale, verification, assessor, evidence, expiry or history*, and §30.2 keeps one Skills catalogue rather than minting a second “competency” entity beside Performance’s shipped one. **Implemented under WS-14** (ledger `0070`, §30.30) — see `docs/SKILLS_AND_SUCCESSION.md` |
 | 25 | Career & Internal Mobility | ALREADY IMPLEMENTED (permanent transfers) | **OWNER DECISION #6 — APPROVED FOR ROADMAP, P2.** Reuse `employment_periods` architecture. Support effective-dated acting appointments, secondments, temporary assignments. Sequence after the scheduling/notification foundation. | Approved, sequencing condition set explicitly — **implemented under WS-11, architecture frozen in §27** (§27.12 acting, §27.13 secondment, §27.14 the four distinct concepts) |
-| 26 | Succession / Talent | GENUINELY MISSING (internal-employee sense) | **OWNER DECISION #7 — APPROVED FOR ROADMAP, P2.** Do not treat existing Talent Pools as automatically equivalent to Succession. Preserve existing capability (recruitment Talent Pools, unchanged). Add Succession only for genuinely missing concepts: critical roles, successors, readiness, development gaps, succession plans. Avoid duplication. | Approved; naming/scope confusion explicitly resolved — **WS-14 architecture frozen in §30** (§30.11 critical positions only, §30.12 an unranked pool with no numeric ranking, §30.13 human-owned readiness with no potential score and no 9-box, §30.16 succession never mutates employment state, §30.17 confidential and withheld from Organization Admin by default) |
+| 26 | Succession / Talent | GENUINELY MISSING (internal-employee sense) | **OWNER DECISION #7 — APPROVED FOR ROADMAP, P2.** Do not treat existing Talent Pools as automatically equivalent to Succession. Preserve existing capability (recruitment Talent Pools, unchanged). Add Succession only for genuinely missing concepts: critical roles, successors, readiness, development gaps, succession plans. Avoid duplication. | Approved; naming/scope confusion explicitly resolved — **WS-14 architecture frozen in §30** (§30.11 critical positions only, §30.12 an unranked pool with no numeric ranking, §30.13 human-owned readiness with no potential score and no 9-box, §30.16 succession never mutates employment state, §30.17 confidential and withheld from Organization Admin by default). **Implemented under WS-14** (ledger `0070`, §30.30) — see `docs/SKILLS_AND_SUCCESSION.md` |
 | 27 | Contract / Employment Term Mgmt | PARTIAL | **OWNER DECISION #8 — APPROVED.** Reuse `employment_periods`/existing employment-history infrastructure. Support expiry, renewal, extension, amendment, reminders, historical integrity. | Approved unchanged — **implemented under WS-11, architecture frozen in §27**; §27.1 corrects "PARTIAL" to *no contract term model exists at all*, and §27.5 records that `employment_periods` alone cannot hold a live term |
 | 28 | Employee Relations / Grievance | PARTIAL (disciplinary log only, no grievance) | **OWNER DECISION #9 — APPROVED.** Disciplinary cases and grievances are distinct business concepts. May share document infrastructure, evidence infrastructure, security primitives, audit — but must not be conflated into one record type. | Approved unchanged; confirms two separate schemas — **implemented under WS-12, architecture frozen in §28** (§28.2 legacy disciplinary history preserved, never rewritten; §28.4 grievance is a distinct schema; §28.5 explicit ESS visibility model) |
 | 29 | Employee Welfare | GENUINELY MISSING | — (no OD; brief instructs no medical records) | Unchanged, P3 |
@@ -2141,3 +2141,83 @@ Performance Management and its competency and rating-scale tables, the Learning 
 ### 30.29 Deferred and out of scope
 
 Full Performance Management, 360-degree review, Learning Management, course management, promotion, transfer and acting-appointment workflows, workforce planning, compensation planning, AI succession ranking, career-path engines, organizational-chart simulation, a generic approval engine, the WS-15 Action Centre, and **WS-11.1 in full**. **OD #14 and OD #15 remain approved and unassigned.** WS-12's future-separation-basis dependency is recorded there and is **not** solved here.
+
+### 30.30 Implementation record (WS-14 Pass 2)
+
+WS-14 is implemented against this section. Migration ledger **0070**, eleven new tables,
+purely additive: zero drops, zero altered columns, RLS enabled with zero policies on all
+eleven, up/down/up verified on a fresh database, zero schema drift. Full implementation
+record in `docs/SKILLS_AND_SUCCESSION.md`.
+
+**The five §30.27 conditional items, resolved from repository evidence:**
+
+1. **Claim, assessment and verification — one record plus an append-only history.**
+   `employee_skill_records` holds the current standing with a `claimed / assessed /
+   verified / rejected` discriminator; `employee_skill_assessments` is the append-only
+   chronology, one row per judgement, never edited. The four concepts stay distinct
+   because the *writers* are distinct: `claimSkill` never sets `verified_level_id`,
+   `assess` never sets it, and `verify` is the only function in the codebase that does.
+   Separate tables per concept would have made "what is this employee's standing on this
+   skill?" a three-table question with no database guarantee of a single answer;
+   `employee_skill_records_employee_skill_unique` gives that guarantee.
+
+2. **One active scale per organization — the simpler shape, as §30.3 preferred.**
+   No live requirement in this repository needs a historical scale, and
+   `proficiency_scales_active_per_org_unique` (partial, `active = true`) makes "exactly
+   one" a database fact rather than a service convention. Versioning is achieved by
+   *archiving*: publishing a new scale deactivates the incumbent inside a transaction and
+   retains its levels, so every historical assessment still resolves. A level's label is
+   editable and its **ordinal is not** — `relabelLevel` has no path to it, because
+   reordering would silently rewrite what a past judgement meant.
+
+3. **Readiness history shares the candidacy event log, with a real foreign key.**
+   `succession_candidate_events` carries `nominated`, `readiness_changed`,
+   `rationale_updated`, `removed`, `reinstated` and `appointed_elsewhere` against a
+   `candidate_id` foreign key — following the §28.27 item 1 and §29.26 item 2 reasoning.
+   A separate readiness table would have split one candidate's story across two
+   chronologies with no shared ordering, and a polymorphic pair would have bought nothing
+   this repository can express.
+
+4. **The legacy routes are left exactly as shipped, and the anomaly stands documented.**
+   `GET/POST /organizations/{id}/employees/{employeeId}/skills` keeps its `employee.write`
+   gate and its free-text `employee_skills` table; migration `0070` does not reference
+   that table. Implementation surfaced one fact §30.22 did not anticipate: WS-14's own
+   employee-skill write path wanted **the same URL**. It was moved to `/skill-records`
+   rather than shadowing a shipped contract. Consolidating the two models remains a
+   separate decision with its own migration path, and is **not** claimed here.
+
+5. **Master Data import is a WS-14 configuration action, not a WS-7 migration.**
+   Decided against the shipped framework's own boundaries: WS-7's migration batches carry
+   source upload, mapping, validation, approval and execution, and exist for multi-entity
+   data migration at cutover. This is a one-off organization setup step reading a domain
+   that already lives in this platform. It is idempotent and one-way — Master Data is read
+   and never written, and re-running imports nothing.
+
+**Two defects were found by running the tests, and fixed rather than worked around.**
+`position_skill_requirements` declared an `active` column that `computeGaps` filters on,
+while `removeRequirement` hard-deleted the row — the service was made to match its own
+schema, withdrawing rather than deleting, with `addRequirement` reinstating in place so
+the `(organization, position, skill)` uniqueness still holds. And the WS-14 permission
+seed had written the intended `hr_manager` block into the `org_admin` array, so
+`org_admin` received all three succession keys that §30.17 explicitly withholds from it;
+the block was moved, and a live test now asserts the absence directly against the seeded
+database rather than against the source file.
+
+**§30.26's fifteen-row acceptance table is satisfied in the application**, across four
+surfaces: `/skills-settings` (catalogue, scale, Master Data import), `/capability`
+(skill profiles, assessment, verification, position requirements, gap analysis,
+development actions), `/succession` (plans, candidates, readiness bands, coverage) and
+`/my-skills` (own profile, own claim, own gaps). Succession is a separate route from
+capability on purpose: its permissions are narrower and are withheld from organization
+administration by default, so folding them together would have made one navigation entry
+serve two different audiences.
+
+**No AI decides anything, and no scheduled job decides anything.** The four WS-14 job
+types are reminders; none can reach `assess`, `verify`, `nominateCandidate`,
+`removeCandidate` or `setReadiness`, and a live test asserts that the complete set of
+registered `skill.*`, `succession.*` and `development.*` job types is exactly those four.
+
+**Nothing in §30.29 was built.** No 9-box, no potential score, no numeric successor
+ranking, no automatic enrolment, no automatic promotion or appointment, no employee-facing
+succession, and no WS-15 Action Centre. **WS-11.1 remains deferred, and OD #14 and OD #15
+remain approved and unassigned.**

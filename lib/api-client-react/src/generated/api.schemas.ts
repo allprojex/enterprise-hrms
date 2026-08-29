@@ -5,6 +5,517 @@
  * Enterprise HRMS API
  * OpenAPI spec version: 0.1.0
  */
+export type SkillCategory = typeof SkillCategory[keyof typeof SkillCategory];
+
+
+export const SkillCategory = {
+  technical: 'technical',
+  behavioural: 'behavioural',
+  leadership: 'leadership',
+  functional: 'functional',
+  compliance: 'compliance',
+  other: 'other',
+} as const;
+
+export interface Skill {
+  id: number;
+  organizationId: number;
+  code: string;
+  name: string;
+  description?: string | null;
+  category: SkillCategory;
+  active: boolean;
+  proficiencyApplicable?: boolean;
+  evidenceExpected?: boolean;
+  certificationApplicable?: boolean;
+  sourceMasterDataCode?: string | null;
+  createdBy?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateSkillInput {
+  /** @minLength 1 */
+  code: string;
+  /** @minLength 1 */
+  name: string;
+  description?: string | null;
+  category?: SkillCategory;
+  proficiencyApplicable?: boolean;
+  evidenceExpected?: boolean;
+  certificationApplicable?: boolean;
+}
+
+export interface UpdateSkillInput {
+  /** @minLength 1 */
+  name?: string;
+  description?: string | null;
+  category?: SkillCategory;
+  active?: boolean;
+  proficiencyApplicable?: boolean;
+  evidenceExpected?: boolean;
+  certificationApplicable?: boolean;
+}
+
+export interface SkillImportResult {
+  imported: number;
+  /** Already present from an earlier import — the operation is idempotent. */
+  skipped: number;
+}
+
+export interface ProficiencyScale {
+  id: number;
+  organizationId: number;
+  name: string;
+  description?: string | null;
+  active: boolean;
+  createdBy?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ProficiencyLevel {
+  id: number;
+  organizationId: number;
+  scaleId: number;
+  /** Position in the scale. Immutable once levels exist — see §30.3. */
+  ordinal: number;
+  label: string;
+  description?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ProficiencyScaleView {
+  scale: ProficiencyScale | null;
+  levels: ProficiencyLevel[];
+}
+
+export type CreateProficiencyScaleInputLevelsItem = {
+  /** @minLength 1 */
+  label: string;
+  description?: string | null;
+};
+
+export interface CreateProficiencyScaleInput {
+  /** @minLength 1 */
+  name: string;
+  description?: string | null;
+  /**
+     * In order, lowest first. The order is fixed at creation.
+     * @minItems 2
+     */
+  levels: CreateProficiencyScaleInputLevelsItem[];
+}
+
+/**
+ * No ordinal — a level's order may never be changed (§30.3).
+ */
+export interface RelabelProficiencyLevelInput {
+  /** @minLength 1 */
+  label?: string;
+  description?: string | null;
+}
+
+export type EmployeeSkillStatus = typeof EmployeeSkillStatus[keyof typeof EmployeeSkillStatus];
+
+
+export const EmployeeSkillStatus = {
+  claimed: 'claimed',
+  assessed: 'assessed',
+  verified: 'verified',
+  rejected: 'rejected',
+} as const;
+
+export type EmployeeSkillSource = typeof EmployeeSkillSource[keyof typeof EmployeeSkillSource];
+
+
+export const EmployeeSkillSource = {
+  employee_self_service: 'employee_self_service',
+  hr_entry: 'hr_entry',
+  assessment: 'assessment',
+  import: 'import',
+} as const;
+
+export interface EmployeeSkillRecord {
+  id: number;
+  organizationId: number;
+  employeeId: number;
+  skillId: number;
+  status: EmployeeSkillStatus;
+  source: EmployeeSkillSource;
+  claimedLevelId?: number | null;
+  /** Set only by the verification path (§30.6). */
+  verifiedLevelId?: number | null;
+  verifiedAt?: string | null;
+  verifiedByUserId?: number | null;
+  evidenceDocumentId?: number | null;
+  certificationId?: number | null;
+  notes?: string | null;
+  createdBy?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type EmployeeSkillAssessmentKind = typeof EmployeeSkillAssessmentKind[keyof typeof EmployeeSkillAssessmentKind];
+
+
+export const EmployeeSkillAssessmentKind = {
+  assessment: 'assessment',
+  verification: 'verification',
+  rejection: 'rejection',
+} as const;
+
+export type AssessorRole = typeof AssessorRole[keyof typeof AssessorRole];
+
+
+export const AssessorRole = {
+  hr: 'hr',
+  reporting_manager: 'reporting_manager',
+} as const;
+
+export interface EmployeeSkillAssessment {
+  id: number;
+  organizationId: number;
+  recordId: number;
+  kind: EmployeeSkillAssessmentKind;
+  levelId?: number | null;
+  assessorRole: AssessorRole;
+  assessorUserId?: number | null;
+  assessorMembershipId?: number | null;
+  assessedAt: string;
+  notes?: string | null;
+  evidenceDocumentId?: number | null;
+  createdAt?: string;
+}
+
+export type EmployeeSkillDetail = EmployeeSkillRecord & {
+  assessments: EmployeeSkillAssessment[];
+};
+
+export interface EmployeeSkillDecisionResult {
+  record: EmployeeSkillRecord;
+  assessment: EmployeeSkillAssessment;
+}
+
+/**
+ * No source field — the route fixes it as hr_entry.
+ */
+export interface ClaimEmployeeSkillInput {
+  skillId: number;
+  claimedLevelId?: number | null;
+  evidenceDocumentId?: number | null;
+  certificationId?: number | null;
+  notes?: string | null;
+}
+
+/**
+ * No employeeId — the subject is my own employee link, resolved server-side (§30.18).
+ */
+export interface ClaimMySkillInput {
+  skillId: number;
+  claimedLevelId?: number | null;
+  evidenceDocumentId?: number | null;
+  certificationId?: number | null;
+  notes?: string | null;
+}
+
+/**
+ * No assessorRole — the server resolves the actor's authority (§30.8).
+ */
+export interface AssessEmployeeSkillInput {
+  levelId: number;
+  assessedAt: string;
+  notes?: string | null;
+  evidenceDocumentId?: number | null;
+}
+
+export interface VerifyEmployeeSkillInput {
+  /** The level being confirmed. Required when the skill uses proficiency levels — "verified, at some unstated standard" is not recordable. Omit only for a skill that carries no proficiency. */
+  levelId?: number | null;
+  assessedAt: string;
+  notes?: string | null;
+}
+
+export interface RejectEmployeeSkillInput {
+  /** @minLength 1 */
+  reason: string;
+  assessedAt: string;
+}
+
+export type MySkillOptionsSkillsItem = {
+  id: number;
+  name: string;
+  category: SkillCategory;
+  proficiencyApplicable: boolean;
+};
+
+export type MySkillOptionsLevelsItem = {
+  id: number;
+  label: string;
+};
+
+export interface MySkillOptions {
+  skills: MySkillOptionsSkillsItem[];
+  levels: MySkillOptionsLevelsItem[];
+}
+
+export interface PositionSkillRequirement {
+  id: number;
+  organizationId: number;
+  positionId: number;
+  skillId: number;
+  minimumLevelId?: number | null;
+  mandatory: boolean;
+  active: boolean;
+  createdBy?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AddPositionRequirementInput {
+  skillId: number;
+  minimumLevelId?: number | null;
+  mandatory?: boolean;
+}
+
+export type SkillGapState = typeof SkillGapState[keyof typeof SkillGapState];
+
+
+export const SkillGapState = {
+  no_verified_evidence: 'no_verified_evidence',
+  below_requirement: 'below_requirement',
+  meets_requirement: 'meets_requirement',
+  exceeds_requirement: 'exceeds_requirement',
+} as const;
+
+export interface SkillGap {
+  skillId: number;
+  skillName: string;
+  mandatory: boolean;
+  requiredLevelOrdinal?: number | null;
+  requiredLevelLabel?: string | null;
+  verifiedLevelOrdinal?: number | null;
+  verifiedLevelLabel?: string | null;
+  /** Shown separately and never counted toward a requirement (§30.6). */
+  hasUnverifiedClaim: boolean;
+  /** The backing certification has lapsed, so the evidence is no longer current (§30.20). */
+  evidenceExpired: boolean;
+  state: SkillGapState;
+}
+
+export interface SkillGapResult {
+  gaps: SkillGap[];
+}
+
+export interface MySkillGaps {
+  positionId: number | null;
+  gaps: SkillGap[];
+}
+
+export interface ReadinessLevel {
+  id: number;
+  organizationId: number;
+  /** Nearest-term first. A band, not a score (§30.13). */
+  ordinal: number;
+  label: string;
+  description?: string | null;
+  active: boolean;
+  createdBy?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateReadinessLevelInput {
+  /** @minimum 1 */
+  ordinal: number;
+  /** @minLength 1 */
+  label: string;
+  description?: string | null;
+}
+
+export type SuccessionPlanStatus = typeof SuccessionPlanStatus[keyof typeof SuccessionPlanStatus];
+
+
+export const SuccessionPlanStatus = {
+  active: 'active',
+  under_review: 'under_review',
+  closed: 'closed',
+} as const;
+
+/**
+ * Carries no confidential note — see §30.17.
+ */
+export interface SuccessionPlanSummary {
+  id: number;
+  positionId: number;
+  status: SuccessionPlanStatus;
+  reviewDueAt?: string | null;
+  createdAt?: string;
+}
+
+export interface SuccessionPlan {
+  id: number;
+  organizationId: number;
+  positionId: number;
+  status: SuccessionPlanStatus;
+  /** Confidential. Returned only on the sensitive-read path. */
+  criticalityNotes?: string | null;
+  reviewDueAt?: string | null;
+  closedAt?: string | null;
+  closedBy?: number | null;
+  createdBy?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateSuccessionPlanInput {
+  positionId: number;
+  criticalityNotes?: string | null;
+  reviewDueAt?: string | null;
+}
+
+export interface UpdateSuccessionPlanInput {
+  status?: SuccessionPlanStatus;
+  criticalityNotes?: string | null;
+  reviewDueAt?: string | null;
+}
+
+export type SuccessionCandidateStatus = typeof SuccessionCandidateStatus[keyof typeof SuccessionCandidateStatus];
+
+
+export const SuccessionCandidateStatus = {
+  active: 'active',
+  removed: 'removed',
+  appointed: 'appointed',
+} as const;
+
+/**
+ * There is deliberately no rank, score or ordering position on this object (§30.12). readinessOrdinal groups candidates into bands; it does not order them within one.
+ */
+export interface SuccessionCandidate {
+  id: number;
+  organizationId: number;
+  planId: number;
+  employeeId: number;
+  status: SuccessionCandidateStatus;
+  readinessLevelId?: number | null;
+  readinessLabel?: string | null;
+  readinessOrdinal?: number | null;
+  /** Confidential. */
+  rationale?: string | null;
+  nominatedByUserId?: number | null;
+  nominatedAt?: string | null;
+  removedAt?: string | null;
+  removedBy?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface NominateSuccessionCandidateInput {
+  employeeId: number;
+  readinessLevelId?: number | null;
+  rationale?: string | null;
+}
+
+export interface SetSuccessionReadinessInput {
+  readinessLevelId: number;
+  notes?: string | null;
+}
+
+export interface RemoveSuccessionCandidateInput {
+  /** @minLength 1 */
+  reason: string;
+}
+
+export type SuccessionCandidateEventType = typeof SuccessionCandidateEventType[keyof typeof SuccessionCandidateEventType];
+
+
+export const SuccessionCandidateEventType = {
+  nominated: 'nominated',
+  readiness_changed: 'readiness_changed',
+  rationale_updated: 'rationale_updated',
+  removed: 'removed',
+  reinstated: 'reinstated',
+  appointed_elsewhere: 'appointed_elsewhere',
+} as const;
+
+export interface SuccessionCandidateEvent {
+  id: number;
+  organizationId: number;
+  candidateId: number;
+  eventType: SuccessionCandidateEventType;
+  previousReadinessLevelId?: number | null;
+  newReadinessLevelId?: number | null;
+  notes?: string | null;
+  actorUserId?: number | null;
+  actorMembershipId?: number | null;
+  occurredAt: string;
+  createdAt?: string;
+}
+
+export interface SuccessionCoverageRow {
+  planId: number;
+  positionId: number;
+  positionTitle: string;
+  status: string;
+  candidateCount: number;
+  /** Candidates in the nearest-term readiness band. Never a rank. */
+  nearestTermReadyCount: number;
+  hasNoCandidates: boolean;
+}
+
+export interface SuccessionCoverageResult {
+  coverage: SuccessionCoverageRow[];
+}
+
+export type DevelopmentActionStatus = typeof DevelopmentActionStatus[keyof typeof DevelopmentActionStatus];
+
+
+export const DevelopmentActionStatus = {
+  open: 'open',
+  in_progress: 'in_progress',
+  completed: 'completed',
+  cancelled: 'cancelled',
+} as const;
+
+export interface DevelopmentAction {
+  id: number;
+  organizationId: number;
+  employeeId: number;
+  skillId?: number | null;
+  successionCandidateId?: number | null;
+  action: string;
+  status: DevelopmentActionStatus;
+  targetDate?: string | null;
+  learningCourseId?: number | null;
+  learningEnrollmentId?: number | null;
+  evidenceDocumentId?: number | null;
+  responsibleMembershipId?: number | null;
+  createdBy?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateDevelopmentActionInput {
+  employeeId: number;
+  /** @minLength 1 */
+  action: string;
+  skillId?: number | null;
+  successionCandidateId?: number | null;
+  targetDate?: string | null;
+  learningCourseId?: number | null;
+  learningEnrollmentId?: number | null;
+  evidenceDocumentId?: number | null;
+}
+
+export interface UpdateDevelopmentActionInput {
+  /** @minLength 1 */
+  action?: string;
+  status?: DevelopmentActionStatus;
+  targetDate?: string | null;
+}
+
 export type EmploymentTermType = typeof EmploymentTermType[keyof typeof EmploymentTermType];
 
 
@@ -12774,4 +13285,25 @@ export type ListServiceRequestsAssignedToMe = typeof ListServiceRequestsAssigned
 export const ListServiceRequestsAssignedToMe = {
   true: 'true',
 } as const;
+
+export type ListSkillsParams = {
+activeOnly?: boolean;
+};
+
+export type ListEmployeeSkillRecordsParams = {
+employeeId?: number;
+skillId?: number;
+};
+
+export type GetEmployeeSkillGapsParams = {
+positionId: number;
+};
+
+export type ListSuccessionCandidatesParams = {
+includeRemoved?: boolean;
+};
+
+export type ListDevelopmentActionsParams = {
+employeeId?: number;
+};
 

@@ -30,6 +30,7 @@ import { registerOnboardingJobHandlers } from "./onboarding/reminders";
 import { registerEmploymentLifecycleJobHandlers } from "./employmentLifecycle/reminders";
 import { registerEmployeeRelationsJobHandlers } from "./employeeRelations/reminders";
 import { registerEmployeeRequestJobHandlers } from "./employeeRequests/reminders";
+import { registerSkillsJobHandlers } from "./skills/reminders";
 import { notifyUser, type RecipientSpec } from "./notifications";
 
 const recipientSpecSchema: z.ZodType<RecipientSpec> = z.union([
@@ -117,4 +118,10 @@ export function registerShippedJobHandlers(): void {
   // deliberately no "apply due changes" handler  14 a future effective date does
   // not licence a scheduled write ($29.11).
   registerEmployeeRequestJobHandlers();
+
+  // WS-14 — capability and succession reminders. Observers only: $30.21 and
+  // $27.11 forbid a job assessing, verifying, nominating, removing a candidate
+  // or changing readiness. Readiness in particular is human-owned ($30.13), so
+  // no handler here can reach setReadiness.
+  registerSkillsJobHandlers();
 }

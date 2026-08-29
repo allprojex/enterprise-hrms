@@ -577,6 +577,33 @@ const PERMISSIONS = [
   { key: "service_request.manage", resource: "service_request", action: "manage" },
   { key: "service_request.approve", resource: "service_request", action: "approve" },
   { key: "service_request.configure", resource: "service_request", action: "configure" },
+  // WS-14 — Skills, Competency Framework & Succession (§30.22).
+  //
+  // ASSESSMENT AND VERIFICATION ARE SEPARATE KEYS because §30.8 makes them
+  // separate acts: a manager may record what they observed, and confirming it
+  // as organizational truth is a different authority.
+  //
+  // The three succession keys are separate from every skills key because
+  // succession is confidential HR information (§30.17) and its audience is
+  // narrower than the audience for capability data.
+  //
+  // No self-service key is minted: an employee's right to see and claim their
+  // own capability comes from their employee link, the precedent WS-10, WS-12
+  // and WS-13 all set.
+  //
+  // No separate reporting key: each read model is gated on the same key as the
+  // records it aggregates, so a reporting key would be redundant.
+  { key: "skill_catalogue.read", resource: "skill_catalogue", action: "read" },
+  { key: "skill_catalogue.configure", resource: "skill_catalogue", action: "configure" },
+  { key: "employee_skill.read", resource: "employee_skill", action: "read" },
+  { key: "employee_skill.manage", resource: "employee_skill", action: "manage" },
+  { key: "skill_assessment.record", resource: "skill_assessment", action: "record" },
+  { key: "skill_verification.decide", resource: "skill_verification", action: "decide" },
+  { key: "position_requirement.read", resource: "position_requirement", action: "read" },
+  { key: "position_requirement.configure", resource: "position_requirement", action: "configure" },
+  { key: "succession.read", resource: "succession", action: "read" },
+  { key: "succession.manage", resource: "succession", action: "manage" },
+  { key: "succession.confidential.read", resource: "succession", action: "confidential.read" },
   { key: "onboarding.read", resource: "onboarding", action: "read" },
   { key: "onboarding.manage", resource: "onboarding", action: "manage" },
   { key: "onboarding.configure", resource: "onboarding", action: "configure" },
@@ -725,6 +752,24 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "service_request.manage",
     "service_request.approve",
     "service_request.configure",
+    // WS-14 — organization administration owns capability configuration and
+    // operation.
+    //
+    // The three succession keys are deliberately ABSENT (§30.17). Succession is
+    // confidential HR information, a plan may concern the administrator or
+    // somebody they line-manage, and administrative rank is not the same thing
+    // as a need to see who is being lined up for a role. This mirrors exactly
+    // what §28.17 did with grievance access, and the same
+    // `custom_fields.sensitive.read` precedent of registering a key that no
+    // role receives by default.
+    "skill_catalogue.read",
+    "skill_catalogue.configure",
+    "employee_skill.read",
+    "employee_skill.manage",
+    "skill_assessment.record",
+    "skill_verification.decide",
+    "position_requirement.read",
+    "position_requirement.configure",
     // WS-10 — organization administration owns onboarding configuration and
     // operation alike.
     "onboarding.read",
@@ -733,6 +778,27 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "onboarding.task.complete",
   ],
   hr_manager: [
+    // WS-14 — an HR manager runs capability and succession day to day but does
+    // not define the organization's catalogue or proficiency scale, so
+    // `skill_catalogue.configure` is withheld — the same configuration-versus-
+    // operation split as WS-8, WS-10, WS-11, WS-12 and WS-13.
+    //
+    // All three succession keys ARE granted here, unlike to org_admin: running
+    // succession is the HR function, and §30.17's concern is that succession
+    // visibility must be an explicit grant rather than a side effect of
+    // administrative rank. Granting it to the role whose job it is, and
+    // withholding it from the role that merely outranks everyone, is exactly
+    // that distinction.
+    "skill_catalogue.read",
+    "employee_skill.read",
+    "employee_skill.manage",
+    "skill_assessment.record",
+    "skill_verification.decide",
+    "position_requirement.read",
+    "position_requirement.configure",
+    "succession.read",
+    "succession.manage",
+    "succession.confidential.read",
     "organization.read",
     "membership.read",
     // WS-3 (Owner Decision #17): a genuine, new grant — hr_manager held no

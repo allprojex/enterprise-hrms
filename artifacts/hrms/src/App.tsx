@@ -94,6 +94,10 @@ import MyGrievances from '@/pages/my-grievances';
 import MyRequests from '@/pages/my-requests';
 import Requests from '@/pages/requests';
 import RequestSettings from '@/pages/request-settings';
+import SkillsSettings from '@/pages/skills-settings';
+import Capability from '@/pages/capability';
+import MySkills from '@/pages/my-skills';
+import SuccessionPage from '@/pages/succession';
 import OnboardingDetail from '@/pages/onboarding-detail';
 import MyOnboarding from '@/pages/my-onboarding';
 import ManualCandidateCapture from '@/pages/manual-candidate-capture';
@@ -221,6 +225,30 @@ function Router() {
       </Route>
       <Route path="/request-settings">
         {() => <SecureRoute component={RequestSettings} />}
+      </Route>
+      {/*
+        WS-14 — Skills, Competency and Succession. No moduleKey: capability is a
+        Core HR concern, and every endpoint behind these pages enforces its own
+        permission server-side (section 30.22). "/my-skills" is deliberately
+        ungated beyond authentication, because an employee's right to record
+        what they can do comes from their employee link.
+
+        "/succession" is a separate route from "/capability" ON PURPOSE (section
+        30.17): succession is confidential, its permissions are narrower than the
+        capability keys, and folding it into the capability page would have made
+        one navigation entry serve two different audiences.
+      */}
+      <Route path="/skills-settings">
+        {() => <SecureRoute component={SkillsSettings} />}
+      </Route>
+      <Route path="/capability">
+        {() => <SecureRoute component={Capability} />}
+      </Route>
+      <Route path="/my-skills">
+        {() => <SecureRoute component={MySkills} />}
+      </Route>
+      <Route path="/succession">
+        {() => <SecureRoute component={SuccessionPage} />}
       </Route>
       <Route path="/onboarding">
         {() => <SecureRoute component={Onboarding} moduleKey="onboarding" />}

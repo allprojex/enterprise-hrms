@@ -41,6 +41,9 @@ import {
   FileText,
   FolderOpen,
   GraduationCap,
+  Library,
+  Sparkles,
+  Target,
   Boxes,
   Warehouse,
   Compass,
@@ -513,6 +516,18 @@ export function AppShell({ children }: AppShellProps) {
         // organization-wide HR Action Centre, which remains WS-15's.
         ...(isHrCapable ? [{ href: '/requests', label: 'Requests & Approvals', icon: ClipboardList } satisfies NavItem] : []),
         ...(isHrCapable ? [{ href: '/request-settings', label: 'Request Settings', icon: SlidersHorizontal } satisfies NavItem] : []),
+        // WS-14 — Capability and Succession. Same isHrCapable nav precedent as
+        // the workstreams above, and presentation only: every endpoint enforces
+        // its own permission server-side.
+        //
+        // Succession is a SEPARATE entry from Capability on purpose (§30.17).
+        // Its permissions are narrower than the capability keys and are withheld
+        // from organization administration by default, so the page renders what
+        // the caller may actually read and an empty state otherwise — the nav
+        // entry is never the access control.
+        ...(isHrCapable ? [{ href: '/capability', label: 'Capability', icon: Target } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/succession', label: 'Succession', icon: Sparkles } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/skills-settings', label: 'Skills & Proficiency', icon: Library } satisfies NavItem] : []),
         { href: '/branches', label: 'Branches', icon: MapPin },
         { href: '/departments', label: 'Departments', icon: Network },
         { href: '/positions', label: 'Positions', icon: Briefcase },
@@ -549,6 +564,13 @@ export function AppShell({ children }: AppShellProps) {
         // Gating it would make raising a request harder for exactly the people
         // it exists to serve, and no permission key exists for self-service.
         { href: '/my-requests', label: 'My Requests', icon: Inbox },
+        // WS-14 (§30.18) — every employee reaches their OWN skills here,
+        // unconditionally, for the same reason as the Self-Service entries above:
+        // the page resolves the caller's own employee record server-side. It
+        // carries capability only — there is no self-service succession entry
+        // anywhere, because §30.17 makes succession confidential from the very
+        // people it concerns.
+        { href: '/my-skills', label: 'My Skills', icon: GraduationCap },
         // Phase 3G, W111 — unconditional nav visibility (frozen plan §25):
         // manager eligibility is a pure live reportingManagerId
         // relationship, never a role, so there is no role flag to gate this

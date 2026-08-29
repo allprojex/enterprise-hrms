@@ -187,6 +187,16 @@ tags:
       scheduler service; a jobType a client could invent has no handler and
       fails safely. See docs/SCHEDULED_JOBS_AND_NOTIFICATIONS.md.
 
+  - name: skills
+    description: >-
+      WS-14 skills catalogue, proficiency scale, employee capability records,
+      assessment/verification, position skill requirements, gap analysis and
+      development actions (§30)
+  - name: succession
+    description: >-
+      WS-14 succession plans, candidate pools and readiness bands (§30).
+      Confidential and never employee-facing: no ESS route exists here
+
 paths:
   /healthz:
     get:
@@ -27959,8 +27969,2018 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+  # --- WS-14 — Skills, Competency Framework & Succession (§30) ---------------
+
+  /organizations/{organizationId}/skills:
+    get:
+      operationId: listSkills
+      tags: [skills]
+      summary: The organization's skills catalogue
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: activeOnly
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Skills
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Skill"
+    post:
+      operationId: createSkill
+      tags: [skills]
+      summary: Add a skill to the catalogue
+      description: >-
+        One catalogue serves every organization type (§30.2). The code is stable
+        and organization-unique; renaming never rewrites history.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSkillInput"
+      responses:
+        "201":
+          description: Skill created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Skill"
+        "409":
+          description: That code already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/skills/{skillId}:
+    patch:
+      operationId: updateSkill
+      tags: [skills]
+      summary: Amend or retire a catalogue skill
+      description: >-
+        Retiring sets `active` false. It never deletes the skill, because
+        existing employee records and position requirements point at it (§30.2).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: skillId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSkillInput"
+      responses:
+        "200":
+          description: Skill updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Skill"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/skills/import-master-data:
+    post:
+      operationId: importSkillsFromMasterData
+      tags: [skills]
+      summary: Import the existing skill Master Data domain into the catalogue
+      description: >-
+        Idempotent and one-way (§30.4). Master Data is read here and never
+        written, and re-running imports nothing already imported.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Import result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SkillImportResult"
+
+  /organizations/{organizationId}/proficiency-scale:
+    get:
+      operationId: getProficiencyScale
+      tags: [skills]
+      summary: The active proficiency scale and its levels
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Scale and levels; scale is null when none is configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProficiencyScaleView"
+    post:
+      operationId: createProficiencyScale
+      tags: [skills]
+      summary: Define a new proficiency scale
+      description: >-
+        Publishing a new scale archives the incumbent rather than editing it
+        (§30.3). Historical assessments keep pointing at the levels they were
+        recorded against, so a past judgement is never silently reinterpreted.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProficiencyScaleInput"
+      responses:
+        "201":
+          description: Scale created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProficiencyScaleView"
+        "422":
+          description: A scale needs a name and at least two levels
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/proficiency-levels/{levelId}:
+    patch:
+      operationId: relabelProficiencyLevel
+      tags: [skills]
+      summary: Relabel a proficiency level
+      description: >-
+        Labels may change; ORDER MAY NOT. There is no ordinal in this payload,
+        because reordering would reinterpret every assessment already recorded
+        against the level (§30.3).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: levelId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RelabelProficiencyLevelInput"
+      responses:
+        "200":
+          description: Level updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProficiencyLevel"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employee-skills:
+    get:
+      operationId: listEmployeeSkillRecords
+      tags: [skills]
+      summary: Employee skill records
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: skillId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmployeeSkillRecord"
+
+  /organizations/{organizationId}/employee-skills/{recordId}:
+    get:
+      operationId: getEmployeeSkillRecord
+      tags: [skills]
+      summary: One record with its full assessment history
+      description: >-
+        The history is append-only (§30.7): an assessment is never edited or
+        deleted, so a reader can always see what was judged, by whom and when.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: recordId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Record and history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeSkillDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}/skill-records:
+    post:
+      operationId: claimEmployeeSkill
+      tags: [skills]
+      summary: Record a skill against an employee (HR entry)
+      description: >-
+        Source is fixed by the route as hr_entry and never taken from the body.
+        A record starts CLAIMED — recording it verifies nothing (§30.5).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClaimEmployeeSkillInput"
+      responses:
+        "201":
+          description: Record created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeSkillRecord"
+        "422":
+          description: Unknown, inactive or non-proficiency skill
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employee-skills/{recordId}/assess:
+    post:
+      operationId: assessEmployeeSkill
+      tags: [skills]
+      summary: Record an assessment
+      description: >-
+        HR holding skill_assessment.record, or the employee's authoritative
+        reporting manager, may assess (§30.8). Manager authority is resolved from
+        the employee record, never from a role name and never from the body.
+        Recording an assessment does NOT verify the claim.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: recordId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssessEmployeeSkillInput"
+      responses:
+        "201":
+          description: Assessment recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeSkillDecisionResult"
+        "403":
+          description: Not an authorised assessor for this employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employee-skills/{recordId}/verify:
+    post:
+      operationId: verifyEmployeeSkill
+      tags: [skills]
+      summary: Verify a claimed skill
+      description: >-
+        The only path that sets a verified level (§30.6). Self-verification is
+        refused on the actor's own employee link.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: recordId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyEmployeeSkillInput"
+      responses:
+        "200":
+          description: Verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeSkillDecisionResult"
+        "403":
+          description: An employee may not verify their own skill
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employee-skills/{recordId}/reject:
+    post:
+      operationId: rejectEmployeeSkill
+      tags: [skills]
+      summary: Reject a claimed skill
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: recordId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RejectEmployeeSkillInput"
+      responses:
+        "200":
+          description: Rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeSkillRecord"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/my-skills:
+    get:
+      operationId: listMySkills
+      tags: [skills]
+      summary: My own skill records
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: My records; empty when no employee record is linked
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmployeeSkillRecord"
+    post:
+      operationId: claimMySkill
+      tags: [skills]
+      summary: Claim a skill for myself
+      description: >-
+        No permission key gates this: the right comes from the employee link,
+        resolved server-side (§30.18, §30.22). The body carries no employee
+        identifier, so nobody can claim onto another employee's record.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClaimMySkillInput"
+      responses:
+        "201":
+          description: Claim recorded, awaiting verification
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeSkillRecord"
+        "403":
+          description: No employee record is linked to this account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/my-skill-options:
+    get:
+      operationId: listMySkillOptions
+      tags: [skills]
+      summary: The skills I may claim, and the active level labels
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Claim options
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MySkillOptions"
+
+  /organizations/{organizationId}/my-skill-gaps:
+    get:
+      operationId: getMySkillGaps
+      tags: [skills]
+      summary: My gaps against my own current position
+      description: >-
+        The position comes from my employee record, never from the query string
+        (§30.18). This surface carries no succession content of any kind.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: My gaps; positionId is null when I hold no position
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MySkillGaps"
+
+  /organizations/{organizationId}/positions/{positionId}/skill-requirements:
+    get:
+      operationId: listPositionSkillRequirements
+      tags: [skills]
+      summary: A position's skill requirements
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: positionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Requirements
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PositionSkillRequirement"
+    post:
+      operationId: addPositionRequirement
+      tags: [skills]
+      summary: Require a skill for a position
+      description: >-
+        Adding a requirement changes nobody's employment and blocks nothing
+        (§30.9). It makes a gap visible; a human decides what follows.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: positionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddPositionRequirementInput"
+      responses:
+        "201":
+          description: Requirement added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PositionSkillRequirement"
+        "422":
+          description: Unknown skill or level
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/position-skill-requirements/{requirementId}:
+    delete:
+      operationId: removePositionRequirement
+      tags: [skills]
+      summary: Withdraw a position skill requirement
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: requirementId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Withdrawn
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}/skill-gaps:
+    get:
+      operationId: getEmployeeSkillGaps
+      tags: [skills]
+      summary: One employee measured against one position
+      description: >-
+        ONLY VERIFIED CAPABILITY COUNTS (§30.6). A claimed-but-unverified skill
+        is reported through hasUnverifiedClaim and never satisfies a
+        requirement, and no_verified_evidence is a distinct state from
+        below_requirement — a caller must not render the first as lacking the
+        skill.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: positionId
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Gaps
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SkillGapResult"
+
+  /organizations/{organizationId}/readiness-levels:
+    get:
+      operationId: listReadinessLevels
+      tags: [succession]
+      summary: The organization's readiness bands
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Readiness levels, nearest-term first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReadinessLevel"
+    post:
+      operationId: createReadinessLevel
+      tags: [succession]
+      summary: Define a readiness band
+      description: >-
+        A readiness band is a human judgement of how soon somebody could step up.
+        It is not a score and nothing computes it (§30.13).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReadinessLevelInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessLevel"
+        "422":
+          description: A label and a positive ordinal are required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/succession-plans:
+    get:
+      operationId: listSuccessionPlans
+      tags: [succession]
+      summary: Which positions are succession-managed
+      description: >-
+        NOT a sensitive read: no candidate, rationale or confidential note is
+        returned here (§30.17).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Plan summaries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SuccessionPlanSummary"
+    post:
+      operationId: createSuccessionPlan
+      tags: [succession]
+      summary: Open a succession plan for a position
+      description: >-
+        Marks the position as succession-managed. It changes nothing about the
+        position itself and appoints nobody (§30.11, §30.16).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSuccessionPlanInput"
+      responses:
+        "201":
+          description: Plan opened
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessionPlan"
+        "409":
+          description: An open plan already exists for that position
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/succession-plans/{planId}:
+    get:
+      operationId: getSuccessionPlan
+      tags: [succession]
+      summary: One plan, including its confidential criticality notes
+      description: >-
+        Requires succession.confidential.read, deliberately narrower than
+        succession.read, and recorded as a sensitive read under Owner Decision
+        #18 (§30.17).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: planId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessionPlan"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    patch:
+      operationId: updateSuccessionPlan
+      tags: [succession]
+      summary: Amend or close a succession plan
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: planId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSuccessionPlanInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessionPlan"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/succession-plans/{planId}/candidates:
+    get:
+      operationId: listSuccessionCandidates
+      tags: [succession]
+      summary: The candidate pool for a plan
+      description: >-
+        Confidential, and a sensitive read (§30.17). Grouped by readiness band
+        for presentation only — there is NO rank, score or ordering position,
+        and none may be added (§30.12).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: planId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: includeRemoved
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Candidates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SuccessionCandidate"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: nominateSuccessionCandidate
+      tags: [succession]
+      summary: Nominate a candidate
+      description: >-
+        Nominating records a view. It appoints nobody, promises nothing and
+        changes no employment state (§30.16).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: planId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NominateSuccessionCandidateInput"
+      responses:
+        "201":
+          description: Nominated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessionCandidate"
+        "409":
+          description: Already an active candidate on this plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/succession-candidates/{candidateId}/readiness:
+    post:
+      operationId: setSuccessionReadiness
+      tags: [succession]
+      summary: Set a candidate's readiness band
+      description: >-
+        A human chooses this band. Nothing computes it, and no scheduled job can
+        reach this path (§30.13, §30.21).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: candidateId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetSuccessionReadinessInput"
+      responses:
+        "200":
+          description: Readiness changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessionCandidate"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/succession-candidates/{candidateId}/remove:
+    post:
+      operationId: removeSuccessionCandidate
+      tags: [succession]
+      summary: Remove a candidate from a plan
+      description: >-
+        The candidate row is retained and marked removed; the chronology keeps
+        the reason (§30.12).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: candidateId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RemoveSuccessionCandidateInput"
+      responses:
+        "200":
+          description: Removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessionCandidate"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/succession-candidates/{candidateId}/history:
+    get:
+      operationId: listSuccessionCandidateEvents
+      tags: [succession]
+      summary: A candidate's append-only readiness chronology
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: candidateId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Events, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SuccessionCandidateEvent"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/succession/coverage:
+    get:
+      operationId: getSuccessionCoverage
+      tags: [succession]
+      summary: Succession coverage counts
+      description: >-
+        Counts only. No candidate identity, rationale or note — a coverage report
+        must never become the route by which confidential succession content
+        reaches a caller who could not read the plan itself (§30.25).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Coverage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessionCoverageResult"
+
+  /organizations/{organizationId}/development-actions:
+    get:
+      operationId: listDevelopmentActions
+      tags: [skills]
+      summary: Recorded development actions
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Actions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DevelopmentAction"
+    post:
+      operationId: createDevelopmentAction
+      tags: [skills]
+      summary: Record a development action
+      description: >-
+        Learning references are validated for organization ownership and then
+        left alone (§30.14). Nothing enrols anybody, and no enrolment happens
+        automatically because a gap exists.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDevelopmentActionInput"
+      responses:
+        "201":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DevelopmentAction"
+        "422":
+          description: Unknown employee, skill or Learning reference
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/development-actions/{actionId}:
+    patch:
+      operationId: updateDevelopmentAction
+      tags: [skills]
+      summary: Progress or close a development action
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: actionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDevelopmentActionInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DevelopmentAction"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
+
+    # --- WS-14 — Skills, Competency Framework & Succession (§30) -------------
+
+    SkillCategory:
+      type: string
+      enum: [technical, behavioural, leadership, functional, compliance, other]
+
+    Skill:
+      type: object
+      required: [id, organizationId, code, name, category, active]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        code:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        category:
+          $ref: "#/components/schemas/SkillCategory"
+        active:
+          type: boolean
+        proficiencyApplicable:
+          type: boolean
+        evidenceExpected:
+          type: boolean
+        certificationApplicable:
+          type: boolean
+        sourceMasterDataCode:
+          type: string
+          nullable: true
+        createdBy:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    CreateSkillInput:
+      type: object
+      required: [code, name]
+      properties:
+        code:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+        category:
+          $ref: "#/components/schemas/SkillCategory"
+        proficiencyApplicable:
+          type: boolean
+        evidenceExpected:
+          type: boolean
+        certificationApplicable:
+          type: boolean
+
+    UpdateSkillInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+        category:
+          $ref: "#/components/schemas/SkillCategory"
+        active:
+          type: boolean
+        proficiencyApplicable:
+          type: boolean
+        evidenceExpected:
+          type: boolean
+        certificationApplicable:
+          type: boolean
+
+    SkillImportResult:
+      type: object
+      required: [imported, skipped]
+      properties:
+        imported:
+          type: integer
+        skipped:
+          type: integer
+          description: Already present from an earlier import — the operation is idempotent.
+
+    ProficiencyScale:
+      type: object
+      required: [id, organizationId, name, active]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        active:
+          type: boolean
+        createdBy:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    ProficiencyLevel:
+      type: object
+      required: [id, organizationId, scaleId, ordinal, label]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        scaleId:
+          type: integer
+        ordinal:
+          type: integer
+          description: Position in the scale. Immutable once levels exist — see §30.3.
+        label:
+          type: string
+        description:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    ProficiencyScaleView:
+      type: object
+      required: [scale, levels]
+      properties:
+        scale:
+          oneOf:
+            - $ref: "#/components/schemas/ProficiencyScale"
+            - type: "null"
+        levels:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProficiencyLevel"
+
+    CreateProficiencyScaleInput:
+      type: object
+      required: [name, levels]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+        levels:
+          type: array
+          minItems: 2
+          description: In order, lowest first. The order is fixed at creation.
+          items:
+            type: object
+            required: [label]
+            properties:
+              label:
+                type: string
+                minLength: 1
+              description:
+                type: string
+                nullable: true
+
+    RelabelProficiencyLevelInput:
+      type: object
+      description: No ordinal — a level's order may never be changed (§30.3).
+      properties:
+        label:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+
+    EmployeeSkillStatus:
+      type: string
+      enum: [claimed, assessed, verified, rejected]
+
+    EmployeeSkillSource:
+      type: string
+      enum: [employee_self_service, hr_entry, assessment, import]
+
+    EmployeeSkillRecord:
+      type: object
+      required: [id, organizationId, employeeId, skillId, status, source]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        employeeId:
+          type: integer
+        skillId:
+          type: integer
+        status:
+          $ref: "#/components/schemas/EmployeeSkillStatus"
+        source:
+          $ref: "#/components/schemas/EmployeeSkillSource"
+        claimedLevelId:
+          type: integer
+          nullable: true
+        verifiedLevelId:
+          type: integer
+          nullable: true
+          description: Set only by the verification path (§30.6).
+        verifiedAt:
+          type: string
+          nullable: true
+        verifiedByUserId:
+          type: integer
+          nullable: true
+        evidenceDocumentId:
+          type: integer
+          nullable: true
+        certificationId:
+          type: integer
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdBy:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    EmployeeSkillAssessmentKind:
+      type: string
+      enum: [assessment, verification, rejection]
+
+    AssessorRole:
+      type: string
+      enum: [hr, reporting_manager]
+
+    EmployeeSkillAssessment:
+      type: object
+      required: [id, organizationId, recordId, kind, assessorRole, assessedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        recordId:
+          type: integer
+        kind:
+          $ref: "#/components/schemas/EmployeeSkillAssessmentKind"
+        levelId:
+          type: integer
+          nullable: true
+        assessorRole:
+          $ref: "#/components/schemas/AssessorRole"
+        assessorUserId:
+          type: integer
+          nullable: true
+        assessorMembershipId:
+          type: integer
+          nullable: true
+        assessedAt:
+          type: string
+        notes:
+          type: string
+          nullable: true
+        evidenceDocumentId:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+
+    EmployeeSkillDetail:
+      allOf:
+        - $ref: "#/components/schemas/EmployeeSkillRecord"
+        - type: object
+          required: [assessments]
+          properties:
+            assessments:
+              type: array
+              items:
+                $ref: "#/components/schemas/EmployeeSkillAssessment"
+
+    EmployeeSkillDecisionResult:
+      type: object
+      required: [record, assessment]
+      properties:
+        record:
+          $ref: "#/components/schemas/EmployeeSkillRecord"
+        assessment:
+          $ref: "#/components/schemas/EmployeeSkillAssessment"
+
+    ClaimEmployeeSkillInput:
+      type: object
+      required: [skillId]
+      description: No source field — the route fixes it as hr_entry.
+      properties:
+        skillId:
+          type: integer
+        claimedLevelId:
+          type: integer
+          nullable: true
+        evidenceDocumentId:
+          type: integer
+          nullable: true
+        certificationId:
+          type: integer
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+
+    ClaimMySkillInput:
+      type: object
+      required: [skillId]
+      description: >-
+        No employeeId — the subject is my own employee link, resolved
+        server-side (§30.18).
+      properties:
+        skillId:
+          type: integer
+        claimedLevelId:
+          type: integer
+          nullable: true
+        evidenceDocumentId:
+          type: integer
+          nullable: true
+        certificationId:
+          type: integer
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+
+    AssessEmployeeSkillInput:
+      type: object
+      required: [levelId, assessedAt]
+      description: No assessorRole — the server resolves the actor's authority (§30.8).
+      properties:
+        levelId:
+          type: integer
+        assessedAt:
+          type: string
+        notes:
+          type: string
+          nullable: true
+        evidenceDocumentId:
+          type: integer
+          nullable: true
+
+    VerifyEmployeeSkillInput:
+      type: object
+      required: [assessedAt]
+      properties:
+        levelId:
+          type: integer
+          nullable: true
+          description: >-
+            The level being confirmed. Required when the skill uses proficiency
+            levels — "verified, at some unstated standard" is not recordable.
+            Omit only for a skill that carries no proficiency.
+        assessedAt:
+          type: string
+        notes:
+          type: string
+          nullable: true
+
+    RejectEmployeeSkillInput:
+      type: object
+      required: [reason, assessedAt]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+        assessedAt:
+          type: string
+
+    MySkillOptions:
+      type: object
+      required: [skills, levels]
+      properties:
+        skills:
+          type: array
+          items:
+            type: object
+            required: [id, name, category, proficiencyApplicable]
+            properties:
+              id:
+                type: integer
+              name:
+                type: string
+              category:
+                $ref: "#/components/schemas/SkillCategory"
+              proficiencyApplicable:
+                type: boolean
+        levels:
+          type: array
+          items:
+            type: object
+            required: [id, label]
+            properties:
+              id:
+                type: integer
+              label:
+                type: string
+
+    PositionSkillRequirement:
+      type: object
+      required: [id, organizationId, positionId, skillId, mandatory, active]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        positionId:
+          type: integer
+        skillId:
+          type: integer
+        minimumLevelId:
+          type: integer
+          nullable: true
+        mandatory:
+          type: boolean
+        active:
+          type: boolean
+        createdBy:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    AddPositionRequirementInput:
+      type: object
+      required: [skillId]
+      properties:
+        skillId:
+          type: integer
+        minimumLevelId:
+          type: integer
+          nullable: true
+        mandatory:
+          type: boolean
+
+    SkillGapState:
+      type: string
+      enum: [no_verified_evidence, below_requirement, meets_requirement, exceeds_requirement]
+
+    SkillGap:
+      type: object
+      required: [skillId, skillName, mandatory, hasUnverifiedClaim, evidenceExpired, state]
+      properties:
+        skillId:
+          type: integer
+        skillName:
+          type: string
+        mandatory:
+          type: boolean
+        requiredLevelOrdinal:
+          type: integer
+          nullable: true
+        requiredLevelLabel:
+          type: string
+          nullable: true
+        verifiedLevelOrdinal:
+          type: integer
+          nullable: true
+        verifiedLevelLabel:
+          type: string
+          nullable: true
+        hasUnverifiedClaim:
+          type: boolean
+          description: Shown separately and never counted toward a requirement (§30.6).
+        evidenceExpired:
+          type: boolean
+          description: The backing certification has lapsed, so the evidence is no longer current (§30.20).
+        state:
+          $ref: "#/components/schemas/SkillGapState"
+
+    SkillGapResult:
+      type: object
+      required: [gaps]
+      properties:
+        gaps:
+          type: array
+          items:
+            $ref: "#/components/schemas/SkillGap"
+
+    MySkillGaps:
+      type: object
+      required: [positionId, gaps]
+      properties:
+        positionId:
+          type: integer
+          nullable: true
+        gaps:
+          type: array
+          items:
+            $ref: "#/components/schemas/SkillGap"
+
+    ReadinessLevel:
+      type: object
+      required: [id, organizationId, ordinal, label, active]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        ordinal:
+          type: integer
+          description: Nearest-term first. A band, not a score (§30.13).
+        label:
+          type: string
+        description:
+          type: string
+          nullable: true
+        active:
+          type: boolean
+        createdBy:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    CreateReadinessLevelInput:
+      type: object
+      required: [ordinal, label]
+      properties:
+        ordinal:
+          type: integer
+          minimum: 1
+        label:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+
+    SuccessionPlanStatus:
+      type: string
+      enum: [active, under_review, closed]
+
+    SuccessionPlanSummary:
+      type: object
+      required: [id, positionId, status]
+      description: Carries no confidential note — see §30.17.
+      properties:
+        id:
+          type: integer
+        positionId:
+          type: integer
+        status:
+          $ref: "#/components/schemas/SuccessionPlanStatus"
+        reviewDueAt:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+
+    SuccessionPlan:
+      type: object
+      required: [id, organizationId, positionId, status]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        positionId:
+          type: integer
+        status:
+          $ref: "#/components/schemas/SuccessionPlanStatus"
+        criticalityNotes:
+          type: string
+          nullable: true
+          description: Confidential. Returned only on the sensitive-read path.
+        reviewDueAt:
+          type: string
+          nullable: true
+        closedAt:
+          type: string
+          nullable: true
+        closedBy:
+          type: integer
+          nullable: true
+        createdBy:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    CreateSuccessionPlanInput:
+      type: object
+      required: [positionId]
+      properties:
+        positionId:
+          type: integer
+        criticalityNotes:
+          type: string
+          nullable: true
+        reviewDueAt:
+          type: string
+          nullable: true
+
+    UpdateSuccessionPlanInput:
+      type: object
+      properties:
+        status:
+          $ref: "#/components/schemas/SuccessionPlanStatus"
+        criticalityNotes:
+          type: string
+          nullable: true
+        reviewDueAt:
+          type: string
+          nullable: true
+
+    SuccessionCandidateStatus:
+      type: string
+      enum: [active, removed, appointed]
+
+    SuccessionCandidate:
+      type: object
+      required: [id, organizationId, planId, employeeId, status]
+      description: >-
+        There is deliberately no rank, score or ordering position on this object
+        (§30.12). readinessOrdinal groups candidates into bands; it does not
+        order them within one.
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        planId:
+          type: integer
+        employeeId:
+          type: integer
+        status:
+          $ref: "#/components/schemas/SuccessionCandidateStatus"
+        readinessLevelId:
+          type: integer
+          nullable: true
+        readinessLabel:
+          type: string
+          nullable: true
+        readinessOrdinal:
+          type: integer
+          nullable: true
+        rationale:
+          type: string
+          nullable: true
+          description: Confidential.
+        nominatedByUserId:
+          type: integer
+          nullable: true
+        nominatedAt:
+          type: string
+          nullable: true
+        removedAt:
+          type: string
+          nullable: true
+        removedBy:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    NominateSuccessionCandidateInput:
+      type: object
+      required: [employeeId]
+      properties:
+        employeeId:
+          type: integer
+        readinessLevelId:
+          type: integer
+          nullable: true
+        rationale:
+          type: string
+          nullable: true
+
+    SetSuccessionReadinessInput:
+      type: object
+      required: [readinessLevelId]
+      properties:
+        readinessLevelId:
+          type: integer
+        notes:
+          type: string
+          nullable: true
+
+    RemoveSuccessionCandidateInput:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+
+    SuccessionCandidateEventType:
+      type: string
+      enum:
+        [
+          nominated,
+          readiness_changed,
+          rationale_updated,
+          removed,
+          reinstated,
+          appointed_elsewhere,
+        ]
+
+    SuccessionCandidateEvent:
+      type: object
+      required: [id, organizationId, candidateId, eventType, occurredAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        candidateId:
+          type: integer
+        eventType:
+          $ref: "#/components/schemas/SuccessionCandidateEventType"
+        previousReadinessLevelId:
+          type: integer
+          nullable: true
+        newReadinessLevelId:
+          type: integer
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        actorUserId:
+          type: integer
+          nullable: true
+        actorMembershipId:
+          type: integer
+          nullable: true
+        occurredAt:
+          type: string
+        createdAt:
+          type: string
+
+    SuccessionCoverageRow:
+      type: object
+      required: [planId, positionId, positionTitle, status, candidateCount, nearestTermReadyCount, hasNoCandidates]
+      properties:
+        planId:
+          type: integer
+        positionId:
+          type: integer
+        positionTitle:
+          type: string
+        status:
+          type: string
+        candidateCount:
+          type: integer
+        nearestTermReadyCount:
+          type: integer
+          description: Candidates in the nearest-term readiness band. Never a rank.
+        hasNoCandidates:
+          type: boolean
+
+    SuccessionCoverageResult:
+      type: object
+      required: [coverage]
+      properties:
+        coverage:
+          type: array
+          items:
+            $ref: "#/components/schemas/SuccessionCoverageRow"
+
+    DevelopmentActionStatus:
+      type: string
+      enum: [open, in_progress, completed, cancelled]
+
+    DevelopmentAction:
+      type: object
+      required: [id, organizationId, employeeId, action, status]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        employeeId:
+          type: integer
+        skillId:
+          type: integer
+          nullable: true
+        successionCandidateId:
+          type: integer
+          nullable: true
+        action:
+          type: string
+        status:
+          $ref: "#/components/schemas/DevelopmentActionStatus"
+        targetDate:
+          type: string
+          nullable: true
+        learningCourseId:
+          type: integer
+          nullable: true
+        learningEnrollmentId:
+          type: integer
+          nullable: true
+        evidenceDocumentId:
+          type: integer
+          nullable: true
+        responsibleMembershipId:
+          type: integer
+          nullable: true
+        createdBy:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    CreateDevelopmentActionInput:
+      type: object
+      required: [employeeId, action]
+      properties:
+        employeeId:
+          type: integer
+        action:
+          type: string
+          minLength: 1
+        skillId:
+          type: integer
+          nullable: true
+        successionCandidateId:
+          type: integer
+          nullable: true
+        targetDate:
+          type: string
+          nullable: true
+        learningCourseId:
+          type: integer
+          nullable: true
+        learningEnrollmentId:
+          type: integer
+          nullable: true
+        evidenceDocumentId:
+          type: integer
+          nullable: true
+
+    UpdateDevelopmentActionInput:
+      type: object
+      properties:
+        action:
+          type: string
+          minLength: 1
+        status:
+          $ref: "#/components/schemas/DevelopmentActionStatus"
+        targetDate:
+          type: string
+          nullable: true
 
     EmploymentTermType:
       type: string

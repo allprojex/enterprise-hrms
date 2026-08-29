@@ -158,3 +158,8 @@ export * from "./exit-interviews";
 export * from "./data-change-requests";
 export * from "./request-approvals";
 export * from "./service-requests";
+
+// WS-14 — Skills, Competency Framework & Succession (§30).
+export * from "./skills-catalogue";
+export * from "./employee-capabilities";
+export * from "./succession";

@@ -37,7 +37,15 @@ import { recordAuditEvent } from "./auditLog";
 export type SensitiveReadTargetType =
   | "disciplinary_case"
   | "grievance_case"
-  | "employee_relations_evidence";
+  | "employee_relations_evidence"
+  // WS-14 (§30.17) — succession is confidential HR information, and OD #18 is
+  // reused here rather than a second read-audit subsystem being built. Only
+  // these three reads are classified sensitive: opening a plan, reading its
+  // candidate list, and reading a confidential note or rationale. Listing which
+  // positions have plans is NOT sensitive, for the same "risk-based, not noisy"
+  // reason the disciplinary LIST endpoint is excluded above.
+  | "succession_plan"
+  | "succession_candidate";
 
 export interface SensitiveReadInput {
   organizationId: number;
