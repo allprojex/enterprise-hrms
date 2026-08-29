@@ -92,6 +92,7 @@ import { useEmployeePhoto } from '@/hooks/use-employee-photo';
 import { useIsHrCapable } from '@/hooks/use-hr-capable';
 import { QueryError } from '@/components/query-error';
 import { EmploymentLifecyclePanel } from '@/components/employment/employment-lifecycle-panel';
+import { EmployeeRelationsPanel } from '@/components/employment/employee-relations-panel';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 const NONE_PROBATION_REVIEW = '__none__';
@@ -1898,6 +1899,8 @@ export default function EmployeeDetail() {
 
         <EmploymentLifecyclePanel organizationId={organizationId} employeeId={employeeId} />
 
+        <EmployeeRelationsPanel organizationId={organizationId} employeeId={employeeId} />
+
         <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -2418,7 +2421,14 @@ export default function EmployeeDetail() {
                 {(exitProcesses ?? []).map((process) => (
                   <li key={process.id} className="space-y-3 py-4" data-testid={`row-exit-process-${process.id}`}>
                     <p className="text-sm font-medium text-foreground">
-                      Separation on {new Date(process.separationDate).toLocaleDateString()}
+                      {/* WS-12 (§ 28.6): separationDate is nullable now — an offboarding may
+                          run ahead of the separation it prepares for. "Still employed" is the
+                          honest reading of a null, never an assumption that it happened. */}
+                      {process.separationDate
+                        ? `Separation on ${new Date(process.separationDate).toLocaleDateString()}`
+                        : process.expectedSeparationDate
+                          ? `Expected separation ${new Date(process.expectedSeparationDate).toLocaleDateString()} — still employed`
+                          : 'Offboarding in progress — still employed'}
                     </p>
                     <div className="flex flex-wrap gap-4">
                       <label className="flex items-center gap-2 text-sm">

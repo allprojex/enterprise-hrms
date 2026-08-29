@@ -140,6 +140,15 @@ vi.mock('@workspace/api-client-react', () => ({
   }),
   getGetEmploymentLifecycleQueryKey: (orgId: number, empId: number) => ['employmentLifecycle', orgId, empId],
 
+  // WS-12 — the Employee Relations panel on this page. Empty lists by default,
+  // so the panel renders its own empty states and every pre-existing assertion
+  // in this file is unaffected; the panel's behaviour has live coverage of its
+  // own in employeeRelationsLive.test.ts.
+  useListDisciplinaryCases: () => ({ data: [], isLoading: false, error: undefined, refetch: vi.fn() }),
+  getListDisciplinaryCasesQueryKey: (orgId: number, params?: unknown) => ['disciplinaryCases', orgId, params],
+  useListOffboarding: () => ({ data: [], isLoading: false, error: undefined, refetch: vi.fn() }),
+  getListOffboardingQueryKey: (orgId: number, params?: unknown) => ['offboarding', orgId, params],
+
   useTransferEmployee: () => ({ mutate: vi.fn(), isPending: false }),
   usePromoteEmployee: () => ({ mutate: vi.fn(), isPending: false }),
   useConfirmEmployee: () => ({ mutate: vi.fn(), isPending: false }),

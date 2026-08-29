@@ -154,6 +154,23 @@ const CATEGORY_BY_PREFIX: Record<string, AuditCategory> = {
   employee_conversion: "hr",
   employee_disciplinary_record: "hr",
   employee_exit_process: "hr",
+  // WS-12 (§28.12). These stay "hr" ON PURPOSE. OD #18 requires sensitive-read
+  // AUDITING of disciplinary and grievance evidence — that a read is recorded
+  // at all — which is implemented in sensitiveRead.ts. It does not ask for the
+  // resulting audit events to be re-categorized, and moving them to "security"
+  // would quietly REMOVE them from the view of the HR auditors who hold
+  // audit-read for the "hr" category (OD #17). That would be a silent
+  // authorization change of exactly the kind §28.17 refuses elsewhere. The
+  // sensitivity of the underlying record is enforced by the domain permission
+  // and by the confidentiality tier, not by hiding its audit trail from HR.
+  disciplinary_case: "hr",
+  disciplinary_case_event: "hr",
+  grievance_case: "hr",
+  grievance_case_event: "hr",
+  clearance_template: "hr",
+  clearance_item: "hr",
+  exit_interview: "hr",
+  employee_relations_evidence: "hr",
   employee_number: "hr",
   employee_qualification: "hr",
   employee_skill: "hr",

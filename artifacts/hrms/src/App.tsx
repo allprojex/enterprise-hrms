@@ -88,6 +88,9 @@ import CustomFields from '@/pages/custom-fields';
 import CustomForms from '@/pages/custom-forms';
 import RecruitmentApprovalsConfig from '@/pages/recruitment-approvals-config';
 import Onboarding from '@/pages/onboarding';
+import EmployeeRelations from '@/pages/employee-relations';
+import Offboarding from '@/pages/offboarding';
+import MyGrievances from '@/pages/my-grievances';
 import OnboardingDetail from '@/pages/onboarding-detail';
 import MyOnboarding from '@/pages/my-onboarding';
 import ManualCandidateCapture from '@/pages/manual-candidate-capture';
@@ -182,6 +185,22 @@ function Router() {
       </Route>
       <Route path="/recruitment-approvals-config">
         {() => <SecureRoute component={RecruitmentApprovalsConfig} />}
+      </Route>
+      {/*
+        WS-12 — Employee Relations & Offboarding Clearance. No moduleKey: these
+        are Core HR surfaces, and every endpoint behind them enforces its own
+        permission server-side (§28.17). `/my-grievances` is deliberately
+        ungated here beyond authentication — an employee's right to their own
+        grievance comes from their employee link, resolved on the server.
+      */}
+      <Route path="/employee-relations">
+        {() => <SecureRoute component={EmployeeRelations} />}
+      </Route>
+      <Route path="/offboarding">
+        {() => <SecureRoute component={Offboarding} />}
+      </Route>
+      <Route path="/my-grievances">
+        {() => <SecureRoute component={MyGrievances} />}
       </Route>
       <Route path="/onboarding">
         {() => <SecureRoute component={Onboarding} moduleKey="onboarding" />}

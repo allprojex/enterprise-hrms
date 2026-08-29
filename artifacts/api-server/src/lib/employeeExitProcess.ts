@@ -9,10 +9,20 @@
  * employment_periods, since ADR-013 already established that separation-area
  * events live in audit_events, not employment_periods.
  */
-import { and, desc, eq } from "drizzle-orm";
-import { db, employeeExitProcessesTable, type EmployeeExitProcess } from "@workspace/db";
+import { and, desc, eq, sql } from "drizzle-orm";
+import { db, employeeExitProcessesTable, clearanceItemsTable, type EmployeeExitProcess } from "@workspace/db";
 import { recordAuditEvent } from "./auditLog";
 import { getEmployeeById, EmployeeNotFoundError, EmployeeNotSeparatedError } from "./employees";
+
+/** WS-12 (§28.8) — see the guard in `updateEmployeeExitProcess`. */
+export class ClearanceIsDerivedError extends Error {
+  constructor() {
+    super(
+      "Clearance completion is derived from this offboarding's clearance items and cannot be set directly. Act on the items instead.",
+    );
+    this.name = "ClearanceIsDerivedError";
+  }
+}
 
 export class EmployeeExitProcessAlreadyExistsError extends Error {
   constructor() {
@@ -58,7 +68,12 @@ export async function createEmployeeExitProcess(params: {
   }
 
   const existing = await listEmployeeExitProcesses(params.organizationId, params.employeeId);
-  const duplicate = existing.some((row) => row.separationDate.getTime() === employee.separationDate!.getTime());
+  // WS-12: `separationDate` is nullable now (§28.6), so a row may legitimately
+  // have none — an offboarding running ahead of its separation. Those can never
+  // duplicate a separation cycle, so they are skipped rather than dereferenced.
+  const duplicate = existing.some(
+    (row) => row.separationDate != null && row.separationDate.getTime() === employee.separationDate!.getTime(),
+  );
   if (duplicate) throw new EmployeeExitProcessAlreadyExistsError();
 
   const [process] = await db
@@ -68,6 +83,14 @@ export async function createEmployeeExitProcess(params: {
       employeeId: params.employeeId,
       separationDate: employee.separationDate,
       initiatedBy: params.actorApplicationUserId,
+      // WS-12 (§28.6): this path IS the `already_separated` basis — the shipped
+      // precondition above proved it. Recording it explicitly keeps every row
+      // created from now on classifiable, while rows that predate the column
+      // stay `legacy` and claim nothing about themselves.
+      status: "initiated",
+      separationBasis: "already_separated",
+      separationBasisRecordedAt: new Date(),
+      expectedSeparationDate: employee.separationDate,
     })
     .returning();
 
@@ -113,6 +136,27 @@ export async function updateEmployeeExitProcess(params: {
 }): Promise<EmployeeExitProcess> {
   const before = await findOwnExitProcess(params.organizationId, params.employeeId, params.exitProcessId);
   if (!before) throw new EmployeeExitProcessNotFoundError();
+
+  // WS-12 (§28.8) — ONE SOURCE OF TRUTH PER ROW.
+  //
+  // Once an offboarding has structured clearance items, `clearanceCompleted` is
+  // DERIVED from them and must never be settable by hand: a flag that says
+  // "cleared" while a required item sits pending is precisely the second source
+  // of truth §28.8 forbids, and the same reasoning §26 applied to onboarding
+  // completion. Rows without items — every `legacy` row — keep the boolean as
+  // their only record and remain editable exactly as they shipped.
+  if (params.clearanceCompleted !== undefined) {
+    const [{ count } = { count: 0 }] = await db
+      .select({ count: sql<number>`cast(count(*) as int)` })
+      .from(clearanceItemsTable)
+      .where(
+        and(
+          eq(clearanceItemsTable.organizationId, params.organizationId),
+          eq(clearanceItemsTable.exitProcessId, params.exitProcessId),
+        ),
+      );
+    if (count > 0) throw new ClearanceIsDerivedError();
+  }
 
   const patch: Record<string, unknown> = {};
   if (params.checklistCompleted !== undefined) patch.checklistCompleted = params.checklistCompleted;

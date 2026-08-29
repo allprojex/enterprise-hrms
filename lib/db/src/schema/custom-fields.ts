@@ -37,6 +37,16 @@ export const customFieldScopeEnum = pgEnum("custom_field_scope", [
   "onboarding",
   "organization_profile",
   "position",
+  // WS-12 (§28.15, §28.19) — the exit-interview questionnaire reuses this
+  // engine rather than introducing a second one. It binds to the exit INTERVIEW
+  // rather than the employee so responses stay tied to the correct separation
+  // cycle; an employee who leaves, returns and leaves again would otherwise have
+  // their second interview overwrite their first.
+  //
+  // Disciplinary findings are still absent by construction, and must stay
+  // absent: §24.3 prohibits them, and §28.19 upholds that prohibition. Findings
+  // use typed columns owned by WS-12.
+  "exit_interview",
 ]);
 
 /** §24.5 — the approved initial registry. No formulas, scripts, SQL, HTML or file uploads. */

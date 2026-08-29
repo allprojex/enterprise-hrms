@@ -12,6 +12,8 @@ import {
   performanceRatingScalesTable,
   learningCoursesTable,
   recordsLocationsTable,
+  employeeDocumentsTable,
+  employeeExitProcessesTable,
 } from "@workspace/db";
 
 // Structurally accepts either the global `db` or a `db.transaction(...)`
@@ -36,7 +38,12 @@ type ScopedTable =
   | typeof organizationMembershipsTable
   | typeof performanceRatingScalesTable
   | typeof learningCoursesTable
-  | typeof recordsLocationsTable;
+  | typeof recordsLocationsTable
+  // WS-12 (§28.11, §28.8) — evidence documents and offboarding records are
+  // client-supplied references on WS-12 surfaces, so they need the same
+  // cross-tenant proof every other reference here already gets.
+  | typeof employeeDocumentsTable
+  | typeof employeeExitProcessesTable;
 
 /**
  * Verifies a foreign key (department/branch/position/employee id) actually

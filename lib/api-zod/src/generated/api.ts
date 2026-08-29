@@ -2092,12 +2092,19 @@ export const ListEmployeeExitProcessesResponseItem = zod.object({
   "id": zod.number(),
   "organizationId": zod.number(),
   "employeeId": zod.number(),
-  "separationDate": zod.coerce.date().describe('Snapshot of employees.separationDate at creation — identifies which separation cycle this row belongs to.'),
+  "separationDate": zod.coerce.date().nullish().describe('The ACTUAL separation instant, snapshotted from employees.separationDate — it identifies which separation cycle this row belongs to. WS-12 (§28.6) made it nullable: an offboarding may now begin against an authoritative recorded basis BEFORE separation, and stays null until separation happens.'),
   "checklistCompleted": zod.boolean(),
-  "clearanceCompleted": zod.boolean(),
+  "clearanceCompleted": zod.boolean().describe('WS-12 (§28.8): derived from real clearance items once any exist, and never independently settable through the API. Rows predating WS-12 keep this boolean as their only record.'),
   "exitInterviewCompleted": zod.boolean(),
   "exitInterviewNotes": zod.string().nullish(),
   "initiatedBy": zod.number().nullish(),
+  "status": zod.enum(['legacy', 'initiated', 'clearance_in_progress', 'ready_for_separation', 'completed', 'cancelled']),
+  "separationBasis": zod.union([zod.enum(['already_separated', 'contract_end']).describe('Only bases backed by an authoritative record. Accepted resignation, retirement and approved termination are absent because no such record exists in this platform; adding them requires an authoritative record first, and therefore its own Owner Decision (§28.6).'),zod.null()]).optional(),
+  "separationBasisRecordedAt": zod.coerce.date().nullish(),
+  "expectedSeparationDate": zod.coerce.date().nullish(),
+  "clearanceTemplateId": zod.number().nullish(),
+  "finalClearedAt": zod.coerce.date().nullish(),
+  "finalClearedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -2117,12 +2124,19 @@ export const CreateEmployeeExitProcessResponse = zod.object({
   "id": zod.number(),
   "organizationId": zod.number(),
   "employeeId": zod.number(),
-  "separationDate": zod.coerce.date().describe('Snapshot of employees.separationDate at creation — identifies which separation cycle this row belongs to.'),
+  "separationDate": zod.coerce.date().nullish().describe('The ACTUAL separation instant, snapshotted from employees.separationDate — it identifies which separation cycle this row belongs to. WS-12 (§28.6) made it nullable: an offboarding may now begin against an authoritative recorded basis BEFORE separation, and stays null until separation happens.'),
   "checklistCompleted": zod.boolean(),
-  "clearanceCompleted": zod.boolean(),
+  "clearanceCompleted": zod.boolean().describe('WS-12 (§28.8): derived from real clearance items once any exist, and never independently settable through the API. Rows predating WS-12 keep this boolean as their only record.'),
   "exitInterviewCompleted": zod.boolean(),
   "exitInterviewNotes": zod.string().nullish(),
   "initiatedBy": zod.number().nullish(),
+  "status": zod.enum(['legacy', 'initiated', 'clearance_in_progress', 'ready_for_separation', 'completed', 'cancelled']),
+  "separationBasis": zod.union([zod.enum(['already_separated', 'contract_end']).describe('Only bases backed by an authoritative record. Accepted resignation, retirement and approved termination are absent because no such record exists in this platform; adding them requires an authoritative record first, and therefore its own Owner Decision (§28.6).'),zod.null()]).optional(),
+  "separationBasisRecordedAt": zod.coerce.date().nullish(),
+  "expectedSeparationDate": zod.coerce.date().nullish(),
+  "clearanceTemplateId": zod.number().nullish(),
+  "finalClearedAt": zod.coerce.date().nullish(),
+  "finalClearedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -2149,12 +2163,19 @@ export const UpdateEmployeeExitProcessResponse = zod.object({
   "id": zod.number(),
   "organizationId": zod.number(),
   "employeeId": zod.number(),
-  "separationDate": zod.coerce.date().describe('Snapshot of employees.separationDate at creation — identifies which separation cycle this row belongs to.'),
+  "separationDate": zod.coerce.date().nullish().describe('The ACTUAL separation instant, snapshotted from employees.separationDate — it identifies which separation cycle this row belongs to. WS-12 (§28.6) made it nullable: an offboarding may now begin against an authoritative recorded basis BEFORE separation, and stays null until separation happens.'),
   "checklistCompleted": zod.boolean(),
-  "clearanceCompleted": zod.boolean(),
+  "clearanceCompleted": zod.boolean().describe('WS-12 (§28.8): derived from real clearance items once any exist, and never independently settable through the API. Rows predating WS-12 keep this boolean as their only record.'),
   "exitInterviewCompleted": zod.boolean(),
   "exitInterviewNotes": zod.string().nullish(),
   "initiatedBy": zod.number().nullish(),
+  "status": zod.enum(['legacy', 'initiated', 'clearance_in_progress', 'ready_for_separation', 'completed', 'cancelled']),
+  "separationBasis": zod.union([zod.enum(['already_separated', 'contract_end']).describe('Only bases backed by an authoritative record. Accepted resignation, retirement and approved termination are absent because no such record exists in this platform; adding them requires an authoritative record first, and therefore its own Owner Decision (§28.6).'),zod.null()]).optional(),
+  "separationBasisRecordedAt": zod.coerce.date().nullish(),
+  "expectedSeparationDate": zod.coerce.date().nullish(),
+  "clearanceTemplateId": zod.number().nullish(),
+  "finalClearedAt": zod.coerce.date().nullish(),
+  "finalClearedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -20666,6 +20687,1533 @@ export const GetSeparationReadinessResponse = zod.object({
   "message": zod.string()
 })),
   "blocksSeparation": zod.boolean().describe('Always false — these are advisory only and never prevent separation.')
+})
+
+
+/**
+ * Structured cases only. The legacy `employee_disciplinary_records` log is preserved separately and unchanged (§28.2); it is read through its own existing endpoint and its own `employee.disciplinary.read` permission.
+ * @summary List structured disciplinary cases
+ */
+export const ListDisciplinaryCasesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListDisciplinaryCasesQueryParams = zod.object({
+  "employeeId": zod.coerce.number().optional(),
+  "status": zod.enum(['open', 'closed']).optional()
+})
+
+export const ListDisciplinaryCasesResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "categoryCode": zod.string(),
+  "severityCode": zod.string().nullish(),
+  "stageCode": zod.string().nullish(),
+  "subject": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['open', 'closed']),
+  "confidentiality": zod.enum(['normal', 'confidential', 'restricted']),
+  "outcomeCode": zod.string().nullish(),
+  "outcomeRecordedAt": zod.coerce.date().nullish(),
+  "warningExpiresAt": zod.coerce.date().nullish(),
+  "responsibleMembershipId": zod.number().nullish(),
+  "openedAt": zod.coerce.date(),
+  "closedAt": zod.coerce.date().nullish()
+})
+export const ListDisciplinaryCasesResponse = zod.array(ListDisciplinaryCasesResponseItem)
+
+
+/**
+ * @summary Open a structured disciplinary case
+ */
+export const OpenDisciplinaryCaseParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const openDisciplinaryCaseBodyCategoryCodeMax = 100;
+
+export const openDisciplinaryCaseBodySeverityCodeMax = 100;
+
+export const openDisciplinaryCaseBodyStageCodeMax = 100;
+
+export const openDisciplinaryCaseBodySubjectMax = 300;
+
+
+
+export const OpenDisciplinaryCaseBody = zod.object({
+  "employeeId": zod.number(),
+  "categoryCode": zod.string().min(1).max(openDisciplinaryCaseBodyCategoryCodeMax),
+  "severityCode": zod.string().max(openDisciplinaryCaseBodySeverityCodeMax).nullish(),
+  "stageCode": zod.string().max(openDisciplinaryCaseBodyStageCodeMax).nullish(),
+  "subject": zod.string().min(1).max(openDisciplinaryCaseBodySubjectMax),
+  "description": zod.string().nullish(),
+  "confidentiality": zod.enum(['normal', 'confidential', 'restricted']).optional(),
+  "responsibleMembershipId": zod.number().nullish(),
+  "openedAt": zod.coerce.date()
+})
+
+export const OpenDisciplinaryCaseResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "categoryCode": zod.string(),
+  "severityCode": zod.string().nullish(),
+  "stageCode": zod.string().nullish(),
+  "subject": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['open', 'closed']),
+  "confidentiality": zod.enum(['normal', 'confidential', 'restricted']),
+  "outcomeCode": zod.string().nullish(),
+  "outcomeRecordedAt": zod.coerce.date().nullish(),
+  "warningExpiresAt": zod.coerce.date().nullish(),
+  "responsibleMembershipId": zod.number().nullish(),
+  "openedAt": zod.coerce.date(),
+  "closedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * A sensitive read. Owner Decision #18 auditing fires here (§28.12); it deliberately does not fire on the list endpoint.
+ * @summary Read one disciplinary case with its chronology
+ */
+export const GetDisciplinaryCaseParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "caseId": zod.coerce.number()
+})
+
+export const GetDisciplinaryCaseResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "categoryCode": zod.string(),
+  "severityCode": zod.string().nullish(),
+  "stageCode": zod.string().nullish(),
+  "subject": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['open', 'closed']),
+  "confidentiality": zod.enum(['normal', 'confidential', 'restricted']),
+  "outcomeCode": zod.string().nullish(),
+  "outcomeRecordedAt": zod.coerce.date().nullish(),
+  "warningExpiresAt": zod.coerce.date().nullish(),
+  "responsibleMembershipId": zod.number().nullish(),
+  "openedAt": zod.coerce.date(),
+  "closedAt": zod.coerce.date().nullish()
+}).and(zod.object({
+  "events": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "caseId": zod.number(),
+  "eventType": zod.enum(['case_opened', 'allegation_recorded', 'notice_issued', 'response_received', 'investigation_recorded', 'hearing_held', 'finding_recorded', 'outcome_recorded', 'stage_changed', 'appeal_lodged', 'appeal_decided', 'evidence_attached', 'case_closed', 'case_reopened']),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullish(),
+  "details": zod.record(zod.string(), zod.unknown()).nullish(),
+  "recordedBy": zod.number().nullish()
+})).optional()
+}))
+
+
+/**
+ * Append-only. No update or delete path exists for a case event.
+ * @summary Append one chronology event to a disciplinary case
+ */
+export const RecordDisciplinaryEventParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "caseId": zod.coerce.number()
+})
+
+export const RecordDisciplinaryEventBody = zod.object({
+  "eventType": zod.enum(['case_opened', 'allegation_recorded', 'notice_issued', 'response_received', 'investigation_recorded', 'hearing_held', 'finding_recorded', 'outcome_recorded', 'stage_changed', 'appeal_lodged', 'appeal_decided', 'evidence_attached', 'case_closed', 'case_reopened']),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullish()
+})
+
+export const RecordDisciplinaryEventResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "caseId": zod.number(),
+  "eventType": zod.enum(['case_opened', 'allegation_recorded', 'notice_issued', 'response_received', 'investigation_recorded', 'hearing_held', 'finding_recorded', 'outcome_recorded', 'stage_changed', 'appeal_lodged', 'appeal_decided', 'evidence_attached', 'case_closed', 'case_reopened']),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullish(),
+  "details": zod.record(zod.string(), zod.unknown()).nullish(),
+  "recordedBy": zod.number().nullish()
+})
+
+
+/**
+ * @summary Move a disciplinary case to another organization-defined stage
+ */
+export const ChangeDisciplinaryStageParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "caseId": zod.coerce.number()
+})
+
+export const changeDisciplinaryStageBodyStageCodeMax = 100;
+
+
+
+export const ChangeDisciplinaryStageBody = zod.object({
+  "stageCode": zod.string().min(1).max(changeDisciplinaryStageBodyStageCodeMax),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullish()
+})
+
+export const ChangeDisciplinaryStageResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "categoryCode": zod.string(),
+  "severityCode": zod.string().nullish(),
+  "stageCode": zod.string().nullish(),
+  "subject": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['open', 'closed']),
+  "confidentiality": zod.enum(['normal', 'confidential', 'restricted']),
+  "outcomeCode": zod.string().nullish(),
+  "outcomeRecordedAt": zod.coerce.date().nullish(),
+  "warningExpiresAt": zod.coerce.date().nullish(),
+  "responsibleMembershipId": zod.number().nullish(),
+  "openedAt": zod.coerce.date(),
+  "closedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * Records a fact and separates nobody. Employment status, separation date and the separation service are untouched (§28.7). If employment ends it ends through WS-11's separation service as its own authorized act.
+ * @summary Record the outcome an authorized human decided
+ */
+export const RecordDisciplinaryOutcomeParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "caseId": zod.coerce.number()
+})
+
+export const recordDisciplinaryOutcomeBodyOutcomeCodeMax = 100;
+
+
+
+export const RecordDisciplinaryOutcomeBody = zod.object({
+  "outcomeCode": zod.string().min(1).max(recordDisciplinaryOutcomeBodyOutcomeCodeMax),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullish(),
+  "warningExpiresAt": zod.coerce.date().nullish()
+})
+
+export const RecordDisciplinaryOutcomeResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "categoryCode": zod.string(),
+  "severityCode": zod.string().nullish(),
+  "stageCode": zod.string().nullish(),
+  "subject": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['open', 'closed']),
+  "confidentiality": zod.enum(['normal', 'confidential', 'restricted']),
+  "outcomeCode": zod.string().nullish(),
+  "outcomeRecordedAt": zod.coerce.date().nullish(),
+  "warningExpiresAt": zod.coerce.date().nullish(),
+  "responsibleMembershipId": zod.number().nullish(),
+  "openedAt": zod.coerce.date(),
+  "closedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Close a disciplinary case
+ */
+export const CloseDisciplinaryCaseParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "caseId": zod.coerce.number()
+})
+
+export const CloseDisciplinaryCaseBody = zod.object({
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullish()
+})
+
+export const CloseDisciplinaryCaseResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "categoryCode": zod.string(),
+  "severityCode": zod.string().nullish(),
+  "stageCode": zod.string().nullish(),
+  "subject": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['open', 'closed']),
+  "confidentiality": zod.enum(['normal', 'confidential', 'restricted']),
+  "outcomeCode": zod.string().nullish(),
+  "outcomeRecordedAt": zod.coerce.date().nullish(),
+  "warningExpiresAt": zod.coerce.date().nullish(),
+  "responsibleMembershipId": zod.number().nullish(),
+  "openedAt": zod.coerce.date(),
+  "closedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * Every prior event stays exactly where it is; nothing is erased.
+ * @summary Reopen a closed disciplinary case
+ */
+export const ReopenDisciplinaryCaseParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "caseId": zod.coerce.number()
+})
+
+export const reopenDisciplinaryCaseBodyReasonMax = 1000;
+
+
+
+export const ReopenDisciplinaryCaseBody = zod.object({
+  "occurredAt": zod.coerce.date(),
+  "reason": zod.string().min(1).max(reopenDisciplinaryCaseBodyReasonMax)
+})
+
+export const ReopenDisciplinaryCaseResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "categoryCode": zod.string(),
+  "severityCode": zod.string().nullish(),
+  "stageCode": zod.string().nullish(),
+  "subject": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['open', 'closed']),
+  "confidentiality": zod.enum(['normal', 'confidential', 'restricted']),
+  "outcomeCode": zod.string().nullish(),
+  "outcomeRecordedAt": zod.coerce.date().nullish(),
+  "warningExpiresAt": zod.coerce.date().nullish(),
+  "responsibleMembershipId": zod.number().nullish(),
+  "openedAt": zod.coerce.date(),
+  "closedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * WS-12 stores no documents of its own (§28.11). The document must already exist in this organization.
+ * @summary Attach an existing WS-5 document to a disciplinary case
+ */
+export const AttachDisciplinaryEvidenceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "caseId": zod.coerce.number()
+})
+
+export const AttachDisciplinaryEvidenceBody = zod.object({
+  "documentId": zod.number(),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullish()
+})
+
+export const AttachDisciplinaryEvidenceResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "caseId": zod.number(),
+  "eventType": zod.enum(['case_opened', 'allegation_recorded', 'notice_issued', 'response_received', 'investigation_recorded', 'hearing_held', 'finding_recorded', 'outcome_recorded', 'stage_changed', 'appeal_lodged', 'appeal_decided', 'evidence_attached', 'case_closed', 'case_reopened']),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullish(),
+  "details": zod.record(zod.string(), zod.unknown()).nullish(),
+  "recordedBy": zod.number().nullish()
+})
+
+
+/**
+ * Requires the explicit `grievance.read` permission. Organization Administrator status alone does not grant it (§28.17).
+ * @summary List grievance cases
+ */
+export const ListGrievancesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListGrievancesQueryParams = zod.object({
+  "status": zod.enum(['submitted', 'acknowledged', 'under_review', 'resolved', 'closed', 'withdrawn']).optional()
+})
+
+export const ListGrievancesResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "complainantEmployeeId": zod.number(),
+  "categoryCode": zod.string(),
+  "respondentType": zod.enum(['employee', 'department', 'unspecified']),
+  "respondentEmployeeId": zod.number().nullish(),
+  "respondentDepartmentId": zod.number().nullish(),
+  "subject": zod.string(),
+  "description": zod.string(),
+  "status": zod.enum(['submitted', 'acknowledged', 'under_review', 'resolved', 'closed', 'withdrawn']),
+  "confidentiality": zod.enum(['normal', 'confidential', 'restricted']),
+  "assignedMembershipId": zod.number().nullish(),
+  "submittedAt": zod.coerce.date(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "resolutionSummary": zod.string().nullish(),
+  "resolvedAt": zod.coerce.date().nullish(),
+  "closedAt": zod.coerce.date().nullish()
+})
+export const ListGrievancesResponse = zod.array(ListGrievancesResponseItem)
+
+
+/**
+ * @summary Record a grievance on an employee's behalf
+ */
+export const SubmitGrievanceParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const submitGrievanceBodyCategoryCodeMax = 100;
+
+export const submitGrievanceBodySubjectMax = 300;
+
+
+
+
+export const SubmitGrievanceBody = zod.object({
+  "complainantEmployeeId": zod.number(),
+  "categoryCode": zod.string().min(1).max(submitGrievanceBodyCategoryCodeMax),
+  "respondentType": zod.enum(['employee', 'department', 'unspecified']).optional(),
+  "respondentEmployeeId": zod.number().nullish(),
+  "respondentDepartmentId": zod.number().nullish(),
+  "subject": zod.string().min(1).max(submitGrievanceBodySubjectMax),
+  "description": zod.string().min(1),
+  "submittedAt": zod.coerce.date()
+})
+
+export const SubmitGrievanceResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "complainantEmployeeId": zod.number(),
+  "categoryCode": zod.string(),
+  "respondentType": zod.enum(['employee', 'department', 'unspecified']),
+  "respondentEmployeeId": zod.number().nullish(),
+  "respondentDepartmentId": zod.number().nullish(),
+  "subject": zod.string(),
+  "description": zod.string(),
+  "status": zod.enum(['submitted', 'acknowledged', 'under_review', 'resolved', 'closed', 'withdrawn']),
+  "confidentiality": zod.enum(['normal', 'confidential', 'restricted']),
+  "assignedMembershipId": zod.number().nullish(),
+  "submittedAt": zod.coerce.date(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "resolutionSummary": zod.string().nullish(),
+  "resolvedAt": zod.coerce.date().nullish(),
+  "closedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * A sensitive read; Owner Decision
+ * @summary Read one grievance with its full chronology
+ */
+export const GetGrievanceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "caseId": zod.coerce.number()
+})
+
+export const GetGrievanceResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "complainantEmployeeId": zod.number(),
+  "categoryCode": zod.string(),
+  "respondentType": zod.enum(['employee', 'department', 'unspecified']),
+  "respondentEmployeeId": zod.number().nullish(),
+  "respondentDepartmentId": zod.number().nullish(),
+  "subject": zod.string(),
+  "description": zod.string(),
+  "status": zod.enum(['submitted', 'acknowledged', 'under_review', 'resolved', 'closed', 'withdrawn']),
+  "confidentiality": zod.enum(['normal', 'confidential', 'restricted']),
+  "assignedMembershipId": zod.number().nullish(),
+  "submittedAt": zod.coerce.date(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "resolutionSummary": zod.string().nullish(),
+  "resolvedAt": zod.coerce.date().nullish(),
+  "closedAt": zod.coerce.date().nullish()
+}).and(zod.object({
+  "events": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "caseId": zod.number(),
+  "eventType": zod.enum(['submitted', 'acknowledged', 'assigned', 'reassigned', 'review_recorded', 'meeting_held', 'information_requested', 'information_provided', 'finding_recorded', 'resolution_recorded', 'escalated', 'appeal_lodged', 'appeal_decided', 'evidence_attached', 'withdrawn', 'closed', 'reopened']),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullish(),
+  "details": zod.record(zod.string(), zod.unknown()).nullish(),
+  "visibleToComplainant": zod.boolean(),
+  "recordedBy": zod.number().nullish()
+})).optional()
+}))
+
+
+/**
+ * The acknowledgement is visible to the complainant (§28.5).
+ * @summary Acknowledge receipt of a grievance
+ */
+export const AcknowledgeGrievanceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "caseId": zod.coerce.number()
+})
+
+export const AcknowledgeGrievanceBody = zod.object({
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullish()
+})
+
+export const AcknowledgeGrievanceResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "complainantEmployeeId": zod.number(),
+  "categoryCode": zod.string(),
+  "respondentType": zod.enum(['employee', 'department', 'unspecified']),
+  "respondentEmployeeId": zod.number().nullish(),
+  "respondentDepartmentId": zod.number().nullish(),
+  "subject": zod.string(),
+  "description": zod.string(),
+  "status": zod.enum(['submitted', 'acknowledged', 'under_review', 'resolved', 'closed', 'withdrawn']),
+  "confidentiality": zod.enum(['normal', 'confidential', 'restricted']),
+  "assignedMembershipId": zod.number().nullish(),
+  "submittedAt": zod.coerce.date(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "resolutionSummary": zod.string().nullish(),
+  "resolvedAt": zod.coerce.date().nullish(),
+  "closedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * Who is investigating is internal and is not shown to the complainant.
+ * @summary Assign a grievance to an investigator
+ */
+export const AssignGrievanceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "caseId": zod.coerce.number()
+})
+
+export const AssignGrievanceBody = zod.object({
+  "assignedMembershipId": zod.number(),
+  "occurredAt": zod.coerce.date()
+})
+
+export const AssignGrievanceResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "complainantEmployeeId": zod.number(),
+  "categoryCode": zod.string(),
+  "respondentType": zod.enum(['employee', 'department', 'unspecified']),
+  "respondentEmployeeId": zod.number().nullish(),
+  "respondentDepartmentId": zod.number().nullish(),
+  "subject": zod.string(),
+  "description": zod.string(),
+  "status": zod.enum(['submitted', 'acknowledged', 'under_review', 'resolved', 'closed', 'withdrawn']),
+  "confidentiality": zod.enum(['normal', 'confidential', 'restricted']),
+  "assignedMembershipId": zod.number().nullish(),
+  "submittedAt": zod.coerce.date(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "resolutionSummary": zod.string().nullish(),
+  "resolvedAt": zod.coerce.date().nullish(),
+  "closedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * `visibleToComplainant` defaults to false. An investigator's working note is invisible to the complainant unless somebody deliberately marks it as communicated (§28.5).
+ * @summary Append one chronology event to a grievance
+ */
+export const RecordGrievanceEventParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "caseId": zod.coerce.number()
+})
+
+export const RecordGrievanceEventBody = zod.object({
+  "eventType": zod.enum(['submitted', 'acknowledged', 'assigned', 'reassigned', 'review_recorded', 'meeting_held', 'information_requested', 'information_provided', 'finding_recorded', 'resolution_recorded', 'escalated', 'appeal_lodged', 'appeal_decided', 'evidence_attached', 'withdrawn', 'closed', 'reopened']),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullish(),
+  "visibleToComplainant": zod.boolean().optional().describe('Defaults to false. Employee visibility is always a deliberate act.')
+})
+
+export const RecordGrievanceEventResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "caseId": zod.number(),
+  "eventType": zod.enum(['submitted', 'acknowledged', 'assigned', 'reassigned', 'review_recorded', 'meeting_held', 'information_requested', 'information_provided', 'finding_recorded', 'resolution_recorded', 'escalated', 'appeal_lodged', 'appeal_decided', 'evidence_attached', 'withdrawn', 'closed', 'reopened']),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullish(),
+  "details": zod.record(zod.string(), zod.unknown()).nullish(),
+  "visibleToComplainant": zod.boolean(),
+  "recordedBy": zod.number().nullish()
+})
+
+
+/**
+ * @summary Record the resolution communicated to the complainant
+ */
+export const ResolveGrievanceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "caseId": zod.coerce.number()
+})
+
+
+
+
+export const ResolveGrievanceBody = zod.object({
+  "resolutionSummary": zod.string().min(1),
+  "occurredAt": zod.coerce.date()
+})
+
+export const ResolveGrievanceResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "complainantEmployeeId": zod.number(),
+  "categoryCode": zod.string(),
+  "respondentType": zod.enum(['employee', 'department', 'unspecified']),
+  "respondentEmployeeId": zod.number().nullish(),
+  "respondentDepartmentId": zod.number().nullish(),
+  "subject": zod.string(),
+  "description": zod.string(),
+  "status": zod.enum(['submitted', 'acknowledged', 'under_review', 'resolved', 'closed', 'withdrawn']),
+  "confidentiality": zod.enum(['normal', 'confidential', 'restricted']),
+  "assignedMembershipId": zod.number().nullish(),
+  "submittedAt": zod.coerce.date(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "resolutionSummary": zod.string().nullish(),
+  "resolvedAt": zod.coerce.date().nullish(),
+  "closedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Close a grievance
+ */
+export const CloseGrievanceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "caseId": zod.coerce.number()
+})
+
+export const CloseGrievanceBody = zod.object({
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullish()
+})
+
+export const CloseGrievanceResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "complainantEmployeeId": zod.number(),
+  "categoryCode": zod.string(),
+  "respondentType": zod.enum(['employee', 'department', 'unspecified']),
+  "respondentEmployeeId": zod.number().nullish(),
+  "respondentDepartmentId": zod.number().nullish(),
+  "subject": zod.string(),
+  "description": zod.string(),
+  "status": zod.enum(['submitted', 'acknowledged', 'under_review', 'resolved', 'closed', 'withdrawn']),
+  "confidentiality": zod.enum(['normal', 'confidential', 'restricted']),
+  "assignedMembershipId": zod.number().nullish(),
+  "submittedAt": zod.coerce.date(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "resolutionSummary": zod.string().nullish(),
+  "resolvedAt": zod.coerce.date().nullish(),
+  "closedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Attach an existing WS-5 document to a grievance
+ */
+export const AttachGrievanceEvidenceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "caseId": zod.coerce.number()
+})
+
+export const AttachGrievanceEvidenceBody = zod.object({
+  "documentId": zod.number(),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullish()
+})
+
+export const AttachGrievanceEvidenceResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "caseId": zod.number(),
+  "eventType": zod.enum(['submitted', 'acknowledged', 'assigned', 'reassigned', 'review_recorded', 'meeting_held', 'information_requested', 'information_provided', 'finding_recorded', 'resolution_recorded', 'escalated', 'appeal_lodged', 'appeal_decided', 'evidence_attached', 'withdrawn', 'closed', 'reopened']),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullish(),
+  "details": zod.record(zod.string(), zod.unknown()).nullish(),
+  "visibleToComplainant": zod.boolean(),
+  "recordedBy": zod.number().nullish()
+})
+
+
+/**
+ * Gated by the caller's own employee link, not by a permission key (§28.17 mints none for self-service). Returns the explicit §28.5 allow-list view: confidential HR notes, investigator working notes, internal deliberations, draft findings and protected audit information are never included.
+ * @summary An employee's own grievances (Employee Self-Service)
+ */
+export const ListMyGrievancesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListMyGrievancesResponseItem = zod.object({
+  "id": zod.number(),
+  "categoryCode": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string(),
+  "status": zod.enum(['submitted', 'acknowledged', 'under_review', 'resolved', 'closed', 'withdrawn']),
+  "submittedAt": zod.coerce.date(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "resolutionSummary": zod.string().nullish(),
+  "resolvedAt": zod.coerce.date().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "updates": zod.array(zod.object({
+  "id": zod.number(),
+  "eventType": zod.enum(['submitted', 'acknowledged', 'assigned', 'reassigned', 'review_recorded', 'meeting_held', 'information_requested', 'information_provided', 'finding_recorded', 'resolution_recorded', 'escalated', 'appeal_lodged', 'appeal_decided', 'evidence_attached', 'withdrawn', 'closed', 'reopened']),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullish()
+}))
+}).describe('The §28.5 employee-facing allow-list. Built field by field, never spread from the full record: confidentiality, assignment, respondent, investigator notes, internal deliberations, draft findings and audit information are all absent by construction.')
+export const ListMyGrievancesResponse = zod.array(ListMyGrievancesResponseItem)
+
+
+/**
+ * The complainant is resolved from the caller's own employee link and is never accepted from the request body, so an employee cannot file a grievance in a colleague's name.
+ * @summary Submit a grievance as the signed-in employee
+ */
+export const SubmitMyGrievanceParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const submitMyGrievanceBodyCategoryCodeMax = 100;
+
+export const submitMyGrievanceBodySubjectMax = 300;
+
+
+
+
+export const SubmitMyGrievanceBody = zod.object({
+  "categoryCode": zod.string().min(1).max(submitMyGrievanceBodyCategoryCodeMax),
+  "respondentType": zod.enum(['employee', 'department', 'unspecified']).optional(),
+  "respondentEmployeeId": zod.number().nullish(),
+  "respondentDepartmentId": zod.number().nullish(),
+  "subject": zod.string().min(1).max(submitMyGrievanceBodySubjectMax),
+  "description": zod.string().min(1),
+  "submittedAt": zod.coerce.date()
+}).describe('No complainant field. The complainant is resolved from the caller\'s own employee link, so an employee cannot file in a colleague\'s name.')
+
+export const SubmitMyGrievanceResponse = zod.object({
+  "id": zod.number(),
+  "categoryCode": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string(),
+  "status": zod.enum(['submitted', 'acknowledged', 'under_review', 'resolved', 'closed', 'withdrawn']),
+  "submittedAt": zod.coerce.date(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "resolutionSummary": zod.string().nullish(),
+  "resolvedAt": zod.coerce.date().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "updates": zod.array(zod.object({
+  "id": zod.number(),
+  "eventType": zod.enum(['submitted', 'acknowledged', 'assigned', 'reassigned', 'review_recorded', 'meeting_held', 'information_requested', 'information_provided', 'finding_recorded', 'resolution_recorded', 'escalated', 'appeal_lodged', 'appeal_decided', 'evidence_attached', 'withdrawn', 'closed', 'reopened']),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullish()
+}))
+}).describe('The §28.5 employee-facing allow-list. Built field by field, never spread from the full record: confidentiality, assignment, respondent, investigator notes, internal deliberations, draft findings and audit information are all absent by construction.')
+
+
+/**
+ * A grievance belonging to somebody else is reported as 404 rather than 403: a 403 would confirm the case exists, which is itself a disclosure about a colleague's complaint.
+ * @summary One of the caller's own grievances (Employee Self-Service)
+ */
+export const GetMyGrievanceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "caseId": zod.coerce.number()
+})
+
+export const GetMyGrievanceResponse = zod.object({
+  "id": zod.number(),
+  "categoryCode": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string(),
+  "status": zod.enum(['submitted', 'acknowledged', 'under_review', 'resolved', 'closed', 'withdrawn']),
+  "submittedAt": zod.coerce.date(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "resolutionSummary": zod.string().nullish(),
+  "resolvedAt": zod.coerce.date().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "updates": zod.array(zod.object({
+  "id": zod.number(),
+  "eventType": zod.enum(['submitted', 'acknowledged', 'assigned', 'reassigned', 'review_recorded', 'meeting_held', 'information_requested', 'information_provided', 'finding_recorded', 'resolution_recorded', 'escalated', 'appeal_lodged', 'appeal_decided', 'evidence_attached', 'withdrawn', 'closed', 'reopened']),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullish()
+}))
+}).describe('The §28.5 employee-facing allow-list. Built field by field, never spread from the full record: confidentiality, assignment, respondent, investigator notes, internal deliberations, draft findings and audit information are all absent by construction.')
+
+
+/**
+ * Never deletes the record.
+ * @summary Withdraw the caller's own grievance
+ */
+export const WithdrawMyGrievanceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "caseId": zod.coerce.number()
+})
+
+export const WithdrawMyGrievanceBody = zod.object({
+  "occurredAt": zod.coerce.date(),
+  "reason": zod.string().nullish()
+})
+
+export const WithdrawMyGrievanceResponse = zod.object({
+  "id": zod.number(),
+  "categoryCode": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string(),
+  "status": zod.enum(['submitted', 'acknowledged', 'under_review', 'resolved', 'closed', 'withdrawn']),
+  "submittedAt": zod.coerce.date(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "resolutionSummary": zod.string().nullish(),
+  "resolvedAt": zod.coerce.date().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "updates": zod.array(zod.object({
+  "id": zod.number(),
+  "eventType": zod.enum(['submitted', 'acknowledged', 'assigned', 'reassigned', 'review_recorded', 'meeting_held', 'information_requested', 'information_provided', 'finding_recorded', 'resolution_recorded', 'escalated', 'appeal_lodged', 'appeal_decided', 'evidence_attached', 'withdrawn', 'closed', 'reopened']),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullish()
+}))
+}).describe('The §28.5 employee-facing allow-list. Built field by field, never spread from the full record: confidentiality, assignment, respondent, investigator notes, internal deliberations, draft findings and audit information are all absent by construction.')
+
+
+/**
+ * @summary List the organization's clearance templates
+ */
+export const ListClearanceTemplatesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListClearanceTemplatesResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['draft', 'active', 'archived']),
+  "isDefault": zod.boolean()
+})
+export const ListClearanceTemplatesResponse = zod.array(ListClearanceTemplatesResponseItem)
+
+
+/**
+ * Requires `offboarding.configure`. Defining what every departing person must clear is a configuration act, separated from day-to-day offboarding authority (§28.17).
+ * @summary Create a clearance template
+ */
+export const CreateClearanceTemplateParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const createClearanceTemplateBodyNameMax = 200;
+
+
+
+export const CreateClearanceTemplateBody = zod.object({
+  "name": zod.string().min(1).max(createClearanceTemplateBodyNameMax),
+  "description": zod.string().nullish()
+})
+
+export const CreateClearanceTemplateResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['draft', 'active', 'archived']),
+  "isDefault": zod.boolean()
+})
+
+
+/**
+ * @summary Read one clearance template with its items
+ */
+export const GetClearanceTemplateParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "templateId": zod.coerce.number()
+})
+
+export const GetClearanceTemplateResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['draft', 'active', 'archived']),
+  "isDefault": zod.boolean()
+}).and(zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateId": zod.number(),
+  "sequence": zod.number(),
+  "label": zod.string(),
+  "description": zod.string().nullish(),
+  "itemType": zod.enum(['general', 'asset_return', 'inventory_return', 'personnel_file', 'access_revocation', 'final_settlement', 'document_handover']),
+  "required": zod.boolean(),
+  "responsibleDepartmentId": zod.number().nullish()
+})).optional()
+}))
+
+
+/**
+ * Editing a template never alters clearance already instantiated from it — instance items are snapshots, not references (§28.8).
+ * @summary Update a clearance template
+ */
+export const UpdateClearanceTemplateParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "templateId": zod.coerce.number()
+})
+
+export const updateClearanceTemplateBodyNameMax = 200;
+
+
+
+export const UpdateClearanceTemplateBody = zod.object({
+  "name": zod.string().min(1).max(updateClearanceTemplateBodyNameMax).optional(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['draft', 'active', 'archived']).optional(),
+  "isDefault": zod.boolean().optional()
+})
+
+export const UpdateClearanceTemplateResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['draft', 'active', 'archived']),
+  "isDefault": zod.boolean()
+})
+
+
+/**
+ * @summary Add an item to a clearance template
+ */
+export const AddClearanceTemplateItemParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "templateId": zod.coerce.number()
+})
+
+export const addClearanceTemplateItemBodyLabelMax = 300;
+
+
+
+export const AddClearanceTemplateItemBody = zod.object({
+  "label": zod.string().min(1).max(addClearanceTemplateItemBodyLabelMax),
+  "description": zod.string().nullish(),
+  "itemType": zod.enum(['general', 'asset_return', 'inventory_return', 'personnel_file', 'access_revocation', 'final_settlement', 'document_handover']).optional(),
+  "required": zod.boolean().optional(),
+  "responsibleDepartmentId": zod.number().nullish(),
+  "sequence": zod.number().optional()
+})
+
+export const AddClearanceTemplateItemResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateId": zod.number(),
+  "sequence": zod.number(),
+  "label": zod.string(),
+  "description": zod.string().nullish(),
+  "itemType": zod.enum(['general', 'asset_return', 'inventory_return', 'personnel_file', 'access_revocation', 'final_settlement', 'document_handover']),
+  "required": zod.boolean(),
+  "responsibleDepartmentId": zod.number().nullish()
+})
+
+
+/**
+ * Live clearance instantiated from this item survives; its `sourceTemplateItemId` simply becomes null (§28.8).
+ * @summary Remove an item from a clearance template
+ */
+export const RemoveClearanceTemplateItemParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "templateId": zod.coerce.number(),
+  "itemId": zod.coerce.number()
+})
+
+export const RemoveClearanceTemplateItemResponse = zod.void()
+
+
+/**
+ * Offboarding may start before separation, but only against an authoritative recorded basis (§28.6) — the employee already separated, or an active fixed-term employment term with an end date. An offboarding case can never be its own basis.
+ * @summary Whether an offboarding may begin, and on what authoritative basis
+ */
+export const GetOffboardingEligibilityParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const GetOffboardingEligibilityResponse = zod.object({
+  "eligible": zod.boolean(),
+  "basis": zod.enum(['already_separated', 'contract_end']).describe('Only bases backed by an authoritative record. Accepted resignation, retirement and approved termination are absent because no such record exists in this platform; adding them requires an authoritative record first, and therefore its own Owner Decision (§28.6).').nullish(),
+  "expectedSeparationDate": zod.coerce.date().nullish(),
+  "evidence": zod.string().nullish().describe('What the basis was read from, so a refusal can be explained.')
+})
+
+
+/**
+ * @summary List offboarding processes
+ */
+export const ListOffboardingParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListOffboardingQueryParams = zod.object({
+  "employeeId": zod.coerce.number().optional()
+})
+
+export const ListOffboardingResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "separationDate": zod.coerce.date().nullish().describe('The ACTUAL separation instant, snapshotted from employees.separationDate — it identifies which separation cycle this row belongs to. WS-12 (§28.6) made it nullable: an offboarding may now begin against an authoritative recorded basis BEFORE separation, and stays null until separation happens.'),
+  "checklistCompleted": zod.boolean(),
+  "clearanceCompleted": zod.boolean().describe('WS-12 (§28.8): derived from real clearance items once any exist, and never independently settable through the API. Rows predating WS-12 keep this boolean as their only record.'),
+  "exitInterviewCompleted": zod.boolean(),
+  "exitInterviewNotes": zod.string().nullish(),
+  "initiatedBy": zod.number().nullish(),
+  "status": zod.enum(['legacy', 'initiated', 'clearance_in_progress', 'ready_for_separation', 'completed', 'cancelled']),
+  "separationBasis": zod.union([zod.enum(['already_separated', 'contract_end']).describe('Only bases backed by an authoritative record. Accepted resignation, retirement and approved termination are absent because no such record exists in this platform; adding them requires an authoritative record first, and therefore its own Owner Decision (§28.6).'),zod.null()]).optional(),
+  "separationBasisRecordedAt": zod.coerce.date().nullish(),
+  "expectedSeparationDate": zod.coerce.date().nullish(),
+  "clearanceTemplateId": zod.number().nullish(),
+  "finalClearedAt": zod.coerce.date().nullish(),
+  "finalClearedBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListOffboardingResponse = zod.array(ListOffboardingResponseItem)
+
+
+/**
+ * Outstanding custody is READ from Assets and Office Inventory and never altered (§28.9, §28.10). Only `returnable` inventory is reported; consumables are never clearance liabilities.
+ * @summary Read one offboarding with clearance, progress and outstanding custody
+ */
+export const GetOffboardingParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "exitProcessId": zod.coerce.number()
+})
+
+export const GetOffboardingResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "separationDate": zod.coerce.date().nullish().describe('The ACTUAL separation instant, snapshotted from employees.separationDate — it identifies which separation cycle this row belongs to. WS-12 (§28.6) made it nullable: an offboarding may now begin against an authoritative recorded basis BEFORE separation, and stays null until separation happens.'),
+  "checklistCompleted": zod.boolean(),
+  "clearanceCompleted": zod.boolean().describe('WS-12 (§28.8): derived from real clearance items once any exist, and never independently settable through the API. Rows predating WS-12 keep this boolean as their only record.'),
+  "exitInterviewCompleted": zod.boolean(),
+  "exitInterviewNotes": zod.string().nullish(),
+  "initiatedBy": zod.number().nullish(),
+  "status": zod.enum(['legacy', 'initiated', 'clearance_in_progress', 'ready_for_separation', 'completed', 'cancelled']),
+  "separationBasis": zod.union([zod.enum(['already_separated', 'contract_end']).describe('Only bases backed by an authoritative record. Accepted resignation, retirement and approved termination are absent because no such record exists in this platform; adding them requires an authoritative record first, and therefore its own Owner Decision (§28.6).'),zod.null()]).optional(),
+  "separationBasisRecordedAt": zod.coerce.date().nullish(),
+  "expectedSeparationDate": zod.coerce.date().nullish(),
+  "clearanceTemplateId": zod.number().nullish(),
+  "finalClearedAt": zod.coerce.date().nullish(),
+  "finalClearedBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).and(zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "exitProcessId": zod.number(),
+  "sourceTemplateItemId": zod.number().nullish(),
+  "sequence": zod.number(),
+  "label": zod.string(),
+  "description": zod.string().nullish(),
+  "itemType": zod.enum(['general', 'asset_return', 'inventory_return', 'personnel_file', 'access_revocation', 'final_settlement', 'document_handover']),
+  "required": zod.boolean(),
+  "responsibleDepartmentId": zod.number().nullish(),
+  "responsibleMembershipId": zod.number().nullish(),
+  "status": zod.enum(['pending', 'completed', 'returned', 'waived']),
+  "comment": zod.string().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "returnedReason": zod.string().nullish(),
+  "waivedReason": zod.string().nullish(),
+  "waivedAt": zod.coerce.date().nullish()
+})).optional(),
+  "progress": zod.object({
+  "total": zod.number(),
+  "required": zod.number(),
+  "completed": zod.number(),
+  "waived": zod.number(),
+  "pending": zod.number(),
+  "returned": zod.number(),
+  "requiredOutstanding": zod.number(),
+  "clearanceComplete": zod.boolean()
+}).optional(),
+  "outstandingCustody": zod.object({
+  "assets": zod.array(zod.object({
+  "assignmentId": zod.number(),
+  "assetId": zod.number(),
+  "assetTag": zod.string().nullish(),
+  "assetName": zod.string().nullish()
+})),
+  "inventory": zod.array(zod.object({
+  "movementId": zod.number(),
+  "itemId": zod.number(),
+  "itemName": zod.string().nullish()
+})),
+  "personnelFileId": zod.number().nullish()
+}).optional().describe('READ from Assets and Office Inventory. Nothing here alters either module.'),
+  "exitInterview": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "exitProcessId": zod.number(),
+  "status": zod.enum(['scheduled', 'completed', 'cancelled']),
+  "interviewDate": zod.coerce.date().nullish(),
+  "interviewerMembershipId": zod.number().nullish(),
+  "reasonForLeavingCode": zod.string().nullish(),
+  "confidentialNotes": zod.string().nullish()
+}).nullish()
+}))
+
+
+/**
+ * Starting an offboarding never terminates employment (§28.7). Clearance items are COPIED from the chosen template, so revising the template later cannot rewrite clearance already in progress.
+ * @summary Start an offboarding and snapshot its clearance items
+ */
+export const InitiateOffboardingParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const InitiateOffboardingBody = zod.object({
+  "clearanceTemplateId": zod.number().nullish().describe('Defaults to the organization\'s active default template, if one exists.')
+})
+
+export const InitiateOffboardingResponse = zod.object({
+  "exitProcess": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "separationDate": zod.coerce.date().nullish().describe('The ACTUAL separation instant, snapshotted from employees.separationDate — it identifies which separation cycle this row belongs to. WS-12 (§28.6) made it nullable: an offboarding may now begin against an authoritative recorded basis BEFORE separation, and stays null until separation happens.'),
+  "checklistCompleted": zod.boolean(),
+  "clearanceCompleted": zod.boolean().describe('WS-12 (§28.8): derived from real clearance items once any exist, and never independently settable through the API. Rows predating WS-12 keep this boolean as their only record.'),
+  "exitInterviewCompleted": zod.boolean(),
+  "exitInterviewNotes": zod.string().nullish(),
+  "initiatedBy": zod.number().nullish(),
+  "status": zod.enum(['legacy', 'initiated', 'clearance_in_progress', 'ready_for_separation', 'completed', 'cancelled']),
+  "separationBasis": zod.union([zod.enum(['already_separated', 'contract_end']).describe('Only bases backed by an authoritative record. Accepted resignation, retirement and approved termination are absent because no such record exists in this platform; adding them requires an authoritative record first, and therefore its own Owner Decision (§28.6).'),zod.null()]).optional(),
+  "separationBasisRecordedAt": zod.coerce.date().nullish(),
+  "expectedSeparationDate": zod.coerce.date().nullish(),
+  "clearanceTemplateId": zod.number().nullish(),
+  "finalClearedAt": zod.coerce.date().nullish(),
+  "finalClearedBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "itemsCreated": zod.number(),
+  "basis": zod.object({
+  "basis": zod.enum(['already_separated', 'contract_end']).optional().describe('Only bases backed by an authoritative record. Accepted resignation, retirement and approved termination are absent because no such record exists in this platform; adding them requires an authoritative record first, and therefore its own Owner Decision (§28.6).'),
+  "expectedSeparationDate": zod.coerce.date().optional(),
+  "evidence": zod.string().optional()
+}).optional()
+})
+
+
+/**
+ * A distinct terminal act, not the arithmetic of the item list. It refuses while a required item is outstanding, and it changes nobody's employment status (§28.7, §28.8).
+ * @summary Grant final HR clearance
+ */
+export const GrantFinalClearanceParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "exitProcessId": zod.coerce.number()
+})
+
+export const GrantFinalClearanceResponse = zod.object({
+  "exitProcess": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "separationDate": zod.coerce.date().nullish().describe('The ACTUAL separation instant, snapshotted from employees.separationDate — it identifies which separation cycle this row belongs to. WS-12 (§28.6) made it nullable: an offboarding may now begin against an authoritative recorded basis BEFORE separation, and stays null until separation happens.'),
+  "checklistCompleted": zod.boolean(),
+  "clearanceCompleted": zod.boolean().describe('WS-12 (§28.8): derived from real clearance items once any exist, and never independently settable through the API. Rows predating WS-12 keep this boolean as their only record.'),
+  "exitInterviewCompleted": zod.boolean(),
+  "exitInterviewNotes": zod.string().nullish(),
+  "initiatedBy": zod.number().nullish(),
+  "status": zod.enum(['legacy', 'initiated', 'clearance_in_progress', 'ready_for_separation', 'completed', 'cancelled']),
+  "separationBasis": zod.union([zod.enum(['already_separated', 'contract_end']).describe('Only bases backed by an authoritative record. Accepted resignation, retirement and approved termination are absent because no such record exists in this platform; adding them requires an authoritative record first, and therefore its own Owner Decision (§28.6).'),zod.null()]).optional(),
+  "separationBasisRecordedAt": zod.coerce.date().nullish(),
+  "expectedSeparationDate": zod.coerce.date().nullish(),
+  "clearanceTemplateId": zod.number().nullish(),
+  "finalClearedAt": zod.coerce.date().nullish(),
+  "finalClearedBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "progress": zod.object({
+  "total": zod.number(),
+  "required": zod.number(),
+  "completed": zod.number(),
+  "waived": zod.number(),
+  "pending": zod.number(),
+  "returned": zod.number(),
+  "requiredOutstanding": zod.number(),
+  "clearanceComplete": zod.boolean()
+})
+})
+
+
+/**
+ * @summary Cancel a running offboarding
+ */
+export const CancelOffboardingParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "exitProcessId": zod.coerce.number()
+})
+
+export const cancelOffboardingBodyReasonMax = 1000;
+
+
+
+export const CancelOffboardingBody = zod.object({
+  "reason": zod.string().min(1).max(cancelOffboardingBodyReasonMax)
+})
+
+export const CancelOffboardingResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "separationDate": zod.coerce.date().nullish().describe('The ACTUAL separation instant, snapshotted from employees.separationDate — it identifies which separation cycle this row belongs to. WS-12 (§28.6) made it nullable: an offboarding may now begin against an authoritative recorded basis BEFORE separation, and stays null until separation happens.'),
+  "checklistCompleted": zod.boolean(),
+  "clearanceCompleted": zod.boolean().describe('WS-12 (§28.8): derived from real clearance items once any exist, and never independently settable through the API. Rows predating WS-12 keep this boolean as their only record.'),
+  "exitInterviewCompleted": zod.boolean(),
+  "exitInterviewNotes": zod.string().nullish(),
+  "initiatedBy": zod.number().nullish(),
+  "status": zod.enum(['legacy', 'initiated', 'clearance_in_progress', 'ready_for_separation', 'completed', 'cancelled']),
+  "separationBasis": zod.union([zod.enum(['already_separated', 'contract_end']).describe('Only bases backed by an authoritative record. Accepted resignation, retirement and approved termination are absent because no such record exists in this platform; adding them requires an authoritative record first, and therefore its own Owner Decision (§28.6).'),zod.null()]).optional(),
+  "separationBasisRecordedAt": zod.coerce.date().nullish(),
+  "expectedSeparationDate": zod.coerce.date().nullish(),
+  "clearanceTemplateId": zod.number().nullish(),
+  "finalClearedAt": zod.coerce.date().nullish(),
+  "finalClearedBy": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Add an ad-hoc clearance item to a running offboarding
+ */
+export const AddClearanceItemParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "exitProcessId": zod.coerce.number()
+})
+
+export const addClearanceItemBodyLabelMax = 300;
+
+
+
+export const AddClearanceItemBody = zod.object({
+  "label": zod.string().min(1).max(addClearanceItemBodyLabelMax),
+  "description": zod.string().nullish(),
+  "itemType": zod.enum(['general', 'asset_return', 'inventory_return', 'personnel_file', 'access_revocation', 'final_settlement', 'document_handover']).optional(),
+  "required": zod.boolean().optional(),
+  "responsibleDepartmentId": zod.number().nullish()
+})
+
+export const AddClearanceItemResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "exitProcessId": zod.number(),
+  "sourceTemplateItemId": zod.number().nullish(),
+  "sequence": zod.number(),
+  "label": zod.string(),
+  "description": zod.string().nullish(),
+  "itemType": zod.enum(['general', 'asset_return', 'inventory_return', 'personnel_file', 'access_revocation', 'final_settlement', 'document_handover']),
+  "required": zod.boolean(),
+  "responsibleDepartmentId": zod.number().nullish(),
+  "responsibleMembershipId": zod.number().nullish(),
+  "status": zod.enum(['pending', 'completed', 'returned', 'waived']),
+  "comment": zod.string().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "returnedReason": zod.string().nullish(),
+  "waivedReason": zod.string().nullish(),
+  "waivedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * Completing an `asset_return` item does NOT end an asset assignment or alter custody, and an `inventory_return` item does NOT move stock. Those transitions belong to Assets and Office Inventory (§28.9, §28.10).
+ * @summary Mark a clearance item complete
+ */
+export const CompleteClearanceItemParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "itemId": zod.coerce.number()
+})
+
+export const CompleteClearanceItemBody = zod.object({
+  "comment": zod.string().nullish(),
+  "evidenceDocumentId": zod.number().nullish()
+})
+
+export const CompleteClearanceItemResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "exitProcessId": zod.number(),
+  "sourceTemplateItemId": zod.number().nullish(),
+  "sequence": zod.number(),
+  "label": zod.string(),
+  "description": zod.string().nullish(),
+  "itemType": zod.enum(['general', 'asset_return', 'inventory_return', 'personnel_file', 'access_revocation', 'final_settlement', 'document_handover']),
+  "required": zod.boolean(),
+  "responsibleDepartmentId": zod.number().nullish(),
+  "responsibleMembershipId": zod.number().nullish(),
+  "status": zod.enum(['pending', 'completed', 'returned', 'waived']),
+  "comment": zod.string().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "returnedReason": zod.string().nullish(),
+  "waivedReason": zod.string().nullish(),
+  "waivedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Send a clearance item back for more work
+ */
+export const ReturnClearanceItemParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "itemId": zod.coerce.number()
+})
+
+export const returnClearanceItemBodyReasonMax = 1000;
+
+
+
+export const ReturnClearanceItemBody = zod.object({
+  "reason": zod.string().min(1).max(returnClearanceItemBodyReasonMax)
+})
+
+export const ReturnClearanceItemResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "exitProcessId": zod.number(),
+  "sourceTemplateItemId": zod.number().nullish(),
+  "sequence": zod.number(),
+  "label": zod.string(),
+  "description": zod.string().nullish(),
+  "itemType": zod.enum(['general', 'asset_return', 'inventory_return', 'personnel_file', 'access_revocation', 'final_settlement', 'document_handover']),
+  "required": zod.boolean(),
+  "responsibleDepartmentId": zod.number().nullish(),
+  "responsibleMembershipId": zod.number().nullish(),
+  "status": zod.enum(['pending', 'completed', 'returned', 'waived']),
+  "comment": zod.string().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "returnedReason": zod.string().nullish(),
+  "waivedReason": zod.string().nullish(),
+  "waivedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * The deliberate escape hatch, and it costs a reason (§28.8). Gated on `offboarding.manage` rather than `clearance.act`, so the desk that cannot recover an item is not the same party that excuses it.
+ * @summary Waive a clearance item
+ */
+export const WaiveClearanceItemParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "itemId": zod.coerce.number()
+})
+
+export const waiveClearanceItemBodyReasonMax = 1000;
+
+
+
+export const WaiveClearanceItemBody = zod.object({
+  "reason": zod.string().min(1).max(waiveClearanceItemBodyReasonMax).describe('Mandatory. Clearance may be waived, but never silently (§28.8).')
+})
+
+export const WaiveClearanceItemResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "exitProcessId": zod.number(),
+  "sourceTemplateItemId": zod.number().nullish(),
+  "sequence": zod.number(),
+  "label": zod.string(),
+  "description": zod.string().nullish(),
+  "itemType": zod.enum(['general', 'asset_return', 'inventory_return', 'personnel_file', 'access_revocation', 'final_settlement', 'document_handover']),
+  "required": zod.boolean(),
+  "responsibleDepartmentId": zod.number().nullish(),
+  "responsibleMembershipId": zod.number().nullish(),
+  "status": zod.enum(['pending', 'completed', 'returned', 'waived']),
+  "comment": zod.string().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "returnedReason": zod.string().nullish(),
+  "waivedReason": zod.string().nullish(),
+  "waivedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * Questions and answers are WS-8 Custom Fields bound to the `exit_interview` scope; no second questionnaire engine exists (§28.19). No rehire-eligibility field exists anywhere in WS-12 (§28.15).
+ * @summary Schedule the exit interview for an offboarding
+ */
+export const ScheduleExitInterviewParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "exitProcessId": zod.coerce.number()
+})
+
+export const ScheduleExitInterviewBody = zod.object({
+  "interviewDate": zod.coerce.date().nullish(),
+  "interviewerMembershipId": zod.number().nullish()
+})
+
+export const ScheduleExitInterviewResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "exitProcessId": zod.number(),
+  "status": zod.enum(['scheduled', 'completed', 'cancelled']),
+  "interviewDate": zod.coerce.date().nullish(),
+  "interviewerMembershipId": zod.number().nullish(),
+  "reasonForLeavingCode": zod.string().nullish(),
+  "confidentialNotes": zod.string().nullish()
+})
+
+
+/**
+ * @summary Record an exit interview as completed
+ */
+export const CompleteExitInterviewParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "interviewId": zod.coerce.number()
+})
+
+export const CompleteExitInterviewBody = zod.object({
+  "interviewDate": zod.coerce.date().nullish(),
+  "reasonForLeavingCode": zod.string().nullish(),
+  "confidentialNotes": zod.string().nullish()
+})
+
+export const CompleteExitInterviewResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "exitProcessId": zod.number(),
+  "status": zod.enum(['scheduled', 'completed', 'cancelled']),
+  "interviewDate": zod.coerce.date().nullish(),
+  "interviewerMembershipId": zod.number().nullish(),
+  "reasonForLeavingCode": zod.string().nullish(),
+  "confidentialNotes": zod.string().nullish()
+})
+
+
+/**
+ * @summary Cancel a scheduled exit interview
+ */
+export const CancelExitInterviewParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "interviewId": zod.coerce.number()
+})
+
+export const cancelExitInterviewBodyReasonMax = 1000;
+
+
+
+export const CancelExitInterviewBody = zod.object({
+  "reason": zod.string().min(1).max(cancelExitInterviewBodyReasonMax)
+})
+
+export const CancelExitInterviewResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "exitProcessId": zod.number(),
+  "status": zod.enum(['scheduled', 'completed', 'cancelled']),
+  "interviewDate": zod.coerce.date().nullish(),
+  "interviewerMembershipId": zod.number().nullish(),
+  "reasonForLeavingCode": zod.string().nullish(),
+  "confidentialNotes": zod.string().nullish()
+})
+
+
+/**
+ * Counts and ageing only — no subject, description, finding, outcome or note (§28.23). Ageing is derived against the current instant, never stored.
+ * @summary Open disciplinary cases with ageing
+ */
+export const GetDisciplinaryReportParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetDisciplinaryReportResponse = zod.object({
+  "openCases": zod.array(zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "status": zod.string(),
+  "openedAt": zod.coerce.date(),
+  "ageDays": zod.number()
+}))
+})
+
+
+/**
+ * Gated on `grievance.read`, deliberately a separate endpoint from the disciplinary read model so one key cannot span both (§28.17).
+ * @summary Open grievances with ageing
+ */
+export const GetGrievanceReportParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetGrievanceReportResponse = zod.object({
+  "openGrievances": zod.array(zod.object({
+  "id": zod.number(),
+  "complainantEmployeeId": zod.number(),
+  "status": zod.string(),
+  "submittedAt": zod.coerce.date(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "ageDays": zod.number()
+}))
+})
+
+
+/**
+ * @summary Employees currently offboarding, completed offboarding, outstanding assets
+ */
+export const GetOffboardingReportParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetOffboardingReportResponse = zod.object({
+  "inProgress": zod.array(zod.object({
+  "exitProcessId": zod.number(),
+  "employeeId": zod.number(),
+  "status": zod.string(),
+  "expectedSeparationDate": zod.coerce.date().nullish(),
+  "separationDate": zod.coerce.date().nullish(),
+  "requiredOutstanding": zod.number(),
+  "outstandingAssets": zod.number()
+})),
+  "completed": zod.array(zod.object({
+  "exitProcessId": zod.number(),
+  "employeeId": zod.number(),
+  "finalClearedAt": zod.coerce.date().nullish(),
+  "separationDate": zod.coerce.date().nullish()
+})),
+  "outstandingAssets": zod.array(zod.object({
+  "employeeId": zod.number(),
+  "assignmentId": zod.number(),
+  "assetId": zod.number(),
+  "assetTag": zod.string().nullish()
+}))
+})
+
+
+/**
+ * Readable by `clearance.act` holders as well as offboarding readers — an approver who cannot see their own queue cannot do the job the key exists for.
+ * @summary Outstanding clearance items across running offboarding
+ */
+export const GetClearanceQueueParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetClearanceQueueQueryParams = zod.object({
+  "responsibleDepartmentId": zod.coerce.number().optional()
+})
+
+export const GetClearanceQueueResponse = zod.object({
+  "outstanding": zod.array(zod.object({
+  "clearanceItemId": zod.number(),
+  "exitProcessId": zod.number(),
+  "employeeId": zod.number(),
+  "label": zod.string(),
+  "itemType": zod.string(),
+  "required": zod.boolean(),
+  "status": zod.string(),
+  "responsibleDepartmentId": zod.number().nullish()
+}))
 })
 
 

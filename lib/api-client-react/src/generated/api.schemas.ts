@@ -4967,19 +4967,58 @@ export interface AddEmployeeDisciplinaryRecordInput {
   actionDate: string;
 }
 
+export type ExitProcessStatus = typeof ExitProcessStatus[keyof typeof ExitProcessStatus];
+
+
+export const ExitProcessStatus = {
+  legacy: 'legacy',
+  initiated: 'initiated',
+  clearance_in_progress: 'clearance_in_progress',
+  ready_for_separation: 'ready_for_separation',
+  completed: 'completed',
+  cancelled: 'cancelled',
+} as const;
+
+/**
+ * Only bases backed by an authoritative record. Accepted resignation, retirement and approved termination are absent because no such record exists in this platform; adding them requires an authoritative record first, and therefore its own Owner Decision (§28.6).
+ */
+export type ExitSeparationBasis = typeof ExitSeparationBasis[keyof typeof ExitSeparationBasis];
+
+
+export const ExitSeparationBasis = {
+  already_separated: 'already_separated',
+  contract_end: 'contract_end',
+} as const;
+
 export interface EmployeeExitProcess {
   id: number;
   organizationId: number;
   employeeId: number;
-  /** Snapshot of employees.separationDate at creation — identifies which separation cycle this row belongs to. */
-  separationDate: string;
+  /**
+     * The ACTUAL separation instant, snapshotted from employees.separationDate — it identifies which separation cycle this row belongs to. WS-12 (§28.6) made it nullable: an offboarding may now begin against an authoritative recorded basis BEFORE separation, and stays null until separation happens.
+     * @nullable
+     */
+  separationDate?: string | null;
   checklistCompleted: boolean;
+  /** WS-12 (§28.8): derived from real clearance items once any exist, and never independently settable through the API. Rows predating WS-12 keep this boolean as their only record. */
   clearanceCompleted: boolean;
   exitInterviewCompleted: boolean;
   /** @nullable */
   exitInterviewNotes?: string | null;
   /** @nullable */
   initiatedBy?: number | null;
+  status: ExitProcessStatus;
+  separationBasis?: ExitSeparationBasis | null;
+  /** @nullable */
+  separationBasisRecordedAt?: string | null;
+  /** @nullable */
+  expectedSeparationDate?: string | null;
+  /** @nullable */
+  clearanceTemplateId?: number | null;
+  /** @nullable */
+  finalClearedAt?: string | null;
+  /** @nullable */
+  finalClearedBy?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -10364,6 +10403,674 @@ export interface EmploymentParticularsDetail {
   suggested?: EmploymentParticularsDetailSuggested;
 }
 
+export type DisciplinaryCaseStatus = typeof DisciplinaryCaseStatus[keyof typeof DisciplinaryCaseStatus];
+
+
+export const DisciplinaryCaseStatus = {
+  open: 'open',
+  closed: 'closed',
+} as const;
+
+export type CaseConfidentiality = typeof CaseConfidentiality[keyof typeof CaseConfidentiality];
+
+
+export const CaseConfidentiality = {
+  normal: 'normal',
+  confidential: 'confidential',
+  restricted: 'restricted',
+} as const;
+
+export type DisciplinaryCaseEventType = typeof DisciplinaryCaseEventType[keyof typeof DisciplinaryCaseEventType];
+
+
+export const DisciplinaryCaseEventType = {
+  case_opened: 'case_opened',
+  allegation_recorded: 'allegation_recorded',
+  notice_issued: 'notice_issued',
+  response_received: 'response_received',
+  investigation_recorded: 'investigation_recorded',
+  hearing_held: 'hearing_held',
+  finding_recorded: 'finding_recorded',
+  outcome_recorded: 'outcome_recorded',
+  stage_changed: 'stage_changed',
+  appeal_lodged: 'appeal_lodged',
+  appeal_decided: 'appeal_decided',
+  evidence_attached: 'evidence_attached',
+  case_closed: 'case_closed',
+  case_reopened: 'case_reopened',
+} as const;
+
+export interface DisciplinaryCase {
+  id: number;
+  organizationId: number;
+  employeeId: number;
+  categoryCode: string;
+  severityCode?: string | null;
+  stageCode?: string | null;
+  subject: string;
+  description?: string | null;
+  status: DisciplinaryCaseStatus;
+  confidentiality: CaseConfidentiality;
+  outcomeCode?: string | null;
+  outcomeRecordedAt?: string | null;
+  warningExpiresAt?: string | null;
+  responsibleMembershipId?: number | null;
+  openedAt: string;
+  closedAt?: string | null;
+}
+
+export type DisciplinaryCaseList = DisciplinaryCase[];
+
+export type DisciplinaryCaseEventDetails = { [key: string]: unknown } | null;
+
+export interface DisciplinaryCaseEvent {
+  id: number;
+  organizationId: number;
+  caseId: number;
+  eventType: DisciplinaryCaseEventType;
+  occurredAt: string;
+  notes?: string | null;
+  details?: DisciplinaryCaseEventDetails;
+  recordedBy?: number | null;
+}
+
+export type DisciplinaryCaseDetail = DisciplinaryCase & {
+  events?: DisciplinaryCaseEvent[];
+};
+
+export interface OpenDisciplinaryCaseInput {
+  employeeId: number;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  categoryCode: string;
+  /** @maxLength 100 */
+  severityCode?: string | null;
+  /** @maxLength 100 */
+  stageCode?: string | null;
+  /**
+     * @minLength 1
+     * @maxLength 300
+     */
+  subject: string;
+  description?: string | null;
+  confidentiality?: CaseConfidentiality;
+  responsibleMembershipId?: number | null;
+  openedAt: string;
+}
+
+export interface RecordDisciplinaryEventInput {
+  eventType: DisciplinaryCaseEventType;
+  occurredAt: string;
+  notes?: string | null;
+}
+
+export interface ChangeDisciplinaryStageInput {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  stageCode: string;
+  occurredAt: string;
+  notes?: string | null;
+}
+
+export interface RecordDisciplinaryOutcomeInput {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  outcomeCode: string;
+  occurredAt: string;
+  notes?: string | null;
+  warningExpiresAt?: string | null;
+}
+
+export interface CloseDisciplinaryCaseInput {
+  occurredAt: string;
+  notes?: string | null;
+}
+
+export interface ReopenDisciplinaryCaseInput {
+  occurredAt: string;
+  /**
+     * @minLength 1
+     * @maxLength 1000
+     */
+  reason: string;
+}
+
+export interface AttachCaseEvidenceInput {
+  documentId: number;
+  occurredAt: string;
+  notes?: string | null;
+}
+
+export type GrievanceCaseStatus = typeof GrievanceCaseStatus[keyof typeof GrievanceCaseStatus];
+
+
+export const GrievanceCaseStatus = {
+  submitted: 'submitted',
+  acknowledged: 'acknowledged',
+  under_review: 'under_review',
+  resolved: 'resolved',
+  closed: 'closed',
+  withdrawn: 'withdrawn',
+} as const;
+
+export type GrievanceRespondentType = typeof GrievanceRespondentType[keyof typeof GrievanceRespondentType];
+
+
+export const GrievanceRespondentType = {
+  employee: 'employee',
+  department: 'department',
+  unspecified: 'unspecified',
+} as const;
+
+export type GrievanceCaseEventType = typeof GrievanceCaseEventType[keyof typeof GrievanceCaseEventType];
+
+
+export const GrievanceCaseEventType = {
+  submitted: 'submitted',
+  acknowledged: 'acknowledged',
+  assigned: 'assigned',
+  reassigned: 'reassigned',
+  review_recorded: 'review_recorded',
+  meeting_held: 'meeting_held',
+  information_requested: 'information_requested',
+  information_provided: 'information_provided',
+  finding_recorded: 'finding_recorded',
+  resolution_recorded: 'resolution_recorded',
+  escalated: 'escalated',
+  appeal_lodged: 'appeal_lodged',
+  appeal_decided: 'appeal_decided',
+  evidence_attached: 'evidence_attached',
+  withdrawn: 'withdrawn',
+  closed: 'closed',
+  reopened: 'reopened',
+} as const;
+
+export interface GrievanceCase {
+  id: number;
+  organizationId: number;
+  complainantEmployeeId: number;
+  categoryCode: string;
+  respondentType: GrievanceRespondentType;
+  respondentEmployeeId?: number | null;
+  respondentDepartmentId?: number | null;
+  subject: string;
+  description: string;
+  status: GrievanceCaseStatus;
+  confidentiality: CaseConfidentiality;
+  assignedMembershipId?: number | null;
+  submittedAt: string;
+  acknowledgedAt?: string | null;
+  resolutionSummary?: string | null;
+  resolvedAt?: string | null;
+  closedAt?: string | null;
+}
+
+export type GrievanceCaseList = GrievanceCase[];
+
+export type GrievanceCaseEventDetails = { [key: string]: unknown } | null;
+
+export interface GrievanceCaseEvent {
+  id: number;
+  organizationId: number;
+  caseId: number;
+  eventType: GrievanceCaseEventType;
+  occurredAt: string;
+  notes?: string | null;
+  details?: GrievanceCaseEventDetails;
+  visibleToComplainant: boolean;
+  recordedBy?: number | null;
+}
+
+export type GrievanceCaseDetail = GrievanceCase & {
+  events?: GrievanceCaseEvent[];
+};
+
+export interface GrievanceEssUpdate {
+  id: number;
+  eventType: GrievanceCaseEventType;
+  occurredAt: string;
+  notes?: string | null;
+}
+
+/**
+ * The §28.5 employee-facing allow-list. Built field by field, never spread from the full record: confidentiality, assignment, respondent, investigator notes, internal deliberations, draft findings and audit information are all absent by construction.
+ */
+export interface GrievanceEssView {
+  id: number;
+  categoryCode: string;
+  subject: string;
+  description: string;
+  status: GrievanceCaseStatus;
+  submittedAt: string;
+  acknowledgedAt?: string | null;
+  resolutionSummary?: string | null;
+  resolvedAt?: string | null;
+  closedAt?: string | null;
+  updates: GrievanceEssUpdate[];
+}
+
+export type GrievanceEssViewList = GrievanceEssView[];
+
+export interface SubmitGrievanceInput {
+  complainantEmployeeId: number;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  categoryCode: string;
+  respondentType?: GrievanceRespondentType;
+  respondentEmployeeId?: number | null;
+  respondentDepartmentId?: number | null;
+  /**
+     * @minLength 1
+     * @maxLength 300
+     */
+  subject: string;
+  /** @minLength 1 */
+  description: string;
+  submittedAt: string;
+}
+
+/**
+ * No complainant field. The complainant is resolved from the caller's own employee link, so an employee cannot file in a colleague's name.
+ */
+export interface SubmitMyGrievanceInput {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  categoryCode: string;
+  respondentType?: GrievanceRespondentType;
+  respondentEmployeeId?: number | null;
+  respondentDepartmentId?: number | null;
+  /**
+     * @minLength 1
+     * @maxLength 300
+     */
+  subject: string;
+  /** @minLength 1 */
+  description: string;
+  submittedAt: string;
+}
+
+export interface AcknowledgeGrievanceInput {
+  occurredAt: string;
+  notes?: string | null;
+}
+
+export interface AssignGrievanceInput {
+  assignedMembershipId: number;
+  occurredAt: string;
+}
+
+export interface RecordGrievanceEventInput {
+  eventType: GrievanceCaseEventType;
+  occurredAt: string;
+  notes?: string | null;
+  /** Defaults to false. Employee visibility is always a deliberate act. */
+  visibleToComplainant?: boolean;
+}
+
+export interface ResolveGrievanceInput {
+  /** @minLength 1 */
+  resolutionSummary: string;
+  occurredAt: string;
+}
+
+export interface CloseGrievanceInput {
+  occurredAt: string;
+  notes?: string | null;
+}
+
+export interface WithdrawGrievanceInput {
+  occurredAt: string;
+  reason?: string | null;
+}
+
+export type ClearanceTemplateStatus = typeof ClearanceTemplateStatus[keyof typeof ClearanceTemplateStatus];
+
+
+export const ClearanceTemplateStatus = {
+  draft: 'draft',
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export type ClearanceItemType = typeof ClearanceItemType[keyof typeof ClearanceItemType];
+
+
+export const ClearanceItemType = {
+  general: 'general',
+  asset_return: 'asset_return',
+  inventory_return: 'inventory_return',
+  personnel_file: 'personnel_file',
+  access_revocation: 'access_revocation',
+  final_settlement: 'final_settlement',
+  document_handover: 'document_handover',
+} as const;
+
+export type ClearanceItemStatus = typeof ClearanceItemStatus[keyof typeof ClearanceItemStatus];
+
+
+export const ClearanceItemStatus = {
+  pending: 'pending',
+  completed: 'completed',
+  returned: 'returned',
+  waived: 'waived',
+} as const;
+
+export interface ClearanceTemplate {
+  id: number;
+  organizationId: number;
+  name: string;
+  description?: string | null;
+  status: ClearanceTemplateStatus;
+  isDefault: boolean;
+}
+
+export type ClearanceTemplateList = ClearanceTemplate[];
+
+export interface ClearanceTemplateItem {
+  id: number;
+  organizationId: number;
+  templateId: number;
+  sequence: number;
+  label: string;
+  description?: string | null;
+  itemType: ClearanceItemType;
+  required: boolean;
+  responsibleDepartmentId?: number | null;
+}
+
+export type ClearanceTemplateDetail = ClearanceTemplate & {
+  items?: ClearanceTemplateItem[];
+};
+
+export interface CreateClearanceTemplateInput {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  name: string;
+  description?: string | null;
+}
+
+export interface UpdateClearanceTemplateInput {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  name?: string;
+  description?: string | null;
+  status?: ClearanceTemplateStatus;
+  isDefault?: boolean;
+}
+
+export interface AddClearanceTemplateItemInput {
+  /**
+     * @minLength 1
+     * @maxLength 300
+     */
+  label: string;
+  description?: string | null;
+  itemType?: ClearanceItemType;
+  required?: boolean;
+  responsibleDepartmentId?: number | null;
+  sequence?: number;
+}
+
+export interface ClearanceItem {
+  id: number;
+  organizationId: number;
+  exitProcessId: number;
+  sourceTemplateItemId?: number | null;
+  sequence: number;
+  label: string;
+  description?: string | null;
+  itemType: ClearanceItemType;
+  required: boolean;
+  responsibleDepartmentId?: number | null;
+  responsibleMembershipId?: number | null;
+  status: ClearanceItemStatus;
+  comment?: string | null;
+  evidenceDocumentId?: number | null;
+  completedAt?: string | null;
+  returnedReason?: string | null;
+  waivedReason?: string | null;
+  waivedAt?: string | null;
+}
+
+export type ClearanceItemList = ClearanceItem[];
+
+export interface AddClearanceItemInput {
+  /**
+     * @minLength 1
+     * @maxLength 300
+     */
+  label: string;
+  description?: string | null;
+  itemType?: ClearanceItemType;
+  required?: boolean;
+  responsibleDepartmentId?: number | null;
+}
+
+export interface CompleteClearanceItemInput {
+  comment?: string | null;
+  evidenceDocumentId?: number | null;
+}
+
+export interface ReturnClearanceItemInput {
+  /**
+     * @minLength 1
+     * @maxLength 1000
+     */
+  reason: string;
+}
+
+export interface WaiveClearanceItemInput {
+  /**
+     * Mandatory. Clearance may be waived, but never silently (§28.8).
+     * @minLength 1
+     * @maxLength 1000
+     */
+  reason: string;
+}
+
+export type OffboardingList = EmployeeExitProcess[];
+
+export interface ClearanceProgress {
+  total: number;
+  required: number;
+  completed: number;
+  waived: number;
+  pending: number;
+  returned: number;
+  requiredOutstanding: number;
+  clearanceComplete: boolean;
+}
+
+export type OutstandingCustodyAssetsItem = {
+  assignmentId: number;
+  assetId: number;
+  assetTag?: string | null;
+  assetName?: string | null;
+};
+
+export type OutstandingCustodyInventoryItem = {
+  movementId: number;
+  itemId: number;
+  itemName?: string | null;
+};
+
+/**
+ * READ from Assets and Office Inventory. Nothing here alters either module.
+ */
+export interface OutstandingCustody {
+  assets: OutstandingCustodyAssetsItem[];
+  inventory: OutstandingCustodyInventoryItem[];
+  personnelFileId?: number | null;
+}
+
+export type ExitInterviewStatus = typeof ExitInterviewStatus[keyof typeof ExitInterviewStatus];
+
+
+export const ExitInterviewStatus = {
+  scheduled: 'scheduled',
+  completed: 'completed',
+  cancelled: 'cancelled',
+} as const;
+
+export interface ExitInterview {
+  id: number;
+  organizationId: number;
+  exitProcessId: number;
+  status: ExitInterviewStatus;
+  interviewDate?: string | null;
+  interviewerMembershipId?: number | null;
+  reasonForLeavingCode?: string | null;
+  confidentialNotes?: string | null;
+}
+
+export type OffboardingDetail = EmployeeExitProcess & ({
+  items?: ClearanceItemList;
+  progress?: ClearanceProgress;
+  outstandingCustody?: OutstandingCustody;
+  exitInterview?: ExitInterview | null;
+});
+
+export interface OffboardingEligibility {
+  eligible: boolean;
+  basis?: ExitSeparationBasis | null;
+  expectedSeparationDate?: string | null;
+  /** What the basis was read from, so a refusal can be explained. */
+  evidence?: string | null;
+}
+
+export interface InitiateOffboardingInput {
+  /** Defaults to the organization's active default template, if one exists. */
+  clearanceTemplateId?: number | null;
+}
+
+export type InitiateOffboardingResultBasis = {
+  basis?: ExitSeparationBasis;
+  expectedSeparationDate?: string;
+  evidence?: string;
+};
+
+export interface InitiateOffboardingResult {
+  exitProcess: EmployeeExitProcess;
+  itemsCreated: number;
+  basis?: InitiateOffboardingResultBasis;
+}
+
+export interface FinalClearanceResult {
+  exitProcess: EmployeeExitProcess;
+  progress: ClearanceProgress;
+}
+
+export interface CancelOffboardingInput {
+  /**
+     * @minLength 1
+     * @maxLength 1000
+     */
+  reason: string;
+}
+
+export interface ScheduleExitInterviewInput {
+  interviewDate?: string | null;
+  interviewerMembershipId?: number | null;
+}
+
+export interface CompleteExitInterviewInput {
+  interviewDate?: string | null;
+  reasonForLeavingCode?: string | null;
+  confidentialNotes?: string | null;
+}
+
+export interface CancelExitInterviewInput {
+  /**
+     * @minLength 1
+     * @maxLength 1000
+     */
+  reason: string;
+}
+
+export interface CaseAgeingRow {
+  id: number;
+  employeeId: number;
+  status: string;
+  openedAt: string;
+  ageDays: number;
+}
+
+export interface DisciplinaryReport {
+  openCases: CaseAgeingRow[];
+}
+
+export interface GrievanceAgeingRow {
+  id: number;
+  complainantEmployeeId: number;
+  status: string;
+  submittedAt: string;
+  acknowledgedAt?: string | null;
+  ageDays: number;
+}
+
+export interface GrievanceReport {
+  openGrievances: GrievanceAgeingRow[];
+}
+
+export type OffboardingReportInProgressItem = {
+  exitProcessId: number;
+  employeeId: number;
+  status: string;
+  expectedSeparationDate?: string | null;
+  separationDate?: string | null;
+  requiredOutstanding: number;
+  outstandingAssets: number;
+};
+
+export type OffboardingReportCompletedItem = {
+  exitProcessId: number;
+  employeeId: number;
+  finalClearedAt?: string | null;
+  separationDate?: string | null;
+};
+
+export type OffboardingReportOutstandingAssetsItem = {
+  employeeId: number;
+  assignmentId: number;
+  assetId: number;
+  assetTag?: string | null;
+};
+
+export interface OffboardingReport {
+  inProgress: OffboardingReportInProgressItem[];
+  completed: OffboardingReportCompletedItem[];
+  outstandingAssets: OffboardingReportOutstandingAssetsItem[];
+}
+
+export type ClearanceQueueOutstandingItem = {
+  clearanceItemId: number;
+  exitProcessId: number;
+  employeeId: number;
+  label: string;
+  itemType: string;
+  required: boolean;
+  status: string;
+  responsibleDepartmentId?: number | null;
+};
+
+export interface ClearanceQueue {
+  outstanding: ClearanceQueueOutstandingItem[];
+}
+
 export type UploadOrganizationLogoBody = {
   file: Blob;
 };
@@ -11534,4 +12241,21 @@ export const ListEmploymentAssignmentsAssignmentType = {
   acting: 'acting',
   secondment: 'secondment',
 } as const;
+
+export type ListDisciplinaryCasesParams = {
+employeeId?: number;
+status?: DisciplinaryCaseStatus;
+};
+
+export type ListGrievancesParams = {
+status?: GrievanceCaseStatus;
+};
+
+export type ListOffboardingParams = {
+employeeId?: number;
+};
+
+export type GetClearanceQueueParams = {
+responsibleDepartmentId?: number;
+};
 

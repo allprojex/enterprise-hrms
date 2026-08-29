@@ -28,6 +28,7 @@ import { z } from "zod/v4";
 import { registerJobHandler, zodPayloadParser } from "./jobHandlerRegistry";
 import { registerOnboardingJobHandlers } from "./onboarding/reminders";
 import { registerEmploymentLifecycleJobHandlers } from "./employmentLifecycle/reminders";
+import { registerEmployeeRelationsJobHandlers } from "./employeeRelations/reminders";
 import { notifyUser, type RecipientSpec } from "./notifications";
 
 const recipientSpecSchema: z.ZodType<RecipientSpec> = z.union([
@@ -102,4 +103,11 @@ export function registerShippedJobHandlers(): void {
   // authoritative state and no-op when stale. They are observers only: §27.11
   // forbids a scheduled job making a consequential employment decision.
   registerEmploymentLifecycleJobHandlers();
+
+  // WS-12 — Employee Relations and offboarding reminders. Separate handlers for
+  // the same reason as WS-10's and WS-11's: §28.20 requires each to re-fetch
+  // authoritative state and no-op when stale, which a domain-neutral notifier
+  // cannot do. They are observers only — no job may record a finding, decide an
+  // outcome, waive clearance or separate anyone.
+  registerEmployeeRelationsJobHandlers();
 }

@@ -144,3 +144,12 @@ export * from "./onboarding-instances";
 export * from "./document-acknowledgements";
 export * from "./employment-terms";
 export * from "./employment-assignments";
+
+// WS-12 — Employee Relations & Offboarding Clearance (§28).
+export * from "./disciplinary-cases";
+export * from "./disciplinary-case-events";
+export * from "./grievance-cases";
+export * from "./grievance-case-events";
+export * from "./clearance-templates";
+export * from "./clearance-items";
+export * from "./exit-interviews";

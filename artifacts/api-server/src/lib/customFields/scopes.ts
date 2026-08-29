@@ -24,6 +24,7 @@ import {
   positionsTable,
   organizationsTable,
   onboardingInstancesTable,
+  exitInterviewsTable,
   type CustomFieldScope,
 } from "@workspace/db";
 
@@ -71,6 +72,25 @@ export const SCOPES: readonly ScopeSpec[] = [
     bindable: true,
     readPermission: "organization.read",
     writePermission: "organization.update",
+  },
+  {
+    // WS-12 (§28.15, §28.19) shipped `exit_interviews` as the authoritative
+    // record, so this scope is bindable from the start. It binds to the
+    // INTERVIEW, not the employee, so responses stay tied to the correct
+    // separation cycle — an employee who leaves, returns and leaves again keeps
+    // both sets of answers instead of the second overwriting the first.
+    //
+    // Permissions follow the target domain (§24.15), which here is offboarding:
+    // exit-interview answers are HR material, and `offboarding.read`/`.manage`
+    // are exactly the rights that already govern the interview record itself.
+    //
+    // Disciplinary findings remain absent from this list, as §24.3 requires and
+    // §28.19 upholds. They are typed columns, never custom fields.
+    scope: "exit_interview",
+    label: "Exit interview",
+    bindable: true,
+    readPermission: "offboarding.read",
+    writePermission: "offboarding.manage",
   },
   {
     // WS-10 shipped the authoritative record, so this is now bindable.
@@ -131,7 +151,9 @@ export async function assertEntityInOrganization(scope: string, entityId: number
           ? applicationsTable
           : spec.scope === "onboarding"
             ? onboardingInstancesTable
-            : positionsTable;
+            : spec.scope === "exit_interview"
+              ? exitInterviewsTable
+              : positionsTable;
 
   const [row] = await db
     .select({ id: table.id })

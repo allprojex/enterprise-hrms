@@ -23,9 +23,12 @@ import type {
   AcceptInvitationInput,
   AcceptPerformanceReviewGoalInput,
   AcknowledgeAssetAssignmentInput,
+  AcknowledgeGrievanceInput,
   AcknowledgePerformanceReviewInput,
   AddAssetEvidenceBody,
   AddCandidateTagInput,
+  AddClearanceItemInput,
+  AddClearanceTemplateItemInput,
   AddEmployeeCertificationInput,
   AddEmployeeDisciplinaryRecordInput,
   AddEmployeeQualificationInput,
@@ -61,10 +64,12 @@ import type {
   AssignAcknowledgementResult,
   AssignAssetInput,
   AssignDepartmentHeadBody,
+  AssignGrievanceInput,
   AssignLearningEnrollmentsInput,
   AssignLearningEnrollmentsResult,
   AssignRoleInput,
   AttachBackgroundCheckEvidenceBody,
+  AttachCaseEvidenceInput,
   AttendanceAdjustment,
   AttendanceDashboard,
   AttendanceEvent,
@@ -74,16 +79,29 @@ import type {
   BackgroundCheck,
   Branch,
   BreakGlassGrant,
+  CancelExitInterviewInput,
   CancelJobRequisitionInput,
   CancelLearningEnrollmentInput,
+  CancelOffboardingInput,
   CancelOnboardingInput,
   Candidate,
   CandidateListResponse,
   CandidateNote,
   CandidateTag,
+  ChangeDisciplinaryStageInput,
   CheckoutPersonnelFileInput,
+  ClearanceItem,
+  ClearanceQueue,
+  ClearanceTemplate,
+  ClearanceTemplateDetail,
+  ClearanceTemplateItem,
+  ClearanceTemplateList,
+  CloseDisciplinaryCaseInput,
   CloseEmploymentTermInput,
+  CloseGrievanceInput,
   CommitPersonnelImportBody,
+  CompleteClearanceItemInput,
+  CompleteExitInterviewInput,
   CompleteLearningEnrollmentInput,
   CompleteOnboardingTaskInput,
   ConfirmEmployeeInput,
@@ -95,6 +113,7 @@ import type {
   CreateBranchInput,
   CreateBreakGlassGrantInput,
   CreateCandidateNoteInput,
+  CreateClearanceTemplateInput,
   CreateDepartmentInput,
   CreateDocumentRequirementBody,
   CreateDocumentTemplateBody,
@@ -174,6 +193,11 @@ import type {
   DirectIssueBody,
   DirectIssueResult,
   DisablePlatformUserInput,
+  DisciplinaryCase,
+  DisciplinaryCaseDetail,
+  DisciplinaryCaseEvent,
+  DisciplinaryCaseList,
+  DisciplinaryReport,
   DismissAssetIncidentInput,
   DisposeDocumentBody,
   DisposedDocumentResult,
@@ -214,9 +238,11 @@ import type {
   EmploymentTermRenewal,
   EndAssignmentInput,
   EndEmployeeCompensationComponentBody,
+  ExitInterview,
   ExpiringTermList,
   ExportCustomFieldValuesParams,
   ExtendProbationInput,
+  FinalClearanceResult,
   FinalizePerformanceReviewInput,
   ForgotPasswordInput,
   GenerateDocumentFromTemplateBody,
@@ -225,6 +251,7 @@ import type {
   GeneratedDocument,
   GetAttendanceDailySummaryParams,
   GetAttendanceDashboardParams,
+  GetClearanceQueueParams,
   GetCustomFieldValuesParams,
   GetCustomFormSubmission200,
   GetDocumentExpiryStateParams,
@@ -235,9 +262,18 @@ import type {
   GetPayrollReportParams,
   GetPerformanceDashboardParams,
   GrantRolePermissionInput,
+  GrievanceCase,
+  GrievanceCaseDetail,
+  GrievanceCaseEvent,
+  GrievanceCaseList,
+  GrievanceEssView,
+  GrievanceEssViewList,
+  GrievanceReport,
   HealthStatus,
   HireAuthorization,
   HireAuthorizationDetail,
+  InitiateOffboardingInput,
+  InitiateOffboardingResult,
   Installation,
   InstallationOrganizationLink,
   InternalVacanciesResponse,
@@ -283,6 +319,7 @@ import type {
   ListCustomFormSubmissions200,
   ListCustomFormSubmissionsParams,
   ListCustomForms200,
+  ListDisciplinaryCasesParams,
   ListDisposalEligibleDocumentsParams,
   ListDocumentRequirementsParams,
   ListDocumentRetentionRecordsParams,
@@ -292,6 +329,7 @@ import type {
   ListEmploymentAssignmentsParams,
   ListExpiringEmploymentTermsParams,
   ListGeneratedDocumentsParams,
+  ListGrievancesParams,
   ListInterviewsParams,
   ListJobRequisitionsParams,
   ListLearningCertificatesParams,
@@ -300,6 +338,7 @@ import type {
   ListLeaveCalendarParams,
   ListMigrations200,
   ListNotificationsParams,
+  ListOffboardingParams,
   ListOffersParams,
   ListOfficeInventoryIncidentsParams,
   ListOfficeInventoryStockMovementsParams,
@@ -353,6 +392,10 @@ import type {
   MyQualificationsResponse,
   MySkillsResponse,
   Notification,
+  OffboardingDetail,
+  OffboardingEligibility,
+  OffboardingList,
+  OffboardingReport,
   OfferApproval,
   OfferDetail,
   OfferListResponse,
@@ -395,6 +438,7 @@ import type {
   OnboardingTemplateVersion,
   OnboardingTemplateVersionList,
   OnboardingTemplateWithVersion,
+  OpenDisciplinaryCaseInput,
   Organization,
   OrganizationConfig,
   OrganizationDocument,
@@ -465,6 +509,9 @@ import type {
   ReadinessStatus,
   RecordAttendanceAdjustmentInput,
   RecordAttendanceEventInput,
+  RecordDisciplinaryEventInput,
+  RecordDisciplinaryOutcomeInput,
+  RecordGrievanceEventInput,
   RecordInductionAttendanceInput,
   RecordOfferResponseBody,
   RecordOfficeInventoryStocktakeCountBody,
@@ -487,6 +534,7 @@ import type {
   RejectPerformanceReviewGoalInput,
   RenewEmploymentTermInput,
   ReopenApplicationInput,
+  ReopenDisciplinaryCaseInput,
   ReopenPerformanceReviewInput,
   ReplacePerformanceRatingScaleLevelsInput,
   ReplacePerformanceTemplateCompetenciesInput,
@@ -499,11 +547,13 @@ import type {
   RescheduleScheduledJobBody,
   ResetPasswordInput,
   ResolveDepartmentHeadAsOfParams,
+  ResolveGrievanceInput,
   ResolveOfficeInventoryStocktakeLineBody,
   RestructureDepartmentInput,
   RestructurePositionInput,
   RetireAssetInput,
   ReturnAssetInput,
+  ReturnClearanceItemInput,
   ReturnPersonnelFileInput,
   RevealCustomFieldValue200,
   ReviewAssetIncidentInput,
@@ -519,6 +569,7 @@ import type {
   RunRecruitmentReportParams,
   RunReportParams,
   SaveInterviewScorecardInput,
+  ScheduleExitInterviewInput,
   ScheduleInductionInput,
   ScheduleInterviewInput,
   ScheduledJob,
@@ -534,7 +585,9 @@ import type {
   StartOnboardingInput,
   SubmitApplicationScoreInput,
   SubmitCustomFormBody,
+  SubmitGrievanceInput,
   SubmitInternalApplicationInput,
+  SubmitMyGrievanceInput,
   SubmitPublicOfferResponse201,
   SubmitPublicOfferResponseBody,
   SwitchOrganizationInput,
@@ -547,6 +600,7 @@ import type {
   UpdateAssetMaintenanceInput,
   UpdateBackgroundCheckStatusInput,
   UpdateBranchInput,
+  UpdateClearanceTemplateInput,
   UpdateDepartmentInput,
   UpdateDocumentTemplateStatusBody,
   UpdateDocumentTemplateVersionBody,
@@ -595,8 +649,10 @@ import type {
   Vacancy,
   VacancyListResponse,
   VerifyDocumentRequirementBody,
+  WaiveClearanceItemInput,
   WaiveOnboardingTaskInput,
   WithdrawApplicationInput,
+  WithdrawGrievanceInput,
   WithdrawOfferVersionInput,
   WithdrawOfferWithReasonBody,
   WriteOffOfficeInventoryIncidentBody
@@ -48232,6 +48288,3479 @@ export function useGetSeparationReadiness<TData = Awaited<ReturnType<typeof getS
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetSeparationReadinessQueryOptions(organizationId,employeeId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListDisciplinaryCasesUrl = (organizationId: number,
+    params?: ListDisciplinaryCasesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/disciplinary-cases?${stringifiedParams}` : `/api/organizations/${organizationId}/disciplinary-cases`
+}
+
+/**
+ * Structured cases only. The legacy `employee_disciplinary_records` log is preserved separately and unchanged (§28.2); it is read through its own existing endpoint and its own `employee.disciplinary.read` permission.
+ * @summary List structured disciplinary cases
+ */
+export const listDisciplinaryCases = async (organizationId: number,
+    params?: ListDisciplinaryCasesParams, options?: RequestInit): Promise<DisciplinaryCaseList> => {
+
+  return customFetch<DisciplinaryCaseList>(getListDisciplinaryCasesUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListDisciplinaryCasesQueryKey = (organizationId: number,
+    params?: ListDisciplinaryCasesParams,) => {
+    return [
+    `/api/organizations/${organizationId}/disciplinary-cases`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListDisciplinaryCasesQueryOptions = <TData = Awaited<ReturnType<typeof listDisciplinaryCases>>, TError = ErrorType<unknown>>(organizationId: number,
+    params?: ListDisciplinaryCasesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDisciplinaryCases>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListDisciplinaryCasesQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDisciplinaryCases>>> = ({ signal }) => listDisciplinaryCases(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listDisciplinaryCases>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListDisciplinaryCasesQueryResult = NonNullable<Awaited<ReturnType<typeof listDisciplinaryCases>>>
+export type ListDisciplinaryCasesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List structured disciplinary cases
+ */
+
+export function useListDisciplinaryCases<TData = Awaited<ReturnType<typeof listDisciplinaryCases>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    params?: ListDisciplinaryCasesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDisciplinaryCases>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListDisciplinaryCasesQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getOpenDisciplinaryCaseUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/disciplinary-cases`
+}
+
+/**
+ * @summary Open a structured disciplinary case
+ */
+export const openDisciplinaryCase = async (organizationId: number,
+    openDisciplinaryCaseInput: OpenDisciplinaryCaseInput, options?: RequestInit): Promise<DisciplinaryCase> => {
+
+  return customFetch<DisciplinaryCase>(getOpenDisciplinaryCaseUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(openDisciplinaryCaseInput)
+  }
+);}
+
+
+
+
+
+export const getOpenDisciplinaryCaseMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof openDisciplinaryCase>>, TError,{organizationId: number;data: BodyType<OpenDisciplinaryCaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof openDisciplinaryCase>>, TError,{organizationId: number;data: BodyType<OpenDisciplinaryCaseInput>}, TContext> => {
+
+const mutationKey = ['openDisciplinaryCase'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof openDisciplinaryCase>>, {organizationId: number;data: BodyType<OpenDisciplinaryCaseInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  openDisciplinaryCase(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type OpenDisciplinaryCaseMutationResult = NonNullable<Awaited<ReturnType<typeof openDisciplinaryCase>>>
+    export type OpenDisciplinaryCaseMutationBody = BodyType<OpenDisciplinaryCaseInput>
+    export type OpenDisciplinaryCaseMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Open a structured disciplinary case
+ */
+export const useOpenDisciplinaryCase = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof openDisciplinaryCase>>, TError,{organizationId: number;data: BodyType<OpenDisciplinaryCaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof openDisciplinaryCase>>,
+        TError,
+        {organizationId: number;data: BodyType<OpenDisciplinaryCaseInput>},
+        TContext
+      > => {
+      return useMutation(getOpenDisciplinaryCaseMutationOptions(options));
+    }
+
+export const getGetDisciplinaryCaseUrl = (organizationId: number,
+    caseId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/disciplinary-cases/${caseId}`
+}
+
+/**
+ * A sensitive read. Owner Decision #18 auditing fires here (§28.12); it deliberately does not fire on the list endpoint.
+ * @summary Read one disciplinary case with its chronology
+ */
+export const getDisciplinaryCase = async (organizationId: number,
+    caseId: number, options?: RequestInit): Promise<DisciplinaryCaseDetail> => {
+
+  return customFetch<DisciplinaryCaseDetail>(getGetDisciplinaryCaseUrl(organizationId,caseId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDisciplinaryCaseQueryKey = (organizationId: number,
+    caseId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/disciplinary-cases/${caseId}`
+    ] as const;
+    }
+
+
+export const getGetDisciplinaryCaseQueryOptions = <TData = Awaited<ReturnType<typeof getDisciplinaryCase>>, TError = ErrorType<ApiError>>(organizationId: number,
+    caseId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDisciplinaryCase>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDisciplinaryCaseQueryKey(organizationId,caseId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDisciplinaryCase>>> = ({ signal }) => getDisciplinaryCase(organizationId,caseId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && caseId !== null && caseId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDisciplinaryCase>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDisciplinaryCaseQueryResult = NonNullable<Awaited<ReturnType<typeof getDisciplinaryCase>>>
+export type GetDisciplinaryCaseQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Read one disciplinary case with its chronology
+ */
+
+export function useGetDisciplinaryCase<TData = Awaited<ReturnType<typeof getDisciplinaryCase>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    caseId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDisciplinaryCase>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDisciplinaryCaseQueryOptions(organizationId,caseId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRecordDisciplinaryEventUrl = (organizationId: number,
+    caseId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/disciplinary-cases/${caseId}/events`
+}
+
+/**
+ * Append-only. No update or delete path exists for a case event.
+ * @summary Append one chronology event to a disciplinary case
+ */
+export const recordDisciplinaryEvent = async (organizationId: number,
+    caseId: number,
+    recordDisciplinaryEventInput: RecordDisciplinaryEventInput, options?: RequestInit): Promise<DisciplinaryCaseEvent> => {
+
+  return customFetch<DisciplinaryCaseEvent>(getRecordDisciplinaryEventUrl(organizationId,caseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(recordDisciplinaryEventInput)
+  }
+);}
+
+
+
+
+
+export const getRecordDisciplinaryEventMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordDisciplinaryEvent>>, TError,{organizationId: number;caseId: number;data: BodyType<RecordDisciplinaryEventInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordDisciplinaryEvent>>, TError,{organizationId: number;caseId: number;data: BodyType<RecordDisciplinaryEventInput>}, TContext> => {
+
+const mutationKey = ['recordDisciplinaryEvent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordDisciplinaryEvent>>, {organizationId: number;caseId: number;data: BodyType<RecordDisciplinaryEventInput>}> = (props) => {
+          const {organizationId,caseId,data} = props ?? {};
+
+          return  recordDisciplinaryEvent(organizationId,caseId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordDisciplinaryEventMutationResult = NonNullable<Awaited<ReturnType<typeof recordDisciplinaryEvent>>>
+    export type RecordDisciplinaryEventMutationBody = BodyType<RecordDisciplinaryEventInput>
+    export type RecordDisciplinaryEventMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Append one chronology event to a disciplinary case
+ */
+export const useRecordDisciplinaryEvent = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordDisciplinaryEvent>>, TError,{organizationId: number;caseId: number;data: BodyType<RecordDisciplinaryEventInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordDisciplinaryEvent>>,
+        TError,
+        {organizationId: number;caseId: number;data: BodyType<RecordDisciplinaryEventInput>},
+        TContext
+      > => {
+      return useMutation(getRecordDisciplinaryEventMutationOptions(options));
+    }
+
+export const getChangeDisciplinaryStageUrl = (organizationId: number,
+    caseId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/disciplinary-cases/${caseId}/stage`
+}
+
+/**
+ * @summary Move a disciplinary case to another organization-defined stage
+ */
+export const changeDisciplinaryStage = async (organizationId: number,
+    caseId: number,
+    changeDisciplinaryStageInput: ChangeDisciplinaryStageInput, options?: RequestInit): Promise<DisciplinaryCase> => {
+
+  return customFetch<DisciplinaryCase>(getChangeDisciplinaryStageUrl(organizationId,caseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(changeDisciplinaryStageInput)
+  }
+);}
+
+
+
+
+
+export const getChangeDisciplinaryStageMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeDisciplinaryStage>>, TError,{organizationId: number;caseId: number;data: BodyType<ChangeDisciplinaryStageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof changeDisciplinaryStage>>, TError,{organizationId: number;caseId: number;data: BodyType<ChangeDisciplinaryStageInput>}, TContext> => {
+
+const mutationKey = ['changeDisciplinaryStage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof changeDisciplinaryStage>>, {organizationId: number;caseId: number;data: BodyType<ChangeDisciplinaryStageInput>}> = (props) => {
+          const {organizationId,caseId,data} = props ?? {};
+
+          return  changeDisciplinaryStage(organizationId,caseId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChangeDisciplinaryStageMutationResult = NonNullable<Awaited<ReturnType<typeof changeDisciplinaryStage>>>
+    export type ChangeDisciplinaryStageMutationBody = BodyType<ChangeDisciplinaryStageInput>
+    export type ChangeDisciplinaryStageMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Move a disciplinary case to another organization-defined stage
+ */
+export const useChangeDisciplinaryStage = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeDisciplinaryStage>>, TError,{organizationId: number;caseId: number;data: BodyType<ChangeDisciplinaryStageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof changeDisciplinaryStage>>,
+        TError,
+        {organizationId: number;caseId: number;data: BodyType<ChangeDisciplinaryStageInput>},
+        TContext
+      > => {
+      return useMutation(getChangeDisciplinaryStageMutationOptions(options));
+    }
+
+export const getRecordDisciplinaryOutcomeUrl = (organizationId: number,
+    caseId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/disciplinary-cases/${caseId}/outcome`
+}
+
+/**
+ * Records a fact and separates nobody. Employment status, separation date and the separation service are untouched (§28.7). If employment ends it ends through WS-11's separation service as its own authorized act.
+ * @summary Record the outcome an authorized human decided
+ */
+export const recordDisciplinaryOutcome = async (organizationId: number,
+    caseId: number,
+    recordDisciplinaryOutcomeInput: RecordDisciplinaryOutcomeInput, options?: RequestInit): Promise<DisciplinaryCase> => {
+
+  return customFetch<DisciplinaryCase>(getRecordDisciplinaryOutcomeUrl(organizationId,caseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(recordDisciplinaryOutcomeInput)
+  }
+);}
+
+
+
+
+
+export const getRecordDisciplinaryOutcomeMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordDisciplinaryOutcome>>, TError,{organizationId: number;caseId: number;data: BodyType<RecordDisciplinaryOutcomeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordDisciplinaryOutcome>>, TError,{organizationId: number;caseId: number;data: BodyType<RecordDisciplinaryOutcomeInput>}, TContext> => {
+
+const mutationKey = ['recordDisciplinaryOutcome'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordDisciplinaryOutcome>>, {organizationId: number;caseId: number;data: BodyType<RecordDisciplinaryOutcomeInput>}> = (props) => {
+          const {organizationId,caseId,data} = props ?? {};
+
+          return  recordDisciplinaryOutcome(organizationId,caseId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordDisciplinaryOutcomeMutationResult = NonNullable<Awaited<ReturnType<typeof recordDisciplinaryOutcome>>>
+    export type RecordDisciplinaryOutcomeMutationBody = BodyType<RecordDisciplinaryOutcomeInput>
+    export type RecordDisciplinaryOutcomeMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Record the outcome an authorized human decided
+ */
+export const useRecordDisciplinaryOutcome = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordDisciplinaryOutcome>>, TError,{organizationId: number;caseId: number;data: BodyType<RecordDisciplinaryOutcomeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordDisciplinaryOutcome>>,
+        TError,
+        {organizationId: number;caseId: number;data: BodyType<RecordDisciplinaryOutcomeInput>},
+        TContext
+      > => {
+      return useMutation(getRecordDisciplinaryOutcomeMutationOptions(options));
+    }
+
+export const getCloseDisciplinaryCaseUrl = (organizationId: number,
+    caseId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/disciplinary-cases/${caseId}/close`
+}
+
+/**
+ * @summary Close a disciplinary case
+ */
+export const closeDisciplinaryCase = async (organizationId: number,
+    caseId: number,
+    closeDisciplinaryCaseInput: CloseDisciplinaryCaseInput, options?: RequestInit): Promise<DisciplinaryCase> => {
+
+  return customFetch<DisciplinaryCase>(getCloseDisciplinaryCaseUrl(organizationId,caseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(closeDisciplinaryCaseInput)
+  }
+);}
+
+
+
+
+
+export const getCloseDisciplinaryCaseMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closeDisciplinaryCase>>, TError,{organizationId: number;caseId: number;data: BodyType<CloseDisciplinaryCaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof closeDisciplinaryCase>>, TError,{organizationId: number;caseId: number;data: BodyType<CloseDisciplinaryCaseInput>}, TContext> => {
+
+const mutationKey = ['closeDisciplinaryCase'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof closeDisciplinaryCase>>, {organizationId: number;caseId: number;data: BodyType<CloseDisciplinaryCaseInput>}> = (props) => {
+          const {organizationId,caseId,data} = props ?? {};
+
+          return  closeDisciplinaryCase(organizationId,caseId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CloseDisciplinaryCaseMutationResult = NonNullable<Awaited<ReturnType<typeof closeDisciplinaryCase>>>
+    export type CloseDisciplinaryCaseMutationBody = BodyType<CloseDisciplinaryCaseInput>
+    export type CloseDisciplinaryCaseMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Close a disciplinary case
+ */
+export const useCloseDisciplinaryCase = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closeDisciplinaryCase>>, TError,{organizationId: number;caseId: number;data: BodyType<CloseDisciplinaryCaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof closeDisciplinaryCase>>,
+        TError,
+        {organizationId: number;caseId: number;data: BodyType<CloseDisciplinaryCaseInput>},
+        TContext
+      > => {
+      return useMutation(getCloseDisciplinaryCaseMutationOptions(options));
+    }
+
+export const getReopenDisciplinaryCaseUrl = (organizationId: number,
+    caseId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/disciplinary-cases/${caseId}/reopen`
+}
+
+/**
+ * Every prior event stays exactly where it is; nothing is erased.
+ * @summary Reopen a closed disciplinary case
+ */
+export const reopenDisciplinaryCase = async (organizationId: number,
+    caseId: number,
+    reopenDisciplinaryCaseInput: ReopenDisciplinaryCaseInput, options?: RequestInit): Promise<DisciplinaryCase> => {
+
+  return customFetch<DisciplinaryCase>(getReopenDisciplinaryCaseUrl(organizationId,caseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reopenDisciplinaryCaseInput)
+  }
+);}
+
+
+
+
+
+export const getReopenDisciplinaryCaseMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reopenDisciplinaryCase>>, TError,{organizationId: number;caseId: number;data: BodyType<ReopenDisciplinaryCaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reopenDisciplinaryCase>>, TError,{organizationId: number;caseId: number;data: BodyType<ReopenDisciplinaryCaseInput>}, TContext> => {
+
+const mutationKey = ['reopenDisciplinaryCase'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reopenDisciplinaryCase>>, {organizationId: number;caseId: number;data: BodyType<ReopenDisciplinaryCaseInput>}> = (props) => {
+          const {organizationId,caseId,data} = props ?? {};
+
+          return  reopenDisciplinaryCase(organizationId,caseId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReopenDisciplinaryCaseMutationResult = NonNullable<Awaited<ReturnType<typeof reopenDisciplinaryCase>>>
+    export type ReopenDisciplinaryCaseMutationBody = BodyType<ReopenDisciplinaryCaseInput>
+    export type ReopenDisciplinaryCaseMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Reopen a closed disciplinary case
+ */
+export const useReopenDisciplinaryCase = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reopenDisciplinaryCase>>, TError,{organizationId: number;caseId: number;data: BodyType<ReopenDisciplinaryCaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reopenDisciplinaryCase>>,
+        TError,
+        {organizationId: number;caseId: number;data: BodyType<ReopenDisciplinaryCaseInput>},
+        TContext
+      > => {
+      return useMutation(getReopenDisciplinaryCaseMutationOptions(options));
+    }
+
+export const getAttachDisciplinaryEvidenceUrl = (organizationId: number,
+    caseId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/disciplinary-cases/${caseId}/evidence`
+}
+
+/**
+ * WS-12 stores no documents of its own (§28.11). The document must already exist in this organization.
+ * @summary Attach an existing WS-5 document to a disciplinary case
+ */
+export const attachDisciplinaryEvidence = async (organizationId: number,
+    caseId: number,
+    attachCaseEvidenceInput: AttachCaseEvidenceInput, options?: RequestInit): Promise<DisciplinaryCaseEvent> => {
+
+  return customFetch<DisciplinaryCaseEvent>(getAttachDisciplinaryEvidenceUrl(organizationId,caseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(attachCaseEvidenceInput)
+  }
+);}
+
+
+
+
+
+export const getAttachDisciplinaryEvidenceMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof attachDisciplinaryEvidence>>, TError,{organizationId: number;caseId: number;data: BodyType<AttachCaseEvidenceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof attachDisciplinaryEvidence>>, TError,{organizationId: number;caseId: number;data: BodyType<AttachCaseEvidenceInput>}, TContext> => {
+
+const mutationKey = ['attachDisciplinaryEvidence'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof attachDisciplinaryEvidence>>, {organizationId: number;caseId: number;data: BodyType<AttachCaseEvidenceInput>}> = (props) => {
+          const {organizationId,caseId,data} = props ?? {};
+
+          return  attachDisciplinaryEvidence(organizationId,caseId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AttachDisciplinaryEvidenceMutationResult = NonNullable<Awaited<ReturnType<typeof attachDisciplinaryEvidence>>>
+    export type AttachDisciplinaryEvidenceMutationBody = BodyType<AttachCaseEvidenceInput>
+    export type AttachDisciplinaryEvidenceMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Attach an existing WS-5 document to a disciplinary case
+ */
+export const useAttachDisciplinaryEvidence = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof attachDisciplinaryEvidence>>, TError,{organizationId: number;caseId: number;data: BodyType<AttachCaseEvidenceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof attachDisciplinaryEvidence>>,
+        TError,
+        {organizationId: number;caseId: number;data: BodyType<AttachCaseEvidenceInput>},
+        TContext
+      > => {
+      return useMutation(getAttachDisciplinaryEvidenceMutationOptions(options));
+    }
+
+export const getListGrievancesUrl = (organizationId: number,
+    params?: ListGrievancesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/grievances?${stringifiedParams}` : `/api/organizations/${organizationId}/grievances`
+}
+
+/**
+ * Requires the explicit `grievance.read` permission. Organization Administrator status alone does not grant it (§28.17).
+ * @summary List grievance cases
+ */
+export const listGrievances = async (organizationId: number,
+    params?: ListGrievancesParams, options?: RequestInit): Promise<GrievanceCaseList> => {
+
+  return customFetch<GrievanceCaseList>(getListGrievancesUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListGrievancesQueryKey = (organizationId: number,
+    params?: ListGrievancesParams,) => {
+    return [
+    `/api/organizations/${organizationId}/grievances`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListGrievancesQueryOptions = <TData = Awaited<ReturnType<typeof listGrievances>>, TError = ErrorType<unknown>>(organizationId: number,
+    params?: ListGrievancesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGrievances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListGrievancesQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listGrievances>>> = ({ signal }) => listGrievances(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listGrievances>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListGrievancesQueryResult = NonNullable<Awaited<ReturnType<typeof listGrievances>>>
+export type ListGrievancesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List grievance cases
+ */
+
+export function useListGrievances<TData = Awaited<ReturnType<typeof listGrievances>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    params?: ListGrievancesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listGrievances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListGrievancesQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSubmitGrievanceUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/grievances`
+}
+
+/**
+ * @summary Record a grievance on an employee's behalf
+ */
+export const submitGrievance = async (organizationId: number,
+    submitGrievanceInput: SubmitGrievanceInput, options?: RequestInit): Promise<GrievanceCase> => {
+
+  return customFetch<GrievanceCase>(getSubmitGrievanceUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(submitGrievanceInput)
+  }
+);}
+
+
+
+
+
+export const getSubmitGrievanceMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitGrievance>>, TError,{organizationId: number;data: BodyType<SubmitGrievanceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitGrievance>>, TError,{organizationId: number;data: BodyType<SubmitGrievanceInput>}, TContext> => {
+
+const mutationKey = ['submitGrievance'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitGrievance>>, {organizationId: number;data: BodyType<SubmitGrievanceInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  submitGrievance(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitGrievanceMutationResult = NonNullable<Awaited<ReturnType<typeof submitGrievance>>>
+    export type SubmitGrievanceMutationBody = BodyType<SubmitGrievanceInput>
+    export type SubmitGrievanceMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Record a grievance on an employee's behalf
+ */
+export const useSubmitGrievance = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitGrievance>>, TError,{organizationId: number;data: BodyType<SubmitGrievanceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitGrievance>>,
+        TError,
+        {organizationId: number;data: BodyType<SubmitGrievanceInput>},
+        TContext
+      > => {
+      return useMutation(getSubmitGrievanceMutationOptions(options));
+    }
+
+export const getGetGrievanceUrl = (organizationId: number,
+    caseId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/grievances/${caseId}`
+}
+
+/**
+ * A sensitive read; Owner Decision
+ * @summary Read one grievance with its full chronology
+ */
+export const getGrievance = async (organizationId: number,
+    caseId: number, options?: RequestInit): Promise<GrievanceCaseDetail> => {
+
+  return customFetch<GrievanceCaseDetail>(getGetGrievanceUrl(organizationId,caseId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetGrievanceQueryKey = (organizationId: number,
+    caseId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/grievances/${caseId}`
+    ] as const;
+    }
+
+
+export const getGetGrievanceQueryOptions = <TData = Awaited<ReturnType<typeof getGrievance>>, TError = ErrorType<ApiError>>(organizationId: number,
+    caseId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGrievance>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetGrievanceQueryKey(organizationId,caseId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGrievance>>> = ({ signal }) => getGrievance(organizationId,caseId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && caseId !== null && caseId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getGrievance>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetGrievanceQueryResult = NonNullable<Awaited<ReturnType<typeof getGrievance>>>
+export type GetGrievanceQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Read one grievance with its full chronology
+ */
+
+export function useGetGrievance<TData = Awaited<ReturnType<typeof getGrievance>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    caseId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGrievance>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetGrievanceQueryOptions(organizationId,caseId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAcknowledgeGrievanceUrl = (organizationId: number,
+    caseId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/grievances/${caseId}/acknowledge`
+}
+
+/**
+ * The acknowledgement is visible to the complainant (§28.5).
+ * @summary Acknowledge receipt of a grievance
+ */
+export const acknowledgeGrievance = async (organizationId: number,
+    caseId: number,
+    acknowledgeGrievanceInput: AcknowledgeGrievanceInput, options?: RequestInit): Promise<GrievanceCase> => {
+
+  return customFetch<GrievanceCase>(getAcknowledgeGrievanceUrl(organizationId,caseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(acknowledgeGrievanceInput)
+  }
+);}
+
+
+
+
+
+export const getAcknowledgeGrievanceMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acknowledgeGrievance>>, TError,{organizationId: number;caseId: number;data: BodyType<AcknowledgeGrievanceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof acknowledgeGrievance>>, TError,{organizationId: number;caseId: number;data: BodyType<AcknowledgeGrievanceInput>}, TContext> => {
+
+const mutationKey = ['acknowledgeGrievance'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof acknowledgeGrievance>>, {organizationId: number;caseId: number;data: BodyType<AcknowledgeGrievanceInput>}> = (props) => {
+          const {organizationId,caseId,data} = props ?? {};
+
+          return  acknowledgeGrievance(organizationId,caseId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AcknowledgeGrievanceMutationResult = NonNullable<Awaited<ReturnType<typeof acknowledgeGrievance>>>
+    export type AcknowledgeGrievanceMutationBody = BodyType<AcknowledgeGrievanceInput>
+    export type AcknowledgeGrievanceMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Acknowledge receipt of a grievance
+ */
+export const useAcknowledgeGrievance = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acknowledgeGrievance>>, TError,{organizationId: number;caseId: number;data: BodyType<AcknowledgeGrievanceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof acknowledgeGrievance>>,
+        TError,
+        {organizationId: number;caseId: number;data: BodyType<AcknowledgeGrievanceInput>},
+        TContext
+      > => {
+      return useMutation(getAcknowledgeGrievanceMutationOptions(options));
+    }
+
+export const getAssignGrievanceUrl = (organizationId: number,
+    caseId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/grievances/${caseId}/assign`
+}
+
+/**
+ * Who is investigating is internal and is not shown to the complainant.
+ * @summary Assign a grievance to an investigator
+ */
+export const assignGrievance = async (organizationId: number,
+    caseId: number,
+    assignGrievanceInput: AssignGrievanceInput, options?: RequestInit): Promise<GrievanceCase> => {
+
+  return customFetch<GrievanceCase>(getAssignGrievanceUrl(organizationId,caseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(assignGrievanceInput)
+  }
+);}
+
+
+
+
+
+export const getAssignGrievanceMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof assignGrievance>>, TError,{organizationId: number;caseId: number;data: BodyType<AssignGrievanceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof assignGrievance>>, TError,{organizationId: number;caseId: number;data: BodyType<AssignGrievanceInput>}, TContext> => {
+
+const mutationKey = ['assignGrievance'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof assignGrievance>>, {organizationId: number;caseId: number;data: BodyType<AssignGrievanceInput>}> = (props) => {
+          const {organizationId,caseId,data} = props ?? {};
+
+          return  assignGrievance(organizationId,caseId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AssignGrievanceMutationResult = NonNullable<Awaited<ReturnType<typeof assignGrievance>>>
+    export type AssignGrievanceMutationBody = BodyType<AssignGrievanceInput>
+    export type AssignGrievanceMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Assign a grievance to an investigator
+ */
+export const useAssignGrievance = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof assignGrievance>>, TError,{organizationId: number;caseId: number;data: BodyType<AssignGrievanceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof assignGrievance>>,
+        TError,
+        {organizationId: number;caseId: number;data: BodyType<AssignGrievanceInput>},
+        TContext
+      > => {
+      return useMutation(getAssignGrievanceMutationOptions(options));
+    }
+
+export const getRecordGrievanceEventUrl = (organizationId: number,
+    caseId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/grievances/${caseId}/events`
+}
+
+/**
+ * `visibleToComplainant` defaults to false. An investigator's working note is invisible to the complainant unless somebody deliberately marks it as communicated (§28.5).
+ * @summary Append one chronology event to a grievance
+ */
+export const recordGrievanceEvent = async (organizationId: number,
+    caseId: number,
+    recordGrievanceEventInput: RecordGrievanceEventInput, options?: RequestInit): Promise<GrievanceCaseEvent> => {
+
+  return customFetch<GrievanceCaseEvent>(getRecordGrievanceEventUrl(organizationId,caseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(recordGrievanceEventInput)
+  }
+);}
+
+
+
+
+
+export const getRecordGrievanceEventMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordGrievanceEvent>>, TError,{organizationId: number;caseId: number;data: BodyType<RecordGrievanceEventInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordGrievanceEvent>>, TError,{organizationId: number;caseId: number;data: BodyType<RecordGrievanceEventInput>}, TContext> => {
+
+const mutationKey = ['recordGrievanceEvent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordGrievanceEvent>>, {organizationId: number;caseId: number;data: BodyType<RecordGrievanceEventInput>}> = (props) => {
+          const {organizationId,caseId,data} = props ?? {};
+
+          return  recordGrievanceEvent(organizationId,caseId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordGrievanceEventMutationResult = NonNullable<Awaited<ReturnType<typeof recordGrievanceEvent>>>
+    export type RecordGrievanceEventMutationBody = BodyType<RecordGrievanceEventInput>
+    export type RecordGrievanceEventMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Append one chronology event to a grievance
+ */
+export const useRecordGrievanceEvent = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordGrievanceEvent>>, TError,{organizationId: number;caseId: number;data: BodyType<RecordGrievanceEventInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordGrievanceEvent>>,
+        TError,
+        {organizationId: number;caseId: number;data: BodyType<RecordGrievanceEventInput>},
+        TContext
+      > => {
+      return useMutation(getRecordGrievanceEventMutationOptions(options));
+    }
+
+export const getResolveGrievanceUrl = (organizationId: number,
+    caseId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/grievances/${caseId}/resolve`
+}
+
+/**
+ * @summary Record the resolution communicated to the complainant
+ */
+export const resolveGrievance = async (organizationId: number,
+    caseId: number,
+    resolveGrievanceInput: ResolveGrievanceInput, options?: RequestInit): Promise<GrievanceCase> => {
+
+  return customFetch<GrievanceCase>(getResolveGrievanceUrl(organizationId,caseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(resolveGrievanceInput)
+  }
+);}
+
+
+
+
+
+export const getResolveGrievanceMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resolveGrievance>>, TError,{organizationId: number;caseId: number;data: BodyType<ResolveGrievanceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resolveGrievance>>, TError,{organizationId: number;caseId: number;data: BodyType<ResolveGrievanceInput>}, TContext> => {
+
+const mutationKey = ['resolveGrievance'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resolveGrievance>>, {organizationId: number;caseId: number;data: BodyType<ResolveGrievanceInput>}> = (props) => {
+          const {organizationId,caseId,data} = props ?? {};
+
+          return  resolveGrievance(organizationId,caseId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResolveGrievanceMutationResult = NonNullable<Awaited<ReturnType<typeof resolveGrievance>>>
+    export type ResolveGrievanceMutationBody = BodyType<ResolveGrievanceInput>
+    export type ResolveGrievanceMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Record the resolution communicated to the complainant
+ */
+export const useResolveGrievance = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resolveGrievance>>, TError,{organizationId: number;caseId: number;data: BodyType<ResolveGrievanceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resolveGrievance>>,
+        TError,
+        {organizationId: number;caseId: number;data: BodyType<ResolveGrievanceInput>},
+        TContext
+      > => {
+      return useMutation(getResolveGrievanceMutationOptions(options));
+    }
+
+export const getCloseGrievanceUrl = (organizationId: number,
+    caseId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/grievances/${caseId}/close`
+}
+
+/**
+ * @summary Close a grievance
+ */
+export const closeGrievance = async (organizationId: number,
+    caseId: number,
+    closeGrievanceInput: CloseGrievanceInput, options?: RequestInit): Promise<GrievanceCase> => {
+
+  return customFetch<GrievanceCase>(getCloseGrievanceUrl(organizationId,caseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(closeGrievanceInput)
+  }
+);}
+
+
+
+
+
+export const getCloseGrievanceMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closeGrievance>>, TError,{organizationId: number;caseId: number;data: BodyType<CloseGrievanceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof closeGrievance>>, TError,{organizationId: number;caseId: number;data: BodyType<CloseGrievanceInput>}, TContext> => {
+
+const mutationKey = ['closeGrievance'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof closeGrievance>>, {organizationId: number;caseId: number;data: BodyType<CloseGrievanceInput>}> = (props) => {
+          const {organizationId,caseId,data} = props ?? {};
+
+          return  closeGrievance(organizationId,caseId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CloseGrievanceMutationResult = NonNullable<Awaited<ReturnType<typeof closeGrievance>>>
+    export type CloseGrievanceMutationBody = BodyType<CloseGrievanceInput>
+    export type CloseGrievanceMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Close a grievance
+ */
+export const useCloseGrievance = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closeGrievance>>, TError,{organizationId: number;caseId: number;data: BodyType<CloseGrievanceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof closeGrievance>>,
+        TError,
+        {organizationId: number;caseId: number;data: BodyType<CloseGrievanceInput>},
+        TContext
+      > => {
+      return useMutation(getCloseGrievanceMutationOptions(options));
+    }
+
+export const getAttachGrievanceEvidenceUrl = (organizationId: number,
+    caseId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/grievances/${caseId}/evidence`
+}
+
+/**
+ * @summary Attach an existing WS-5 document to a grievance
+ */
+export const attachGrievanceEvidence = async (organizationId: number,
+    caseId: number,
+    attachCaseEvidenceInput: AttachCaseEvidenceInput, options?: RequestInit): Promise<GrievanceCaseEvent> => {
+
+  return customFetch<GrievanceCaseEvent>(getAttachGrievanceEvidenceUrl(organizationId,caseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(attachCaseEvidenceInput)
+  }
+);}
+
+
+
+
+
+export const getAttachGrievanceEvidenceMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof attachGrievanceEvidence>>, TError,{organizationId: number;caseId: number;data: BodyType<AttachCaseEvidenceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof attachGrievanceEvidence>>, TError,{organizationId: number;caseId: number;data: BodyType<AttachCaseEvidenceInput>}, TContext> => {
+
+const mutationKey = ['attachGrievanceEvidence'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof attachGrievanceEvidence>>, {organizationId: number;caseId: number;data: BodyType<AttachCaseEvidenceInput>}> = (props) => {
+          const {organizationId,caseId,data} = props ?? {};
+
+          return  attachGrievanceEvidence(organizationId,caseId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AttachGrievanceEvidenceMutationResult = NonNullable<Awaited<ReturnType<typeof attachGrievanceEvidence>>>
+    export type AttachGrievanceEvidenceMutationBody = BodyType<AttachCaseEvidenceInput>
+    export type AttachGrievanceEvidenceMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Attach an existing WS-5 document to a grievance
+ */
+export const useAttachGrievanceEvidence = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof attachGrievanceEvidence>>, TError,{organizationId: number;caseId: number;data: BodyType<AttachCaseEvidenceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof attachGrievanceEvidence>>,
+        TError,
+        {organizationId: number;caseId: number;data: BodyType<AttachCaseEvidenceInput>},
+        TContext
+      > => {
+      return useMutation(getAttachGrievanceEvidenceMutationOptions(options));
+    }
+
+export const getListMyGrievancesUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/my-grievances`
+}
+
+/**
+ * Gated by the caller's own employee link, not by a permission key (§28.17 mints none for self-service). Returns the explicit §28.5 allow-list view: confidential HR notes, investigator working notes, internal deliberations, draft findings and protected audit information are never included.
+ * @summary An employee's own grievances (Employee Self-Service)
+ */
+export const listMyGrievances = async (organizationId: number, options?: RequestInit): Promise<GrievanceEssViewList> => {
+
+  return customFetch<GrievanceEssViewList>(getListMyGrievancesUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyGrievancesQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/my-grievances`
+    ] as const;
+    }
+
+
+export const getListMyGrievancesQueryOptions = <TData = Awaited<ReturnType<typeof listMyGrievances>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyGrievances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyGrievancesQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyGrievances>>> = ({ signal }) => listMyGrievances(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyGrievances>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMyGrievancesQueryResult = NonNullable<Awaited<ReturnType<typeof listMyGrievances>>>
+export type ListMyGrievancesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary An employee's own grievances (Employee Self-Service)
+ */
+
+export function useListMyGrievances<TData = Awaited<ReturnType<typeof listMyGrievances>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyGrievances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMyGrievancesQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSubmitMyGrievanceUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/my-grievances`
+}
+
+/**
+ * The complainant is resolved from the caller's own employee link and is never accepted from the request body, so an employee cannot file a grievance in a colleague's name.
+ * @summary Submit a grievance as the signed-in employee
+ */
+export const submitMyGrievance = async (organizationId: number,
+    submitMyGrievanceInput: SubmitMyGrievanceInput, options?: RequestInit): Promise<GrievanceEssView> => {
+
+  return customFetch<GrievanceEssView>(getSubmitMyGrievanceUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(submitMyGrievanceInput)
+  }
+);}
+
+
+
+
+
+export const getSubmitMyGrievanceMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitMyGrievance>>, TError,{organizationId: number;data: BodyType<SubmitMyGrievanceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitMyGrievance>>, TError,{organizationId: number;data: BodyType<SubmitMyGrievanceInput>}, TContext> => {
+
+const mutationKey = ['submitMyGrievance'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitMyGrievance>>, {organizationId: number;data: BodyType<SubmitMyGrievanceInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  submitMyGrievance(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitMyGrievanceMutationResult = NonNullable<Awaited<ReturnType<typeof submitMyGrievance>>>
+    export type SubmitMyGrievanceMutationBody = BodyType<SubmitMyGrievanceInput>
+    export type SubmitMyGrievanceMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Submit a grievance as the signed-in employee
+ */
+export const useSubmitMyGrievance = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitMyGrievance>>, TError,{organizationId: number;data: BodyType<SubmitMyGrievanceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitMyGrievance>>,
+        TError,
+        {organizationId: number;data: BodyType<SubmitMyGrievanceInput>},
+        TContext
+      > => {
+      return useMutation(getSubmitMyGrievanceMutationOptions(options));
+    }
+
+export const getGetMyGrievanceUrl = (organizationId: number,
+    caseId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/my-grievances/${caseId}`
+}
+
+/**
+ * A grievance belonging to somebody else is reported as 404 rather than 403: a 403 would confirm the case exists, which is itself a disclosure about a colleague's complaint.
+ * @summary One of the caller's own grievances (Employee Self-Service)
+ */
+export const getMyGrievance = async (organizationId: number,
+    caseId: number, options?: RequestInit): Promise<GrievanceEssView> => {
+
+  return customFetch<GrievanceEssView>(getGetMyGrievanceUrl(organizationId,caseId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyGrievanceQueryKey = (organizationId: number,
+    caseId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/my-grievances/${caseId}`
+    ] as const;
+    }
+
+
+export const getGetMyGrievanceQueryOptions = <TData = Awaited<ReturnType<typeof getMyGrievance>>, TError = ErrorType<ApiError>>(organizationId: number,
+    caseId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyGrievance>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyGrievanceQueryKey(organizationId,caseId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyGrievance>>> = ({ signal }) => getMyGrievance(organizationId,caseId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && caseId !== null && caseId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyGrievance>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMyGrievanceQueryResult = NonNullable<Awaited<ReturnType<typeof getMyGrievance>>>
+export type GetMyGrievanceQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary One of the caller's own grievances (Employee Self-Service)
+ */
+
+export function useGetMyGrievance<TData = Awaited<ReturnType<typeof getMyGrievance>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    caseId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyGrievance>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMyGrievanceQueryOptions(organizationId,caseId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getWithdrawMyGrievanceUrl = (organizationId: number,
+    caseId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/my-grievances/${caseId}/withdraw`
+}
+
+/**
+ * Never deletes the record.
+ * @summary Withdraw the caller's own grievance
+ */
+export const withdrawMyGrievance = async (organizationId: number,
+    caseId: number,
+    withdrawGrievanceInput: WithdrawGrievanceInput, options?: RequestInit): Promise<GrievanceEssView> => {
+
+  return customFetch<GrievanceEssView>(getWithdrawMyGrievanceUrl(organizationId,caseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(withdrawGrievanceInput)
+  }
+);}
+
+
+
+
+
+export const getWithdrawMyGrievanceMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawMyGrievance>>, TError,{organizationId: number;caseId: number;data: BodyType<WithdrawGrievanceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof withdrawMyGrievance>>, TError,{organizationId: number;caseId: number;data: BodyType<WithdrawGrievanceInput>}, TContext> => {
+
+const mutationKey = ['withdrawMyGrievance'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof withdrawMyGrievance>>, {organizationId: number;caseId: number;data: BodyType<WithdrawGrievanceInput>}> = (props) => {
+          const {organizationId,caseId,data} = props ?? {};
+
+          return  withdrawMyGrievance(organizationId,caseId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type WithdrawMyGrievanceMutationResult = NonNullable<Awaited<ReturnType<typeof withdrawMyGrievance>>>
+    export type WithdrawMyGrievanceMutationBody = BodyType<WithdrawGrievanceInput>
+    export type WithdrawMyGrievanceMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Withdraw the caller's own grievance
+ */
+export const useWithdrawMyGrievance = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawMyGrievance>>, TError,{organizationId: number;caseId: number;data: BodyType<WithdrawGrievanceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof withdrawMyGrievance>>,
+        TError,
+        {organizationId: number;caseId: number;data: BodyType<WithdrawGrievanceInput>},
+        TContext
+      > => {
+      return useMutation(getWithdrawMyGrievanceMutationOptions(options));
+    }
+
+export const getListClearanceTemplatesUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/clearance-templates`
+}
+
+/**
+ * @summary List the organization's clearance templates
+ */
+export const listClearanceTemplates = async (organizationId: number, options?: RequestInit): Promise<ClearanceTemplateList> => {
+
+  return customFetch<ClearanceTemplateList>(getListClearanceTemplatesUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListClearanceTemplatesQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/clearance-templates`
+    ] as const;
+    }
+
+
+export const getListClearanceTemplatesQueryOptions = <TData = Awaited<ReturnType<typeof listClearanceTemplates>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listClearanceTemplates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListClearanceTemplatesQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listClearanceTemplates>>> = ({ signal }) => listClearanceTemplates(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listClearanceTemplates>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListClearanceTemplatesQueryResult = NonNullable<Awaited<ReturnType<typeof listClearanceTemplates>>>
+export type ListClearanceTemplatesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List the organization's clearance templates
+ */
+
+export function useListClearanceTemplates<TData = Awaited<ReturnType<typeof listClearanceTemplates>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listClearanceTemplates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListClearanceTemplatesQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateClearanceTemplateUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/clearance-templates`
+}
+
+/**
+ * Requires `offboarding.configure`. Defining what every departing person must clear is a configuration act, separated from day-to-day offboarding authority (§28.17).
+ * @summary Create a clearance template
+ */
+export const createClearanceTemplate = async (organizationId: number,
+    createClearanceTemplateInput: CreateClearanceTemplateInput, options?: RequestInit): Promise<ClearanceTemplate> => {
+
+  return customFetch<ClearanceTemplate>(getCreateClearanceTemplateUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createClearanceTemplateInput)
+  }
+);}
+
+
+
+
+
+export const getCreateClearanceTemplateMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createClearanceTemplate>>, TError,{organizationId: number;data: BodyType<CreateClearanceTemplateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createClearanceTemplate>>, TError,{organizationId: number;data: BodyType<CreateClearanceTemplateInput>}, TContext> => {
+
+const mutationKey = ['createClearanceTemplate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createClearanceTemplate>>, {organizationId: number;data: BodyType<CreateClearanceTemplateInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createClearanceTemplate(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateClearanceTemplateMutationResult = NonNullable<Awaited<ReturnType<typeof createClearanceTemplate>>>
+    export type CreateClearanceTemplateMutationBody = BodyType<CreateClearanceTemplateInput>
+    export type CreateClearanceTemplateMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Create a clearance template
+ */
+export const useCreateClearanceTemplate = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createClearanceTemplate>>, TError,{organizationId: number;data: BodyType<CreateClearanceTemplateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createClearanceTemplate>>,
+        TError,
+        {organizationId: number;data: BodyType<CreateClearanceTemplateInput>},
+        TContext
+      > => {
+      return useMutation(getCreateClearanceTemplateMutationOptions(options));
+    }
+
+export const getGetClearanceTemplateUrl = (organizationId: number,
+    templateId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/clearance-templates/${templateId}`
+}
+
+/**
+ * @summary Read one clearance template with its items
+ */
+export const getClearanceTemplate = async (organizationId: number,
+    templateId: number, options?: RequestInit): Promise<ClearanceTemplateDetail> => {
+
+  return customFetch<ClearanceTemplateDetail>(getGetClearanceTemplateUrl(organizationId,templateId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetClearanceTemplateQueryKey = (organizationId: number,
+    templateId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/clearance-templates/${templateId}`
+    ] as const;
+    }
+
+
+export const getGetClearanceTemplateQueryOptions = <TData = Awaited<ReturnType<typeof getClearanceTemplate>>, TError = ErrorType<ApiError>>(organizationId: number,
+    templateId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getClearanceTemplate>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetClearanceTemplateQueryKey(organizationId,templateId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getClearanceTemplate>>> = ({ signal }) => getClearanceTemplate(organizationId,templateId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && templateId !== null && templateId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getClearanceTemplate>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetClearanceTemplateQueryResult = NonNullable<Awaited<ReturnType<typeof getClearanceTemplate>>>
+export type GetClearanceTemplateQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Read one clearance template with its items
+ */
+
+export function useGetClearanceTemplate<TData = Awaited<ReturnType<typeof getClearanceTemplate>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    templateId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getClearanceTemplate>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetClearanceTemplateQueryOptions(organizationId,templateId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateClearanceTemplateUrl = (organizationId: number,
+    templateId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/clearance-templates/${templateId}`
+}
+
+/**
+ * Editing a template never alters clearance already instantiated from it — instance items are snapshots, not references (§28.8).
+ * @summary Update a clearance template
+ */
+export const updateClearanceTemplate = async (organizationId: number,
+    templateId: number,
+    updateClearanceTemplateInput: UpdateClearanceTemplateInput, options?: RequestInit): Promise<ClearanceTemplate> => {
+
+  return customFetch<ClearanceTemplate>(getUpdateClearanceTemplateUrl(organizationId,templateId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateClearanceTemplateInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateClearanceTemplateMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateClearanceTemplate>>, TError,{organizationId: number;templateId: number;data: BodyType<UpdateClearanceTemplateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateClearanceTemplate>>, TError,{organizationId: number;templateId: number;data: BodyType<UpdateClearanceTemplateInput>}, TContext> => {
+
+const mutationKey = ['updateClearanceTemplate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateClearanceTemplate>>, {organizationId: number;templateId: number;data: BodyType<UpdateClearanceTemplateInput>}> = (props) => {
+          const {organizationId,templateId,data} = props ?? {};
+
+          return  updateClearanceTemplate(organizationId,templateId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateClearanceTemplateMutationResult = NonNullable<Awaited<ReturnType<typeof updateClearanceTemplate>>>
+    export type UpdateClearanceTemplateMutationBody = BodyType<UpdateClearanceTemplateInput>
+    export type UpdateClearanceTemplateMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update a clearance template
+ */
+export const useUpdateClearanceTemplate = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateClearanceTemplate>>, TError,{organizationId: number;templateId: number;data: BodyType<UpdateClearanceTemplateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateClearanceTemplate>>,
+        TError,
+        {organizationId: number;templateId: number;data: BodyType<UpdateClearanceTemplateInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateClearanceTemplateMutationOptions(options));
+    }
+
+export const getAddClearanceTemplateItemUrl = (organizationId: number,
+    templateId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/clearance-templates/${templateId}/items`
+}
+
+/**
+ * @summary Add an item to a clearance template
+ */
+export const addClearanceTemplateItem = async (organizationId: number,
+    templateId: number,
+    addClearanceTemplateItemInput: AddClearanceTemplateItemInput, options?: RequestInit): Promise<ClearanceTemplateItem> => {
+
+  return customFetch<ClearanceTemplateItem>(getAddClearanceTemplateItemUrl(organizationId,templateId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(addClearanceTemplateItemInput)
+  }
+);}
+
+
+
+
+
+export const getAddClearanceTemplateItemMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addClearanceTemplateItem>>, TError,{organizationId: number;templateId: number;data: BodyType<AddClearanceTemplateItemInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addClearanceTemplateItem>>, TError,{organizationId: number;templateId: number;data: BodyType<AddClearanceTemplateItemInput>}, TContext> => {
+
+const mutationKey = ['addClearanceTemplateItem'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addClearanceTemplateItem>>, {organizationId: number;templateId: number;data: BodyType<AddClearanceTemplateItemInput>}> = (props) => {
+          const {organizationId,templateId,data} = props ?? {};
+
+          return  addClearanceTemplateItem(organizationId,templateId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddClearanceTemplateItemMutationResult = NonNullable<Awaited<ReturnType<typeof addClearanceTemplateItem>>>
+    export type AddClearanceTemplateItemMutationBody = BodyType<AddClearanceTemplateItemInput>
+    export type AddClearanceTemplateItemMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Add an item to a clearance template
+ */
+export const useAddClearanceTemplateItem = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addClearanceTemplateItem>>, TError,{organizationId: number;templateId: number;data: BodyType<AddClearanceTemplateItemInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addClearanceTemplateItem>>,
+        TError,
+        {organizationId: number;templateId: number;data: BodyType<AddClearanceTemplateItemInput>},
+        TContext
+      > => {
+      return useMutation(getAddClearanceTemplateItemMutationOptions(options));
+    }
+
+export const getRemoveClearanceTemplateItemUrl = (organizationId: number,
+    templateId: number,
+    itemId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/clearance-templates/${templateId}/items/${itemId}`
+}
+
+/**
+ * Live clearance instantiated from this item survives; its `sourceTemplateItemId` simply becomes null (§28.8).
+ * @summary Remove an item from a clearance template
+ */
+export const removeClearanceTemplateItem = async (organizationId: number,
+    templateId: number,
+    itemId: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getRemoveClearanceTemplateItemUrl(organizationId,templateId,itemId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRemoveClearanceTemplateItemMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeClearanceTemplateItem>>, TError,{organizationId: number;templateId: number;itemId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof removeClearanceTemplateItem>>, TError,{organizationId: number;templateId: number;itemId: number}, TContext> => {
+
+const mutationKey = ['removeClearanceTemplateItem'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeClearanceTemplateItem>>, {organizationId: number;templateId: number;itemId: number}> = (props) => {
+          const {organizationId,templateId,itemId} = props ?? {};
+
+          return  removeClearanceTemplateItem(organizationId,templateId,itemId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemoveClearanceTemplateItemMutationResult = NonNullable<Awaited<ReturnType<typeof removeClearanceTemplateItem>>>
+
+    export type RemoveClearanceTemplateItemMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Remove an item from a clearance template
+ */
+export const useRemoveClearanceTemplateItem = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeClearanceTemplateItem>>, TError,{organizationId: number;templateId: number;itemId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof removeClearanceTemplateItem>>,
+        TError,
+        {organizationId: number;templateId: number;itemId: number},
+        TContext
+      > => {
+      return useMutation(getRemoveClearanceTemplateItemMutationOptions(options));
+    }
+
+export const getGetOffboardingEligibilityUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/offboarding-eligibility`
+}
+
+/**
+ * Offboarding may start before separation, but only against an authoritative recorded basis (§28.6) — the employee already separated, or an active fixed-term employment term with an end date. An offboarding case can never be its own basis.
+ * @summary Whether an offboarding may begin, and on what authoritative basis
+ */
+export const getOffboardingEligibility = async (organizationId: number,
+    employeeId: number, options?: RequestInit): Promise<OffboardingEligibility> => {
+
+  return customFetch<OffboardingEligibility>(getGetOffboardingEligibilityUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOffboardingEligibilityQueryKey = (organizationId: number,
+    employeeId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/employees/${employeeId}/offboarding-eligibility`
+    ] as const;
+    }
+
+
+export const getGetOffboardingEligibilityQueryOptions = <TData = Awaited<ReturnType<typeof getOffboardingEligibility>>, TError = ErrorType<unknown>>(organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOffboardingEligibility>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOffboardingEligibilityQueryKey(organizationId,employeeId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOffboardingEligibility>>> = ({ signal }) => getOffboardingEligibility(organizationId,employeeId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && employeeId !== null && employeeId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOffboardingEligibility>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOffboardingEligibilityQueryResult = NonNullable<Awaited<ReturnType<typeof getOffboardingEligibility>>>
+export type GetOffboardingEligibilityQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Whether an offboarding may begin, and on what authoritative basis
+ */
+
+export function useGetOffboardingEligibility<TData = Awaited<ReturnType<typeof getOffboardingEligibility>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOffboardingEligibility>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOffboardingEligibilityQueryOptions(organizationId,employeeId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListOffboardingUrl = (organizationId: number,
+    params?: ListOffboardingParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/offboarding?${stringifiedParams}` : `/api/organizations/${organizationId}/offboarding`
+}
+
+/**
+ * @summary List offboarding processes
+ */
+export const listOffboarding = async (organizationId: number,
+    params?: ListOffboardingParams, options?: RequestInit): Promise<OffboardingList> => {
+
+  return customFetch<OffboardingList>(getListOffboardingUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOffboardingQueryKey = (organizationId: number,
+    params?: ListOffboardingParams,) => {
+    return [
+    `/api/organizations/${organizationId}/offboarding`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListOffboardingQueryOptions = <TData = Awaited<ReturnType<typeof listOffboarding>>, TError = ErrorType<unknown>>(organizationId: number,
+    params?: ListOffboardingParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOffboarding>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOffboardingQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOffboarding>>> = ({ signal }) => listOffboarding(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOffboarding>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOffboardingQueryResult = NonNullable<Awaited<ReturnType<typeof listOffboarding>>>
+export type ListOffboardingQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List offboarding processes
+ */
+
+export function useListOffboarding<TData = Awaited<ReturnType<typeof listOffboarding>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    params?: ListOffboardingParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOffboarding>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOffboardingQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetOffboardingUrl = (organizationId: number,
+    exitProcessId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/offboarding/${exitProcessId}`
+}
+
+/**
+ * Outstanding custody is READ from Assets and Office Inventory and never altered (§28.9, §28.10). Only `returnable` inventory is reported; consumables are never clearance liabilities.
+ * @summary Read one offboarding with clearance, progress and outstanding custody
+ */
+export const getOffboarding = async (organizationId: number,
+    exitProcessId: number, options?: RequestInit): Promise<OffboardingDetail> => {
+
+  return customFetch<OffboardingDetail>(getGetOffboardingUrl(organizationId,exitProcessId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOffboardingQueryKey = (organizationId: number,
+    exitProcessId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/offboarding/${exitProcessId}`
+    ] as const;
+    }
+
+
+export const getGetOffboardingQueryOptions = <TData = Awaited<ReturnType<typeof getOffboarding>>, TError = ErrorType<ApiError>>(organizationId: number,
+    exitProcessId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOffboarding>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOffboardingQueryKey(organizationId,exitProcessId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOffboarding>>> = ({ signal }) => getOffboarding(organizationId,exitProcessId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && exitProcessId !== null && exitProcessId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOffboarding>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOffboardingQueryResult = NonNullable<Awaited<ReturnType<typeof getOffboarding>>>
+export type GetOffboardingQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Read one offboarding with clearance, progress and outstanding custody
+ */
+
+export function useGetOffboarding<TData = Awaited<ReturnType<typeof getOffboarding>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    exitProcessId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOffboarding>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOffboardingQueryOptions(organizationId,exitProcessId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getInitiateOffboardingUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/offboarding`
+}
+
+/**
+ * Starting an offboarding never terminates employment (§28.7). Clearance items are COPIED from the chosen template, so revising the template later cannot rewrite clearance already in progress.
+ * @summary Start an offboarding and snapshot its clearance items
+ */
+export const initiateOffboarding = async (organizationId: number,
+    employeeId: number,
+    initiateOffboardingInput: InitiateOffboardingInput, options?: RequestInit): Promise<InitiateOffboardingResult> => {
+
+  return customFetch<InitiateOffboardingResult>(getInitiateOffboardingUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(initiateOffboardingInput)
+  }
+);}
+
+
+
+
+
+export const getInitiateOffboardingMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof initiateOffboarding>>, TError,{organizationId: number;employeeId: number;data: BodyType<InitiateOffboardingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof initiateOffboarding>>, TError,{organizationId: number;employeeId: number;data: BodyType<InitiateOffboardingInput>}, TContext> => {
+
+const mutationKey = ['initiateOffboarding'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof initiateOffboarding>>, {organizationId: number;employeeId: number;data: BodyType<InitiateOffboardingInput>}> = (props) => {
+          const {organizationId,employeeId,data} = props ?? {};
+
+          return  initiateOffboarding(organizationId,employeeId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type InitiateOffboardingMutationResult = NonNullable<Awaited<ReturnType<typeof initiateOffboarding>>>
+    export type InitiateOffboardingMutationBody = BodyType<InitiateOffboardingInput>
+    export type InitiateOffboardingMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Start an offboarding and snapshot its clearance items
+ */
+export const useInitiateOffboarding = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof initiateOffboarding>>, TError,{organizationId: number;employeeId: number;data: BodyType<InitiateOffboardingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof initiateOffboarding>>,
+        TError,
+        {organizationId: number;employeeId: number;data: BodyType<InitiateOffboardingInput>},
+        TContext
+      > => {
+      return useMutation(getInitiateOffboardingMutationOptions(options));
+    }
+
+export const getGrantFinalClearanceUrl = (organizationId: number,
+    exitProcessId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/offboarding/${exitProcessId}/final-clearance`
+}
+
+/**
+ * A distinct terminal act, not the arithmetic of the item list. It refuses while a required item is outstanding, and it changes nobody's employment status (§28.7, §28.8).
+ * @summary Grant final HR clearance
+ */
+export const grantFinalClearance = async (organizationId: number,
+    exitProcessId: number, options?: RequestInit): Promise<FinalClearanceResult> => {
+
+  return customFetch<FinalClearanceResult>(getGrantFinalClearanceUrl(organizationId,exitProcessId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getGrantFinalClearanceMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof grantFinalClearance>>, TError,{organizationId: number;exitProcessId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof grantFinalClearance>>, TError,{organizationId: number;exitProcessId: number}, TContext> => {
+
+const mutationKey = ['grantFinalClearance'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof grantFinalClearance>>, {organizationId: number;exitProcessId: number}> = (props) => {
+          const {organizationId,exitProcessId} = props ?? {};
+
+          return  grantFinalClearance(organizationId,exitProcessId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GrantFinalClearanceMutationResult = NonNullable<Awaited<ReturnType<typeof grantFinalClearance>>>
+
+    export type GrantFinalClearanceMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Grant final HR clearance
+ */
+export const useGrantFinalClearance = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof grantFinalClearance>>, TError,{organizationId: number;exitProcessId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof grantFinalClearance>>,
+        TError,
+        {organizationId: number;exitProcessId: number},
+        TContext
+      > => {
+      return useMutation(getGrantFinalClearanceMutationOptions(options));
+    }
+
+export const getCancelOffboardingUrl = (organizationId: number,
+    exitProcessId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/offboarding/${exitProcessId}/cancel`
+}
+
+/**
+ * @summary Cancel a running offboarding
+ */
+export const cancelOffboarding = async (organizationId: number,
+    exitProcessId: number,
+    cancelOffboardingInput: CancelOffboardingInput, options?: RequestInit): Promise<EmployeeExitProcess> => {
+
+  return customFetch<EmployeeExitProcess>(getCancelOffboardingUrl(organizationId,exitProcessId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(cancelOffboardingInput)
+  }
+);}
+
+
+
+
+
+export const getCancelOffboardingMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelOffboarding>>, TError,{organizationId: number;exitProcessId: number;data: BodyType<CancelOffboardingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelOffboarding>>, TError,{organizationId: number;exitProcessId: number;data: BodyType<CancelOffboardingInput>}, TContext> => {
+
+const mutationKey = ['cancelOffboarding'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelOffboarding>>, {organizationId: number;exitProcessId: number;data: BodyType<CancelOffboardingInput>}> = (props) => {
+          const {organizationId,exitProcessId,data} = props ?? {};
+
+          return  cancelOffboarding(organizationId,exitProcessId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelOffboardingMutationResult = NonNullable<Awaited<ReturnType<typeof cancelOffboarding>>>
+    export type CancelOffboardingMutationBody = BodyType<CancelOffboardingInput>
+    export type CancelOffboardingMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Cancel a running offboarding
+ */
+export const useCancelOffboarding = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelOffboarding>>, TError,{organizationId: number;exitProcessId: number;data: BodyType<CancelOffboardingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelOffboarding>>,
+        TError,
+        {organizationId: number;exitProcessId: number;data: BodyType<CancelOffboardingInput>},
+        TContext
+      > => {
+      return useMutation(getCancelOffboardingMutationOptions(options));
+    }
+
+export const getAddClearanceItemUrl = (organizationId: number,
+    exitProcessId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/offboarding/${exitProcessId}/clearance-items`
+}
+
+/**
+ * @summary Add an ad-hoc clearance item to a running offboarding
+ */
+export const addClearanceItem = async (organizationId: number,
+    exitProcessId: number,
+    addClearanceItemInput: AddClearanceItemInput, options?: RequestInit): Promise<ClearanceItem> => {
+
+  return customFetch<ClearanceItem>(getAddClearanceItemUrl(organizationId,exitProcessId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(addClearanceItemInput)
+  }
+);}
+
+
+
+
+
+export const getAddClearanceItemMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addClearanceItem>>, TError,{organizationId: number;exitProcessId: number;data: BodyType<AddClearanceItemInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addClearanceItem>>, TError,{organizationId: number;exitProcessId: number;data: BodyType<AddClearanceItemInput>}, TContext> => {
+
+const mutationKey = ['addClearanceItem'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addClearanceItem>>, {organizationId: number;exitProcessId: number;data: BodyType<AddClearanceItemInput>}> = (props) => {
+          const {organizationId,exitProcessId,data} = props ?? {};
+
+          return  addClearanceItem(organizationId,exitProcessId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddClearanceItemMutationResult = NonNullable<Awaited<ReturnType<typeof addClearanceItem>>>
+    export type AddClearanceItemMutationBody = BodyType<AddClearanceItemInput>
+    export type AddClearanceItemMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Add an ad-hoc clearance item to a running offboarding
+ */
+export const useAddClearanceItem = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addClearanceItem>>, TError,{organizationId: number;exitProcessId: number;data: BodyType<AddClearanceItemInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addClearanceItem>>,
+        TError,
+        {organizationId: number;exitProcessId: number;data: BodyType<AddClearanceItemInput>},
+        TContext
+      > => {
+      return useMutation(getAddClearanceItemMutationOptions(options));
+    }
+
+export const getCompleteClearanceItemUrl = (organizationId: number,
+    itemId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/clearance-items/${itemId}/complete`
+}
+
+/**
+ * Completing an `asset_return` item does NOT end an asset assignment or alter custody, and an `inventory_return` item does NOT move stock. Those transitions belong to Assets and Office Inventory (§28.9, §28.10).
+ * @summary Mark a clearance item complete
+ */
+export const completeClearanceItem = async (organizationId: number,
+    itemId: number,
+    completeClearanceItemInput: CompleteClearanceItemInput, options?: RequestInit): Promise<ClearanceItem> => {
+
+  return customFetch<ClearanceItem>(getCompleteClearanceItemUrl(organizationId,itemId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(completeClearanceItemInput)
+  }
+);}
+
+
+
+
+
+export const getCompleteClearanceItemMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeClearanceItem>>, TError,{organizationId: number;itemId: number;data: BodyType<CompleteClearanceItemInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof completeClearanceItem>>, TError,{organizationId: number;itemId: number;data: BodyType<CompleteClearanceItemInput>}, TContext> => {
+
+const mutationKey = ['completeClearanceItem'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof completeClearanceItem>>, {organizationId: number;itemId: number;data: BodyType<CompleteClearanceItemInput>}> = (props) => {
+          const {organizationId,itemId,data} = props ?? {};
+
+          return  completeClearanceItem(organizationId,itemId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CompleteClearanceItemMutationResult = NonNullable<Awaited<ReturnType<typeof completeClearanceItem>>>
+    export type CompleteClearanceItemMutationBody = BodyType<CompleteClearanceItemInput>
+    export type CompleteClearanceItemMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Mark a clearance item complete
+ */
+export const useCompleteClearanceItem = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeClearanceItem>>, TError,{organizationId: number;itemId: number;data: BodyType<CompleteClearanceItemInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof completeClearanceItem>>,
+        TError,
+        {organizationId: number;itemId: number;data: BodyType<CompleteClearanceItemInput>},
+        TContext
+      > => {
+      return useMutation(getCompleteClearanceItemMutationOptions(options));
+    }
+
+export const getReturnClearanceItemUrl = (organizationId: number,
+    itemId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/clearance-items/${itemId}/return`
+}
+
+/**
+ * @summary Send a clearance item back for more work
+ */
+export const returnClearanceItem = async (organizationId: number,
+    itemId: number,
+    returnClearanceItemInput: ReturnClearanceItemInput, options?: RequestInit): Promise<ClearanceItem> => {
+
+  return customFetch<ClearanceItem>(getReturnClearanceItemUrl(organizationId,itemId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(returnClearanceItemInput)
+  }
+);}
+
+
+
+
+
+export const getReturnClearanceItemMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof returnClearanceItem>>, TError,{organizationId: number;itemId: number;data: BodyType<ReturnClearanceItemInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof returnClearanceItem>>, TError,{organizationId: number;itemId: number;data: BodyType<ReturnClearanceItemInput>}, TContext> => {
+
+const mutationKey = ['returnClearanceItem'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof returnClearanceItem>>, {organizationId: number;itemId: number;data: BodyType<ReturnClearanceItemInput>}> = (props) => {
+          const {organizationId,itemId,data} = props ?? {};
+
+          return  returnClearanceItem(organizationId,itemId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReturnClearanceItemMutationResult = NonNullable<Awaited<ReturnType<typeof returnClearanceItem>>>
+    export type ReturnClearanceItemMutationBody = BodyType<ReturnClearanceItemInput>
+    export type ReturnClearanceItemMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Send a clearance item back for more work
+ */
+export const useReturnClearanceItem = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof returnClearanceItem>>, TError,{organizationId: number;itemId: number;data: BodyType<ReturnClearanceItemInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof returnClearanceItem>>,
+        TError,
+        {organizationId: number;itemId: number;data: BodyType<ReturnClearanceItemInput>},
+        TContext
+      > => {
+      return useMutation(getReturnClearanceItemMutationOptions(options));
+    }
+
+export const getWaiveClearanceItemUrl = (organizationId: number,
+    itemId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/clearance-items/${itemId}/waive`
+}
+
+/**
+ * The deliberate escape hatch, and it costs a reason (§28.8). Gated on `offboarding.manage` rather than `clearance.act`, so the desk that cannot recover an item is not the same party that excuses it.
+ * @summary Waive a clearance item
+ */
+export const waiveClearanceItem = async (organizationId: number,
+    itemId: number,
+    waiveClearanceItemInput: WaiveClearanceItemInput, options?: RequestInit): Promise<ClearanceItem> => {
+
+  return customFetch<ClearanceItem>(getWaiveClearanceItemUrl(organizationId,itemId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(waiveClearanceItemInput)
+  }
+);}
+
+
+
+
+
+export const getWaiveClearanceItemMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof waiveClearanceItem>>, TError,{organizationId: number;itemId: number;data: BodyType<WaiveClearanceItemInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof waiveClearanceItem>>, TError,{organizationId: number;itemId: number;data: BodyType<WaiveClearanceItemInput>}, TContext> => {
+
+const mutationKey = ['waiveClearanceItem'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof waiveClearanceItem>>, {organizationId: number;itemId: number;data: BodyType<WaiveClearanceItemInput>}> = (props) => {
+          const {organizationId,itemId,data} = props ?? {};
+
+          return  waiveClearanceItem(organizationId,itemId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type WaiveClearanceItemMutationResult = NonNullable<Awaited<ReturnType<typeof waiveClearanceItem>>>
+    export type WaiveClearanceItemMutationBody = BodyType<WaiveClearanceItemInput>
+    export type WaiveClearanceItemMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Waive a clearance item
+ */
+export const useWaiveClearanceItem = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof waiveClearanceItem>>, TError,{organizationId: number;itemId: number;data: BodyType<WaiveClearanceItemInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof waiveClearanceItem>>,
+        TError,
+        {organizationId: number;itemId: number;data: BodyType<WaiveClearanceItemInput>},
+        TContext
+      > => {
+      return useMutation(getWaiveClearanceItemMutationOptions(options));
+    }
+
+export const getScheduleExitInterviewUrl = (organizationId: number,
+    exitProcessId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/offboarding/${exitProcessId}/exit-interview`
+}
+
+/**
+ * Questions and answers are WS-8 Custom Fields bound to the `exit_interview` scope; no second questionnaire engine exists (§28.19). No rehire-eligibility field exists anywhere in WS-12 (§28.15).
+ * @summary Schedule the exit interview for an offboarding
+ */
+export const scheduleExitInterview = async (organizationId: number,
+    exitProcessId: number,
+    scheduleExitInterviewInput: ScheduleExitInterviewInput, options?: RequestInit): Promise<ExitInterview> => {
+
+  return customFetch<ExitInterview>(getScheduleExitInterviewUrl(organizationId,exitProcessId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(scheduleExitInterviewInput)
+  }
+);}
+
+
+
+
+
+export const getScheduleExitInterviewMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof scheduleExitInterview>>, TError,{organizationId: number;exitProcessId: number;data: BodyType<ScheduleExitInterviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof scheduleExitInterview>>, TError,{organizationId: number;exitProcessId: number;data: BodyType<ScheduleExitInterviewInput>}, TContext> => {
+
+const mutationKey = ['scheduleExitInterview'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof scheduleExitInterview>>, {organizationId: number;exitProcessId: number;data: BodyType<ScheduleExitInterviewInput>}> = (props) => {
+          const {organizationId,exitProcessId,data} = props ?? {};
+
+          return  scheduleExitInterview(organizationId,exitProcessId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ScheduleExitInterviewMutationResult = NonNullable<Awaited<ReturnType<typeof scheduleExitInterview>>>
+    export type ScheduleExitInterviewMutationBody = BodyType<ScheduleExitInterviewInput>
+    export type ScheduleExitInterviewMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Schedule the exit interview for an offboarding
+ */
+export const useScheduleExitInterview = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof scheduleExitInterview>>, TError,{organizationId: number;exitProcessId: number;data: BodyType<ScheduleExitInterviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof scheduleExitInterview>>,
+        TError,
+        {organizationId: number;exitProcessId: number;data: BodyType<ScheduleExitInterviewInput>},
+        TContext
+      > => {
+      return useMutation(getScheduleExitInterviewMutationOptions(options));
+    }
+
+export const getCompleteExitInterviewUrl = (organizationId: number,
+    interviewId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/exit-interviews/${interviewId}/complete`
+}
+
+/**
+ * @summary Record an exit interview as completed
+ */
+export const completeExitInterview = async (organizationId: number,
+    interviewId: number,
+    completeExitInterviewInput: CompleteExitInterviewInput, options?: RequestInit): Promise<ExitInterview> => {
+
+  return customFetch<ExitInterview>(getCompleteExitInterviewUrl(organizationId,interviewId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(completeExitInterviewInput)
+  }
+);}
+
+
+
+
+
+export const getCompleteExitInterviewMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeExitInterview>>, TError,{organizationId: number;interviewId: number;data: BodyType<CompleteExitInterviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof completeExitInterview>>, TError,{organizationId: number;interviewId: number;data: BodyType<CompleteExitInterviewInput>}, TContext> => {
+
+const mutationKey = ['completeExitInterview'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof completeExitInterview>>, {organizationId: number;interviewId: number;data: BodyType<CompleteExitInterviewInput>}> = (props) => {
+          const {organizationId,interviewId,data} = props ?? {};
+
+          return  completeExitInterview(organizationId,interviewId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CompleteExitInterviewMutationResult = NonNullable<Awaited<ReturnType<typeof completeExitInterview>>>
+    export type CompleteExitInterviewMutationBody = BodyType<CompleteExitInterviewInput>
+    export type CompleteExitInterviewMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Record an exit interview as completed
+ */
+export const useCompleteExitInterview = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeExitInterview>>, TError,{organizationId: number;interviewId: number;data: BodyType<CompleteExitInterviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof completeExitInterview>>,
+        TError,
+        {organizationId: number;interviewId: number;data: BodyType<CompleteExitInterviewInput>},
+        TContext
+      > => {
+      return useMutation(getCompleteExitInterviewMutationOptions(options));
+    }
+
+export const getCancelExitInterviewUrl = (organizationId: number,
+    interviewId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/exit-interviews/${interviewId}/cancel`
+}
+
+/**
+ * @summary Cancel a scheduled exit interview
+ */
+export const cancelExitInterview = async (organizationId: number,
+    interviewId: number,
+    cancelExitInterviewInput: CancelExitInterviewInput, options?: RequestInit): Promise<ExitInterview> => {
+
+  return customFetch<ExitInterview>(getCancelExitInterviewUrl(organizationId,interviewId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(cancelExitInterviewInput)
+  }
+);}
+
+
+
+
+
+export const getCancelExitInterviewMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelExitInterview>>, TError,{organizationId: number;interviewId: number;data: BodyType<CancelExitInterviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelExitInterview>>, TError,{organizationId: number;interviewId: number;data: BodyType<CancelExitInterviewInput>}, TContext> => {
+
+const mutationKey = ['cancelExitInterview'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelExitInterview>>, {organizationId: number;interviewId: number;data: BodyType<CancelExitInterviewInput>}> = (props) => {
+          const {organizationId,interviewId,data} = props ?? {};
+
+          return  cancelExitInterview(organizationId,interviewId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelExitInterviewMutationResult = NonNullable<Awaited<ReturnType<typeof cancelExitInterview>>>
+    export type CancelExitInterviewMutationBody = BodyType<CancelExitInterviewInput>
+    export type CancelExitInterviewMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Cancel a scheduled exit interview
+ */
+export const useCancelExitInterview = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelExitInterview>>, TError,{organizationId: number;interviewId: number;data: BodyType<CancelExitInterviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelExitInterview>>,
+        TError,
+        {organizationId: number;interviewId: number;data: BodyType<CancelExitInterviewInput>},
+        TContext
+      > => {
+      return useMutation(getCancelExitInterviewMutationOptions(options));
+    }
+
+export const getGetDisciplinaryReportUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employee-relations/reports/disciplinary`
+}
+
+/**
+ * Counts and ageing only — no subject, description, finding, outcome or note (§28.23). Ageing is derived against the current instant, never stored.
+ * @summary Open disciplinary cases with ageing
+ */
+export const getDisciplinaryReport = async (organizationId: number, options?: RequestInit): Promise<DisciplinaryReport> => {
+
+  return customFetch<DisciplinaryReport>(getGetDisciplinaryReportUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDisciplinaryReportQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/employee-relations/reports/disciplinary`
+    ] as const;
+    }
+
+
+export const getGetDisciplinaryReportQueryOptions = <TData = Awaited<ReturnType<typeof getDisciplinaryReport>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDisciplinaryReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDisciplinaryReportQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDisciplinaryReport>>> = ({ signal }) => getDisciplinaryReport(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDisciplinaryReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDisciplinaryReportQueryResult = NonNullable<Awaited<ReturnType<typeof getDisciplinaryReport>>>
+export type GetDisciplinaryReportQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Open disciplinary cases with ageing
+ */
+
+export function useGetDisciplinaryReport<TData = Awaited<ReturnType<typeof getDisciplinaryReport>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDisciplinaryReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDisciplinaryReportQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetGrievanceReportUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employee-relations/reports/grievances`
+}
+
+/**
+ * Gated on `grievance.read`, deliberately a separate endpoint from the disciplinary read model so one key cannot span both (§28.17).
+ * @summary Open grievances with ageing
+ */
+export const getGrievanceReport = async (organizationId: number, options?: RequestInit): Promise<GrievanceReport> => {
+
+  return customFetch<GrievanceReport>(getGetGrievanceReportUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetGrievanceReportQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/employee-relations/reports/grievances`
+    ] as const;
+    }
+
+
+export const getGetGrievanceReportQueryOptions = <TData = Awaited<ReturnType<typeof getGrievanceReport>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGrievanceReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetGrievanceReportQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGrievanceReport>>> = ({ signal }) => getGrievanceReport(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getGrievanceReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetGrievanceReportQueryResult = NonNullable<Awaited<ReturnType<typeof getGrievanceReport>>>
+export type GetGrievanceReportQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Open grievances with ageing
+ */
+
+export function useGetGrievanceReport<TData = Awaited<ReturnType<typeof getGrievanceReport>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGrievanceReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetGrievanceReportQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetOffboardingReportUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employee-relations/reports/offboarding`
+}
+
+/**
+ * @summary Employees currently offboarding, completed offboarding, outstanding assets
+ */
+export const getOffboardingReport = async (organizationId: number, options?: RequestInit): Promise<OffboardingReport> => {
+
+  return customFetch<OffboardingReport>(getGetOffboardingReportUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOffboardingReportQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/employee-relations/reports/offboarding`
+    ] as const;
+    }
+
+
+export const getGetOffboardingReportQueryOptions = <TData = Awaited<ReturnType<typeof getOffboardingReport>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOffboardingReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOffboardingReportQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOffboardingReport>>> = ({ signal }) => getOffboardingReport(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOffboardingReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOffboardingReportQueryResult = NonNullable<Awaited<ReturnType<typeof getOffboardingReport>>>
+export type GetOffboardingReportQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Employees currently offboarding, completed offboarding, outstanding assets
+ */
+
+export function useGetOffboardingReport<TData = Awaited<ReturnType<typeof getOffboardingReport>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOffboardingReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOffboardingReportQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetClearanceQueueUrl = (organizationId: number,
+    params?: GetClearanceQueueParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/employee-relations/reports/clearance-queue?${stringifiedParams}` : `/api/organizations/${organizationId}/employee-relations/reports/clearance-queue`
+}
+
+/**
+ * Readable by `clearance.act` holders as well as offboarding readers — an approver who cannot see their own queue cannot do the job the key exists for.
+ * @summary Outstanding clearance items across running offboarding
+ */
+export const getClearanceQueue = async (organizationId: number,
+    params?: GetClearanceQueueParams, options?: RequestInit): Promise<ClearanceQueue> => {
+
+  return customFetch<ClearanceQueue>(getGetClearanceQueueUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetClearanceQueueQueryKey = (organizationId: number,
+    params?: GetClearanceQueueParams,) => {
+    return [
+    `/api/organizations/${organizationId}/employee-relations/reports/clearance-queue`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetClearanceQueueQueryOptions = <TData = Awaited<ReturnType<typeof getClearanceQueue>>, TError = ErrorType<ApiError>>(organizationId: number,
+    params?: GetClearanceQueueParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getClearanceQueue>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetClearanceQueueQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getClearanceQueue>>> = ({ signal }) => getClearanceQueue(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getClearanceQueue>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetClearanceQueueQueryResult = NonNullable<Awaited<ReturnType<typeof getClearanceQueue>>>
+export type GetClearanceQueueQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Outstanding clearance items across running offboarding
+ */
+
+export function useGetClearanceQueue<TData = Awaited<ReturnType<typeof getClearanceQueue>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    params?: GetClearanceQueueParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getClearanceQueue>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetClearanceQueueQueryOptions(organizationId,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

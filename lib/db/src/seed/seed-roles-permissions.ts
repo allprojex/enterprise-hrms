@@ -530,6 +530,35 @@ const PERMISSIONS = [
   { key: "employment_lifecycle.read", resource: "employment_lifecycle", action: "read" },
   { key: "employment_lifecycle.manage", resource: "employment_lifecycle", action: "manage" },
   { key: "employment_lifecycle.configure", resource: "employment_lifecycle", action: "configure" },
+  // WS-12 — Employee Relations & Offboarding Clearance (§28.17).
+  //
+  // `employee.disciplinary.read` is NOT redefined, NOT renamed and NOT removed.
+  // It is a shipped key with shipped grants, and §28.17 preserves it exactly:
+  // silently revoking an existing authorization is the change §27.21 warns
+  // against. The new disciplinary keys sit alongside it — `read` for the
+  // structured cases, `manage` for acting on them.
+  //
+  // GRIEVANCE IS DELIBERATELY NOT COVERED BY ANY DISCIPLINARY KEY. §28.4 and
+  // §28.17: a grievance is raised BY an employee, often about someone with
+  // disciplinary authority, so inheriting grievance visibility from the
+  // disciplinary permission would hand the likely respondent a window onto the
+  // complaint. It requires its own explicit grant, and organization
+  // administration does not receive it by default (see the org_admin block).
+  { key: "employee_relations.read", resource: "employee_relations", action: "read" },
+  { key: "employee_relations.manage", resource: "employee_relations", action: "manage" },
+  { key: "grievance.read", resource: "grievance", action: "read" },
+  { key: "grievance.manage", resource: "grievance", action: "manage" },
+  { key: "offboarding.read", resource: "offboarding", action: "read" },
+  { key: "offboarding.manage", resource: "offboarding", action: "manage" },
+  // Template authority is separated from operational authority, the same
+  // WS-8/WS-10/WS-11 split: defining what every departing person must clear is
+  // an organization-configuration act, not a day-to-day one.
+  { key: "offboarding.configure", resource: "offboarding", action: "configure" },
+  // Held by a clearance approver who is NOT HR — a stores officer, an IT desk,
+  // a department head. It authorizes acting on an assigned clearance item and
+  // nothing else: it grants no case access, no grievance access, and no ability
+  // to grant final clearance.
+  { key: "clearance.act", resource: "clearance", action: "act" },
   { key: "onboarding.read", resource: "onboarding", action: "read" },
   { key: "onboarding.manage", resource: "onboarding", action: "manage" },
   { key: "onboarding.configure", resource: "onboarding", action: "configure" },
@@ -649,6 +678,23 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "employment_lifecycle.read",
     "employment_lifecycle.manage",
     "employment_lifecycle.configure",
+    // WS-12 — organization administration owns employee-relations and
+    // offboarding operation and configuration alike, and KEEPS the shipped
+    // `employee.disciplinary.read` grant further down this list untouched
+    // (§28.17).
+    //
+    // `grievance.read` and `grievance.manage` are deliberately ABSENT. §28.17:
+    // Organization Admin status alone must not expose confidential grievance
+    // records — a grievance may be about the administrator, or about someone
+    // they line-manage. Grievance authority is an explicit per-organization
+    // delegation, following the same precedent that withholds
+    // `custom_fields.sensitive.read` from every role above.
+    "employee_relations.read",
+    "employee_relations.manage",
+    "offboarding.read",
+    "offboarding.manage",
+    "offboarding.configure",
+    "clearance.act",
     // WS-10 — organization administration owns onboarding configuration and
     // operation alike.
     "onboarding.read",
@@ -767,6 +813,23 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     // same thing as operational authority (§27.17).
     "employment_lifecycle.read",
     "employment_lifecycle.manage",
+    // WS-12 — an HR manager runs employee relations and offboarding day to day
+    // but does not define the organization's clearance templates, so
+    // `offboarding.configure` is withheld, mirroring the WS-8/WS-10/WS-11 split.
+    //
+    // `grievance.read`/`grievance.manage` ARE granted here, unlike to
+    // org_admin: handling grievances is the HR function, and §28.17's concern
+    // is that grievance visibility must be an explicit grant rather than a
+    // side effect of administrative rank. Granting it to the role whose job it
+    // is, and withholding it from the role that merely outranks everyone, is
+    // exactly that distinction.
+    "employee_relations.read",
+    "employee_relations.manage",
+    "grievance.read",
+    "grievance.manage",
+    "offboarding.read",
+    "offboarding.manage",
+    "clearance.act",
     // WS-10 — an HR manager runs onboarding day to day (starts it, completes
     // and waives tasks, assigns handbooks) but does not define the templates
     // themselves, which is an organization-configuration act. This mirrors the

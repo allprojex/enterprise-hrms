@@ -19,6 +19,9 @@ import {
   CalendarClock,
   Wallet,
   ClipboardCheck,
+  Scale,
+  DoorOpen,
+  MessageSquareWarning,
   CalendarRange,
   CalendarHeart,
   Clock,
@@ -493,6 +496,15 @@ export function AppShell({ children }: AppShellProps) {
         // reaches their own onboarding through Self-Service instead. Both remain
         // permission-gated and module-gated server-side.
         ...(isHrCapable ? [{ href: '/onboarding', label: 'Onboarding', icon: ClipboardCheck } satisfies NavItem] : []),
+        // WS-12 — Employee Relations and Offboarding follow the same
+        // `isHrCapable` nav precedent as Onboarding above. Nav visibility is
+        // presentation only: each page independently discovers what the caller
+        // may actually see, and every endpoint enforces its own permission
+        // server-side. The grievance tab in particular renders only if the
+        // grievance endpoint answers, since §28.17 withholds that key from
+        // organization administration by default.
+        ...(isHrCapable ? [{ href: '/employee-relations', label: 'Employee Relations', icon: Scale } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/offboarding', label: 'Offboarding', icon: DoorOpen } satisfies NavItem] : []),
         { href: '/branches', label: 'Branches', icon: MapPin },
         { href: '/departments', label: 'Departments', icon: Network },
         { href: '/positions', label: 'Positions', icon: Briefcase },
@@ -514,6 +526,14 @@ export function AppShell({ children }: AppShellProps) {
         // caller's own employee record server-side and renders an empty state
         // when there is nothing to show, rather than hiding a nav entry.
         { href: '/my-onboarding', label: 'My Onboarding', icon: ClipboardCheck },
+        // WS-12 (§28.5) — every employee reaches their OWN grievances here,
+        // unconditionally, for the same reason as My Onboarding above: the page
+        // resolves the caller's own employee record server-side and renders an
+        // empty state when there is nothing to show. Gating it on a permission
+        // would be wrong twice over — no permission key exists for self-service
+        // grievances, and hiding the entry would make raising one harder for
+        // exactly the people it exists to serve.
+        { href: '/my-grievances', label: 'My Grievances', icon: MessageSquareWarning },
         // Phase 3G, W111 — unconditional nav visibility (frozen plan §25):
         // manager eligibility is a pure live reportingManagerId
         // relationship, never a role, so there is no role flag to gate this

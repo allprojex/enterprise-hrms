@@ -1,9 +1,31 @@
-import { pgTable, serial, integer, text, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, pgEnum, timestamp, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { organizationsTable } from "./organizations";
 import { employeesTable } from "./employees";
 import { usersTable } from "./users";
+
+/**
+ * WS-12 (§28.11) — the minimum confidentiality dimension Employee Relations
+ * evidence needs, added to the EXISTING document store rather than beside it.
+ * No second document subsystem exists, and none may be built.
+ *
+ * ADDITIVE AND BACKWARD COMPATIBLE. It defaults to `normal`, so every document
+ * written before WS-12 and every document written by a caller that has never
+ * heard of this column behaves exactly as it did: unchanged storage, unchanged
+ * permissions, unchanged reads. Nothing is migrated or re-gated.
+ *
+ *   normal       — ordinary HR documents. Existing behaviour, unchanged.
+ *   confidential — restricted to callers holding the owning domain's permission.
+ *   restricted   — the narrowest tier, used for disciplinary and grievance
+ *                  evidence. Reads of these go through OD #18's sensitive-read
+ *                  audit path (§28.12).
+ */
+export const documentConfidentialityEnum = pgEnum("document_confidentiality", [
+  "normal",
+  "confidential",
+  "restricted",
+]);
 
 // Employee Documents (Phase 2A, W23). One row per stored file — re-uploading
 // does not version a prior row, it creates a new one; removing deletes both
@@ -41,6 +63,8 @@ export const employeeDocumentsTable = pgTable(
     mimeType: text("mime_type").notNull(),
     fileSize: integer("file_size").notNull(),
     uploadedBy: integer("uploaded_by").references(() => usersTable.id, { onDelete: "set null" }),
+    /** WS-12 (§28.11). Defaults to `normal` so pre-WS-12 behaviour is unchanged. */
+    confidentiality: documentConfidentialityEnum("confidentiality").notNull().default("normal"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("employee_documents_org_employee_idx").on(table.organizationId, table.employeeId)],

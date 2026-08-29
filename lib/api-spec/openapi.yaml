@@ -25163,6 +25163,1622 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SeparationReadiness"
+
+  # --- WS-12 — Employee Relations & Offboarding Clearance (§28) ---
+
+  /organizations/{organizationId}/disciplinary-cases:
+    get:
+      operationId: listDisciplinaryCases
+      tags: [employee-relations]
+      summary: List structured disciplinary cases
+      description: >-
+        Structured cases only. The legacy `employee_disciplinary_records` log is
+        preserved separately and unchanged (§28.2); it is read through its own
+        existing endpoint and its own `employee.disciplinary.read` permission.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/DisciplinaryCaseStatus"
+      responses:
+        "200":
+          description: Disciplinary cases
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisciplinaryCaseList"
+    post:
+      operationId: openDisciplinaryCase
+      tags: [employee-relations]
+      summary: Open a structured disciplinary case
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpenDisciplinaryCaseInput"
+      responses:
+        "201":
+          description: Case opened
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisciplinaryCase"
+        "404":
+          description: Employee not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: Invalid case
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/disciplinary-cases/{caseId}:
+    get:
+      operationId: getDisciplinaryCase
+      tags: [employee-relations]
+      summary: Read one disciplinary case with its chronology
+      description: >-
+        A sensitive read. Owner Decision #18 auditing fires here (§28.12); it
+        deliberately does not fire on the list endpoint.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Disciplinary case detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisciplinaryCaseDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/disciplinary-cases/{caseId}/events:
+    post:
+      operationId: recordDisciplinaryEvent
+      tags: [employee-relations]
+      summary: Append one chronology event to a disciplinary case
+      description: Append-only. No update or delete path exists for a case event.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordDisciplinaryEventInput"
+      responses:
+        "201":
+          description: Event recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisciplinaryCaseEvent"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: The case is closed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/disciplinary-cases/{caseId}/stage:
+    post:
+      operationId: changeDisciplinaryStage
+      tags: [employee-relations]
+      summary: Move a disciplinary case to another organization-defined stage
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangeDisciplinaryStageInput"
+      responses:
+        "200":
+          description: Stage changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisciplinaryCase"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: The case is closed, or the stage is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/disciplinary-cases/{caseId}/outcome:
+    post:
+      operationId: recordDisciplinaryOutcome
+      tags: [employee-relations]
+      summary: Record the outcome an authorized human decided
+      description: >-
+        Records a fact and separates nobody. Employment status, separation date
+        and the separation service are untouched (§28.7). If employment ends it
+        ends through WS-11's separation service as its own authorized act.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordDisciplinaryOutcomeInput"
+      responses:
+        "200":
+          description: Outcome recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisciplinaryCase"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: The case is closed, or the outcome is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/disciplinary-cases/{caseId}/close:
+    post:
+      operationId: closeDisciplinaryCase
+      tags: [employee-relations]
+      summary: Close a disciplinary case
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CloseDisciplinaryCaseInput"
+      responses:
+        "200":
+          description: Case closed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisciplinaryCase"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: The case is already closed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/disciplinary-cases/{caseId}/reopen:
+    post:
+      operationId: reopenDisciplinaryCase
+      tags: [employee-relations]
+      summary: Reopen a closed disciplinary case
+      description: Every prior event stays exactly where it is; nothing is erased.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReopenDisciplinaryCaseInput"
+      responses:
+        "200":
+          description: Case reopened
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisciplinaryCase"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: Only a closed case can be reopened
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/disciplinary-cases/{caseId}/evidence:
+    post:
+      operationId: attachDisciplinaryEvidence
+      tags: [employee-relations]
+      summary: Attach an existing WS-5 document to a disciplinary case
+      description: >-
+        WS-12 stores no documents of its own (§28.11). The document must already
+        exist in this organization.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttachCaseEvidenceInput"
+      responses:
+        "201":
+          description: Evidence attached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisciplinaryCaseEvent"
+        "404":
+          description: Case or document not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/grievances:
+    get:
+      operationId: listGrievances
+      tags: [employee-relations]
+      summary: List grievance cases
+      description: >-
+        Requires the explicit `grievance.read` permission. Organization
+        Administrator status alone does not grant it (§28.17).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/GrievanceCaseStatus"
+      responses:
+        "200":
+          description: Grievance cases
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GrievanceCaseList"
+    post:
+      operationId: submitGrievance
+      tags: [employee-relations]
+      summary: Record a grievance on an employee's behalf
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitGrievanceInput"
+      responses:
+        "201":
+          description: Grievance submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GrievanceCase"
+        "404":
+          description: Employee not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: Invalid grievance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/grievances/{caseId}:
+    get:
+      operationId: getGrievance
+      tags: [employee-relations]
+      summary: Read one grievance with its full chronology
+      description: A sensitive read; Owner Decision #18 auditing fires here (§28.12).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Grievance detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GrievanceCaseDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/grievances/{caseId}/acknowledge:
+    post:
+      operationId: acknowledgeGrievance
+      tags: [employee-relations]
+      summary: Acknowledge receipt of a grievance
+      description: The acknowledgement is visible to the complainant (§28.5).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AcknowledgeGrievanceInput"
+      responses:
+        "200":
+          description: Acknowledged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GrievanceCase"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: Already acknowledged, closed or withdrawn
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/grievances/{caseId}/assign:
+    post:
+      operationId: assignGrievance
+      tags: [employee-relations]
+      summary: Assign a grievance to an investigator
+      description: Who is investigating is internal and is not shown to the complainant.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignGrievanceInput"
+      responses:
+        "200":
+          description: Assigned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GrievanceCase"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: The grievance is closed or withdrawn
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/grievances/{caseId}/events:
+    post:
+      operationId: recordGrievanceEvent
+      tags: [employee-relations]
+      summary: Append one chronology event to a grievance
+      description: >-
+        `visibleToComplainant` defaults to false. An investigator's working note
+        is invisible to the complainant unless somebody deliberately marks it as
+        communicated (§28.5).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordGrievanceEventInput"
+      responses:
+        "201":
+          description: Event recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GrievanceCaseEvent"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: The grievance is closed or withdrawn
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/grievances/{caseId}/resolve:
+    post:
+      operationId: resolveGrievance
+      tags: [employee-relations]
+      summary: Record the resolution communicated to the complainant
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResolveGrievanceInput"
+      responses:
+        "200":
+          description: Resolved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GrievanceCase"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: The grievance is closed or withdrawn
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/grievances/{caseId}/close:
+    post:
+      operationId: closeGrievance
+      tags: [employee-relations]
+      summary: Close a grievance
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CloseGrievanceInput"
+      responses:
+        "200":
+          description: Closed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GrievanceCase"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: The grievance is already closed or withdrawn
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/grievances/{caseId}/evidence:
+    post:
+      operationId: attachGrievanceEvidence
+      tags: [employee-relations]
+      summary: Attach an existing WS-5 document to a grievance
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttachCaseEvidenceInput"
+      responses:
+        "201":
+          description: Evidence attached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GrievanceCaseEvent"
+        "404":
+          description: Grievance or document not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/my-grievances:
+    get:
+      operationId: listMyGrievances
+      tags: [employee-relations]
+      summary: An employee's own grievances (Employee Self-Service)
+      description: >-
+        Gated by the caller's own employee link, not by a permission key (§28.17
+        mints none for self-service). Returns the explicit §28.5 allow-list view:
+        confidential HR notes, investigator working notes, internal
+        deliberations, draft findings and protected audit information are never
+        included.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The caller's own grievances
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GrievanceEssViewList"
+    post:
+      operationId: submitMyGrievance
+      tags: [employee-relations]
+      summary: Submit a grievance as the signed-in employee
+      description: >-
+        The complainant is resolved from the caller's own employee link and is
+        never accepted from the request body, so an employee cannot file a
+        grievance in a colleague's name.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitMyGrievanceInput"
+      responses:
+        "201":
+          description: Grievance submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GrievanceEssView"
+        "403":
+          description: No employee record is linked to this account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/my-grievances/{caseId}:
+    get:
+      operationId: getMyGrievance
+      tags: [employee-relations]
+      summary: One of the caller's own grievances (Employee Self-Service)
+      description: >-
+        A grievance belonging to somebody else is reported as 404 rather than
+        403: a 403 would confirm the case exists, which is itself a disclosure
+        about a colleague's complaint.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The caller's own grievance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GrievanceEssView"
+        "404":
+          description: Not found, or not the caller's own
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/my-grievances/{caseId}/withdraw:
+    post:
+      operationId: withdrawMyGrievance
+      tags: [employee-relations]
+      summary: Withdraw the caller's own grievance
+      description: Never deletes the record.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WithdrawGrievanceInput"
+      responses:
+        "200":
+          description: Withdrawn
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GrievanceEssView"
+        "404":
+          description: Not found, or not the caller's own
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/clearance-templates:
+    get:
+      operationId: listClearanceTemplates
+      tags: [offboarding]
+      summary: List the organization's clearance templates
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Clearance templates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClearanceTemplateList"
+    post:
+      operationId: createClearanceTemplate
+      tags: [offboarding]
+      summary: Create a clearance template
+      description: >-
+        Requires `offboarding.configure`. Defining what every departing person
+        must clear is a configuration act, separated from day-to-day offboarding
+        authority (§28.17).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateClearanceTemplateInput"
+      responses:
+        "201":
+          description: Template created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClearanceTemplate"
+        "422":
+          description: Invalid template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/clearance-templates/{templateId}:
+    get:
+      operationId: getClearanceTemplate
+      tags: [offboarding]
+      summary: Read one clearance template with its items
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Template detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClearanceTemplateDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    patch:
+      operationId: updateClearanceTemplate
+      tags: [offboarding]
+      summary: Update a clearance template
+      description: >-
+        Editing a template never alters clearance already instantiated from it —
+        instance items are snapshots, not references (§28.8).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateClearanceTemplateInput"
+      responses:
+        "200":
+          description: Template updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClearanceTemplate"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/clearance-templates/{templateId}/items:
+    post:
+      operationId: addClearanceTemplateItem
+      tags: [offboarding]
+      summary: Add an item to a clearance template
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddClearanceTemplateItemInput"
+      responses:
+        "201":
+          description: Item added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClearanceTemplateItem"
+        "404":
+          description: Template not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/clearance-templates/{templateId}/items/{itemId}:
+    delete:
+      operationId: removeClearanceTemplateItem
+      tags: [offboarding]
+      summary: Remove an item from a clearance template
+      description: >-
+        Live clearance instantiated from this item survives; its
+        `sourceTemplateItemId` simply becomes null (§28.8).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Item removed
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}/offboarding-eligibility:
+    get:
+      operationId: getOffboardingEligibility
+      tags: [offboarding]
+      summary: Whether an offboarding may begin, and on what authoritative basis
+      description: >-
+        Offboarding may start before separation, but only against an
+        authoritative recorded basis (§28.6) — the employee already separated, or
+        an active fixed-term employment term with an end date. An offboarding
+        case can never be its own basis.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Eligibility
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OffboardingEligibility"
+
+  /organizations/{organizationId}/offboarding:
+    get:
+      operationId: listOffboarding
+      tags: [offboarding]
+      summary: List offboarding processes
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Offboarding processes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OffboardingList"
+
+  /organizations/{organizationId}/offboarding/{exitProcessId}:
+    get:
+      operationId: getOffboarding
+      tags: [offboarding]
+      summary: Read one offboarding with clearance, progress and outstanding custody
+      description: >-
+        Outstanding custody is READ from Assets and Office Inventory and never
+        altered (§28.9, §28.10). Only `returnable` inventory is reported;
+        consumables are never clearance liabilities.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: exitProcessId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Offboarding detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OffboardingDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employees/{employeeId}/offboarding:
+    post:
+      operationId: initiateOffboarding
+      tags: [offboarding]
+      summary: Start an offboarding and snapshot its clearance items
+      description: >-
+        Starting an offboarding never terminates employment (§28.7). Clearance
+        items are COPIED from the chosen template, so revising the template later
+        cannot rewrite clearance already in progress.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InitiateOffboardingInput"
+      responses:
+        "201":
+          description: Offboarding initiated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InitiateOffboardingResult"
+        "409":
+          description: An offboarding is already running for this employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: No authoritative separation basis exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/offboarding/{exitProcessId}/final-clearance:
+    post:
+      operationId: grantFinalClearance
+      tags: [offboarding]
+      summary: Grant final HR clearance
+      description: >-
+        A distinct terminal act, not the arithmetic of the item list. It refuses
+        while a required item is outstanding, and it changes nobody's employment
+        status (§28.7, §28.8).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: exitProcessId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Final clearance granted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinalClearanceResult"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: Required clearance is still outstanding
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/offboarding/{exitProcessId}/cancel:
+    post:
+      operationId: cancelOffboarding
+      tags: [offboarding]
+      summary: Cancel a running offboarding
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: exitProcessId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancelOffboardingInput"
+      responses:
+        "200":
+          description: Offboarding cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeExitProcess"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: Only a running offboarding can be cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/offboarding/{exitProcessId}/clearance-items:
+    post:
+      operationId: addClearanceItem
+      tags: [offboarding]
+      summary: Add an ad-hoc clearance item to a running offboarding
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: exitProcessId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddClearanceItemInput"
+      responses:
+        "201":
+          description: Item added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClearanceItem"
+        "404":
+          description: Offboarding not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/clearance-items/{itemId}/complete:
+    post:
+      operationId: completeClearanceItem
+      tags: [offboarding]
+      summary: Mark a clearance item complete
+      description: >-
+        Completing an `asset_return` item does NOT end an asset assignment or
+        alter custody, and an `inventory_return` item does NOT move stock. Those
+        transitions belong to Assets and Office Inventory (§28.9, §28.10).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompleteClearanceItemInput"
+      responses:
+        "200":
+          description: Item completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClearanceItem"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: A waived item cannot be completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/clearance-items/{itemId}/return:
+    post:
+      operationId: returnClearanceItem
+      tags: [offboarding]
+      summary: Send a clearance item back for more work
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnClearanceItemInput"
+      responses:
+        "200":
+          description: Item returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClearanceItem"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/clearance-items/{itemId}/waive:
+    post:
+      operationId: waiveClearanceItem
+      tags: [offboarding]
+      summary: Waive a clearance item
+      description: >-
+        The deliberate escape hatch, and it costs a reason (§28.8). Gated on
+        `offboarding.manage` rather than `clearance.act`, so the desk that cannot
+        recover an item is not the same party that excuses it.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WaiveClearanceItemInput"
+      responses:
+        "200":
+          description: Item waived
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClearanceItem"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: A waiver requires a reason
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/offboarding/{exitProcessId}/exit-interview:
+    post:
+      operationId: scheduleExitInterview
+      tags: [offboarding]
+      summary: Schedule the exit interview for an offboarding
+      description: >-
+        Questions and answers are WS-8 Custom Fields bound to the
+        `exit_interview` scope; no second questionnaire engine exists (§28.19).
+        No rehire-eligibility field exists anywhere in WS-12 (§28.15).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: exitProcessId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScheduleExitInterviewInput"
+      responses:
+        "201":
+          description: Interview scheduled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExitInterview"
+        "409":
+          description: An exit interview already exists for this offboarding
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: Offboarding not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/exit-interviews/{interviewId}/complete:
+    post:
+      operationId: completeExitInterview
+      tags: [offboarding]
+      summary: Record an exit interview as completed
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: interviewId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompleteExitInterviewInput"
+      responses:
+        "200":
+          description: Interview completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExitInterview"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/exit-interviews/{interviewId}/cancel:
+    post:
+      operationId: cancelExitInterview
+      tags: [offboarding]
+      summary: Cancel a scheduled exit interview
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: interviewId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancelExitInterviewInput"
+      responses:
+        "200":
+          description: Interview cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExitInterview"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/employee-relations/reports/disciplinary:
+    get:
+      operationId: getDisciplinaryReport
+      tags: [employee-relations]
+      summary: Open disciplinary cases with ageing
+      description: >-
+        Counts and ageing only — no subject, description, finding, outcome or
+        note (§28.23). Ageing is derived against the current instant, never
+        stored.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Disciplinary read model
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisciplinaryReport"
+
+  /organizations/{organizationId}/employee-relations/reports/grievances:
+    get:
+      operationId: getGrievanceReport
+      tags: [employee-relations]
+      summary: Open grievances with ageing
+      description: >-
+        Gated on `grievance.read`, deliberately a separate endpoint from the
+        disciplinary read model so one key cannot span both (§28.17).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Grievance read model
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GrievanceReport"
+
+  /organizations/{organizationId}/employee-relations/reports/offboarding:
+    get:
+      operationId: getOffboardingReport
+      tags: [offboarding]
+      summary: Employees currently offboarding, completed offboarding, outstanding assets
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Offboarding read model
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OffboardingReport"
+
+  /organizations/{organizationId}/employee-relations/reports/clearance-queue:
+    get:
+      operationId: getClearanceQueue
+      tags: [offboarding]
+      summary: Outstanding clearance items across running offboarding
+      description: >-
+        Readable by `clearance.act` holders as well as offboarding readers — an
+        approver who cannot see their own queue cannot do the job the key exists
+        for.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: responsibleDepartmentId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Clearance queue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClearanceQueue"
+        "403":
+          description: Neither clearance nor offboarding authority
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 components:
   schemas:
 
@@ -30466,10 +32082,10 @@ components:
           id,
           organizationId,
           employeeId,
-          separationDate,
           checklistCompleted,
           clearanceCompleted,
           exitInterviewCompleted,
+          status,
           createdAt,
           updatedAt,
         ]
@@ -30481,18 +32097,45 @@ components:
         employeeId:
           type: integer
         separationDate:
-          type: string
+          type: ["string", "null"]
           format: date-time
-          description: Snapshot of employees.separationDate at creation — identifies which separation cycle this row belongs to.
+          description: >-
+            The ACTUAL separation instant, snapshotted from employees.separationDate —
+            it identifies which separation cycle this row belongs to. WS-12 (§28.6)
+            made it nullable: an offboarding may now begin against an authoritative
+            recorded basis BEFORE separation, and stays null until separation happens.
         checklistCompleted:
           type: boolean
         clearanceCompleted:
           type: boolean
+          description: >-
+            WS-12 (§28.8): derived from real clearance items once any exist, and never
+            independently settable through the API. Rows predating WS-12 keep this
+            boolean as their only record.
         exitInterviewCompleted:
           type: boolean
         exitInterviewNotes:
           type: ["string", "null"]
         initiatedBy:
+          type: ["integer", "null"]
+        status:
+          $ref: "#/components/schemas/ExitProcessStatus"
+        separationBasis:
+          oneOf:
+            - $ref: "#/components/schemas/ExitSeparationBasis"
+            - type: "null"
+        separationBasisRecordedAt:
+          type: ["string", "null"]
+          format: date-time
+        expectedSeparationDate:
+          type: ["string", "null"]
+          format: date-time
+        clearanceTemplateId:
+          type: ["integer", "null"]
+        finalClearedAt:
+          type: ["string", "null"]
+          format: date-time
+        finalClearedBy:
           type: ["integer", "null"]
         createdAt:
           type: string
@@ -37850,3 +39493,1152 @@ components:
           nullable: true
           type: object
           additionalProperties: true
+
+    # --- WS-12 — Employee Relations & Offboarding Clearance (§28) ---
+
+    DisciplinaryCaseStatus:
+      type: string
+      enum: [open, closed]
+
+    CaseConfidentiality:
+      type: string
+      enum: [normal, confidential, restricted]
+
+    DisciplinaryCaseEventType:
+      type: string
+      enum:
+        - case_opened
+        - allegation_recorded
+        - notice_issued
+        - response_received
+        - investigation_recorded
+        - hearing_held
+        - finding_recorded
+        - outcome_recorded
+        - stage_changed
+        - appeal_lodged
+        - appeal_decided
+        - evidence_attached
+        - case_closed
+        - case_reopened
+
+    DisciplinaryCase:
+      type: object
+      required: [id, organizationId, employeeId, categoryCode, subject, status, confidentiality, openedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        employeeId:
+          type: integer
+        categoryCode:
+          type: string
+        severityCode:
+          type: string
+          nullable: true
+        stageCode:
+          type: string
+          nullable: true
+        subject:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          $ref: "#/components/schemas/DisciplinaryCaseStatus"
+        confidentiality:
+          $ref: "#/components/schemas/CaseConfidentiality"
+        outcomeCode:
+          type: string
+          nullable: true
+        outcomeRecordedAt:
+          type: string
+          format: date-time
+          nullable: true
+        warningExpiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        responsibleMembershipId:
+          type: integer
+          nullable: true
+        openedAt:
+          type: string
+          format: date-time
+        closedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    DisciplinaryCaseList:
+      type: array
+      items:
+        $ref: "#/components/schemas/DisciplinaryCase"
+
+    DisciplinaryCaseEvent:
+      type: object
+      required: [id, organizationId, caseId, eventType, occurredAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        caseId:
+          type: integer
+        eventType:
+          $ref: "#/components/schemas/DisciplinaryCaseEventType"
+        occurredAt:
+          type: string
+          format: date-time
+        notes:
+          type: string
+          nullable: true
+        details:
+          nullable: true
+          type: object
+          additionalProperties: true
+        recordedBy:
+          type: integer
+          nullable: true
+
+    DisciplinaryCaseDetail:
+      allOf:
+        - $ref: "#/components/schemas/DisciplinaryCase"
+        - type: object
+          properties:
+            events:
+              type: array
+              items:
+                $ref: "#/components/schemas/DisciplinaryCaseEvent"
+
+    OpenDisciplinaryCaseInput:
+      type: object
+      required: [employeeId, categoryCode, subject, openedAt]
+      properties:
+        employeeId:
+          type: integer
+        categoryCode:
+          type: string
+          minLength: 1
+          maxLength: 100
+        severityCode:
+          type: string
+          maxLength: 100
+          nullable: true
+        stageCode:
+          type: string
+          maxLength: 100
+          nullable: true
+        subject:
+          type: string
+          minLength: 1
+          maxLength: 300
+        description:
+          type: string
+          nullable: true
+        confidentiality:
+          $ref: "#/components/schemas/CaseConfidentiality"
+        responsibleMembershipId:
+          type: integer
+          nullable: true
+        openedAt:
+          type: string
+          format: date-time
+
+    RecordDisciplinaryEventInput:
+      type: object
+      required: [eventType, occurredAt]
+      properties:
+        eventType:
+          $ref: "#/components/schemas/DisciplinaryCaseEventType"
+        occurredAt:
+          type: string
+          format: date-time
+        notes:
+          type: string
+          nullable: true
+
+    ChangeDisciplinaryStageInput:
+      type: object
+      required: [stageCode, occurredAt]
+      properties:
+        stageCode:
+          type: string
+          minLength: 1
+          maxLength: 100
+        occurredAt:
+          type: string
+          format: date-time
+        notes:
+          type: string
+          nullable: true
+
+    RecordDisciplinaryOutcomeInput:
+      type: object
+      required: [outcomeCode, occurredAt]
+      properties:
+        outcomeCode:
+          type: string
+          minLength: 1
+          maxLength: 100
+        occurredAt:
+          type: string
+          format: date-time
+        notes:
+          type: string
+          nullable: true
+        warningExpiresAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    CloseDisciplinaryCaseInput:
+      type: object
+      required: [occurredAt]
+      properties:
+        occurredAt:
+          type: string
+          format: date-time
+        notes:
+          type: string
+          nullable: true
+
+    ReopenDisciplinaryCaseInput:
+      type: object
+      required: [occurredAt, reason]
+      properties:
+        occurredAt:
+          type: string
+          format: date-time
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+
+    AttachCaseEvidenceInput:
+      type: object
+      required: [documentId, occurredAt]
+      properties:
+        documentId:
+          type: integer
+        occurredAt:
+          type: string
+          format: date-time
+        notes:
+          type: string
+          nullable: true
+
+    GrievanceCaseStatus:
+      type: string
+      enum: [submitted, acknowledged, under_review, resolved, closed, withdrawn]
+
+    GrievanceRespondentType:
+      type: string
+      enum: [employee, department, unspecified]
+
+    GrievanceCaseEventType:
+      type: string
+      enum:
+        - submitted
+        - acknowledged
+        - assigned
+        - reassigned
+        - review_recorded
+        - meeting_held
+        - information_requested
+        - information_provided
+        - finding_recorded
+        - resolution_recorded
+        - escalated
+        - appeal_lodged
+        - appeal_decided
+        - evidence_attached
+        - withdrawn
+        - closed
+        - reopened
+
+    GrievanceCase:
+      type: object
+      required:
+        [id, organizationId, complainantEmployeeId, categoryCode, respondentType, subject, description, status, confidentiality, submittedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        complainantEmployeeId:
+          type: integer
+        categoryCode:
+          type: string
+        respondentType:
+          $ref: "#/components/schemas/GrievanceRespondentType"
+        respondentEmployeeId:
+          type: integer
+          nullable: true
+        respondentDepartmentId:
+          type: integer
+          nullable: true
+        subject:
+          type: string
+        description:
+          type: string
+        status:
+          $ref: "#/components/schemas/GrievanceCaseStatus"
+        confidentiality:
+          $ref: "#/components/schemas/CaseConfidentiality"
+        assignedMembershipId:
+          type: integer
+          nullable: true
+        submittedAt:
+          type: string
+          format: date-time
+        acknowledgedAt:
+          type: string
+          format: date-time
+          nullable: true
+        resolutionSummary:
+          type: string
+          nullable: true
+        resolvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        closedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    GrievanceCaseList:
+      type: array
+      items:
+        $ref: "#/components/schemas/GrievanceCase"
+
+    GrievanceCaseEvent:
+      type: object
+      required: [id, organizationId, caseId, eventType, occurredAt, visibleToComplainant]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        caseId:
+          type: integer
+        eventType:
+          $ref: "#/components/schemas/GrievanceCaseEventType"
+        occurredAt:
+          type: string
+          format: date-time
+        notes:
+          type: string
+          nullable: true
+        details:
+          nullable: true
+          type: object
+          additionalProperties: true
+        visibleToComplainant:
+          type: boolean
+        recordedBy:
+          type: integer
+          nullable: true
+
+    GrievanceCaseDetail:
+      allOf:
+        - $ref: "#/components/schemas/GrievanceCase"
+        - type: object
+          properties:
+            events:
+              type: array
+              items:
+                $ref: "#/components/schemas/GrievanceCaseEvent"
+
+    GrievanceEssUpdate:
+      type: object
+      required: [id, eventType, occurredAt]
+      properties:
+        id:
+          type: integer
+        eventType:
+          $ref: "#/components/schemas/GrievanceCaseEventType"
+        occurredAt:
+          type: string
+          format: date-time
+        notes:
+          type: string
+          nullable: true
+
+    GrievanceEssView:
+      type: object
+      description: >-
+        The §28.5 employee-facing allow-list. Built field by field, never spread
+        from the full record: confidentiality, assignment, respondent,
+        investigator notes, internal deliberations, draft findings and audit
+        information are all absent by construction.
+      required: [id, categoryCode, subject, description, status, submittedAt, updates]
+      properties:
+        id:
+          type: integer
+        categoryCode:
+          type: string
+        subject:
+          type: string
+        description:
+          type: string
+        status:
+          $ref: "#/components/schemas/GrievanceCaseStatus"
+        submittedAt:
+          type: string
+          format: date-time
+        acknowledgedAt:
+          type: string
+          format: date-time
+          nullable: true
+        resolutionSummary:
+          type: string
+          nullable: true
+        resolvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        closedAt:
+          type: string
+          format: date-time
+          nullable: true
+        updates:
+          type: array
+          items:
+            $ref: "#/components/schemas/GrievanceEssUpdate"
+
+    GrievanceEssViewList:
+      type: array
+      items:
+        $ref: "#/components/schemas/GrievanceEssView"
+
+    SubmitGrievanceInput:
+      type: object
+      required: [complainantEmployeeId, categoryCode, subject, description, submittedAt]
+      properties:
+        complainantEmployeeId:
+          type: integer
+        categoryCode:
+          type: string
+          minLength: 1
+          maxLength: 100
+        respondentType:
+          $ref: "#/components/schemas/GrievanceRespondentType"
+        respondentEmployeeId:
+          type: integer
+          nullable: true
+        respondentDepartmentId:
+          type: integer
+          nullable: true
+        subject:
+          type: string
+          minLength: 1
+          maxLength: 300
+        description:
+          type: string
+          minLength: 1
+        submittedAt:
+          type: string
+          format: date-time
+
+    SubmitMyGrievanceInput:
+      type: object
+      description: >-
+        No complainant field. The complainant is resolved from the caller's own
+        employee link, so an employee cannot file in a colleague's name.
+      required: [categoryCode, subject, description, submittedAt]
+      properties:
+        categoryCode:
+          type: string
+          minLength: 1
+          maxLength: 100
+        respondentType:
+          $ref: "#/components/schemas/GrievanceRespondentType"
+        respondentEmployeeId:
+          type: integer
+          nullable: true
+        respondentDepartmentId:
+          type: integer
+          nullable: true
+        subject:
+          type: string
+          minLength: 1
+          maxLength: 300
+        description:
+          type: string
+          minLength: 1
+        submittedAt:
+          type: string
+          format: date-time
+
+    AcknowledgeGrievanceInput:
+      type: object
+      required: [occurredAt]
+      properties:
+        occurredAt:
+          type: string
+          format: date-time
+        notes:
+          type: string
+          nullable: true
+
+    AssignGrievanceInput:
+      type: object
+      required: [assignedMembershipId, occurredAt]
+      properties:
+        assignedMembershipId:
+          type: integer
+        occurredAt:
+          type: string
+          format: date-time
+
+    RecordGrievanceEventInput:
+      type: object
+      required: [eventType, occurredAt]
+      properties:
+        eventType:
+          $ref: "#/components/schemas/GrievanceCaseEventType"
+        occurredAt:
+          type: string
+          format: date-time
+        notes:
+          type: string
+          nullable: true
+        visibleToComplainant:
+          type: boolean
+          description: Defaults to false. Employee visibility is always a deliberate act.
+
+    ResolveGrievanceInput:
+      type: object
+      required: [resolutionSummary, occurredAt]
+      properties:
+        resolutionSummary:
+          type: string
+          minLength: 1
+        occurredAt:
+          type: string
+          format: date-time
+
+    CloseGrievanceInput:
+      type: object
+      required: [occurredAt]
+      properties:
+        occurredAt:
+          type: string
+          format: date-time
+        notes:
+          type: string
+          nullable: true
+
+    WithdrawGrievanceInput:
+      type: object
+      required: [occurredAt]
+      properties:
+        occurredAt:
+          type: string
+          format: date-time
+        reason:
+          type: string
+          nullable: true
+
+    ClearanceTemplateStatus:
+      type: string
+      enum: [draft, active, archived]
+
+    ClearanceItemType:
+      type: string
+      enum:
+        - general
+        - asset_return
+        - inventory_return
+        - personnel_file
+        - access_revocation
+        - final_settlement
+        - document_handover
+
+    ClearanceItemStatus:
+      type: string
+      enum: [pending, completed, returned, waived]
+
+    ClearanceTemplate:
+      type: object
+      required: [id, organizationId, name, status, isDefault]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          $ref: "#/components/schemas/ClearanceTemplateStatus"
+        isDefault:
+          type: boolean
+
+    ClearanceTemplateList:
+      type: array
+      items:
+        $ref: "#/components/schemas/ClearanceTemplate"
+
+    ClearanceTemplateItem:
+      type: object
+      required: [id, organizationId, templateId, sequence, label, itemType, required]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        templateId:
+          type: integer
+        sequence:
+          type: integer
+        label:
+          type: string
+        description:
+          type: string
+          nullable: true
+        itemType:
+          $ref: "#/components/schemas/ClearanceItemType"
+        required:
+          type: boolean
+        responsibleDepartmentId:
+          type: integer
+          nullable: true
+
+    ClearanceTemplateDetail:
+      allOf:
+        - $ref: "#/components/schemas/ClearanceTemplate"
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/ClearanceTemplateItem"
+
+    CreateClearanceTemplateInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          nullable: true
+
+    UpdateClearanceTemplateInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          nullable: true
+        status:
+          $ref: "#/components/schemas/ClearanceTemplateStatus"
+        isDefault:
+          type: boolean
+
+    AddClearanceTemplateItemInput:
+      type: object
+      required: [label]
+      properties:
+        label:
+          type: string
+          minLength: 1
+          maxLength: 300
+        description:
+          type: string
+          nullable: true
+        itemType:
+          $ref: "#/components/schemas/ClearanceItemType"
+        required:
+          type: boolean
+        responsibleDepartmentId:
+          type: integer
+          nullable: true
+        sequence:
+          type: integer
+
+    ClearanceItem:
+      type: object
+      required: [id, organizationId, exitProcessId, sequence, label, itemType, required, status]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        exitProcessId:
+          type: integer
+        sourceTemplateItemId:
+          type: integer
+          nullable: true
+        sequence:
+          type: integer
+        label:
+          type: string
+        description:
+          type: string
+          nullable: true
+        itemType:
+          $ref: "#/components/schemas/ClearanceItemType"
+        required:
+          type: boolean
+        responsibleDepartmentId:
+          type: integer
+          nullable: true
+        responsibleMembershipId:
+          type: integer
+          nullable: true
+        status:
+          $ref: "#/components/schemas/ClearanceItemStatus"
+        comment:
+          type: string
+          nullable: true
+        evidenceDocumentId:
+          type: integer
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        returnedReason:
+          type: string
+          nullable: true
+        waivedReason:
+          type: string
+          nullable: true
+        waivedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    ClearanceItemList:
+      type: array
+      items:
+        $ref: "#/components/schemas/ClearanceItem"
+
+    AddClearanceItemInput:
+      type: object
+      required: [label]
+      properties:
+        label:
+          type: string
+          minLength: 1
+          maxLength: 300
+        description:
+          type: string
+          nullable: true
+        itemType:
+          $ref: "#/components/schemas/ClearanceItemType"
+        required:
+          type: boolean
+        responsibleDepartmentId:
+          type: integer
+          nullable: true
+
+    CompleteClearanceItemInput:
+      type: object
+      properties:
+        comment:
+          type: string
+          nullable: true
+        evidenceDocumentId:
+          type: integer
+          nullable: true
+
+    ReturnClearanceItemInput:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+
+    WaiveClearanceItemInput:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: Mandatory. Clearance may be waived, but never silently (§28.8).
+
+    ExitProcessStatus:
+      type: string
+      enum: [legacy, initiated, clearance_in_progress, ready_for_separation, completed, cancelled]
+
+    ExitSeparationBasis:
+      type: string
+      description: >-
+        Only bases backed by an authoritative record. Accepted resignation,
+        retirement and approved termination are absent because no such record
+        exists in this platform; adding them requires an authoritative record
+        first, and therefore its own Owner Decision (§28.6).
+      enum: [already_separated, contract_end]
+
+    # `EmployeeExitProcess` is NOT redefined here. WS-12 extends the shipped W29
+    # schema in place (§28.8: extend, never replace), so there is exactly one
+    # definition of an offboarding record in this specification.
+
+    OffboardingList:
+      type: array
+      items:
+        $ref: "#/components/schemas/EmployeeExitProcess"
+
+    ClearanceProgress:
+      type: object
+      required: [total, required, completed, waived, pending, returned, requiredOutstanding, clearanceComplete]
+      properties:
+        total:
+          type: integer
+        required:
+          type: integer
+        completed:
+          type: integer
+        waived:
+          type: integer
+        pending:
+          type: integer
+        returned:
+          type: integer
+        requiredOutstanding:
+          type: integer
+        clearanceComplete:
+          type: boolean
+
+    OutstandingCustody:
+      type: object
+      description: READ from Assets and Office Inventory. Nothing here alters either module.
+      required: [assets, inventory]
+      properties:
+        assets:
+          type: array
+          items:
+            type: object
+            required: [assignmentId, assetId]
+            properties:
+              assignmentId:
+                type: integer
+              assetId:
+                type: integer
+              assetTag:
+                type: string
+                nullable: true
+              assetName:
+                type: string
+                nullable: true
+        inventory:
+          type: array
+          items:
+            type: object
+            required: [movementId, itemId]
+            properties:
+              movementId:
+                type: integer
+              itemId:
+                type: integer
+              itemName:
+                type: string
+                nullable: true
+        personnelFileId:
+          type: integer
+          nullable: true
+
+    ExitInterviewStatus:
+      type: string
+      enum: [scheduled, completed, cancelled]
+
+    ExitInterview:
+      type: object
+      required: [id, organizationId, exitProcessId, status]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        exitProcessId:
+          type: integer
+        status:
+          $ref: "#/components/schemas/ExitInterviewStatus"
+        interviewDate:
+          type: string
+          format: date-time
+          nullable: true
+        interviewerMembershipId:
+          type: integer
+          nullable: true
+        reasonForLeavingCode:
+          type: string
+          nullable: true
+        confidentialNotes:
+          type: string
+          nullable: true
+
+    OffboardingDetail:
+      allOf:
+        - $ref: "#/components/schemas/EmployeeExitProcess"
+        - type: object
+          properties:
+            items:
+              $ref: "#/components/schemas/ClearanceItemList"
+            progress:
+              $ref: "#/components/schemas/ClearanceProgress"
+            outstandingCustody:
+              $ref: "#/components/schemas/OutstandingCustody"
+            exitInterview:
+              nullable: true
+              allOf:
+                - $ref: "#/components/schemas/ExitInterview"
+
+    OffboardingEligibility:
+      type: object
+      required: [eligible]
+      properties:
+        eligible:
+          type: boolean
+        basis:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/ExitSeparationBasis"
+        expectedSeparationDate:
+          type: string
+          format: date-time
+          nullable: true
+        evidence:
+          type: string
+          nullable: true
+          description: What the basis was read from, so a refusal can be explained.
+
+    InitiateOffboardingInput:
+      type: object
+      properties:
+        clearanceTemplateId:
+          type: integer
+          nullable: true
+          description: Defaults to the organization's active default template, if one exists.
+
+    InitiateOffboardingResult:
+      type: object
+      required: [exitProcess, itemsCreated]
+      properties:
+        exitProcess:
+          $ref: "#/components/schemas/EmployeeExitProcess"
+        itemsCreated:
+          type: integer
+        basis:
+          type: object
+          properties:
+            basis:
+              $ref: "#/components/schemas/ExitSeparationBasis"
+            expectedSeparationDate:
+              type: string
+              format: date-time
+            evidence:
+              type: string
+
+    FinalClearanceResult:
+      type: object
+      required: [exitProcess, progress]
+      properties:
+        exitProcess:
+          $ref: "#/components/schemas/EmployeeExitProcess"
+        progress:
+          $ref: "#/components/schemas/ClearanceProgress"
+
+    CancelOffboardingInput:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+
+    ScheduleExitInterviewInput:
+      type: object
+      properties:
+        interviewDate:
+          type: string
+          format: date-time
+          nullable: true
+        interviewerMembershipId:
+          type: integer
+          nullable: true
+
+    CompleteExitInterviewInput:
+      type: object
+      properties:
+        interviewDate:
+          type: string
+          format: date-time
+          nullable: true
+        reasonForLeavingCode:
+          type: string
+          nullable: true
+        confidentialNotes:
+          type: string
+          nullable: true
+
+    CancelExitInterviewInput:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+
+    CaseAgeingRow:
+      type: object
+      required: [id, employeeId, status, openedAt, ageDays]
+      properties:
+        id:
+          type: integer
+        employeeId:
+          type: integer
+        status:
+          type: string
+        openedAt:
+          type: string
+          format: date-time
+        ageDays:
+          type: integer
+
+    DisciplinaryReport:
+      type: object
+      required: [openCases]
+      properties:
+        openCases:
+          type: array
+          items:
+            $ref: "#/components/schemas/CaseAgeingRow"
+
+    GrievanceAgeingRow:
+      type: object
+      required: [id, complainantEmployeeId, status, submittedAt, ageDays]
+      properties:
+        id:
+          type: integer
+        complainantEmployeeId:
+          type: integer
+        status:
+          type: string
+        submittedAt:
+          type: string
+          format: date-time
+        acknowledgedAt:
+          type: string
+          format: date-time
+          nullable: true
+        ageDays:
+          type: integer
+
+    GrievanceReport:
+      type: object
+      required: [openGrievances]
+      properties:
+        openGrievances:
+          type: array
+          items:
+            $ref: "#/components/schemas/GrievanceAgeingRow"
+
+    OffboardingReport:
+      type: object
+      required: [inProgress, completed, outstandingAssets]
+      properties:
+        inProgress:
+          type: array
+          items:
+            type: object
+            required: [exitProcessId, employeeId, status, requiredOutstanding, outstandingAssets]
+            properties:
+              exitProcessId:
+                type: integer
+              employeeId:
+                type: integer
+              status:
+                type: string
+              expectedSeparationDate:
+                type: string
+                format: date-time
+                nullable: true
+              separationDate:
+                type: string
+                format: date-time
+                nullable: true
+              requiredOutstanding:
+                type: integer
+              outstandingAssets:
+                type: integer
+        completed:
+          type: array
+          items:
+            type: object
+            required: [exitProcessId, employeeId]
+            properties:
+              exitProcessId:
+                type: integer
+              employeeId:
+                type: integer
+              finalClearedAt:
+                type: string
+                format: date-time
+                nullable: true
+              separationDate:
+                type: string
+                format: date-time
+                nullable: true
+        outstandingAssets:
+          type: array
+          items:
+            type: object
+            required: [employeeId, assignmentId, assetId]
+            properties:
+              employeeId:
+                type: integer
+              assignmentId:
+                type: integer
+              assetId:
+                type: integer
+              assetTag:
+                type: string
+                nullable: true
+
+    ClearanceQueue:
+      type: object
+      required: [outstanding]
+      properties:
+        outstanding:
+          type: array
+          items:
+            type: object
+            required: [clearanceItemId, exitProcessId, employeeId, label, itemType, required, status]
+            properties:
+              clearanceItemId:
+                type: integer
+              exitProcessId:
+                type: integer
+              employeeId:
+                type: integer
+              label:
+                type: string
+              itemType:
+                type: string
+              required:
+                type: boolean
+              status:
+                type: string
+              responsibleDepartmentId:
+                type: integer
+                nullable: true
