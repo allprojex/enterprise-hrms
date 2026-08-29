@@ -121,8 +121,8 @@ Unchanged from the discovery pass — drawn directly from `docs/GHANA_HR_EMPLOYE
 | 29 | Employee Welfare | GENUINELY MISSING | — (no OD; brief instructs no medical records) | Unchanged, P3 |
 | 30 | Benefits | GENUINELY MISSING | — (no OD) | Unchanged, P2/P3, must not duplicate compensation components |
 | 31 | HR Letters | GENUINELY MISSING (root cause: no document generation) | Owned by OD #4 | Unchanged, P1 |
-| 32 | HR Service Requests | GENUINELY MISSING as generic mechanism | **OWNER DECISION #10 — APPROVED WITH CHANGE.** Do not build every simple HR request as an unrelated implementation. Design a configurable shared HR Service Request foundation for suitable requests (employment letter, document request, HR inquiry, simple organization-defined requests). Where a request has specialized domain behavior, approvals, or legal/business logic, keep the specialized domain workflow. Do not create a giant generic workflow engine. | **Changed** from "per-type, following precedent" to a hybrid: shared foundation for simple/generic requests, specialized workflow preserved where warranted |
-| 33 | Employee Data Change Approval | GENUINELY MISSING | **OWNER DECISION #11 — APPROVED.** Use a proven request/approval shape. Sensitive fields must be configurable. Preserve requested value, previous value where appropriate, verification, approval/rejection, effective update, actor, timestamps, audit/history. | Approved unchanged |
+| 32 | HR Service Requests | GENUINELY MISSING as generic mechanism | **OWNER DECISION #10 — APPROVED WITH CHANGE.** Do not build every simple HR request as an unrelated implementation. Design a configurable shared HR Service Request foundation for suitable requests (employment letter, document request, HR inquiry, simple organization-defined requests). Where a request has specialized domain behavior, approvals, or legal/business logic, keep the specialized domain workflow. Do not create a giant generic workflow engine. | **Changed** from "per-type, following precedent" to a hybrid: shared foundation for simple/generic requests, specialized workflow preserved where warranted — **WS-13 architecture frozen in §29** (§29.12 request lifecycle and configuration; §29.5 specialized workflows stay specialized; §29.13 letters generate through WS-5, never a second engine) |
+| 33 | Employee Data Change Approval | GENUINELY MISSING | **OWNER DECISION #11 — APPROVED.** Use a proven request/approval shape. Sensitive fields must be configurable. Preserve requested value, previous value where appropriate, verification, approval/rejection, effective update, actor, timestamps, audit/history. | Approved unchanged — **WS-13 architecture frozen in §29**; §29.1(2) corrects “GENUINELY MISSING” to *employees cannot change their own record at all today, so the request IS the path*, §29.2 admits both ESS and HR origins through one architecture, §29.3 confines it to an explicit eligible-field registry, and §29.6 enforces maker-checker server-side |
 | 34 | Offboarding / Clearance | PARTIAL (thin) | **OWNER DECISION #12 — APPROVED.** Build structured clearance integrated with authoritative owning modules (Assets, Office Inventory, Personnel Files/Documents, IT/access, department clearance, HR, Payroll handoff). Do not duplicate those modules' records. | Approved unchanged — **implemented under WS-12, architecture frozen in §28**; §28.1 corrects "PARTIAL (thin)" to *three booleans with no clearance items at all*, §28.6 permits offboarding to begin from a recorded separation basis, §28.7 freezes that offboarding never terminates employment, and §28.9–28.10 keep Assets and Office Inventory observe-only |
 | 35 | Workplace Incidents | GENUINELY MISSING | — (no OD) | Unchanged, P2, must stay separate from Assets/Inventory incidents |
 | 36 | HR Compliance Calendar | GENUINELY MISSING | — (no OD; depends on OD #13) | Unchanged, P2 |
@@ -1588,3 +1588,279 @@ None blocking. Q1 through Q6 are resolved above. The following are conditional b
 3. Whether clearance items reference `document_requirements` (which already supplies required/provided/verified/rejected/expiry) or carry their own evidence pointer (§28.8) — the §26.1 reasoning applies and should be re-checked against real clearance semantics.
 4. Whether the exit-interview questionnaire binds a new WS-8 scope or attaches to the existing employee scope (§28.15) — following the WS-10 precedent where a shipped authoritative record made a scope bindable.
 5. Whether the three legacy booleans on `employee_exit_processes` are derived in the read model or retained as denormalized cache columns (§28.8) — they must never be independently settable either way.
+
+---
+
+## 29. WS-13 Workstream Architecture Freeze — Employee Data Change Approval & HR Service Requests
+
+Recorded by the Owner after a read-only Pass-1 reconciliation established that **both WS-13 pillars are greenfield**, that **three different proven approval shapes already ship**, and that **WS-8 pre-recorded a contract naming Employee Data Change as a future consumer of its form submissions**. Six genuine forks were put to the Owner and answered before this section was written; they are recorded below as Decisions A, B, F, G, J and P, with four binding clarifications folded into Decisions B, D, E and K.
+
+This section is **purely additive**. The 31 Owner Decisions in §22 are untouched. **OD #10 and OD #11 are implemented, not amended.** **OD #14 and OD #15 are expressly NOT claimed by this workstream** (§29.9). OD #23's masking, already shipped in WS-3, is reused and not reimplemented. WS-1 through WS-12 remain complete and are not reopened.
+
+WS-13 is **P1/P2** and depends on **WS-6 (light)**, which is complete. WS-14 does not depend on it.
+
+**Priority note.** OD #11 (Employee Data Change Approval) is **P1** while OD #10 (HR Service Requests) is **P2**, so a P1 and a P2 decision sit inside one workstream — the same shape §27 recorded for WS-11. This is recorded, not resolved: if delivery must be split, the data-change work is the P1 half.
+
+### 29.1 Corrected repository facts (mandatory reconciliation)
+
+Verified read-only at `2435ae2`, migration ledger `0068`:
+
+1. **Both pillars are genuinely greenfield.** No `change_request`, `data_change`, `field_change`, `service_request` or `hr_request` table, service or route exists anywhere.
+2. **An employee cannot change their own employee record at all today.** `PATCH /organizations/:organizationId/employees/:employeeId` is gated on `employee.write` (HR), and the only self-service writes in `me.ts` are profile-picture upload and delete. **A data-change request is therefore not a gate placed over an existing self-service path — it IS the path**, and this materially shapes Decision A.
+3. **Three proven approval shapes already ship, and they differ from one another.** *Leave* is a hard-coded two-stage Department Head → HR chain with per-stage columns and a `pending`/`pending_hr`/… status enum. *Recruitment (WS-9)* is the most general and most recent: configurable ordered `recruitment_approval_stages`, **three server-defined authority resolvers** (`department_head`, `permission_holder`, `specific_membership`), an append-only decision log, and a **stage count frozen at request time** so reconfiguring a chain cannot retroactively change whether an in-flight request is complete. *Office Inventory* adds effective-dated delegation with a live re-check that the delegating Head is still the Head at the moment of every approval.
+4. **WS-8 pre-recorded a contract for this workstream.** §24.23 states that a form submission "may later feed a *specialized* domain workflow (**Employee Data Change**, Recruitment, Onboarding)". `custom_forms` already carries an `employee_ess` form type, and `custom_form_submissions` is deliberately a bare record — form, version, scope, entity, answers, submitter, timestamp — with **no status and no lifecycle of any kind**. WS-8 supplies the form layer; WS-13 supplies the request lifecycle above it.
+5. **OD #23 masking is already implemented.** WS-3's `lib/sensitiveData.ts` provides `maskAccountNumber` and `maskIdentifier`, and banking and statutory identifiers live in payroll-owned tables served by `payrollSensitiveRecords`. WS-13's "configurable sensitive fields" is a **different axis** — which fields require approval to change — and is not a second masking implementation.
+6. **WS-6 deliberately built no approval inbox.** Its own record states "no HR Action Centre, no manager approval inbox, no dashboards", and the org-wide **HR Action Centre belongs to WS-15**.
+7. **`employees.updatedAt` exists with `$onUpdate`**, giving a natural anchor for stale-change detection (§29.10).
+8. **`generated_documents` already carries a polymorphic `sourceType`/`sourceId`** plus `templateId`, `templateVersionId` and `categoryCode` — everything a fulfilled letter request needs to point at its own document without WS-13 storing one.
+9. **The `employees` table mixes three ownership classes in one row**: personal and contact fields; employment fields owned by the WS-11 lifecycle services (`employmentStatus`, `positionId`, `departmentId`, `separationDate`, `probationEndDate`); and pointers to payroll-owned sensitive records. Decision B exists because of this.
+
+### 29.2 Decision A — Two origins, one request architecture
+
+WS-13 supports **two legitimate request origins through a single shared request and decision architecture**. Two parallel engines — one for ESS, one for HR — are forbidden.
+
+**Employee-originated.** An authenticated employee may request changes to eligible fields on **their own** record through ESS. **The server derives the subject employee from the authenticated employee relationship** (`employee_user_links`, the resolver WS-10 and WS-12 already use). A browser-supplied employee id is never trusted for an own-data request — the request body carries no subject identifier at all, exactly as §28.5's ESS grievance submission does. The request stays pending until the required verification and approval complete; **only then may the authoritative record change**.
+
+**HR-originated.** An authorized HR user may propose a change to another employee's eligible field. Where the organization has configured that field to require approval, the change **must** travel through maker-checker (§29.6) rather than direct mutation.
+
+**Origin is recorded explicitly on every request** — `employee_self_service` or `hr_originated` — so policy, reporting and audit can distinguish them. It is derived server-side from how the request was raised, never accepted from the client.
+
+### 29.3 Decision B — The eligible-field registry
+
+WS-13 governs **only an explicit, product-defined, typed registry of eligible change targets**. There is no "any employee column" mechanism, and no configuration path that can create one.
+
+**Excluded by construction**, regardless of any organization's configuration:
+
+- Employment Lifecycle authoritative fields, and every separation or employment-status transition
+- Department, position and designation changes where the lifecycle architecture owns the transition
+- Payroll-owned banking, statutory and pay-sensitive records
+- Leave-owned records
+- Assets and Office Inventory
+- Disciplinary and grievance state
+- Identity & Access, roles, permissions, MFA and administrative status
+- Any other specialist-module authoritative state
+
+This is §27.20 and §28.16's cross-module boundary applied a third time, and the reason is concrete: `employees` mixes ownership classes in one row (§29.1(9)), so a registry keyed on "column exists" would hand WS-13 a route into separation, promotion and banking. **WS-13 must never become a generic backdoor around another module's invariants.**
+
+Where a request concerns another module, WS-13 may **record and route** it where authorized, but **the authoritative mutation remains owned by that module**.
+
+The registry is a code-level allow-list — adding a target is a deliberate change a reviewer can see, the same reasoning that keeps WS-9's authority resolvers server-defined and §24.8's custom-field scopes a closed enum.
+
+### 29.4 Decision C — Approval is configurable only within the eligible set
+
+For each **eligible** target, an organization configures one of two dispositions:
+
+- **direct** — an authorized HR update applies immediately, as it does today; or
+- **approval required** — the change must travel as a request and be decided.
+
+**Configuration may never convert a specialist-module-owned field into a generic WS-13 field.** A field excluded by §29.3 stays excluded whatever the configuration says, and the server validates configuration against the registry rather than trusting stored settings.
+
+**Not every HR edit becomes maker-checker.** Making every edit reviewable would be a silent, organization-wide authorization change to shipped behaviour, and §28.17's precedent refuses exactly that. Organizations choose which eligible fields warrant it.
+
+### 29.5 Decision D — Specialized workflows remain specialized
+
+OD #10's shared foundation applies **only to suitable requests**. Where a domain already has real business workflow, WS-13 does not rebuild it as a generic service request. That covers Leave, Recruitment, Onboarding, Employment Lifecycle, disciplinary and grievance, Payroll, Assets and Office Inventory.
+
+A service request may provide an **entry point or referral** where the architecture permits, but it **cannot become an alternate source of truth** for a domain that owns its own records. This restates OD #10's own "no giant generic workflow engine" and §24.23's "generic form approval workflow — out of scope".
+
+### 29.6 Decision E — Maker-checker
+
+Where approval is required, **`requester != approving actor`**, enforced **server-side** on every decision path.
+
+This binds HR-originated requests as much as any other, and it is not satisfied by hiding a button: frontend concealment is not authorization, the rule §28.17 already states for WS-12. An organization whose only eligible approver is the requester gets a request that cannot be self-approved — that is the correct outcome, not a bug to engineer around.
+
+### 29.7 Decision F — Approval does not expand data visibility
+
+**Being named an approver must never expose data the actor is otherwise prohibited from seeing.**
+
+The approval DTO carries the **minimum information required to make the permitted decision** — the field being changed, its requested value, its previous value where the approver is entitled to it, the subject, the origin and the justification. It is built field by field, never spread from the employee record, the same construction §28.5 required of the ESS grievance view and for the same reason: a spread-based DTO starts leaking any column added later, silently.
+
+**Sensitive values continue to observe existing masking and security rules.** Where OD #23 masking applies to a value today, it applies inside an approval DTO too. Approval is not a reveal.
+
+### 29.8 Decision G — A bounded approval-stage and resolver model
+
+WS-13 builds its **own namespaced** approval configuration, modelled on WS-9's proven architecture: configurable ordered stages, server-defined authority resolvers, a **stage count frozen at request time**, and an **append-only decision history**.
+
+**Shipped Recruitment is not refactored to consume new shared tables, and Recruitment must not be made to depend on WS-13.** Architectural duplication is deliberately preferred here to destabilising a completed workstream — the §27.21 and §28.25 protected-capabilities rule. A future implementation of OD #14 may extract the common primitives deliberately; **WS-13 is not that refactor**.
+
+WS-9's safeguards are followed where they apply, in particular that **later configuration changes must not alter an in-flight request**.
+
+Resolvers are server-defined. There is **no rule DSL, no expression evaluator and no generic state machine** — the same constraint §25.2 placed on Recruitment.
+
+### 29.9 Decision H — OD #14 and OD #15 are not claimed
+
+WS-13 **must not claim to complete OD #14 or OD #15**. Both remain approved and unassigned in the workstream register.
+
+Accordingly WS-13 builds: no cross-product generic approval engine; no generalized system-wide delegation framework; no unrequested refactor of Office Inventory delegation; no unrequested refactor of Recruitment approval resolution.
+
+A bounded authority resolver **inside** WS-13 is permitted (§29.8). **Assignment and reassignment for HR service fulfilment is not approval delegation** and must not be described or built as one. True approval delegation stays deferred until a workstream explicitly owns it.
+
+### 29.10 Decision I — Stale-change and concurrency protection
+
+A request records the **previous value of each target field, captured when the request is raised**. At decision time the service **re-reads the current value and compares**.
+
+If the authoritative value has moved since the request was raised, the decision **must not silently overwrite it**. The request is surfaced as **stale** and requires an explicit, audited re-confirmation; it is never applied on the assumption that the world stood still. This is the same reasoning that makes WS-6's job handlers re-fetch authoritative state and no-op when stale, and that makes WS-12's reminders permanent no-ops rather than blind writers.
+
+`employees.updatedAt` (§29.1(7)) supports coarse detection; **per-field previous-value comparison is the authoritative check**, because a change to an unrelated field on the same row must not invalidate an untouched request.
+
+Concurrency is protected at the database where a constraint can express the rule — at most one pending request per (employee, field) — rather than by a read-then-write check two concurrent submissions could both pass, following §27.5, §28.8 and WS-9.
+
+Application of an approved change is **transactional and idempotent**: a retried decision must not apply twice, and a partially applied multi-field change must not be possible.
+
+### 29.11 Decision J — Effective dating
+
+WS-13 distinguishes, and stores separately:
+
+- **requested at** — when the request was raised
+- **decided at** — when each decision was recorded
+- **effective date** — when the change takes effect in the business sense
+- **applied at** — when the authoritative record was actually written
+
+`createdAt` alone is never treated as any of these — the effective-dating rule §28 already states.
+
+**A future effective date does not licence a scheduled job to apply the change.** §27.11's platform-wide rule stands: a job may detect, remind and surface, but applying a consequential change is an authorized human act. Where an organization wants dated application, that is a configurable policy requiring its own Owner Decision, exactly as acting auto-revert was.
+
+Where a field has no meaningful business effective date, the effective date is the application instant, and the model does not invent one.
+
+### 29.12 Decision K — HR Service Request lifecycle and configuration
+
+WS-13 provides the **shared configurable HR Service Request foundation** OD #10 authorizes, covering suitable simple requests: employment-letter request, document request, HR enquiry, and simple organization-defined requests.
+
+**Request types are organization-configured** — label, whether approval is required, who fulfils, whether a WS-8 form supplies the request's own fields — within a product-defined set of behaviours. There is no scripting and no arbitrary workflow definition.
+
+WS-13 owns, for every request: submission, acknowledgement, assignment, status, approval where the type requires it, fulfilment tracking, employee-facing status, and the **resulting document reference** where one exists.
+
+Statuses stay small and are drawn from a fixed set; anything derivable — age, overdue against a configured target — is **derived, never stored**, the treatment §28.23 gave case ageing.
+
+### 29.13 Decision L — Documents & Records integration
+
+**WS-13 owns no document generation.** HR generates through the existing WS-5 capability, and a fulfilled request **references the resulting `generated_documents` record** through the polymorphic pointer that already exists (§29.1(8)). No second document store, no second template system, no second renderer.
+
+**A request for a letter and automatic lifecycle-event letter generation are separate concepts.** WS-11.1's deferred lifecycle-letter automation is **not** implemented, wired or partially anticipated here, and remains deferred (§29.22).
+
+Where a request's supporting evidence is a document, it uses WS-5 and observes WS-12's confidentiality dimension where applicable.
+
+### 29.14 Decision M — WS-8 Form Builder reuse
+
+Where a request type needs its own question set, it uses **WS-8 Custom Forms** — fulfilling the contract §24.23 pre-recorded and following the WS-10 and WS-12 precedent. **No second questionnaire or form engine is built.**
+
+`custom_form_submissions` remains what it is: a bare submission record with no status and no lifecycle. **WS-13 adds the lifecycle above it by reference and does not add workflow columns to WS-8's tables** — §24.23's "generic form approval workflow — out of scope" is upheld, not quietly relaxed.
+
+§24.3's prohibited domains stand. Nothing in WS-13 makes a prohibited domain reachable through a custom-field scope.
+
+### 29.15 Decision N — WS-6 notifications and reminders
+
+WS-6 only, in-app only; no email or SMS capability exists in this platform.
+
+Legitimate events: request submitted, acknowledgement due, approval pending, decision recorded, request assigned, fulfilment due, request overdue.
+
+**Scheduled jobs must not decide, approve, reject or apply anything.** §27.11's platform-wide rule and §28.20 apply with full force: a job may remind and surface; it may never record a decision or write an authoritative field. Handlers re-fetch authoritative state and return a permanent no-op when stale, following the shipped `onboarding.*`, `employment.*` and `employee_relations.*` pattern.
+
+**Notification bodies carry no sensitive value.** A notification list is a wider audience than the record's own permission — the rule §28.20 already established.
+
+### 29.16 Decision O — Payroll and sensitive-data exclusions
+
+Payroll-owned banking, statutory and pay-sensitive records are **excluded from the eligible registry by construction** (§29.3). WS-13 neither changes them nor becomes a route to reading them.
+
+Where a request merely *concerns* such a record, WS-13 may record and route it, and the authoritative change happens in the owning module by an actor holding that module's own authority.
+
+**OD #23 masking is reused, never reimplemented.** Existing masking rules apply unchanged inside WS-13 surfaces, including approval DTOs (§29.7).
+
+### 29.17 Decision P — Operational UI, stated explicitly
+
+**This decision is deliberately explicit so that no implementation may later report a required write as "API-only".**
+
+WS-13 must ship a **WS-13-scoped Requests and Approvals operational surface sufficient for normal WS-13 work to be performed through the application**. The following user actions are frozen as reachable **through the UI**, not merely through the API:
+
+| Actor | Action that must be performable in the application |
+| --- | --- |
+| Employee (ESS) | Raise a data-change request on their own eligible fields |
+| Employee (ESS) | Raise an HR service request of a configured type |
+| Employee (ESS) | See their own requests and current status |
+| HR | Raise a data-change request against another employee's eligible field |
+| HR | See the queue of pending data-change requests |
+| HR | See the queue of HR service requests, and those assigned to them |
+| Approver | Open a request and **approve, reject or return** it |
+| Fulfiller | Record fulfilment, including attaching the resulting document reference |
+| Configurer | Manage request types and the per-field approval configuration |
+
+Read-only surfaces alone do **not** satisfy this decision.
+
+**This is not the organization-wide HR Action Centre.** Leave approvals, Recruitment approvals, Onboarding actions, Employee Relations actions, Payroll actions and other module tasks **must not** be aggregated into this workspace merely because WS-13 has approvals. **WS-15 retains ownership of the future cross-module HR Action Centre.**
+
+Nav visibility is presentation; **every endpoint enforces its own permission server-side**.
+
+### 29.18 Decision Q — Permissions
+
+Reconciled against existing conventions before minting keys. The minimum for genuinely new actions: reading and managing data-change requests, deciding them, reading and managing service requests, fulfilling them, and configuring request types and field dispositions.
+
+**Employee self-service mints no permission key.** An employee's right to raise a request about their own data comes from their employee link, resolved server-side — the precedent WS-10 and WS-12 both set, and for the same reason: a right that an administrator could withhold is not self-service.
+
+Approval authority is resolved through §29.8's resolvers, **never inferred from a role name** — the §25.2 ruling, extended again.
+
+Configuration authority is separated from operational authority, mirroring the WS-8/WS-10/WS-11/WS-12 split. Existing shipped permissions, `employee.write` included, are **not redefined, renamed or re-gated** (§27.21, §28.17).
+
+### 29.19 Decision R — Audit and history
+
+WS-3 infrastructure only; **no alternative audit system** (OD #16).
+
+Audited: request raised, request updated, each decision, stale re-confirmation, application of an approved change, rejection, return, cancellation, assignment, fulfilment, and every configuration change to request types or field dispositions.
+
+Every entry carries actor, organization, subject employee, action, reason where required, effective date, relevant before/after metadata, request id and timestamp — **and the request's origin** (§29.2).
+
+**Request history and audit are complementary and never conflated**, the distinction §27 and §28 both drew. The decision log is append-only: a later decision never overwrites an earlier one.
+
+Where a WS-13 surface reads data that OD #18 classifies as sensitive, it uses the **existing** sensitive-read path WS-12 shipped (§28.12) rather than a second one.
+
+### 29.20 Decision S — Tenant isolation
+
+Every WS-13 entity is organization-scoped under existing invariants, with explicit `organizationId` predicates and RLS enabled with zero policies (repository convention; the application layer remains the primary control).
+
+**Explicit IDOR tests are mandatory** for: request read and write, cross-organization subject employee, cross-organization approver or assignee, cross-organization decision, cross-organization form submission reference, cross-organization document reference, ESS self-scope, configuration read and write, forged scheduled-job payloads, and the reporting read models. No cross-organization identifier may permit reading, writing, deciding, fulfilling, attaching to or discovering another tenant's records.
+
+### 29.21 Decision T — Reporting
+
+Minimum P1 read models only: pending data-change requests and their ageing, open service requests by type and ageing, requests awaiting a given approver, and completed requests.
+
+Permission-filtered and confidentiality-aware — **a report must never become the route by which a value reaches a caller who could not read the record itself** (§28.23). Derived ageing, never stored. **WS-13 is not an analytics workstream**; WS-15 owns reporting consolidation.
+
+### 29.22 Scope classifications
+
+- **SLA and escalation** — a configured target date and an overdue *derived* state plus WS-6 reminders are **IN SCOPE**. An escalation engine that reassigns or auto-decides is **OUT OF SCOPE**; auto-deciding is forbidden outright by §29.15.
+- **Delegation** — **DEFERRED** to OD #15's future owner (§29.9). Assignment and reassignment for fulfilment is not delegation.
+- **Bulk migration** — the existing WS-7 framework is the only importer; **no separate importer**, and **no fabrication of historical requests or decisions** from incomplete data (the §27.3, §28.2 principle). Adapters are **deferred**.
+- **AI** — **no autonomous AI decision of any kind**: no AI approval, rejection, eligibility determination, or automatic application of a change. Nothing is proposed or built in WS-13; anything future stays inside OD #24/#25/#26's approved envelope with explicit human confirmation.
+
+### 29.23 Cross-module side-effect boundary
+
+| Module | WS-13 may | WS-13 must not |
+| --- | --- | --- |
+| **Employment Lifecycle (WS-11)** | reference; route a request | change status, position, department, separation or any lifecycle field |
+| **Payroll** | reference; route a request | change or expose banking, statutory or pay-sensitive records |
+| **Leave, Attendance** | reference | mutate balances, policies or records |
+| **Assets, Office Inventory** | reference | alter custody or move stock |
+| **Employee Relations (WS-12)** | reference | alter case, grievance or clearance state |
+| **Identity & Access** | record that a change was requested | mutate accounts, roles, permissions, MFA or admin status |
+| **Documents (WS-5)** | reference a generated document | generate, store or template one itself |
+| **Custom Forms (WS-8)** | reference a submission | add workflow state to WS-8's tables |
+| **ESS** | surface own-scope requests and status | expose another employee's data or an approver's internal notes |
+
+### 29.24 Protected capabilities — do not rebuild
+
+`employees.id` identity, employee numbering, `employee.write` and the shipped employee update path, the WS-11 lifecycle services, the Leave approval chain, Recruitment approval configuration and its resolvers, Office Inventory delegation, WS-5 Documents, WS-8 custom fields and forms, the WS-6 scheduler, WS-3 audit and OD #23 masking, and the WS-12 Employee Relations surfaces. **WS-13 extends behaviour around them.**
+
+### 29.25 Deferred dependencies recorded, not solved
+
+- **WS-12's future separation basis.** Nothing in this platform records an approved *future* resignation, retirement or termination, which is why WS-12 recognizes only `already_separated` and `contract_end`. **WS-13 does not solve this and must not create a parallel separation source** — a "resignation" service request is a request, never a separation basis, and §29.3 excludes lifecycle fields by construction. The dependency stays recorded for whichever future workstream owns it, with its own Owner Decision.
+- **WS-11.1 remains deferred in full** — organization-configured acting auto-revert, configurable employment types, contract extension and amendment, temporary assignment, accepted-offer to employment-term handoff, **lifecycle letter generation**, additional acting and probation metadata, and write-side Employment Lifecycle UI. If implementation discovers a genuine blocking dependency, **stop and report it** rather than silently changing WS-11.
+- **OD #14 and OD #15** remain approved and unassigned (§29.9).
+
+### 29.26 Open items still requiring decision at implementation time
+
+None blocking. Q1 through Q6 and clarifications A through D are resolved above. The following are conditional by design and are to be decided **from repository evidence during implementation**, each recorded with its reason:
+
+1. Whether data-change requests and HR service requests share one request table with a discriminator or take one each (§29.2, §29.12) — a normalization judgement that must not weaken the §29.2 ruling that both origins share **one decision architecture**, nor the §29.5 ruling that specialized workflows stay specialized.
+2. Whether the decision log is one table across both request kinds or one per kind (§29.8) — to be settled the way §28.27 item 1 was: prefer a real foreign key to a polymorphic pair this repository can only express without one.
+3. Whether the eligible-field registry lives beside the WS-13 service or in `@workspace/db` (§29.3) — the §27.22 item 4 reasoning applies: it governs what the platform may **write**, not what the column may hold.
+4. Whether a request type's WS-8 form binds a new custom-field scope or reuses an existing one (§29.14) — following the WS-10 and WS-12 precedent, and binding to whichever entity keeps the submission tied to the right request.
+5. Whether the per-field approval disposition is stored in `organization_settings` or its own configuration table (§29.4) — to be chosen for the smallest change that still lets the server validate configuration against the registry.
