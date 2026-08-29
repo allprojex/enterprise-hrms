@@ -153,3 +153,8 @@ export * from "./grievance-case-events";
 export * from "./clearance-templates";
 export * from "./clearance-items";
 export * from "./exit-interviews";
+
+// WS-13 — Employee Data Change Approval & HR Service Requests (§29).
+export * from "./data-change-requests";
+export * from "./request-approvals";
+export * from "./service-requests";

@@ -91,6 +91,9 @@ import Onboarding from '@/pages/onboarding';
 import EmployeeRelations from '@/pages/employee-relations';
 import Offboarding from '@/pages/offboarding';
 import MyGrievances from '@/pages/my-grievances';
+import MyRequests from '@/pages/my-requests';
+import Requests from '@/pages/requests';
+import RequestSettings from '@/pages/request-settings';
 import OnboardingDetail from '@/pages/onboarding-detail';
 import MyOnboarding from '@/pages/my-onboarding';
 import ManualCandidateCapture from '@/pages/manual-candidate-capture';
@@ -201,6 +204,23 @@ function Router() {
       </Route>
       <Route path="/my-grievances">
         {() => <SecureRoute component={MyGrievances} />}
+      </Route>
+      {/*
+        WS-13 — Requests and Approvals. No moduleKey: these are Core HR
+        surfaces, and every endpoint behind them enforces its own permission
+        server-side (section 29.18). "/my-requests" is deliberately ungated
+        beyond authentication, because an employee's right to ask about their
+        own record comes from their employee link, not from a grant somebody
+        could withhold.
+      */}
+      <Route path="/my-requests">
+        {() => <SecureRoute component={MyRequests} />}
+      </Route>
+      <Route path="/requests">
+        {() => <SecureRoute component={Requests} />}
+      </Route>
+      <Route path="/request-settings">
+        {() => <SecureRoute component={RequestSettings} />}
       </Route>
       <Route path="/onboarding">
         {() => <SecureRoute component={Onboarding} moduleKey="onboarding" />}

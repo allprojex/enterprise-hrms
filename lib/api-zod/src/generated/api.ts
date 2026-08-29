@@ -22217,3 +22217,1178 @@ export const GetClearanceQueueResponse = zod.object({
 })
 
 
+/**
+ * Only fields the PRODUCT allows (§29.3). There is deliberately no endpoint that lists employee columns: configuration chooses whether an eligible field needs approval, and can never introduce a target.
+ * @summary The eligible-field registry with this organization's effective policy
+ */
+export const ListDataChangeFieldsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListDataChangeFieldsResponseItem = zod.object({
+  "fieldKey": zod.string(),
+  "label": zod.string().optional(),
+  "kind": zod.enum(['string', 'date', 'enum', 'json']).optional(),
+  "essEligible": zod.boolean().optional(),
+  "hrEligible": zod.boolean().optional(),
+  "sensitive": zod.boolean().optional(),
+  "approvalRequired": zod.boolean()
+})
+export const ListDataChangeFieldsResponse = zod.array(ListDataChangeFieldsResponseItem)
+
+
+/**
+ * The key is validated against the registry before anything is stored, so a specialist-module-owned field can never be turned into a generic WS-13 field (§29.4).
+ * @summary Set whether an eligible field requires approval
+ */
+export const SetDataChangeFieldPolicyParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "fieldKey": zod.coerce.string()
+})
+
+export const SetDataChangeFieldPolicyBody = zod.object({
+  "approvalRequired": zod.boolean()
+})
+
+export const SetDataChangeFieldPolicyResponse = zod.object({
+  "fieldKey": zod.string(),
+  "label": zod.string().optional(),
+  "kind": zod.enum(['string', 'date', 'enum', 'json']).optional(),
+  "essEligible": zod.boolean().optional(),
+  "hrEligible": zod.boolean().optional(),
+  "sensitive": zod.boolean().optional(),
+  "approvalRequired": zod.boolean()
+})
+
+
+/**
+ * @summary Field labels without policy, for surfaces that only need naming
+ */
+export const GetDataChangeFieldRegistryParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetDataChangeFieldRegistryResponseItem = zod.object({
+  "fieldKey": zod.string(),
+  "label": zod.string(),
+  "kind": zod.enum(['string', 'date', 'enum', 'json']),
+  "sensitive": zod.boolean()
+})
+export const GetDataChangeFieldRegistryResponse = zod.array(GetDataChangeFieldRegistryResponseItem)
+
+
+/**
+ * WS-13-namespaced, modelled on WS-9 but not shared with it (§29.8). Recruitment is neither refactored nor made to depend on this.
+ * @summary WS-13's own approval-stage configuration
+ */
+export const ListRequestApprovalStagesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListRequestApprovalStagesQueryParams = zod.object({
+  "purpose": zod.enum(['data_change', 'service_request']).optional()
+})
+
+export const ListRequestApprovalStagesResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "purpose": zod.enum(['data_change', 'service_request']),
+  "stageOrder": zod.number(),
+  "name": zod.string(),
+  "resolverType": zod.enum(['department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).nullish()
+})
+export const ListRequestApprovalStagesResponse = zod.array(ListRequestApprovalStagesResponseItem)
+
+
+/**
+ * A stage NAMES one of three server-defined resolvers and supplies data; it cannot supply code. Authority is never inferred from a role name.
+ * @summary Add an approval stage
+ */
+export const CreateRequestApprovalStageParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+export const createRequestApprovalStageBodyNameMax = 200;
+
+
+
+export const CreateRequestApprovalStageBody = zod.object({
+  "purpose": zod.enum(['data_change', 'service_request']),
+  "stageOrder": zod.number().min(1),
+  "name": zod.string().min(1).max(createRequestApprovalStageBodyNameMax),
+  "resolverType": zod.enum(['department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).optional().describe('permission_holder -> { permissionKey }; specific_membership -> { membershipId }; department_head -> {}')
+})
+
+export const CreateRequestApprovalStageResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "purpose": zod.enum(['data_change', 'service_request']),
+  "stageOrder": zod.number(),
+  "name": zod.string(),
+  "resolverType": zod.enum(['department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).nullish()
+})
+
+
+/**
+ * In-flight requests are unaffected: each froze its own stage count when it was raised (§29.8).
+ * @summary Remove an approval stage
+ */
+export const DeleteRequestApprovalStageParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "stageId": zod.coerce.number()
+})
+
+export const DeleteRequestApprovalStageResponse = zod.void()
+
+
+/**
+ * @summary The pending data-change queue
+ */
+export const ListDataChangeRequestsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListDataChangeRequestsQueryParams = zod.object({
+  "employeeId": zod.coerce.number().optional(),
+  "status": zod.enum(['pending', 'returned', 'approved', 'applied', 'rejected', 'withdrawn', 'stale', 'application_failed']).optional()
+})
+
+export const ListDataChangeRequestsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "origin": zod.enum(['employee_self_service', 'hr_originated']),
+  "status": zod.enum(['pending', 'returned', 'approved', 'applied', 'rejected', 'withdrawn', 'stale', 'application_failed']).describe('`approved` and `applied` are distinct on purpose: an approved request whose application failed must not read as though the record was written. `stale` is not terminal — it awaits audited re-confirmation.'),
+  "reason": zod.string().nullish(),
+  "stageCountAtRequest": zod.number(),
+  "currentStageOrder": zod.number().nullish(),
+  "requestedAt": zod.coerce.date(),
+  "effectiveDate": zod.coerce.date().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "appliedAt": zod.coerce.date().nullish(),
+  "applicationFailureReason": zod.string().nullish()
+})
+export const ListDataChangeRequestsResponse = zod.array(ListDataChangeRequestsResponseItem)
+
+
+/**
+ * Deliberately not the employee record (§29.7). It carries the field, its previous and requested values and the decision context, and sensitive values arrive masked. Being an approver expands no data visibility.
+ * @summary The approval view of one request
+ */
+export const GetDataChangeRequestParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "requestId": zod.coerce.number()
+})
+
+export const GetDataChangeRequestResponse = zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "origin": zod.enum(['employee_self_service', 'hr_originated']),
+  "status": zod.enum(['pending', 'returned', 'approved', 'applied', 'rejected', 'withdrawn', 'stale', 'application_failed']).describe('`approved` and `applied` are distinct on purpose: an approved request whose application failed must not read as though the record was written. `stale` is not terminal — it awaits audited re-confirmation.'),
+  "reason": zod.string().nullish(),
+  "requestedAt": zod.coerce.date(),
+  "effectiveDate": zod.coerce.date().nullish(),
+  "currentStageOrder": zod.number().nullish(),
+  "stageCountAtRequest": zod.number(),
+  "fields": zod.array(zod.object({
+  "fieldKey": zod.string(),
+  "label": zod.string(),
+  "sensitive": zod.boolean(),
+  "previousValue": zod.unknown().nullish(),
+  "requestedValue": zod.unknown().nullish(),
+  "staleDetectedAt": zod.coerce.date().nullish()
+}).describe('Sensitive values arrive masked (§29.7).')),
+  "events": zod.array(zod.object({
+  "id": zod.number(),
+  "requestId": zod.number(),
+  "eventType": zod.string(),
+  "stageOrder": zod.number().nullish(),
+  "stageName": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "occurredAt": zod.coerce.date()
+})).optional()
+}).describe('The approver\'s view. Built field by field, never spread from the employee record, so a column added to `employees` cannot start leaking here.')
+
+
+/**
+ * Origin is fixed by the route as `hr_originated` and never taken from the body (§29.2).
+ * @summary Raise an HR-originated data-change request
+ */
+export const CreateDataChangeRequestParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const createDataChangeRequestBodyFieldsItemFieldKeyMax = 100;
+
+
+
+
+export const CreateDataChangeRequestBody = zod.object({
+  "fields": zod.array(zod.object({
+  "fieldKey": zod.string().min(1).max(createDataChangeRequestBodyFieldsItemFieldKeyMax).describe('A key from the eligible-field registry. Never a raw column name.'),
+  "requestedValue": zod.unknown().nullish()
+})).min(1),
+  "reason": zod.string().nullish(),
+  "effectiveDate": zod.coerce.date().nullish()
+})
+
+export const CreateDataChangeRequestResponse = zod.object({
+  "request": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "origin": zod.enum(['employee_self_service', 'hr_originated']),
+  "status": zod.enum(['pending', 'returned', 'approved', 'applied', 'rejected', 'withdrawn', 'stale', 'application_failed']).describe('`approved` and `applied` are distinct on purpose: an approved request whose application failed must not read as though the record was written. `stale` is not terminal — it awaits audited re-confirmation.'),
+  "reason": zod.string().nullish(),
+  "stageCountAtRequest": zod.number(),
+  "currentStageOrder": zod.number().nullish(),
+  "requestedAt": zod.coerce.date(),
+  "effectiveDate": zod.coerce.date().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "appliedAt": zod.coerce.date().nullish(),
+  "applicationFailureReason": zod.string().nullish()
+}),
+  "approvalRequired": zod.boolean()
+})
+
+
+/**
+ * Maker-checker is enforced server-side: the requester may never approve their own request (§29.6). Stale is re-checked here, so approving against a basis that no longer holds is refused with 409.
+ * @summary Approve a data-change request (one stage)
+ */
+export const DecideDataChangeRequestParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "requestId": zod.coerce.number()
+})
+
+export const DecideDataChangeRequestBody = zod.object({
+  "notes": zod.string().nullish()
+})
+
+export const DecideDataChangeRequestResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "origin": zod.enum(['employee_self_service', 'hr_originated']),
+  "status": zod.enum(['pending', 'returned', 'approved', 'applied', 'rejected', 'withdrawn', 'stale', 'application_failed']).describe('`approved` and `applied` are distinct on purpose: an approved request whose application failed must not read as though the record was written. `stale` is not terminal — it awaits audited re-confirmation.'),
+  "reason": zod.string().nullish(),
+  "stageCountAtRequest": zod.number(),
+  "currentStageOrder": zod.number().nullish(),
+  "requestedAt": zod.coerce.date(),
+  "effectiveDate": zod.coerce.date().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "appliedAt": zod.coerce.date().nullish(),
+  "applicationFailureReason": zod.string().nullish()
+})
+
+
+/**
+ * @summary Reject a data-change request
+ */
+export const RejectDataChangeRequestParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "requestId": zod.coerce.number()
+})
+
+export const rejectDataChangeRequestBodyReasonMax = 1000;
+
+
+
+export const RejectDataChangeRequestBody = zod.object({
+  "reason": zod.string().min(1).max(rejectDataChangeRequestBodyReasonMax)
+})
+
+export const RejectDataChangeRequestResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "origin": zod.enum(['employee_self_service', 'hr_originated']),
+  "status": zod.enum(['pending', 'returned', 'approved', 'applied', 'rejected', 'withdrawn', 'stale', 'application_failed']).describe('`approved` and `applied` are distinct on purpose: an approved request whose application failed must not read as though the record was written. `stale` is not terminal — it awaits audited re-confirmation.'),
+  "reason": zod.string().nullish(),
+  "stageCountAtRequest": zod.number(),
+  "currentStageOrder": zod.number().nullish(),
+  "requestedAt": zod.coerce.date(),
+  "effectiveDate": zod.coerce.date().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "appliedAt": zod.coerce.date().nullish(),
+  "applicationFailureReason": zod.string().nullish()
+})
+
+
+/**
+ * @summary Return a request for more information
+ */
+export const ReturnDataChangeRequestParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "requestId": zod.coerce.number()
+})
+
+export const returnDataChangeRequestBodyReasonMax = 1000;
+
+
+
+export const ReturnDataChangeRequestBody = zod.object({
+  "reason": zod.string().min(1).max(returnDataChangeRequestBodyReasonMax)
+})
+
+export const ReturnDataChangeRequestResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "origin": zod.enum(['employee_self_service', 'hr_originated']),
+  "status": zod.enum(['pending', 'returned', 'approved', 'applied', 'rejected', 'withdrawn', 'stale', 'application_failed']).describe('`approved` and `applied` are distinct on purpose: an approved request whose application failed must not read as though the record was written. `stale` is not terminal — it awaits audited re-confirmation.'),
+  "reason": zod.string().nullish(),
+  "stageCountAtRequest": zod.number(),
+  "currentStageOrder": zod.number().nullish(),
+  "requestedAt": zod.coerce.date(),
+  "effectiveDate": zod.coerce.date().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "appliedAt": zod.coerce.date().nullish(),
+  "applicationFailureReason": zod.string().nullish()
+})
+
+
+/**
+ * The audited re-confirmation §29.10 requires. Captured previous values are refreshed to live, the request returns to pending, and the act is recorded. It applies nothing.
+ * @summary Re-confirm a stale request against the values as they now stand
+ */
+export const ReconfirmDataChangeRequestParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "requestId": zod.coerce.number()
+})
+
+export const ReconfirmDataChangeRequestResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "origin": zod.enum(['employee_self_service', 'hr_originated']),
+  "status": zod.enum(['pending', 'returned', 'approved', 'applied', 'rejected', 'withdrawn', 'stale', 'application_failed']).describe('`approved` and `applied` are distinct on purpose: an approved request whose application failed must not read as though the record was written. `stale` is not terminal — it awaits audited re-confirmation.'),
+  "reason": zod.string().nullish(),
+  "stageCountAtRequest": zod.number(),
+  "currentStageOrder": zod.number().nullish(),
+  "requestedAt": zod.coerce.date(),
+  "effectiveDate": zod.coerce.date().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "appliedAt": zod.coerce.date().nullish(),
+  "applicationFailureReason": zod.string().nullish()
+})
+
+
+/**
+ * A separate explicit human act, transactional and idempotent, and deliberately unreachable from any scheduled job (§29.10, §29.11). A future effective date does not licence a job to do this later.
+ * @summary Write an approved change to the authoritative record
+ */
+export const ApplyDataChangeRequestParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "requestId": zod.coerce.number()
+})
+
+export const ApplyDataChangeRequestResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "employeeId": zod.number(),
+  "origin": zod.enum(['employee_self_service', 'hr_originated']),
+  "status": zod.enum(['pending', 'returned', 'approved', 'applied', 'rejected', 'withdrawn', 'stale', 'application_failed']).describe('`approved` and `applied` are distinct on purpose: an approved request whose application failed must not read as though the record was written. `stale` is not terminal — it awaits audited re-confirmation.'),
+  "reason": zod.string().nullish(),
+  "stageCountAtRequest": zod.number(),
+  "currentStageOrder": zod.number().nullish(),
+  "requestedAt": zod.coerce.date(),
+  "effectiveDate": zod.coerce.date().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "appliedAt": zod.coerce.date().nullish(),
+  "applicationFailureReason": zod.string().nullish()
+})
+
+
+/**
+ * @summary Fields an employee may request on their own record
+ */
+export const ListMyDataChangeFieldsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListMyDataChangeFieldsResponseItem = zod.object({
+  "fieldKey": zod.string(),
+  "label": zod.string().optional(),
+  "kind": zod.enum(['string', 'date', 'enum', 'json']).optional(),
+  "essEligible": zod.boolean().optional(),
+  "hrEligible": zod.boolean().optional(),
+  "sensitive": zod.boolean().optional(),
+  "approvalRequired": zod.boolean()
+})
+export const ListMyDataChangeFieldsResponse = zod.array(ListMyDataChangeFieldsResponseItem)
+
+
+/**
+ * Gated by the caller's own employee link, not by a permission key (§29.18 mints none for self-service).
+ * @summary An employee's own data-change requests
+ */
+export const ListMyDataChangeRequestsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListMyDataChangeRequestsResponseItem = zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['pending', 'returned', 'approved', 'applied', 'rejected', 'withdrawn', 'stale', 'application_failed']).describe('`approved` and `applied` are distinct on purpose: an approved request whose application failed must not read as though the record was written. `stale` is not terminal — it awaits audited re-confirmation.'),
+  "reason": zod.string().nullish(),
+  "requestedAt": zod.coerce.date(),
+  "effectiveDate": zod.coerce.date().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "appliedAt": zod.coerce.date().nullish(),
+  "fields": zod.array(zod.object({
+  "fieldKey": zod.string(),
+  "label": zod.string(),
+  "requestedValue": zod.unknown().nullish(),
+  "staleDetectedAt": zod.coerce.date().nullish()
+}))
+}).describe('The employee\'s own view. An allow-list built by construction: no approver identity, no stage configuration, no internal notes.')
+export const ListMyDataChangeRequestsResponse = zod.array(ListMyDataChangeRequestsResponseItem)
+
+
+/**
+ * The subject is derived from the caller's own employee link; the body carries no employee identifier at all, so a browser cannot claim authority over somebody else's record (§29.2).
+ * @summary Request a change to your own record
+ */
+export const SubmitMyDataChangeRequestParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const submitMyDataChangeRequestBodyFieldsItemFieldKeyMax = 100;
+
+
+
+
+export const SubmitMyDataChangeRequestBody = zod.object({
+  "fields": zod.array(zod.object({
+  "fieldKey": zod.string().min(1).max(submitMyDataChangeRequestBodyFieldsItemFieldKeyMax).describe('A key from the eligible-field registry. Never a raw column name.'),
+  "requestedValue": zod.unknown().nullish()
+})).min(1),
+  "reason": zod.string().nullish(),
+  "effectiveDate": zod.coerce.date().nullish()
+}).describe('No employee identifier — the subject is the caller\'s own record.')
+
+export const SubmitMyDataChangeRequestResponse = zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['pending', 'returned', 'approved', 'applied', 'rejected', 'withdrawn', 'stale', 'application_failed']).describe('`approved` and `applied` are distinct on purpose: an approved request whose application failed must not read as though the record was written. `stale` is not terminal — it awaits audited re-confirmation.'),
+  "reason": zod.string().nullish(),
+  "requestedAt": zod.coerce.date(),
+  "effectiveDate": zod.coerce.date().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "appliedAt": zod.coerce.date().nullish(),
+  "fields": zod.array(zod.object({
+  "fieldKey": zod.string(),
+  "label": zod.string(),
+  "requestedValue": zod.unknown().nullish(),
+  "staleDetectedAt": zod.coerce.date().nullish()
+}))
+}).describe('The employee\'s own view. An allow-list built by construction: no approver identity, no stage configuration, no internal notes.')
+
+
+/**
+ * Never undoes an already-applied change; a new request is the route for that. Somebody else's request returns 404 rather than 403.
+ * @summary Withdraw your own data-change request
+ */
+export const WithdrawMyDataChangeRequestParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "requestId": zod.coerce.number()
+})
+
+export const WithdrawMyDataChangeRequestResponse = zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['pending', 'returned', 'approved', 'applied', 'rejected', 'withdrawn', 'stale', 'application_failed']).describe('`approved` and `applied` are distinct on purpose: an approved request whose application failed must not read as though the record was written. `stale` is not terminal — it awaits audited re-confirmation.'),
+  "reason": zod.string().nullish(),
+  "requestedAt": zod.coerce.date(),
+  "effectiveDate": zod.coerce.date().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "appliedAt": zod.coerce.date().nullish(),
+  "fields": zod.array(zod.object({
+  "fieldKey": zod.string(),
+  "label": zod.string(),
+  "requestedValue": zod.unknown().nullish(),
+  "staleDetectedAt": zod.coerce.date().nullish()
+}))
+}).describe('The employee\'s own view. An allow-list built by construction: no approver identity, no stage configuration, no internal notes.')
+
+
+/**
+ * @summary The organization's HR service-request catalogue
+ */
+export const ListServiceRequestTypesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListServiceRequestTypesResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "code": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "active": zod.boolean(),
+  "employeeVisible": zod.boolean(),
+  "approvalRequired": zod.boolean(),
+  "fulfilmentKind": zod.enum(['acknowledgement', 'document']),
+  "formId": zod.number().nullish(),
+  "responsibleDepartmentId": zod.number().nullish(),
+  "targetDays": zod.number().nullish()
+})
+export const ListServiceRequestTypesResponse = zod.array(ListServiceRequestTypesResponseItem)
+
+
+/**
+ * A closed set of behaviours, not a process designer (§29.12). Questions come from a WS-8 form where one is configured; WS-13 builds no second form engine.
+ * @summary Add a service-request type
+ */
+export const CreateServiceRequestTypeParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const createServiceRequestTypeBodyCodeMax = 100;
+
+export const createServiceRequestTypeBodyNameMax = 200;
+
+
+
+export const CreateServiceRequestTypeBody = zod.object({
+  "code": zod.string().min(1).max(createServiceRequestTypeBodyCodeMax),
+  "name": zod.string().min(1).max(createServiceRequestTypeBodyNameMax),
+  "description": zod.string().nullish(),
+  "employeeVisible": zod.boolean().optional(),
+  "approvalRequired": zod.boolean().optional(),
+  "fulfilmentKind": zod.enum(['acknowledgement', 'document']).optional(),
+  "formId": zod.number().nullish(),
+  "responsibleDepartmentId": zod.number().nullish(),
+  "targetDays": zod.number().nullish()
+})
+
+export const CreateServiceRequestTypeResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "code": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "active": zod.boolean(),
+  "employeeVisible": zod.boolean(),
+  "approvalRequired": zod.boolean(),
+  "fulfilmentKind": zod.enum(['acknowledgement', 'document']),
+  "formId": zod.number().nullish(),
+  "responsibleDepartmentId": zod.number().nullish(),
+  "targetDays": zod.number().nullish()
+})
+
+
+/**
+ * @summary Update a service-request type
+ */
+export const UpdateServiceRequestTypeParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "typeId": zod.coerce.number()
+})
+
+export const updateServiceRequestTypeBodyNameMax = 200;
+
+
+
+export const UpdateServiceRequestTypeBody = zod.object({
+  "name": zod.string().min(1).max(updateServiceRequestTypeBodyNameMax).optional(),
+  "description": zod.string().nullish(),
+  "active": zod.boolean().optional(),
+  "employeeVisible": zod.boolean().optional(),
+  "approvalRequired": zod.boolean().optional(),
+  "fulfilmentKind": zod.enum(['acknowledgement', 'document']).optional(),
+  "formId": zod.number().nullish(),
+  "responsibleDepartmentId": zod.number().nullish(),
+  "targetDays": zod.number().nullish()
+})
+
+export const UpdateServiceRequestTypeResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "code": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "active": zod.boolean(),
+  "employeeVisible": zod.boolean(),
+  "approvalRequired": zod.boolean(),
+  "fulfilmentKind": zod.enum(['acknowledgement', 'document']),
+  "formId": zod.number().nullish(),
+  "responsibleDepartmentId": zod.number().nullish(),
+  "targetDays": zod.number().nullish()
+})
+
+
+/**
+ * @summary The HR service-request queue
+ */
+export const ListServiceRequestsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListServiceRequestsQueryParams = zod.object({
+  "employeeId": zod.coerce.number().optional(),
+  "status": zod.enum(['submitted', 'acknowledged', 'in_progress', 'awaiting_employee', 'fulfilled', 'closed', 'cancelled', 'withdrawn']).optional(),
+  "assignedToMe": zod.enum(['true']).optional().describe('Restricts to requests assigned to the caller. A caller cannot ask about somebody else\'s queue.')
+})
+
+export const ListServiceRequestsResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "typeId": zod.number(),
+  "employeeId": zod.number(),
+  "subject": zod.string(),
+  "details": zod.string().nullish(),
+  "status": zod.enum(['submitted', 'acknowledged', 'in_progress', 'awaiting_employee', 'fulfilled', 'closed', 'cancelled', 'withdrawn']),
+  "approvalStatus": zod.enum(['not_required', 'pending', 'approved', 'rejected']).describe('Separate from status — an approved request is not thereby fulfilled.'),
+  "stageCountAtRequest": zod.number().optional(),
+  "currentStageOrder": zod.number().nullish(),
+  "assignedMembershipId": zod.number().nullish(),
+  "formSubmissionId": zod.number().nullish(),
+  "generatedDocumentId": zod.number().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "submittedAt": zod.coerce.date(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "fulfilledAt": zod.coerce.date().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "resolutionSummary": zod.string().nullish()
+})
+export const ListServiceRequestsResponse = zod.array(ListServiceRequestsResponseItem)
+
+
+/**
+ * @summary One service request with its chronology
+ */
+export const GetServiceRequestParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "requestId": zod.coerce.number()
+})
+
+export const GetServiceRequestResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "typeId": zod.number(),
+  "employeeId": zod.number(),
+  "subject": zod.string(),
+  "details": zod.string().nullish(),
+  "status": zod.enum(['submitted', 'acknowledged', 'in_progress', 'awaiting_employee', 'fulfilled', 'closed', 'cancelled', 'withdrawn']),
+  "approvalStatus": zod.enum(['not_required', 'pending', 'approved', 'rejected']).describe('Separate from status — an approved request is not thereby fulfilled.'),
+  "stageCountAtRequest": zod.number().optional(),
+  "currentStageOrder": zod.number().nullish(),
+  "assignedMembershipId": zod.number().nullish(),
+  "formSubmissionId": zod.number().nullish(),
+  "generatedDocumentId": zod.number().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "submittedAt": zod.coerce.date(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "fulfilledAt": zod.coerce.date().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "resolutionSummary": zod.string().nullish()
+}).and(zod.object({
+  "events": zod.array(zod.object({
+  "id": zod.number(),
+  "requestId": zod.number(),
+  "eventType": zod.string(),
+  "stageOrder": zod.number().nullish(),
+  "stageName": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "visibleToEmployee": zod.boolean(),
+  "occurredAt": zod.coerce.date()
+})).optional()
+}))
+
+
+/**
+ * @summary Raise a service request on an employee's behalf
+ */
+export const CreateServiceRequestParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const createServiceRequestBodySubjectMax = 300;
+
+
+
+export const CreateServiceRequestBody = zod.object({
+  "typeId": zod.number(),
+  "subject": zod.string().min(1).max(createServiceRequestBodySubjectMax),
+  "details": zod.string().nullish(),
+  "formSubmissionId": zod.number().nullish(),
+  "evidenceDocumentId": zod.number().nullish()
+})
+
+export const CreateServiceRequestResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "typeId": zod.number(),
+  "employeeId": zod.number(),
+  "subject": zod.string(),
+  "details": zod.string().nullish(),
+  "status": zod.enum(['submitted', 'acknowledged', 'in_progress', 'awaiting_employee', 'fulfilled', 'closed', 'cancelled', 'withdrawn']),
+  "approvalStatus": zod.enum(['not_required', 'pending', 'approved', 'rejected']).describe('Separate from status — an approved request is not thereby fulfilled.'),
+  "stageCountAtRequest": zod.number().optional(),
+  "currentStageOrder": zod.number().nullish(),
+  "assignedMembershipId": zod.number().nullish(),
+  "formSubmissionId": zod.number().nullish(),
+  "generatedDocumentId": zod.number().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "submittedAt": zod.coerce.date(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "fulfilledAt": zod.coerce.date().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "resolutionSummary": zod.string().nullish()
+})
+
+
+/**
+ * @summary Acknowledge receipt of a service request
+ */
+export const AcknowledgeServiceRequestParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "requestId": zod.coerce.number()
+})
+
+export const AcknowledgeServiceRequestBody = zod.object({
+  "notes": zod.string().nullish()
+})
+
+export const AcknowledgeServiceRequestResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "typeId": zod.number(),
+  "employeeId": zod.number(),
+  "subject": zod.string(),
+  "details": zod.string().nullish(),
+  "status": zod.enum(['submitted', 'acknowledged', 'in_progress', 'awaiting_employee', 'fulfilled', 'closed', 'cancelled', 'withdrawn']),
+  "approvalStatus": zod.enum(['not_required', 'pending', 'approved', 'rejected']).describe('Separate from status — an approved request is not thereby fulfilled.'),
+  "stageCountAtRequest": zod.number().optional(),
+  "currentStageOrder": zod.number().nullish(),
+  "assignedMembershipId": zod.number().nullish(),
+  "formSubmissionId": zod.number().nullish(),
+  "generatedDocumentId": zod.number().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "submittedAt": zod.coerce.date(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "fulfilledAt": zod.coerce.date().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "resolutionSummary": zod.string().nullish()
+})
+
+
+/**
+ * Routing work to a desk. This is NOT approval delegation (§29.9), and assignment confers no authority to decide.
+ * @summary Assign a service request for fulfilment
+ */
+export const AssignServiceRequestParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "requestId": zod.coerce.number()
+})
+
+export const AssignServiceRequestBody = zod.object({
+  "assignedMembershipId": zod.number()
+})
+
+export const AssignServiceRequestResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "typeId": zod.number(),
+  "employeeId": zod.number(),
+  "subject": zod.string(),
+  "details": zod.string().nullish(),
+  "status": zod.enum(['submitted', 'acknowledged', 'in_progress', 'awaiting_employee', 'fulfilled', 'closed', 'cancelled', 'withdrawn']),
+  "approvalStatus": zod.enum(['not_required', 'pending', 'approved', 'rejected']).describe('Separate from status — an approved request is not thereby fulfilled.'),
+  "stageCountAtRequest": zod.number().optional(),
+  "currentStageOrder": zod.number().nullish(),
+  "assignedMembershipId": zod.number().nullish(),
+  "formSubmissionId": zod.number().nullish(),
+  "generatedDocumentId": zod.number().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "submittedAt": zod.coerce.date(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "fulfilledAt": zod.coerce.date().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "resolutionSummary": zod.string().nullish()
+})
+
+
+/**
+ * Maker-checker applies here too — the raiser may not approve it.
+ * @summary Approve a service request
+ */
+export const ApproveServiceRequestParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "requestId": zod.coerce.number()
+})
+
+export const ApproveServiceRequestBody = zod.object({
+  "notes": zod.string().nullish()
+})
+
+export const ApproveServiceRequestResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "typeId": zod.number(),
+  "employeeId": zod.number(),
+  "subject": zod.string(),
+  "details": zod.string().nullish(),
+  "status": zod.enum(['submitted', 'acknowledged', 'in_progress', 'awaiting_employee', 'fulfilled', 'closed', 'cancelled', 'withdrawn']),
+  "approvalStatus": zod.enum(['not_required', 'pending', 'approved', 'rejected']).describe('Separate from status — an approved request is not thereby fulfilled.'),
+  "stageCountAtRequest": zod.number().optional(),
+  "currentStageOrder": zod.number().nullish(),
+  "assignedMembershipId": zod.number().nullish(),
+  "formSubmissionId": zod.number().nullish(),
+  "generatedDocumentId": zod.number().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "submittedAt": zod.coerce.date(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "fulfilledAt": zod.coerce.date().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "resolutionSummary": zod.string().nullish()
+})
+
+
+/**
+ * @summary Reject a service request
+ */
+export const RejectServiceRequestParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "requestId": zod.coerce.number()
+})
+
+export const rejectServiceRequestBodyReasonMax = 1000;
+
+
+
+export const RejectServiceRequestBody = zod.object({
+  "reason": zod.string().min(1).max(rejectServiceRequestBodyReasonMax)
+})
+
+export const RejectServiceRequestResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "typeId": zod.number(),
+  "employeeId": zod.number(),
+  "subject": zod.string(),
+  "details": zod.string().nullish(),
+  "status": zod.enum(['submitted', 'acknowledged', 'in_progress', 'awaiting_employee', 'fulfilled', 'closed', 'cancelled', 'withdrawn']),
+  "approvalStatus": zod.enum(['not_required', 'pending', 'approved', 'rejected']).describe('Separate from status — an approved request is not thereby fulfilled.'),
+  "stageCountAtRequest": zod.number().optional(),
+  "currentStageOrder": zod.number().nullish(),
+  "assignedMembershipId": zod.number().nullish(),
+  "formSubmissionId": zod.number().nullish(),
+  "generatedDocumentId": zod.number().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "submittedAt": zod.coerce.date(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "fulfilledAt": zod.coerce.date().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "resolutionSummary": zod.string().nullish()
+})
+
+
+/**
+ * @summary Ask the employee for more information
+ */
+export const RequestServiceRequestInformationParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "requestId": zod.coerce.number()
+})
+
+export const requestServiceRequestInformationBodyMessageMax = 2000;
+
+
+
+export const RequestServiceRequestInformationBody = zod.object({
+  "message": zod.string().min(1).max(requestServiceRequestInformationBodyMessageMax)
+})
+
+export const RequestServiceRequestInformationResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "typeId": zod.number(),
+  "employeeId": zod.number(),
+  "subject": zod.string(),
+  "details": zod.string().nullish(),
+  "status": zod.enum(['submitted', 'acknowledged', 'in_progress', 'awaiting_employee', 'fulfilled', 'closed', 'cancelled', 'withdrawn']),
+  "approvalStatus": zod.enum(['not_required', 'pending', 'approved', 'rejected']).describe('Separate from status — an approved request is not thereby fulfilled.'),
+  "stageCountAtRequest": zod.number().optional(),
+  "currentStageOrder": zod.number().nullish(),
+  "assignedMembershipId": zod.number().nullish(),
+  "formSubmissionId": zod.number().nullish(),
+  "generatedDocumentId": zod.number().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "submittedAt": zod.coerce.date(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "fulfilledAt": zod.coerce.date().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "resolutionSummary": zod.string().nullish()
+})
+
+
+/**
+ * WS-13 owns no document generation (§29.13). HR generates through WS-5 and points this at the resulting `generated_documents` record. A type whose fulfilment is a document cannot be fulfilled without one.
+ * @summary Record fulfilment, attaching the resulting document where applicable
+ */
+export const FulfilServiceRequestParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "requestId": zod.coerce.number()
+})
+
+
+
+
+export const FulfilServiceRequestBody = zod.object({
+  "resolutionSummary": zod.string().min(1),
+  "generatedDocumentId": zod.number().nullish().describe('The WS-5 document that satisfies the request. WS-13 generates none itself.')
+})
+
+export const FulfilServiceRequestResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "typeId": zod.number(),
+  "employeeId": zod.number(),
+  "subject": zod.string(),
+  "details": zod.string().nullish(),
+  "status": zod.enum(['submitted', 'acknowledged', 'in_progress', 'awaiting_employee', 'fulfilled', 'closed', 'cancelled', 'withdrawn']),
+  "approvalStatus": zod.enum(['not_required', 'pending', 'approved', 'rejected']).describe('Separate from status — an approved request is not thereby fulfilled.'),
+  "stageCountAtRequest": zod.number().optional(),
+  "currentStageOrder": zod.number().nullish(),
+  "assignedMembershipId": zod.number().nullish(),
+  "formSubmissionId": zod.number().nullish(),
+  "generatedDocumentId": zod.number().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "submittedAt": zod.coerce.date(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "fulfilledAt": zod.coerce.date().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "resolutionSummary": zod.string().nullish()
+})
+
+
+/**
+ * @summary Close a service request
+ */
+export const CloseServiceRequestParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "requestId": zod.coerce.number()
+})
+
+export const CloseServiceRequestBody = zod.object({
+  "notes": zod.string().nullish()
+})
+
+export const CloseServiceRequestResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "typeId": zod.number(),
+  "employeeId": zod.number(),
+  "subject": zod.string(),
+  "details": zod.string().nullish(),
+  "status": zod.enum(['submitted', 'acknowledged', 'in_progress', 'awaiting_employee', 'fulfilled', 'closed', 'cancelled', 'withdrawn']),
+  "approvalStatus": zod.enum(['not_required', 'pending', 'approved', 'rejected']).describe('Separate from status — an approved request is not thereby fulfilled.'),
+  "stageCountAtRequest": zod.number().optional(),
+  "currentStageOrder": zod.number().nullish(),
+  "assignedMembershipId": zod.number().nullish(),
+  "formSubmissionId": zod.number().nullish(),
+  "generatedDocumentId": zod.number().nullish(),
+  "evidenceDocumentId": zod.number().nullish(),
+  "submittedAt": zod.coerce.date(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "fulfilledAt": zod.coerce.date().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "resolutionSummary": zod.string().nullish()
+})
+
+
+/**
+ * Active and employee-visible only. A type hidden from self-service is not merely unlisted — submitting it is refused too.
+ * @summary Request types an employee may raise
+ */
+export const ListMyServiceRequestTypesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListMyServiceRequestTypesResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "code": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "active": zod.boolean(),
+  "employeeVisible": zod.boolean(),
+  "approvalRequired": zod.boolean(),
+  "fulfilmentKind": zod.enum(['acknowledgement', 'document']),
+  "formId": zod.number().nullish(),
+  "responsibleDepartmentId": zod.number().nullish(),
+  "targetDays": zod.number().nullish()
+})
+export const ListMyServiceRequestTypesResponse = zod.array(ListMyServiceRequestTypesResponseItem)
+
+
+/**
+ * @summary An employee's own service requests
+ */
+export const ListMyServiceRequestsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListMyServiceRequestsResponseItem = zod.object({
+  "id": zod.number(),
+  "typeId": zod.number(),
+  "subject": zod.string(),
+  "details": zod.string().nullish(),
+  "status": zod.enum(['submitted', 'acknowledged', 'in_progress', 'awaiting_employee', 'fulfilled', 'closed', 'cancelled', 'withdrawn']),
+  "approvalStatus": zod.enum(['not_required', 'pending', 'approved', 'rejected']).describe('Separate from status — an approved request is not thereby fulfilled.'),
+  "submittedAt": zod.coerce.date(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "fulfilledAt": zod.coerce.date().nullish(),
+  "resolutionSummary": zod.string().nullish(),
+  "generatedDocumentId": zod.number().nullish(),
+  "updates": zod.array(zod.object({
+  "id": zod.number(),
+  "eventType": zod.string(),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullish()
+}))
+}).describe('Employee-facing allow-list: no assignee, no stage configuration, no internal notes, no event details.')
+export const ListMyServiceRequestsResponse = zod.array(ListMyServiceRequestsResponseItem)
+
+
+/**
+ * @summary Raise a service request as the signed-in employee
+ */
+export const SubmitMyServiceRequestParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const submitMyServiceRequestBodySubjectMax = 300;
+
+
+
+export const SubmitMyServiceRequestBody = zod.object({
+  "typeId": zod.number(),
+  "subject": zod.string().min(1).max(submitMyServiceRequestBodySubjectMax),
+  "details": zod.string().nullish(),
+  "formSubmissionId": zod.number().nullish(),
+  "evidenceDocumentId": zod.number().nullish()
+})
+
+export const SubmitMyServiceRequestResponse = zod.object({
+  "id": zod.number(),
+  "typeId": zod.number(),
+  "subject": zod.string(),
+  "details": zod.string().nullish(),
+  "status": zod.enum(['submitted', 'acknowledged', 'in_progress', 'awaiting_employee', 'fulfilled', 'closed', 'cancelled', 'withdrawn']),
+  "approvalStatus": zod.enum(['not_required', 'pending', 'approved', 'rejected']).describe('Separate from status — an approved request is not thereby fulfilled.'),
+  "submittedAt": zod.coerce.date(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "fulfilledAt": zod.coerce.date().nullish(),
+  "resolutionSummary": zod.string().nullish(),
+  "generatedDocumentId": zod.number().nullish(),
+  "updates": zod.array(zod.object({
+  "id": zod.number(),
+  "eventType": zod.string(),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullish()
+}))
+}).describe('Employee-facing allow-list: no assignee, no stage configuration, no internal notes, no event details.')
+
+
+/**
+ * @summary Reply to HR's request for information
+ */
+export const RespondToServiceRequestParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "requestId": zod.coerce.number()
+})
+
+export const respondToServiceRequestBodyMessageMax = 2000;
+
+
+
+export const RespondToServiceRequestBody = zod.object({
+  "message": zod.string().min(1).max(respondToServiceRequestBodyMessageMax)
+})
+
+export const RespondToServiceRequestResponse = zod.object({
+  "id": zod.number(),
+  "typeId": zod.number(),
+  "subject": zod.string(),
+  "details": zod.string().nullish(),
+  "status": zod.enum(['submitted', 'acknowledged', 'in_progress', 'awaiting_employee', 'fulfilled', 'closed', 'cancelled', 'withdrawn']),
+  "approvalStatus": zod.enum(['not_required', 'pending', 'approved', 'rejected']).describe('Separate from status — an approved request is not thereby fulfilled.'),
+  "submittedAt": zod.coerce.date(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "fulfilledAt": zod.coerce.date().nullish(),
+  "resolutionSummary": zod.string().nullish(),
+  "generatedDocumentId": zod.number().nullish(),
+  "updates": zod.array(zod.object({
+  "id": zod.number(),
+  "eventType": zod.string(),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullish()
+}))
+}).describe('Employee-facing allow-list: no assignee, no stage configuration, no internal notes, no event details.')
+
+
+/**
+ * @summary Withdraw your own service request
+ */
+export const WithdrawMyServiceRequestParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "requestId": zod.coerce.number()
+})
+
+export const WithdrawMyServiceRequestResponse = zod.object({
+  "id": zod.number(),
+  "typeId": zod.number(),
+  "subject": zod.string(),
+  "details": zod.string().nullish(),
+  "status": zod.enum(['submitted', 'acknowledged', 'in_progress', 'awaiting_employee', 'fulfilled', 'closed', 'cancelled', 'withdrawn']),
+  "approvalStatus": zod.enum(['not_required', 'pending', 'approved', 'rejected']).describe('Separate from status — an approved request is not thereby fulfilled.'),
+  "submittedAt": zod.coerce.date(),
+  "acknowledgedAt": zod.coerce.date().nullish(),
+  "fulfilledAt": zod.coerce.date().nullish(),
+  "resolutionSummary": zod.string().nullish(),
+  "generatedDocumentId": zod.number().nullish(),
+  "updates": zod.array(zod.object({
+  "id": zod.number(),
+  "eventType": zod.string(),
+  "occurredAt": zod.coerce.date(),
+  "notes": zod.string().nullish()
+}))
+}).describe('Employee-facing allow-list: no assignee, no stage configuration, no internal notes, no event details.')
+
+
+/**
+ * Counts and ageing only — no requested value, previous value or note (§29.21). Each half appears only if the caller may read that half, so a service-request reader does not learn how many data changes are pending.
+ * @summary Pending data changes and open service requests, with derived ageing
+ */
+export const GetRequestReportsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetRequestReportsResponse = zod.object({
+  "pendingDataChanges": zod.array(zod.object({
+  "id": zod.number(),
+  "employeeId": zod.number(),
+  "status": zod.string(),
+  "requestedAt": zod.coerce.date(),
+  "ageDays": zod.number()
+})).nullish(),
+  "openServiceRequests": zod.array(zod.object({
+  "id": zod.number(),
+  "typeId": zod.number(),
+  "employeeId": zod.number(),
+  "status": zod.string(),
+  "approvalStatus": zod.string(),
+  "submittedAt": zod.coerce.date(),
+  "ageDays": zod.number(),
+  "overdue": zod.boolean().describe('Derived against the type\'s configured target. Never stored, and never an escalation engine.')
+})).nullish()
+}).describe('Each half is null when the caller may not read that half.')
+
+

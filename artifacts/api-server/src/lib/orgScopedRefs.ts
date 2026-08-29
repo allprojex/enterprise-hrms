@@ -14,6 +14,9 @@ import {
   recordsLocationsTable,
   employeeDocumentsTable,
   employeeExitProcessesTable,
+  customFormsTable,
+  customFormSubmissionsTable,
+  generatedDocumentsTable,
 } from "@workspace/db";
 
 // Structurally accepts either the global `db` or a `db.transaction(...)`
@@ -43,7 +46,13 @@ type ScopedTable =
   // client-supplied references on WS-12 surfaces, so they need the same
   // cross-tenant proof every other reference here already gets.
   | typeof employeeDocumentsTable
-  | typeof employeeExitProcessesTable;
+  | typeof employeeExitProcessesTable
+  // WS-13 (§29.12-29.14) — form, submission and generated-document references
+  // are client-supplied on service-request surfaces, so they need the same
+  // cross-tenant proof every other reference here already gets.
+  | typeof customFormsTable
+  | typeof customFormSubmissionsTable
+  | typeof generatedDocumentsTable;
 
 /**
  * Verifies a foreign key (department/branch/position/employee id) actually

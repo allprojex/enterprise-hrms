@@ -29,6 +29,7 @@ import { registerJobHandler, zodPayloadParser } from "./jobHandlerRegistry";
 import { registerOnboardingJobHandlers } from "./onboarding/reminders";
 import { registerEmploymentLifecycleJobHandlers } from "./employmentLifecycle/reminders";
 import { registerEmployeeRelationsJobHandlers } from "./employeeRelations/reminders";
+import { registerEmployeeRequestJobHandlers } from "./employeeRequests/reminders";
 import { notifyUser, type RecipientSpec } from "./notifications";
 
 const recipientSpecSchema: z.ZodType<RecipientSpec> = z.union([
@@ -110,4 +111,10 @@ export function registerShippedJobHandlers(): void {
   // cannot do. They are observers only — no job may record a finding, decide an
   // outcome, waive clearance or separate anyone.
   registerEmployeeRelationsJobHandlers();
+
+  // WS-13 — request reminders. Observers only: $29.15 and $27.11 forbid a job
+  // approving, rejecting, applying a change or fulfilling anything, and there is
+  // deliberately no "apply due changes" handler  14 a future effective date does
+  // not licence a scheduled write ($29.11).
+  registerEmployeeRequestJobHandlers();
 }

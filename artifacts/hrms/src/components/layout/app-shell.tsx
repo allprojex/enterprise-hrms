@@ -22,6 +22,7 @@ import {
   Scale,
   DoorOpen,
   MessageSquareWarning,
+  Inbox,
   CalendarRange,
   CalendarHeart,
   Clock,
@@ -505,6 +506,13 @@ export function AppShell({ children }: AppShellProps) {
         // organization administration by default.
         ...(isHrCapable ? [{ href: '/employee-relations', label: 'Employee Relations', icon: Scale } satisfies NavItem] : []),
         ...(isHrCapable ? [{ href: '/offboarding', label: 'Offboarding', icon: DoorOpen } satisfies NavItem] : []),
+        // WS-13 — Requests and Approvals, plus its configuration surface. Same
+        // isHrCapable nav precedent as the workstreams above; each page
+        // independently discovers what the caller may actually see, and every
+        // endpoint enforces its own permission server-side. This is NOT the
+        // organization-wide HR Action Centre, which remains WS-15's.
+        ...(isHrCapable ? [{ href: '/requests', label: 'Requests & Approvals', icon: ClipboardList } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/request-settings', label: 'Request Settings', icon: SlidersHorizontal } satisfies NavItem] : []),
         { href: '/branches', label: 'Branches', icon: MapPin },
         { href: '/departments', label: 'Departments', icon: Network },
         { href: '/positions', label: 'Positions', icon: Briefcase },
@@ -534,6 +542,13 @@ export function AppShell({ children }: AppShellProps) {
         // grievances, and hiding the entry would make raising one harder for
         // exactly the people it exists to serve.
         { href: '/my-grievances', label: 'My Grievances', icon: MessageSquareWarning },
+        // WS-13 (section 29.17) — every employee reaches their OWN requests
+        // here, unconditionally, for the same reason as My Onboarding and My
+        // Grievances above: the page resolves the caller's own employee record
+        // server-side and renders an empty state when there is nothing to show.
+        // Gating it would make raising a request harder for exactly the people
+        // it exists to serve, and no permission key exists for self-service.
+        { href: '/my-requests', label: 'My Requests', icon: Inbox },
         // Phase 3G, W111 — unconditional nav visibility (frozen plan §25):
         // manager eligibility is a pure live reportingManagerId
         // relationship, never a role, so there is no role flag to gate this

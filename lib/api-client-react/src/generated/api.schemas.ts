@@ -11071,6 +11071,497 @@ export interface ClearanceQueue {
   outstanding: ClearanceQueueOutstandingItem[];
 }
 
+export type DataChangeOrigin = typeof DataChangeOrigin[keyof typeof DataChangeOrigin];
+
+
+export const DataChangeOrigin = {
+  employee_self_service: 'employee_self_service',
+  hr_originated: 'hr_originated',
+} as const;
+
+/**
+ * `approved` and `applied` are distinct on purpose: an approved request whose application failed must not read as though the record was written. `stale` is not terminal — it awaits audited re-confirmation.
+ */
+export type DataChangeStatus = typeof DataChangeStatus[keyof typeof DataChangeStatus];
+
+
+export const DataChangeStatus = {
+  pending: 'pending',
+  returned: 'returned',
+  approved: 'approved',
+  applied: 'applied',
+  rejected: 'rejected',
+  withdrawn: 'withdrawn',
+  stale: 'stale',
+  application_failed: 'application_failed',
+} as const;
+
+export type RequestApprovalPurpose = typeof RequestApprovalPurpose[keyof typeof RequestApprovalPurpose];
+
+
+export const RequestApprovalPurpose = {
+  data_change: 'data_change',
+  service_request: 'service_request',
+} as const;
+
+export type RequestAuthorityResolver = typeof RequestAuthorityResolver[keyof typeof RequestAuthorityResolver];
+
+
+export const RequestAuthorityResolver = {
+  department_head: 'department_head',
+  permission_holder: 'permission_holder',
+  specific_membership: 'specific_membership',
+} as const;
+
+export type DataChangeFieldSummaryKind = typeof DataChangeFieldSummaryKind[keyof typeof DataChangeFieldSummaryKind];
+
+
+export const DataChangeFieldSummaryKind = {
+  string: 'string',
+  date: 'date',
+  enum: 'enum',
+  json: 'json',
+} as const;
+
+export interface DataChangeFieldSummary {
+  fieldKey: string;
+  label: string;
+  kind: DataChangeFieldSummaryKind;
+  sensitive: boolean;
+}
+
+export type DataChangeFieldPolicyKind = typeof DataChangeFieldPolicyKind[keyof typeof DataChangeFieldPolicyKind];
+
+
+export const DataChangeFieldPolicyKind = {
+  string: 'string',
+  date: 'date',
+  enum: 'enum',
+  json: 'json',
+} as const;
+
+export interface DataChangeFieldPolicy {
+  fieldKey: string;
+  label?: string;
+  kind?: DataChangeFieldPolicyKind;
+  essEligible?: boolean;
+  hrEligible?: boolean;
+  sensitive?: boolean;
+  approvalRequired: boolean;
+}
+
+export type DataChangeFieldPolicyList = DataChangeFieldPolicy[];
+
+export interface SetDataChangeFieldPolicyInput {
+  approvalRequired: boolean;
+}
+
+export type RequestApprovalStageResolverConfig = { [key: string]: unknown } | null;
+
+export interface RequestApprovalStage {
+  id: number;
+  organizationId: number;
+  purpose: RequestApprovalPurpose;
+  stageOrder: number;
+  name: string;
+  resolverType: RequestAuthorityResolver;
+  resolverConfig?: RequestApprovalStageResolverConfig;
+}
+
+/**
+ * permission_holder -> { permissionKey }; specific_membership -> { membershipId }; department_head -> {}
+ */
+export type CreateRequestApprovalStageInputResolverConfig = { [key: string]: unknown };
+
+export interface CreateRequestApprovalStageInput {
+  purpose: RequestApprovalPurpose;
+  /** @minimum 1 */
+  stageOrder: number;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  name: string;
+  resolverType: RequestAuthorityResolver;
+  /** permission_holder -> { permissionKey }; specific_membership -> { membershipId }; department_head -> {} */
+  resolverConfig?: CreateRequestApprovalStageInputResolverConfig;
+}
+
+export interface DataChangeRequest {
+  id: number;
+  organizationId: number;
+  employeeId: number;
+  origin: DataChangeOrigin;
+  status: DataChangeStatus;
+  reason?: string | null;
+  stageCountAtRequest: number;
+  currentStageOrder?: number | null;
+  requestedAt: string;
+  effectiveDate?: string | null;
+  decidedAt?: string | null;
+  appliedAt?: string | null;
+  applicationFailureReason?: string | null;
+}
+
+/**
+ * Sensitive values arrive masked (§29.7).
+ */
+export interface DataChangeApprovalField {
+  fieldKey: string;
+  label: string;
+  sensitive: boolean;
+  previousValue?: unknown | null;
+  requestedValue?: unknown | null;
+  staleDetectedAt?: string | null;
+}
+
+export interface DataChangeEvent {
+  id: number;
+  requestId: number;
+  eventType: string;
+  stageOrder?: number | null;
+  stageName?: string | null;
+  notes?: string | null;
+  occurredAt: string;
+}
+
+/**
+ * The approver's view. Built field by field, never spread from the employee record, so a column added to `employees` cannot start leaking here.
+ */
+export interface DataChangeApprovalView {
+  id: number;
+  employeeId: number;
+  origin: DataChangeOrigin;
+  status: DataChangeStatus;
+  reason?: string | null;
+  requestedAt: string;
+  effectiveDate?: string | null;
+  currentStageOrder?: number | null;
+  stageCountAtRequest: number;
+  fields: DataChangeApprovalField[];
+  events?: DataChangeEvent[];
+}
+
+export interface DataChangeEssField {
+  fieldKey: string;
+  label: string;
+  requestedValue?: unknown | null;
+  staleDetectedAt?: string | null;
+}
+
+/**
+ * The employee's own view. An allow-list built by construction: no approver identity, no stage configuration, no internal notes.
+ */
+export interface DataChangeEssView {
+  id: number;
+  status: DataChangeStatus;
+  reason?: string | null;
+  requestedAt: string;
+  effectiveDate?: string | null;
+  decidedAt?: string | null;
+  appliedAt?: string | null;
+  fields: DataChangeEssField[];
+}
+
+export interface RequestedFieldChangeInput {
+  /**
+     * A key from the eligible-field registry. Never a raw column name.
+     * @minLength 1
+     * @maxLength 100
+     */
+  fieldKey: string;
+  requestedValue?: unknown | null;
+}
+
+export interface CreateDataChangeRequestInput {
+  /** @minItems 1 */
+  fields: RequestedFieldChangeInput[];
+  reason?: string | null;
+  effectiveDate?: string | null;
+}
+
+/**
+ * No employee identifier — the subject is the caller's own record.
+ */
+export interface SubmitMyDataChangeRequestInput {
+  /** @minItems 1 */
+  fields: RequestedFieldChangeInput[];
+  reason?: string | null;
+  effectiveDate?: string | null;
+}
+
+export interface CreateDataChangeRequestResult {
+  request: DataChangeRequest;
+  approvalRequired: boolean;
+}
+
+export interface DecideDataChangeRequestInput {
+  notes?: string | null;
+}
+
+export interface RejectDataChangeRequestInput {
+  /**
+     * @minLength 1
+     * @maxLength 1000
+     */
+  reason: string;
+}
+
+export interface ReturnDataChangeRequestInput {
+  /**
+     * @minLength 1
+     * @maxLength 1000
+     */
+  reason: string;
+}
+
+export type ServiceRequestFulfilmentKind = typeof ServiceRequestFulfilmentKind[keyof typeof ServiceRequestFulfilmentKind];
+
+
+export const ServiceRequestFulfilmentKind = {
+  acknowledgement: 'acknowledgement',
+  document: 'document',
+} as const;
+
+export type ServiceRequestStatus = typeof ServiceRequestStatus[keyof typeof ServiceRequestStatus];
+
+
+export const ServiceRequestStatus = {
+  submitted: 'submitted',
+  acknowledged: 'acknowledged',
+  in_progress: 'in_progress',
+  awaiting_employee: 'awaiting_employee',
+  fulfilled: 'fulfilled',
+  closed: 'closed',
+  cancelled: 'cancelled',
+  withdrawn: 'withdrawn',
+} as const;
+
+/**
+ * Separate from status — an approved request is not thereby fulfilled.
+ */
+export type ServiceRequestApprovalStatus = typeof ServiceRequestApprovalStatus[keyof typeof ServiceRequestApprovalStatus];
+
+
+export const ServiceRequestApprovalStatus = {
+  not_required: 'not_required',
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export interface ServiceRequestType {
+  id: number;
+  organizationId: number;
+  code: string;
+  name: string;
+  description?: string | null;
+  active: boolean;
+  employeeVisible: boolean;
+  approvalRequired: boolean;
+  fulfilmentKind: ServiceRequestFulfilmentKind;
+  formId?: number | null;
+  responsibleDepartmentId?: number | null;
+  targetDays?: number | null;
+}
+
+export interface CreateServiceRequestTypeInput {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  code: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  name: string;
+  description?: string | null;
+  employeeVisible?: boolean;
+  approvalRequired?: boolean;
+  fulfilmentKind?: ServiceRequestFulfilmentKind;
+  formId?: number | null;
+  responsibleDepartmentId?: number | null;
+  targetDays?: number | null;
+}
+
+export interface UpdateServiceRequestTypeInput {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  name?: string;
+  description?: string | null;
+  active?: boolean;
+  employeeVisible?: boolean;
+  approvalRequired?: boolean;
+  fulfilmentKind?: ServiceRequestFulfilmentKind;
+  formId?: number | null;
+  responsibleDepartmentId?: number | null;
+  targetDays?: number | null;
+}
+
+export interface ServiceRequest {
+  id: number;
+  organizationId: number;
+  typeId: number;
+  employeeId: number;
+  subject: string;
+  details?: string | null;
+  status: ServiceRequestStatus;
+  approvalStatus: ServiceRequestApprovalStatus;
+  stageCountAtRequest?: number;
+  currentStageOrder?: number | null;
+  assignedMembershipId?: number | null;
+  formSubmissionId?: number | null;
+  generatedDocumentId?: number | null;
+  evidenceDocumentId?: number | null;
+  submittedAt: string;
+  acknowledgedAt?: string | null;
+  fulfilledAt?: string | null;
+  closedAt?: string | null;
+  resolutionSummary?: string | null;
+}
+
+export interface ServiceRequestEvent {
+  id: number;
+  requestId: number;
+  eventType: string;
+  stageOrder?: number | null;
+  stageName?: string | null;
+  notes?: string | null;
+  visibleToEmployee: boolean;
+  occurredAt: string;
+}
+
+export type ServiceRequestDetail = ServiceRequest & {
+  events?: ServiceRequestEvent[];
+};
+
+export interface ServiceRequestEssUpdate {
+  id: number;
+  eventType: string;
+  occurredAt: string;
+  notes?: string | null;
+}
+
+/**
+ * Employee-facing allow-list: no assignee, no stage configuration, no internal notes, no event details.
+ */
+export interface ServiceRequestEssView {
+  id: number;
+  typeId: number;
+  subject: string;
+  details?: string | null;
+  status: ServiceRequestStatus;
+  approvalStatus: ServiceRequestApprovalStatus;
+  submittedAt: string;
+  acknowledgedAt?: string | null;
+  fulfilledAt?: string | null;
+  resolutionSummary?: string | null;
+  generatedDocumentId?: number | null;
+  updates: ServiceRequestEssUpdate[];
+}
+
+export interface CreateServiceRequestInput {
+  typeId: number;
+  /**
+     * @minLength 1
+     * @maxLength 300
+     */
+  subject: string;
+  details?: string | null;
+  formSubmissionId?: number | null;
+  evidenceDocumentId?: number | null;
+}
+
+export interface SubmitMyServiceRequestInput {
+  typeId: number;
+  /**
+     * @minLength 1
+     * @maxLength 300
+     */
+  subject: string;
+  details?: string | null;
+  formSubmissionId?: number | null;
+  evidenceDocumentId?: number | null;
+}
+
+export interface AcknowledgeServiceRequestInput {
+  notes?: string | null;
+}
+
+export interface AssignServiceRequestInput {
+  assignedMembershipId: number;
+}
+
+export interface ApproveServiceRequestInput {
+  notes?: string | null;
+}
+
+export interface RejectServiceRequestInput {
+  /**
+     * @minLength 1
+     * @maxLength 1000
+     */
+  reason: string;
+}
+
+export interface RequestServiceRequestInformationInput {
+  /**
+     * @minLength 1
+     * @maxLength 2000
+     */
+  message: string;
+}
+
+export interface RespondToServiceRequestInput {
+  /**
+     * @minLength 1
+     * @maxLength 2000
+     */
+  message: string;
+}
+
+export interface FulfilServiceRequestInput {
+  /** @minLength 1 */
+  resolutionSummary: string;
+  /** The WS-5 document that satisfies the request. WS-13 generates none itself. */
+  generatedDocumentId?: number | null;
+}
+
+export interface CloseServiceRequestInput {
+  notes?: string | null;
+}
+
+export interface PendingDataChangeRow {
+  id: number;
+  employeeId: number;
+  status: string;
+  requestedAt: string;
+  ageDays: number;
+}
+
+export interface OpenServiceRequestRow {
+  id: number;
+  typeId: number;
+  employeeId: number;
+  status: string;
+  approvalStatus: string;
+  submittedAt: string;
+  ageDays: number;
+  /** Derived against the type's configured target. Never stored, and never an escalation engine. */
+  overdue: boolean;
+}
+
+/**
+ * Each half is null when the caller may not read that half.
+ */
+export interface RequestReports {
+  pendingDataChanges?: PendingDataChangeRow[] | null;
+  openServiceRequests?: OpenServiceRequestRow[] | null;
+}
+
 export type UploadOrganizationLogoBody = {
   file: Blob;
 };
@@ -12258,4 +12749,29 @@ employeeId?: number;
 export type GetClearanceQueueParams = {
 responsibleDepartmentId?: number;
 };
+
+export type ListRequestApprovalStagesParams = {
+purpose?: RequestApprovalPurpose;
+};
+
+export type ListDataChangeRequestsParams = {
+employeeId?: number;
+status?: DataChangeStatus;
+};
+
+export type ListServiceRequestsParams = {
+employeeId?: number;
+status?: ServiceRequestStatus;
+/**
+ * Restricts to requests assigned to the caller. A caller cannot ask about somebody else's queue.
+ */
+assignedToMe?: ListServiceRequestsAssignedToMe;
+};
+
+export type ListServiceRequestsAssignedToMe = typeof ListServiceRequestsAssignedToMe[keyof typeof ListServiceRequestsAssignedToMe];
+
+
+export const ListServiceRequestsAssignedToMe = {
+  true: 'true',
+} as const;
 

@@ -559,6 +559,24 @@ const PERMISSIONS = [
   // nothing else: it grants no case access, no grievance access, and no ability
   // to grant final clearance.
   { key: "clearance.act", resource: "clearance", action: "act" },
+  // WS-13 — Employee Data Change Approval & HR Service Requests (§29.18).
+  //
+  // EMPLOYEE SELF-SERVICE MINTS NO KEY. An employee's right to raise a request
+  // about their own data comes from their employee link, resolved server-side —
+  // the precedent WS-10 and WS-12 both set. A right an administrator could
+  // withhold is not self-service.
+  //
+  // Approval is separated from proposal so maker-checker (§29.6) is expressible
+  // as an authorization fact and not only as a runtime check, and configuration
+  // is separated from operation, mirroring the WS-8/WS-10/WS-11/WS-12 split.
+  { key: "data_change.read", resource: "data_change", action: "read" },
+  { key: "data_change.request", resource: "data_change", action: "request" },
+  { key: "data_change.approve", resource: "data_change", action: "approve" },
+  { key: "data_change.configure", resource: "data_change", action: "configure" },
+  { key: "service_request.read", resource: "service_request", action: "read" },
+  { key: "service_request.manage", resource: "service_request", action: "manage" },
+  { key: "service_request.approve", resource: "service_request", action: "approve" },
+  { key: "service_request.configure", resource: "service_request", action: "configure" },
   { key: "onboarding.read", resource: "onboarding", action: "read" },
   { key: "onboarding.manage", resource: "onboarding", action: "manage" },
   { key: "onboarding.configure", resource: "onboarding", action: "configure" },
@@ -695,6 +713,18 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "offboarding.manage",
     "offboarding.configure",
     "clearance.act",
+    // WS-13 — organization administration owns request configuration and
+    // operation alike. It also holds approve: an administrator is a legitimate
+    // approver, and maker-checker still stops them approving their OWN request
+    // (§29.6) — that rule is enforced per request, not per role.
+    "data_change.read",
+    "data_change.request",
+    "data_change.approve",
+    "data_change.configure",
+    "service_request.read",
+    "service_request.manage",
+    "service_request.approve",
+    "service_request.configure",
     // WS-10 — organization administration owns onboarding configuration and
     // operation alike.
     "onboarding.read",
@@ -830,6 +860,15 @@ const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "offboarding.read",
     "offboarding.manage",
     "clearance.act",
+    // WS-13 — an HR manager runs requests day to day and approves them, but does
+    // not define the organization's eligible-field policy or request catalogue.
+    // Both `configure` keys are withheld, the same split as above.
+    "data_change.read",
+    "data_change.request",
+    "data_change.approve",
+    "service_request.read",
+    "service_request.manage",
+    "service_request.approve",
     // WS-10 — an HR manager runs onboarding day to day (starts it, completes
     // and waives tasks, assigns handbooks) but does not define the templates
     // themselves, which is an organization-configuration act. This mirrors the

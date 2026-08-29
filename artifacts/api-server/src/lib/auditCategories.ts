@@ -171,6 +171,16 @@ const CATEGORY_BY_PREFIX: Record<string, AuditCategory> = {
   clearance_item: "hr",
   exit_interview: "hr",
   employee_relations_evidence: "hr",
+  // WS-13 (§29.19). "hr" for the same reason WS-12's are: these are people-
+  // process events, and an HR auditor holding OD #17's category-scoped
+  // `audit.read.hr` must be able to see the request trail and the change trail
+  // together. Moving them elsewhere for naming tidiness would split one story
+  // across two audiences.
+  data_change_request: "hr",
+  data_change_policy: "hr",
+  service_request: "hr",
+  service_request_type: "hr",
+  request_approval_stage: "hr",
   employee_number: "hr",
   employee_qualification: "hr",
   employee_skill: "hr",

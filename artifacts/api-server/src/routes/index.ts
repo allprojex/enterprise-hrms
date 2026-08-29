@@ -40,6 +40,7 @@ import recruitmentSettingsRouter from "./recruitmentSettings";
 import onboardingRouter from "./onboarding";
 import employmentLifecycleRouter from "./employmentLifecycle";
 import employeeRelationsRouter from "./employeeRelations";
+import employeeRequestsRouter from "./employeeRequests";
 import recruitmentWorkflowsRouter from "./recruitmentWorkflows";
 import jobRequisitionsRouter from "./jobRequisitions";
 import vacanciesRouter from "./vacancies";
@@ -163,6 +164,7 @@ router.use(onboardingRouter);
 // inside its own router, so the literal path is not shadowed by the param route.
 router.use(employmentLifecycleRouter);
 router.use(employeeRelationsRouter);
+router.use(employeeRequestsRouter);
 router.use(recruitmentWorkflowsRouter);
 router.use(jobRequisitionsRouter);
 router.use(vacanciesRouter);
