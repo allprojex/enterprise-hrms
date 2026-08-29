@@ -588,6 +588,10 @@ describeLive("WS-12 — employee relations & offboarding, live", () => {
         employeeId: emp.id,
         assetTagSnapshot: asset.assetTag,
         assetNameSnapshot: asset.name,
+        // Both NOT NULL on the shipped table; the fixture must satisfy the real
+        // schema rather than a convenient subset of it.
+        categorySnapshot: asset.categoryCode,
+        issueCondition: "good",
         issuedAt: new Date("2026-01-01T00:00:00Z"),
       })
       .returning();
@@ -656,7 +660,7 @@ describeLive("WS-12 — employee relations & offboarding, live", () => {
       await db.insert(schema.officeInventoryStockMovementsTable).values({
         organizationId: orgId,
         itemId: item.id,
-        movementType: "issue",
+        movementType: "issued",
         quantity: "1",
         holderType: "employee",
         holderId: emp.id,
@@ -1107,6 +1111,399 @@ describeLive("WS-12 — employee relations & offboarding, live", () => {
     // No before/after state: a read copies no confidential content into audit.
     expect(mine[0]!.beforeState).toBeNull();
     expect(mine[0]!.afterState).toBeNull();
+  });
+
+
+  // -- Acceptance gap closure: invariants §28 freezes that the first pass did
+  //    not prove directly ---------------------------------------------------
+
+  it("a grievance is not readable or actionable across organizations", async () => {
+    const complainant = await makeEmployee("GrievanceIsolation");
+    const submitted = await grievance.submitGrievance({
+      organizationId: orgId,
+      complainantEmployeeId: complainant.id,
+      categoryCode: "conduct",
+      subject: "Theirs alone",
+      description: "Body",
+      submittedAt: new Date("2026-05-01T00:00:00Z"),
+      ...actor(),
+    });
+
+    // Invisible, not merely forbidden — the other tenant cannot even learn it exists.
+    expect(await grievance.getCase(otherOrgId, submitted.id)).toBeUndefined();
+    expect((await grievance.listCases(otherOrgId)).some((g: any) => g.id === submitted.id)).toBe(false);
+    expect(await grievance.listCaseEvents(otherOrgId, submitted.id)).toHaveLength(0);
+
+    // And every mutation refuses under a foreign organization context.
+    for (const call of [
+      () =>
+        grievance.acknowledge({
+          organizationId: otherOrgId,
+          caseId: submitted.id,
+          occurredAt: new Date(),
+          ...actor(),
+        }),
+      () =>
+        grievance.assign({
+          organizationId: otherOrgId,
+          caseId: submitted.id,
+          assignedMembershipId: membershipId,
+          occurredAt: new Date(),
+          ...actor(),
+        }),
+      () =>
+        grievance.resolve({
+          organizationId: otherOrgId,
+          caseId: submitted.id,
+          resolutionSummary: "x",
+          occurredAt: new Date(),
+          ...actor(),
+        }),
+      () =>
+        grievance.closeCase({
+          organizationId: otherOrgId,
+          caseId: submitted.id,
+          occurredAt: new Date(),
+          ...actor(),
+        }),
+    ]) {
+      await expect(call()).rejects.toThrow();
+    }
+
+    // The record is untouched by all of that.
+    const after = await grievance.getCase(orgId, submitted.id);
+    expect(after!.status).toBe("submitted");
+    expect(after!.acknowledgedAt).toBeNull();
+  });
+
+  it("grievance evidence from another organization cannot be attached", async () => {
+    const complainant = await makeEmployee("GrievanceEvidenceIsolation");
+    const submitted = await grievance.submitGrievance({
+      organizationId: orgId,
+      complainantEmployeeId: complainant.id,
+      categoryCode: "conduct",
+      subject: "Evidence isolation",
+      description: "Body",
+      submittedAt: new Date(),
+      ...actor(),
+    });
+    const [foreignDoc] = await db
+      .insert(schema.employeeDocumentsTable)
+      .values({
+        organizationId: otherOrgId,
+        employeeId: otherOrgEmployeeId,
+        categoryCode: "other",
+        fileName: "foreign-grievance.pdf",
+        storageKey: `gk-${suffix}`,
+        mimeType: "application/pdf",
+        fileSize: 10,
+      })
+      .returning();
+
+    await expect(
+      grievance.attachEvidence({
+        organizationId: orgId,
+        caseId: submitted.id,
+        documentId: foreignDoc.id,
+        occurredAt: new Date(),
+        ...actor(),
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("a forged responsible-department reference is refused on both template and ad-hoc items", async () => {
+    const template = await clearance.createTemplate({
+      organizationId: orgId,
+      name: `ForgedDept ${suffix}`,
+      ...actor(),
+    });
+
+    // A department id that is syntactically valid but belongs to another tenant.
+    await expect(
+      clearance.addTemplateItem({
+        organizationId: orgId,
+        templateId: template.id,
+        label: "Cross-tenant desk",
+        responsibleDepartmentId: otherOrgDeptId,
+        ...actor(),
+      }),
+    ).rejects.toThrow();
+
+    const emp = await makeEmployee("ForgedDeptAdHoc", { employmentStatus: "active" });
+    await separate(emp.id);
+    const { exitProcess } = await offboarding.initiateOffboarding({
+      organizationId: orgId,
+      employeeId: emp.id,
+      ...actor(),
+    });
+    await expect(
+      clearance.addItem({
+        organizationId: orgId,
+        exitProcessId: exitProcess.id,
+        label: "Cross-tenant desk",
+        responsibleDepartmentId: otherOrgDeptId,
+        ...actor(),
+      }),
+    ).rejects.toThrow();
+
+    // A clearance item cannot be hung off another tenant's offboarding either.
+    await expect(
+      clearance.addItem({
+        organizationId: otherOrgId,
+        exitProcessId: exitProcess.id,
+        label: "Cross-tenant offboarding",
+        ...actor(),
+      }),
+    ).rejects.toThrow();
+
+    // And an evidence document from another tenant cannot be attached on completion.
+    const items = await clearance.listItems(orgId, exitProcess.id);
+    if (items.length > 0) {
+      const [foreignDoc] = await db
+        .insert(schema.employeeDocumentsTable)
+        .values({
+          organizationId: otherOrgId,
+          employeeId: otherOrgEmployeeId,
+          categoryCode: "other",
+          fileName: "foreign-evidence.pdf",
+          storageKey: `ck-${suffix}`,
+          mimeType: "application/pdf",
+          fileSize: 10,
+        })
+        .returning();
+      await expect(
+        clearance.completeItem({
+          organizationId: orgId,
+          itemId: items[0]!.id,
+          evidenceDocumentId: foreignDoc.id,
+          ...actor(),
+        }),
+      ).rejects.toThrow();
+    }
+  });
+
+  it("completing an inventory_return item moves NO stock", async () => {
+    const emp = await makeEmployee("InventoryObserveOnly", { employmentStatus: "active" });
+    await separate(emp.id);
+
+    const [item] = await db
+      .insert(schema.officeInventoryItemsTable)
+      .values({
+        organizationId: orgId,
+        itemCode: `RO-${suffix}`,
+        name: `Handset ${suffix}`,
+        categoryCode: "equipment",
+        classification: "returnable",
+        unitOfMeasure: "each",
+      })
+      .returning();
+    await db.insert(schema.officeInventoryStockMovementsTable).values({
+      organizationId: orgId,
+      itemId: item.id,
+      movementType: "issued",
+      quantity: "1",
+      holderType: "employee",
+      holderId: emp.id,
+      occurredAt: new Date("2026-02-01T00:00:00Z"),
+      createdBy: userId,
+    });
+
+    const movementsBefore = await db
+      .select()
+      .from(schema.officeInventoryStockMovementsTable)
+      .where(eq(schema.officeInventoryStockMovementsTable.organizationId, orgId));
+
+    const template = await makeTemplate("InventoryClearance", [
+      { label: "Return handset", itemType: "inventory_return", required: true },
+    ]);
+    const { exitProcess } = await offboarding.initiateOffboarding({
+      organizationId: orgId,
+      employeeId: emp.id,
+      clearanceTemplateId: template.id,
+      ...actor(),
+    });
+    const clearanceItems = await clearance.listItems(orgId, exitProcess.id);
+    await clearance.completeItem({ organizationId: orgId, itemId: clearanceItems[0]!.id, ...actor() });
+
+    // THE ASSERTION THIS TEST EXISTS FOR (§28.10): not one stock movement was
+    // created, and none was altered.
+    const movementsAfter = await db
+      .select()
+      .from(schema.officeInventoryStockMovementsTable)
+      .where(eq(schema.officeInventoryStockMovementsTable.organizationId, orgId));
+    expect(movementsAfter).toHaveLength(movementsBefore.length);
+
+    // Custody is still reported outstanding, because it genuinely is.
+    const custody = await clearance.summarizeOutstandingCustody(orgId, emp.id);
+    expect(custody.inventory.some((row: any) => row.itemId === item.id)).toBe(true);
+  });
+
+  // -- Owner Decision #18 acceptance (§28.12) --------------------------------
+
+  it("OD #18: a sensitive read records actor, tenant, resource and action — and no case content", async () => {
+    const sensitiveRead = await import("../lib/sensitiveRead");
+    const emp = await makeEmployee("Od18Disciplinary");
+    const opened = await disciplinary.openCase({
+      organizationId: orgId,
+      employeeId: emp.id,
+      categoryCode: "conduct",
+      subject: "OD18 SUBJECT SECRET",
+      description: "OD18 DESCRIPTION SECRET",
+      confidentiality: "restricted",
+      openedAt: new Date(),
+      ...actor(),
+    });
+
+    await sensitiveRead.recordSensitiveRead({
+      organizationId: orgId,
+      actorApplicationUserId: userId,
+      actorMembershipId: membershipId,
+      targetType: "disciplinary_case",
+      targetId: opened.id,
+      subjectEmployeeId: emp.id,
+      reason: "restricted",
+    });
+
+    const [row] = await db
+      .select()
+      .from(schema.auditEventsTable)
+      .where(
+        and(
+          eq(schema.auditEventsTable.organizationId, orgId),
+          eq(schema.auditEventsTable.eventType, "disciplinary_case.read"),
+          eq(schema.auditEventsTable.targetId, String(opened.id)),
+        ),
+      );
+
+    // (1) the read generated a record; (2) it identifies the actor;
+    expect(row).toBeTruthy();
+    expect(row.actorApplicationUserId).toBe(userId);
+    expect(row.actorMembershipId).toBe(membershipId);
+    // (3) tenant context is retained;
+    expect(row.organizationId).toBe(orgId);
+    // (4) resource and action are retained;
+    expect(row.targetType).toBe("disciplinary_case");
+    expect(row.targetId).toBe(String(opened.id));
+    expect(row.eventType).toBe("disciplinary_case.read");
+    expect(row.outcome).toBe("success");
+    expect(JSON.stringify(row.metadata)).toContain("sensitiveRead");
+
+    // (6) the audit mechanism cannot itself be used to discover protected
+    // content: the row carries the case IDENTITY and nothing from inside it.
+    const serialized = JSON.stringify(row);
+    expect(serialized).not.toContain("OD18 SUBJECT SECRET");
+    expect(serialized).not.toContain("OD18 DESCRIPTION SECRET");
+    expect(row.beforeState).toBeNull();
+    expect(row.afterState).toBeNull();
+  });
+
+  it("OD #18: a refused sensitive read is recorded too, and grievance reads audit the same way", async () => {
+    const sensitiveRead = await import("../lib/sensitiveRead");
+    const complainant = await makeEmployee("Od18Grievance");
+    const submitted = await grievance.submitGrievance({
+      organizationId: orgId,
+      complainantEmployeeId: complainant.id,
+      categoryCode: "conduct",
+      subject: "OD18 GRIEVANCE SECRET",
+      description: "Body",
+      submittedAt: new Date(),
+      ...actor(),
+    });
+
+    await sensitiveRead.recordSensitiveRead({
+      organizationId: orgId,
+      actorApplicationUserId: userId,
+      actorMembershipId: membershipId,
+      targetType: "grievance_case",
+      targetId: submitted.id,
+      subjectEmployeeId: complainant.id,
+      reason: "confidential",
+    });
+    await sensitiveRead.recordSensitiveReadDenied({
+      organizationId: orgId,
+      actorApplicationUserId: userId,
+      actorMembershipId: membershipId,
+      targetType: "grievance_case",
+      targetId: submitted.id,
+      reason: "confidential",
+    });
+
+    const rows = await db
+      .select()
+      .from(schema.auditEventsTable)
+      .where(
+        and(
+          eq(schema.auditEventsTable.organizationId, orgId),
+          eq(schema.auditEventsTable.eventType, "grievance_case.read"),
+          eq(schema.auditEventsTable.targetId, String(submitted.id)),
+        ),
+      );
+    expect(rows.length).toBe(2);
+    const outcomes = rows.map((r: any) => r.outcome).sort();
+    // A refused attempt on somebody's grievance file is exactly the signal an
+    // audit reader wants, and it is invisible if only successes are recorded.
+    expect(outcomes).toEqual(["denied", "success"]);
+    expect(JSON.stringify(rows)).not.toContain("OD18 GRIEVANCE SECRET");
+  });
+
+  it("OD #18: sensitive reads land in the HR audit category, so HR auditors see them and others do not", async () => {
+    const auditCategories = await import("../lib/auditCategories");
+
+    // (5) An HR auditor holding OD #17's scoped key reaches these events...
+    expect(auditCategories.resolveAuditCategory("disciplinary_case.read")).toBe("hr");
+    expect(auditCategories.resolveAuditCategory("grievance_case.read")).toBe("hr");
+    expect(auditCategories.resolveAuditCategory("employee_relations_evidence.read")).toBe("hr");
+    // ...and every WS-12 mutation event is categorized the same way, so the
+    // read trail and the change trail are visible to the same auditor.
+    expect(auditCategories.resolveAuditCategory("disciplinary_case.opened")).toBe("hr");
+    expect(auditCategories.resolveAuditCategory("grievance_case.resolved")).toBe("hr");
+    expect(auditCategories.resolveAuditCategory("clearance_item.waived")).toBe("hr");
+    expect(auditCategories.resolveAuditCategory("employee_exit_process.final_cleared")).toBe("hr");
+    expect(auditCategories.resolveAuditCategory("exit_interview.completed")).toBe("hr");
+
+    // (6) A caller scoped to another category cannot reach them. This is the
+    // OD #17 model doing the work — the reason §28.12 kept these in "hr"
+    // rather than moving them to "security" for naming tidiness.
+    const auditAuth = await import("../lib/auditAuthorization");
+    const [payrollOnlyUser] = await db
+      .insert(schema.usersTable)
+      .values({
+        email: `payroll-auditor-${suffix}@example.invalid`,
+        passwordHash: "x",
+        firstName: "Payroll",
+        lastName: "Auditor",
+        organizationId: orgId,
+      })
+      .returning();
+    const [payrollOnlyMembership] = await db
+      .insert(schema.organizationMembershipsTable)
+      .values({ applicationUserId: payrollOnlyUser.id, organizationId: orgId, status: "active" })
+      .returning();
+
+    const [role] = await db
+      .insert(schema.rolesTable)
+      .values({
+        organizationId: orgId,
+        key: `payroll-auditor-${suffix}`,
+        label: "Payroll auditor (test)",
+        description: "test",
+        isSystemRole: false,
+      })
+      .returning();
+    const [perm] = await db
+      .select()
+      .from(schema.permissionsTable)
+      .where(eq(schema.permissionsTable.key, "audit.read.payroll"))
+      .limit(1);
+    await db.insert(schema.rolePermissionsTable).values({ roleId: role.id, permissionId: perm.id });
+    await db.insert(schema.membershipRolesTable).values({ membershipId: payrollOnlyMembership.id, roleId: role.id });
+
+    const allowed = await auditAuth.resolveAllowedAuditCategories(payrollOnlyMembership.id);
+    expect(allowed).not.toBe("all");
+    expect(allowed as string[]).toContain("payroll");
+    // The decisive assertion: this caller cannot select the category the
+    // Employee Relations read trail lives in.
+    expect(allowed as string[]).not.toContain("hr");
   });
 
 });

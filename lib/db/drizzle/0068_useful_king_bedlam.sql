@@ -11,7 +11,11 @@ CREATE TYPE "public"."clearance_item_type" AS ENUM('general', 'asset_return', 'i
 CREATE TYPE "public"."clearance_template_status" AS ENUM('draft', 'active', 'archived');--> statement-breakpoint
 CREATE TYPE "public"."clearance_item_status" AS ENUM('pending', 'completed', 'returned', 'waived');--> statement-breakpoint
 CREATE TYPE "public"."exit_interview_status" AS ENUM('scheduled', 'completed', 'cancelled');--> statement-breakpoint
-ALTER TYPE "public"."custom_field_scope" ADD VALUE 'exit_interview';--> statement-breakpoint
+-- WS-12: IF NOT EXISTS so this migration stays re-runnable after its own down
+-- migration. PostgreSQL cannot remove an enum value, so the down migration
+-- deliberately leaves this label in place; without the guard, a down-then-up
+-- cycle would fail here on a label that is already correct.
+ALTER TYPE "public"."custom_field_scope" ADD VALUE IF NOT EXISTS 'exit_interview';--> statement-breakpoint
 CREATE TABLE "disciplinary_cases" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"organization_id" integer NOT NULL,

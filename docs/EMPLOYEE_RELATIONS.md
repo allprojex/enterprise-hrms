@@ -146,7 +146,7 @@ Database guarantees rather than read-then-write checks: one active clearance tem
 
 ## Tests
 
-`artifacts/api-server/src/test/employeeRelationsLive.test.ts` — 28 live integration tests, opt-in:
+`artifacts/api-server/src/test/employeeRelationsLive.test.ts` — **35 live integration tests, all executed and passing** against a disposable local PostgreSQL (the `docker-compose` `db` service on port 5433, the repository's established live-test target). Opt-in:
 
 ```
 DATABASE_URL=postgres://hrms:hrms@localhost:5433/hrms \
@@ -154,14 +154,18 @@ WS12_LIVE_DATABASE_URL=postgres://hrms:hrms@localhost:5433/hrms \
 pnpm --filter @workspace/api-server test
 ```
 
-The negative assertions are the point: legacy history unchanged, outcomes separating nobody, clearance returning no asset, consumables never appearing, waivers requiring a reason, ESS never carrying an investigator's note, offboarding refusing without a basis, cross-tenant ids failing safely, and no lifecycle-mutating job type existing.
+The negative assertions are the point: legacy history unchanged, outcomes separating nobody, clearance returning no asset **and moving no stock**, consumables never appearing, waivers requiring a reason, ESS never carrying an investigator's note, offboarding refusing without a basis, cross-tenant ids failing safely on **disciplinary, grievance, clearance, offboarding and evidence** alike, forged department references refused, and no lifecycle-mutating job type existing.
+
+Owner Decision #18 has its own acceptance tests: a sensitive read records actor, membership, tenant, resource and action; a **refused** read is recorded too, with `outcome: "denied"`; the audit row carries the case identity but none of its content; and the events resolve to the `hr` category, so an auditor scoped to another category cannot reach them (proved by building a `audit.read.payroll`-only membership and asserting `resolveAllowedAuditCategories` excludes `hr`).
+
+**Migration `0068` is up/down/up verified** against a fresh database: all eight tables drop, `separation_date`'s NOT NULL is restored, `employee_disciplinary_records` is untouched, and re-applying restores all eight tables with RLS enabled and the column nullable again.
 
 ---
 
 ## Known limitations
 
 - **Only two separation bases** — resignation, retirement and approved termination need an authoritative record first (above).
-- **No write-side UI for case actions.** The shipped surfaces are read-oriented: an Employee Relations workspace, an Offboarding and clearance workspace, an ESS grievance view and an employee-record panel. Opening cases, recording outcomes and acting on clearance are API-only in this workstream.
+- **No write-side UI for HR case actions.** Opening cases, recording outcomes, acting on clearance, waiving and completing exit interviews are API-only. This is not a gap against §28: the only user action §28 freezes as reachable *through the application* is ESS grievance submission (§28.5, "Employees may submit their own grievances through ESS"), which **is** implemented. Every other §28 clause describes records, services, permissions and boundaries rather than a UI channel, and UI was deliberately not added merely because an API exists.
 - **No lifecycle letters generated.** WS-5 supplies generation and `generated_documents.sourceType`/`sourceId` can already point at a WS-12 record; no WS-12 code wires it.
 - **No legacy import adapters** — deferred to the existing WS-7 framework, with no fabrication from incomplete data.
 - **No email or SMS reminders** — the platform has no such capability.
