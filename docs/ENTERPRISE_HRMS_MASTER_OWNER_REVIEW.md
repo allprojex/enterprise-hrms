@@ -292,11 +292,11 @@ Unchanged from the discovery pass — neither gate is met today, both remain ded
 | Tasks/Notifications/Reminders | N | | | | **P1 — APPROVED, HIGH PRIORITY (OD #13)** |
 | Workflow/Approval primitive | Partial | | | | **P2 — APPROVED (OD #14)**, authority-resolver only |
 | Delegation/Acting Authority | Y (1 module) | | | | **P2 — APPROVED (OD #15)**, generalize |
-| Global Search / Employee 360 | Partial | | Y | | P2/P3 |
-| HR Action Centre | N | | | | P1 |
+| Global Search / Employee 360 | Partial | | Y | | P2/P3 — **WS-15 bundle, architecture frozen in §31.29**; Global Search remains P3 |
+| HR Action Centre | N | | | | P1 — **WS-15 bundle, architecture frozen in §31.4–31.27** (runtime federation, no new table, no new permission) |
 | ESS | Y | Y | | | — |
-| Manager/Department Head | Y | | Y | | P2 |
-| Reporting/Analytics | Y | | Y (CSV hardening gap) | | P1 (CSV fix), P3 (rest) |
+| Manager/Department Head | Y | | Y | | P2 — **WS-15 bundle, architecture frozen in §31.28**; the registered gap is Recruitment participation (panel membership, outstanding own scorecard, hiring-manager standing) |
+| Reporting/Analytics | Y | | Y (CSV hardening gap) | | P1 (CSV fix — **shipped in WS-1**), P3 (rest) — **WS-15 bundle, architecture frozen in §31.30**: 47 report definitions seeded, 3 generic runners implemented |
 | Bulk Import/Migration | Y | | Y (employees-only) | | P0 |
 | Attendance / Leave / Performance / Learning / Assets / Manager Portal / ESS-completion / Personnel Records | Y | Y | | | — |
 | Office Inventory | Y | Y | | Enabled for WWM only | — |
@@ -362,7 +362,7 @@ The prior 43-item micro-list is retired. Below is the smallest coherent implemen
 | WS-12 | Employee Relations & Offboarding Clearance | **P1** | Structured disciplinary stages, separate Grievance schema, structured offboarding clearance with Assets/Inventory/PIF linkage | WS-5 (light) | OD #9, #12 |
 | WS-13 | Employee Data Change Approval & HR Service Requests | **P1/P2** | Shared request/approval shape, configurable sensitive-field list, hybrid generic-foundation + specialized-workflow HR requests | WS-6 (light) | OD #10, #11 |
 | WS-14 | Skills, Competency Framework & Succession | **P2** | Formal proficiency framework, competency linkage, new internal-succession schema (critical roles, successors, readiness) | WS-9 (soft, for recruitment linkage) | OD #5, #7 |
-| WS-15 | Cross-Module Visibility | **P1/P2** | Employee 360 completion, HR Action Centre (org-wide), Manager Portal recruitment-participation source, Reporting execution consolidation | WS-6 | — |
+| WS-15 | Cross-Module Visibility | **P1/P2** | Employee 360 completion, HR Action Centre (org-wide), Manager Portal recruitment-participation source, Reporting execution consolidation | WS-6 | — (**architecture frozen in §31**; per-bundle priority in §31.2 — Action Centre P1, Manager/Dept Head P2, Employee 360 P2/P3, Reporting consolidation P3) |
 | WS-16 | Workflow/Delegation Primitive Generalization | **P2** | Generalize Office Inventory's delegation table, extract authority-resolver | WS-3 (light) | OD #14, #15 |
 | WS-17 | Deployment & Backup Operations | **P2** | VPS automation, release-pipeline Levels 3–6, backup/restore build-out, Fleet Health design | WS-1, WS-4 | — |
 | WS-18 | Security Verification Workstream & Production Security Gate | **P0** (gate, sequenced late) | Live tenant-isolation/IDOR testing, DAST, penetration testing, full business-logic-security sampling, closing the flagged Supabase-production RLS item | WS-1, WS-2, WS-3, WS-4 | — |
@@ -416,8 +416,8 @@ WS-1 is the only workstream with **zero dependencies** and the largest number of
 | 11 | Employee Data Change Approval | **APPROVED** | P1 | Proven request/approval shape; configurable sensitive fields; full audit/history preserved. |
 | 12 | Offboarding Clearance | **APPROVED** | P1 | Structured, integrated with owning modules (Assets/Inventory/Documents/IT/Payroll); no duplication of their records. |
 | 13 | Scheduled Jobs / Notifications | **APPROVED — HIGH PRIORITY** | P1 | Shared scheduling/notification foundation; unblocks multiple dependent capabilities. |
-| 14 | Shared Approval Primitive | **APPROVED** | P2 | Restrained: shared authority-resolution/delegation only, never a giant generic workflow engine replacing working domain flows. |
-| 15 | Delegation | **APPROVED** | P2 | Generalize the proven Office Inventory delegation concept; sequence with #14; remain effective-dated/scoped/revocable/auditable. |
+| 14 | Shared Approval Primitive | **APPROVED** | P2 | Restrained: shared authority-resolution/delegation only, never a giant generic workflow engine replacing working domain flows. **Assigned to WS-16** (§20 register; see §31.38) — not started. |
+| 15 | Delegation | **APPROVED** | P2 | Generalize the proven Office Inventory delegation concept; sequence with #14; remain effective-dated/scoped/revocable/auditable. **Assigned to WS-16** (§20 register; see §31.38) — not started. |
 | 16 | Audit Tamper Protection | **APPROVED** | P1 | Strengthen existing architecture (no second audit system); append-oriented, DB-level protection for critical records. |
 | 17 | Audit Read Permissions | **APPROVED** | P1 | Category/sensitivity-aware audit-read authorization; basic HR access must not expose Payroll/security audit data. |
 | 18 | Sensitive Read Auditing | **APPROVED AND EXPANDED** | P1 | Personnel Files, disciplinary/grievance evidence, sensitive exports, banking, statutory identifiers, **privileged support access**, other highly sensitive records; risk-based, not noisy. |
@@ -1689,7 +1689,7 @@ Resolvers are server-defined. There is **no rule DSL, no expression evaluator an
 
 ### 29.9 Decision H — OD #14 and OD #15 are not claimed
 
-WS-13 **must not claim to complete OD #14 or OD #15**. Both remain approved and unassigned in the workstream register.
+WS-13 **must not claim to complete OD #14 or OD #15**. Both are approved and **assigned to WS-16**, which has not started (corrected in §31.38).
 
 Accordingly WS-13 builds: no cross-product generic approval engine; no generalized system-wide delegation framework; no unrequested refactor of Office Inventory delegation; no unrequested refactor of Recruitment approval resolution.
 
@@ -1853,7 +1853,7 @@ Permission-filtered and confidentiality-aware — **a report must never become t
 
 - **WS-12's future separation basis.** Nothing in this platform records an approved *future* resignation, retirement or termination, which is why WS-12 recognizes only `already_separated` and `contract_end`. **WS-13 does not solve this and must not create a parallel separation source** — a "resignation" service request is a request, never a separation basis, and §29.3 excludes lifecycle fields by construction. The dependency stays recorded for whichever future workstream owns it, with its own Owner Decision.
 - **WS-11.1 remains deferred in full** — organization-configured acting auto-revert, configurable employment types, contract extension and amendment, temporary assignment, accepted-offer to employment-term handoff, **lifecycle letter generation**, additional acting and probation metadata, and write-side Employment Lifecycle UI. If implementation discovers a genuine blocking dependency, **stop and report it** rather than silently changing WS-11.
-- **OD #14 and OD #15** remain approved and unassigned (§29.9).
+- **OD #14 and OD #15** are approved and **assigned to WS-16**, which has not started (§29.9; corrected in §31.38).
 
 ### 29.26 Open items still requiring decision at implementation time
 
@@ -2140,7 +2140,7 @@ Performance Management and its competency and rating-scale tables, the Learning 
 
 ### 30.29 Deferred and out of scope
 
-Full Performance Management, 360-degree review, Learning Management, course management, promotion, transfer and acting-appointment workflows, workforce planning, compensation planning, AI succession ranking, career-path engines, organizational-chart simulation, a generic approval engine, the WS-15 Action Centre, and **WS-11.1 in full**. **OD #14 and OD #15 remain approved and unassigned.** WS-12's future-separation-basis dependency is recorded there and is **not** solved here.
+Full Performance Management, 360-degree review, Learning Management, course management, promotion, transfer and acting-appointment workflows, workforce planning, compensation planning, AI succession ranking, career-path engines, organizational-chart simulation, a generic approval engine, the WS-15 Action Centre, and **WS-11.1 in full**. **OD #14 and OD #15 are approved and assigned to WS-16, which has not started (corrected in §31.38).** WS-12's future-separation-basis dependency is recorded there and is **not** solved here.
 
 ### 30.30 Implementation record (WS-14 Pass 2)
 
@@ -2220,4 +2220,524 @@ registered `skill.*`, `succession.*` and `development.*` job types is exactly th
 **Nothing in §30.29 was built.** No 9-box, no potential score, no numeric successor
 ranking, no automatic enrolment, no automatic promotion or appointment, no employee-facing
 succession, and no WS-15 Action Centre. **WS-11.1 remains deferred, and OD #14 and OD #15
-remain approved and unassigned.**
+are approved and assigned to WS-16, which has not started (corrected in §31.38).**
+
+---
+
+## 31. WS-15 — Cross-Module Visibility (Architecture Freeze)
+
+**Status of the freeze.** This section is **purely additive**. The 31 Owner Decisions in §22 are untouched and none is reopened. WS-15 carries **no assigned Owner Decision** — its register row's decision column reads `—`. OD #14 (no giant generic workflow engine) and OD #17/#18 (audit categories, sensitive-read auditing) **constrain** it. WS-1 through WS-14 remain complete and are not reopened. Migration ledger remains **`0070`**.
+
+### 31.1 The register entry this section implements
+
+> `| WS-15 | Cross-Module Visibility | **P1/P2** | Employee 360 completion, HR Action Centre (org-wide), Manager Portal recruitment-participation source, Reporting execution consolidation | WS-6 | — |`
+
+WS-15 is **four bundles**, not one. The workstream is named *Cross-Module Visibility*; the HR Action Centre is one member of it. This section freezes all four and preserves their distinct repository priorities.
+
+### 31.2 Per-bundle priority classification
+
+| Bundle | §17 capability row | Priority | Frozen in |
+|---|---|---|---|
+| HR Action Centre (org-wide) | `HR Action Centre — N` | **P1** | §31.4–31.26 |
+| Manager / Department Head completion (Recruitment participation source) | `Manager/Department Head — Y, partial` | **P2** | §31.28 |
+| Employee 360 / Global Search completion | `Global Search / Employee 360 — Partial` | **P2/P3** | §31.29 |
+| Reporting execution consolidation | `Reporting/Analytics — Y, CSV gap` | **P3** | §31.30 |
+
+The Reporting row's **P1 half — the CSV formula-injection fix — already shipped in WS-1** (`safeCsvCell`/`toCsv` in `lib/reporting.ts`, now the one shared primitive). What remains of that bundle is the P3 half.
+
+**Only the HR Action Centre is P1.** The other three are genuine, registered WS-15 scope and are frozen here so implementation has an architecture to build against — but they are **deliberately later-priority**, and a Pass-2 report must not classify them as missing P1 work.
+
+### 31.3 Repository reconciliation — what discovery actually found
+
+Nine findings shaped this section. Each is a repository fact, not an assumption.
+
+1. **The architecture WS-15 needs already ships, twice.** `lib/managerPortalPendingActions.ts` (Phase 3G, W110) is a live cross-module action queue over Leave, Performance and Learning. Its own header states the ruling verbatim: *"Read-only aggregation of current authoritative work; **no persistent task table**, no notifications engine, no mutation route… Every item is recomputed live on every call from each module's own existing service functions — **never a second 'task' concept.**"* `GET /dashboard/summary` (`routes/users.ts`) is the same federation shape for metrics. WS-15's Action Centre is the org-wide sibling of a pattern this platform has already shipped and tested.
+
+2. **The "unavailable vs zero" convention is already established and is exactly the non-leaking signal WS-15 needs.** `managerPortalDashboard.ts` documents it: a tile is `null` when its module is disabled **or** when the caller lacks that module's permission — *"silently omitted, never a 403 for the whole dashboard"* — and a real number, including `0`, when the caller is authorized and the query genuinely found nothing. Because `null` is indistinguishable between *disabled* and *unauthorized*, it leaks nothing about what exists.
+
+3. **Ten independent authority resolvers ship today**, each authoritative for its own module: `resolveAssetActorEmployeeId`, `resolveAttendanceActorEmployeeId`, `resolveLearningActorEmployeeId`, `resolvePerformanceActorEmployeeId`, `resolveRecruitmentActorEmployeeId`, `resolveManagerPortalActorEmployeeId`, `listDepartmentsHeadedByMembership`, `officeInventoryDelegations.resolveApprovalAuthority`, `recruitmentApprovalStages.resolveStageAuthority`, `onboarding/responsibility.resolveResponsibility`. **Three different resolver enumerations exist** (WS-9 Recruitment, WS-10 Onboarding's five-value `employee_self | reporting_manager | department_head | permission_holder | specific_membership`, WS-13 Requests). Unifying them is OD #14 / WS-16 work. WS-15 calls them; it does not merge them.
+
+4. **`useIsHrCapable` is a role-name heuristic**, and its own file warns: *"Do NOT reach for this hook where the backend's own authority is actually permission-scoped."* It is navigation convenience only and can never be WS-15 authority (§25.2).
+
+5. **Roughly half of all candidate sources carry no deadline at all.** Genuine authoritative dates exist on onboarding tasks (`dueAt`), document acknowledgements (`dueAt`), learning enrolments (`dueDate`), performance goals (`dueDate`), service requests (`targetDays`), succession plans (`reviewDueAt`), development actions (`targetDate`) and offers (`expiryDate`). Leave requests, data-change requests, grievance and disciplinary cases, clearance items and requisition approvals have **none**.
+
+6. **No shared priority or severity model exists anywhere in the platform.** No candidate source pair uses a comparable scale.
+
+7. **Two modules already carry a real assignment concept**: `service_requests.assignedMembershipId` and `grievance_cases.assignedMembershipId`. `clearance_items.responsibleMembershipId` and onboarding tasks' `responsibleMembershipId` are resolver-derived rather than free assignment. Every other candidate source uses purely dynamic authority.
+
+8. **The Reporting registry is complete but its execution is not.** `report-definitions.ts` seeds **47** definitions, each already carrying a `requiredPermissionKey`; `lib/reporting.ts`'s `RUNNERS` map implements **3** (`headcount`, `workforce_status`, `audit_summary`). `runReport` throws `ReportNotFoundError` — a `404` — for the other **44**, which are reachable only through eight bespoke module reporting routes with divergent response shapes. The generic endpoint already permission-checks correctly before running.
+
+9. **Employee 360 is thinner than §17's "Partial" suggests, and in two places it is stale.** `employee-detail.tsx` aggregates the core record, numbering, qualifications, certifications, documents, employment history, personnel file and custody, exit processes, performance reviews and an asset report. It shows the **legacy** free-text `employee_skills` and the **legacy** `employee_disciplinary_records`. It shows **nothing** of WS-11 employment terms, WS-12 disciplinary or grievance *cases*, WS-13 data-change or service requests, WS-14 skill records or gaps, Leave, Learning, Attendance or Onboarding. Separately, **no cross-module search exists**: `app-shell.tsx` carries an explicit comment declining to render a search box *"because there is no real cross-module search capability to back it."*
+
+### 31.4 Runtime federation — the governing ruling
+
+**WS-15 aggregates. It never owns.**
+
+Every Action Centre request derives current work from the source modules at request time. There is:
+
+- **no persistent authoritative task table**;
+- **no materialized Action Centre projection** built merely for aggregation;
+- **no second task concept**;
+- **no cached authority**;
+- **no reconciliation engine** for Action Centre state.
+
+This is not a preference. A materialized projection would create precisely the second source of truth this platform has refused everywhere else, and would then need staleness detection, rebuild and reconciliation machinery to re-solve a problem federation does not have: **because every item is recomputed live, a changed membership, reporting manager, permission, delegation, stage, assignment or source status is reflected on the very next request, with nothing to invalidate.**
+
+**Consequence for the ledger: the P1 Action Centre requires no schema and no migration `0071`.** See §31.31.
+
+### 31.5 The source provider contract
+
+Each participating module exposes a **provider** — a bounded adapter that translates its own authoritative current work into the normalized representation of §31.6. Providers follow the shape `managerPortalPendingActions.ts` already established: one small resolver function per source, composed by an aggregator.
+
+Every provider independently enforces, in this order, before returning anything:
+
+1. **organization / tenant scope**;
+2. **module enablement**, where the module is optional;
+3. **the source module's own permission**;
+4. **the source module's own live authority resolver**;
+5. **current source state** — only genuinely actionable items;
+6. **safe summary mapping** per §31.14.
+
+A provider that fails any of the first four returns **empty**, never an error and never a partial leak. This is the "unavailable vs zero" convention of §31.3(2) applied to rows rather than tiles.
+
+**Providers are adapters, not a refactor.** No completed module is restructured to participate. A provider calls the module's *existing* service functions. Nothing in this section authorizes generalizing a module's workflow, authority resolution or delegation — that is OD #14/#15 and belongs to **WS-16** (§31.27.4).
+
+### 31.6 The normalized action item
+
+The frozen contract. **These fields and no others.**
+
+| Field | Meaning | Rule |
+|---|---|---|
+| `sourceModule` | Which module owns this work | Fixed vocabulary, not free text |
+| `sourceType` | The source's own resource kind | e.g. `leave_request`, `onboarding_task` |
+| `sourceId` | The source record's own existing id | Never a WS-15-minted id |
+| `actionKind` | What is being asked of the actor | e.g. `approve`, `complete`, `verify`, `review` |
+| `title` | A safe, generic operational label | §31.14 governs. Never narrative |
+| `employeeId` / `employeeFirstName` / `employeeLastName` | Subject reference | **Only where the actor may already see that employee through the source** |
+| `status` | The source's own current status string | Passed through, never re-mapped into a WS-15 lifecycle |
+| `createdAt` | The source record's own creation time | |
+| `dueAt` | The source's own authoritative due date | **`null` where the source has none** (§31.16) |
+| `overdue` | Derived from `dueAt` against now | **`null` where `dueAt` is `null`** |
+| `deepLink` | Route into the owning module's own surface | |
+| `inlineCommands` | Allow-listed command identifiers, if any | Empty for every deep-link-only item (§31.9) |
+
+Explicitly **not** in the contract:
+
+- **no arbitrary metadata blob** — the exact prohibition `managerPortalPendingActions.ts` already states;
+- **no sensitive narrative** of any kind;
+- **no universal workflow state** — WS-15 mints no lifecycle;
+- **no universal priority or severity** (§31.17);
+- **no assignee identity** beyond what §31.10's Assigned Work needs;
+- **no source payload passthrough.**
+
+The source module remains authoritative for real state. A row is a *pointer plus enough to triage*, never a copy.
+
+### 31.7 Live source authority
+
+WS-15 asks the owning module whether the actor **currently** has visibility and action authority. It never decides this itself, and never derives it from a displayed role name (§25.2).
+
+The following remain entirely their modules' own and **must not be unified by WS-15**: Recruitment approval-stage resolvers; Onboarding responsibility resolvers; reporting-manager authority; Department Head authority; permission-holder authority; Office Inventory delegation; WS-13 approval authority; WS-14 assessor authority.
+
+**A previously visible item confers no authority.** Because federation is live there is no cached assignment to go stale — but the rule is stated because it governs the inline-action path too: §31.8 requires the authority re-check at action time regardless.
+
+`useIsHrCapable` may gate navigation. It may never gate data.
+
+### 31.8 Inline actions — the frozen P1 allow-list
+
+**Exactly four.** Nothing else is inline in P1.
+
+| # | Inline action | Owning command | Source authority re-checked |
+|---|---|---|---|
+| 1 | Leave approve / reject | Leave's existing approval service | Department Head, or `leave_request.manage` org-wide |
+| 2 | Learning enrolment approve / reject | Learning's existing enrolment approval service | Learning's manager-of-record snapshot + `learning.review.write` |
+| 3 | Onboarding task completion | Onboarding's existing task completion service | `resolveResponsibility` / `isCurrentlyResponsible` |
+| 4 | WS-14 skill verification decision | `capability.verify` / `capability.reject` | `skill_verification.decide`, plus WS-14's own self-verification refusal |
+
+For every one of the four, WS-15:
+
+- **invokes the owning module's existing service or command** — it never writes a source table directly;
+- **re-checks live authority at action time**, not at render time;
+- **preserves the source transaction** entirely;
+- **preserves the source idempotency and state guard** (§31.23);
+- **preserves the source audit** — the domain event stays the domain's;
+- **preserves source notification behaviour**;
+- **preserves source maker-checker** where the source has one.
+
+**No approval logic is copied into WS-15.** If a Pass-2 repository reconciliation finds that one of these four lacks a safe authoritative source command to call, that action becomes deep-link-only and the finding is recorded — it is never re-implemented in WS-15.
+
+### 31.9 Deep-link-only in P1
+
+These remain deep-link-only. WS-15 may show an authorized safe summary; the owning module makes the decision.
+
+Recruitment staged approval and complex workflow · Employee Relations grievance and disciplinary decisions · WS-13 data-change decisions · WS-13 service-request fulfilment · succession decisions, readiness and candidacy · Payroll actions · Employment Lifecycle actions · Assets and Office Inventory complex actions · Performance scoring and review decisions.
+
+### 31.10 My Actions, Assigned Work, HR Oversight
+
+Three concepts, frozen where the repository supports them.
+
+**My Actions** — items the authenticated actor can *currently act upon* through source authority. The default surface.
+
+**Assigned Work** — items **explicitly assigned** to the actor's membership, where the owning module genuinely has an assignment concept. Per §31.3(7) that is **WS-13 service requests** and **WS-12 grievance cases** only. **Assignment is not fabricated for modules that use dynamic authority** — a Leave approval is not "assigned" to anybody, and presenting it as such would invent a relationship the source does not hold.
+
+**HR Oversight** — an organization-level operational visibility queue for authorized HR users.
+
+> **HR Oversight creates no new read authority.** Every row and every count still requires the source module's own read and visibility permission, evaluated by the source provider exactly as in §31.5. A user who cannot see a grievance through Employee Relations sees **no grievance row**, **no grievance count**, and **nothing from which to infer that a hidden grievance exists**. The same holds for succession, Payroll, confidential documents, sensitive HR requests and every other protected module.
+
+Oversight is a *filter over the same permission-filtered providers*, never a privileged second query path.
+
+### 31.11 Organization Admin
+
+Organization Admin receives **no additional cross-module authority** because WS-15 exists. Org Admin visibility is exactly the union of the source permissions that actor already holds.
+
+WS-15 must not restore access deliberately withheld by **§28.17** (Employee Relations grievance keys) or **§30.17** (the three succession keys), or by any other sensitive-module freeze. Those withholdings were deliberate, and an aggregation surface is the most natural place for them to be quietly undone.
+
+**There is no Action Centre backdoor.**
+
+### 31.12 No Action Centre permission key
+
+**WS-15 P1 mints no permission.** Not `action_centre.read`, not `action_centre.manage`, not any umbrella key.
+
+The Action Centre is a composition and routing surface. Visibility derives entirely from participating source permissions and source authority. This follows the Manager Portal precedent exactly: it shipped with **zero new permissions**, resolving access from module enablement plus a live relationship.
+
+Frontend navigation may determine whether a user has *any* eligible source capability in order to decide whether to show the entry. That is a presentation affordance and **is not authority to read source data**, and the two must never be conflated. If implementation later proves a navigation-only feature flag is genuinely required, it remains navigation-only.
+
+**No broad umbrella permission may exist that can widen item visibility.**
+
+### 31.13 ESS My Actions
+
+An employee-facing **My Actions** surface is approved, with a narrowly frozen initial allow-list. Only these three, each confirmed to have an authoritative pending state in the repository:
+
+1. **Onboarding tasks resolved to `employee_self`** — `onboarding_tasks.status = 'pending'` with the `employee_self` responsibility resolver, and a real `dueAt`.
+2. **Document acknowledgements** — `document_acknowledgements.status = 'pending'` with a real `dueAt`. *Implementation note: both sources sit behind `requireModuleEnabled("onboarding")`, so an organization with Onboarding disabled correctly sees neither.*
+3. **WS-13 service requests awaiting employee response** — `service_requests.status = 'awaiting_employee'`.
+
+**Deliberately excluded**, and not to be added without extending this allow-list: own Leave history; Learning progress; performance history; skill claims merely awaiting HR; Payroll; grievances; succession; general notifications. None of these is work the employee is being asked to do, and treating "pending somewhere else" as "your action" would make the surface dishonest.
+
+**The employee's identity is server-derived** from the employee link on every request (`resolveOwnEmployeeId`). No ESS request carries an employee identifier, and none is read if supplied.
+
+### 31.14 Sensitive summary minimization
+
+A generic Action Centre row carries **only the minimum operational information needed to identify and navigate the work**. This applies to every surface including HR Oversight.
+
+Never in a row, under any permission: grievance details or narrative · disciplinary evidence · succession candidate identity, readiness or notes · Payroll amounts, salary, bank details, statutory identifiers or calculation detail · proposed National ID or passport values · confidential document content · sensitive HR request content.
+
+The Manager Portal precedent is the standard: *"never a leave reason, never confidential Performance/Learning fields, no arbitrary metadata blob."*
+
+Where a subject employee's name would itself be disclosure, the row carries the case reference and omits the name.
+
+### 31.15 Sensitive-read auditing
+
+Where WS-15 renders only a generic redacted row and deep-links, **the owning module's existing OD #18 sensitive-read audit remains authoritative**, and WS-15 records nothing. A redacted pointer is not a read of the sensitive record, and auditing it would inflate the trail with events that describe no disclosure — the "risk-based, not noisy" rule OD #18 states for itself and §28.12 repeats.
+
+If any WS-15 surface is ever made to return sensitive detail directly, it reuses `lib/sensitiveRead.ts` rather than building a second mechanism. In P1 no such surface exists.
+
+**No read is double-counted merely because a generic row was rendered.**
+
+### 31.16 Due and overdue
+
+A due date is used **only** where the source module holds a genuine authoritative date that semantically means due, expiry or review timing.
+
+| Source | Authoritative date | Used as `dueAt` |
+|---|---|---|
+| Onboarding task | `dueAt` | ✅ |
+| Document acknowledgement | `dueAt` | ✅ |
+| Learning enrolment | `dueDate` | ✅ |
+| WS-13 service request | `targetDays` from the request type | ✅ **derived per WS-13's own semantics only** (§29: a configured target with derived overdue state, never an escalation engine) |
+| Succession plan review | `reviewDueAt` | ✅ |
+| Development action | `targetDate` | ✅ |
+| Offer version | `expiryDate` | ✅ |
+| Leave request | — | ❌ `null` |
+| Data-change request | — | ❌ `null` |
+| Grievance / disciplinary case | — | ❌ `null` |
+| Clearance item | — | ❌ `null` |
+| Requisition approval | — | ❌ `null` |
+| Skill verification | — | ❌ `null` |
+
+**Deadlines are never manufactured.** Where no authoritative date exists, `dueAt` is `null` and `overdue` is `null` — not `false`, because "not overdue" and "no concept of overdue" are different statements and a UI must be able to tell them apart.
+
+**SLA is never derived from age.** Only a source that owns an SLA contributes one.
+
+**Employment Lifecycle effective dates are not task due dates.** A probation end date or contract expiry is a fact about employment, not a deadline for the actor looking at the row. Lifecycle participates read-only (§31.27) and contributes no `dueAt` in P1; relabelling those dates would misrepresent what the source means.
+
+### 31.17 No universal priority model
+
+**WS-15 creates no cross-module priority or severity scale.** The normalized contract of §31.6 has no priority field.
+
+Source priority may be surfaced **only** where the source genuinely owns one and where surfacing it cannot imply comparability with another module's. No candidate source pair satisfies this today (§31.3(6)), so **P1 exposes no priority at all**.
+
+**No employee-sensitive case is ranked algorithmically.** Ordering an inbox is not ranking people, and the distinction is load-bearing: a grievance is never sorted by inferred severity, and a succession candidate is never sorted at all (§30.12).
+
+### 31.18 Sorting
+
+Deterministic, four-tier, computed from authoritative dates only:
+
+1. **genuinely overdue** — `dueAt` exists and is in the past — ascending by `dueAt` (most overdue first);
+2. **due soon** — `dueAt` exists and is in the future — ascending by `dueAt`;
+3. **undated** — `dueAt` is `null` — ascending by `createdAt` (oldest pending first);
+4. **stable tie-break** within any tier: `createdAt` ascending, then `sourceModule`, then `sourceId`.
+
+This deliberately **departs from Manager Portal's `createdAt DESC`**. That surface has no due dates to sort by, so newest-first was the only meaningful order available to it; the Action Centre does have them, and surfacing the newest item above a three-week-overdue one would be the wrong operational answer. The departure is recorded here rather than left as an inconsistency for a reader to discover.
+
+**Undated work is never given fabricated urgency** — it sorts oldest-first within its own tier and never mixes into the overdue tier.
+
+**No AI prioritization** (§31.26).
+
+### 31.19 Filtering and counts
+
+Frozen P1 filters, each backed by a field the normalized contract actually carries:
+
+`sourceModule` · `actionKind` · `status` · scope (`my_actions` | `assigned` | `oversight`) · `dueState` (`overdue` | `due_soon` | `undated`) · `employeeId` **where the actor's visibility of that employee already permits it**.
+
+**Counts are computed from the exact same permission-filtered providers as rows.** There is no separate counting query, and no organization-wide total is ever computed before permission filtering and then exposed.
+
+**No confidential existence may leak through** badges, per-module counts, totals, or empty-versus-non-empty indicators. The mechanism is §31.3(2)'s already-shipped convention: a module the actor cannot see is **omitted**, indistinguishably from a module that is disabled — never rendered as a zero, because a zero asserts that the module exists and is empty.
+
+### 31.20 Notifications remain separate
+
+WS-6 notifications are a **delivery and reminder channel**. WS-15 is a **live operational work view**. The distinction is frozen:
+
+- a notification **is not** the authoritative task, and **creates no** Action Centre state;
+- an actionable source item **may exist with no notification**;
+- an actionable source item **may have** a WS-6 notification pointing at it;
+- **notification state is never duplicated as workflow state**, and workflow state is never inferred from notification state.
+
+A notification deep link **re-checks source authority when opened**, and denies safely when the actor no longer holds it. §1613 records that WS-6 deliberately built no approval inbox precisely because the org-wide HR Action Centre belongs here; that boundary is preserved rather than blurred.
+
+### 31.21 Completed history
+
+The P1 queue is **active, currently actionable work**.
+
+WS-15 builds **no second history store**. Completed business history remains in the source modules, which already hold it authoritatively and already audit it.
+
+A bounded recent-completed view was considered and is **deferred**: no repository precedent exists for completed-work aggregation — `managerPortalPendingActions` returns pending items only — and every candidate provider would need a second, differently-shaped query with its own permission story. **Aggregating recent-completed is deferred rather than invented.** No persistence is created to retain Action Centre history under any circumstances.
+
+### 31.22 Source failure and staleness
+
+**The source of truth wins, always.**
+
+| Situation | Frozen behaviour |
+|---|---|
+| Item completed elsewhere between render and action | The source's own state guard refuses; WS-15 surfaces the source's current truth and the row disappears on the next request |
+| Source state changed | Same — the next request recomputes from source |
+| Actor lost authority | The action-time re-check (§31.8) denies, even if the row was rendered a moment earlier |
+| Source item cancelled | Provider no longer returns it |
+| A provider fails | **Partial-source failure is represented, not hidden** — see below |
+| Inline command fails | The source error is surfaced; **no automatic replay** |
+
+**Stale actions are never executed. Authority is never cached. Unsafe business commands are never automatically replayed.**
+
+**Provider failure is isolated, following the shipped `managerPortalDashboard` precedent**, which catches a source module's hard error and treats that tile as unavailable rather than letting it take down the whole response. WS-15 applies the same isolation to rows — but with one addition this section makes explicit, because the shipped precedent's `null` deliberately conflates *disabled*, *unauthorized* and *failed*:
+
+> A provider that fails for an **operational** reason is reported to the user as **unavailable**, distinctly from a module that is absent because it is disabled or unauthorized. **A systemic error is never silently hidden in a way that leads a user to believe the queue is complete.** The user-visible signal names the affected source and says its work could not be loaded; it never says the source is empty.
+
+This is the one place WS-15 adds a signal the shipped aggregators do not carry, and it is added deliberately: an inbox that quietly under-reports is worse than one that admits it is incomplete.
+
+### 31.23 Idempotency
+
+Every approved inline action preserves the owning module's state and idempotency rules. A repeated click, a double submit or a network retry must not approve twice, reject twice, complete an onboarding task twice, or verify a skill twice.
+
+WS-15 adds no idempotency mechanism of its own — the source guards are the guards. Pass 2 tests each of the four inline actions for double execution explicitly (§31.35).
+
+### 31.24 Tenant isolation
+
+Federation is **organization-scoped at both the provider and the aggregator boundary**. Every provider receives the organization from `req.membership!.organizationId` and scopes its own query; the aggregator never trusts an organization identifier from a client.
+
+A forged cross-tenant identifier fails safely on every path: rows, detail, deep-link identifiers, inline commands, counts, employee filters, oversight and ESS My Actions. Pass 2 proves each (§31.35).
+
+### 31.25 Super Admin
+
+Super Admin and the control plane receive **no routine tenant HR Action Centre**. There is no cross-tenant operational employee queue and no bypass. Tenant employee actions never appear in platform health views. WS-4's controlled break-glass support access remains the only authoritative path to tenant data, unchanged.
+
+### 31.26 No AI
+
+No AI prioritization and no AI decision-making in WS-15. No AI may approve or reject, infer grievance severity, rank employees, determine succession urgency, alter Payroll workflow, or invent priority. Any future assistive summarization requires its own Owner Decision.
+
+### 31.27 Module participation — the frozen matrix
+
+Classification per Decision 27. `IL` = approved inline action; `DL` = deep-link only.
+
+| Module | Actionable state | Authority source | Safe summary | Due date | Mode | Confidentiality | Classification & reason |
+|---|---|---|---|---|---|---|---|
+| **Leave** | `pending`, `pending_hr` | Dept Head via `listDepartmentsHeadedByMembership`; org-wide via `leave_request.manage` | "Leave request" + employee | ✗ | **IL** | Low — reason never shown | **P1 provider, inline.** Highest-volume approval on the platform; already federated in Manager Portal, so the resolver exists and is proven |
+| **Learning** | enrolment approval `pending` | manager-of-record snapshot + `learning.review.write` | Course title snapshot | ✅ `dueDate` | **IL** | Low | **P1 provider, inline.** Already federated in Manager Portal |
+| **Onboarding** | task `pending` | `resolveResponsibility` (5-way) | Task label | ✅ `dueAt` | **IL** | Low | **P1 provider, inline.** Real due dates; task completion is a single low-context act |
+| **WS-14 skills** | record `claimed`, `assessed` | live `reportingManagerId`; `skill_verification.decide` | Skill name + employee | ✗ | **IL** | Low | **P1 provider, inline** (Decision 23). Authority re-evaluated against WS-14's own rules at action time, including its self-verification refusal |
+| **Performance** | review `manager_review` | reviewer-of-record snapshot + `performance.review.write` | "Performance Review — {cycle}" | goal `dueDate` | **DL** | Medium | **P1 provider, deep-link.** Already federated in Manager Portal; scoring and review decisions stay in Performance (Decision 7) |
+| **Recruitment — requisition** | `pending_approval` | `resolveStageAuthority` | "Requisition approval" | ✗ | **DL** | Low | **P1 provider, deep-link.** Staged approval is exactly the complex workflow Decision 7 keeps in-module |
+| **Recruitment — offer** | `pending_approval` | `resolveStageAuthority` | "Offer approval" | ✅ `expiryDate` | **DL** | Medium — no particulars in the row | **P1 provider, deep-link** |
+| **WS-13 data change** | `pending`, `returned`, `stale` | WS-13 stage resolver + maker-checker | Field label only, **never the proposed value** | ✗ | **DL** | High — OD #23 masking | **P1 provider, deep-link** (Decision 22). Maker-checker, stale detection and application stay entirely WS-13's |
+| **WS-13 service request** | `submitted`, `acknowledged`, `in_progress` | `assignedMembershipId` + service-request keys | Request type + subject line | ✅ from `targetDays` | **DL** | Medium | **P1 provider, deep-link.** Also the sole non-grievance source of **Assigned Work** (§31.10) |
+| **WS-12 clearance** | item `pending` | `responsibleDepartmentId` / `responsibleMembershipId` | Item label + employee | ✗ | **DL** | Low — operational, not confidential | **P1 provider, deep-link.** §28 already treats clearance as operational rather than confidential-evidence work |
+| **WS-12 grievance** | `submitted`, `acknowledged`, `under_review` | `assignedMembershipId` + grievance keys **withheld from `org_admin` (§28.17)** | **Case reference only** — no narrative, no evidence, no subject name | ✗ | **DL** | **Highest** | **P1 provider, minimal summary + deep-link** (Decision 19). Also contributes **Assigned Work** |
+| **WS-12 disciplinary** | case `open` | disciplinary keys + confidentiality tier | Case reference only | ✗ | **DL** | **Highest** | **P1 provider, minimal summary + deep-link** |
+| **WS-14 succession** | plan review due | `succession.manage` / `succession.confidential.read`, **withheld from `org_admin` (§30.17)** | **"Succession plan review due" — names no position, no candidate, no readiness** | ✅ `reviewDueAt` | **DL** | **Highest** | **P1 provider, generic label + deep-link** (Decision 20). No inline succession decision, no readiness change, no nomination or removal in WS-15 |
+| **Employment Lifecycle** | probation / contract expiry approaching | HR lifecycle permissions | Generic lifecycle label | ✗ — see §31.16 | **DL** | Medium | **P1 provider, read-only awareness.** Contributes no `dueAt`: effective dates are employment facts, not actor deadlines |
+| **Payroll** | run `draft`, `calculated` | Payroll keys | — | ✗ | — | **Highest** | **DEFERRED from P1** (Decision 21). The only actionable state is a run-level administrative step with no employee subject, no due date and no safe generic row that adds anything over Payroll's own gated pages. Forcing it into a people-work queue would gain nothing and put the platform's most sensitive module one rendering mistake from disclosure. Revisit only if a genuinely safe actionable state emerges |
+| **Assets** | incident `open` | asset keys | — | ✗ | — | Low | **EXCLUDED from P1.** Operational asset administration, not HR work. Assets already has its own workspace and its own dashboard tile |
+| **Office Inventory** | request `pending` | `officeInventoryDelegations.resolveApprovalAuthority` | — | ✗ | — | Low | **EXCLUDED from P1.** Operational, and its effective-dated delegation authority is precisely what **WS-16 / OD #15** exists to generalize. Pulling it in would risk generalizing OD #15 by accident — the thing Decision 4 forbids |
+| **Attendance** | — | — | — | — | — | — | **EXCLUDED.** No approval or task concept; adjustments are already a module surface, and Manager Portal correctly classifies Attendance as awareness rather than an action queue |
+
+**Not every module appears, and that is the design.** A module earns a place by having genuinely actionable, safely summarizable, authority-resolvable work — not by existing.
+
+### 31.28 Manager / Department Head completion — **P2**
+
+The existing `managerPortalPendingActions.ts` is **authoritative precedent and is not discarded, replaced or rebuilt**. There is no second manager authority system.
+
+**The exact registered gap**, from discovery: Manager Portal sources Leave, Performance and Learning. A manager's **Recruitment participation** is absent — specifically:
+
+- **interview panel membership** → `interview_panel_members.interviewerMembershipId`, with `resolveInterviewVisibilityContext({ membershipId })` already shipped as the authority resolver;
+- **an outstanding own scorecard** → `interview_scorecards` where `submittedAt is null`, with `resolveScorecardVisibilityContext({ membershipId })` already shipped, `saveOwnInterviewScorecard` as the own-write command and `scorecard.submit` as the permission;
+- **hiring-manager standing** → `job_requisitions.hiringManagerEmployeeId`.
+
+**Frozen architecture:** one bounded **Recruitment participation provider** in the shape of the three existing resolvers, returning outstanding own-scorecard work and panel participation. It reuses the shipped visibility contexts and adds no new manager authority concept.
+
+**Classified P2.** It is not required for P1 Action Centre closure. Because the provider shape is identical to §31.5's, it is naturally delivered by the same provider work if — and only if — Pass 2 finds it to be a small shared implementation; otherwise it ships separately and P1 closes without it.
+
+### 31.29 Employee 360 completion — **P2/P3**
+
+Frozen **separately from the Action Centre**. This is a cross-module employee **visibility and read** concern, not an action workflow, and conflating the two is how a read surface acquires write authority by accident.
+
+**Discovery (§31.3(9)) is the specification.** `employee-detail.tsx` already aggregates the core record, numbering, qualifications, certifications, documents, employment history, personnel file and custody, exit processes, performance reviews and an asset report. Two of its sections show **superseded models** — the legacy free-text `employee_skills` and the legacy `employee_disciplinary_records` — while their WS-12 and WS-14 successors are absent, so the page is not merely incomplete but in two places out of date. Absent entirely: WS-11 employment terms, WS-12 cases, WS-13 requests, WS-14 skill records and gaps, Leave, Learning, Attendance, Onboarding.
+
+**Frozen architecture:**
+
+- **Bounded, module-aware sections** — one read provider per module, each enforcing its own permission and confidentiality, exactly as §31.5 requires of action providers.
+- **No giant employee DTO.** There is no single endpoint returning everything about a person. A section the caller may not read is **omitted**, per §31.3(2)'s convention — never returned empty, never returned redacted-but-present.
+- **Confidential sections obey their own freezes**: grievance content per §28, succession per §30.17 (an employee's standing in a succession plan **never** appears on their 360 view), Payroll per its own keys, OD #23 masking throughout.
+- **Legacy-versus-successor display is a Pass-2 reconciliation item**, not silently resolved here: showing both, replacing one, or labelling the legacy section is a presentation decision that must be made against the code at the time. It must not become a data migration (§31.37).
+- **Global Search is P3 and is not required by Employee 360.** `app-shell.tsx`'s existing comment — declining to render a search control because nothing backs it — remains correct until a real capability exists. **No cross-module sensitive full-text search** is authorized (§31.37).
+
+**Classified P2/P3. Not required for P1 Action Centre closure.**
+
+### 31.30 Reporting execution consolidation — **P3**
+
+**Repository fact, recorded:** 47 report definitions are seeded, each already carrying a `requiredPermissionKey`; only **3** generic runners exist (`headcount`, `workforce_status`, `audit_summary`); the remaining **44** return `404` from the generic endpoint and are reachable only through eight bespoke module reporting routes. The generic endpoint already permission-checks against the definition's own key before running, and `safeCsvCell`/`toCsv` are already the one shared export primitive.
+
+This is a **valid WS-15 consolidation target** — the registry, the permission check and the export primitive are all in place, and only execution is missing.
+
+**Frozen architecture for eventual consolidation:**
+
+- each report **remains permission-scoped and source-owned** — the runner delegates to the owning module's existing reporting service rather than re-querying;
+- **no single giant report query** and no shared reporting schema;
+- the `{columns, rows}` shape and `toCsv` stay the uniform serialization, with no per-report special-casing;
+- module reporting routes are **not removed**; consolidation adds a generic execution path beside them.
+
+**Classified P3.** The 44 missing runners are **not an Action Centre defect** and must not be reported as one. Reporting consolidation is explicitly **not implemented as part of P1**.
+
+### 31.31 No migration
+
+**The P1 runtime-federated Action Centre requires no persistence table and no migration `0071`.** Ledger remains `0070`.
+
+No migration is created because WS-15 exists. If the Employee 360 or Reporting bundles later genuinely require additive schema, that must be justified by **that bundle's own** requirements at its own priority — never by Action Centre aggregation, which by construction stores nothing.
+
+### 31.32 Audit
+
+WS-15 duplicates no domain audit. The owning module remains authoritative for every business decision, and an inline action produces the source's own audit event exactly as if it had been taken in the source module.
+
+WS-15 adds only navigation context where it is genuinely its own: an inline action attempt that WS-15's own authority re-check denies is worth recording, because it happened at this surface and nowhere else. Routine queue rendering is **not** audited — that is the "do not flood the audit table" rule already stated for scheduled jobs in `auditCategories.ts`, and an inbox render is the highest-frequency read on the platform.
+
+No new audit category is introduced; any WS-15 event type is categorized through the existing prefix map.
+
+### 31.33 Proposed API surface — P1
+
+Bounded and explicit. **No arbitrary module mutation command is exposed, and every inline action maps to one known source command.**
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /organizations/{id}/action-centre` | The federated queue. Query: `scope` (`my_actions` \| `assigned` \| `oversight`), `sourceModule`, `actionKind`, `status`, `dueState`, `employeeId` |
+| `GET /organizations/{id}/action-centre/counts` | Permission-filtered counts, computed from the same providers as rows |
+| `GET /organizations/{id}/my-action-centre` | ESS My Actions — the §31.13 allow-list, subject server-derived |
+| `POST /organizations/{id}/action-centre/actions/{command}` | Invoke one allow-listed inline command against `{sourceModule, sourceId}`; the command identifier is validated against the frozen §31.8 list before anything else |
+
+There is deliberately **no** `GET .../action-centre/{id}` detail endpoint in P1: a row's detail is the owning module's own surface, reached by `deepLink`. Adding one would be the first step toward WS-15 returning sensitive detail, and §31.15 exists precisely to keep that from happening quietly.
+
+The inline-command endpoint takes a **command identifier from a closed vocabulary**, never a module, table or method name from the client.
+
+### 31.34 Frontend acceptance table
+
+**These are user actions that must be performable in the application.** Stated as a table for the same reason §29.17 and §30.26 were: so no Pass-2 report can later describe a required write as "API-only".
+
+> **Read-only surfaces do not satisfy an inline write action frozen by this section.** Rows 7–10 each require a working control in the UI, not merely an endpoint.
+
+| # | Actor | Surface | Source / provider | Required read capability | Required write action | Inline / deep-link | Source authority |
+|---|---|---|---|---|---|---|---|
+| 1 | HR user | Action Centre → **My Actions** | All P1 providers | Federated queue, permission-filtered per source | — | — | Each source's own permission + resolver |
+| 2 | Manager | Action Centre → **My Actions** | Leave, Performance, Learning, Onboarding, WS-14 skills | Same queue, scoped to what the manager may act on | — | — | Dept Head; reviewer/manager-of-record snapshots; live `reportingManagerId` |
+| 3 | HR / manager | **Assigned Work** | WS-13 service requests, WS-12 grievances | Items explicitly assigned to the caller's membership | — | — | `assignedMembershipId` + source read key |
+| 4 | Authorized HR | **HR Oversight** | All P1 providers | Organization-level queue, **still source-permission-filtered per row** | — | — | Source permissions only; **no new authority** |
+| 5 | Any actor | **Module filter** | Aggregator | Filter by `sourceModule`, `actionKind`, `status`, `dueState`, `employeeId` | — | — | Filters apply after permission filtering |
+| 6 | Any actor | **Counts / badges** | Aggregator | Permission-filtered counts | — | — | A module the actor cannot see is **omitted**, never zero |
+| 7 | Leave approver | Action Centre row | Leave | Row: "Leave request" + employee | **Approve / reject inline** | **Inline** | Dept Head, or `leave_request.manage`; re-checked at action time |
+| 8 | Learning approver | Action Centre row | Learning | Row: course title | **Approve / reject inline** | **Inline** | Manager-of-record snapshot + `learning.review.write` |
+| 9 | Task owner | Action Centre row | Onboarding | Row: task label + `dueAt` | **Complete task inline** | **Inline** | `resolveResponsibility` / `isCurrentlyResponsible` |
+| 10 | Verifier | Action Centre row | WS-14 skills | Row: skill + employee | **Verification decision inline** | **Inline** | `skill_verification.decide` + WS-14 self-verification refusal |
+| 11 | Authorized actor | Action Centre row | Recruitment, WS-13, WS-12, Performance, Lifecycle, succession | Safe summary only | Decision taken in the owning module | **Deep link** | Source module gates the destination |
+| 12 | Actor without the key | Action Centre | Grievance / succession providers | **Nothing** — no row, no count, no indicator | — | — | §28.17 / §30.17 withholding preserved |
+| 13 | Employee | **ESS My Actions** | Onboarding `employee_self` tasks, document acknowledgements, `awaiting_employee` service requests | Own actionable work only | Complete / acknowledge / respond via the owning surface | Inline for task completion and acknowledgement; deep link for the service request | Employee link, server-derived; **no employee identifier is sent** |
+| 14 | Any actor | **Source failure notice** | Aggregator | A named, user-visible "this source could not be loaded" state | — | — | Distinct from *disabled* and from *empty* (§31.22) |
+
+### 31.35 Pass-2 test acceptance matrix
+
+Every row is an invariant this section freezes, and each must be proved rather than asserted. A live database suite is planned (`WS15_LIVE_DATABASE_URL`, `resolveLiveDatabaseUrl` + `describeLive`, `liveDbGuard` refusing a non-local host) because tenant isolation and permission filtering are database behaviour. **A skipped live suite is not acceptance.**
+
+**Authority and visibility**
+1. An item is visible only to an actor the source module says is *currently* authorized.
+2. Removing the source permission removes the row on the next request — no cached authority.
+3. Changing an employee's `reportingManagerId` removes the former manager's WS-14 skill-assessment authority immediately.
+4. Ending a Department Head appointment removes the Leave rows immediately.
+5. A member of another organization sees none of it.
+
+**Tenant isolation** — rows, deep-link identifiers, inline commands, counts, employee filters, oversight and ESS My Actions each reject a forged cross-tenant identifier.
+
+**Confidentiality**
+6. An actor without the grievance key sees no grievance row **and no grievance count**, and cannot distinguish that from the module being disabled.
+7. The same for succession, with `succession.confidential.read` withheld.
+8. `org_admin` — which by §28.17 and §30.17 holds neither — sees neither through aggregation. **This is the Action Centre backdoor test.**
+9. No row contains grievance narrative, disciplinary evidence, succession candidate identity or readiness, Payroll amounts or bank details, or a proposed National ID / passport value.
+10. Rendering a redacted row records **no** sensitive-read audit event.
+
+**Inline actions**
+11. Each of the four invokes the owning module's service — proved by the source's own audit event and state transition, not by WS-15's response.
+12. Each re-checks authority at action time and denies when it has been lost since render.
+13. **Maker-checker survives**: a WS-13 requester cannot approve their own request through any WS-15 path, and no WS-15 endpoint constitutes a bypass.
+14. **Idempotency**: a repeated inline command does not approve twice, reject twice, complete an onboarding task twice, or verify a skill twice.
+15. An action on an item completed elsewhere fails against the source's state guard and is not replayed.
+16. No WS-15 path can mutate Payroll, Employee Relations or succession outside the source's own rules.
+
+**Behaviour**
+17. A completed source item disappears from the queue on the next request.
+18. `dueAt` and `overdue` are `null` for every source with no authoritative date — never `false`, never fabricated.
+19. Sorting is the four tiers of §31.18 and is deterministic across repeated calls.
+20. A failing provider yields a named unavailable state, distinct from empty, and does not fail the whole response.
+21. Deep links enforce the source's permission at the destination.
+22. ESS My Actions returns only the three allow-listed sources and derives the employee server-side; a supplied employee identifier is never read.
+
+Frontend tests cover every row of §31.34, including the four inline write paths and the unauthorized case, following the WS-13 and WS-14 precedent that a read-only surface does not satisfy a frozen write action.
+
+### 31.36 Protected capabilities — do not rebuild
+
+`managerPortalPendingActions.ts` and `managerPortalDashboard.ts` and their resolvers · every module's own authority resolver (§31.3(3)) · WS-9 Recruitment approval stages · WS-10 onboarding responsibility resolution · WS-12 Employee Relations confidentiality and its `assignedMembershipId` · WS-13's request architecture, maker-checker, stale detection and fulfilment · WS-14 capability, verification and succession confidentiality · WS-6 scheduler and notifications · WS-3 audit, OD #17 categories, OD #18 sensitive reads, OD #23 masking · WS-4 break-glass · Office Inventory delegation · the report registry, its `requiredPermissionKey` and `safeCsvCell`/`toCsv`. **WS-15 composes these. It replaces none of them.**
+
+### 31.37 Deferred and out of P1 scope
+
+Generic BPM or workflow engine · universal approval table · universal task table · generic process designer · arbitrary workflow transitions · **OD #14 authority-resolver generalization and OD #15 delegation generalization — both belong to WS-16** (§31.27.4) · a materialized Action Centre projection · an Action Centre history store · recent-completed aggregation (§31.21) · cross-module sensitive full-text search · Global Search (P3) · arbitrary or cross-module export — **not authorized in P1**, being the highest-confidentiality-risk feature available here and trivially the route by which redaction is undone · AI prioritization, approval, severity inference, employee ranking or succession urgency · Payroll Action Centre participation (§31.27) · Assets and Office Inventory participation · Attendance participation · WS-11.1 · WS-12's future-separation-basis dependency · legacy `employee_skills` consolidation — **and note that §31.29's legacy-versus-successor display question is a presentation reconciliation and must not become a data migration** · production deployment · WWM configuration.
+
+### 31.38 Owner Decision register corrections
+
+Repository discovery is authoritative on two points.
+
+**1. OD #14 and OD #15 are assigned to WS-16.** The §20 workstream register has read `| WS-16 | Workflow/Delegation Primitive Generalization | **P2** | … | WS-3 (light) | OD #14, #15 |` since the original freeze, and §22 rows 14 and 15 both carry **APPROVED, P2**. The statement *"OD #14 and OD #15 remain approved and unassigned"*, carried forward through §28.29, §29 and §30.29–30.30, is **inaccurate in one word**: they are approved and **assigned to WS-16**, which has **not started**. Those references are corrected to say so.
+
+**The substantive frozen text of Owner Decisions #14 and #15 is untouched, and neither is reopened, amended or superseded.** Only inaccurate status wording is corrected.
+
+**2. WS-15 claims neither.** WS-15's register row assigns no Owner Decision. WS-15 may call existing module-specific resolvers; it must not generalize authority resolution or delegation. **WS-16 remains the owner of that work.**
+
+### 31.39 Open items conditional at implementation time
+
+None blocking. Decisions 1 through 33 are resolved above. The following are conditional **by design** and are to be decided **from repository evidence during implementation**, each recorded with its reason — following the §28.27 / §29.26 / §30.27 convention:
+
+1. Whether the four §31.8 inline actions each genuinely expose a safe authoritative source command to call (§31.8) — if one does not, it becomes deep-link-only and the finding is recorded. It is **never** re-implemented inside WS-15.
+2. Whether the §31.28 Recruitment participation provider is small enough to be naturally delivered by the same P1 provider work, or ships separately at its own P2 priority (§31.28) — decide from the implemented provider shape, and prefer shipping P1 without it over widening P1.
+3. Whether HR Oversight needs its own endpoint or is a `scope` parameter on the one queue endpoint (§31.33) — prefer the parameter, so oversight cannot acquire a separate query path that drifts from the permission-filtered one.
+4. How §31.29's legacy-versus-successor Employee 360 sections are presented — show both, replace, or label — decided against the code at the time, and **never** by migrating or deleting legacy data.
+5. Whether the §31.22 provider-failure signal is per-source or aggregate in the response DTO — decide from what the frontend genuinely needs to render row 14 of §31.34 honestly, preferring the smallest signal that can name the affected source.
