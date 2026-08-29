@@ -113,9 +113,9 @@ Unchanged from the discovery pass — drawn directly from `docs/GHANA_HR_EMPLOYE
 | # | Capability | Discovery Classification | Owner Decision | Approved disposition |
 |---|---|---|---|---|
 | 23 | Training & Development | ALREADY IMPLEMENTED as Learning module | — (no OD needed) | Unchanged; dev-plans layer remains P3 |
-| 24 | Skills / Competencies | ALREADY IMPLEMENTED (base) | **OWNER DECISION #5 — APPROVED FOR ROADMAP, P2.** Do not defer indefinitely. Support skills inventory, competency frameworks, role competencies, proficiency, assessment, gaps, development linkage, Recruitment linkage, Succession linkage. Organizations may choose whether to enable/use it. | Firmed onto the P2 roadmap, not left open-ended |
+| 24 | Skills / Competencies | ALREADY IMPLEMENTED (base) | **OWNER DECISION #5 — APPROVED FOR ROADMAP, P2.** Do not defer indefinitely. Support skills inventory, competency frameworks, role competencies, proficiency, assessment, gaps, development linkage, Recruitment linkage, Succession linkage. Organizations may choose whether to enable/use it. | Firmed onto the P2 roadmap, not left open-ended — **WS-14 architecture frozen in §30**; §30.1 corrects “ALREADY IMPLEMENTED (base)” to *a free-text proficiency string with no scale, verification, assessor, evidence, expiry or history*, and §30.2 keeps one Skills catalogue rather than minting a second “competency” entity beside Performance’s shipped one |
 | 25 | Career & Internal Mobility | ALREADY IMPLEMENTED (permanent transfers) | **OWNER DECISION #6 — APPROVED FOR ROADMAP, P2.** Reuse `employment_periods` architecture. Support effective-dated acting appointments, secondments, temporary assignments. Sequence after the scheduling/notification foundation. | Approved, sequencing condition set explicitly — **implemented under WS-11, architecture frozen in §27** (§27.12 acting, §27.13 secondment, §27.14 the four distinct concepts) |
-| 26 | Succession / Talent | GENUINELY MISSING (internal-employee sense) | **OWNER DECISION #7 — APPROVED FOR ROADMAP, P2.** Do not treat existing Talent Pools as automatically equivalent to Succession. Preserve existing capability (recruitment Talent Pools, unchanged). Add Succession only for genuinely missing concepts: critical roles, successors, readiness, development gaps, succession plans. Avoid duplication. | Approved; naming/scope confusion explicitly resolved |
+| 26 | Succession / Talent | GENUINELY MISSING (internal-employee sense) | **OWNER DECISION #7 — APPROVED FOR ROADMAP, P2.** Do not treat existing Talent Pools as automatically equivalent to Succession. Preserve existing capability (recruitment Talent Pools, unchanged). Add Succession only for genuinely missing concepts: critical roles, successors, readiness, development gaps, succession plans. Avoid duplication. | Approved; naming/scope confusion explicitly resolved — **WS-14 architecture frozen in §30** (§30.11 critical positions only, §30.12 an unranked pool with no numeric ranking, §30.13 human-owned readiness with no potential score and no 9-box, §30.16 succession never mutates employment state, §30.17 confidential and withheld from Organization Admin by default) |
 | 27 | Contract / Employment Term Mgmt | PARTIAL | **OWNER DECISION #8 — APPROVED.** Reuse `employment_periods`/existing employment-history infrastructure. Support expiry, renewal, extension, amendment, reminders, historical integrity. | Approved unchanged — **implemented under WS-11, architecture frozen in §27**; §27.1 corrects "PARTIAL" to *no contract term model exists at all*, and §27.5 records that `employment_periods` alone cannot hold a live term |
 | 28 | Employee Relations / Grievance | PARTIAL (disciplinary log only, no grievance) | **OWNER DECISION #9 — APPROVED.** Disciplinary cases and grievances are distinct business concepts. May share document infrastructure, evidence infrastructure, security primitives, audit — but must not be conflated into one record type. | Approved unchanged; confirms two separate schemas — **implemented under WS-12, architecture frozen in §28** (§28.2 legacy disciplinary history preserved, never rewritten; §28.4 grievance is a distinct schema; §28.5 explicit ESS visibility model) |
 | 29 | Employee Welfare | GENUINELY MISSING | — (no OD; brief instructs no medical records) | Unchanged, P3 |
@@ -1864,3 +1864,280 @@ None blocking. Q1 through Q6 and clarifications A through D are resolved above. 
 3. Whether the eligible-field registry lives beside the WS-13 service or in `@workspace/db` (§29.3) — the §27.22 item 4 reasoning applies: it governs what the platform may **write**, not what the column may hold.
 4. Whether a request type's WS-8 form binds a new custom-field scope or reuses an existing one (§29.14) — following the WS-10 and WS-12 precedent, and binding to whichever entity keeps the submission tied to the right request.
 5. Whether the per-field approval disposition is stored in `organization_settings` or its own configuration table (§29.4) — to be chosen for the smallest change that still lets the server validate configuration against the registry.
+
+---
+
+## 30. WS-14 Workstream Architecture Freeze — Skills, Competency Framework & Succession
+
+Recorded by the Owner after a read-only Pass-1 reconciliation found that **one half of this workstream is already partly built and the other half is genuinely greenfield**, and that the word "competency" is already taken by shipped Performance Management code. Nine forks were put to the Owner and answered before this section was written; they are recorded below as Decisions A through I, with six binding clarifications folded into Decisions E, F, G, H, K and O.
+
+This section is **purely additive**. The 31 Owner Decisions in §22 are untouched. **OD #5 and OD #7 are implemented, not amended**; OD #4, #13, #16, #17, #18, #23 and #24–#26 constrain it. WS-1 through WS-13 remain complete and are not reopened.
+
+WS-14 is **P2** and depends softly on **WS-9** (complete). WS-15 does not depend on it.
+
+### 30.1 Corrected repository facts (mandatory reconciliation)
+
+Verified read-only at `69f1f14`, migration ledger `0069`. The register's "Formal proficiency framework, competency linkage, new internal-succession schema" is accurate, but §6's "ALREADY IMPLEMENTED (base)" materially understates how thin the base is, and one term collides:
+
+1. **`employee_skills` already exists and is live** (Phase 2A, W24). It carries a free-text `skillCode` from the `skill` Master Data domain, a **free-text `proficiencyLevel`**, and `createdBy`. It has **no scale, no verification, no assessor, no assessment date, no evidence, no expiry and no history**. The "formal proficiency framework" OD #5 asks for is genuinely absent.
+2. **A `skill` Master Data domain already exists**, registered in `master-data-definitions.ts` alongside 25 other domains. `master_data_items` carries only `domain`, `organizationId`, `code`, `label` and `sortOrder` — no category, scale binding, evidence expectation or expiry applicability.
+3. **"Competency" is already a shipped term with a different meaning.** `performance_template_competencies` and `performance_review_competencies` are **per-template, free-text review criteria carrying weights** — the template's own header states they are "free text by default". They are review criteria, not a reusable organizational capability library. Decision A exists because of this.
+4. **A proficiency-scale precedent exists but belongs to Performance.** `performance_rating_scales` plus `performance_rating_scale_levels` is an organization-scoped named scale over a numeric value with sort order. Decision B copies the *pattern*, not the *tables*.
+5. **Performance Management is fully implemented** (Phase 3C): cycles, templates, reviews, self/manager/HR stages, `computedOverallScore`, `hrOverrideScore`, scoring, acknowledgement, dashboards and reports. Succession therefore *can* have an authoritative performance input, which is why Decision N is a boundary rather than a gap.
+6. **A Learning module is fully implemented**: `learning_courses`, `learning_course_sessions`, `learning_enrollments`, `learning_enrollment_evidence`, `learning_certificates`. WS-14 has no reason to build one, which is why Decision M is a linkage rather than a build.
+7. **Qualifications and certifications already exist**, and `employee_certifications` already carries `expiryDate`. `lib/deadlineStatus.ts` already computes derived expiry states. **No certification-expiry reminder job exists.**
+8. **Talent Pools are recruitment-side only.** `talent_pool_members` keys on `candidateId`; there is no employee dimension anywhere. OD #7's "distinct from existing Talent Pools" is therefore already true in the data, and Talent Pools are not touched.
+9. **`positions` is the entire job model**: `id`, `organizationId`, `title`, `departmentId`. There is **no designation, job family, career level or job-profile table**. Decision G attaches requirements to what exists rather than inventing a job architecture.
+10. **Succession is genuinely greenfield.** A repository-wide search for succession, successor, readiness, critical role and bench strength returns nothing in schema, services or UI.
+11. **Every shipped skills, qualification and certification route — including the GETs — is gated on `employee.write`.** A read sits behind a write permission. Decision P records this as a documented legacy anomaly rather than perpetuating it silently.
+12. **`employees.reportingManagerId` exists**, which is what makes Decision G's manager resolver possible without inventing a relationship or reading a role name.
+
+### 30.2 Decision A — One capability catalogue, centred on Skills
+
+WS-14 uses **one reusable capability catalogue, centred on Skills**. It does **not** mint a second reusable `competencies` entity.
+
+The reason is §30.1(3): "competency" already means per-template review criteria in shipped Performance code. Minting a second, differently-shaped Competency entity would leave two meanings of one word in one platform, and renaming Performance's would re-gate working code — the change §27.21 and §28.17 refuse.
+
+Breadth is carried by **category** instead: technical, behavioural, leadership, functional, compliance and organization-defined categories. An organization that thinks in "competencies" models them as behavioural or leadership skills, and loses nothing.
+
+**Performance's competency and review-criteria tables are untouched.**
+
+### 30.3 Decision B — A WS-14 proficiency scale, structurally modelled on Performance
+
+WS-14 owns an **organization-scoped proficiency scale**: named levels, organization-configurable labels, and a **fixed internal ordinal** that gives stable comparison.
+
+`performance_rating_scales` is **not reused directly**. Copying the pattern and owning the storage keeps the two independent — otherwise an edit to a performance scale would silently change what a capability requirement means, coupling two modules that have no business being coupled.
+
+**Per-skill scales are out of scope** for this workstream: real precision, disproportionate complexity.
+
+The default is **one active scale per organization**. A bounded historical or versioning model is permitted only where implementation evidence shows a live requirement genuinely needs it (§30.27 item 2).
+
+The ordinal exists so the platform can compare a requirement against a capability, compute a gap, report, and evidence readiness. **It must never be surfaced as though it were an objective universal competence score** — it is an ordering within one organization's own labels.
+
+### 30.4 Decision C — A typed WS-14 skill catalogue
+
+WS-14 owns a **typed skills catalogue**. The existing `skill` Master Data domain **remains intact and is not widened**: `master_data_items` is shared by 25 other domains, and adding WS-14 metadata to it would impose this workstream's shape on all of them.
+
+The catalogue holds what the framework needs and no more: stable code, name, description, category, active/inactive, whether proficiency applies, evidence expectation, and certification/expiry applicability.
+
+**A safe import path from existing organization `skill` Master Data items is provided**, and it must not silently duplicate the same organization's skill on repeated runs — the idempotency §26 required of the onboarding handoff, applied again.
+
+### 30.5 Decision D — Employees may claim; a claim is not a verification
+
+Employees may **declare their own skills through ESS** where permitted. A self-declared skill is **not automatically authoritative and not verified**.
+
+The record carries a small, explicit lifecycle — **claimed, assessed, verified, rejected** — using the smallest clean shape §30.7 defines.
+
+**Employees must be able to tell their own claim from an organization-verified skill** in the interface. A surface that renders both identically would make the distinction meaningless in exactly the place it matters most.
+
+### 30.6 Decision E — Verified capability is the authoritative comparison basis
+
+Wherever WS-14 computes position gaps, succession development gaps, organizational skill availability or required-versus-available capability, it uses **current verified capability**.
+
+A claimed but unverified skill may be **shown separately** and must **never satisfy an authoritative position requirement**.
+
+**"Not recorded" and "not verified" are not evidence that somebody lacks a capability**, and no WS-14 surface may present them as such. Three states are kept distinct everywhere:
+
+- **missing verified evidence** — nothing recorded, or recorded but unverified;
+- **verified proficiency below requirement**;
+- **verified proficiency meeting or exceeding requirement**.
+
+This is the same discipline §28.2 applied to legacy disciplinary history: absence of a record is an honest absence, never an inferred negative fact.
+
+### 30.7 Decision F — Claim, assessment, verification and current capability are four things
+
+**They must not collapse into one mutable `proficiencyLevel` column.** The architecture distinguishes:
+
+- the **employee's claim** — what the person says;
+- an **assessment** — an authorized assessor's observed proficiency, at a point in time;
+- a **verification** — the organization confirming a capability as authoritative;
+- the **current verified proficiency** — the projection the rest of the platform compares against.
+
+**Assessment history is append-only.** A new assessment never erases the previous one; the system may expose a current or latest projection, but prior assessments remain auditable. This is the balanced pattern §27, §28 and §29 all used: a projection for reading, an append-only record for truth.
+
+**No 360-degree assessment is built.**
+
+### 30.8 Decision G — Assessors, and where requirements attach
+
+**Skill requirements attach to the existing `positions` architecture.** WS-14 introduces **no designations, job profiles, job families or career levels** merely to host them — inventing a job architecture is a separate workstream's decision, not a side effect of this one.
+
+Authorized assessors are:
+
+1. **HR users holding the explicit WS-14 assessment permission**; and
+2. **the employee's authoritative reporting manager**, resolved from the existing `reportingManagerId` relationship.
+
+**Manager authority is never derived from a role name** — the §25.2 ruling, extended a fourth time.
+
+**Manager assessment and HR verification are separate acts.** A manager may record observed proficiency; that assessment is preserved historically and **does not automatically become the organization-verified record** unless the frozen policy explicitly permits that path. Verification is HR's, or another explicitly authorized capability's.
+
+### 30.9 Decision H — Position requirements
+
+A position requirement carries at minimum: the **skill**, the **required minimum proficiency**, and a **required-or-preferred classification**.
+
+**No weighting or scoring engine.** WS-14 is not a job-evaluation system, and a weighted capability score would invite exactly the false precision Decision J refuses elsewhere.
+
+### 30.10 Decision I — Gap semantics
+
+A gap is computed as **required minimum proficiency versus current verified proficiency**, per skill, using Decision B's ordinal and Decision E's three states.
+
+Gaps are **derived, never stored** — a persisted gap would be wrong the moment either side moved, the reasoning §27.6 applied to contract expiry and §28.23 to case ageing.
+
+**No recommendation engine, and no ranking of people by gap.**
+
+### 30.11 Decision J — Succession applies to organization-selected critical positions
+
+Succession applies **only to positions an organization has identified as critical**. **No succession plan is required for every position.**
+
+**One critical position may have multiple candidates, and one employee may be a candidate for multiple critical positions.** Neither is limited.
+
+### 30.12 Decision K — An unranked candidate pool
+
+Candidates form an **unranked pool**. **No numeric successor ranking is built.**
+
+The interface may **group or filter by readiness**, but readiness must never be presented as, or reconstructible into, a hidden numeric rank. Ranking people for succession carries real employment consequences, and the Owner has declined to create that artifact.
+
+### 30.13 Decision L — Readiness is human-owned
+
+Readiness uses an **organization-configurable named scale with ordered categories**, sufficient for reporting and grouping.
+
+**The system never calculates final readiness.** Capability gaps, performance information and other evidence **inform** the human decision; they do not determine it. Readiness changes are preserved historically (§30.7's append-only discipline applies here too).
+
+**No potential score, no potential assessment, and no 9-box matrix.** Potential is not inferred from performance scores. A 9-box would be buildable now that Performance exists — that is precisely why its absence is recorded as a decision rather than a gap.
+
+### 30.14 Decision M — Development actions link to Learning; they do not become Learning
+
+WS-14 may record a **development action or need** arising from a capability gap, a readiness assessment or an assessment finding, carrying a note, an optional target date, a status where required, an **optional link to an existing Learning course or enrolment**, and supporting evidence.
+
+WS-14 **must not** build a second course catalogue, learning content, attendance, exams or certificate issuance, and **must not automatically enrol anybody merely because a gap exists**.
+
+**The Learning module remains authoritative.** Default to observe-and-link; any course or enrolment reference is validated for organization ownership before storage. WS-14 does not mutate Learning state.
+
+### 30.15 Decision N — Performance is a read-only supporting input
+
+Performance Management already exists and may be **read** as supporting evidence for a human succession decision.
+
+WS-14 **must not** rebuild Performance, change a performance score, automatically calculate readiness from performance, create a 9-box, or make Performance depend on WS-14. Any linkage is bounded and observe-only — the cross-module rule §27.20, §28.16 and §29.23 each restated.
+
+### 30.16 Decision O — Succession decisions never touch employment state
+
+A succession candidacy or readiness decision must **never** promote, transfer, appoint, separate, rehire, create an acting appointment, change a position or change a reporting line.
+
+**WS-11 remains authoritative for employment lifecycle state**, and "ready now" is not an appointment. This is the same boundary §27.6 drew for contract expiry, §27.8 for unsuccessful probation, §28.7 for offboarding clearance and §29 for approved data changes: recording a judgement is not performing an act.
+
+### 30.17 Decision P — Confidentiality, and the Organization Admin boundary
+
+**Succession information is confidential HR information** and requires explicit succession permissions.
+
+**Organization Admin status alone does not grant confidential succession access** — the §28.17 precedent, and for the same reason: a succession plan may concern the administrator, or somebody they line-manage.
+
+**Employees see nothing of succession through ESS** — not their own candidacy, not target roles, not readiness, not notes, not the pool, not review information. An employee's own skill profile is theirs to see (§30.18); their standing in somebody's succession plan is not.
+
+**Confidential succession reads use OD #18's existing sensitive-read mechanism** — the helper WS-12 shipped (§28.12). **No second read-audit subsystem is built.** The reads classified as sensitive are: opening a succession plan, reading its candidate list, and reading a confidential succession note.
+
+Confidential succession DTOs carry the **minimum** required for the permitted decision, built field by field, never spread from an employee or plan record — the construction §28.5 and §29.7 both required.
+
+**Super Admin gains no routine talent-management visibility**; break-glass remains governed by OD #31.
+
+### 30.18 Decision Q — Employee visibility of their own capability
+
+Through ESS an employee may **view their own skills**, **declare a claim**, see whether each record is claimed or organization-verified, see the **required skills for their own current position**, and see **their own gaps** against it.
+
+They may **not** see other employees' capability records, assessor identities or assessment deliberations, and — per §30.17 — **nothing of succession**.
+
+### 30.19 Decision R — Documents & Records
+
+WS-5 only. Certificates, licences, qualification proof, assessment evidence and succession supporting documents all use the existing store through its polymorphic pointer.
+
+**No second document store.** WS-12's confidentiality dimension (§28.11) applies where the evidence is confidential, and sensitive-read auditing applies where §30.17 classifies the read as sensitive.
+
+### 30.20 Decision S — Certification and expiry boundary
+
+`employee_certifications` already exists with `expiryDate`, and `deadlineStatus.ts` already derives expiry states (§30.1(7)). **WS-14 does not rebuild either.**
+
+WS-14 may treat an **expired certification as no longer current evidence** for a skill that declares certification applicability (§30.4), and may surface expiring and expired states as **derived** — never stored.
+
+**No compliance engine beyond that**, and no statutory rule is encoded.
+
+### 30.21 Decision T — WS-6 reminders
+
+WS-6 only, in-app only; no email or SMS capability exists in this platform.
+
+Legitimate reminders: verification requested, assessment due, certification expiring, succession review due, development action due.
+
+**No scheduled job may change readiness, nominate or remove a candidate, assess competence, verify a claim, or promote or transfer anybody.** §27.11's platform-wide rule, restated for a fifth workstream: automation may remind, never decide. Handlers re-fetch authoritative state and no-op permanently when stale, and notification bodies carry no proficiency value or succession content.
+
+### 30.22 Decision U — Permissions
+
+Minted narrowly, using existing conventions, and covering: skill catalogue read and configure; employee skill read and manage; assessment; verification; position requirement read and configure; succession read; succession manage; confidential succession read; and reporting where an existing key is not already correct.
+
+Assessment and verification are **separate keys**, because §30.8 makes them separate acts. Succession read and confidential succession read are **separate keys**, because §30.17 makes the notes and pool a narrower thing than the plan's existence.
+
+**Employee self-service mints no key** — the right to see and claim one's own capability comes from the employee link, the precedent WS-10, WS-12 and WS-13 all set.
+
+**The legacy anomaly is documented, not perpetuated.** Shipped skills, qualification and certification routes keep their `employee.write` gate exactly as they are — re-gating a shipped public contract is the silent authorization change §27.21 warns against — while **every new WS-14 surface uses the corrected explicit permission architecture**. §30.27 item 4 records the additive compatibility question for implementation time.
+
+### 30.23 Decision V — Audit and history
+
+WS-3 infrastructure only; **no alternative audit system** (OD #16).
+
+Audited: skill created, updated or deactivated; proficiency scale configured; employee claim submitted; claim verified or rejected; assessment recorded; assessment superseded by a later one; requirement added or changed; succession plan created; candidate nominated; readiness changed; candidate removed; confidential note created or changed; succession plan closed.
+
+Every entry carries actor, organization, subject, action, reason where required, relevant before/after metadata, request id and timestamp.
+
+**Confidential succession notes are not copied into audit payloads.** Audit records *that* a note changed and *who* changed it — enough to prove accountability — without duplicating protected content into a store with different read rules, the rule §28.12 established.
+
+### 30.24 Decision W — Tenant isolation
+
+Every WS-14 entity is organization-scoped under existing invariants, with explicit `organizationId` predicates and RLS enabled with zero policies (repository convention; the application layer remains the primary control).
+
+**Explicit IDOR tests are mandatory** for: skill catalogue, proficiency scale, employee skill, skill evidence, assessment, verification, position requirement, succession plan, successor candidate, confidential succession read, cross-tenant document reference, cross-tenant employee reference, cross-tenant position reference, cross-tenant Learning course or enrolment reference, forged assessor, reminder payloads, and every reporting read model.
+
+### 30.25 Decision X — Reporting, migration and AI
+
+**Reporting** — minimum read models only: employee skill matrix, capability gaps, skills by department, required-versus-available capability, certification expiry, critical roles, succession coverage, roles with no successor, ready-now bench, and successor development gaps. All permission-filtered, with confidential succession content excluded from any model a non-confidential reader can reach. **WS-14 is not a workforce-analytics workstream**; WS-15 owns reporting consolidation.
+
+**Migration** — the existing WS-7 framework only; **no second importer**. Adapters for legacy skill catalogues, employee skills, certifications, ratings and succession plans are **deferred**. Nothing fabricates an assessor, a verification, a historical rating, a readiness or a nomination date that the source data does not contain (the §27.3, §28.2 principle).
+
+**AI** — **no AI may rate competence, decide candidacy, rank successors, set potential, set readiness, determine promotions or remove candidates.** Nothing is proposed or built in WS-14. Any future assistance stays inside OD #24/#25/#26's approved envelope with explicit human confirmation.
+
+### 30.26 Decision Y — Frontend operational acceptance table
+
+**This table is an implementation acceptance criterion.** §29.17's lesson applies: a capability whose write path exists only in the API has not been delivered. Read-only surfaces alone do not satisfy this decision.
+
+| Frozen capability | Actor | Read UI | Required write action | Write UI required? | Permission |
+| --- | --- | --- | --- | --- | --- |
+| Skill catalogue | HR / configurer | Yes | Create, edit, deactivate a skill | **Yes** | catalogue configure |
+| Proficiency scale | Configurer | Yes | Define and label levels | **Yes** | catalogue configure |
+| Import from Master Data | Configurer | Yes | Run the idempotent import | **Yes** | catalogue configure |
+| Employee skill profile | HR | Yes | Add or edit an employee skill record | **Yes** | employee skill manage |
+| Own skill profile | Employee (ESS) | Yes | Declare a claim | **Yes** | none — employee link |
+| Own gaps against own position | Employee (ESS) | Yes | — | n/a | none — employee link |
+| Assessment | HR / reporting manager | Yes | Record an assessment | **Yes** | assessment |
+| Verification | HR | Yes | Verify or reject a claim | **Yes** | verification |
+| Position requirements | HR / configurer | Yes | Add, edit, remove a requirement | **Yes** | requirement configure |
+| Gap view for a position | HR | Yes | — | n/a | employee skill read |
+| Critical positions | HR | Yes | Mark or unmark a position critical | **Yes** | succession manage |
+| Successor candidates | HR | Yes | Nominate, remove, set readiness | **Yes** | succession manage |
+| Confidential succession notes | Authorized reader | Yes | Add or edit a note | **Yes** | confidential succession read/manage |
+| Development actions | HR / manager | Yes | Create, update, link to Learning | **Yes** | employee skill manage |
+| WS-14 reporting | HR | Yes | — | n/a | reporting / respective read keys |
+
+**Succession must not appear in any employee-facing surface** (§30.17), and this workspace is **not** the organization-wide HR Action Centre, which remains WS-15's.
+
+### 30.27 Open items still requiring decision at implementation time
+
+None blocking. Q1 through Q9 and clarifications A through F are resolved above. The following are conditional by design and are to be decided **from repository evidence during implementation**, each recorded with its reason:
+
+1. Whether claim, assessment and verification are one table with a state discriminator plus an append-only history table, or separate tables (§30.7) — a normalization judgement that must not weaken the ruling that the four concepts stay distinct and that history is append-only.
+2. Whether the proficiency scale needs a bounded versioning model, or one active scale per organization suffices (§30.3) — decide from whether a live requirement genuinely needs a historical scale, and prefer the simpler shape.
+3. Whether readiness history is its own table or an append-only event log shared with candidacy changes (§30.13) — following the §28.27 item 1 and §29.26 item 2 reasoning: prefer a real foreign key over a polymorphic pair this repository can only express without one.
+4. Whether an **additive** compatibility improvement to the legacy `employee.write`-gated read routes is safe without breaking callers, or whether they must be left exactly as shipped (§30.22) — the default is to leave them and document the anomaly.
+5. Whether the skill catalogue's Master Data import belongs in the WS-7 framework or is a WS-14 configuration action (§30.4) — it is a one-off organization setup step rather than a data migration, so the latter is likely, but decide against the shipped framework's own boundaries.
+
+### 30.28 Protected capabilities — do not rebuild
+
+Performance Management and its competency and rating-scale tables, the Learning module, Recruitment Talent Pools, `positions` and the organization structure, `employee_qualifications` and `employee_certifications`, `deadlineStatus`, the `skill` Master Data domain, WS-5 Documents, the WS-6 scheduler, WS-3 audit and OD #23 masking, WS-11's lifecycle services, WS-12's sensitive-read helper, and WS-13's request architecture. **WS-14 extends behaviour around them.**
+
+### 30.29 Deferred and out of scope
+
+Full Performance Management, 360-degree review, Learning Management, course management, promotion, transfer and acting-appointment workflows, workforce planning, compensation planning, AI succession ranking, career-path engines, organizational-chart simulation, a generic approval engine, the WS-15 Action Centre, and **WS-11.1 in full**. **OD #14 and OD #15 remain approved and unassigned.** WS-12's future-separation-basis dependency is recorded there and is **not** solved here.
