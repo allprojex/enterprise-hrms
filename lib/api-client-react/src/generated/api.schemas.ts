@@ -8933,11 +8933,41 @@ export interface ManagerPortalPendingActionItem {
 }
 
 /**
+ * `interview_scorecard` is outstanding own work; `interview_panel` and `job_requisition` are participation awareness.
+ */
+export type ManagerPortalRecruitmentItemKind = typeof ManagerPortalRecruitmentItemKind[keyof typeof ManagerPortalRecruitmentItemKind];
+
+
+export const ManagerPortalRecruitmentItemKind = {
+  interview_scorecard: 'interview_scorecard',
+  interview_panel: 'interview_panel',
+  job_requisition: 'job_requisition',
+} as const;
+
+/**
+ * WS-15 P2 (§31.28) — one Recruitment responsibility the caller currently participates in. Deliberately carries NO candidate name, no application detail, no other panel member's scoring or comments, and no offered compensation: a row is a reference plus a link into the Recruitment surface that owns and re-gates the work.
+ */
+export interface ManagerPortalRecruitmentItem {
+  /** `interview_scorecard` is outstanding own work; `interview_panel` and `job_requisition` are participation awareness. */
+  kind: ManagerPortalRecruitmentItemKind;
+  /** The underlying interviews/job_requisitions row's own id. */
+  id: number;
+  title: string;
+  /** The source's own status, passed through. */
+  status: string;
+  /** The interview's scheduledAt or the requisition's createdAt. Never a fabricated deadline. */
+  occurredAt: string;
+  deepLink: string;
+}
+
+/**
  * Manager Portal Pending Actions (Phase 3G, W110). `linked: false` mirrors Team Overview's/Dashboard's own not-linked semantics — Leave items still resolve independently for an org-wide HR/admin caller even when unlinked. Sorted by createdAt descending.
  */
 export interface ManagerPortalPendingActions {
   linked: boolean;
   items: ManagerPortalPendingActionItem[];
+  /** WS-15 P2 (§31.28) — Recruitment responsibilities the caller participates in. A SIBLING of `items` rather than part of it, because the shipped item shape requires an employee subject and Recruitment participation has none: an interview panel seat concerns a candidate, not a direct report. Optional, so every existing client keeps working unchanged. */
+  recruitmentParticipation?: ManagerPortalRecruitmentItem[];
 }
 
 /**

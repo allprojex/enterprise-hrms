@@ -20,7 +20,21 @@ const { state } = vi.hoisted(() => ({
     team: undefined as { linked: boolean; directReports: ManagerPortalTeamMember[] } | undefined,
     teamLoading: false,
     teamError: undefined as unknown,
-    pending: undefined as { linked: boolean; items: ManagerPortalPendingActionItem[] } | undefined,
+    pending: undefined as
+      | {
+          linked: boolean;
+          items: ManagerPortalPendingActionItem[];
+          // WS-15 P2 (§31.28) — the additive Recruitment sibling field.
+          recruitmentParticipation?: {
+            kind: string;
+            id: number;
+            title: string;
+            status: string;
+            occurredAt: string;
+            deepLink: string;
+          }[];
+        }
+      | undefined,
     pendingLoading: false,
     pendingError: undefined as unknown,
   },
@@ -98,6 +112,12 @@ async function renderMyTeamTab() {
 async function renderPendingActionsTab() {
   renderPage();
   await userEvent.click(screen.getByTestId('tab-manager-pending-actions'));
+}
+/** Same tab, returning the render result for whole-section text assertions. */
+async function renderPendingActionsTabWithContainer() {
+  const result = renderPage();
+  await userEvent.click(screen.getByTestId('tab-manager-pending-actions'));
+  return result;
 }
 
 function resetState() {
@@ -417,6 +437,93 @@ describe('Manager Portal page', () => {
       await renderPendingActionsTab();
       expect(screen.getByTestId('badge-manager-pending-status-performance-2')).toHaveTextContent('manager_review');
       expect(screen.getByTestId('badge-manager-pending-source-performance-2')).toHaveTextContent('Performance');
+    });
+  });
+
+  /**
+   * WS-15 P2 (§31.28) — Recruitment participation.
+   *
+   * The section is additive: the shipped Leave/Performance/Learning list is
+   * unchanged, and Recruitment appears beside it because those rows have no
+   * employee subject to key on. These tests pin down that the addition does not
+   * disturb the existing surface and that no candidate data reaches a row.
+   */
+  describe('Recruitment participation (WS-15 P2)', () => {
+    const recruitmentRow = (over: Record<string, unknown> = {}) => ({
+      kind: 'interview_scorecard',
+      id: 7,
+      title: 'Interview scorecard outstanding',
+      status: 'completed',
+      occurredAt: '2026-08-01T00:00:00.000Z',
+      deepLink: '/interviews/7/scorecard',
+      ...over,
+    });
+
+    it('renders outstanding scorecard work and links into Recruitment', async () => {
+      state.pending = { linked: true, items: [], recruitmentParticipation: [recruitmentRow()] };
+      await renderPendingActionsTab();
+
+      const row = screen.getByTestId('row-manager-recruitment-interview_scorecard-7');
+      expect(row).toHaveTextContent('Interview scorecard outstanding');
+      expect(screen.getByTestId('badge-manager-recruitment-kind-interview_scorecard-7')).toHaveTextContent(
+        'Scorecard due',
+      );
+      // The only affordance is a link out; Manager Portal grants no Recruitment
+      // authority of its own.
+      expect(screen.getByTestId('link-manager-recruitment-open-interview_scorecard-7')).toBeInTheDocument();
+    });
+
+    it('shows Recruitment work even when there is no Leave, Performance or Learning work', async () => {
+      state.pending = { linked: true, items: [], recruitmentParticipation: [recruitmentRow()] };
+      await renderPendingActionsTab();
+      // The shipped empty state must not swallow the new source.
+      expect(screen.queryByTestId('text-manager-pending-empty')).toBeNull();
+      expect(screen.getByTestId('list-manager-recruitment')).toBeInTheDocument();
+    });
+
+    it('still shows the empty state when nothing at all is pending', async () => {
+      state.pending = { linked: true, items: [], recruitmentParticipation: [] };
+      await renderPendingActionsTab();
+      expect(screen.getByTestId('text-manager-pending-empty')).toBeInTheDocument();
+      expect(screen.queryByTestId('list-manager-recruitment')).toBeNull();
+    });
+
+    it('shows an unlinked interviewer their own panel work rather than the not-linked card', async () => {
+      // Panel membership keys on the membership, so an unlinked account is
+      // still a legitimate interviewer.
+      state.pending = {
+        linked: false,
+        items: [],
+        recruitmentParticipation: [recruitmentRow({ kind: 'interview_panel', id: 9, deepLink: '/interviews/9' })],
+      };
+      await renderPendingActionsTab();
+      expect(screen.getByTestId('row-manager-recruitment-interview_panel-9')).toBeInTheDocument();
+    });
+
+    it('leaves the shipped Leave/Performance/Learning rows untouched', async () => {
+      state.pending = {
+        linked: true,
+        items: [pendingItem({ sourceModule: 'leave', id: 1, title: 'Leave Request', status: 'pending' })],
+        recruitmentParticipation: [recruitmentRow()],
+      };
+      await renderPendingActionsTab();
+      expect(screen.getByTestId('row-manager-pending-leave-1')).toBeInTheDocument();
+      expect(screen.getByTestId('row-manager-recruitment-interview_scorecard-7')).toBeInTheDocument();
+    });
+
+    it('carries no candidate data in a Recruitment row', async () => {
+      state.pending = {
+        linked: true,
+        items: [],
+        recruitmentParticipation: [recruitmentRow({ kind: 'job_requisition', id: 3, title: 'Ward Sister', deepLink: '/requisitions/3' })],
+      };
+      const { container } = await renderPendingActionsTabWithContainer();
+      const text = container.textContent ?? '';
+      // A requisition title is the role, not a person; nothing candidate-shaped
+      // may appear (§31.28).
+      for (const forbidden of [/candidate/i, /applicant/i, /salary/i, /compensation/i, /recommendation/i]) {
+        expect(text).not.toMatch(forbidden);
+      }
     });
   });
 });

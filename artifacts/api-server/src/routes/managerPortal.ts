@@ -29,6 +29,7 @@ import { MANAGER_PORTAL_MODULE_KEY } from "../lib/managerPortalAuthorization";
 import { resolveTeamOverview } from "../lib/managerPortal";
 import { resolveManagerPortalDashboard } from "../lib/managerPortalDashboard";
 import { resolveManagerPortalPendingActions } from "../lib/managerPortalPendingActions";
+import { resolveManagerPortalRecruitmentParticipation } from "../lib/managerPortalRecruitmentParticipation";
 
 const router: IRouter = Router();
 
@@ -63,8 +64,18 @@ router.get(
   requireModuleEnabled(MANAGER_PORTAL_MODULE_KEY),
   async (req: MembershipRequest, res): Promise<void> => {
     const organizationId = req.membership!.organizationId;
-    const pendingActions = await resolveManagerPortalPendingActions(organizationId, req.userId!, req.membership!.id);
-    res.json(pendingActions);
+    // WS-15 P2 (§31.28) — Recruitment participation is returned as a SIBLING
+    // field rather than merged into `items`. The shipped item shape requires an
+    // employee id and name, and Recruitment participation has no employee
+    // subject at all: an interview panel seat is about a candidate, not a direct
+    // report. Merging would have meant either a breaking change to a live
+    // contract or placeholder employee values, and a placeholder is a lie the
+    // frontend would render. Additive keeps the P1 surface byte-identical.
+    const [pendingActions, recruitmentParticipation] = await Promise.all([
+      resolveManagerPortalPendingActions(organizationId, req.userId!, req.membership!.id),
+      resolveManagerPortalRecruitmentParticipation(organizationId, req.userId!, req.membership!.id),
+    ]);
+    res.json({ ...pendingActions, recruitmentParticipation: recruitmentParticipation.items });
   },
 );
 

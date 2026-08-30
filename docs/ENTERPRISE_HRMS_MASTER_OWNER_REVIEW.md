@@ -295,7 +295,7 @@ Unchanged from the discovery pass — neither gate is met today, both remain ded
 | Global Search / Employee 360 | Partial | | Y | | P2/P3 — **WS-15 bundle, architecture frozen in §31.29**; Global Search remains P3 |
 | HR Action Centre | Y | | | | P1 — **WS-15 P1 IMPLEMENTED** against §31.4–31.27 (runtime federation, no new table, no new permission); see `docs/ACTION_CENTRE.md` |
 | ESS | Y | Y | | | — |
-| Manager/Department Head | Y | | Y | | P2 — **WS-15 bundle, architecture frozen in §31.28**; the registered gap is Recruitment participation (panel membership, outstanding own scorecard, hiring-manager standing) |
+| Manager/Department Head | Y | | | | P2 — **WS-15 P2 IMPLEMENTED** against §31.28; the registered gap (panel membership, outstanding own scorecard, hiring-manager standing) is closed, see `docs/ACTION_CENTRE.md` |
 | Reporting/Analytics | Y | | Y (CSV hardening gap) | | P1 (CSV fix — **shipped in WS-1**), P3 (rest) — **WS-15 bundle, architecture frozen in §31.30**: 47 report definitions seeded, 3 generic runners implemented |
 | Bulk Import/Migration | Y | | Y (employees-only) | | P0 |
 | Attendance / Leave / Performance / Learning / Assets / Manager Portal / ESS-completion / Personnel Records | Y | Y | | | — |
@@ -2239,7 +2239,7 @@ WS-15 is **four bundles**, not one. The workstream is named *Cross-Module Visibi
 | Bundle | §17 capability row | Priority | Frozen in |
 |---|---|---|---|
 | HR Action Centre (org-wide) | `HR Action Centre — N` | **P1** | §31.4–31.26 — **IMPLEMENTED**, see `docs/ACTION_CENTRE.md` |
-| Manager / Department Head completion (Recruitment participation source) | `Manager/Department Head — Y, partial` | **P2** | §31.28 |
+| Manager / Department Head completion (Recruitment participation source) | `Manager/Department Head — Y, partial` | **P2** | §31.28 — **IMPLEMENTED**, see `docs/ACTION_CENTRE.md` |
 | Employee 360 / Global Search completion | `Global Search / Employee 360 — Partial` | **P2/P3** | §31.29 |
 | Reporting execution consolidation | `Reporting/Analytics — Y, CSV gap` | **P3** | §31.30 |
 

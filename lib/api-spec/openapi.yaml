@@ -39911,6 +39911,37 @@ components:
           type: string
           format: date-time
 
+    ManagerPortalRecruitmentItem:
+      type: object
+      description: >-
+        WS-15 P2 (§31.28) — one Recruitment responsibility the caller currently
+        participates in. Deliberately carries NO candidate name, no application
+        detail, no other panel member's scoring or comments, and no offered
+        compensation: a row is a reference plus a link into the Recruitment
+        surface that owns and re-gates the work.
+      required: [kind, id, title, status, occurredAt, deepLink]
+      properties:
+        kind:
+          type: string
+          description: >-
+            `interview_scorecard` is outstanding own work; `interview_panel` and
+            `job_requisition` are participation awareness.
+          enum: [interview_scorecard, interview_panel, job_requisition]
+        id:
+          type: integer
+          description: The underlying interviews/job_requisitions row's own id.
+        title:
+          type: string
+        status:
+          type: string
+          description: The source's own status, passed through.
+        occurredAt:
+          type: string
+          format: date-time
+          description: The interview's scheduledAt or the requisition's createdAt. Never a fabricated deadline.
+        deepLink:
+          type: string
+
     ManagerPortalPendingActions:
       type: object
       description: >-
@@ -39926,6 +39957,17 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ManagerPortalPendingActionItem"
+        recruitmentParticipation:
+          type: array
+          description: >-
+            WS-15 P2 (§31.28) — Recruitment responsibilities the caller
+            participates in. A SIBLING of `items` rather than part of it,
+            because the shipped item shape requires an employee subject and
+            Recruitment participation has none: an interview panel seat concerns
+            a candidate, not a direct report. Optional, so every existing client
+            keeps working unchanged.
+          items:
+            $ref: "#/components/schemas/ManagerPortalRecruitmentItem"
 
     DepartmentHead:
       type: object

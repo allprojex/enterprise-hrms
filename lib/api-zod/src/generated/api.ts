@@ -12582,7 +12582,15 @@ export const GetManagerPortalPendingActionsResponse = zod.object({
   "status": zod.string().describe('leave_requests.status (\"pending\") | performance_reviews.status (\"manager_review\") | learning_enrollments.approvalStatus (\"pending\").'),
   "title": zod.string(),
   "createdAt": zod.coerce.date()
-}).describe('One pending item from Leave, Performance, or Learning (Phase 3G, W110) — a deliberately narrow, safe field set only. Never a leave reason, never confidential Performance\/Learning fields, never a full Employee shape.'))
+}).describe('One pending item from Leave, Performance, or Learning (Phase 3G, W110) — a deliberately narrow, safe field set only. Never a leave reason, never confidential Performance\/Learning fields, never a full Employee shape.')),
+  "recruitmentParticipation": zod.array(zod.object({
+  "kind": zod.enum(['interview_scorecard', 'interview_panel', 'job_requisition']).describe('`interview_scorecard` is outstanding own work; `interview_panel` and `job_requisition` are participation awareness.'),
+  "id": zod.number().describe('The underlying interviews\/job_requisitions row\'s own id.'),
+  "title": zod.string(),
+  "status": zod.string().describe('The source\'s own status, passed through.'),
+  "occurredAt": zod.coerce.date().describe('The interview\'s scheduledAt or the requisition\'s createdAt. Never a fabricated deadline.'),
+  "deepLink": zod.string()
+}).describe('WS-15 P2 (§31.28) — one Recruitment responsibility the caller currently participates in. Deliberately carries NO candidate name, no application detail, no other panel member\'s scoring or comments, and no offered compensation: a row is a reference plus a link into the Recruitment surface that owns and re-gates the work.')).optional().describe('WS-15 P2 (§31.28) — Recruitment responsibilities the caller participates in. A SIBLING of `items` rather than part of it, because the shipped item shape requires an employee subject and Recruitment participation has none: an interview panel seat concerns a candidate, not a direct report. Optional, so every existing client keeps working unchanged.')
 }).describe('Manager Portal Pending Actions (Phase 3G, W110). `linked: false` mirrors Team Overview\'s\/Dashboard\'s own not-linked semantics — Leave items still resolve independently for an org-wide HR\/admin caller even when unlinked. Sorted by createdAt descending.')
 
 

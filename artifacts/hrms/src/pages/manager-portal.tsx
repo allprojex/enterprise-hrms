@@ -27,6 +27,7 @@ import {
   getGetManagerPortalPendingActionsQueryKey,
   type ManagerPortalTeamMember,
   type ManagerPortalPendingActionItem,
+  type ManagerPortalPendingActions,
 } from '@workspace/api-client-react';
 
 // Manager Portal (Phase 3G, W111 -- frozen plan: docs/PHASE_3G_MANAGER_PORTAL_IMPLEMENTATION_PLAN.md).
@@ -322,7 +323,10 @@ function MyTeamSection({ query }: { query: TeamQueryResult }) {
 // --- Pending Actions ---
 
 interface PendingActionsQueryResult {
-  data?: { linked: boolean; items: ManagerPortalPendingActionItem[] };
+  // The generated response type, so the additive WS-15 P2
+  // `recruitmentParticipation` field is visible here without restating the
+  // shape by hand (§31.28).
+  data?: ManagerPortalPendingActions;
   isLoading: boolean;
   error: unknown;
   refetch: () => void;
@@ -337,6 +341,19 @@ const SOURCE_MODULE_HREF: Record<ManagerPortalPendingActionItem['sourceModule'],
   leave: '/leave-approvals',
   performance: '/performance-team',
   learning: '/learning-team-training',
+};
+
+/**
+ * WS-15 P2 (§31.28) — Recruitment participation labels.
+ *
+ * A row says what the caller is involved in and links to the Recruitment
+ * surface that owns it. It never carries a candidate name, an application
+ * detail, another panel member's scoring or offered compensation.
+ */
+const RECRUITMENT_KIND_LABEL: Record<string, string> = {
+  interview_scorecard: 'Scorecard due',
+  interview_panel: 'Interview panel',
+  job_requisition: 'My requisition',
 };
 
 function PendingActionsSection({ query }: { query: PendingActionsQueryResult }) {
@@ -359,7 +376,12 @@ function PendingActionsSection({ query }: { query: PendingActionsQueryResult }) 
   const p = query.data;
   if (!p) return null;
 
-  if (!p.linked && p.items.length === 0) {
+  const recruitment = p.recruitmentParticipation ?? [];
+
+  // An unlinked caller can still hold an interview panel seat — panel membership
+  // keys on the MEMBERSHIP, not the employee record — so the not-linked card
+  // only applies when there is genuinely nothing to show.
+  if (!p.linked && p.items.length === 0 && recruitment.length === 0) {
     return (
       <div className="mt-6">
         <NotLinkedCard />
@@ -367,7 +389,7 @@ function PendingActionsSection({ query }: { query: PendingActionsQueryResult }) 
     );
   }
 
-  if (p.items.length === 0) {
+  if (p.items.length === 0 && recruitment.length === 0) {
     return (
       <div className="mt-6">
         <Card>
@@ -389,6 +411,33 @@ function PendingActionsSection({ query }: { query: PendingActionsQueryResult }) 
 
   return (
     <div className="mt-6 space-y-3">
+      {recruitment.length > 0 && (
+        <div className="space-y-3" data-testid="list-manager-recruitment">
+          <p className="text-sm font-medium text-muted-foreground">Recruitment</p>
+          {recruitment.map((item) => (
+            <Card key={`${item.kind}-${item.id}`} data-testid={`row-manager-recruitment-${item.kind}-${item.id}`}>
+              <CardContent className="flex items-center justify-between gap-4 py-4">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Badge variant="outline" data-testid={`badge-manager-recruitment-kind-${item.kind}-${item.id}`}>
+                      {RECRUITMENT_KIND_LABEL[item.kind] ?? item.kind}
+                    </Badge>
+                    <Badge variant="secondary">{item.status}</Badge>
+                  </div>
+                  <p className="font-medium text-foreground truncate">{item.title}</p>
+                  <p className="text-sm text-muted-foreground truncate">
+                    {new Date(item.occurredAt).toLocaleDateString()}
+                  </p>
+                </div>
+                <Button asChild variant="outline" size="sm" data-testid={`link-manager-recruitment-open-${item.kind}-${item.id}`}>
+                  {/* Recruitment re-gates at the destination — this link grants nothing. */}
+                  <Link href={item.deepLink}>Open in Recruitment</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
       {p.items.map((item) => (
         <Card key={`${item.sourceModule}-${item.id}`} data-testid={`row-manager-pending-${item.sourceModule}-${item.id}`}>
           <CardContent className="flex items-center justify-between gap-4 py-4">

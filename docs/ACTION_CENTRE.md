@@ -1,13 +1,12 @@
-# HR Action Centre (WS-15 P1)
+# HR Action Centre and Manager Recruitment Participation (WS-15 P1 + P2)
 
-Implements the P1 bundle of the architecture frozen in §31 of
+Implements the P1 and P2 bundles of the architecture frozen in §31 of
 `ENTERPRISE_HRMS_MASTER_OWNER_REVIEW.md`. Read that section first: where the two
 disagree, §31 governs.
 
-**Scope of this document is P1 only.** WS-15's other three registered bundles —
-Manager/Department Head completion (§31.28, P2), Employee 360 / Global Search
-(§31.29, P2/P3) and Reporting execution consolidation (§31.30, P3) — are frozen
-but **not implemented**.
+**Scope of this document is WS-15 P1 and P2.** The two remaining registered
+bundles — Employee 360 / Global Search (§31.29, P2/P3) and Reporting execution
+consolidation (§31.30, P3) — are frozen but **not implemented**.
 
 ---
 
@@ -320,11 +319,87 @@ some Windows machines.
 
 ---
 
+## Manager Portal Recruitment participation (WS-15 P2, §31.28)
+
+Manager Portal already aggregated Leave, Performance and Learning. §31.28 named
+exactly three absent Recruitment responsibilities, and
+`lib/managerPortalRecruitmentParticipation.ts` adds exactly those three:
+
+| Source | Anchor | Kind |
+|---|---|---|
+| Outstanding own scorecard | `interview_scorecards.submittedAt is null`, or no row yet | `interview_scorecard` — work |
+| Interview panel seat | `interview_panel_members.interviewerMembershipId` | `interview_panel` — awareness |
+| Hiring-manager standing | `job_requisitions.hiringManagerEmployeeId` | `job_requisition` — awareness |
+
+**Requisition and offer approvals are deliberately not here.** They are approval
+*authority* rather than participation, §31.28 does not name them, and they
+already ship as P1 Action Centre providers. Adding them would duplicate a live
+surface and widen a frozen bundle.
+
+### This is participation, not authority
+
+Every row says "you are involved in this" and links to the Recruitment surface
+that already gates the decision. The provider module exports **one read
+function** — there is no approve, submit, schedule or decide anywhere in it, and
+a live test asserts that public surface. Manager Portal grants no Recruitment
+authority it did not already have.
+
+### Authority is live
+
+The two shipped visibility contexts — `resolveInterviewVisibilityContext` and
+`resolveScorecardVisibilityContext` — are reused unchanged, and panel membership
+and hiring-manager standing are read fresh on every call. There is no cached
+assignment and no manager-task table, so removing somebody from a panel or
+reassigning a requisition's hiring manager takes effect on the very next
+request. Neither `isOrgWide` nor `canReadAll` is used to broaden what is
+returned: this surface is own-participation only.
+
+### An additive field, not a contract change
+
+Recruitment participation is returned as a **sibling** of `items` on
+`GET /manager-portal/pending-actions`, not merged into it. The shipped item shape
+requires an employee id and name, and Recruitment participation has no employee
+subject at all — an interview panel seat concerns a candidate, not a direct
+report. Merging would have meant either a breaking change to a live contract or
+placeholder employee values, and a placeholder is a lie the frontend would
+render. The field is optional, so every existing client keeps working unchanged
+and the P1 surface stays byte-identical.
+
+### Safety
+
+A row carries a kind, the source row's own id, a generic title, its status, the
+source's own date and a deep link. It never carries a candidate name, an
+application detail, another panel member's scoring or comments, or offered
+compensation. A cancelled or no-show interview asks nothing; a draft, filled or
+rejected requisition asks nothing; a disabled Recruitment module contributes
+nothing.
+
+An **unlinked** account still sees its own panel work, because panel membership
+keys on the membership rather than the employee record — only hiring-manager
+standing needs an employee link.
+
+Ordering is soonest/oldest first, then kind, then id. This differs from Manager
+Portal's own `createdAt DESC` because these are genuinely dated commitments: an
+interview tomorrow matters more than one scheduled a month ago.
+
+### Testing
+
+`managerPortalRecruitmentLive.test.ts` — 12 live tests covering own-scorecard
+isolation, submission removing the row, panel removal taking effect immediately,
+hiring-manager reassignment, status filtering, the safe row shape, module
+disablement, cross-tenant invisibility, the unlinked interviewer, deterministic
+ordering, and the no-mutation surface. Six frontend tests in
+`manager-portal.test.tsx` cover the additive section without disturbing the
+shipped rows.
+
+---
+
 ## Not built here
 
 Generic workflow engine · universal approval or task table · process designer ·
 **OD #14/#15 generalization (WS-16)** · materialized projection · Action Centre
 history store · recent-completed aggregation · cross-module search · export ·
 AI prioritization · Payroll/Assets/Inventory/Attendance participation ·
-**§31.28 Manager Portal Recruitment completion (P2)** · **§31.29 Employee 360
-(P2/P3)** · **§31.30 Reporting consolidation (P3)**.
+Recruitment requisition and offer approvals in Manager Portal ·
+**§31.29 Employee 360 / Global Search (P2/P3)** · **§31.30 Reporting
+consolidation (P3)**.

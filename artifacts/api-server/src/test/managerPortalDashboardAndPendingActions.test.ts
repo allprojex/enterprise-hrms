@@ -65,6 +65,15 @@ const {
       leaveRequests: [] as { organizationId: number; id: number; employeeId: number; status: string; createdAt: Date }[],
       performanceReviews: [] as { organizationId: number; id: number; employeeId: number; reviewerEmployeeId: number; cycleId: number; status: string; createdAt: Date }[],
       learningEnrollments: [] as { organizationId: number; id: number; employeeId: number; managerEmployeeIdSnapshot: number; approvalStatus: string; courseTitleSnapshot: string; createdAt: Date }[],
+      recruitmentParticipation: [] as {
+        organizationId: number;
+        kind: string;
+        id: number;
+        title: string;
+        status: string;
+        occurredAt: Date;
+        deepLink: string;
+      }[],
       assetAssignments: [] as { organizationId: number; managerEmployeeId: number }[],
       attendanceThrows: false,
       todayDate: "2026-08-22",
@@ -209,6 +218,20 @@ vi.mock("../lib/assetManagementAuthorization", () => ({
 vi.mock("../lib/assets", () => ({
   listTeamAssetAssignments: async (organizationId: number, managerEmployeeId: number | null) =>
     managerEmployeeId == null ? [] : state.assetAssignments.filter((a) => a.organizationId === organizationId && a.managerEmployeeId === managerEmployeeId),
+}));
+
+// WS-15 P2 (§31.28) — Recruitment participation is a new underlying service,
+// so it is mocked at its module boundary like every other one above. This file
+// mocks @workspace/db down to the handful of tables its own queries need, so a
+// service that reads interviews/scorecards/requisitions cannot run against it —
+// and testing that service's internals here is not this file's job. Its own
+// live suite (managerPortalRecruitmentLive.test.ts) covers it against a real
+// database.
+vi.mock("../lib/managerPortalRecruitmentParticipation", () => ({
+  resolveManagerPortalRecruitmentParticipation: async (organizationId: number, applicationUserId: number) => ({
+    linked: state.actorEmployeeIdByUser.get(applicationUserId) != null,
+    items: state.recruitmentParticipation.filter((r) => r.organizationId === organizationId),
+  }),
 }));
 
 const { default: app } = await import("../app");
@@ -497,7 +520,40 @@ describe("GET /api/organizations/:organizationId/manager-portal/pending-actions"
     const headers = managerHeaders();
     const res = await request(app).get(`/api/organizations/${ORG_ID}/manager-portal/pending-actions`).set(headers);
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ linked: true, items: [] });
+    // WS-15 P2 (§31.28) added `recruitmentParticipation` as a SIBLING of
+    // `items`; `items` itself is unchanged, which is the property that keeps
+    // every existing client working.
+    expect(res.body).toEqual({ linked: true, items: [], recruitmentParticipation: [] });
+  });
+
+  it("passes Recruitment participation through as a sibling, leaving items untouched (WS-15 P2)", async () => {
+    // Recruitment participation has no employee subject — an interview panel
+    // seat concerns a candidate, not a direct report — so it cannot be merged
+    // into the employee-keyed `items` shape without a placeholder.
+    state.recruitmentParticipation = [
+      {
+        organizationId: ORG_ID,
+        kind: "interview_scorecard",
+        id: 77,
+        title: "Interview scorecard outstanding",
+        status: "completed",
+        occurredAt: new Date("2026-08-01T00:00:00.000Z"),
+        deepLink: "/interviews/77/scorecard",
+      },
+    ];
+    const res = await request(app).get(`/api/organizations/${ORG_ID}/manager-portal/pending-actions`).set(managerHeaders());
+    expect(res.status).toBe(200);
+    expect(res.body.items).toEqual([]);
+    expect(res.body.recruitmentParticipation).toHaveLength(1);
+    expect(res.body.recruitmentParticipation[0]).toMatchObject({
+      kind: "interview_scorecard",
+      id: 77,
+      deepLink: "/interviews/77/scorecard",
+    });
+    // No candidate-shaped field reaches the row (§31.28).
+    for (const forbidden of ["candidateId", "candidateName", "applicationId", "salary", "recommendation"]) {
+      expect(res.body.recruitmentParticipation[0]).not.toHaveProperty(forbidden);
+    }
   });
 
   it("aggregates exactly leave/performance/learning items — no attendance or assets keys ever appear", async () => {
