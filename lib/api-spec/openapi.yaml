@@ -197,6 +197,12 @@ tags:
       WS-14 succession plans, candidate pools and readiness bands (§30).
       Confidential and never employee-facing: no ESS route exists here
 
+  - name: action-centre
+    description: >-
+      WS-15 HR Action Centre (§31) — runtime cross-module federation of current
+      actionable work. Stores nothing, mints no permission, and returns only
+      generic redacted rows plus deep links
+
 paths:
   /healthz:
     get:
@@ -29103,8 +29109,379 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  # --- WS-15 — HR Action Centre (§31) ---------------------------------------
+
+  /organizations/{organizationId}/action-centre:
+    get:
+      operationId: listActionCentre
+      tags: [action-centre]
+      summary: The federated cross-module action queue
+      description: >-
+        Runtime federation (§31.4). Every request recomputes current work from
+        the source modules; nothing is stored, cached or reconciled. Each source
+        enforces its own permission and its own live authority resolver, so a
+        source the caller cannot read is omitted entirely — no row, no count and
+        no zero, indistinguishably from the module being disabled (§31.19).
+        Sources the caller IS authorized for whose work could not be loaded are
+        named in `unavailableSources` (§31.22).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: scope
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/ActionScope"
+        - name: sourceModule
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/ActionSourceModule"
+        - name: actionKind
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: dueState
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/ActionDueState"
+        - name: employeeId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The permission-filtered queue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionCentreResult"
+
+  /organizations/{organizationId}/action-centre/counts:
+    get:
+      operationId: getActionCentreCounts
+      tags: [action-centre]
+      summary: Permission-filtered action counts
+      description: >-
+        Computed from the same providers as the rows (§31.19). There is no
+        separate counting query that could drift from the row query's
+        permissions, and a source the caller cannot read is absent from
+        `byModule` rather than reported as zero — a zero would assert that the
+        module exists and is empty, which is itself a disclosure.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: scope
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/ActionScope"
+        - name: sourceModule
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/ActionSourceModule"
+        - name: dueState
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/ActionDueState"
+      responses:
+        "200":
+          description: Counts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionCentreCounts"
+
+  /organizations/{organizationId}/my-action-centre:
+    get:
+      operationId: listMyActionCentre
+      tags: [action-centre]
+      summary: An employee's own actionable work
+      description: >-
+        The three allow-listed ESS sources (§31.13): onboarding tasks the
+        employee owns themselves, documents awaiting their acknowledgement, and
+        service requests put back to them. The subject is derived server-side
+        from the employee link; no employee identifier is accepted, and none is
+        read if supplied. Carries no grievance, succession, Payroll or case
+        content of any kind.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: My actions; `linked` is false when no employee record is linked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EssActionCentreResult"
+
+  /organizations/{organizationId}/action-centre/actions/{command}:
+    post:
+      operationId: executeActionCentreCommand
+      tags: [action-centre]
+      summary: Invoke one allow-listed inline command
+      description: >-
+        The command name is validated against the closed §31.8 vocabulary before
+        anything else happens, so a client can never name a module, a table or a
+        method (§31.33). The handler then re-checks live authority at action
+        time and calls the owning module's existing service — preserving its
+        transaction, its atomic state guard, its audit event, its notifications
+        and its maker-checker (§31.8). No approval logic is reimplemented here,
+        and a repeated request fails at the source's own guard (§31.23).
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: command
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/InlineActionCommand"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExecuteActionCentreCommandInput"
+      responses:
+        "200":
+          description: The source's own fresh truth
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionCommandResult"
+        "403":
+          description: Not currently authorized for this action
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Unknown command, or the item no longer exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: The source refused — already decided, not open, or a reason is required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
+
+    # --- WS-15 — HR Action Centre (§31) ---------------------------------------
+
+    ActionScope:
+      type: string
+      description: >-
+        `assigned` exists only for sources with a genuine assignment concept
+        (§31.10); assignment is never fabricated for dynamic-authority sources.
+      enum: [my_actions, assigned, oversight]
+
+    ActionSourceModule:
+      type: string
+      description: Fixed vocabulary (§31.6). Never free text, and never a table or module path from a client.
+      enum:
+        [
+          leave,
+          learning,
+          onboarding,
+          skills,
+          performance,
+          recruitment,
+          employee_requests,
+          employee_relations,
+          succession,
+          employment_lifecycle,
+        ]
+
+    ActionKind:
+      type: string
+      enum: [approve, complete, verify, review, decide, fulfil, acknowledge]
+
+    ActionDueState:
+      type: string
+      enum: [overdue, due_soon, undated]
+
+    InlineActionCommand:
+      type: string
+      description: The closed §31.8 allow-list. Exactly four inline actions, and nothing else.
+      enum:
+        [
+          leave.approve,
+          leave.reject,
+          learning.approve,
+          learning.reject,
+          onboarding.complete,
+          skill.verify,
+          skill.reject,
+        ]
+
+    ActionItem:
+      type: object
+      required:
+        [sourceModule, sourceType, sourceId, actionKind, title, status, createdAt, deepLink, inlineCommands]
+      description: >-
+        A pointer plus enough to triage, never a copy (§31.6). Carries no
+        metadata blob, no source payload, no narrative and no priority.
+      properties:
+        sourceModule:
+          $ref: "#/components/schemas/ActionSourceModule"
+        sourceType:
+          type: string
+          description: The source's own resource kind, e.g. `leave_request`.
+        sourceId:
+          type: integer
+          description: The source record's own existing id. Never a WS-15-minted identifier.
+        actionKind:
+          $ref: "#/components/schemas/ActionKind"
+        title:
+          type: string
+          description: A safe, generic operational label. Never narrative, evidence or a sensitive value (§31.14).
+        employeeId:
+          type: integer
+          nullable: true
+          description: Present only where the actor may already see that employee through the source.
+        employeeFirstName:
+          type: string
+          nullable: true
+        employeeLastName:
+          type: string
+          nullable: true
+        status:
+          type: string
+          description: The source's own status string, passed through and never re-mapped.
+        createdAt:
+          type: string
+        dueAt:
+          type: string
+          nullable: true
+          description: The source's own authoritative date. Null where the source has none (§31.16).
+        overdue:
+          type: boolean
+          nullable: true
+          description: >-
+            Null where `dueAt` is null — never false. "Not overdue" and "no
+            concept of overdue" are different statements (§31.16).
+        deepLink:
+          type: string
+          description: Route into the owning module's own surface, which re-gates at the destination.
+        inlineCommands:
+          type: array
+          description: Empty for every deep-link-only item (§31.9).
+          items:
+            $ref: "#/components/schemas/InlineActionCommand"
+
+    ActionCentreResult:
+      type: object
+      required: [items, unavailableSources]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActionItem"
+        unavailableSources:
+          type: array
+          description: >-
+            Sources the caller IS authorized for whose work could not be loaded
+            (§31.22). Never contains a source the caller may not see, so it
+            cannot disclose that a protected module exists.
+          items:
+            $ref: "#/components/schemas/ActionSourceModule"
+
+    ActionCentreCounts:
+      type: object
+      required: [total, overdue, byModule, unavailableSources]
+      properties:
+        total:
+          type: integer
+        overdue:
+          type: integer
+        byModule:
+          type: array
+          description: One entry per source that answered. A source the caller cannot read is absent, never zero.
+          items:
+            type: object
+            required: [sourceModule, count]
+            properties:
+              sourceModule:
+                $ref: "#/components/schemas/ActionSourceModule"
+              count:
+                type: integer
+        unavailableSources:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActionSourceModule"
+
+    EssActionCentreResult:
+      type: object
+      required: [linked, items]
+      properties:
+        linked:
+          type: boolean
+          description: False when no employee record is linked to the account — a legitimate state, not an error.
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActionItem"
+
+    ExecuteActionCentreCommandInput:
+      type: object
+      required: [sourceId]
+      description: >-
+        Carries no module, table or method name — the command identifier in the
+        path is the only selector, and it comes from a closed vocabulary.
+      properties:
+        sourceId:
+          type: integer
+          description: The source record's own id, re-resolved and organization-scoped server-side.
+        reason:
+          type: string
+          nullable: true
+          description: Required by the source for a leave rejection and a skill rejection.
+        notes:
+          type: string
+          nullable: true
+        levelId:
+          type: integer
+          nullable: true
+          description: Skill verification only; WS-14 requires one for a proficiency-applicable skill.
+        assessedAt:
+          type: string
+          nullable: true
+
+    ActionCommandResult:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+        result:
+          description: The owning module's own fresh record, returned unchanged.
 
     # --- WS-14 — Skills, Competency Framework & Succession (§30) -------------
 

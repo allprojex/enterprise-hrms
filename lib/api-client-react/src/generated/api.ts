@@ -26,6 +26,9 @@ import type {
   AcknowledgeGrievanceInput,
   AcknowledgePerformanceReviewInput,
   AcknowledgeServiceRequestInput,
+  ActionCentreCounts,
+  ActionCentreResult,
+  ActionCommandResult,
   AddAssetEvidenceBody,
   AddCandidateTagInput,
   AddClearanceItemInput,
@@ -267,6 +270,8 @@ import type {
   EmploymentTermRenewal,
   EndAssignmentInput,
   EndEmployeeCompensationComponentBody,
+  EssActionCentreResult,
+  ExecuteActionCentreCommandInput,
   ExitInterview,
   ExpiringTermList,
   ExportCustomFieldValuesParams,
@@ -279,6 +284,7 @@ import type {
   GeneratePerformanceReviewsInput,
   GeneratePerformanceReviewsResult,
   GeneratedDocument,
+  GetActionCentreCountsParams,
   GetAttendanceDailySummaryParams,
   GetAttendanceDashboardParams,
   GetClearanceQueueParams,
@@ -305,6 +311,7 @@ import type {
   HireAuthorizationDetail,
   InitiateOffboardingInput,
   InitiateOffboardingResult,
+  InlineActionCommand,
   Installation,
   InstallationOrganizationLink,
   InternalVacanciesResponse,
@@ -337,6 +344,7 @@ import type {
   LeaveType,
   LinkEmployeeUserInput,
   LinkInstallationOrganizationInput,
+  ListActionCentreParams,
   ListApplicationsParams,
   ListAssetIncidentsParams,
   ListAssetsParams,
@@ -57485,5 +57493,338 @@ export const useUpdateDevelopmentAction = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getUpdateDevelopmentActionMutationOptions(options));
+    }
+
+export const getListActionCentreUrl = (organizationId: number,
+    params?: ListActionCentreParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/action-centre?${stringifiedParams}` : `/api/organizations/${organizationId}/action-centre`
+}
+
+/**
+ * Runtime federation (§31.4). Every request recomputes current work from the source modules; nothing is stored, cached or reconciled. Each source enforces its own permission and its own live authority resolver, so a source the caller cannot read is omitted entirely — no row, no count and no zero, indistinguishably from the module being disabled (§31.19). Sources the caller IS authorized for whose work could not be loaded are named in `unavailableSources` (§31.22).
+ * @summary The federated cross-module action queue
+ */
+export const listActionCentre = async (organizationId: number,
+    params?: ListActionCentreParams, options?: RequestInit): Promise<ActionCentreResult> => {
+
+  return customFetch<ActionCentreResult>(getListActionCentreUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListActionCentreQueryKey = (organizationId: number,
+    params?: ListActionCentreParams,) => {
+    return [
+    `/api/organizations/${organizationId}/action-centre`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListActionCentreQueryOptions = <TData = Awaited<ReturnType<typeof listActionCentre>>, TError = ErrorType<unknown>>(organizationId: number,
+    params?: ListActionCentreParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listActionCentre>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListActionCentreQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listActionCentre>>> = ({ signal }) => listActionCentre(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listActionCentre>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListActionCentreQueryResult = NonNullable<Awaited<ReturnType<typeof listActionCentre>>>
+export type ListActionCentreQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary The federated cross-module action queue
+ */
+
+export function useListActionCentre<TData = Awaited<ReturnType<typeof listActionCentre>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    params?: ListActionCentreParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listActionCentre>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListActionCentreQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetActionCentreCountsUrl = (organizationId: number,
+    params?: GetActionCentreCountsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/action-centre/counts?${stringifiedParams}` : `/api/organizations/${organizationId}/action-centre/counts`
+}
+
+/**
+ * Computed from the same providers as the rows (§31.19). There is no separate counting query that could drift from the row query's permissions, and a source the caller cannot read is absent from `byModule` rather than reported as zero — a zero would assert that the module exists and is empty, which is itself a disclosure.
+ * @summary Permission-filtered action counts
+ */
+export const getActionCentreCounts = async (organizationId: number,
+    params?: GetActionCentreCountsParams, options?: RequestInit): Promise<ActionCentreCounts> => {
+
+  return customFetch<ActionCentreCounts>(getGetActionCentreCountsUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetActionCentreCountsQueryKey = (organizationId: number,
+    params?: GetActionCentreCountsParams,) => {
+    return [
+    `/api/organizations/${organizationId}/action-centre/counts`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetActionCentreCountsQueryOptions = <TData = Awaited<ReturnType<typeof getActionCentreCounts>>, TError = ErrorType<unknown>>(organizationId: number,
+    params?: GetActionCentreCountsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getActionCentreCounts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetActionCentreCountsQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getActionCentreCounts>>> = ({ signal }) => getActionCentreCounts(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getActionCentreCounts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetActionCentreCountsQueryResult = NonNullable<Awaited<ReturnType<typeof getActionCentreCounts>>>
+export type GetActionCentreCountsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Permission-filtered action counts
+ */
+
+export function useGetActionCentreCounts<TData = Awaited<ReturnType<typeof getActionCentreCounts>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    params?: GetActionCentreCountsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getActionCentreCounts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetActionCentreCountsQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListMyActionCentreUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/my-action-centre`
+}
+
+/**
+ * The three allow-listed ESS sources (§31.13): onboarding tasks the employee owns themselves, documents awaiting their acknowledgement, and service requests put back to them. The subject is derived server-side from the employee link; no employee identifier is accepted, and none is read if supplied. Carries no grievance, succession, Payroll or case content of any kind.
+ * @summary An employee's own actionable work
+ */
+export const listMyActionCentre = async (organizationId: number, options?: RequestInit): Promise<EssActionCentreResult> => {
+
+  return customFetch<EssActionCentreResult>(getListMyActionCentreUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyActionCentreQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/my-action-centre`
+    ] as const;
+    }
+
+
+export const getListMyActionCentreQueryOptions = <TData = Awaited<ReturnType<typeof listMyActionCentre>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyActionCentre>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyActionCentreQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyActionCentre>>> = ({ signal }) => listMyActionCentre(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyActionCentre>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMyActionCentreQueryResult = NonNullable<Awaited<ReturnType<typeof listMyActionCentre>>>
+export type ListMyActionCentreQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary An employee's own actionable work
+ */
+
+export function useListMyActionCentre<TData = Awaited<ReturnType<typeof listMyActionCentre>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyActionCentre>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMyActionCentreQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getExecuteActionCentreCommandUrl = (organizationId: number,
+    command: InlineActionCommand,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/action-centre/actions/${command}`
+}
+
+/**
+ * The command name is validated against the closed §31.8 vocabulary before anything else happens, so a client can never name a module, a table or a method (§31.33). The handler then re-checks live authority at action time and calls the owning module's existing service — preserving its transaction, its atomic state guard, its audit event, its notifications and its maker-checker (§31.8). No approval logic is reimplemented here, and a repeated request fails at the source's own guard (§31.23).
+ * @summary Invoke one allow-listed inline command
+ */
+export const executeActionCentreCommand = async (organizationId: number,
+    command: InlineActionCommand,
+    executeActionCentreCommandInput: ExecuteActionCentreCommandInput, options?: RequestInit): Promise<ActionCommandResult> => {
+
+  return customFetch<ActionCommandResult>(getExecuteActionCentreCommandUrl(organizationId,command),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(executeActionCentreCommandInput)
+  }
+);}
+
+
+
+
+
+export const getExecuteActionCentreCommandMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof executeActionCentreCommand>>, TError,{organizationId: number;command: InlineActionCommand;data: BodyType<ExecuteActionCentreCommandInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof executeActionCentreCommand>>, TError,{organizationId: number;command: InlineActionCommand;data: BodyType<ExecuteActionCentreCommandInput>}, TContext> => {
+
+const mutationKey = ['executeActionCentreCommand'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof executeActionCentreCommand>>, {organizationId: number;command: InlineActionCommand;data: BodyType<ExecuteActionCentreCommandInput>}> = (props) => {
+          const {organizationId,command,data} = props ?? {};
+
+          return  executeActionCentreCommand(organizationId,command,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ExecuteActionCentreCommandMutationResult = NonNullable<Awaited<ReturnType<typeof executeActionCentreCommand>>>
+    export type ExecuteActionCentreCommandMutationBody = BodyType<ExecuteActionCentreCommandInput>
+    export type ExecuteActionCentreCommandMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Invoke one allow-listed inline command
+ */
+export const useExecuteActionCentreCommand = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof executeActionCentreCommand>>, TError,{organizationId: number;command: InlineActionCommand;data: BodyType<ExecuteActionCentreCommandInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof executeActionCentreCommand>>,
+        TError,
+        {organizationId: number;command: InlineActionCommand;data: BodyType<ExecuteActionCentreCommandInput>},
+        TContext
+      > => {
+      return useMutation(getExecuteActionCentreCommandMutationOptions(options));
     }
 

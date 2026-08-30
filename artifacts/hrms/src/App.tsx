@@ -98,6 +98,8 @@ import SkillsSettings from '@/pages/skills-settings';
 import Capability from '@/pages/capability';
 import MySkills from '@/pages/my-skills';
 import SuccessionPage from '@/pages/succession';
+import ActionCentre from '@/pages/action-centre';
+import MyActions from '@/pages/my-actions';
 import OnboardingDetail from '@/pages/onboarding-detail';
 import MyOnboarding from '@/pages/my-onboarding';
 import ManualCandidateCapture from '@/pages/manual-candidate-capture';
@@ -249,6 +251,22 @@ function Router() {
       </Route>
       <Route path="/succession">
         {() => <SecureRoute component={SuccessionPage} />}
+      </Route>
+      {/*
+        WS-15 — the HR Action Centre. No moduleKey and no permission gate: it
+        is a composition surface, and every row was already permission-filtered
+        by its own source provider (section 31.12). A caller with no eligible
+        source access sees an empty queue rather than a 403, and cannot tell
+        which modules exist.
+
+        "/my-actions" is likewise ungated beyond authentication — an employee's
+        own work is theirs, resolved server-side from the employee link.
+      */}
+      <Route path="/action-centre">
+        {() => <SecureRoute component={ActionCentre} />}
+      </Route>
+      <Route path="/my-actions">
+        {() => <SecureRoute component={MyActions} />}
       </Route>
       <Route path="/onboarding">
         {() => <SecureRoute component={Onboarding} moduleKey="onboarding" />}

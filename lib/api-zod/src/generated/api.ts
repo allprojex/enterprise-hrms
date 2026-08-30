@@ -24518,3 +24518,118 @@ export const UpdateDevelopmentActionResponse = zod.object({
 })
 
 
+/**
+ * Runtime federation (§31.4). Every request recomputes current work from the source modules; nothing is stored, cached or reconciled. Each source enforces its own permission and its own live authority resolver, so a source the caller cannot read is omitted entirely — no row, no count and no zero, indistinguishably from the module being disabled (§31.19). Sources the caller IS authorized for whose work could not be loaded are named in `unavailableSources` (§31.22).
+ * @summary The federated cross-module action queue
+ */
+export const ListActionCentreParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListActionCentreQueryParams = zod.object({
+  "scope": zod.enum(['my_actions', 'assigned', 'oversight']).optional(),
+  "sourceModule": zod.enum(['leave', 'learning', 'onboarding', 'skills', 'performance', 'recruitment', 'employee_requests', 'employee_relations', 'succession', 'employment_lifecycle']).optional(),
+  "actionKind": zod.coerce.string().optional(),
+  "status": zod.coerce.string().optional(),
+  "dueState": zod.enum(['overdue', 'due_soon', 'undated']).optional(),
+  "employeeId": zod.coerce.number().optional()
+})
+
+export const ListActionCentreResponse = zod.object({
+  "items": zod.array(zod.object({
+  "sourceModule": zod.enum(['leave', 'learning', 'onboarding', 'skills', 'performance', 'recruitment', 'employee_requests', 'employee_relations', 'succession', 'employment_lifecycle']).describe('Fixed vocabulary (§31.6). Never free text, and never a table or module path from a client.'),
+  "sourceType": zod.string().describe('The source\'s own resource kind, e.g. `leave_request`.'),
+  "sourceId": zod.number().describe('The source record\'s own existing id. Never a WS-15-minted identifier.'),
+  "actionKind": zod.enum(['approve', 'complete', 'verify', 'review', 'decide', 'fulfil', 'acknowledge']),
+  "title": zod.string().describe('A safe, generic operational label. Never narrative, evidence or a sensitive value (§31.14).'),
+  "employeeId": zod.number().nullish().describe('Present only where the actor may already see that employee through the source.'),
+  "employeeFirstName": zod.string().nullish(),
+  "employeeLastName": zod.string().nullish(),
+  "status": zod.string().describe('The source\'s own status string, passed through and never re-mapped.'),
+  "createdAt": zod.string(),
+  "dueAt": zod.string().nullish().describe('The source\'s own authoritative date. Null where the source has none (§31.16).'),
+  "overdue": zod.boolean().nullish().describe('Null where `dueAt` is null — never false. \"Not overdue\" and \"no concept of overdue\" are different statements (§31.16).'),
+  "deepLink": zod.string().describe('Route into the owning module\'s own surface, which re-gates at the destination.'),
+  "inlineCommands": zod.array(zod.enum(['leave.approve', 'leave.reject', 'learning.approve', 'learning.reject', 'onboarding.complete', 'skill.verify', 'skill.reject']).describe('The closed §31.8 allow-list. Exactly four inline actions, and nothing else.')).describe('Empty for every deep-link-only item (§31.9).')
+}).describe('A pointer plus enough to triage, never a copy (§31.6). Carries no metadata blob, no source payload, no narrative and no priority.')),
+  "unavailableSources": zod.array(zod.enum(['leave', 'learning', 'onboarding', 'skills', 'performance', 'recruitment', 'employee_requests', 'employee_relations', 'succession', 'employment_lifecycle']).describe('Fixed vocabulary (§31.6). Never free text, and never a table or module path from a client.')).describe('Sources the caller IS authorized for whose work could not be loaded (§31.22). Never contains a source the caller may not see, so it cannot disclose that a protected module exists.')
+})
+
+
+/**
+ * Computed from the same providers as the rows (§31.19). There is no separate counting query that could drift from the row query's permissions, and a source the caller cannot read is absent from `byModule` rather than reported as zero — a zero would assert that the module exists and is empty, which is itself a disclosure.
+ * @summary Permission-filtered action counts
+ */
+export const GetActionCentreCountsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetActionCentreCountsQueryParams = zod.object({
+  "scope": zod.enum(['my_actions', 'assigned', 'oversight']).optional(),
+  "sourceModule": zod.enum(['leave', 'learning', 'onboarding', 'skills', 'performance', 'recruitment', 'employee_requests', 'employee_relations', 'succession', 'employment_lifecycle']).optional(),
+  "dueState": zod.enum(['overdue', 'due_soon', 'undated']).optional()
+})
+
+export const GetActionCentreCountsResponse = zod.object({
+  "total": zod.number(),
+  "overdue": zod.number(),
+  "byModule": zod.array(zod.object({
+  "sourceModule": zod.enum(['leave', 'learning', 'onboarding', 'skills', 'performance', 'recruitment', 'employee_requests', 'employee_relations', 'succession', 'employment_lifecycle']).describe('Fixed vocabulary (§31.6). Never free text, and never a table or module path from a client.'),
+  "count": zod.number()
+})).describe('One entry per source that answered. A source the caller cannot read is absent, never zero.'),
+  "unavailableSources": zod.array(zod.enum(['leave', 'learning', 'onboarding', 'skills', 'performance', 'recruitment', 'employee_requests', 'employee_relations', 'succession', 'employment_lifecycle']).describe('Fixed vocabulary (§31.6). Never free text, and never a table or module path from a client.'))
+})
+
+
+/**
+ * The three allow-listed ESS sources (§31.13): onboarding tasks the employee owns themselves, documents awaiting their acknowledgement, and service requests put back to them. The subject is derived server-side from the employee link; no employee identifier is accepted, and none is read if supplied. Carries no grievance, succession, Payroll or case content of any kind.
+ * @summary An employee's own actionable work
+ */
+export const ListMyActionCentreParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListMyActionCentreResponse = zod.object({
+  "linked": zod.boolean().describe('False when no employee record is linked to the account — a legitimate state, not an error.'),
+  "items": zod.array(zod.object({
+  "sourceModule": zod.enum(['leave', 'learning', 'onboarding', 'skills', 'performance', 'recruitment', 'employee_requests', 'employee_relations', 'succession', 'employment_lifecycle']).describe('Fixed vocabulary (§31.6). Never free text, and never a table or module path from a client.'),
+  "sourceType": zod.string().describe('The source\'s own resource kind, e.g. `leave_request`.'),
+  "sourceId": zod.number().describe('The source record\'s own existing id. Never a WS-15-minted identifier.'),
+  "actionKind": zod.enum(['approve', 'complete', 'verify', 'review', 'decide', 'fulfil', 'acknowledge']),
+  "title": zod.string().describe('A safe, generic operational label. Never narrative, evidence or a sensitive value (§31.14).'),
+  "employeeId": zod.number().nullish().describe('Present only where the actor may already see that employee through the source.'),
+  "employeeFirstName": zod.string().nullish(),
+  "employeeLastName": zod.string().nullish(),
+  "status": zod.string().describe('The source\'s own status string, passed through and never re-mapped.'),
+  "createdAt": zod.string(),
+  "dueAt": zod.string().nullish().describe('The source\'s own authoritative date. Null where the source has none (§31.16).'),
+  "overdue": zod.boolean().nullish().describe('Null where `dueAt` is null — never false. \"Not overdue\" and \"no concept of overdue\" are different statements (§31.16).'),
+  "deepLink": zod.string().describe('Route into the owning module\'s own surface, which re-gates at the destination.'),
+  "inlineCommands": zod.array(zod.enum(['leave.approve', 'leave.reject', 'learning.approve', 'learning.reject', 'onboarding.complete', 'skill.verify', 'skill.reject']).describe('The closed §31.8 allow-list. Exactly four inline actions, and nothing else.')).describe('Empty for every deep-link-only item (§31.9).')
+}).describe('A pointer plus enough to triage, never a copy (§31.6). Carries no metadata blob, no source payload, no narrative and no priority.'))
+})
+
+
+/**
+ * The command name is validated against the closed §31.8 vocabulary before anything else happens, so a client can never name a module, a table or a method (§31.33). The handler then re-checks live authority at action time and calls the owning module's existing service — preserving its transaction, its atomic state guard, its audit event, its notifications and its maker-checker (§31.8). No approval logic is reimplemented here, and a repeated request fails at the source's own guard (§31.23).
+ * @summary Invoke one allow-listed inline command
+ */
+export const ExecuteActionCentreCommandParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "command": zod.enum(['leave.approve', 'leave.reject', 'learning.approve', 'learning.reject', 'onboarding.complete', 'skill.verify', 'skill.reject'])
+})
+
+export const ExecuteActionCentreCommandBody = zod.object({
+  "sourceId": zod.number().describe('The source record\'s own id, re-resolved and organization-scoped server-side.'),
+  "reason": zod.string().nullish().describe('Required by the source for a leave rejection and a skill rejection.'),
+  "notes": zod.string().nullish(),
+  "levelId": zod.number().nullish().describe('Skill verification only; WS-14 requires one for a proficiency-applicable skill.'),
+  "assessedAt": zod.string().nullish()
+}).describe('Carries no module, table or method name — the command identifier in the path is the only selector, and it comes from a closed vocabulary.')
+
+export const ExecuteActionCentreCommandResponse = zod.object({
+  "ok": zod.boolean(),
+  "result": zod.unknown().optional().describe('The owning module\'s own fresh record, returned unchanged.')
+})
+
+

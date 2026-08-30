@@ -42,6 +42,8 @@ import {
   FolderOpen,
   GraduationCap,
   Library,
+  LayoutList,
+  CheckSquare,
   Sparkles,
   Target,
   Boxes,
@@ -525,6 +527,10 @@ export function AppShell({ children }: AppShellProps) {
         // from organization administration by default, so the page renders what
         // the caller may actually read and an empty state otherwise — the nav
         // entry is never the access control.
+        // WS-15 — the Action Centre. isHrCapable gates NAVIGATION ONLY: the
+        // page itself shows exactly what each source provider permits, so a
+        // mismatch here has no data consequence (section 31.12).
+        ...(isHrCapable ? [{ href: '/action-centre', label: 'Action Centre', icon: LayoutList } satisfies NavItem] : []),
         ...(isHrCapable ? [{ href: '/capability', label: 'Capability', icon: Target } satisfies NavItem] : []),
         ...(isHrCapable ? [{ href: '/succession', label: 'Succession', icon: Sparkles } satisfies NavItem] : []),
         ...(isHrCapable ? [{ href: '/skills-settings', label: 'Skills & Proficiency', icon: Library } satisfies NavItem] : []),
@@ -570,6 +576,11 @@ export function AppShell({ children }: AppShellProps) {
         // carries capability only — there is no self-service succession entry
         // anywhere, because §30.17 makes succession confidential from the very
         // people it concerns.
+        // WS-15 (section 31.13) — an employee's own actionable work, three
+        // allow-listed sources only. Unconditional for the same reason as the
+        // Self-Service entries above: the page resolves the caller's own
+        // employee record server-side and renders an empty state otherwise.
+        { href: '/my-actions', label: 'My Actions', icon: CheckSquare },
         { href: '/my-skills', label: 'My Skills', icon: GraduationCap },
         // Phase 3G, W111 — unconditional nav visibility (frozen plan §25):
         // manager eligibility is a pure live reportingManagerId

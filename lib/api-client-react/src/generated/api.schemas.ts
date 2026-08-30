@@ -5,6 +5,149 @@
  * Enterprise HRMS API
  * OpenAPI spec version: 0.1.0
  */
+/**
+ * `assigned` exists only for sources with a genuine assignment concept (§31.10); assignment is never fabricated for dynamic-authority sources.
+ */
+export type ActionScope = typeof ActionScope[keyof typeof ActionScope];
+
+
+export const ActionScope = {
+  my_actions: 'my_actions',
+  assigned: 'assigned',
+  oversight: 'oversight',
+} as const;
+
+/**
+ * Fixed vocabulary (§31.6). Never free text, and never a table or module path from a client.
+ */
+export type ActionSourceModule = typeof ActionSourceModule[keyof typeof ActionSourceModule];
+
+
+export const ActionSourceModule = {
+  leave: 'leave',
+  learning: 'learning',
+  onboarding: 'onboarding',
+  skills: 'skills',
+  performance: 'performance',
+  recruitment: 'recruitment',
+  employee_requests: 'employee_requests',
+  employee_relations: 'employee_relations',
+  succession: 'succession',
+  employment_lifecycle: 'employment_lifecycle',
+} as const;
+
+export type ActionKind = typeof ActionKind[keyof typeof ActionKind];
+
+
+export const ActionKind = {
+  approve: 'approve',
+  complete: 'complete',
+  verify: 'verify',
+  review: 'review',
+  decide: 'decide',
+  fulfil: 'fulfil',
+  acknowledge: 'acknowledge',
+} as const;
+
+export type ActionDueState = typeof ActionDueState[keyof typeof ActionDueState];
+
+
+export const ActionDueState = {
+  overdue: 'overdue',
+  due_soon: 'due_soon',
+  undated: 'undated',
+} as const;
+
+/**
+ * The closed §31.8 allow-list. Exactly four inline actions, and nothing else.
+ */
+export type InlineActionCommand = typeof InlineActionCommand[keyof typeof InlineActionCommand];
+
+
+export const InlineActionCommand = {
+  leaveapprove: 'leave.approve',
+  leavereject: 'leave.reject',
+  learningapprove: 'learning.approve',
+  learningreject: 'learning.reject',
+  onboardingcomplete: 'onboarding.complete',
+  skillverify: 'skill.verify',
+  skillreject: 'skill.reject',
+} as const;
+
+/**
+ * A pointer plus enough to triage, never a copy (§31.6). Carries no metadata blob, no source payload, no narrative and no priority.
+ */
+export interface ActionItem {
+  sourceModule: ActionSourceModule;
+  /** The source's own resource kind, e.g. `leave_request`. */
+  sourceType: string;
+  /** The source record's own existing id. Never a WS-15-minted identifier. */
+  sourceId: number;
+  actionKind: ActionKind;
+  /** A safe, generic operational label. Never narrative, evidence or a sensitive value (§31.14). */
+  title: string;
+  /** Present only where the actor may already see that employee through the source. */
+  employeeId?: number | null;
+  employeeFirstName?: string | null;
+  employeeLastName?: string | null;
+  /** The source's own status string, passed through and never re-mapped. */
+  status: string;
+  createdAt: string;
+  /** The source's own authoritative date. Null where the source has none (§31.16). */
+  dueAt?: string | null;
+  /** Null where `dueAt` is null — never false. "Not overdue" and "no concept of overdue" are different statements (§31.16). */
+  overdue?: boolean | null;
+  /** Route into the owning module's own surface, which re-gates at the destination. */
+  deepLink: string;
+  /** Empty for every deep-link-only item (§31.9). */
+  inlineCommands: InlineActionCommand[];
+}
+
+export interface ActionCentreResult {
+  items: ActionItem[];
+  /** Sources the caller IS authorized for whose work could not be loaded (§31.22). Never contains a source the caller may not see, so it cannot disclose that a protected module exists. */
+  unavailableSources: ActionSourceModule[];
+}
+
+export type ActionCentreCountsByModuleItem = {
+  sourceModule: ActionSourceModule;
+  count: number;
+};
+
+export interface ActionCentreCounts {
+  total: number;
+  overdue: number;
+  /** One entry per source that answered. A source the caller cannot read is absent, never zero. */
+  byModule: ActionCentreCountsByModuleItem[];
+  unavailableSources: ActionSourceModule[];
+}
+
+export interface EssActionCentreResult {
+  /** False when no employee record is linked to the account — a legitimate state, not an error. */
+  linked: boolean;
+  items: ActionItem[];
+}
+
+/**
+ * Carries no module, table or method name — the command identifier in the path is the only selector, and it comes from a closed vocabulary.
+ */
+export interface ExecuteActionCentreCommandInput {
+  /** The source record's own id, re-resolved and organization-scoped server-side. */
+  sourceId: number;
+  /** Required by the source for a leave rejection and a skill rejection. */
+  reason?: string | null;
+  notes?: string | null;
+  /** Skill verification only; WS-14 requires one for a proficiency-applicable skill. */
+  levelId?: number | null;
+  assessedAt?: string | null;
+}
+
+export interface ActionCommandResult {
+  ok: boolean;
+  /** The owning module's own fresh record, returned unchanged. */
+  result?: unknown;
+}
+
 export type SkillCategory = typeof SkillCategory[keyof typeof SkillCategory];
 
 
@@ -13305,5 +13448,20 @@ includeRemoved?: boolean;
 
 export type ListDevelopmentActionsParams = {
 employeeId?: number;
+};
+
+export type ListActionCentreParams = {
+scope?: ActionScope;
+sourceModule?: ActionSourceModule;
+actionKind?: string;
+status?: string;
+dueState?: ActionDueState;
+employeeId?: number;
+};
+
+export type GetActionCentreCountsParams = {
+scope?: ActionScope;
+sourceModule?: ActionSourceModule;
+dueState?: ActionDueState;
 };
 
