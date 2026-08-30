@@ -243,6 +243,7 @@ import type {
   DocumentTemplatePreview,
   DocumentTemplateVersion,
   Employee,
+  Employee360Result,
   EmployeeBankingDetail,
   EmployeeCertification,
   EmployeeCompensationComponent,
@@ -57827,4 +57828,87 @@ export const useExecuteActionCentreCommand = <TError = ErrorType<ApiError>,
       > => {
       return useMutation(getExecuteActionCentreCommandMutationOptions(options));
     }
+
+export const getGetEmployee360SectionsUrl = (organizationId: number,
+    employeeId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/employees/${employeeId}/360-sections`
+}
+
+/**
+ * WS-15 P2/P3 (§31.29) — read composition, not a data model. Each section is a small summary from the module that owns it, plus a deep link; detail stays in the owning module and re-gates there. A section the caller may not read is OMITTED, indistinguishably from a disabled module or an employee with nothing recorded — never returned empty, because an empty section asserts the module exists and holds nothing about this person. Succession never appears here at all (§30.17), and Payroll has no section. Sections the caller IS authorized for whose data could not be loaded are named in `unavailableSections`.
+ * @summary Bounded cross-module summary sections for one employee
+ */
+export const getEmployee360Sections = async (organizationId: number,
+    employeeId: number, options?: RequestInit): Promise<Employee360Result> => {
+
+  return customFetch<Employee360Result>(getGetEmployee360SectionsUrl(organizationId,employeeId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetEmployee360SectionsQueryKey = (organizationId: number,
+    employeeId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/employees/${employeeId}/360-sections`
+    ] as const;
+    }
+
+
+export const getGetEmployee360SectionsQueryOptions = <TData = Awaited<ReturnType<typeof getEmployee360Sections>>, TError = ErrorType<ApiError>>(organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmployee360Sections>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetEmployee360SectionsQueryKey(organizationId,employeeId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEmployee360Sections>>> = ({ signal }) => getEmployee360Sections(organizationId,employeeId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && employeeId !== null && employeeId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getEmployee360Sections>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetEmployee360SectionsQueryResult = NonNullable<Awaited<ReturnType<typeof getEmployee360Sections>>>
+export type GetEmployee360SectionsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Bounded cross-module summary sections for one employee
+ */
+
+export function useGetEmployee360Sections<TData = Awaited<ReturnType<typeof getEmployee360Sections>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    employeeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmployee360Sections>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetEmployee360SectionsQueryOptions(organizationId,employeeId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 

@@ -6,6 +6,69 @@
  * OpenAPI spec version: 0.1.0
  */
 /**
+ * The modules §31.29 names as absent from the employee page. Succession and Payroll are deliberately not among them.
+ */
+export type Employee360SectionKey = typeof Employee360SectionKey[keyof typeof Employee360SectionKey];
+
+
+export const Employee360SectionKey = {
+  employment_lifecycle: 'employment_lifecycle',
+  employee_relations: 'employee_relations',
+  employee_requests: 'employee_requests',
+  skills: 'skills',
+  leave: 'leave',
+  learning: 'learning',
+  attendance: 'attendance',
+  onboarding: 'onboarding',
+} as const;
+
+/**
+ * `legacy` marks genuine history from a superseded model, shown beside the current model rather than migrated into it or hidden (§31.29, §31.37).
+ */
+export type Employee360Provenance = typeof Employee360Provenance[keyof typeof Employee360Provenance];
+
+
+export const Employee360Provenance = {
+  current: 'current',
+  legacy: 'legacy',
+} as const;
+
+export interface Employee360Stat {
+  label: string;
+  value: string;
+}
+
+/**
+ * A label, a status and a date. No narrative, no evidence, no proposed value, and no free-text body of any kind.
+ */
+export interface Employee360Row {
+  id: number;
+  label: string;
+  status?: string | null;
+  occurredAt?: string | null;
+  provenance: Employee360Provenance;
+}
+
+export interface Employee360Section {
+  key: Employee360SectionKey;
+  title: string;
+  provenance: Employee360Provenance;
+  stats: Employee360Stat[];
+  rows: Employee360Row[];
+  /** The module holds more than this summary shows. */
+  truncated: boolean;
+  deepLink: string;
+  /** Shown beside a legacy section so a reader is never left to guess why a superseded model is present. */
+  note?: string;
+}
+
+export interface Employee360Result {
+  sections: Employee360Section[];
+  /** Sections the caller IS authorized for whose data could not be loaded. Never contains a section the caller may not see. */
+  unavailableSections: Employee360SectionKey[];
+}
+
+/**
  * `assigned` exists only for sources with a genuine assignment concept (§31.10); assignment is never fabricated for dynamic-authority sources.
  */
 export type ActionScope = typeof ActionScope[keyof typeof ActionScope];

@@ -29290,8 +29290,146 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/employees/{employeeId}/360-sections:
+    get:
+      operationId: getEmployee360Sections
+      tags: [employees]
+      summary: Bounded cross-module summary sections for one employee
+      description: >-
+        WS-15 P2/P3 (§31.29) — read composition, not a data model. Each section
+        is a small summary from the module that owns it, plus a deep link;
+        detail stays in the owning module and re-gates there. A section the
+        caller may not read is OMITTED, indistinguishably from a disabled module
+        or an employee with nothing recorded — never returned empty, because an
+        empty section asserts the module exists and holds nothing about this
+        person. Succession never appears here at all (§30.17), and Payroll has
+        no section. Sections the caller IS authorized for whose data could not
+        be loaded are named in `unavailableSections`.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The authorized sections
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee360Result"
+        "404":
+          description: Employee not found in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
+
+    # --- WS-15 P2/P3 — Employee 360 (§31.29) ---------------------------------
+
+    Employee360SectionKey:
+      type: string
+      description: >-
+        The modules §31.29 names as absent from the employee page. Succession
+        and Payroll are deliberately not among them.
+      enum:
+        [
+          employment_lifecycle,
+          employee_relations,
+          employee_requests,
+          skills,
+          leave,
+          learning,
+          attendance,
+          onboarding,
+        ]
+
+    Employee360Provenance:
+      type: string
+      description: >-
+        `legacy` marks genuine history from a superseded model, shown beside the
+        current model rather than migrated into it or hidden (§31.29, §31.37).
+      enum: [current, legacy]
+
+    Employee360Stat:
+      type: object
+      required: [label, value]
+      properties:
+        label:
+          type: string
+        value:
+          type: string
+
+    Employee360Row:
+      type: object
+      description: >-
+        A label, a status and a date. No narrative, no evidence, no proposed
+        value, and no free-text body of any kind.
+      required: [id, label, provenance]
+      properties:
+        id:
+          type: integer
+        label:
+          type: string
+        status:
+          type: string
+          nullable: true
+        occurredAt:
+          type: string
+          nullable: true
+        provenance:
+          $ref: "#/components/schemas/Employee360Provenance"
+
+    Employee360Section:
+      type: object
+      required: [key, title, provenance, stats, rows, truncated, deepLink]
+      properties:
+        key:
+          $ref: "#/components/schemas/Employee360SectionKey"
+        title:
+          type: string
+        provenance:
+          $ref: "#/components/schemas/Employee360Provenance"
+        stats:
+          type: array
+          items:
+            $ref: "#/components/schemas/Employee360Stat"
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/Employee360Row"
+        truncated:
+          type: boolean
+          description: The module holds more than this summary shows.
+        deepLink:
+          type: string
+        note:
+          type: string
+          description: Shown beside a legacy section so a reader is never left to guess why a superseded model is present.
+
+    Employee360Result:
+      type: object
+      required: [sections, unavailableSections]
+      properties:
+        sections:
+          type: array
+          items:
+            $ref: "#/components/schemas/Employee360Section"
+        unavailableSections:
+          type: array
+          description: >-
+            Sections the caller IS authorized for whose data could not be
+            loaded. Never contains a section the caller may not see.
+          items:
+            $ref: "#/components/schemas/Employee360SectionKey"
 
     # --- WS-15 — HR Action Centre (§31) ---------------------------------------
 

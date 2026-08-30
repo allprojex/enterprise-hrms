@@ -106,6 +106,11 @@ vi.mock('@workspace/api-client-react', () => ({
   useRemoveEmployeeDocument: () => ({ mutate: vi.fn(), isPending: false }),
 
   useListEmployeeSkills: () => ({ data: [] }),
+  // WS-15 P2/P3 (§31.29) — the Employee 360 sections component mounted on this
+  // page. Mocked at the same module boundary as every other hook here; its own
+  // behaviour is covered by employee-360-sections.test.tsx and the live suite.
+  useGetEmployee360Sections: () => ({ data: { sections: [], unavailableSections: [] }, isLoading: false, error: null, refetch: vi.fn() }),
+  getGetEmployee360SectionsQueryKey: (o: number, e: number) => ["emp360", o, e],
   getListEmployeeSkillsQueryKey: (orgId: number, empId: number) => ['employeeSkills', orgId, empId],
   useAddEmployeeSkill: () => ({ mutate: vi.fn(), isPending: false }),
   useRemoveEmployeeSkill: () => ({ mutate: vi.fn(), isPending: false }),

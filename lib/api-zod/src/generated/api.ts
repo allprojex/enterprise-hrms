@@ -24641,3 +24641,36 @@ export const ExecuteActionCentreCommandResponse = zod.object({
 })
 
 
+/**
+ * WS-15 P2/P3 (§31.29) — read composition, not a data model. Each section is a small summary from the module that owns it, plus a deep link; detail stays in the owning module and re-gates there. A section the caller may not read is OMITTED, indistinguishably from a disabled module or an employee with nothing recorded — never returned empty, because an empty section asserts the module exists and holds nothing about this person. Succession never appears here at all (§30.17), and Payroll has no section. Sections the caller IS authorized for whose data could not be loaded are named in `unavailableSections`.
+ * @summary Bounded cross-module summary sections for one employee
+ */
+export const GetEmployee360SectionsParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "employeeId": zod.coerce.number()
+})
+
+export const GetEmployee360SectionsResponse = zod.object({
+  "sections": zod.array(zod.object({
+  "key": zod.enum(['employment_lifecycle', 'employee_relations', 'employee_requests', 'skills', 'leave', 'learning', 'attendance', 'onboarding']).describe('The modules §31.29 names as absent from the employee page. Succession and Payroll are deliberately not among them.'),
+  "title": zod.string(),
+  "provenance": zod.enum(['current', 'legacy']).describe('`legacy` marks genuine history from a superseded model, shown beside the current model rather than migrated into it or hidden (§31.29, §31.37).'),
+  "stats": zod.array(zod.object({
+  "label": zod.string(),
+  "value": zod.string()
+})),
+  "rows": zod.array(zod.object({
+  "id": zod.number(),
+  "label": zod.string(),
+  "status": zod.string().nullish(),
+  "occurredAt": zod.string().nullish(),
+  "provenance": zod.enum(['current', 'legacy']).describe('`legacy` marks genuine history from a superseded model, shown beside the current model rather than migrated into it or hidden (§31.29, §31.37).')
+}).describe('A label, a status and a date. No narrative, no evidence, no proposed value, and no free-text body of any kind.')),
+  "truncated": zod.boolean().describe('The module holds more than this summary shows.'),
+  "deepLink": zod.string(),
+  "note": zod.string().optional().describe('Shown beside a legacy section so a reader is never left to guess why a superseded model is present.')
+})),
+  "unavailableSections": zod.array(zod.enum(['employment_lifecycle', 'employee_relations', 'employee_requests', 'skills', 'leave', 'learning', 'attendance', 'onboarding']).describe('The modules §31.29 names as absent from the employee page. Succession and Payroll are deliberately not among them.')).describe('Sections the caller IS authorized for whose data could not be loaded. Never contains a section the caller may not see.')
+})
+
+

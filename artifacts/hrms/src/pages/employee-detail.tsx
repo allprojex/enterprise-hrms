@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'wouter';
 import { ArrowLeft, Loader2, Mail, Phone, Building, Network, Briefcase, Camera, UserPlus, UserCheck, UserX, RotateCcw, FileText, Upload, Trash2, Award, GraduationCap, Sparkles, Plus, ArrowLeftRight, TrendingUp, BadgeCheck, ShieldAlert, LogOut, IdCard, History, MapPin, AlertTriangle, PackageSearch } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Employee360Sections } from '@/components/employee-360-sections';
 import { CustomFieldValuesPanel } from '@/components/custom-fields/custom-field-values-panel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1642,8 +1643,20 @@ export default function EmployeeDetail() {
             <CardTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5" aria-hidden="true" />
               Skills
+              {/* WS-15 P2/P3 (§31.29): this card reads the LEGACY free-text
+                  `employee_skills` model — a skill code and a proficiency string
+                  with no scale, no verification, no assessor and no history. It is
+                  retained because it is genuine history, and labelled so it is never
+                  mistaken for verified capability. WS-14's typed model appears in the
+                  Employee 360 sections below. Nothing is migrated (§31.37). */}
+              <Badge className="bg-muted text-muted-foreground" data-testid="badge-legacy-skills">
+                Legacy
+              </Badge>
             </CardTitle>
-            <CardDescription>Skills this employee has, from the "skill" Master Data domain</CardDescription>
+            <CardDescription>
+              Free-text skill entries from the &quot;skill&quot; Master Data domain. These carry no proficiency scale
+              and no verification — current, verified capability is shown in the Employee 360 sections below.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {isHrCapable && (
@@ -2309,8 +2322,18 @@ export default function EmployeeDetail() {
               <CardTitle className="flex items-center gap-2">
                 <ShieldAlert className="h-5 w-5" aria-hidden="true" />
                 Disciplinary Records
+                {/* WS-15 P2/P3 (§31.29): the LEGACY flat-note model, retained as
+                    history. WS-12's structured cases — stages, an append-only
+                    chronology and a confidentiality tier — are the current model and
+                    appear in the Employee 360 sections below. Nothing is migrated. */}
+                <Badge className="bg-muted text-muted-foreground" data-testid="badge-legacy-disciplinary">
+                  Legacy
+                </Badge>
               </CardTitle>
-              <CardDescription>Warnings and disciplinary actions — append-only, prior records are never replaced</CardDescription>
+              <CardDescription>
+                Append-only warnings and actions from the earlier flat model. Structured disciplinary cases are
+                shown in the Employee 360 sections below.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {isHrCapable && (
@@ -2476,6 +2499,13 @@ export default function EmployeeDetail() {
             )}
           </CardContent>
         </Card>
+
+        {/* WS-15 P2/P3 (§31.29) — cross-module sections. Each is
+            permission-filtered by its own module's provider, so a section the
+            caller may not read never arrives and nothing here gates on a role. */}
+        <div className="lg:col-span-3">
+          <Employee360Sections organizationId={organizationId} employeeId={employeeId} />
+        </div>
 
         {/* WS-8 — renders only when this organization has configured employee custom fields. */}
         <div className="lg:col-span-3">

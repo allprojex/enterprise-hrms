@@ -292,7 +292,7 @@ Unchanged from the discovery pass — neither gate is met today, both remain ded
 | Tasks/Notifications/Reminders | N | | | | **P1 — APPROVED, HIGH PRIORITY (OD #13)** |
 | Workflow/Approval primitive | Partial | | | | **P2 — APPROVED (OD #14)**, authority-resolver only |
 | Delegation/Acting Authority | Y (1 module) | | | | **P2 — APPROVED (OD #15)**, generalize |
-| Global Search / Employee 360 | Partial | | Y | | P2/P3 — **WS-15 bundle, architecture frozen in §31.29**; Global Search remains P3 |
+| Global Search / Employee 360 | Y (360) / N (search) | | | | P2/P3 — **Employee 360 IMPLEMENTED** against §31.29 (eight module-aware sections, no giant DTO, no migration); **Global Search remains P3 and is not authorized** by §31.29, see `docs/EMPLOYEE_360.md` |
 | HR Action Centre | Y | | | | P1 — **WS-15 P1 IMPLEMENTED** against §31.4–31.27 (runtime federation, no new table, no new permission); see `docs/ACTION_CENTRE.md` |
 | ESS | Y | Y | | | — |
 | Manager/Department Head | Y | | | | P2 — **WS-15 P2 IMPLEMENTED** against §31.28; the registered gap (panel membership, outstanding own scorecard, hiring-manager standing) is closed, see `docs/ACTION_CENTRE.md` |
@@ -2240,7 +2240,7 @@ WS-15 is **four bundles**, not one. The workstream is named *Cross-Module Visibi
 |---|---|---|---|
 | HR Action Centre (org-wide) | `HR Action Centre — N` | **P1** | §31.4–31.26 — **IMPLEMENTED**, see `docs/ACTION_CENTRE.md` |
 | Manager / Department Head completion (Recruitment participation source) | `Manager/Department Head — Y, partial` | **P2** | §31.28 — **IMPLEMENTED**, see `docs/ACTION_CENTRE.md` |
-| Employee 360 / Global Search completion | `Global Search / Employee 360 — Partial` | **P2/P3** | §31.29 |
+| Employee 360 / Global Search completion | `Global Search / Employee 360 — Partial` | **P2/P3** | §31.29 — **Employee 360 IMPLEMENTED**; Global Search remains P3 and unauthorized per §31.29's own text, see `docs/EMPLOYEE_360.md` |
 | Reporting execution consolidation | `Reporting/Analytics — Y, CSV gap` | **P3** | §31.30 |
 
 The Reporting row's **P1 half — the CSV formula-injection fix — already shipped in WS-1** (`safeCsvCell`/`toCsv` in `lib/reporting.ts`, now the one shared primitive). What remains of that bundle is the P3 half.
