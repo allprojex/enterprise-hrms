@@ -292,7 +292,7 @@ Unchanged from the discovery pass — neither gate is met today, both remain ded
 | Tasks/Notifications/Reminders | N | | | | **P1 — APPROVED, HIGH PRIORITY (OD #13)** |
 | Workflow/Approval primitive | Partial | | | | **P2 — APPROVED (OD #14)**, authority-resolver only |
 | Delegation/Acting Authority | Y (1 module) | | | | **P2 — APPROVED (OD #15)**, generalize |
-| Global Search / Employee 360 | Y (360) / N (search) | | | | P2/P3 — **Employee 360 IMPLEMENTED** against §31.29 (eight module-aware sections, no giant DTO, no migration); **Global Search remains P3 and is not authorized** by §31.29, see `docs/EMPLOYEE_360.md` |
+| Global Search / Employee 360 | Y (360) / N (search) | | | | P2/P3 — **Employee 360 COMPLETE** against §31.29 (eight module-aware sections, no giant DTO, no migration), see `docs/EMPLOYEE_360.md`; **Global Search approved as a future safe navigation/discovery capability, NOT implemented** (§31.40) |
 | HR Action Centre | Y | | | | P1 — **WS-15 P1 IMPLEMENTED** against §31.4–31.27 (runtime federation, no new table, no new permission); see `docs/ACTION_CENTRE.md` |
 | ESS | Y | Y | | | — |
 | Manager/Department Head | Y | | | | P2 — **WS-15 P2 IMPLEMENTED** against §31.28; the registered gap (panel membership, outstanding own scorecard, hiring-manager standing) is closed, see `docs/ACTION_CENTRE.md` |
@@ -362,7 +362,7 @@ The prior 43-item micro-list is retired. Below is the smallest coherent implemen
 | WS-12 | Employee Relations & Offboarding Clearance | **P1** | Structured disciplinary stages, separate Grievance schema, structured offboarding clearance with Assets/Inventory/PIF linkage | WS-5 (light) | OD #9, #12 |
 | WS-13 | Employee Data Change Approval & HR Service Requests | **P1/P2** | Shared request/approval shape, configurable sensitive-field list, hybrid generic-foundation + specialized-workflow HR requests | WS-6 (light) | OD #10, #11 |
 | WS-14 | Skills, Competency Framework & Succession | **P2** | Formal proficiency framework, competency linkage, new internal-succession schema (critical roles, successors, readiness) | WS-9 (soft, for recruitment linkage) | OD #5, #7 |
-| WS-15 | Cross-Module Visibility | **P1/P2** | Employee 360 completion, HR Action Centre (org-wide), Manager Portal recruitment-participation source, Reporting execution consolidation | WS-6 | — (**architecture frozen in §31**; per-bundle priority in §31.2 — Action Centre P1, Manager/Dept Head P2, Employee 360 P2/P3, Reporting consolidation P3) |
+| WS-15 | Cross-Module Visibility | **P1/P2** | Employee 360 completion, HR Action Centre (org-wide), Manager Portal recruitment-participation source, Reporting execution consolidation | WS-6 | — (**architecture frozen in §31**) — **COMPLETE.** All four bundles implemented (§31.40.7); Global Search is a future approved safe navigation/discovery enhancement, **not implemented** and not a closure blocker (§31.40) |
 | WS-16 | Workflow/Delegation Primitive Generalization | **P2** | Generalize Office Inventory's delegation table, extract authority-resolver | WS-3 (light) | OD #14, #15 |
 | WS-17 | Deployment & Backup Operations | **P2** | VPS automation, release-pipeline Levels 3–6, backup/restore build-out, Fleet Health design | WS-1, WS-4 | — |
 | WS-18 | Security Verification Workstream & Production Security Gate | **P0** (gate, sequenced late) | Live tenant-isolation/IDOR testing, DAST, penetration testing, full business-logic-security sampling, closing the flagged Supabase-production RLS item | WS-1, WS-2, WS-3, WS-4 | — |
@@ -2240,7 +2240,7 @@ WS-15 is **four bundles**, not one. The workstream is named *Cross-Module Visibi
 |---|---|---|---|
 | HR Action Centre (org-wide) | `HR Action Centre — N` | **P1** | §31.4–31.26 — **IMPLEMENTED**, see `docs/ACTION_CENTRE.md` |
 | Manager / Department Head completion (Recruitment participation source) | `Manager/Department Head — Y, partial` | **P2** | §31.28 — **IMPLEMENTED**, see `docs/ACTION_CENTRE.md` |
-| Employee 360 / Global Search completion | `Global Search / Employee 360 — Partial` | **P2/P3** | §31.29 — **Employee 360 IMPLEMENTED**; Global Search remains P3 and unauthorized per §31.29's own text, see `docs/EMPLOYEE_360.md` |
+| Employee 360 / Global Search completion | `Global Search / Employee 360 — Partial` | **P2/P3** | §31.29 — **Employee 360 COMPLETE** (`docs/EMPLOYEE_360.md`); **Global Search: future approved safe navigation/discovery enhancement, NOT implemented** (§31.40) |
 | Reporting execution consolidation | `Reporting/Analytics — Y, CSV gap` | **P3** | §31.30 — **IMPLEMENTED**, see `docs/REPORTING.md` |
 
 The Reporting row's **P1 half — the CSV formula-injection fix — already shipped in WS-1** (`safeCsvCell`/`toCsv` in `lib/reporting.ts`, now the one shared primitive). What remains of that bundle is the P3 half.
@@ -2605,7 +2605,7 @@ Frozen **separately from the Action Centre**. This is a cross-module employee **
 - **No giant employee DTO.** There is no single endpoint returning everything about a person. A section the caller may not read is **omitted**, per §31.3(2)'s convention — never returned empty, never returned redacted-but-present.
 - **Confidential sections obey their own freezes**: grievance content per §28, succession per §30.17 (an employee's standing in a succession plan **never** appears on their 360 view), Payroll per its own keys, OD #23 masking throughout.
 - **Legacy-versus-successor display is a Pass-2 reconciliation item**, not silently resolved here: showing both, replacing one, or labelling the legacy section is a presentation decision that must be made against the code at the time. It must not become a data migration (§31.37).
-- **Global Search is P3 and is not required by Employee 360.** `app-shell.tsx`'s existing comment — declining to render a search control because nothing backs it — remains correct until a real capability exists. **No cross-module sensitive full-text search** is authorized (§31.37).
+- **Global Search is P3 and is not required by Employee 360.** `app-shell.tsx`'s existing comment — declining to render a search control because nothing backs it — remains correct until a real capability exists. **No cross-module sensitive full-text search** is authorized (§31.37). **Resolved in §31.40**: Global Search is approved as a future *safe navigation and discovery* capability, still **not implemented**, and this prohibition is preserved rather than relaxed.
 
 **Classified P2/P3. Not required for P1 Action Centre closure.**
 
@@ -2741,3 +2741,145 @@ None blocking. Decisions 1 through 33 are resolved above. The following are cond
 3. Whether HR Oversight needs its own endpoint or is a `scope` parameter on the one queue endpoint (§31.33) — prefer the parameter, so oversight cannot acquire a separate query path that drifts from the permission-filtered one.
 4. How §31.29's legacy-versus-successor Employee 360 sections are presented — show both, replace, or label — decided against the code at the time, and **never** by migrating or deleting legacy data.
 5. Whether the §31.22 provider-failure signal is per-source or aggregate in the response DTO — decide from what the frontend genuinely needs to render row 14 of §31.34 honestly, preferring the smallest signal that can name the affected source.
+
+### 31.40 Global Search — Owner Decision, and WS-15 formal closure
+
+Recorded 2026-08-31, after WS-15's four implementation bundles landed. This
+subsection resolves the one remaining ambiguity in §31.29 and formally closes
+the workstream. It is **documentation only**: no code, schema, permission or
+migration accompanied it, and the ledger remains `0070`.
+
+#### 31.40.1 The decision
+
+**Global Search is APPROVED as a future SAFE NAVIGATION AND DISCOVERY
+capability. It is NOT authorized as unrestricted cross-module full-text search,
+and it is NOT implemented.**
+
+Its purpose is to help an already-authorized user *locate a permitted entity and
+navigate to the module that owns it*. It is a way of getting somewhere, not a
+way of seeing something new.
+
+Every future implementation must preserve, without exception:
+
+- tenant isolation;
+- source module permissions;
+- source confidentiality;
+- module enablement;
+- result-level visibility rules;
+- sensitive-data minimization.
+
+> **A result must never become visible merely because the search layer indexed
+> it.** Indexing is not authorization, and the search layer holds no authority
+> of its own.
+
+#### 31.40.2 Safe sources — a catalogue to be frozen, not a licence
+
+A future implementation may draw on bounded, explicitly approved entity types of
+this shape: employee directory identity, employee number, employee name,
+department, branch, position, other non-confidential organization directory
+entities, and explicitly approved safe business identifiers.
+
+**This list is not implementation scope.** Each source must independently
+authorize the actor, and a future pass must freeze its exact source catalogue
+before writing anything — the same discipline §31.5 applied to action providers
+and §31.29 to Employee 360 sections.
+
+#### 31.40.3 What Global Search must never search
+
+Unrestricted full-text search is prohibited over: grievance narratives ·
+disciplinary evidence · confidential Employee Relations notes · succession
+candidate information, readiness or notes · Payroll compensation · bank details ·
+statutory identifiers · protected WS-13 values · National ID and passport
+values · confidential document body text · private Performance comments ·
+restricted interview notes · any other sensitive or confidential free text.
+
+> **Do not index hidden content and attempt to hide it later.** Unauthorized
+> content must never enter the searchable result universe in the first place.
+> Filtering after indexing is the pattern that leaks, because every downstream
+> surface — ranking, faceting, highlighting — then works from data the actor was
+> never entitled to.
+
+This preserves §31.29's and §31.37's existing prohibition rather than relaxing
+it. The decision above **narrows** what may eventually be built; it does not
+widen it.
+
+#### 31.40.4 No confidential existence leak
+
+Search must not reveal that a hidden source record exists. That includes leaks
+through result counts, autocomplete, snippets, facets, suggestions, "no access"
+rows, highlighted terms, ranking and typeahead.
+
+**If the actor lacks source visibility, the result does not exist from the
+search layer's perspective.** This is the same rule the Action Centre applies to
+omitted sources (§31.19) and Employee 360 applies to omitted sections
+(§31.29) — a zero, a placeholder or a redacted row is itself a disclosure.
+
+#### 31.40.5 Search is navigation, never authority
+
+A search result confers nothing. Opening one must re-check authentication,
+tenant, module permission, current source authority, and source existence and
+state — exactly as §31.7 requires of an Action Centre row and §31.20 of a
+notification deep link. **A stale search result cannot grant access.**
+
+#### 31.40.6 No AI search authority
+
+AI must not decide whether confidential results are visible, and must not bypass
+source permissions. **Semantic or vector search over sensitive tenant HR content
+is not authorized by this decision.** Any future AI-assisted search requires its
+own explicit governance review, consistent with §31.26 and OD #24–#26.
+
+#### 31.40.7 Why this closes WS-15
+
+WS-15's register row bundles four items. All four that were concretely specified
+are implemented and verified:
+
+| WS-15 bundle | Final status |
+|---|---|
+| HR Action Centre (P1) | **COMPLETE** — §31.4–31.27, `docs/ACTION_CENTRE.md` |
+| Manager / Department Head Recruitment participation (P2) | **COMPLETE** — §31.28 |
+| Employee 360 (P2/P3) | **COMPLETE** — §31.29, `docs/EMPLOYEE_360.md` |
+| Reporting execution consolidation (P3) | **COMPLETE** — §31.30, `docs/REPORTING.md` |
+| Global Search | **FUTURE APPROVED SAFE NAVIGATION / DISCOVERY ENHANCEMENT — NOT IMPLEMENTED** |
+| **Overall WS-15** | **COMPLETE** |
+
+Global Search is no longer a closure blocker, for a reason that is about
+definition rather than effort: §31 already prohibited unsafe cross-module
+full-text search, so the register's "Global Search" was never a specified
+deliverable awaiting code — it was a capability still needing its own boundary.
+That boundary is now drawn, above, and what remains is a separately schedulable
+enhancement rather than unfinished WS-15 implementation.
+
+> **WS-15 completion does not mean Global Search has shipped.** Nothing was
+> built for it in any WS-15 pass. `app-shell.tsx` still declines to render a
+> search control, and that remains correct.
+
+#### 31.40.8 Two corrections carried forward
+
+Both were found by verification rather than review, and are recorded here so
+neither is quietly lost.
+
+**The Reporting figures.** §31.30 and §31.3(8) originally recorded *47
+definitions, 44 missing*. The verified figures are **46 definitions, 3
+pre-consolidation runners, 43 missing at the start of Pass 3C, 46 generic
+runners after it, and zero seeded definitions falling through to 404** —
+confirmed against `report-definitions.ts` and by the seeder's own output. The
+file was unchanged since `f8fa5b8`, so nothing moved; the Pass-1 number was a
+miscount. **The incorrect 47/44 figures must not be restored.**
+
+**The WS-6 concurrent-suite constraint.** `documentExpiryReminderSample.test.ts`
+fails only when the whole backend suite runs concurrently against a single
+database, with the assertion `expected 91 to be 92` — it claimed another
+suite's job. That is the platform-wide, deliberately unscoped `claimDueJobs`
+behaving as designed, and the file's own header instructs that it be run alone.
+It is a **documented suite-isolation constraint of an unsupported test execution
+topology**, not a WS-15 regression and not nondeterminism. Production behaviour
+must not be changed to accommodate that topology.
+
+#### 31.40.9 What this closure does not touch
+
+**WS-16 remains NOT STARTED and continues to own OD #14 and OD #15.** No
+workflow generalization, delegation generalization or authority-primitive
+extraction is authorized or implied here. WS-11.1 remains deferred, WS-12's
+future-separation-basis dependency remains unresolved, and the legacy
+`employee_skills` consolidation remains a separate Owner Decision. None is
+absorbed into this closure.
