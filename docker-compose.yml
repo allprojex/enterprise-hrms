@@ -50,6 +50,16 @@ services:
       # for what each does. Override via `docker compose run -e KEY=value`
       # or a local, gitignored `.env` referenced with `env_file:` if needed;
       # never hard-code a real value into this checked-in file.
+      #
+      # UPLOADS_DIR is NOT set here: the image already defaults it to
+      # /var/lib/hrms/uploads (see the Dockerfile), and the volume below
+      # mounts durable storage at exactly that path. Setting it in two
+      # places invites them to drift apart.
+    volumes:
+      # Authoritative uploaded binaries. Without this the app writes into the
+      # container's writable layer and every `docker compose up --force-recreate`
+      # silently discards uploaded documents (WS-17 Pass 0).
+      - hrms-ws1-local-uploads:/var/lib/hrms/uploads
     ports:
       - "3001:3001"
     healthcheck:
@@ -76,7 +86,18 @@ services:
     environment:
       NODE_ENV: production
       DATABASE_URL: postgres://hrms:hrms@db:5432/hrms
+    volumes:
+      # THE SAME upload volume as `app`, because the worker genuinely reads
+      # uploaded binaries: worker.ts registers the bulk-import entity adapters,
+      # whose executionService calls readOrgFile on the stored source file.
+      # Verified against the built worker bundle, which contains UPLOADS_DIR —
+      # this mount is evidence-driven, not precautionary.
+      - hrms-ws1-local-uploads:/var/lib/hrms/uploads
     command: ["node", "--enable-source-maps", "artifacts/api-server/dist/worker.mjs"]
 
 volumes:
   hrms-ws1-local-pgdata:
+  # Uploaded document binaries. `docker compose down -v` DESTROYS this — and
+  # with it every uploaded document in this local environment. A volume is
+  # persistence, never a backup.
+  hrms-ws1-local-uploads:

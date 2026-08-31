@@ -62,6 +62,51 @@ All three directions below share one mechanism — there is exactly one, not thr
 
 ## 6. Backup Architecture
 
+> ### ⚠️ Correction (WS-17 Pass 0, 2026-08-31): this section is out of date
+>
+> The sentence below — *"Database backup is the entire backup surface today —
+> there is no object storage and no other stateful store"* — was true when
+> written and is **no longer true**. This document's own "Future object-storage
+> backup boundary" note predicted the dependency; it has since arrived, and in
+> a form the note did not anticipate.
+>
+> **WS-5 Documents & Records shipped, and its binaries live on a local
+> filesystem, not object storage.** `lib/fileStorage.ts` writes authoritative
+> business data — employee and organization documents, background-check and
+> performance evidence, candidate résumés, generated PDFs, avatars, bulk-import
+> source files — under `UPLOADS_DIR`. **Twelve modules** write through it, and
+> **ten tables** hold storage keys.
+>
+> Two consequences follow, and neither is optional:
+>
+> 1. **A PostgreSQL backup is no longer a complete backup.** The predicted
+>    mitigation ("most such providers offer versioning/replication natively")
+>    does not apply, because there is no provider — it is a directory.
+> 2. **`UPLOADS_DIR` must point at storage that survives container
+>    replacement.** Until WS-17 Pass 0, no deployment artifact set it: the
+>    Docker image defaulted to `<cwd>/uploads` = `/app/uploads`, inside the
+>    container's own writable layer, with no volume declared anywhere.
+>
+> **Pass 0 fixed the persistence half only.** The image now defaults
+> `UPLOADS_DIR` to `/var/lib/hrms/uploads` and `docker-compose.yml` mounts a
+> named volume there for **both** the `app` and `worker` services (the worker
+> genuinely reads uploaded files — its bulk-import adapters call `readOrgFile`).
+>
+> **PERSISTENCE IS NOT BACKUP.** A volume survives container replacement. It
+> does **not** survive `docker compose down -v`, `docker volume rm`, `docker
+> volume prune`, or loss of the host. **`docker compose down -v` destroys every
+> uploaded document in that environment.** Treat volume-removing commands as
+> destructive operations against business data.
+>
+> **Upgrading an existing deployment:** files already written under
+> `/app/uploads` are **not moved** by this change and will not appear at the new
+> path. Copy them into the mounted volume once, as a deliberate operator action,
+> before serving traffic from the new image.
+>
+> Backing the uploads volume up, and the provider-neutral storage adapter that
+> will eventually replace the local backend, are **not** solved here — they are
+> the remaining WS-17 file-storage remediation work.
+
 **Database backup** is the entire backup surface today — there is no object storage (§7) and no other stateful store. Two layers, matching how this platform is actually hosted:
 
 - **Managed** (Supabase, the current development database's host): point-in-time recovery and automated daily backups are a platform capability of the hosting provider itself — no application code needs to trigger, schedule, or manage them. This is the default for both the shared platform deployment and any dedicated deployment a customer chooses to also host on Supabase.

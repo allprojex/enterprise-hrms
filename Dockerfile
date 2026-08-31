@@ -97,9 +97,38 @@ COPY --from=prod-deps /app/artifacts/api-server/node_modules ./artifacts/api-ser
 COPY --from=build /app/artifacts/api-server/dist ./artifacts/api-server/dist
 COPY --from=build /app/artifacts/api-server/package.json ./artifacts/api-server/package.json
 
+# Durable upload root (WS-17 Pass 0 — file-storage durability containment).
+#
+# `lib/fileStorage.ts` writes authoritative binaries — employee and
+# organization documents, evidence files, generated PDFs, résumés, avatars —
+# under `UPLOADS_DIR`, defaulting to `<cwd>/uploads`. With WORKDIR /app and
+# no volume, that default resolves to /app/uploads: the container's own
+# writable layer, which is DESTROYED when the container is replaced. That
+# file's header has always instructed operators to "mount UPLOADS_DIR as a
+# volume in Docker"; nothing carried the instruction out. This does.
+#
+# The path is set here rather than only in docker-compose.yml because that
+# file is explicitly local-development-only — a compose-only fix would leave
+# every real deployment on the ephemeral default. Creating the directory and
+# giving it to `node` BEFORE the volume is mounted also matters: Docker seeds
+# a fresh named volume from the image's content and ownership at that path,
+# so without this the mount would arrive root-owned and unwritable by the
+# non-root runtime user.
+#
+# PERSISTENCE IS NOT BACKUP. A volume survives container replacement; it does
+# not survive `docker compose down -v`, volume pruning, or host loss. See
+# docs/DEPLOYMENT_AND_TENANT_ARCHITECTURE.md §6.
+#
+# UPGRADING AN EXISTING DEPLOYMENT: if a running container already holds
+# files under /app/uploads, they are NOT moved by this change and will not be
+# visible at the new path. Copy them into the mounted volume once, as a
+# deliberate operator action, before serving traffic from the new image.
+ENV UPLOADS_DIR=/var/lib/hrms/uploads
+RUN mkdir -p /var/lib/hrms/uploads
+
 # Non-root runtime user (Debian slim images ship a low-privilege `node`
 # user/group by default — reuse it rather than inventing a new one).
-RUN chown -R node:node /app
+RUN chown -R node:node /app /var/lib/hrms
 USER node
 
 # The API server itself reads PORT from the environment (defaulting to 3001
