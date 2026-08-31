@@ -296,7 +296,7 @@ Unchanged from the discovery pass — neither gate is met today, both remain ded
 | HR Action Centre | Y | | | | P1 — **WS-15 P1 IMPLEMENTED** against §31.4–31.27 (runtime federation, no new table, no new permission); see `docs/ACTION_CENTRE.md` |
 | ESS | Y | Y | | | — |
 | Manager/Department Head | Y | | | | P2 — **WS-15 P2 IMPLEMENTED** against §31.28; the registered gap (panel membership, outstanding own scorecard, hiring-manager standing) is closed, see `docs/ACTION_CENTRE.md` |
-| Reporting/Analytics | Y | | Y (CSV hardening gap) | | P1 (CSV fix — **shipped in WS-1**), P3 (rest) — **WS-15 bundle, architecture frozen in §31.30**: 47 report definitions seeded, 3 generic runners implemented |
+| Reporting/Analytics | Y | | | | P1 (CSV fix — **shipped in WS-1**), P3 — **WS-15 P3 IMPLEMENTED** against §31.30: 46 definitions seeded, all 46 now generically executable (3 built-in runners plus 43 delegated to their owning module), see `docs/REPORTING.md` |
 | Bulk Import/Migration | Y | | Y (employees-only) | | P0 |
 | Attendance / Leave / Performance / Learning / Assets / Manager Portal / ESS-completion / Personnel Records | Y | Y | | | — |
 | Office Inventory | Y | Y | | Enabled for WWM only | — |
@@ -2241,7 +2241,7 @@ WS-15 is **four bundles**, not one. The workstream is named *Cross-Module Visibi
 | HR Action Centre (org-wide) | `HR Action Centre — N` | **P1** | §31.4–31.26 — **IMPLEMENTED**, see `docs/ACTION_CENTRE.md` |
 | Manager / Department Head completion (Recruitment participation source) | `Manager/Department Head — Y, partial` | **P2** | §31.28 — **IMPLEMENTED**, see `docs/ACTION_CENTRE.md` |
 | Employee 360 / Global Search completion | `Global Search / Employee 360 — Partial` | **P2/P3** | §31.29 — **Employee 360 IMPLEMENTED**; Global Search remains P3 and unauthorized per §31.29's own text, see `docs/EMPLOYEE_360.md` |
-| Reporting execution consolidation | `Reporting/Analytics — Y, CSV gap` | **P3** | §31.30 |
+| Reporting execution consolidation | `Reporting/Analytics — Y, CSV gap` | **P3** | §31.30 — **IMPLEMENTED**, see `docs/REPORTING.md` |
 
 The Reporting row's **P1 half — the CSV formula-injection fix — already shipped in WS-1** (`safeCsvCell`/`toCsv` in `lib/reporting.ts`, now the one shared primitive). What remains of that bundle is the P3 half.
 
@@ -2265,7 +2265,7 @@ Nine findings shaped this section. Each is a repository fact, not an assumption.
 
 7. **Two modules already carry a real assignment concept**: `service_requests.assignedMembershipId` and `grievance_cases.assignedMembershipId`. `clearance_items.responsibleMembershipId` and onboarding tasks' `responsibleMembershipId` are resolver-derived rather than free assignment. Every other candidate source uses purely dynamic authority.
 
-8. **The Reporting registry is complete but its execution is not.** `report-definitions.ts` seeds **47** definitions, each already carrying a `requiredPermissionKey`; `lib/reporting.ts`'s `RUNNERS` map implements **3** (`headcount`, `workforce_status`, `audit_summary`). `runReport` throws `ReportNotFoundError` — a `404` — for the other **44**, which are reachable only through eight bespoke module reporting routes with divergent response shapes. The generic endpoint already permission-checks correctly before running.
+8. **The Reporting registry is complete but its execution is not.** `report-definitions.ts` seeds **46** definitions (recorded as 47 at freeze time; corrected in Pass 3C — see §31.30), each already carrying a `requiredPermissionKey`; `lib/reporting.ts`'s `RUNNERS` map implements **3** (`headcount`, `workforce_status`, `audit_summary`). `runReport` throws `ReportNotFoundError` — a `404` — for the other **43**, which are reachable only through eight bespoke module reporting routes with divergent response shapes. The generic endpoint already permission-checks correctly before running.
 
 9. **Employee 360 is thinner than §17's "Partial" suggests, and in two places it is stale.** `employee-detail.tsx` aggregates the core record, numbering, qualifications, certifications, documents, employment history, personnel file and custody, exit processes, performance reviews and an asset report. It shows the **legacy** free-text `employee_skills` and the **legacy** `employee_disciplinary_records`. It shows **nothing** of WS-11 employment terms, WS-12 disciplinary or grievance *cases*, WS-13 data-change or service requests, WS-14 skill records or gaps, Leave, Learning, Attendance or Onboarding. Separately, **no cross-module search exists**: `app-shell.tsx` carries an explicit comment declining to render a search box *"because there is no real cross-module search capability to back it."*
 
@@ -2611,7 +2611,7 @@ Frozen **separately from the Action Centre**. This is a cross-module employee **
 
 ### 31.30 Reporting execution consolidation — **P3**
 
-**Repository fact, recorded:** 47 report definitions are seeded, each already carrying a `requiredPermissionKey`; only **3** generic runners exist (`headcount`, `workforce_status`, `audit_summary`); the remaining **44** return `404` from the generic endpoint and are reachable only through eight bespoke module reporting routes. The generic endpoint already permission-checks against the definition's own key before running, and `safeCsvCell`/`toCsv` are already the one shared export primitive.
+**Repository fact, recorded:** **46** report definitions are seeded — the Pass-1 figure of 47 was a miscount, corrected during Pass 3C against `report-definitions.ts` and confirmed by the seeder's own output ("Seeded 46 report registry entries"); the file has been unchanged since `f8fa5b8`, so nothing moved. Each already carries a `requiredPermissionKey`; only **3** generic runners existed (`headcount`, `workforce_status`, `audit_summary`); the remaining **43** returned `404` from the generic endpoint and were reachable only through eight bespoke module reporting routes. The generic endpoint already permission-checks against the definition's own key before running, and `safeCsvCell`/`toCsv` are already the one shared export primitive.
 
 This is a **valid WS-15 consolidation target** — the registry, the permission check and the export primitive are all in place, and only execution is missing.
 
@@ -2622,7 +2622,7 @@ This is a **valid WS-15 consolidation target** — the registry, the permission 
 - the `{columns, rows}` shape and `toCsv` stay the uniform serialization, with no per-report special-casing;
 - module reporting routes are **not removed**; consolidation adds a generic execution path beside them.
 
-**Classified P3.** The 44 missing runners are **not an Action Centre defect** and must not be reported as one. Reporting consolidation is explicitly **not implemented as part of P1**.
+**Classified P3.** The 43 missing runners were **not an Action Centre defect** and were not reported as one; reporting consolidation was explicitly not implemented as part of P1. **IMPLEMENTED in WS-15 Pass 3C** — all 43 now execute generically by delegating to their owning module's existing reporting service, with a completeness guard preventing future drift. See `docs/REPORTING.md`.
 
 ### 31.31 No migration
 

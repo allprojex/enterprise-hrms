@@ -3,6 +3,12 @@
  * Schedules & Reports"). A dedicated, scope-aware route (not the generic
  * GET .../reports/:reportKey/run — that route's RUNNERS map has no entries
  * for payroll_* keys, so it safely 404s "Unknown report" for any of them),
+ WS-15 P3 (§31.30) UPDATE: this key IS now also executable through the
+ generic GET .../reports/:reportKey/run. That path delegates to this
+ module's own reporting service and resolves this module's own scope
+ resolver first, so it is no longer non-scope-aware and enforces the
+ same permission. This route is unchanged and remains authoritative for
+ its own contract; the two paths converge on the same source logic.
  * mirroring assetReporting.ts/personnelReporting.ts exactly. Every report
  * requires the run to be "locked" — a draft/calculated/approved run never
  * masquerades as a final payroll output.

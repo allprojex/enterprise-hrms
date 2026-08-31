@@ -1281,6 +1281,13 @@ function ReportsTab({ organizationId }: { organizationId: number }) {
   const { toast } = useToast();
   const [reportKey, setReportKey] = useState('');
   const [isDownloading, setIsDownloading] = useState(false);
+  // WS-15 P3 (§31.30) — only the parameters the SELECTED report actually
+  // supports are rendered. Attendance takes a date range; Payroll reports are
+  // per locked run and genuinely require one. Every other report takes none,
+  // and no generic JSON box is offered.
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [runId, setRunId] = useState('');
 
   const { data: reports, isLoading: reportsLoading } = useListReports({
     query: { queryKey: getListReportsQueryKey() },
@@ -1292,18 +1299,39 @@ function ReportsTab({ organizationId }: { organizationId: number }) {
     if (!reportKey && reports.length > 0) setReportKey(reports[0].key);
   }
 
+  const selected = (reports ?? []).find((r) => r.key === reportKey);
+  const category = selected?.category ?? '';
+  const needsDateRange = category === 'attendance';
+  const needsRunId = category === 'payroll';
+
+  const reportParams = {
+    ...(needsDateRange && from ? { from } : {}),
+    ...(needsDateRange && to ? { to } : {}),
+    ...(needsRunId && runId ? { runId: Number(runId) } : {}),
+  };
+
   const { data: result, isLoading: resultLoading, error, refetch } = useRunReport(
     organizationId,
     reportKey,
-    {},
-    { query: { queryKey: getRunReportQueryKey(organizationId, reportKey, {}), enabled: organizationId > 0 && !!reportKey } },
+    reportParams,
+    {
+      query: {
+        queryKey: getRunReportQueryKey(organizationId, reportKey, reportParams),
+        // A Payroll report cannot run without its run id, so it is not
+        // requested until one is supplied — a 400 is correct from the API but
+        // pointless to trigger on every keystroke.
+        enabled: organizationId > 0 && !!reportKey && (!needsRunId || !!runId),
+      },
+    },
   );
 
   const handleDownloadCsv = async () => {
     setIsDownloading(true);
     try {
       const token = getStoredToken();
-      const res = await fetch(getRunReportUrl(organizationId, reportKey, { format: 'csv' }), {
+      // The export carries exactly the parameters the on-screen result used —
+      // never a broader query (§31.30).
+      const res = await fetch(getRunReportUrl(organizationId, reportKey, { ...reportParams, format: 'csv' }), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) throw new Error('Download failed');
@@ -1340,6 +1368,47 @@ function ReportsTab({ organizationId }: { organizationId: number }) {
               </SelectContent>
             </Select>
           </div>
+          {needsDateRange && (
+            <>
+              <div className="space-y-1">
+                <Label htmlFor="report-from">From</Label>
+                <Input
+                  id="report-from"
+                  type="date"
+                  value={from}
+                  onChange={(e) => setFrom(e.target.value)}
+                  className="w-40"
+                  data-testid="input-report-from"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="report-to">To</Label>
+                <Input
+                  id="report-to"
+                  type="date"
+                  value={to}
+                  onChange={(e) => setTo(e.target.value)}
+                  className="w-40"
+                  data-testid="input-report-to"
+                />
+              </div>
+            </>
+          )}
+          {needsRunId && (
+            <div className="space-y-1">
+              <Label htmlFor="report-run-id">Payroll run</Label>
+              <Input
+                id="report-run-id"
+                type="number"
+                min={1}
+                value={runId}
+                onChange={(e) => setRunId(e.target.value)}
+                className="w-40"
+                placeholder="Run ID"
+                data-testid="input-report-run-id"
+              />
+            </div>
+          )}
           <Button
             type="button"
             variant="outline"

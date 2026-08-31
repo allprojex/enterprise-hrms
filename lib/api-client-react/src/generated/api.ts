@@ -22662,6 +22662,10 @@ export const getRunReportUrl = (organizationId: number,
 
 /**
  * Computes a registered report scoped to this organization. Permission required varies by report (see GET /reports). Pass ?format=csv for a CSV download instead of JSON.
+ *
+ * WS-15 P3 (§31.30) — consolidated execution. Every registered report is now executable here: the three organization-level aggregates run directly, and every module report DELEGATES to that module's own reporting service, resolving that module's own scope resolver first, so the generic path is scope-aware and enforces the same permission as the module route. Module routes are unchanged and remain authoritative for their own contracts.
+ *
+ * Parameters below are read individually and only where the selected report supports them — nothing is spread into a query builder. A report that genuinely requires one (Payroll needs `runId`) answers 400, which is distinct from an unknown report (404) and from a valid empty result (200 with zero rows).
  * @summary Run a report
  */
 export const runReport = async (organizationId: number,

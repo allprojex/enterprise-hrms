@@ -9013,6 +9013,10 @@ export const ListReportsResponse = zod.array(ListReportsResponseItem)
 
 /**
  * Computes a registered report scoped to this organization. Permission required varies by report (see GET /reports). Pass ?format=csv for a CSV download instead of JSON.
+ *
+ * WS-15 P3 (§31.30) — consolidated execution. Every registered report is now executable here: the three organization-level aggregates run directly, and every module report DELEGATES to that module's own reporting service, resolving that module's own scope resolver first, so the generic path is scope-aware and enforces the same permission as the module route. Module routes are unchanged and remain authoritative for their own contracts.
+ *
+ * Parameters below are read individually and only where the selected report supports them — nothing is spread into a query builder. A report that genuinely requires one (Payroll needs `runId`) answers 400, which is distinct from an unknown report (404) and from a valid empty result (200 with zero rows).
  * @summary Run a report
  */
 export const RunReportParams = zod.object({
@@ -9021,7 +9025,26 @@ export const RunReportParams = zod.object({
 })
 
 export const RunReportQueryParams = zod.object({
-  "format": zod.enum(['json', 'csv']).optional()
+  "format": zod.enum(['json', 'csv']).optional(),
+  "from": zod.coerce.string().optional().describe('Attendance range start (YYYY-MM-DD); also Assets\/Office Inventory `dateFrom`. Defaults to the organization\'s own civil today.'),
+  "to": zod.coerce.string().optional().describe('Attendance range end (YYYY-MM-DD); also Assets\/Office Inventory `dateTo`.'),
+  "runId": zod.coerce.number().optional().describe('Required for a Payroll report — reports are per locked payroll run, and there is no meaningful default.'),
+  "employeeId": zod.coerce.number().optional(),
+  "departmentId": zod.coerce.number().optional(),
+  "branchId": zod.coerce.number().optional(),
+  "positionId": zod.coerce.number().optional(),
+  "cycleId": zod.coerce.number().optional(),
+  "reviewerId": zod.coerce.number().optional(),
+  "courseId": zod.coerce.number().optional(),
+  "managerId": zod.coerce.number().optional(),
+  "approvalStatus": zod.coerce.string().optional(),
+  "itemId": zod.coerce.number().optional(),
+  "storeId": zod.coerce.number().optional(),
+  "movementType": zod.coerce.string().optional(),
+  "assetId": zod.coerce.number().optional(),
+  "categoryCode": zod.coerce.string().optional(),
+  "maintenanceStatus": zod.coerce.string().optional(),
+  "status": zod.coerce.string().optional()
 })
 
 export const RunReportResponse = zod.object({

@@ -74,6 +74,12 @@ router.get(
     // learning key can never be executed through the generic, non-scope-
     // aware GET .../reports/:reportKey/run route (that route's RUNNERS map
     // has no entries for these keys, so it safely 404s instead).
+    // WS-15 P3 (§31.30) UPDATE: this key IS now also executable through the
+    // generic GET .../reports/:reportKey/run. That path delegates to this
+    // module's own reporting service and resolves this module's own scope
+    // resolver first, so it is no longer non-scope-aware and enforces the
+    // same permission. This route is unchanged and remains authoritative for
+    // its own contract; the two paths converge on the same source logic.
     const definition = await getReportDefinition(reportKey);
     if (!definition || definition.category !== "learning" || !isKnownLearningReportKey(reportKey)) {
       res.status(404).json({ error: `Unknown learning report "${reportKey}"` });

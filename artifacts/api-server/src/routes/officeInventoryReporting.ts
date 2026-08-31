@@ -3,6 +3,12 @@
  * (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §43, §44). A dedicated,
  * ADR-016 route (not the generic GET .../reports/:reportKey/run — that
  * route's RUNNERS map has no entries for these keys, so it safely 404s
+ WS-15 P3 (§31.30) UPDATE: this key IS now also executable through the
+ generic GET .../reports/:reportKey/run. That path delegates to this
+ module's own reporting service and resolves this module's own scope
+ resolver first, so it is no longer non-scope-aware and enforces the
+ same permission. This route is unchanged and remains authoritative for
+ its own contract; the two paths converge on the same source logic.
  * "Unknown report" for any of them), mirroring assetReporting.ts/
  * performanceReporting.ts exactly in shape, but simpler: Office Inventory
  * reporting has no own/manager/organization-wide visibility tiers, so both

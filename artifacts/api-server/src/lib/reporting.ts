@@ -1,4 +1,6 @@
 import { eq } from "drizzle-orm";
+// Type-only: erased at runtime, so this import pulls in no module code.
+import type { ReportParams } from "./reporting/moduleAdapters";
 import { db, reportsTable, employeesTable, branchesTable, auditEventsTable } from "@workspace/db";
 
 export class ReportNotFoundError extends Error {
@@ -19,7 +21,13 @@ export interface ReportResult {
   description: string;
   generatedAt: Date;
   columns: ReportColumn[];
-  rows: Record<string, string | number>[];
+  // WS-15 P3 (§31.30): widened to admit `null`. Several module reports have
+  // genuinely empty cells — an unassigned branch, a review with no score yet —
+  // and coercing those to "" would change what the report says. Booleans are
+  // admitted for the same reason. This exactly matches what `toCsv` already
+  // accepts, and the OpenAPI row schema is a free-form object, so it is
+  // additive rather than a contract change.
+  rows: Record<string, string | number | boolean | null>[];
 }
 
 export async function listReports() {
@@ -108,12 +116,65 @@ const RUNNERS: Record<string, (organizationId: number) => Promise<Pick<ReportRes
   audit_summary: runAuditSummary,
 };
 
-export async function runReport(key: string, organizationId: number): Promise<ReportResult> {
+/**
+ * Who is asking, so a consolidated report can resolve its module's own scope.
+ *
+ * WS-15 P3 (§31.30): eight shipped module routes documented that a module key
+ * "can never be executed through the generic, NON-SCOPE-AWARE" endpoint and
+ * "safely 404s instead". That guard was correct while this function knew only
+ * an organization id — a generic runner ignoring scope would have shown an
+ * employee the whole organization's attendance. Passing the actor lets each
+ * adapter call its module's own `resolve*ReportScope`, which is what makes the
+ * generic path scope-aware and retires the guard's premise honestly.
+ */
+export interface ReportExecutionActor {
+  applicationUserId: number;
+  membershipId: number;
+}
+
+export async function runReport(
+  key: string,
+  organizationId: number,
+  actor?: ReportExecutionActor,
+  params: ReportParams = {},
+): Promise<ReportResult> {
   const definition = await getReportDefinition(key);
   if (!definition) throw new ReportNotFoundError(key);
 
   const runner = RUNNERS[key];
-  if (!runner) throw new ReportNotFoundError(key);
+  if (!runner) {
+    // WS-15 P3 — consolidated execution (§31.30). The three built-in runners
+    // above are organization-only aggregates over shared tables; every other
+    // registered report belongs to a module, and is executed by DELEGATING to
+    // that module's own reporting service rather than re-querying here.
+    // Loaded LAZILY, and deliberately so. The adapter layer imports all eight
+    // module reporting services, and `lib/reporting.ts` is imported by many
+    // routes — pulling that whole graph in eagerly would make every consumer
+    // (and every test that mocks a narrow slice of the database) load the
+    // entire reporting surface. A dynamic import keeps this module as light as
+    // it was before consolidation.
+    const { findAdapter } = await import("./reporting/moduleAdapters");
+    const adapter = actor ? findAdapter(definition.category, key) : null;
+    if (!adapter) throw new ReportNotFoundError(key);
+
+    const delegated = await adapter.run({
+      key: definition.key,
+      label: definition.label,
+      description: definition.description,
+      organizationId,
+      applicationUserId: actor!.applicationUserId,
+      membershipId: actor!.membershipId,
+      params,
+    });
+    return {
+      key: definition.key,
+      label: definition.label,
+      description: definition.description,
+      generatedAt: new Date(),
+      columns: delegated.columns,
+      rows: delegated.rows,
+    };
+  }
 
   const { columns, rows } = await runner(organizationId);
   return {
@@ -165,3 +226,7 @@ export function toCsv(columns: ReportColumn[], rows: Record<string, string | num
   const body = rows.map((row) => columns.map((c) => safeCsvCell(row[c.key])).join(","));
   return [header, ...body].join("\n");
 }
+
+/** WS-15 P3 — re-exported so a caller needs one reporting import, not two. */
+export type { ReportParams } from "./reporting/moduleAdapters";
+export { ReportParameterError } from "./reporting/errors";

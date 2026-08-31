@@ -2,9 +2,60 @@ import { Router } from "express";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireMembership, type MembershipRequest } from "../middlewares/requireMembership";
 import { hasPermission } from "../lib/permissions";
-import { listReports, getReportDefinition, runReport, toCsv, ReportNotFoundError } from "../lib/reporting";
+import {
+  listReports,
+  getReportDefinition,
+  runReport,
+  toCsv,
+  ReportNotFoundError,
+  ReportParameterError,
+  type ReportParams,
+} from "../lib/reporting";
 
 const router = Router();
+
+/**
+ * WS-15 P3 (§31.30) — explicit, typed report parameters.
+ *
+ * Every supported parameter is named and coerced individually. Nothing is
+ * spread from the query string into a module's filter object, so an invented
+ * or unsupported parameter cannot reach a query builder — an unknown key is
+ * simply never read. A malformed number is dropped rather than becoming NaN.
+ */
+function readReportParams(query: Record<string, unknown>): ReportParams {
+  const str = (key: string): string | undefined => {
+    const value = query[key];
+    return typeof value === "string" && value.length > 0 ? value : undefined;
+  };
+  const num = (key: string): number | undefined => {
+    const raw = str(key);
+    if (raw === undefined) return undefined;
+    const parsed = Number(raw);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+  };
+
+  return {
+    from: str("from"),
+    to: str("to"),
+    runId: num("runId"),
+    employeeId: num("employeeId"),
+    departmentId: num("departmentId"),
+    branchId: num("branchId"),
+    positionId: num("positionId"),
+    cycleId: num("cycleId"),
+    reviewerId: num("reviewerId"),
+    courseId: num("courseId"),
+    managerId: num("managerId"),
+    approvalStatus: str("approvalStatus"),
+    itemId: num("itemId"),
+    storeId: num("storeId"),
+    movementType: str("movementType"),
+    assetId: num("assetId"),
+    categoryCode: str("categoryCode"),
+    maintenanceStatus: str("maintenanceStatus"),
+    status: str("status"),
+  };
+}
 
 function formatReport(report: Awaited<ReturnType<typeof listReports>>[number]) {
   return {
@@ -44,7 +95,15 @@ router.get(
     }
 
     try {
-      const result = await runReport(reportKey, req.membership!.organizationId);
+      // The actor is passed so a consolidated report can resolve its own
+      // module's scope (§31.30). The definition's permission was already
+      // enforced above; scope narrows what that permission may see.
+      const result = await runReport(
+        reportKey,
+        req.membership!.organizationId,
+        { applicationUserId: req.userId!, membershipId: req.membership!.id },
+        readReportParams(req.query as Record<string, unknown>),
+      );
 
       if (req.query.format === "csv") {
         res.setHeader("Content-Type", "text/csv");
@@ -55,6 +114,12 @@ router.get(
 
       res.json(result);
     } catch (err) {
+      // A required parameter is a client error, and must not be confused with
+      // an unknown report (404) or an empty result (200 with zero rows).
+      if (err instanceof ReportParameterError) {
+        res.status(400).json({ error: err.message });
+        return;
+      }
       if (err instanceof ReportNotFoundError) {
         res.status(404).json({ error: err.message });
         return;

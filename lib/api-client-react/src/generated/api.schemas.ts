@@ -12643,6 +12643,34 @@ export const ListAuditEventsCategory = {
 
 export type RunReportParams = {
 format?: RunReportFormat;
+/**
+ * Attendance range start (YYYY-MM-DD); also Assets/Office Inventory `dateFrom`. Defaults to the organization's own civil today.
+ */
+from?: string;
+/**
+ * Attendance range end (YYYY-MM-DD); also Assets/Office Inventory `dateTo`.
+ */
+to?: string;
+/**
+ * Required for a Payroll report — reports are per locked payroll run, and there is no meaningful default.
+ */
+runId?: number;
+employeeId?: number;
+departmentId?: number;
+branchId?: number;
+positionId?: number;
+cycleId?: number;
+reviewerId?: number;
+courseId?: number;
+managerId?: number;
+approvalStatus?: string;
+itemId?: number;
+storeId?: number;
+movementType?: string;
+assetId?: number;
+categoryCode?: string;
+maintenanceStatus?: string;
+status?: string;
 };
 
 export type RunReportFormat = typeof RunReportFormat[keyof typeof RunReportFormat];
