@@ -163,9 +163,20 @@ logged and recorded as `delete_failed`, and a binary orphaned by a failed
 business transaction is recorded as `orphaned` — a state reconciliation can act
 on, because nothing references it.
 
-**Still open, and not claimed as done:** no existing file has been migrated to
-object storage. There is no reconciliation or backfill tooling, no backup or
-restore control plane, and no Migration Centre. **The S3 backend existing does
+**Reconciliation and migration tooling now exists (WS-17 Pass 2)** — see
+`docs/STORAGE_MIGRATION_RUNBOOK.md`. It classifies every referenced binary
+(healthy, historical/unregistered, missing, orphan, checksum mismatch,
+migration pending/verified/failed), registers historical files idempotently,
+and copies objects between backends with a verify-then-switch protocol that
+**retains the source** and preserves the opaque key, so no business record is
+rewritten. It needed no schema: authority is the single `stored_objects.backend`
+column, and every intermediate state is recovered by recomputing from live
+storage rather than from remembered progress.
+
+**Still open, and not claimed as done:** **no live file has been migrated** —
+the tooling has only ever run against synthetic fixtures. There is no orphan
+cleanup and no source deletion (the only irreversible steps, deliberately
+absent), no backup or restore control plane, and no Enterprise Migration Centre. **The S3 backend existing does
 not mean anything has moved to it.** A complete recovery point still requires a
 database snapshot **and** compatible binary state; restoring PostgreSQL alone
 does not restore the HRMS.
