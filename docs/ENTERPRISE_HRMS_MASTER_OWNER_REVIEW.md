@@ -290,8 +290,8 @@ Unchanged from the discovery pass — neither gate is met today, both remain ded
 | Workplace Incidents | N | | | | P2 |
 | HR Compliance Calendar | N | | | | P2 |
 | Tasks/Notifications/Reminders | N | | | | **P1 — APPROVED, HIGH PRIORITY (OD #13)** |
-| Workflow/Approval primitive | Partial | | | | **P2 — APPROVED (OD #14)**, authority-resolver only — **architecture frozen in §32**; discovery found most extraction already shared, so WS-16's remaining scope is one live direct-report helper (§32.9). WS-9/WS-13 stage resolvers stay separate (§32.14) |
-| Delegation/Acting Authority | Y (1 module) | | | | **P2 — APPROVED (OD #15)**, generalize — **architecture frozen in §32**: new shared `authority_delegations` table for future consumers, `department_head` only, holder-only creation; Office Inventory stays on its own table, unmigrated (§32.20) |
+| Workflow/Approval primitive | Partial | | | | **P2 — APPROVED (OD #14)** — **COMPLETE** (§32.29); authority-resolver only, frozen in §32; discovery found most extraction already shared, so WS-16's remaining scope is one live direct-report helper (§32.9). WS-9/WS-13 stage resolvers stay separate (§32.14) |
+| Delegation/Acting Authority | Y (1 module) | | | | **P2 — APPROVED (OD #15)** — **COMPLETE** (§32.29); generalized per §32: new shared `authority_delegations` table for future consumers, `department_head` only, holder-only creation; Office Inventory stays on its own table, unmigrated (§32.20) |
 | Global Search / Employee 360 | Y (360) / N (search) | | | | P2/P3 — **Employee 360 COMPLETE** against §31.29 (eight module-aware sections, no giant DTO, no migration), see `docs/EMPLOYEE_360.md`; **Global Search approved as a future safe navigation/discovery capability, NOT implemented** (§31.40) |
 | HR Action Centre | Y | | | | P1 — **WS-15 P1 IMPLEMENTED** against §31.4–31.27 (runtime federation, no new table, no new permission); see `docs/ACTION_CENTRE.md` |
 | ESS | Y | Y | | | — |
@@ -363,7 +363,7 @@ The prior 43-item micro-list is retired. Below is the smallest coherent implemen
 | WS-13 | Employee Data Change Approval & HR Service Requests | **P1/P2** | Shared request/approval shape, configurable sensitive-field list, hybrid generic-foundation + specialized-workflow HR requests | WS-6 (light) | OD #10, #11 |
 | WS-14 | Skills, Competency Framework & Succession | **P2** | Formal proficiency framework, competency linkage, new internal-succession schema (critical roles, successors, readiness) | WS-9 (soft, for recruitment linkage) | OD #5, #7 |
 | WS-15 | Cross-Module Visibility | **P1/P2** | Employee 360 completion, HR Action Centre (org-wide), Manager Portal recruitment-participation source, Reporting execution consolidation | WS-6 | — (**architecture frozen in §31**) — **COMPLETE.** All four bundles implemented (§31.40.7); Global Search is a future approved safe navigation/discovery enhancement, **not implemented** and not a closure blocker (§31.40) |
-| WS-16 | Workflow/Delegation Primitive Generalization | **P2** | Generalize Office Inventory's delegation table, extract authority-resolver | WS-3 (light) | OD #14, #15 — **architecture frozen in §32** (Pass 1 complete; implementation not started). Scope narrowed by discovery: authority extraction is already largely shared (§32.2), so WS-16 delivers one shared live direct-report helper (Pass 2A) plus a new shared department-head delegation foundation (Pass 2B). Office Inventory is **not** migrated (§32.20); the holder-facing surface is **gated on a first approved consumer** (§32.21). **Pass 2A COMPLETE** (§32.27) — shared live direct-report helper shipped, six consumers migrated, seventh retained. **Pass 2B COMPLETE** (§32.28) — `authority_delegations` foundation shipped on migration `0071`, `department_head` only, holder-only, **zero business consumers by design**. **Pass 2C/2D GATED.** WS-16 overall **PARTIALLY COMPLETE** |
+| WS-16 | Workflow/Delegation Primitive Generalization | **P2** | Generalize Office Inventory's delegation table, extract authority-resolver | WS-3 (light) | OD #14, #15 — **WS-16 COMPLETE** (formally closed in §32.29). Architecture frozen in §32; scope narrowed by discovery: authority extraction is already largely shared (§32.2), so WS-16 delivers one shared live direct-report helper (Pass 2A) plus a new shared department-head delegation foundation (Pass 2B). Office Inventory is **not** migrated (§32.20); the holder-facing surface is **gated on a first approved consumer** (§32.21). **Pass 2A COMPLETE** (§32.27) — shared live direct-report helper shipped, six consumers migrated, seventh retained. **Pass 2B COMPLETE** (§32.28) — `authority_delegations` foundation shipped on migration `0071`, `department_head` only, holder-only, **zero business consumers by design**. **Pass 2C/2D DEFERRED / CONSUMER-TRIGGERED** — no longer closure blockers (§32.29.1); shared delegation consumer count is **0 by design**, and Office Inventory stays module-owned with its delegate-validation defect still open (§32.25). WS-16 overall **COMPLETE** |
 | WS-17 | Deployment & Backup Operations | **P2** | VPS automation, release-pipeline Levels 3–6, backup/restore build-out, Fleet Health design | WS-1, WS-4 | — |
 | WS-18 | Security Verification Workstream & Production Security Gate | **P0** (gate, sequenced late) | Live tenant-isolation/IDOR testing, DAST, penetration testing, full business-logic-security sampling, closing the flagged Supabase-production RLS item | WS-1, WS-2, WS-3, WS-4 | — |
 | WS-19 | AI Layer (implementation) | **Future/P2** | Tool Gateway build, first provider selection, Level 1–4 action mapping | WS-3, WS-5, WS-10, WS-4 (for future Control Plane AI scope) | OD #24, #25, #26 |
@@ -416,8 +416,8 @@ WS-1 is the only workstream with **zero dependencies** and the largest number of
 | 11 | Employee Data Change Approval | **APPROVED** | P1 | Proven request/approval shape; configurable sensitive fields; full audit/history preserved. |
 | 12 | Offboarding Clearance | **APPROVED** | P1 | Structured, integrated with owning modules (Assets/Inventory/Documents/IT/Payroll); no duplication of their records. |
 | 13 | Scheduled Jobs / Notifications | **APPROVED — HIGH PRIORITY** | P1 | Shared scheduling/notification foundation; unblocks multiple dependent capabilities. |
-| 14 | Shared Approval Primitive | **APPROVED** | P2 | Restrained: shared authority-resolution/delegation only, never a giant generic workflow engine replacing working domain flows. **Assigned to WS-16** (§20 register). **Architecture frozen in §32** — Pass 1 complete, implementation not started. |
-| 15 | Delegation | **APPROVED** | P2 | Generalize the proven Office Inventory delegation concept; sequence with #14; remain effective-dated/scoped/revocable/auditable. **Assigned to WS-16** (§20 register). **Architecture frozen in §32** — Pass 1 complete, implementation not started. |
+| 14 | Shared Approval Primitive | **APPROVED** | P2 | Restrained: shared authority-resolution/delegation only, never a giant generic workflow engine replacing working domain flows. **Assigned to WS-16** (§20 register), architecture frozen in §32. **IMPLEMENTED — WS-16 COMPLETE** (§32.29.2): the one genuine duplication consolidated, deliberately different semantics preserved, no generic workflow engine built. |
+| 15 | Delegation | **APPROVED** | P2 | Generalize the proven Office Inventory delegation concept; sequence with #14; remain effective-dated/scoped/revocable/auditable. **Assigned to WS-16** (§20 register), architecture frozen in §32. **IMPLEMENTED — WS-16 COMPLETE** (§32.29.3): shared `authority_delegations` foundation on migration `0071`, `department_head` only, holder-only, stricter than the prototype it generalizes. Module adoption is future, requirement-triggered work (§32.29.6). |
 | 16 | Audit Tamper Protection | **APPROVED** | P1 | Strengthen existing architecture (no second audit system); append-oriented, DB-level protection for critical records. |
 | 17 | Audit Read Permissions | **APPROVED** | P1 | Category/sensitivity-aware audit-read authorization; basic HR access must not expose Payroll/security audit data. |
 | 18 | Sensitive Read Auditing | **APPROVED AND EXPANDED** | P1 | Personnel Files, disciplinary/grievance evidence, sensitive exports, banking, statutory identifiers, **privileged support access**, other highly sensitive records; risk-based, not noisy. |
@@ -3520,8 +3520,8 @@ Restrained, and sequenced by dependency rather than by ambition.
 |---|---|---|
 | **Pass 2A** | Shared live direct-report helper `lib/directReports.ts`; migrate the six proven-equivalent sites (§32.9); retain #7 with its documented reason; correct the stale `leaveApprovals.ts` reference in the Manager Portal header (§32.8). **No schema change, no migration; ledger stays `0070`.** | **COMPLETE** — see §32.27 |
 | **Pass 2B** | `authority_delegations` table and enum (migration **`0071`**, additive, RLS, hand-written down), the shared resolver, create/revoke service with §32.16 validation and §32.11 concurrency, audit events. **No consumer wired.** | **COMPLETE** — see §32.28 |
-| **Pass 2C** | Holder-facing API, frontend surface (§32.22) and audit surfacing | **GATED** — requires an approved first consumer (§32.21) |
-| **Pass 2D** | First approved consumer adoption, including that module's own attribution columns (§32.18) | **GATED** — requires an explicit Owner Decision naming the module |
+| **Pass 2C** | Holder-facing API, frontend surface (§32.22) and audit surfacing | **DEFERRED / CONSUMER-TRIGGERED** (§32.29.1) — no longer a WS-16 closure blocker |
+| **Pass 2D** | First approved consumer adoption, including that module's own attribution columns (§32.18) | **DEFERRED / CONSUMER-TRIGGERED** (§32.29.1) — requires the adoption gate in §32.29.6 |
 
 Pass 2A and Pass 2B are independent and may be committed separately. Neither
 requires the other.
@@ -3782,5 +3782,177 @@ Office Inventory remains on its own table and resolver, unmigrated and
 un-dual-written, and **its FK-only delegate-validation gap remains open**
 (§32.6, §32.25) — deliberately not repaired here.
 
-**WS-16 remains PARTIALLY COMPLETE.** OD #14 and OD #15 are closed as
-architecture and now have their foundation, but neither is closed as adoption.
+**Superseded by §32.29:** WS-16 was formally CLOSED on 2026-08-31. The
+reusable primitive itself completes the workstream; module adoption is
+future, requirement-triggered work.
+
+### 32.29 WS-16 formal closure
+
+Recorded 2026-08-31, after Pass 2A (`c40114d87b0251c4d0b0dd2d8186be8956d8b354`,
+ledger `0070`) and Pass 2B (`f2caa5c13401e87e27c01531fdad53d3541e839a`,
+migration `0071_nostalgic_patriot`, ledger `0071`). This subsection is
+**documentation only**: no code, schema, permission, API, job or migration
+accompanied it, the ledger remains `0071`, and there is no `0072`.
+
+**WS-16 is COMPLETE.**
+
+#### 32.29.1 The closing decision
+
+> The reusable authority/delegation primitive itself completes WS-16.
+> Business-module adoption is future, requirement-triggered work and is not a
+> prerequisite for closing this infrastructure workstream.
+
+WS-16's register row bundles two things — *"generalize Office Inventory's
+delegation table, extract authority-resolver"* — and both are delivered. What
+remains, module adoption, was never in that row: it is the work a future
+business requirement will commission, and §32.21 froze the initial consumer set
+as **EMPTY** precisely so that no consumer would be invented to justify the
+infrastructure.
+
+**Pass 2C and Pass 2D therefore cease to be closure blockers and become
+consumer-triggered future work.** They are reclassified from GATED-within-WS-16
+to DEFERRED, under the adoption gate in §32.29.6.
+
+#### 32.29.2 Why OD #14 is satisfied
+
+OD #14 approved *"shared authority-resolution/delegation primitives where
+justified"* and forbade *"one giant generic workflow engine"*. Each half is
+answered by verifiable repository state, not assertion:
+
+| OD #14 requirement | Evidence at `f2caa5c` |
+|---|---|
+| Extract the authority-resolution half where justified | Discovery established most of it was already shared (§32.2); the one genuine duplication — live direct-report resolution — is consolidated into `lib/directReports.ts` |
+| Consolidate only what is genuinely equivalent | Six of seven sites migrated; **exactly two** forward `reportingManagerId` query sites remain in the codebase, the shared helper and the retained roster |
+| Preserve deliberately different semantics | The seventh, `listLiveDirectReports`, still excludes `terminated` and is guarded by a test asserting the two **disagree** |
+| Keep existing shared primitives shared | `departmentHeads.ts` untouched and still the single department-head source of truth, now composed by the delegation resolver |
+| Leave each module's approval state machine bespoke | WS-9's `recruitmentApprovalStages.ts` and WS-13's `employeeRequests/approvalStages.ts` both remain, with their two separate enums, unmerged (§32.14) |
+| Preserve snapshot authority | `learning_enrollments.managerEmployeeIdSnapshot` and `performance_reviews.reviewerEmployeeId` remain snapshot columns; a structural guard forbids the live helper being imported by a Performance or Learning path |
+| **No generic workflow engine** | No workflow schema, no workflow rule registry, no expression DSL exists — verified by search, not assumed |
+
+#### 32.29.3 Why OD #15 is satisfied
+
+OD #15 approved generalizing the proven Office Inventory delegation concept
+*"beyond Office Inventory where appropriate"*, requiring authority to remain
+*"effective-dated, scoped, revocable, and auditable"*. The shared foundation
+delivers each, and several protections the prototype never had:
+
+| OD #15 requirement | Delivered |
+|---|---|
+| Effective-dated | `[validFrom, validTo)` evaluated at runtime on every resolution |
+| Scoped | `organization_id` + `authority_type` + `department_id`, with a real foreign key |
+| Revocable | Immediate, by runtime date evaluation — **no job exists or is required** |
+| Auditable | `authority_delegation.created` / `.revoked` through the existing audit primitive, categorized `security`, naming the **actual** actor |
+| Live-revalidated | Authority loss makes a delegation inert while preserving the row; the new head does not inherit it |
+| DB-enforced single-open | Partial unique index, proven to reject a raw duplicate open row |
+| Tenant-safe | Every query organization-predicated; cross-tenant read, revoke and resolve all proven denied |
+| Holder-only | No administrative on-behalf-of path exists for anyone |
+| Independent of permission | Membership roles proven unchanged across a delegation |
+
+**A business consumer is not required to prove that reusable infrastructure
+exists.** The foundation is verified by 33 live tests and four structural
+guards; wiring a module would prove nothing further about the primitive and
+would breach §32.21.
+
+The generalization is also **stricter than the prototype it generalizes**: it
+validates cross-tenant, inactive and self delegates at write time, and adds
+three database CHECK constraints. Office Inventory's own gap is untouched and
+stays open (§32.29.5).
+
+#### 32.29.4 Delivered, and intentionally deferred
+
+**Delivered**
+
+- a shared live current direct-report primitive, with six equivalent consumers
+  consolidated onto it;
+- deliberately different authority semantics preserved — the retained roster,
+  WS-9/WS-13 stage resolvers, WS-10 responsibility, and Performance/Learning
+  snapshots;
+- a shared department-head delegation foundation: additive schema, holder-only
+  creation, no chaining, runtime revalidation, immediate revocation,
+  DB-enforced concurrency protection, tenant safety, audit, and no permission
+  widening;
+- no generic workflow engine.
+
+**Intentionally deferred**
+
+- business-module consumer adoption;
+- the delegation frontend;
+- the delegation HTTP API;
+- Office Inventory migration;
+- the Office Inventory delegate-validation fix;
+- additional authority types;
+- future-scheduled or planned-end delegation.
+
+> **These deferred capabilities are not WS-16 closure defects.** Each is either
+> a future business requirement (adoption, and the surface that serves it) or a
+> separately registered decision (§32.25). None was in WS-16's register row, and
+> none is made more likely to be built correctly by being rushed now.
+
+#### 32.29.5 The Office Inventory defect remains open
+
+**WS-16 did not fix it, and must not be read as having done so.** Office
+Inventory's module-owned delegation implementation still validates
+`delegateMembershipId` by foreign key alone, so it does not enforce the shared
+foundation's protections against a **cross-tenant delegate**, an **inactive
+delegate**, or **self-delegation**.
+
+It was not migrated, not dual-written, not read from, and not repaired. It
+remains registered in §32.25 as future corrective work needing its own Owner
+Decision, because repairing it changes a shipped module's behaviour.
+
+#### 32.29.6 The future adoption gate
+
+The table existing never authorizes adoption. Before any module consumes
+`authority_delegations`, record:
+
+1. the named module;
+2. the genuine business requirement driving it;
+3. the exact authority point being delegated;
+4. proof that `department_head` is the appropriate authority for it;
+5. a live-versus-snapshot determination for that authority;
+6. the source permission that remains independently required;
+7. the maker-checker impact;
+8. the confidentiality impact;
+9. audit attribution carrying actual actor, direct holder and delegation id;
+10. the Action Centre impact, where applicable;
+11. the API and frontend surface required;
+12. the regression plan.
+
+#### 32.29.7 Verification record
+
+Carried forward from Pass 2B exactly, including what did not pass:
+
+- **Backend: 2862/2863 across 163 files.** The single whole-suite failure is
+  `documentExpiryReminderSample.test.ts` — the already-documented WS-6 unscoped
+  `claimDueJobs` suite-isolation condition, whose own header instructs that it
+  run alone. It passes **1/1 alone on a clean database**, and Pass 2B touches no
+  WS-5 or WS-6 path. **The whole-suite result is 2862/2863 and must not be
+  restated as 2863/2863.**
+- **Frontend: 843/843 across 78 files**, zero skipped.
+- **API: 732 operations across 594 paths, unchanged**, with no delegation HTTP
+  API, zero duplicate operation ids and zero dangling schema references.
+- **Migration `0071` round-trip up → down → up verified**; schema drift clean.
+- **Acceptance matrix: 36/36 PASS.**
+
+#### 32.29.8 Final status
+
+| Item | Status |
+|---|---|
+| Pass 1 — architecture freeze | **COMPLETE** (§32) |
+| Pass 2A — shared live direct-report helper | **COMPLETE** — `c40114d`, ledger `0070` (§32.27) |
+| Pass 2B — shared delegation foundation | **COMPLETE** — `f2caa5c`, migration `0071` (§32.28) |
+| Pass 2C — holder-facing API and frontend | **DEFERRED / CONSUMER-TRIGGERED** |
+| Pass 2D — first consumer adoption | **DEFERRED / CONSUMER-TRIGGERED** |
+| Shared delegation consumer count | **0 — by design** |
+| Office Inventory | module-owned, unmigrated, defect open |
+| **WS-16 overall** | **COMPLETE** |
+
+#### 32.29.9 What this closure does not touch
+
+**WS-11.1 remains deferred. WS-12's future-separation-basis dependency remains
+unresolved. The legacy `employee_skills` consolidation remains a separate Owner
+Decision. Global Search remains a future approved safe navigation and discovery
+capability that is not implemented (§31.40). The Office Inventory
+delegate-validation defect, future delegation date ranges, and additional
+delegation authority types all remain separately owned (§32.25).** None is
+absorbed here.
