@@ -363,7 +363,7 @@ The prior 43-item micro-list is retired. Below is the smallest coherent implemen
 | WS-13 | Employee Data Change Approval & HR Service Requests | **P1/P2** | Shared request/approval shape, configurable sensitive-field list, hybrid generic-foundation + specialized-workflow HR requests | WS-6 (light) | OD #10, #11 |
 | WS-14 | Skills, Competency Framework & Succession | **P2** | Formal proficiency framework, competency linkage, new internal-succession schema (critical roles, successors, readiness) | WS-9 (soft, for recruitment linkage) | OD #5, #7 |
 | WS-15 | Cross-Module Visibility | **P1/P2** | Employee 360 completion, HR Action Centre (org-wide), Manager Portal recruitment-participation source, Reporting execution consolidation | WS-6 | — (**architecture frozen in §31**) — **COMPLETE.** All four bundles implemented (§31.40.7); Global Search is a future approved safe navigation/discovery enhancement, **not implemented** and not a closure blocker (§31.40) |
-| WS-16 | Workflow/Delegation Primitive Generalization | **P2** | Generalize Office Inventory's delegation table, extract authority-resolver | WS-3 (light) | OD #14, #15 — **architecture frozen in §32** (Pass 1 complete; implementation not started). Scope narrowed by discovery: authority extraction is already largely shared (§32.2), so WS-16 delivers one shared live direct-report helper (Pass 2A) plus a new shared department-head delegation foundation (Pass 2B). Office Inventory is **not** migrated (§32.20); the holder-facing surface is **gated on a first approved consumer** (§32.21). **Pass 2A COMPLETE** (§32.27) — shared live direct-report helper shipped, six consumers migrated, seventh retained; **Pass 2B NOT STARTED**; WS-16 overall **PARTIALLY COMPLETE** |
+| WS-16 | Workflow/Delegation Primitive Generalization | **P2** | Generalize Office Inventory's delegation table, extract authority-resolver | WS-3 (light) | OD #14, #15 — **architecture frozen in §32** (Pass 1 complete; implementation not started). Scope narrowed by discovery: authority extraction is already largely shared (§32.2), so WS-16 delivers one shared live direct-report helper (Pass 2A) plus a new shared department-head delegation foundation (Pass 2B). Office Inventory is **not** migrated (§32.20); the holder-facing surface is **gated on a first approved consumer** (§32.21). **Pass 2A COMPLETE** (§32.27) — shared live direct-report helper shipped, six consumers migrated, seventh retained. **Pass 2B COMPLETE** (§32.28) — `authority_delegations` foundation shipped on migration `0071`, `department_head` only, holder-only, **zero business consumers by design**. **Pass 2C/2D GATED.** WS-16 overall **PARTIALLY COMPLETE** |
 | WS-17 | Deployment & Backup Operations | **P2** | VPS automation, release-pipeline Levels 3–6, backup/restore build-out, Fleet Health design | WS-1, WS-4 | — |
 | WS-18 | Security Verification Workstream & Production Security Gate | **P0** (gate, sequenced late) | Live tenant-isolation/IDOR testing, DAST, penetration testing, full business-logic-security sampling, closing the flagged Supabase-production RLS item | WS-1, WS-2, WS-3, WS-4 | — |
 | WS-19 | AI Layer (implementation) | **Future/P2** | Tool Gateway build, first provider selection, Level 1–4 action mapping | WS-3, WS-5, WS-10, WS-4 (for future Control Plane AI scope) | OD #24, #25, #26 |
@@ -3519,7 +3519,7 @@ Restrained, and sequenced by dependency rather than by ambition.
 | Slice | Scope | Gate |
 |---|---|---|
 | **Pass 2A** | Shared live direct-report helper `lib/directReports.ts`; migrate the six proven-equivalent sites (§32.9); retain #7 with its documented reason; correct the stale `leaveApprovals.ts` reference in the Manager Portal header (§32.8). **No schema change, no migration; ledger stays `0070`.** | **COMPLETE** — see §32.27 |
-| **Pass 2B** | `authority_delegations` table and enum (migration **`0071`**, additive, RLS, hand-written down), the shared resolver, create/revoke service with §32.16 validation and §32.11 concurrency, audit events. **No consumer wired.** | **NOT STARTED** — ready now |
+| **Pass 2B** | `authority_delegations` table and enum (migration **`0071`**, additive, RLS, hand-written down), the shared resolver, create/revoke service with §32.16 validation and §32.11 concurrency, audit events. **No consumer wired.** | **COMPLETE** — see §32.28 |
 | **Pass 2C** | Holder-facing API, frontend surface (§32.22) and audit surfacing | **GATED** — requires an approved first consumer (§32.21) |
 | **Pass 2D** | First approved consumer adoption, including that module's own attribution columns (§32.18) | **GATED** — requires an explicit Owner Decision naming the module |
 
@@ -3533,6 +3533,9 @@ Recorded so that none is silently absorbed into WS-16 or silently dropped.
 1. **The Office Inventory delegate-validation gap** (§32.6) — cross-tenant,
    inactive and self delegate ids are accepted today. Requires its own decision
    and its own pass, because repairing it changes a shipped module's behaviour.
+   **Still open after Pass 2B**, deliberately: the shared foundation validates
+   all three at write time (§32.28.3), but Office Inventory was not touched,
+   not migrated and not dual-written, so its own gap is unchanged.
 2. **The first delegation consumer** (§32.21) — no module is authorized today;
    Pass 2C and Pass 2D are gated on this.
 3. **Scheduled delegation windows** (§32.11) — a future start or a planned end,
@@ -3553,7 +3556,8 @@ capability and is not implemented (§31.40).** None is absorbed here.
 WS-16 closes OD #14 and OD #15 **as architecture, not as implementation**.
 Neither is complete until Pass 2A and Pass 2B ship.
 
-**Pass 2A shipped on 2026-08-31 (§32.27). Pass 2B has not started.**
+**Pass 2A shipped on 2026-08-31 (§32.27), and Pass 2B on the same date (§32.28).
+Pass 2C and Pass 2D remain gated.**
 
 ### 32.27 Pass 2A implementation record
 
@@ -3639,3 +3643,144 @@ Reporting or Global Search change. The API contract is unchanged: **732
 operations across 594 paths**, zero duplicate operation ids, zero dangling
 schema references, codegen deterministic.
 
+### 32.28 Pass 2B implementation record
+
+Shipped 2026-08-31 against the frozen §32.10–§32.19. **Migration `0071`,
+purely additive; ledger moves `0070` → `0071`.** No permission key, no
+permission seed change, **no HTTP route**, no API contract change (**732
+operations across 594 paths**, unchanged), no frontend change, and **no
+business consumer**.
+
+#### 32.28.1 Schema objects created
+
+One enum and one table, with zero drops and zero altered columns anywhere:
+
+- `delegatable_authority_type` — a pgEnum with the **single** member
+  `department_head`;
+- `authority_delegations` — the eleven frozen columns exactly: `id`,
+  `organization_id`, `authority_type`, `department_id`,
+  `delegator_membership_id`, `delegate_membership_id`, `reason`,
+  `valid_from`, `valid_to`, `revoked_by_membership_id`, `created_at`.
+  No `created_by_membership_id` and no `revoked_at`, for the reasons §32.10
+  records;
+- indexes `authority_delegations_open_unique` (UNIQUE, partial,
+  `WHERE valid_to IS NULL`), `authority_delegations_org_scope_idx` and
+  `authority_delegations_delegate_idx`;
+- five foreign keys (`restrict`, except `revoked_by` which is `set null`);
+- **three CHECK constraints** — the first in this repository — pushing
+  integrity into the database rather than leaving it all in a service:
+  `authority_delegations_no_self_delegation`,
+  `authority_delegations_valid_range` and
+  `authority_delegations_reason_not_blank`;
+- `ENABLE ROW LEVEL SECURITY` with **zero policies**, the standing convention.
+
+Verified by round-trip on a fresh database: **up → down → up**, with every
+index, CHECK, foreign key and RLS restored, and `drizzle-kit` reporting
+"No schema changes, nothing to migrate" afterwards.
+
+#### 32.28.2 A constraint defect found and fixed before commit
+
+The reason-not-blank CHECK was first written as `length(btrim(reason)) > 0`.
+A live test proved that wrong: **PostgreSQL's `btrim` strips spaces only**, so
+a tab- or newline-only reason passed the database while the service's JavaScript
+`.trim()` rejected it. A backstop that disagrees with the service it backs is
+worse than no backstop, so the constraint became
+`reason ~ '[^[:space:]]'` — "contains at least one non-whitespace character",
+which is exactly what `.trim().length > 0` means. The migration was regenerated
+rather than patched, and the test now asserts four whitespace shapes against
+both layers.
+
+#### 32.28.3 The service
+
+`artifacts/api-server/src/lib/authorityDelegations.ts` — internal only, with
+**no route and no OpenAPI surface**, because the holder-facing API and UI are
+Pass 2C and remain gated (§32.21).
+
+- `resolveDepartmentHeadAuthority(organizationId, departmentId, actorMembershipId)`
+  → the frozen minimal result `{ basis, directAuthorityHolderMembershipId,
+  delegationId }` or `null`. Composes `departmentHeads.ts`'s existing
+  `getCurrentDepartmentHead` rather than creating a competing source of truth.
+- `createDepartmentHeadDelegation` — holder-only. There is **no
+  `delegatorMembershipId` parameter to forge**: the delegator is always the
+  authenticated actor, verified live against the department-head resolver.
+- `revokeDelegation` — delegator-only, immediate, never deleting.
+- `listDelegationsGrantedBy`, `getDelegation`, `getOpenDelegationGrantedBy` —
+  bounded reads, all organization-predicated, all keyed on the delegator. There
+  is deliberately **no "list every delegation in the tenant"** capability and no
+  administrative backdoor.
+
+Write-time validation rejects, each with its own named error: unsupported
+authority type · blank reason · self-delegation · a department outside the
+organization · an actor who is not the current head · an inactive or
+cross-tenant actor · **an inactive or cross-tenant delegate**. That last one is
+the gap the Office Inventory prototype leaves open (§32.6): a foreign key
+proves a membership exists, never that it is ours.
+
+#### 32.28.4 The rules that carry the design
+
+- **Holder-only.** No Org Admin, HR, Super Admin or workflow-administrator
+  path exists to create or revoke on someone's behalf.
+- **No chaining, structurally.** Creation demands DIRECT authority, and a
+  delegate is by definition not the head, so A → B → C cannot be expressed —
+  proved by a test in which B genuinely holds delegated authority and is still
+  refused.
+- **Authority loss makes a delegation inert**, and the new head does **not**
+  inherit it. The row stays open and fully queryable while granting nothing,
+  because resolution matches only a row whose delegator *is* the current head.
+- **Revocation is immediate**, by runtime date evaluation. **No job exists or
+  is required**, and none may be built that correctness depends on.
+- **An inactive or expired delegate** resolves to no authority, re-checked at
+  resolution rather than trusted from creation.
+- **A vacancy denies everyone**, delegation or not.
+- **Delegation grants no permission** — asserted by a test comparing membership
+  roles before and after.
+- **Replacement, not accumulation**: creating a second delegation closes the
+  holder's own open one inside one transaction (`SELECT … FOR UPDATE`), with
+  the partial unique index proven to reject a raw duplicate open row.
+
+#### 32.28.5 Audit
+
+`authority_delegation.created` and `authority_delegation.revoked`, through the
+existing `recordAuditEvent` — no second audit system. The prefix is registered
+in `auditCategories.ts` as **`security`**, sitting with `membership` and
+`role` rather than under HR or a module category, because what it records is an
+access-control change. Both events name the **actual** acting membership, and a
+replacement records the superseded delegation's id.
+
+The resolver returns `directAuthorityHolderMembershipId` and `delegationId`
+precisely so a future consumer can store the **actual delegate** alongside them
+and never attribute an action as though the head performed it personally
+(§32.18). No source business audit was modified, because no consumer is wired.
+
+#### 32.28.6 Verification
+
+**33 live tests** covering create, runtime resolution, revoke, tenant isolation,
+audit and the permission boundary, plus **4 new structural guards** replacing
+Pass 2A's now-obsolete "no delegation foundation exists" assertion:
+
+- the foundation has **zero business consumers** — any file importing it other
+  than itself fails the suite;
+- it is **not exposed over HTTP**, guarding the Pass 2C gate;
+- **only `department_head`** is representable in the enum;
+- **Office Inventory neither reads nor is read by** the shared module.
+
+Cross-tenant defence is proved at every entry point: Org A cannot read, revoke
+or resolve an Org B delegation; a cross-tenant delegate is refused at creation;
+and a failed cross-tenant revoke leaves the foreign row untouched.
+
+#### 32.28.7 What Pass 2B completion does NOT mean
+
+**Shared delegation infrastructure existing does not mean delegation is
+available.** No business workflow recognises it, no frontend exposes it, no
+route serves it, and no authority scope beyond `department_head` is
+authorized. **The initial consumer set remains EMPTY** and a consumer must not
+be invented to justify the table. Pass 2C (holder-facing API and UI) and
+Pass 2D (first consumer adoption) both remain **GATED** on an explicit Owner
+Decision naming a module.
+
+Office Inventory remains on its own table and resolver, unmigrated and
+un-dual-written, and **its FK-only delegate-validation gap remains open**
+(§32.6, §32.25) — deliberately not repaired here.
+
+**WS-16 remains PARTIALLY COMPLETE.** OD #14 and OD #15 are closed as
+architecture and now have their foundation, but neither is closed as adoption.

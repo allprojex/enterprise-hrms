@@ -15,7 +15,13 @@ export type User = typeof usersTable.$inferSelect;
 
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // matches session TTL (auth.ts)
 
-function activeAndUnexpired() {
+/**
+ * The authoritative "this membership is usable right now" predicate:
+ * status "active" AND not past its expiry. Exported (WS-16 Pass 2B) so the
+ * shared authority-delegation foundation composes the SAME SQL rather than
+ * defining a second notion of "active" that could later drift from this one.
+ */
+export function activeAndUnexpired() {
   const now = new Date();
   return and(
     eq(organizationMembershipsTable.status, "active"),

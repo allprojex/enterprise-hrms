@@ -498,6 +498,13 @@
       "when": 1787970601746,
       "tag": "0070_glossy_impossible_man",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1788155092810,
+      "tag": "0071_nostalgic_patriot",
+      "breakpoints": true
     }
   ]
 }

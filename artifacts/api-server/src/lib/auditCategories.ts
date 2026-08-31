@@ -34,6 +34,16 @@ const CATEGORY_BY_PREFIX: Record<string, AuditCategory> = {
   // anticipated (see this file's own comment history), registered
   // explicitly here for clarity rather than left to fall through.
   break_glass_grant: "security",
+  // WS-16 Pass 2B (§32.10, Owner Decisions #14/#15): the shared
+  // authority-delegation foundation. Security-category rather than "hr"
+  // or the module-scoped "assets_inventory" that office_inventory_delegation
+  // carries, because this table is module-neutral and what it records is an
+  // ACCESS-CONTROL change — one person temporarily gaining the standing to
+  // act with another's authority. It sits with membership/role for exactly
+  // that reason. The fail-closed default would already land here; it is
+  // registered explicitly because this file is the one place categorization
+  // happens.
+  authority_delegation: "security",
 
   // --- payroll ---
   payroll_banking: "payroll",
