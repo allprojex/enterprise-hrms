@@ -290,8 +290,8 @@ Unchanged from the discovery pass — neither gate is met today, both remain ded
 | Workplace Incidents | N | | | | P2 |
 | HR Compliance Calendar | N | | | | P2 |
 | Tasks/Notifications/Reminders | N | | | | **P1 — APPROVED, HIGH PRIORITY (OD #13)** |
-| Workflow/Approval primitive | Partial | | | | **P2 — APPROVED (OD #14)**, authority-resolver only |
-| Delegation/Acting Authority | Y (1 module) | | | | **P2 — APPROVED (OD #15)**, generalize |
+| Workflow/Approval primitive | Partial | | | | **P2 — APPROVED (OD #14)**, authority-resolver only — **architecture frozen in §32**; discovery found most extraction already shared, so WS-16's remaining scope is one live direct-report helper (§32.9). WS-9/WS-13 stage resolvers stay separate (§32.14) |
+| Delegation/Acting Authority | Y (1 module) | | | | **P2 — APPROVED (OD #15)**, generalize — **architecture frozen in §32**: new shared `authority_delegations` table for future consumers, `department_head` only, holder-only creation; Office Inventory stays on its own table, unmigrated (§32.20) |
 | Global Search / Employee 360 | Y (360) / N (search) | | | | P2/P3 — **Employee 360 COMPLETE** against §31.29 (eight module-aware sections, no giant DTO, no migration), see `docs/EMPLOYEE_360.md`; **Global Search approved as a future safe navigation/discovery capability, NOT implemented** (§31.40) |
 | HR Action Centre | Y | | | | P1 — **WS-15 P1 IMPLEMENTED** against §31.4–31.27 (runtime federation, no new table, no new permission); see `docs/ACTION_CENTRE.md` |
 | ESS | Y | Y | | | — |
@@ -363,7 +363,7 @@ The prior 43-item micro-list is retired. Below is the smallest coherent implemen
 | WS-13 | Employee Data Change Approval & HR Service Requests | **P1/P2** | Shared request/approval shape, configurable sensitive-field list, hybrid generic-foundation + specialized-workflow HR requests | WS-6 (light) | OD #10, #11 |
 | WS-14 | Skills, Competency Framework & Succession | **P2** | Formal proficiency framework, competency linkage, new internal-succession schema (critical roles, successors, readiness) | WS-9 (soft, for recruitment linkage) | OD #5, #7 |
 | WS-15 | Cross-Module Visibility | **P1/P2** | Employee 360 completion, HR Action Centre (org-wide), Manager Portal recruitment-participation source, Reporting execution consolidation | WS-6 | — (**architecture frozen in §31**) — **COMPLETE.** All four bundles implemented (§31.40.7); Global Search is a future approved safe navigation/discovery enhancement, **not implemented** and not a closure blocker (§31.40) |
-| WS-16 | Workflow/Delegation Primitive Generalization | **P2** | Generalize Office Inventory's delegation table, extract authority-resolver | WS-3 (light) | OD #14, #15 |
+| WS-16 | Workflow/Delegation Primitive Generalization | **P2** | Generalize Office Inventory's delegation table, extract authority-resolver | WS-3 (light) | OD #14, #15 — **architecture frozen in §32** (Pass 1 complete; implementation not started). Scope narrowed by discovery: authority extraction is already largely shared (§32.2), so WS-16 delivers one shared live direct-report helper (Pass 2A) plus a new shared department-head delegation foundation (Pass 2B). Office Inventory is **not** migrated (§32.20); the holder-facing surface is **gated on a first approved consumer** (§32.21) |
 | WS-17 | Deployment & Backup Operations | **P2** | VPS automation, release-pipeline Levels 3–6, backup/restore build-out, Fleet Health design | WS-1, WS-4 | — |
 | WS-18 | Security Verification Workstream & Production Security Gate | **P0** (gate, sequenced late) | Live tenant-isolation/IDOR testing, DAST, penetration testing, full business-logic-security sampling, closing the flagged Supabase-production RLS item | WS-1, WS-2, WS-3, WS-4 | — |
 | WS-19 | AI Layer (implementation) | **Future/P2** | Tool Gateway build, first provider selection, Level 1–4 action mapping | WS-3, WS-5, WS-10, WS-4 (for future Control Plane AI scope) | OD #24, #25, #26 |
@@ -416,8 +416,8 @@ WS-1 is the only workstream with **zero dependencies** and the largest number of
 | 11 | Employee Data Change Approval | **APPROVED** | P1 | Proven request/approval shape; configurable sensitive fields; full audit/history preserved. |
 | 12 | Offboarding Clearance | **APPROVED** | P1 | Structured, integrated with owning modules (Assets/Inventory/Documents/IT/Payroll); no duplication of their records. |
 | 13 | Scheduled Jobs / Notifications | **APPROVED — HIGH PRIORITY** | P1 | Shared scheduling/notification foundation; unblocks multiple dependent capabilities. |
-| 14 | Shared Approval Primitive | **APPROVED** | P2 | Restrained: shared authority-resolution/delegation only, never a giant generic workflow engine replacing working domain flows. **Assigned to WS-16** (§20 register; see §31.38) — not started. |
-| 15 | Delegation | **APPROVED** | P2 | Generalize the proven Office Inventory delegation concept; sequence with #14; remain effective-dated/scoped/revocable/auditable. **Assigned to WS-16** (§20 register; see §31.38) — not started. |
+| 14 | Shared Approval Primitive | **APPROVED** | P2 | Restrained: shared authority-resolution/delegation only, never a giant generic workflow engine replacing working domain flows. **Assigned to WS-16** (§20 register). **Architecture frozen in §32** — Pass 1 complete, implementation not started. |
+| 15 | Delegation | **APPROVED** | P2 | Generalize the proven Office Inventory delegation concept; sequence with #14; remain effective-dated/scoped/revocable/auditable. **Assigned to WS-16** (§20 register). **Architecture frozen in §32** — Pass 1 complete, implementation not started. |
 | 16 | Audit Tamper Protection | **APPROVED** | P1 | Strengthen existing architecture (no second audit system); append-oriented, DB-level protection for critical records. |
 | 17 | Audit Read Permissions | **APPROVED** | P1 | Category/sensitivity-aware audit-read authorization; basic HR access must not expose Payroll/security audit data. |
 | 18 | Sensitive Read Auditing | **APPROVED AND EXPANDED** | P1 | Personnel Files, disciplinary/grievance evidence, sensitive exports, banking, statutory identifiers, **privileged support access**, other highly sensitive records; risk-based, not noisy. |
@@ -1689,7 +1689,7 @@ Resolvers are server-defined. There is **no rule DSL, no expression evaluator an
 
 ### 29.9 Decision H — OD #14 and OD #15 are not claimed
 
-WS-13 **must not claim to complete OD #14 or OD #15**. Both are approved and **assigned to WS-16**, which has not started (corrected in §31.38).
+WS-13 **must not claim to complete OD #14 or OD #15**. Both are approved and **assigned to WS-16** (corrected in §31.38). WS-16's architecture is now frozen in **§32**; its implementation has not started.
 
 Accordingly WS-13 builds: no cross-product generic approval engine; no generalized system-wide delegation framework; no unrequested refactor of Office Inventory delegation; no unrequested refactor of Recruitment approval resolution.
 
@@ -1853,7 +1853,7 @@ Permission-filtered and confidentiality-aware — **a report must never become t
 
 - **WS-12's future separation basis.** Nothing in this platform records an approved *future* resignation, retirement or termination, which is why WS-12 recognizes only `already_separated` and `contract_end`. **WS-13 does not solve this and must not create a parallel separation source** — a "resignation" service request is a request, never a separation basis, and §29.3 excludes lifecycle fields by construction. The dependency stays recorded for whichever future workstream owns it, with its own Owner Decision.
 - **WS-11.1 remains deferred in full** — organization-configured acting auto-revert, configurable employment types, contract extension and amendment, temporary assignment, accepted-offer to employment-term handoff, **lifecycle letter generation**, additional acting and probation metadata, and write-side Employment Lifecycle UI. If implementation discovers a genuine blocking dependency, **stop and report it** rather than silently changing WS-11.
-- **OD #14 and OD #15** are approved and **assigned to WS-16**, which has not started (§29.9; corrected in §31.38).
+- **OD #14 and OD #15** are approved and **assigned to WS-16** (§29.9; corrected in §31.38). WS-16's architecture is now frozen in **§32**; its implementation has not started.
 
 ### 29.26 Open items still requiring decision at implementation time
 
@@ -2140,7 +2140,7 @@ Performance Management and its competency and rating-scale tables, the Learning 
 
 ### 30.29 Deferred and out of scope
 
-Full Performance Management, 360-degree review, Learning Management, course management, promotion, transfer and acting-appointment workflows, workforce planning, compensation planning, AI succession ranking, career-path engines, organizational-chart simulation, a generic approval engine, the WS-15 Action Centre, and **WS-11.1 in full**. **OD #14 and OD #15 are approved and assigned to WS-16, which has not started (corrected in §31.38).** WS-12's future-separation-basis dependency is recorded there and is **not** solved here.
+Full Performance Management, 360-degree review, Learning Management, course management, promotion, transfer and acting-appointment workflows, workforce planning, compensation planning, AI succession ranking, career-path engines, organizational-chart simulation, a generic approval engine, the WS-15 Action Centre, and **WS-11.1 in full**. **OD #14 and OD #15 are approved and assigned to WS-16** (corrected in §31.38); WS-16's architecture is now frozen in **§32** and its implementation has not started. WS-12's future-separation-basis dependency is recorded there and is **not** solved here.
 
 ### 30.30 Implementation record (WS-14 Pass 2)
 
@@ -2877,9 +2877,678 @@ must not be changed to accommodate that topology.
 
 #### 31.40.9 What this closure does not touch
 
-**WS-16 remains NOT STARTED and continues to own OD #14 and OD #15.** No
-workflow generalization, delegation generalization or authority-primitive
-extraction is authorized or implied here. WS-11.1 remains deferred, WS-12's
+**WS-16 continues to own OD #14 and OD #15.** No workflow generalization,
+delegation generalization or authority-primitive extraction is authorized or
+implied by this WS-15 closure. (WS-16's own Pass 1 subsequently froze that
+architecture in **§32**, on the same date; its implementation has not started.) WS-11.1 remains deferred, WS-12's
 future-separation-basis dependency remains unresolved, and the legacy
 `employee_skills` consolidation remains a separate Owner Decision. None is
 absorbed into this closure.
+
+---
+
+## 32. WS-16 — Workflow / Delegation Primitive Generalization (Architecture Freeze)
+
+**Status of the freeze.** This section is **purely additive**. The 31 Owner
+Decisions in §22 are untouched and none is reopened. WS-16 carries **two**
+assigned Owner Decisions — **OD #14 (Shared Approval Primitive)** and **OD #15
+(Delegation)** — whose approved text is implemented, never amended, by what
+follows. WS-1 through WS-15 remain complete and are not reopened. Migration
+ledger remains **`0070`**; this section is documentation only.
+
+Recorded 2026-08-31, after a read-only Pass 1 discovery against
+`7662a680755effabbba2472ec22d7b37d708afc0` and five binding Owner Decisions
+resolving the forks that discovery surfaced.
+
+### 32.1 What OD #14 and OD #15 actually authorize
+
+Quoted from §11 and §22, unchanged:
+
+> **OD #14 — Shared Approval Primitive — APPROVED.** Use the restrained
+> architecture: shared authority-resolution/delegation primitives *where
+> justified*. Do **not** replace working domain workflows (Leave's two-stage,
+> Payroll's maker-checker, Recruitment's requisition/offer approvals) with one
+> giant generic workflow engine. … extract only the authority-resolution/
+> delegation half, leave each module's own approval state machine bespoke.
+
+> **OD #15 — Delegation — APPROVED.** Generalize the proven delegation concept
+> (currently Office Inventory-only: effective-dated, revocable, DB-enforced
+> single-open-delegation, live-revalidated) beyond Office Inventory *where
+> appropriate*. Sequence with OD #14. Authority must remain effective-dated,
+> scoped, revocable, and auditable.
+
+The load-bearing words are *where justified* and *where appropriate*. §32.2
+records what the repository proved is justified; §32.4 records the five Owner
+Decisions that bounded the rest.
+
+### 32.2 The discovery finding that reframed the workstream
+
+**OD #14's authority-resolution extraction is already largely done — organically,
+and better than a retrofit would have managed.** This was established by direct
+inspection rather than by reading prior documents, and it *narrows* WS-16 rather
+than expanding it.
+
+| Authority mechanism | Reality at `7662a68` | Genuine duplication? |
+|---|---|---|
+| "Which employee is me" — 6 × `resolve*ActorEmployeeId` (asset, attendance, learning, performance, recruitment, managerPortal) | Every one is a **one-line delegation** to `resolveOwnEmployeeId` in `lib/leaveRequests.ts` | **No — naming only** |
+| Org-wide permission — 5 × `hasOrgWide*Access(membershipId, key)` | Every one is a **one-line delegation** to `hasPermission` | **No — naming only** |
+| Own-record — 5 × `isOwn*Record` | Identical pure comparison, no I/O | **No — naming only** |
+| Department head | **One shared module**, `lib/departmentHeads.ts`, four *purposeful* variants, consumed by nine modules | **No** |
+| Live direct reports | **Seven independent query sites** (§32.9) | **YES — the only one** |
+| Approval-stage authority | Two implementations (WS-9, WS-13) sharing a three-value vocabulary across **two separate enums**, with materially different semantics (§32.14) | **Vocabulary only** |
+| Task responsibility | One implementation (WS-10), five values, *forward* resolver | Different question entirely |
+| Delegation | One implementation (Office Inventory) | Sole implementation — the OD #15 prototype |
+
+This refines §31.3(3)'s "ten independent authority resolvers". That count was
+accurate as a count of *named functions*; sixteen of those names resolve to
+three shared primitives. **The correct figure for genuine, unshared duplication
+is one mechanism, not ten.**
+
+The four `departmentHeads.ts` variants are not duplication and must not be
+collapsed: `getCurrentDepartmentHead` (live), `resolveDepartmentHeadAsOf`
+(point-in-time, for historical evidence), `listDepartmentsHeadedByMembership`
+(inverse, live) and `resolveDepartmentHeadIdentity` (display identity). Only
+`officeInventoryReporting.ts` touches `department_heads` directly, and that is a
+reporting aggregate — "departments blocked by a vacant head" — not an authority
+decision.
+
+### 32.3 Live authority versus snapshot authority
+
+This distinction is load-bearing and already documented in shipped code. WS-16
+must preserve it exactly.
+
+| Authority | Kind | Source |
+|---|---|---|
+| Manager Portal team roster, Assets team custody, Attendance/Leave/dashboard scopes | **LIVE** | `employees.reportingManagerId`, re-queried every call |
+| Department headship | **LIVE** (or explicitly as-of) | `department_heads` where `valid_to is null` |
+| Learning enrolment manager | **SNAPSHOT** | `learning_enrollments.managerEmployeeIdSnapshot` |
+| Performance reviewer | **SNAPSHOT** | `performance_reviews.reviewerEmployeeId` |
+
+`managerPortalAuthorization.ts` already carries the warning verbatim: its live
+helper *"must never be substituted for Performance's/Learning's own snapshot/
+workflow authority helpers … this helper is for genuinely live
+reportingManagerId semantics only."*
+
+**Frozen prohibition.** WS-16 must not replace
+`learning_enrollments.managerEmployeeIdSnapshot` or
+`performance_reviews.reviewerEmployeeId` with live reporting-manager
+resolution, directly or transitively. A snapshot exists so that a review or an
+enrolment stays attributable to the manager who actually owned it; converting it
+to live would silently rewrite history. This is a Pass-2 regression requirement
+(§32.23, invariants 22–23), not merely a coding instruction.
+
+### 32.4 The five binding Owner Decisions
+
+Resolved by the Owner on 2026-08-31 after Pass 1 discovery reported them.
+
+| # | Fork | Decision | Consequence |
+|---|---|---|---|
+| Q1 | How far "where justified" / "where appropriate" reaches | **A — MINIMAL** | Smallest justified shared delegation primitive; consolidate only proven-equivalent live direct-report resolution; preserve module-owned workflows and authority semantics |
+| Q2 | Does the shared primitive replace Office Inventory's table? | **A — NEW TABLE FOR NEW CONSUMERS; OFFICE INVENTORY UNTOUCHED** | No migration of its rows, no replacement of its table, no rewrite of its concurrency-tested resolver, **no dual-write** |
+| Q3 | May an administrator delegate on behalf of an authority holder? | **A — AUTHORITY HOLDER ONLY** | No Org Admin, HR, Super Admin or workflow-administrator delegation on another person's behalf |
+| Q4 | Are the seven direct-report implementations consolidated? | **B — ONLY PROVEN SEMANTICALLY IDENTICAL** | Per-site classification required, recorded in §32.9 |
+| Q5 | Which authority types become delegatable? | **A — `department_head` ONLY** | Reporting-manager, permission-holder, specific-membership, stage, reviewer, interview panel, HR-permission, Payroll maker-checker, Recruitment approval and Onboarding `employee_self` authority are **not** delegatable |
+
+**Explicitly excluded from WS-16 by Q1.** Converging the WS-9 and WS-13 stage
+resolvers; a generic workflow engine; centralizing module approval state
+machines; replacing Onboarding responsibility semantics; replacing Performance
+or Learning snapshot authority; and generalizing any resolver merely because its
+name resembles another's.
+
+### 32.5 What the Office Inventory prototype already proves
+
+Nine questions about delegation are answered by shipped, concurrency-tested
+evidence rather than by decision. Each is carried forward.
+
+1. **No chaining is structurally possible.** `createDelegation` throws
+   `NotCurrentDepartmentHeadError` unless the actor **is** the department's
+   current Head. A delegate is never the Head, so a delegate can never create a
+   delegation. A → B → C cannot be expressed.
+2. **Delegation adds substitute authority; it never transfers it.**
+   `resolveApprovalAuthority` returns `capacity: "department_head"` for the Head
+   *and* `capacity: "delegate"` for the delegate. The Head keeps everything.
+3. **Delegation grants authority, not permission.** The delegation route
+   independently requires `office_inventory.delegate.manage`, and the approval
+   routes independently require their own permission. The row grants neither.
+4. **Revocation is immediate**, because authority is re-derived on every action
+   from a live query — never cached, never inferred from the row's existence.
+5. **Rows are never deleted or rewritten.** `validTo` is stamped; the row stays
+   fully historically queryable.
+6. **No job is required for correctness.** Validity is a runtime date
+   evaluation. Nothing expires a delegation on a schedule.
+7. **Only the current authority holder may create or revoke** — `revokeDelegation`
+   enforces this too, not just creation.
+8. **Cross-tenant delegation is impossible for the actor**: `organizationId` is
+   on the table and in every query, and the route resolves it from the verified
+   membership rather than from the request body.
+9. **The §5.3 rule is the model's spine.** A delegation row survives its Head's
+   replacement but becomes **functionally inert**, because every approval
+   re-checks that the row's `delegatingHeadMembershipId` is *still* the
+   department's actual current Head.
+
+A concurrency defect found during that module's own live QA is carried forward
+as a design constraint, because the shared primitive inherits its shape: the
+unique index keys on the **delegating head**, not the delegate, so one delegate
+may simultaneously hold an open-but-inert row from a former Head alongside a
+valid row from the current Head. The resolver therefore filters on
+`delegatingHeadMembershipId = currentHead.headMembershipId` **inside the query**
+rather than filtering after the fact — an unordered "any open row for this
+delegate" query could non-deterministically return either row. **The shared
+resolver must be written the same way** (§32.23, invariant 20).
+
+### 32.6 A defect in the prototype, recorded and deliberately not fixed here
+
+Discovery found that `office_inventory_approval_delegations` accepts a
+`delegateMembershipId` validated **only by its foreign key**. The OpenAPI body
+is `{ delegateMembershipId: integer }` with no constraints, and neither the
+route nor `createDelegation` checks that the delegate:
+
+- belongs to the **same organization** as the delegating Head;
+- is an **active** membership;
+- **is not the actor** — self-delegation is currently accepted.
+
+The foreign key guarantees only that the id names *some* membership, including
+one in another tenant.
+
+**This is recorded, not repaired.** Q2 and §32.20 place Office Inventory
+expressly outside WS-16's scope, and repairing it would change the behaviour of
+a shipped module this workstream is instructed not to touch. **It requires its
+own Owner Decision and its own pass**, and is registered as such in §32.25. It
+is stated here so that it is neither silently inherited nor silently fixed.
+
+**The shared primitive is deliberately stricter than the prototype** and
+validates all three at write time (§32.16).
+
+### 32.7 The shared live direct-report helper — the one genuine consolidation
+
+**Canonical helper.** A new module `artifacts/api-server/src/lib/directReports.ts`,
+sibling to `lib/departmentHeads.ts` and following its shape:
+
+```ts
+export async function listLiveDirectReportEmployeeIds(
+  organizationId: number,
+  managerEmployeeId: number | null,
+): Promise<number[]>
+```
+
+Frozen semantics:
+
+- resolves from `employees.reportingManagerId` **live**, on every call — never
+  cached, never snapshotted;
+- scoped by `organizationId` in the same `and(...)` clause, always;
+- **no `employmentStatus` filter** — this matches all six migrating sites
+  exactly (§32.9);
+- returns employee **ids only**;
+- returns `[]` when `managerEmployeeId` is `null`, subsuming the `?? -1` idiom
+  four of the six sites use today, with identical results and without a sentinel
+  id in a SQL predicate;
+- **does not include the caller's own employee id.** Self-inclusion is
+  caller-side composition and differs legitimately between sites — Assets'
+  team-custody endpoint deliberately excludes self; the four scope resolvers
+  deliberately include it. Folding that choice into the helper would change
+  behaviour at five sites.
+
+**It must never be used for snapshot authority** (§32.3), and the file must
+carry that prohibition in its header, as `managerPortalAuthorization.ts` does.
+
+### 32.8 A stale premise corrected
+
+The Manager Portal frozen plan's header in `managerPortalAuthorization.ts` names
+seven existing direct-report implementations and lists **`leaveApprovals.ts`**
+among them. At `7662a68` that is **false**: `leaveApprovals.ts` contains no
+`reportingManagerId` query at all, and its own comment states that a Department
+Head *"sees only 'pending' requests from the department(s) they currently,
+actually head — **never derived from reportingManagerId**, never from holding
+`leave_request.approve` alone."* Leave approval authority is department-headship
+authority, not reporting-line authority.
+
+The verified set of forward live direct-report query sites is the seven in
+§32.9. **The stale list must not be restored.** Correcting that header comment
+is a Manager Portal file change: permitted in Pass 2A, forbidden in Pass 1.
+
+### 32.9 The seven direct-report sites — required classification (Q4 = B)
+
+Verified exhaustively by inspecting every `employeesTable.reportingManagerId`
+reference in `artifacts/api-server/src`, excluding tests.
+
+| # | Site | Predicate | Selects | Status filter | Disposition | Reason |
+|---|---|---|---|---|---|---|
+| 1 | `lib/assetReporting.ts:110` (`resolveAssetReportScope`) | `organizationId = X AND reportingManagerId = Y` | ids | none | **MIGRATE** | Predicate, projection and absence of a status filter are identical to the canonical helper. Self is added separately by `scopedEmployeeIds` and is unaffected. |
+| 2 | `lib/assets.ts:1127` (`listTeamAssetAssignments`) | identical | ids | none | **MIGRATE** | Identical. The deliberate exclusion of self is caller-side (team custody only) and unaffected. |
+| 3 | `lib/attendanceReporting.ts:62` (`resolveAttendanceReportScope`) | identical, `ownEmployeeId ?? -1` | ids | none | **MIGRATE** | Identical; the `?? -1` sentinel is subsumed by the helper's `null → []` contract, with the same result. |
+| 4 | `routes/attendanceRegister.ts:81` | identical, `?? -1` | ids | none | **MIGRATE** | Identical; an inline route copy of #3. |
+| 5 | `routes/leaveCalendar.ts:58` | identical, `?? -1` | ids | none | **MIGRATE** | Identical; the pattern the others describe themselves as mirroring. |
+| 6 | `routes/users.ts:48` (`resolveLeaveDashboardMetrics`) | identical, `?? -1` | ids | none | **MIGRATE** | Identical. |
+| 7 | `lib/managerPortalAuthorization.ts:75` (`listLiveDirectReports`) | `… AND employmentStatus <> 'terminated'` | full `Employee` rows | **excludes `terminated`** | **RETAIN — DIFFERENT SEMANTICS** | Its own header documents the difference as deliberate: *"a deliberate, narrower filter than the … existing direct-report query implementations (none of which filter by employmentStatus at all, since their own purpose — bounding a workflow search — differs from Team Overview's own purpose of showing a live team roster)."* It also returns full rows in a deterministic `lastName, firstName, id` order. Migrating it onto the canonical helper would put terminated employees back on a live team roster; migrating the six onto **it** would silently narrow six shipped scopes. Under Q4 = B, neither is permitted. |
+
+**Not candidates — opposite direction.** Three further sites read
+`employees.reportingManagerId` as a *projection*, answering "who is **my**
+manager" rather than "who are my direct reports": `lib/notifications.ts:135`,
+`lib/onboarding/responsibility.ts:83`, `lib/skills/capability.ts:91`. A
+different question with a different cardinality; **out of scope**.
+
+**Net result: six sites migrate, one is retained with a recorded reason, three
+are not candidates. No behaviour changes anywhere.**
+
+### 32.10 The shared delegation table (architecture only — not implemented)
+
+Name: **`authority_delegations`** — module-neutral, following `department_heads`'
+own naming rather than Office Inventory's module-prefixed table.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `serial` primary key | |
+| `organization_id` | `integer` NOT NULL → `organizations.id` `on delete restrict` | tenant scope; present in every query |
+| `authority_type` | `delegatable_authority_type` NOT NULL | new enum whose **only** member is `department_head` |
+| `department_id` | `integer` NOT NULL → `departments.id` `on delete restrict` | the authority scope |
+| `delegator_membership_id` | `integer` NOT NULL → `organization_memberships.id` `on delete restrict` | must **be** the current holder at creation |
+| `delegate_membership_id` | `integer` NOT NULL → `organization_memberships.id` `on delete restrict` | must differ from the delegator |
+| `reason` | `text` NOT NULL | required; non-empty after trim |
+| `valid_from` | `timestamptz` NOT NULL default `now()` | |
+| `valid_to` | `timestamptz` NULL | written only by revocation or replacement |
+| `revoked_by_membership_id` | `integer` NULL → `organization_memberships.id` `on delete set null` | |
+| `created_at` | `timestamptz` NOT NULL default `now()` | |
+
+Indexes:
+
+- `authority_delegations_open_unique` — **UNIQUE** on
+  `(organization_id, authority_type, department_id, delegator_membership_id)`
+  **`WHERE valid_to IS NULL`**;
+- `authority_delegations_org_scope_idx` on
+  `(organization_id, authority_type, department_id)`;
+- `authority_delegations_delegate_idx` on `(delegate_membership_id)`.
+
+Row-level security: `ENABLE ROW LEVEL SECURITY` with **zero policies**, per the
+repository's standing convention — RLS enabled as defence in depth while
+application-level organization scoping remains the primary control.
+
+**Four deliberate departures from the prototype, each justified:**
+
+1. **`reason` is added and required.** Office Inventory has no `reason` column.
+   A delegation grants authority over other people's requests; OD #31 already
+   establishes that elevated access carries a stated reason, and OD #18 that
+   sensitive actions are auditable. A required reason costs one column and makes
+   every grant self-explaining in the audit trail.
+2. **`created_by_membership_id` is omitted.** Office Inventory carries it, but
+   under Q3 (holder-only) it is *provably* always equal to
+   `delegator_membership_id`. The instruction is to include only fields
+   justified by the architecture; a column that can never differ is not.
+3. **A separate `revoked_at` is omitted.** Revocation writes `valid_to`, so a
+   second timestamp would always be identical to it. `revoked_by_membership_id`
+   is retained because it carries information `valid_to` does not.
+4. **`authority_type` is an enum with one member, not free text or JSON.**
+   Arbitrary JSON authority definitions are prohibited. A single-member enum
+   makes an unsupported authority type **unrepresentable at the database level**
+   rather than merely rejected at runtime — strictly stronger than Q5 requires,
+   and widened additively when a later decision approves a second type.
+
+**Why `department_id` is a real foreign key rather than a generic
+`authority_scope_id`.** Q5 restricts WS-16 to exactly one authority type, whose
+scope *is* a department. A nullable, un-keyed generic scope column would trade a
+real database guarantee available today for a hypothetical future one, and every
+schema in this repository uses real foreign keys. A future authority type adds
+its own scope column and widens the enum — additive, which is this repository's
+migration convention regardless.
+
+### 32.11 Single-open-delegation and concurrency
+
+The proven pattern appears **twice** in shipped code — `department_heads` and
+`office_inventory_approval_delegations` — and is identical in both: a **partial
+unique index** over the open rows (`WHERE valid_to IS NULL`), plus an
+application-layer close-then-insert inside one transaction that reads the
+existing open row `FOR UPDATE`. The repository contains **no** exclusion
+constraint and does not load `btree_gist`.
+
+Frozen for the shared primitive:
+
+- **Uniqueness scope** is `(organization_id, authority_type, department_id,
+  delegator_membership_id)` among rows where `valid_to IS NULL` — the Office
+  Inventory scope, extended by `authority_type`. It keys on the **delegator**,
+  as the prototype does, with the resolver-side consequence recorded in §32.5.
+- **Creating a second delegation replaces the first**, within a single
+  transaction: `SELECT … FOR UPDATE` the open row, stamp its `valid_to` and
+  `revoked_by_membership_id`, then insert. This matches `createDelegation`
+  exactly. Under holder-only creation the replaced row is always the actor's
+  own, and the closure is audited.
+- The partial unique index is the **database backstop** should two concurrent
+  transactions ever escape the row lock.
+
+**Consequence, stated plainly: WS-16 supports neither future-dated nor
+planned-end delegations.** `valid_from` is `now()` at creation, and `valid_to`
+is written only by revocation or replacement. This is not an oversight. A
+planned end date, or a future start, would place two rows in the table with
+`valid_to IS NULL` describing non-overlapping windows, which the partial unique
+index cannot distinguish from genuine ambiguity. Enforcing it properly would
+require replacing the proven index with a `tstzrange` exclusion constraint and
+the `btree_gist` extension, neither of which this repository has ever used, and
+the binding instruction is *do not weaken concurrency protection*. A scheduled
+delegation window is a genuine future enhancement requiring its own Owner
+Decision, registered in §32.25.
+
+"Effective-dated" is fully preserved: `[valid_from, valid_to)` is evaluated at
+runtime on every action, so a revoked delegation falls outside its window from
+the instant of revocation, with no job involved (§32.13).
+
+### 32.12 Authority resolution, permission and business state
+
+The shared resolver answers exactly one bounded question — *may this membership
+act with department-head authority for this department, right now?* — and
+returns a small typed result distinguishing `direct` from `delegated`, carrying
+the underlying head's membership id and the delegation id when delegated. This
+mirrors `ApprovalAuthority` in `officeInventoryDelegations.ts`, which is the
+proven shape. It is used **only** where it reduces real duplication or improves
+audit and debugging; no existing resolver is forced to return it in WS-16, and
+internal authorization configuration is never leaked to ordinary users.
+
+**Frozen composition rule.** For a delegated action to succeed, all of the
+following must independently pass:
+
+```
+source permission  AND  effective delegated authority  AND  source business state
+```
+
+- **Delegation never grants permission.** Office Inventory proves the
+  separation: `office_inventory.delegate.manage` gates the delegation surface,
+  and the approval routes gate themselves. **Delegation must not become an RBAC
+  mutation mechanism.**
+- **Modules remain authoritative for business state.** WS-16 owns none of:
+  Leave states, Recruitment stages, Payroll maker-checker state, WS-13 request
+  state, Onboarding task state, Performance state, Learning state, Employee
+  Relations state.
+- **Module enablement is an independent prerequisite.** A delegation cannot
+  revive, bypass or re-expose a disabled module.
+- **Confidentiality is not widened.** A department-head delegation grants
+  department-head *authority* over the adopting consumer's own actions and
+  nothing else. It must never yield grievance narratives, disciplinary evidence,
+  succession candidate data, Payroll compensation, banking or statutory
+  identifiers, or any other protected read. Source module permissions and
+  confidentiality rules remain independently enforced, exactly as §31.19 and
+  §31.29 require of the Action Centre and Employee 360.
+
+### 32.13 Failure semantics, and no job requirement
+
+Validity is evaluated at runtime from `valid_from`, `valid_to` and the live
+re-check of the delegator's underlying authority. **No worker expires a
+delegation**, and correctness must never depend on one having run. WS-6 may
+later provide reminder or expiry *notifications* if separately authorized; those
+would be conveniences, never part of the authority decision.
+
+These outcomes remain **distinct** and must not be collapsed into one another:
+
+| Condition | Outcome |
+|---|---|
+| Actor holds no direct authority and no delegation | Authorization denied |
+| Delegation exists but is outside `[valid_from, valid_to)` | Authorization denied |
+| Delegation is invalidly configured (unsupported type, invalid scope) | Rejected at write; denied at runtime |
+| Delegate membership is inactive | Authorization denied |
+| Source permission missing | Permission denied, by the source's own gate |
+| Database or infrastructure failure | **Operational error — never converted into "unauthorized"** |
+
+**No permissive fallback exists** — never to Org Admin, never to HR. And an
+operational failure must never be silently reported as an authorization result;
+that is the same `authorize`/`query` discipline §31 froze for the Action Centre.
+
+### 32.14 WS-9 and WS-13 stage resolvers remain separate
+
+Frozen explicitly, on evidence. Both expose a three-value vocabulary —
+`department_head`, `permission_holder`, `specific_membership` — across **two
+separate enums** (`recruitment_authority_resolver`, `request_authority_resolver`).
+The vocabulary is duplicated. The semantics are not:
+
+| | WS-9 `resolveStageAuthority` | WS-13 `membershipSatisfiesStage` |
+|---|---|---|
+| Question | "Is this actor authorized, and on what basis?" | "Does this membership satisfy this stage?" |
+| Returns | `AuthorityGrant \| null` with an `authorityBasis` string | `boolean` |
+| Department head via | `resolveDepartmentHeadAsOf` — **point-in-time** | `getCurrentDepartmentHead` — **live** |
+| Department derived from | the **caller-supplied** department | the **subject employee** |
+| `specific_membership` | `Number(config.membershipId)` coercion | strict `===`, no coercion |
+
+Merging them would force one of each pair onto the other and change at least one
+module's behaviour. **Do not merge them, do not build one generic stage
+resolver, and do not migrate their configuration.** This is precisely the trap
+OD #14 names — similar names are not shared semantics.
+
+### 32.15 WS-10 Onboarding remains separate
+
+Onboarding's `resolveResponsibility` is a **forward** resolver — *who is
+responsible?* — returning a set of membership ids and a basis string across
+**five** values (`employee_self`, `reporting_manager`, `department_head`,
+`permission_holder`, `specific_membership`). WS-9 and WS-13 are **predicate**
+resolvers over three values. Task responsibility is not approval authority.
+WS-10 may continue consuming shared low-level identity and department helpers
+where it already does, but its five-value responsibility model remains
+source-owned and unchanged.
+
+### 32.16 Write-time validation (holder-only)
+
+The shared create path rejects, before any write:
+
+1. **cross-tenant delegate** — the delegate membership must belong to the same
+   `organization_id`;
+2. **inactive delegate** — the delegate membership must be active;
+3. **self-delegation** — delegator and delegate must differ;
+4. **unsupported authority type** — unrepresentable by the enum, and rejected in
+   the service besides;
+5. **invalid authority scope** — the department must exist in this organization
+   (the prototype's `DepartmentNotFoundError` check);
+6. **actor is not the direct authority holder** — the actor must **be** the
+   department's current Head, resolved live via `getCurrentDepartmentHead`,
+   never trusted from the request;
+7. **no chaining** — a delegate is never treated as a holder, which (6) enforces
+   structurally;
+8. **invalid date range** — unreachable in WS-16 (§32.11); the check is retained
+   so it cannot become reachable silently.
+
+**Runtime must revalidate regardless.** Write-time validation is a usability and
+integrity measure; it is never the authorization decision.
+
+### 32.17 Revocation, authority loss and inertness
+
+- **Revocation is immediate**, because authority is re-derived per action.
+- **The historical row is retained** — never deleted, never rewritten.
+- **Previous delegated actions remain attributed to the actual delegate**, and
+  revocation never rewrites historical audit events.
+- **The delegator may revoke while they still hold the underlying authority**,
+  which is the prototype's rule: `revokeDelegation` throws
+  `NotCurrentDepartmentHeadError` if the actor is no longer the Head. Repository
+  evidence establishes **no** safe revocation rule *after* authority loss, and
+  none is invented here — the row does not need revoking, because it is already
+  inert, and the new holder cannot revoke a grant they did not make.
+- **Authority loss makes the delegation functionally inert** (§5.3). The row may
+  continue to exist; every action re-checks that `delegator_membership_id` is
+  *still* the department's current Head, and the delegate can approve nothing
+  once it is not.
+- **A new department head does not inherit the previous head's delegation.** The
+  new holder must create their own. Automatic transfer is prohibited.
+- **A vacancy denies everything**: with no current Head there is no holder to
+  validate a delegation against, so no delegation can be valid.
+- **An inactive delegate membership makes the delegation ineffective** even
+  while the row is open.
+
+### 32.18 Actual-actor attribution
+
+The prototype's attribution model is proven and carried forward: the **source
+record** carries the attribution columns, and the shared delegation table does
+**not** record exercises. `office_inventory_request_lines` stores
+`approvedByMembershipId` (the actual delegate), `actedAsDelegate`,
+`delegatorHeadMembershipId` and `delegationId`, and the audit event's actor is
+the actual acting membership.
+
+Frozen: whenever delegated authority is exercised, the record must capture the
+**actual acting membership**, the **underlying authority holder**, the
+**delegation id**, an authority basis of **delegated**, the **source module and
+action**, the **source record or stage** where applicable, and the
+**organization**.
+
+**Never attribute a delegated action as though the delegator performed it
+personally.** Adding those columns is the *adopting consumer's* own work in its
+own pass — the shared table does not grow an exercise log.
+
+### 32.19 Maker-checker survives delegation
+
+Payroll is the reference case: `payrollRuns.ts` throws
+`PayrollRunSelfApprovalError` when `run.preparedByMembershipId` equals the
+**acting** membership, for both approve and lock.
+
+Frozen invariant: **a source conflict rule compares the actual acting
+membership, never the delegator.** A delegate who prepared a run cannot approve
+it, and no valid delegation may override a source's own maker-checker,
+separation-of-duties or self-approval prohibition. Delegated authority is never
+a laundering path around a source rule.
+
+### 32.20 Office Inventory compatibility (Q2)
+
+Office Inventory keeps its own table, its own resolver, its own routes and its
+own permission key. **No migration. No dual-write. No replacement. No rewrite of
+the concurrency-tested resolver.** Its existing implementation remains
+authoritative for Office Inventory.
+
+Where genuinely useful, a **typed compatibility interface** may normalize the
+two conceptual outputs — for example a shared `AuthorityGrant`-shaped result
+type — **without normalizing storage**. That is a type-level convenience only
+and must change no Office Inventory behaviour.
+
+Pass 2 must prove, against a live database, that Office Inventory's creation,
+revocation, effective dating, concurrency, permission separation, live head
+revalidation, audit and tenant isolation are all unchanged.
+
+### 32.21 Super Admin, and the initial consumer set
+
+**Super Admin is not an ordinary workflow authority holder** and cannot create
+tenant delegations. The existing controlled, audited support-access mechanism
+(OD #31, break-glass) remains entirely separate. **No cross-tenant delegation
+exists**, in any direction.
+
+**The initial consumer set is empty, and that is the honest finding.** Every
+module with department-head-shaped authority — Leave's Department Head stage,
+WS-9 Recruitment, WS-13 Requests, WS-10 Onboarding, Payroll — is named in this
+freeze's own scope as **not** automatically delegatable. Office Inventory
+already has its own implementation and stays on it (Q2). **No non-Office-
+Inventory consumer is currently authorized**, and a consumer must not be
+invented merely to prove the table works.
+
+Two consequences follow, and are frozen:
+
+1. **The foundation is frozen and built independently.** Module adoption
+   requires an explicit later decision, per module.
+2. **The holder-facing surface (Pass 2C) is contingent on a consumer existing.**
+   A create-and-revoke UI for authority that nothing consults would be a surface
+   that silently does nothing — worse than no surface at all. §32.24 records
+   this as a gate rather than a scope reduction, and the frozen contract for
+   that surface is recorded in full in §32.22 so it needs no re-litigation when
+   a consumer is approved.
+
+**A shared delegation primitive existing does NOT mean** Leave, Recruitment,
+WS-13, Payroll or Onboarding becomes delegatable.
+
+### 32.22 Frontend acceptance table (frozen contract; gated by §32.21)
+
+**Read-only surfaces do not satisfy the frozen create and revoke capabilities.**
+
+| Actor | Surface | Read capability | Required write action | Authority rule | Write UI required | Audit requirement |
+|---|---|---|---|---|---|---|
+| **Direct Department Head** (current holder) | Own delegations for a department they currently head | Own active delegation plus full history for that scope | **Create** a delegation; **revoke** their own effective delegation | Live `getCurrentDepartmentHead` = actor, at both create and revoke | **YES — both** | `authority_delegation.created` / `.revoked`, actor = the Head, before/after delegate recorded |
+| **Delegate** | May act on the adopting consumer's own approval surface | Sees no delegation-management surface | **None** | Holds `capacity: "delegate"` for actions only; a delegate manages approvals, never who else may be delegated to | **NO** | Each exercised action audited with the actual actor and the delegation id (§32.18) |
+| **Unauthorized membership** | None | None — the surface is absent, not disabled with an explanatory message | **None** | Not the current Head, holds no delegation | **NO** | Denials audited per existing conventions; no existence leak |
+| **Org Admin without direct authority** | None | None | **None — explicitly** | Q3: administrative privilege does not manufacture another person's workflow authority | **NO — no "delegate for someone else" UI exists** | Any attempt denied and audited |
+| **Super Admin** | None (tenant boundary) | None | **None** | §32.21 — not an ordinary workflow authority holder; break-glass remains separate | **NO** | Break-glass audit only, through its own mechanism |
+
+No generic workflow designer. No cross-module approval builder. No admin
+delegation console.
+
+**Permission model.** Because only the authority holder may create or revoke
+their own delegation, **no broad administrative delegation permission is
+introduced**, and **no permission keys are created in Pass 1**. Office Inventory's
+precedent is a *module-owned* key (`office_inventory.delegate.manage`) paired
+with the live holder check, and Manager Portal's precedent is zero new
+permissions with access resolved from module enablement plus a live
+relationship. A shared `delegation.manage` key is therefore **not** created by
+WS-16: with no authorized consumer, a permission key would gate nothing. The
+first adopting consumer's own pass decides between reusing its module key and
+adding one, under least privilege. The live holder check is required in every
+case and is never replaced by a permission.
+
+### 32.23 Pass-2 acceptance matrix
+
+Every item is a required, verifiable Pass-2 invariant.
+
+1. Same-tenant only — delegator, delegate and department all in one organization.
+2. Direct authority required to create — the actor **is** the live current Head.
+3. Holder-only create — no admin, HR, Super Admin or workflow-administrator path exists.
+4. No self-delegation — delegator ≠ delegate.
+5. No delegation chaining — a delegate cannot create a delegation.
+6. Only `department_head` is accepted; every other authority type is rejected.
+7. Source permission is independently required; delegation grants none.
+8. A valid date window is enforced at runtime, `[valid_from, valid_to)`.
+9. An expired delegation is denied **with no job having run**.
+10. A revoked delegation is denied **immediately**.
+11. An inactive delegate membership is denied.
+12. Delegator authority loss makes the delegation **inert**, with the row preserved.
+13. A new department head does **not** inherit the previous head's delegation.
+14. The **actual delegate** is recorded in audit, never the delegator as actor.
+15. The **delegation id** is recorded on the source record.
+16. **Maker-checker survives** — a source self-approval prohibition compares the acting membership (§32.19).
+17. Confidential permissions are **not widened** by holding a delegation.
+18. **Module disablement survives** — a disabled module cannot be revived through delegation.
+19. Cross-tenant forged ids in the request body are denied; the organization is resolved from the verified membership, never from the body.
+20. Concurrent creation cannot produce two open delegations for one delegator scope — `FOR UPDATE` close-then-insert plus the partial unique index — **and** the resolver filters on `delegator_membership_id = currentHead` inside the query, never after the fact (§32.5).
+21. **Office Inventory behaviour unchanged** — creation, revocation, effective dating, concurrency, permission separation, live head revalidation, audit, tenant isolation.
+22. **Performance snapshot behaviour unchanged** — `performance_reviews.reviewerEmployeeId` is never resolved live.
+23. **Learning snapshot behaviour unchanged** — `learning_enrollments.managerEmployeeIdSnapshot` is never resolved live.
+24. **WS-9 behaviour unchanged** — its stage resolver is untouched.
+25. **WS-13 behaviour unchanged** — its stage resolver is untouched.
+26. **WS-10 Onboarding behaviour unchanged** — the five-value responsibility model is untouched.
+27. **Action Centre regression green** (§31.4–31.27).
+28. **Manager Portal regression green**, including `listLiveDirectReports`' terminated exclusion (§32.9 #7).
+29. **Employee 360 regression green** (§31.29).
+30. **No generic workflow engine**, no centralized approval state machine, no arbitrary expression DSL.
+31. **No AI authority decisions** — AI may not grant, resolve, route or infer authority, and may not decide who may approve.
+
+Repository-specific additions required by this freeze:
+
+32. The six migrated direct-report sites return **identical result sets** to their pre-migration behaviour, proven per site against a live database.
+33. `listLiveDirectReports` still filters `employmentStatus <> 'terminated'` and still returns full rows in `lastName, firstName, id` order.
+34. `lib/directReports.ts` is never imported by a Performance or Learning authority path.
+35. The `authority_delegations` migration is **purely additive** — zero drops, zero altered columns — with RLS enabled and zero policies, and a hand-written `.down.sql` verified up → down → up.
+36. No `reporting_manager`, `permission_holder` or `specific_membership` delegation can be stored; the enum makes it unrepresentable.
+
+### 32.24 Pass-2 implementation slices
+
+Restrained, and sequenced by dependency rather than by ambition.
+
+| Slice | Scope | Gate |
+|---|---|---|
+| **Pass 2A** | Shared live direct-report helper `lib/directReports.ts`; migrate the six proven-equivalent sites (§32.9); retain #7 with its documented reason; correct the stale `leaveApprovals.ts` reference in the Manager Portal header (§32.8). **No schema change, no migration; ledger stays `0070`.** | Ready now |
+| **Pass 2B** | `authority_delegations` table and enum (migration **`0071`**, additive, RLS, hand-written down), the shared resolver, create/revoke service with §32.16 validation and §32.11 concurrency, audit events. **No consumer wired.** | Ready now |
+| **Pass 2C** | Holder-facing API, frontend surface (§32.22) and audit surfacing | **GATED** — requires an approved first consumer (§32.21) |
+| **Pass 2D** | First approved consumer adoption, including that module's own attribution columns (§32.18) | **GATED** — requires an explicit Owner Decision naming the module |
+
+Pass 2A and Pass 2B are independent and may be committed separately. Neither
+requires the other.
+
+### 32.25 Registered for a later, separate decision
+
+Recorded so that none is silently absorbed into WS-16 or silently dropped.
+
+1. **The Office Inventory delegate-validation gap** (§32.6) — cross-tenant,
+   inactive and self delegate ids are accepted today. Requires its own decision
+   and its own pass, because repairing it changes a shipped module's behaviour.
+2. **The first delegation consumer** (§32.21) — no module is authorized today;
+   Pass 2C and Pass 2D are gated on this.
+3. **Scheduled delegation windows** (§32.11) — a future start or a planned end,
+   which would require an exclusion constraint and `btree_gist`.
+4. **A second delegatable authority type** (Q5) — additively widening
+   `delegatable_authority_type`.
+5. **The two duplicated stage-resolver enums** (§32.14) — the vocabulary is
+   duplicated even though the semantics are not; WS-16 deliberately leaves both
+   in place.
+
+### 32.26 What this freeze does not touch
+
+**WS-11.1 remains deferred. WS-12's future-separation-basis dependency remains
+unresolved. The legacy `employee_skills` consolidation remains a separate Owner
+Decision. Global Search remains a future approved safe navigation and discovery
+capability and is not implemented (§31.40).** None is absorbed here.
+
+WS-16 closes OD #14 and OD #15 **as architecture, not as implementation**.
+Neither is complete until Pass 2A and Pass 2B ship.
