@@ -103,9 +103,72 @@ All three directions below share one mechanism — there is exactly one, not thr
 > path. Copy them into the mounted volume once, as a deliberate operator action,
 > before serving traffic from the new image.
 >
-> Backing the uploads volume up, and the provider-neutral storage adapter that
-> will eventually replace the local backend, are **not** solved here — they are
-> the remaining WS-17 file-storage remediation work.
+> Backing the uploads volume up remains open. **The provider-neutral storage
+> foundation has since been built — see the section immediately below.**
+
+### File storage: the provider-neutral boundary (WS-17 Pass 1)
+
+**Storage is now an installation choice, not a hard-coded filesystem.**
+`lib/storage` defines one small contract — write, read, delete, stat, health —
+and two implementations behind it:
+
+- **`filesystem`** (the default): the pre-existing behaviour, unchanged, using
+  `UPLOADS_DIR` and the Pass 0 mounted volume. Development, tests and
+  self-managed installations need no object storage at all.
+- **`s3`**: any **S3-compatible** object store — AWS S3, MinIO, Ceph,
+  Cloudflare R2, Backblaze B2, DigitalOcean Spaces, Supabase Storage's S3
+  endpoint. There is deliberately **no provider-specific adapter and no
+  provider branch anywhere**; adding one would defeat the neutrality.
+
+Selected by `STORAGE_BACKEND`. This is an **installation/environment**
+decision: never a tenant setting, never per-organization, never user-selectable
+— making it tenant-selectable would require storage credentials to become
+tenant data. Selecting `s3` without credentials **fails loudly at startup**
+rather than silently falling back to the filesystem, because a silent fallback
+would put authoritative business data somewhere the operator does not back up.
+
+**Business modules did not change, and that is the design.** All twelve
+consumers still call `writeOrgFile`/`readOrgFile`/`deleteOrgFile` with an
+organization id and an opaque key. Buckets, endpoints, prefixes, paths,
+credentials and presigned URLs never cross the boundary.
+
+**Tenant isolation is enforced at the object layer, not by the database.**
+PostgreSQL RLS protects rows; it protects no binary. The physical location is
+derived server-side from `(organizationId, key)`, so a key alone cannot address
+another tenant's bytes, and traversal or malformed keys are **rejected rather
+than normalized** — quietly cleaning them up would hide both a bug and an
+attack.
+
+**Storage access is not authorization.** Every private read still goes through
+the application's own permission checks, and the backend issues **no public
+objects and no presigned URLs**. The organization logo — the platform's one
+publicly-readable class — needs none: its route reads the bytes server-side and
+serves them itself after checking the requested key against
+`organizations.logoUrl`, so it works unchanged on a fully private bucket.
+
+**Integrity: SHA-256, honestly scoped.** Every new authoritative write records
+a `stored_objects` row with the backend, size and a SHA-256 computed once from
+the buffer already in memory — never by re-reading the object, and never during
+a download. **Files written before Pass 1 have no row, are never backfilled,
+and remain fully readable**; their integrity is reported as *unknown* rather
+than fabricated. `stored_objects` holds binary persistence facts only — never
+a title, owner, category, confidentiality or retention basis, all of which stay
+owned by WS-5 and the module tables.
+
+**Deletion failure is now visible.** The old `.catch(() => undefined)` made
+"deleted" and "could not delete" the same outcome, so bytes could survive a
+deletion forever with nothing recording it. Business semantics are unchanged
+(deletion is still best-effort and still does not throw), but a real failure is
+logged and recorded as `delete_failed`, and a binary orphaned by a failed
+business transaction is recorded as `orphaned` — a state reconciliation can act
+on, because nothing references it.
+
+**Still open, and not claimed as done:** no existing file has been migrated to
+object storage. There is no reconciliation or backfill tooling, no backup or
+restore control plane, and no Migration Centre. **The S3 backend existing does
+not mean anything has moved to it.** A complete recovery point still requires a
+database snapshot **and** compatible binary state; restoring PostgreSQL alone
+does not restore the HRMS.
 
 **Database backup** is the entire backup surface today — there is no object storage (§7) and no other stateful store. Two layers, matching how this platform is actually hosted:
 
