@@ -67,6 +67,7 @@ import {
   type AssetMaintenance,
 } from "@workspace/db";
 import { resolveAssetActorEmployeeId, hasOrgWideAssetAccess } from "./assetManagementAuthorization";
+import { listLiveDirectReportEmployeeIds } from "./directReports";
 import { toIsoDate } from "./leaveRequests";
 
 export class AssetReportNotFoundError extends Error {
@@ -104,12 +105,13 @@ export async function resolveAssetReportScope(params: {
   const ownEmployeeId = await resolveAssetActorEmployeeId(params.organizationId, params.applicationUserId);
   if (ownEmployeeId == null) return { isOrgWide: false, ownEmployeeId: null, directReportEmployeeIds: [] };
 
-  const directReports = await db
-    .select({ id: employeesTable.id })
-    .from(employeesTable)
-    .where(and(eq(employeesTable.organizationId, params.organizationId), eq(employeesTable.reportingManagerId, ownEmployeeId)));
+  // WS-16 Pass 2A (§32.9 #1): the identical live reportingManagerId query
+  // this file used to spell out inline, now the one shared helper. Same
+  // predicate, same ids, same absence of a status filter — the manager tier
+  // stays LIVE and never becomes a snapshot (Owner Decision 3).
+  const directReportEmployeeIds = await listLiveDirectReportEmployeeIds(params.organizationId, ownEmployeeId);
 
-  return { isOrgWide: false, ownEmployeeId, directReportEmployeeIds: directReports.map((r) => r.id) };
+  return { isOrgWide: false, ownEmployeeId, directReportEmployeeIds };
 }
 
 /** The full set of employeeIds the caller may see custody data for — own id plus current direct reports, deduplicated. Empty for org-wide (not applicable — org-wide has no employee-set restriction at all). */

@@ -1,12 +1,11 @@
 import { Router } from "express";
-import { and, eq } from "drizzle-orm";
-import { db, employeesTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireMembership, type MembershipRequest } from "../middlewares/requireMembership";
 import { requirePermission } from "../middlewares/requirePermission";
 import { requireModuleEnabled } from "../middlewares/requireModuleEnabled";
 import { hasPermission } from "../lib/permissions";
 import { resolveOwnEmployeeId } from "../lib/leaveRequests";
+import { listLiveDirectReportEmployeeIds } from "../lib/directReports";
 import { listLeaveCalendar, InvalidCalendarRangeError } from "../lib/leaveCalendar";
 import { listHolidayOccurrencesInRange } from "../lib/publicHolidays";
 
@@ -52,11 +51,12 @@ router.get(
     let visibleEmployeeIds: number[] | null = null;
     if (!isOrgWide) {
       const ownEmployeeId = await resolveOwnEmployeeId(organizationId, req.userId!);
-      const managed = await db
-        .select({ id: employeesTable.id })
-        .from(employeesTable)
-        .where(and(eq(employeesTable.organizationId, organizationId), eq(employeesTable.reportingManagerId, ownEmployeeId ?? -1)));
-      visibleEmployeeIds = [...(ownEmployeeId != null ? [ownEmployeeId] : []), ...managed.map((e) => e.id)];
+      // WS-16 Pass 2A (§32.9 #5): shared live direct-report helper. This is
+      // the reporting-line scope only — Leave APPROVAL authority is
+      // department-headship and is resolved separately in leaveApprovals.ts,
+      // never from reportingManagerId (§32.8).
+      const managed = await listLiveDirectReportEmployeeIds(organizationId, ownEmployeeId);
+      visibleEmployeeIds = [...(ownEmployeeId != null ? [ownEmployeeId] : []), ...managed];
     }
 
     try {

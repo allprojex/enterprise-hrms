@@ -16,15 +16,27 @@
  *
  * This file introduces exactly ONE new shared helper for live
  * current-direct-report resolution (frozen plan §21) — `listLiveDirectReports`
- * — for Manager Portal's own new endpoints only. It does NOT replace or
- * touch any of the 7 existing independent direct-report query
- * implementations across attendanceRegister.ts, attendanceReporting.ts,
- * leaveApprovals.ts, leaveCalendar.ts, routes/users.ts, lib/assets.ts,
- * lib/assetReporting.ts — those remain untouched, per the frozen plan's own
- * explicit "no broad refactor" instruction. It also must never be
+ * — for Manager Portal's own new endpoints only. It also must never be
  * substituted for Performance's/Learning's own snapshot/workflow authority
  * helpers (frozen plan §19/§20) — this helper is for genuinely live
  * reportingManagerId semantics only.
+ *
+ * WS-16 Pass 2A UPDATE (§32.8, §32.9). Two corrections to the paragraph this
+ * replaces, both established by direct inspection:
+ *
+ *   1. It listed `leaveApprovals.ts` among the direct-report implementations.
+ *      That was never true — leaveApprovals.ts contains no reportingManagerId
+ *      query, and its own comment states that a Department Head's queue is
+ *      "never derived from reportingManagerId". Leave approval authority is
+ *      department-headship authority, which is a different relationship.
+ *   2. Its "no broad refactor" instruction has been superseded by OD #14, and
+ *      the six genuinely equivalent implementations (assetReporting.ts,
+ *      assets.ts, attendanceReporting.ts, routes/attendanceRegister.ts,
+ *      routes/leaveCalendar.ts, routes/users.ts) now share one canonical
+ *      helper, `listLiveDirectReportEmployeeIds` in lib/directReports.ts.
+ *
+ * `listLiveDirectReports` below is deliberately NOT one of them, and is frozen
+ * as RETAIN — DIFFERENT SEMANTICS (§32.9 #7). See its own comment for why.
  */
 import { and, eq, ne } from "drizzle-orm";
 import { db, employeesTable, type Employee } from "@workspace/db";
@@ -58,10 +70,20 @@ export async function resolveManagerPortalActorEmployeeId(
  * "My Team" roster. "active"/"probation"/"on_leave"/"suspended" all remain
  * included — every one of those is still a current employee, matching this
  * endpoint's "employment status" field actually needing to distinguish them.
- * This is a deliberate, narrower filter than the 7 existing direct-report
- * query implementations (none of which filter by employmentStatus at all,
- * since their own purpose — bounding a workflow search — differs from
- * Team Overview's own purpose of showing a live team roster).
+ * This is a deliberate, narrower filter than the six consolidated
+ * direct-report scope resolvers (none of which filters by employmentStatus at
+ * all, since their own purpose — bounding a workflow or report scope —
+ * differs from Team Overview's own purpose of showing a live team roster).
+ *
+ * DO NOT "TIDY" THIS ONTO THE SHARED HELPER (§32.9 #7). WS-16 Pass 2A
+ * consolidated six equivalent implementations onto
+ * `listLiveDirectReportEmployeeIds` and deliberately left this one alone,
+ * because the two are not the same question. Routing this through the shared
+ * helper would put terminated employees back onto a live team roster;
+ * teaching the shared helper this filter would silently narrow six shipped
+ * scopes at once. Under Owner Decision Q4 neither is permitted, and a
+ * regression test asserts the difference so a future refactor cannot erase
+ * it quietly.
  * Deterministic ordering: lastName, then firstName, then id (a stable
  * tie-break) — never database natural order.
  */

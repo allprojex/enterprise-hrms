@@ -363,7 +363,7 @@ The prior 43-item micro-list is retired. Below is the smallest coherent implemen
 | WS-13 | Employee Data Change Approval & HR Service Requests | **P1/P2** | Shared request/approval shape, configurable sensitive-field list, hybrid generic-foundation + specialized-workflow HR requests | WS-6 (light) | OD #10, #11 |
 | WS-14 | Skills, Competency Framework & Succession | **P2** | Formal proficiency framework, competency linkage, new internal-succession schema (critical roles, successors, readiness) | WS-9 (soft, for recruitment linkage) | OD #5, #7 |
 | WS-15 | Cross-Module Visibility | **P1/P2** | Employee 360 completion, HR Action Centre (org-wide), Manager Portal recruitment-participation source, Reporting execution consolidation | WS-6 | — (**architecture frozen in §31**) — **COMPLETE.** All four bundles implemented (§31.40.7); Global Search is a future approved safe navigation/discovery enhancement, **not implemented** and not a closure blocker (§31.40) |
-| WS-16 | Workflow/Delegation Primitive Generalization | **P2** | Generalize Office Inventory's delegation table, extract authority-resolver | WS-3 (light) | OD #14, #15 — **architecture frozen in §32** (Pass 1 complete; implementation not started). Scope narrowed by discovery: authority extraction is already largely shared (§32.2), so WS-16 delivers one shared live direct-report helper (Pass 2A) plus a new shared department-head delegation foundation (Pass 2B). Office Inventory is **not** migrated (§32.20); the holder-facing surface is **gated on a first approved consumer** (§32.21) |
+| WS-16 | Workflow/Delegation Primitive Generalization | **P2** | Generalize Office Inventory's delegation table, extract authority-resolver | WS-3 (light) | OD #14, #15 — **architecture frozen in §32** (Pass 1 complete; implementation not started). Scope narrowed by discovery: authority extraction is already largely shared (§32.2), so WS-16 delivers one shared live direct-report helper (Pass 2A) plus a new shared department-head delegation foundation (Pass 2B). Office Inventory is **not** migrated (§32.20); the holder-facing surface is **gated on a first approved consumer** (§32.21). **Pass 2A COMPLETE** (§32.27) — shared live direct-report helper shipped, six consumers migrated, seventh retained; **Pass 2B NOT STARTED**; WS-16 overall **PARTIALLY COMPLETE** |
 | WS-17 | Deployment & Backup Operations | **P2** | VPS automation, release-pipeline Levels 3–6, backup/restore build-out, Fleet Health design | WS-1, WS-4 | — |
 | WS-18 | Security Verification Workstream & Production Security Gate | **P0** (gate, sequenced late) | Live tenant-isolation/IDOR testing, DAST, penetration testing, full business-logic-security sampling, closing the flagged Supabase-production RLS item | WS-1, WS-2, WS-3, WS-4 | — |
 | WS-19 | AI Layer (implementation) | **Future/P2** | Tool Gateway build, first provider selection, Level 1–4 action mapping | WS-3, WS-5, WS-10, WS-4 (for future Control Plane AI scope) | OD #24, #25, #26 |
@@ -3518,8 +3518,8 @@ Restrained, and sequenced by dependency rather than by ambition.
 
 | Slice | Scope | Gate |
 |---|---|---|
-| **Pass 2A** | Shared live direct-report helper `lib/directReports.ts`; migrate the six proven-equivalent sites (§32.9); retain #7 with its documented reason; correct the stale `leaveApprovals.ts` reference in the Manager Portal header (§32.8). **No schema change, no migration; ledger stays `0070`.** | Ready now |
-| **Pass 2B** | `authority_delegations` table and enum (migration **`0071`**, additive, RLS, hand-written down), the shared resolver, create/revoke service with §32.16 validation and §32.11 concurrency, audit events. **No consumer wired.** | Ready now |
+| **Pass 2A** | Shared live direct-report helper `lib/directReports.ts`; migrate the six proven-equivalent sites (§32.9); retain #7 with its documented reason; correct the stale `leaveApprovals.ts` reference in the Manager Portal header (§32.8). **No schema change, no migration; ledger stays `0070`.** | **COMPLETE** — see §32.27 |
+| **Pass 2B** | `authority_delegations` table and enum (migration **`0071`**, additive, RLS, hand-written down), the shared resolver, create/revoke service with §32.16 validation and §32.11 concurrency, audit events. **No consumer wired.** | **NOT STARTED** — ready now |
 | **Pass 2C** | Holder-facing API, frontend surface (§32.22) and audit surfacing | **GATED** — requires an approved first consumer (§32.21) |
 | **Pass 2D** | First approved consumer adoption, including that module's own attribution columns (§32.18) | **GATED** — requires an explicit Owner Decision naming the module |
 
@@ -3552,3 +3552,90 @@ capability and is not implemented (§31.40).** None is absorbed here.
 
 WS-16 closes OD #14 and OD #15 **as architecture, not as implementation**.
 Neither is complete until Pass 2A and Pass 2B ship.
+
+**Pass 2A shipped on 2026-08-31 (§32.27). Pass 2B has not started.**
+
+### 32.27 Pass 2A implementation record
+
+Shipped 2026-08-31 against the frozen §32.7 and §32.9. **No schema change, no
+migration, no permission key, no API contract change, no frontend change;
+ledger remains `0070`** and a `drizzle-kit` drift probe reports "No schema
+changes, nothing to migrate".
+
+#### 32.27.1 The canonical helper
+
+`artifacts/api-server/src/lib/directReports.ts` —
+`listLiveDirectReportEmployeeIds(organizationId, managerEmployeeId | null)`,
+exactly the frozen contract. It imports only `drizzle-orm` and
+`@workspace/db`, so it can introduce no dependency cycle, and its header
+carries the four prohibitions §32.7 requires: not a snapshot substitute, not a
+department-head resolver, not an authority or permission decision, not a
+generic workflow resolver.
+
+#### 32.27.2 The six migrations
+
+| # | Consumer | Change | Behaviour-preservation evidence |
+|---|---|---|---|
+| 1 | `lib/assetReporting.ts` → `resolveAssetReportScope` | inline query → helper | `assetReporting.test.ts`; live parity + status/tenant tests |
+| 2 | `lib/assets.ts` → `listTeamAssetAssignments` | inline query → helper | `assets.test.ts`; live "team custody excludes self" and "null manager → []" |
+| 3 | `lib/attendanceReporting.ts` → `resolveAttendanceReportScope` | inline query + `?? -1` → helper | `attendanceReporting.test.ts`; live null-manager parity |
+| 4 | `routes/attendanceRegister.ts` | inline query + `?? -1` → helper | `attendanceRegister.test.ts` |
+| 5 | `routes/leaveCalendar.ts` | inline query + `?? -1` → helper | `leaveCalendar.test.ts` |
+| 6 | `routes/users.ts` → `resolveLeaveDashboardMetrics` | inline query + `?? -1` → helper | `managerPortalDashboardAndPendingActions.test.ts` |
+
+| Retained | Reason not migrated |
+|---|---|
+| `lib/managerPortalAuthorization.ts` → `listLiveDirectReports` | §32.9 #7 — deliberately excludes `terminated` and returns full rows in `lastName, firstName, id` order. Migrating it would put former employees back on a live team roster; teaching the shared helper its filter would narrow six shipped scopes. A live regression test now asserts the two disagree about a terminated employee, so a future "cleanup" cannot merge them silently. |
+
+Two routes — `attendanceRegister.ts` and `leaveCalendar.ts` — no longer query
+the database directly at all and dropped their `drizzle-orm`/`@workspace/db`
+imports entirely. That is a consequence of the consolidation, not a separate
+refactor: it was their only direct query.
+
+#### 32.27.3 Semantics deliberately preserved, not tidied
+
+- **No employment-status filter.** Active, probation, on_leave, suspended and
+  **terminated** direct reports all remain in scope for all six, asserted
+  explicitly. This is what they did before; narrowing it would have been a
+  silent security-relevant change in six places at once.
+- **No `orderBy`.** None of the six had one, and each consumes the result as a
+  membership set. Adding determinism would have been a behaviour change
+  disguised as an improvement.
+- **Self-inclusion stays caller-side.** Assets' team-custody endpoint still
+  excludes the manager; the four scope resolvers still include them.
+- **The `?? -1` sentinel is gone**, replaced by the helper's `null → []`
+  contract. Identical result, without a sentinel id in a SQL predicate.
+
+#### 32.27.4 Verification
+
+15 new live tests (`directReportsLive.test.ts`) and 6 new structural guards
+(`directReportsBoundaries.test.ts`), the latter requiring no database:
+
+- the helper is **never imported by a Performance or Learning path** (§32.23 #34);
+- exactly **two** forward `reportingManagerId` query sites remain — the helper
+  and the retained roster — so a new inline copy fails the build;
+- the helper contains no `employmentStatus` reference and does predicate
+  `organizationId`;
+- the retained roster still excludes `terminated`;
+- **no delegation foundation exists yet** — `authority_delegations` appears
+  nowhere, guarding the Pass 2A/2B boundary.
+
+Snapshot authority was proved intact behaviourally, not merely by inspection:
+changing an employee's `reportingManagerId` moves them under the new manager
+in the live helper while `learning_enrollments.managerEmployeeIdSnapshot` and
+`performance_reviews.reviewerEmployeeId` both stay pointing at the old one.
+
+Tenant isolation is proved three ways: the right manager id asked in the wrong
+organization returns `[]`; a forged cross-tenant manager id returns `[]`; and
+writing a cross-tenant reporting line still does not make it visible from the
+other side, because the organization predicate excludes it.
+
+#### 32.27.5 Untouched, and verified untouched
+
+Office Inventory's delegation table, resolver and routes are **unmodified** —
+the validation gap recorded in §32.6 remains open and registered in §32.25, not
+fixed here. No permission key or seed changed. No Action Centre, Employee 360,
+Reporting or Global Search change. The API contract is unchanged: **732
+operations across 594 paths**, zero duplicate operation ids, zero dangling
+schema references, codegen deterministic.
+

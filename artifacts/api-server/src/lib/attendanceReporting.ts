@@ -24,6 +24,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db, employeesTable, departmentsTable } from "@workspace/db";
 import { resolveAttendanceActorEmployeeId, hasOrgWideAttendanceAccess } from "./attendanceAuthorization";
+import { listLiveDirectReportEmployeeIds } from "./directReports";
 import { getNamespaceConfig } from "../services/organizationConfig";
 import {
   getAttendanceRegisterForEmployees,
@@ -56,13 +57,16 @@ export async function resolveAttendanceReportScope(params: {
   if (isOrgWide) return { isOrgWide: true, allowedEmployeeIds: [] };
 
   const ownEmployeeId = await resolveAttendanceActorEmployeeId(params.organizationId, params.applicationUserId);
-  const managed = await db
-    .select({ id: employeesTable.id })
-    .from(employeesTable)
-    .where(and(eq(employeesTable.organizationId, params.organizationId), eq(employeesTable.reportingManagerId, ownEmployeeId ?? -1)));
+  // WS-16 Pass 2A (§32.9 #3): the shared live helper replaces the inline
+  // query, including the old `?? -1` sentinel — a null actor now yields an
+  // empty set through the helper's own contract rather than through an id
+  // that happens to match no row. Self-inclusion stays here, where it
+  // belongs: the caller decides its own scope, the helper only reports the
+  // relationship.
+  const managed = await listLiveDirectReportEmployeeIds(params.organizationId, ownEmployeeId);
   return {
     isOrgWide: false,
-    allowedEmployeeIds: [...(ownEmployeeId != null ? [ownEmployeeId] : []), ...managed.map((e) => e.id)],
+    allowedEmployeeIds: [...(ownEmployeeId != null ? [ownEmployeeId] : []), ...managed],
   };
 }
 

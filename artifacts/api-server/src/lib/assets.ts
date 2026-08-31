@@ -76,6 +76,7 @@ import {
   type AssetMaintenance,
 } from "@workspace/db";
 import { recordAuditEvent } from "./auditLog";
+import { listLiveDirectReportEmployeeIds } from "./directReports";
 import { assertBelongsToOrganization, CrossOrganizationReferenceError } from "./orgScopedRefs";
 import { isUniqueViolation } from "./dbErrors";
 import { writeOrgFile, deleteOrgFile } from "./fileStorage";
@@ -1121,12 +1122,12 @@ export async function listTeamAssetAssignments(organizationId: number, managerEm
   // never cached/snapshotted — re-evaluated fresh on every call), then fetch
   // only THEIR currently-active assignments. A direct-report set that has
   // shrunk since a previous call is reflected immediately, by construction.
-  const directReports = await db
-    .select({ id: employeesTable.id })
-    .from(employeesTable)
-    .where(and(eq(employeesTable.organizationId, organizationId), eq(employeesTable.reportingManagerId, managerEmployeeId)));
-  if (directReports.length === 0) return [];
-  const directReportIds = directReports.map((e) => e.id);
+  // WS-16 Pass 2A (§32.9 #2): that first query is now the one shared helper,
+  // unchanged in predicate, projection and result. Self is still excluded —
+  // this endpoint is team custody, not own custody — and that stays a
+  // caller-side choice here rather than something the helper decides.
+  const directReportIds = await listLiveDirectReportEmployeeIds(organizationId, managerEmployeeId);
+  if (directReportIds.length === 0) return [];
 
   return db
     .select()

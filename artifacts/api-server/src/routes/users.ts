@@ -9,6 +9,7 @@ import { hasPermission } from "../lib/permissions";
 import { resolveOwnEmployeeId } from "../lib/leaveRequests";
 import { listPendingApprovals } from "../lib/leaveApprovals";
 import { listDepartmentsHeadedByMembership } from "../lib/departmentHeads";
+import { listLiveDirectReportEmployeeIds } from "../lib/directReports";
 import { getLeaveDashboardMetrics, type LeaveDashboardMetrics } from "../lib/leaveDashboardMetrics";
 import {
   resolveAttendanceReportScope,
@@ -42,11 +43,10 @@ async function resolveLeaveDashboardMetrics(
 
   let employeeIds: number[] | null = null;
   if (!isOrgWide) {
-    const managed = await db
-      .select({ id: employeesTable.id })
-      .from(employeesTable)
-      .where(and(eq(employeesTable.organizationId, organizationId), eq(employeesTable.reportingManagerId, ownEmployeeId ?? -1)));
-    employeeIds = [...(ownEmployeeId != null ? [ownEmployeeId] : []), ...managed.map((e) => e.id)];
+    // WS-16 Pass 2A (§32.9 #6): shared live direct-report helper, same
+    // predicate and same result as the inline query it replaces.
+    const managed = await listLiveDirectReportEmployeeIds(organizationId, ownEmployeeId);
+    employeeIds = [...(ownEmployeeId != null ? [ownEmployeeId] : []), ...managed];
   }
 
   const headedDepartmentIds = isOrgWide ? [] : await listDepartmentsHeadedByMembership(organizationId, membership.id);

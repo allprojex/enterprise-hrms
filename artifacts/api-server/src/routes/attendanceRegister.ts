@@ -1,11 +1,10 @@
 import { Router } from "express";
-import { and, eq } from "drizzle-orm";
-import { db, employeesTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireMembership, type MembershipRequest } from "../middlewares/requireMembership";
 import { requirePermission } from "../middlewares/requirePermission";
 import { requireModuleEnabled } from "../middlewares/requireModuleEnabled";
 import { resolveAttendanceActorEmployeeId, hasOrgWideAttendanceAccess } from "../lib/attendanceAuthorization";
+import { listLiveDirectReportEmployeeIds } from "../lib/directReports";
 import {
   getAttendanceRegister,
   InvalidAttendanceRegisterFilterError,
@@ -75,11 +74,10 @@ router.get(
       scope = "org_wide";
     } else {
       const ownEmployeeId = await resolveAttendanceActorEmployeeId(organizationId, req.userId!);
-      const managed = await db
-        .select({ id: employeesTable.id })
-        .from(employeesTable)
-        .where(and(eq(employeesTable.organizationId, organizationId), eq(employeesTable.reportingManagerId, ownEmployeeId ?? -1)));
-      scope = { allowedEmployeeIds: [...(ownEmployeeId != null ? [ownEmployeeId] : []), ...managed.map((e) => e.id)] };
+      // WS-16 Pass 2A (§32.9 #4): shared live direct-report helper, same
+      // predicate and same result as the inline query it replaces.
+      const managed = await listLiveDirectReportEmployeeIds(organizationId, ownEmployeeId);
+      scope = { allowedEmployeeIds: [...(ownEmployeeId != null ? [ownEmployeeId] : []), ...managed] };
     }
 
     try {
