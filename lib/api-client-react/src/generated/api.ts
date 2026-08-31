@@ -293,6 +293,7 @@ import type {
   GetCustomFormSubmission200,
   GetDocumentExpiryStateParams,
   GetEmployeeSkillGapsParams,
+  GetFleetHealth200,
   GetMigration200,
   GetMigrationIssues200,
   GetOfficeInventoryStockBalanceParams,
@@ -314,7 +315,13 @@ import type {
   InitiateOffboardingResult,
   InlineActionCommand,
   Installation,
+  InstallationBackupPolicy,
+  InstallationBackupRequest,
+  InstallationBackupRun,
+  InstallationDeployment,
+  InstallationHealth,
   InstallationOrganizationLink,
+  InstallationTelemetry,
   InternalVacanciesResponse,
   Interview,
   InterviewListResponse,
@@ -373,6 +380,9 @@ import type {
   ListExpiringEmploymentTermsParams,
   ListGeneratedDocumentsParams,
   ListGrievancesParams,
+  ListInstallationBackupRequests200,
+  ListInstallationBackupRuns200,
+  ListInstallationDeployments200,
   ListInterviewsParams,
   ListJobRequisitionsParams,
   ListLearningCertificatesParams,
@@ -563,6 +573,8 @@ import type {
   ReadinessStatus,
   RecordAttendanceAdjustmentInput,
   RecordAttendanceEventInput,
+  RecordBackupRunInput,
+  RecordDeploymentInput,
   RecordDisciplinaryEventInput,
   RecordDisciplinaryOutcomeInput,
   RecordGrievanceEventInput,
@@ -570,6 +582,7 @@ import type {
   RecordOfferResponseBody,
   RecordOfficeInventoryStocktakeCountBody,
   RecordProbationOutcomeInput,
+  RecordTelemetryInput,
   RecordsLocation,
   RecoverAssetInput,
   RecoverOfficeInventoryIncidentBody,
@@ -602,6 +615,7 @@ import type {
   ReportOfficeInventoryIncidentBody,
   ReportRunResult,
   RequestApprovalStage,
+  RequestBackupInput,
   RequestLearningEnrollmentInput,
   RequestReports,
   RequestServiceRequestInformationInput,
@@ -679,6 +693,7 @@ import type {
   UpdateAssetInput,
   UpdateAssetMaintenanceInput,
   UpdateBackgroundCheckStatusInput,
+  UpdateBackupRequestStatusInput,
   UpdateBranchInput,
   UpdateClearanceTemplateInput,
   UpdateDepartmentInput,
@@ -728,6 +743,7 @@ import type {
   UploadMyEmployeeProfilePictureBody,
   UploadOrganizationLogo200,
   UploadOrganizationLogoBody,
+  UpsertBackupPolicyInput,
   UserProfile,
   UserProfileUpdate,
   Vacancy,
@@ -2629,6 +2645,906 @@ export const useEnablePlatformUser = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getEnablePlatformUserMutationOptions(options));
+    }
+
+export const getGetFleetHealthUrl = () => {
+
+
+
+
+  return `/api/platform/fleet`
+}
+
+/**
+ * Requires platform super_admin AND the platform.fleet.read grant. Super-admin alone is deliberately insufficient.
+ * @summary Fleet health across all installations
+ */
+export const getFleetHealth = async ( options?: RequestInit): Promise<GetFleetHealth200> => {
+
+  return customFetch<GetFleetHealth200>(getGetFleetHealthUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetFleetHealthQueryKey = () => {
+    return [
+    `/api/platform/fleet`
+    ] as const;
+    }
+
+
+export const getGetFleetHealthQueryOptions = <TData = Awaited<ReturnType<typeof getFleetHealth>>, TError = ErrorType<ApiError>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFleetHealth>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetFleetHealthQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getFleetHealth>>> = ({ signal }) => getFleetHealth({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getFleetHealth>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetFleetHealthQueryResult = NonNullable<Awaited<ReturnType<typeof getFleetHealth>>>
+export type GetFleetHealthQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Fleet health across all installations
+ */
+
+export function useGetFleetHealth<TData = Awaited<ReturnType<typeof getFleetHealth>>, TError = ErrorType<ApiError>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFleetHealth>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetFleetHealthQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetInstallationHealthUrl = (installationId: number,) => {
+
+
+
+
+  return `/api/platform/installations/${installationId}/health`
+}
+
+/**
+ * @summary Health signals for one installation
+ */
+export const getInstallationHealth = async (installationId: number, options?: RequestInit): Promise<InstallationHealth> => {
+
+  return customFetch<InstallationHealth>(getGetInstallationHealthUrl(installationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetInstallationHealthQueryKey = (installationId: number,) => {
+    return [
+    `/api/platform/installations/${installationId}/health`
+    ] as const;
+    }
+
+
+export const getGetInstallationHealthQueryOptions = <TData = Awaited<ReturnType<typeof getInstallationHealth>>, TError = ErrorType<ApiError>>(installationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInstallationHealth>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetInstallationHealthQueryKey(installationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getInstallationHealth>>> = ({ signal }) => getInstallationHealth(installationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: installationId !== null && installationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getInstallationHealth>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetInstallationHealthQueryResult = NonNullable<Awaited<ReturnType<typeof getInstallationHealth>>>
+export type GetInstallationHealthQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Health signals for one installation
+ */
+
+export function useGetInstallationHealth<TData = Awaited<ReturnType<typeof getInstallationHealth>>, TError = ErrorType<ApiError>>(
+ installationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInstallationHealth>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetInstallationHealthQueryOptions(installationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListInstallationDeploymentsUrl = (installationId: number,) => {
+
+
+
+
+  return `/api/platform/installations/${installationId}/deployments`
+}
+
+/**
+ * @summary Deployment history for an installation
+ */
+export const listInstallationDeployments = async (installationId: number, options?: RequestInit): Promise<ListInstallationDeployments200> => {
+
+  return customFetch<ListInstallationDeployments200>(getListInstallationDeploymentsUrl(installationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListInstallationDeploymentsQueryKey = (installationId: number,) => {
+    return [
+    `/api/platform/installations/${installationId}/deployments`
+    ] as const;
+    }
+
+
+export const getListInstallationDeploymentsQueryOptions = <TData = Awaited<ReturnType<typeof listInstallationDeployments>>, TError = ErrorType<ApiError>>(installationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listInstallationDeployments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListInstallationDeploymentsQueryKey(installationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listInstallationDeployments>>> = ({ signal }) => listInstallationDeployments(installationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: installationId !== null && installationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listInstallationDeployments>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListInstallationDeploymentsQueryResult = NonNullable<Awaited<ReturnType<typeof listInstallationDeployments>>>
+export type ListInstallationDeploymentsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Deployment history for an installation
+ */
+
+export function useListInstallationDeployments<TData = Awaited<ReturnType<typeof listInstallationDeployments>>, TError = ErrorType<ApiError>>(
+ installationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listInstallationDeployments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListInstallationDeploymentsQueryOptions(installationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRecordInstallationDeploymentUrl = (installationId: number,) => {
+
+
+
+
+  return `/api/platform/installations/${installationId}/deployments`
+}
+
+/**
+ * The HRMS records; infrastructure executes. Only a succeeded result advances the installation's current version.
+ * @summary Record deployment evidence reported by an external executor
+ */
+export const recordInstallationDeployment = async (installationId: number,
+    recordDeploymentInput: RecordDeploymentInput, options?: RequestInit): Promise<InstallationDeployment> => {
+
+  return customFetch<InstallationDeployment>(getRecordInstallationDeploymentUrl(installationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(recordDeploymentInput)
+  }
+);}
+
+
+
+
+
+export const getRecordInstallationDeploymentMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordInstallationDeployment>>, TError,{installationId: number;data: BodyType<RecordDeploymentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordInstallationDeployment>>, TError,{installationId: number;data: BodyType<RecordDeploymentInput>}, TContext> => {
+
+const mutationKey = ['recordInstallationDeployment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordInstallationDeployment>>, {installationId: number;data: BodyType<RecordDeploymentInput>}> = (props) => {
+          const {installationId,data} = props ?? {};
+
+          return  recordInstallationDeployment(installationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordInstallationDeploymentMutationResult = NonNullable<Awaited<ReturnType<typeof recordInstallationDeployment>>>
+    export type RecordInstallationDeploymentMutationBody = BodyType<RecordDeploymentInput>
+    export type RecordInstallationDeploymentMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Record deployment evidence reported by an external executor
+ */
+export const useRecordInstallationDeployment = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordInstallationDeployment>>, TError,{installationId: number;data: BodyType<RecordDeploymentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordInstallationDeployment>>,
+        TError,
+        {installationId: number;data: BodyType<RecordDeploymentInput>},
+        TContext
+      > => {
+      return useMutation(getRecordInstallationDeploymentMutationOptions(options));
+    }
+
+export const getGetInstallationBackupPolicyUrl = (installationId: number,) => {
+
+
+
+
+  return `/api/platform/installations/${installationId}/backup-policy`
+}
+
+/**
+ * @summary Backup policy targets for an installation
+ */
+export const getInstallationBackupPolicy = async (installationId: number, options?: RequestInit): Promise<InstallationBackupPolicy> => {
+
+  return customFetch<InstallationBackupPolicy>(getGetInstallationBackupPolicyUrl(installationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetInstallationBackupPolicyQueryKey = (installationId: number,) => {
+    return [
+    `/api/platform/installations/${installationId}/backup-policy`
+    ] as const;
+    }
+
+
+export const getGetInstallationBackupPolicyQueryOptions = <TData = Awaited<ReturnType<typeof getInstallationBackupPolicy>>, TError = ErrorType<ApiError>>(installationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInstallationBackupPolicy>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetInstallationBackupPolicyQueryKey(installationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getInstallationBackupPolicy>>> = ({ signal }) => getInstallationBackupPolicy(installationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: installationId !== null && installationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getInstallationBackupPolicy>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetInstallationBackupPolicyQueryResult = NonNullable<Awaited<ReturnType<typeof getInstallationBackupPolicy>>>
+export type GetInstallationBackupPolicyQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Backup policy targets for an installation
+ */
+
+export function useGetInstallationBackupPolicy<TData = Awaited<ReturnType<typeof getInstallationBackupPolicy>>, TError = ErrorType<ApiError>>(
+ installationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInstallationBackupPolicy>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetInstallationBackupPolicyQueryOptions(installationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpsertInstallationBackupPolicyUrl = (installationId: number,) => {
+
+
+
+
+  return `/api/platform/installations/${installationId}/backup-policy`
+}
+
+/**
+ * Targets only. Populating an RPO records an intention, never a claim that it is met. Unconfigured stays null; there is no default SLA.
+ * @summary Set backup policy targets
+ */
+export const upsertInstallationBackupPolicy = async (installationId: number,
+    upsertBackupPolicyInput: UpsertBackupPolicyInput, options?: RequestInit): Promise<InstallationBackupPolicy> => {
+
+  return customFetch<InstallationBackupPolicy>(getUpsertInstallationBackupPolicyUrl(installationId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(upsertBackupPolicyInput)
+  }
+);}
+
+
+
+
+
+export const getUpsertInstallationBackupPolicyMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upsertInstallationBackupPolicy>>, TError,{installationId: number;data: BodyType<UpsertBackupPolicyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof upsertInstallationBackupPolicy>>, TError,{installationId: number;data: BodyType<UpsertBackupPolicyInput>}, TContext> => {
+
+const mutationKey = ['upsertInstallationBackupPolicy'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof upsertInstallationBackupPolicy>>, {installationId: number;data: BodyType<UpsertBackupPolicyInput>}> = (props) => {
+          const {installationId,data} = props ?? {};
+
+          return  upsertInstallationBackupPolicy(installationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpsertInstallationBackupPolicyMutationResult = NonNullable<Awaited<ReturnType<typeof upsertInstallationBackupPolicy>>>
+    export type UpsertInstallationBackupPolicyMutationBody = BodyType<UpsertBackupPolicyInput>
+    export type UpsertInstallationBackupPolicyMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Set backup policy targets
+ */
+export const useUpsertInstallationBackupPolicy = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upsertInstallationBackupPolicy>>, TError,{installationId: number;data: BodyType<UpsertBackupPolicyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof upsertInstallationBackupPolicy>>,
+        TError,
+        {installationId: number;data: BodyType<UpsertBackupPolicyInput>},
+        TContext
+      > => {
+      return useMutation(getUpsertInstallationBackupPolicyMutationOptions(options));
+    }
+
+export const getListInstallationBackupRequestsUrl = (installationId: number,) => {
+
+
+
+
+  return `/api/platform/installations/${installationId}/backup-requests`
+}
+
+/**
+ * @summary Backup requests for an installation
+ */
+export const listInstallationBackupRequests = async (installationId: number, options?: RequestInit): Promise<ListInstallationBackupRequests200> => {
+
+  return customFetch<ListInstallationBackupRequests200>(getListInstallationBackupRequestsUrl(installationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListInstallationBackupRequestsQueryKey = (installationId: number,) => {
+    return [
+    `/api/platform/installations/${installationId}/backup-requests`
+    ] as const;
+    }
+
+
+export const getListInstallationBackupRequestsQueryOptions = <TData = Awaited<ReturnType<typeof listInstallationBackupRequests>>, TError = ErrorType<ApiError>>(installationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listInstallationBackupRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListInstallationBackupRequestsQueryKey(installationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listInstallationBackupRequests>>> = ({ signal }) => listInstallationBackupRequests(installationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: installationId !== null && installationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listInstallationBackupRequests>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListInstallationBackupRequestsQueryResult = NonNullable<Awaited<ReturnType<typeof listInstallationBackupRequests>>>
+export type ListInstallationBackupRequestsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Backup requests for an installation
+ */
+
+export function useListInstallationBackupRequests<TData = Awaited<ReturnType<typeof listInstallationBackupRequests>>, TError = ErrorType<ApiError>>(
+ installationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listInstallationBackupRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListInstallationBackupRequestsQueryOptions(installationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRequestInstallationBackupUrl = (installationId: number,) => {
+
+
+
+
+  return `/api/platform/installations/${installationId}/backup-requests`
+}
+
+/**
+ * A request is not a backup and never becomes evidence. Only a backup run record is evidence.
+ * @summary Ask an executor to take a backup
+ */
+export const requestInstallationBackup = async (installationId: number,
+    requestBackupInput: RequestBackupInput, options?: RequestInit): Promise<InstallationBackupRequest> => {
+
+  return customFetch<InstallationBackupRequest>(getRequestInstallationBackupUrl(installationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(requestBackupInput)
+  }
+);}
+
+
+
+
+
+export const getRequestInstallationBackupMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestInstallationBackup>>, TError,{installationId: number;data: BodyType<RequestBackupInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestInstallationBackup>>, TError,{installationId: number;data: BodyType<RequestBackupInput>}, TContext> => {
+
+const mutationKey = ['requestInstallationBackup'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestInstallationBackup>>, {installationId: number;data: BodyType<RequestBackupInput>}> = (props) => {
+          const {installationId,data} = props ?? {};
+
+          return  requestInstallationBackup(installationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestInstallationBackupMutationResult = NonNullable<Awaited<ReturnType<typeof requestInstallationBackup>>>
+    export type RequestInstallationBackupMutationBody = BodyType<RequestBackupInput>
+    export type RequestInstallationBackupMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Ask an executor to take a backup
+ */
+export const useRequestInstallationBackup = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestInstallationBackup>>, TError,{installationId: number;data: BodyType<RequestBackupInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestInstallationBackup>>,
+        TError,
+        {installationId: number;data: BodyType<RequestBackupInput>},
+        TContext
+      > => {
+      return useMutation(getRequestInstallationBackupMutationOptions(options));
+    }
+
+export const getUpdateInstallationBackupRequestStatusUrl = (requestId: number,) => {
+
+
+
+
+  return `/api/platform/backup-requests/${requestId}/status`
+}
+
+/**
+ * @summary Report a backup request's status transition
+ */
+export const updateInstallationBackupRequestStatus = async (requestId: number,
+    updateBackupRequestStatusInput: UpdateBackupRequestStatusInput, options?: RequestInit): Promise<InstallationBackupRequest> => {
+
+  return customFetch<InstallationBackupRequest>(getUpdateInstallationBackupRequestStatusUrl(requestId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateBackupRequestStatusInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateInstallationBackupRequestStatusMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateInstallationBackupRequestStatus>>, TError,{requestId: number;data: BodyType<UpdateBackupRequestStatusInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateInstallationBackupRequestStatus>>, TError,{requestId: number;data: BodyType<UpdateBackupRequestStatusInput>}, TContext> => {
+
+const mutationKey = ['updateInstallationBackupRequestStatus'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateInstallationBackupRequestStatus>>, {requestId: number;data: BodyType<UpdateBackupRequestStatusInput>}> = (props) => {
+          const {requestId,data} = props ?? {};
+
+          return  updateInstallationBackupRequestStatus(requestId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateInstallationBackupRequestStatusMutationResult = NonNullable<Awaited<ReturnType<typeof updateInstallationBackupRequestStatus>>>
+    export type UpdateInstallationBackupRequestStatusMutationBody = BodyType<UpdateBackupRequestStatusInput>
+    export type UpdateInstallationBackupRequestStatusMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Report a backup request's status transition
+ */
+export const useUpdateInstallationBackupRequestStatus = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateInstallationBackupRequestStatus>>, TError,{requestId: number;data: BodyType<UpdateBackupRequestStatusInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateInstallationBackupRequestStatus>>,
+        TError,
+        {requestId: number;data: BodyType<UpdateBackupRequestStatusInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateInstallationBackupRequestStatusMutationOptions(options));
+    }
+
+export const getListInstallationBackupRunsUrl = (installationId: number,) => {
+
+
+
+
+  return `/api/platform/installations/${installationId}/backup-runs`
+}
+
+/**
+ * @summary Backup evidence for an installation
+ */
+export const listInstallationBackupRuns = async (installationId: number, options?: RequestInit): Promise<ListInstallationBackupRuns200> => {
+
+  return customFetch<ListInstallationBackupRuns200>(getListInstallationBackupRunsUrl(installationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListInstallationBackupRunsQueryKey = (installationId: number,) => {
+    return [
+    `/api/platform/installations/${installationId}/backup-runs`
+    ] as const;
+    }
+
+
+export const getListInstallationBackupRunsQueryOptions = <TData = Awaited<ReturnType<typeof listInstallationBackupRuns>>, TError = ErrorType<ApiError>>(installationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listInstallationBackupRuns>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListInstallationBackupRunsQueryKey(installationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listInstallationBackupRuns>>> = ({ signal }) => listInstallationBackupRuns(installationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: installationId !== null && installationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listInstallationBackupRuns>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListInstallationBackupRunsQueryResult = NonNullable<Awaited<ReturnType<typeof listInstallationBackupRuns>>>
+export type ListInstallationBackupRunsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Backup evidence for an installation
+ */
+
+export function useListInstallationBackupRuns<TData = Awaited<ReturnType<typeof listInstallationBackupRuns>>, TError = ErrorType<ApiError>>(
+ installationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listInstallationBackupRuns>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListInstallationBackupRunsQueryOptions(installationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRecordInstallationBackupRunUrl = (installationId: number,) => {
+
+
+
+
+  return `/api/platform/installations/${installationId}/backup-runs`
+}
+
+/**
+ * The overall result is DERIVED from the component results and is never accepted from the caller, so a database-only backup can never be reported as complete.
+ * @summary Record backup evidence
+ */
+export const recordInstallationBackupRun = async (installationId: number,
+    recordBackupRunInput: RecordBackupRunInput, options?: RequestInit): Promise<InstallationBackupRun> => {
+
+  return customFetch<InstallationBackupRun>(getRecordInstallationBackupRunUrl(installationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(recordBackupRunInput)
+  }
+);}
+
+
+
+
+
+export const getRecordInstallationBackupRunMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordInstallationBackupRun>>, TError,{installationId: number;data: BodyType<RecordBackupRunInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordInstallationBackupRun>>, TError,{installationId: number;data: BodyType<RecordBackupRunInput>}, TContext> => {
+
+const mutationKey = ['recordInstallationBackupRun'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordInstallationBackupRun>>, {installationId: number;data: BodyType<RecordBackupRunInput>}> = (props) => {
+          const {installationId,data} = props ?? {};
+
+          return  recordInstallationBackupRun(installationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordInstallationBackupRunMutationResult = NonNullable<Awaited<ReturnType<typeof recordInstallationBackupRun>>>
+    export type RecordInstallationBackupRunMutationBody = BodyType<RecordBackupRunInput>
+    export type RecordInstallationBackupRunMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Record backup evidence
+ */
+export const useRecordInstallationBackupRun = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordInstallationBackupRun>>, TError,{installationId: number;data: BodyType<RecordBackupRunInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordInstallationBackupRun>>,
+        TError,
+        {installationId: number;data: BodyType<RecordBackupRunInput>},
+        TContext
+      > => {
+      return useMutation(getRecordInstallationBackupRunMutationOptions(options));
+    }
+
+export const getRecordInstallationTelemetryUrl = (installationId: number,) => {
+
+
+
+
+  return `/api/platform/installations/${installationId}/telemetry`
+}
+
+/**
+ * Current state only. An out-of-order report is ignored rather than allowed to overwrite fresher truth.
+ * @summary Record current telemetry for an installation
+ */
+export const recordInstallationTelemetry = async (installationId: number,
+    recordTelemetryInput: RecordTelemetryInput, options?: RequestInit): Promise<InstallationTelemetry> => {
+
+  return customFetch<InstallationTelemetry>(getRecordInstallationTelemetryUrl(installationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(recordTelemetryInput)
+  }
+);}
+
+
+
+
+
+export const getRecordInstallationTelemetryMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordInstallationTelemetry>>, TError,{installationId: number;data: BodyType<RecordTelemetryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordInstallationTelemetry>>, TError,{installationId: number;data: BodyType<RecordTelemetryInput>}, TContext> => {
+
+const mutationKey = ['recordInstallationTelemetry'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordInstallationTelemetry>>, {installationId: number;data: BodyType<RecordTelemetryInput>}> = (props) => {
+          const {installationId,data} = props ?? {};
+
+          return  recordInstallationTelemetry(installationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordInstallationTelemetryMutationResult = NonNullable<Awaited<ReturnType<typeof recordInstallationTelemetry>>>
+    export type RecordInstallationTelemetryMutationBody = BodyType<RecordTelemetryInput>
+    export type RecordInstallationTelemetryMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Record current telemetry for an installation
+ */
+export const useRecordInstallationTelemetry = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordInstallationTelemetry>>, TError,{installationId: number;data: BodyType<RecordTelemetryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordInstallationTelemetry>>,
+        TError,
+        {installationId: number;data: BodyType<RecordTelemetryInput>},
+        TContext
+      > => {
+      return useMutation(getRecordInstallationTelemetryMutationOptions(options));
     }
 
 export const getListInstallationsUrl = () => {

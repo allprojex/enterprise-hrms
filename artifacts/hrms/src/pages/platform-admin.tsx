@@ -19,6 +19,7 @@
 import { useMemo, useState } from 'react';
 import { ShieldAlert, Server, Plus, Link2, Unlink, Ban, Clock, RotateCcw, XCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { FleetHealth } from '@/components/platform/fleet-health';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -642,6 +643,7 @@ export default function PlatformAdmin() {
           Installation registry and break-glass access foundation (WS-4). Not the fleet Control Plane.
         </p>
       </div>
+      <FleetHealth />
       <InstallationsPanel />
       <BreakGlassPanel />
       <ScheduledJobsPanel />

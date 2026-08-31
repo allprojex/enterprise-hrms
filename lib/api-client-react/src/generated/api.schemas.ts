@@ -1675,6 +1675,440 @@ export interface Installation {
   updatedAt: string;
 }
 
+export type HealthSignalState = typeof HealthSignalState[keyof typeof HealthSignalState];
+
+
+export const HealthSignalState = {
+  healthy: 'healthy',
+  degraded: 'degraded',
+  unhealthy: 'unhealthy',
+  unknown: 'unknown',
+  stale: 'stale',
+} as const;
+
+export interface HealthSignal {
+  key: string;
+  state: HealthSignalState;
+  /** Plain operator-facing reason, so state never depends on colour alone. */
+  detail: string;
+}
+
+/**
+ * The worst signal present. Deliberately not a numeric score.
+ */
+export type InstallationHealthOverall = typeof InstallationHealthOverall[keyof typeof InstallationHealthOverall];
+
+
+export const InstallationHealthOverall = {
+  healthy: 'healthy',
+  degraded: 'degraded',
+  unhealthy: 'unhealthy',
+  unknown: 'unknown',
+  stale: 'stale',
+} as const;
+
+export type InstallationHealthAffectedOrganizationsItem = {
+  organizationId: number;
+  name: string;
+};
+
+export interface InstallationHealth {
+  installationId: number;
+  installationKey: string;
+  name: string;
+  environmentType?: string;
+  hostingModel?: string;
+  status?: string;
+  currentApplicationVersion?: string | null;
+  currentGitCommit?: string | null;
+  currentMigrationVersion?: string | null;
+  deployedAt?: string | null;
+  /** The worst signal present. Deliberately not a numeric score. */
+  overall: InstallationHealthOverall;
+  signals: HealthSignal[];
+  /** Derived through installation_organizations, never stored per event. */
+  affectedOrganizations: InstallationHealthAffectedOrganizationsItem[];
+}
+
+export type InstallationDeploymentResult = typeof InstallationDeploymentResult[keyof typeof InstallationDeploymentResult];
+
+
+export const InstallationDeploymentResult = {
+  in_progress: 'in_progress',
+  succeeded: 'succeeded',
+  failed: 'failed',
+  rolled_back: 'rolled_back',
+} as const;
+
+export type InstallationDeploymentExecutorType = typeof InstallationDeploymentExecutorType[keyof typeof InstallationDeploymentExecutorType];
+
+
+export const InstallationDeploymentExecutorType = {
+  operator: 'operator',
+  ci_cd: 'ci_cd',
+  installation_agent: 'installation_agent',
+  provider: 'provider',
+  imported_evidence: 'imported_evidence',
+} as const;
+
+export interface InstallationDeployment {
+  id: number;
+  installationId: number;
+  applicationVersion?: string | null;
+  gitCommit?: string | null;
+  migrationVersion?: string | null;
+  previousApplicationVersion?: string | null;
+  previousGitCommit?: string | null;
+  result: InstallationDeploymentResult;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  executorType: InstallationDeploymentExecutorType;
+  externalReference?: string | null;
+  rolledBackFromDeploymentId?: number | null;
+  notes?: string | null;
+  recordedByUserId?: number | null;
+  recordedAt: string;
+}
+
+export type RecordDeploymentInputResult = typeof RecordDeploymentInputResult[keyof typeof RecordDeploymentInputResult];
+
+
+export const RecordDeploymentInputResult = {
+  in_progress: 'in_progress',
+  succeeded: 'succeeded',
+  failed: 'failed',
+  rolled_back: 'rolled_back',
+} as const;
+
+export type RecordDeploymentInputExecutorType = typeof RecordDeploymentInputExecutorType[keyof typeof RecordDeploymentInputExecutorType];
+
+
+export const RecordDeploymentInputExecutorType = {
+  operator: 'operator',
+  ci_cd: 'ci_cd',
+  installation_agent: 'installation_agent',
+  provider: 'provider',
+  imported_evidence: 'imported_evidence',
+} as const;
+
+export interface RecordDeploymentInput {
+  applicationVersion?: string | null;
+  gitCommit?: string | null;
+  migrationVersion?: string | null;
+  result: RecordDeploymentInputResult;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  executorType: RecordDeploymentInputExecutorType;
+  externalReference?: string | null;
+  notes?: string | null;
+}
+
+export type InstallationBackupPolicyStrategy = typeof InstallationBackupPolicyStrategy[keyof typeof InstallationBackupPolicyStrategy] | null;
+
+
+export const InstallationBackupPolicyStrategy = {
+  provider_managed: 'provider_managed',
+  logical_dump: 'logical_dump',
+  volume_snapshot: 'volume_snapshot',
+  mixed: 'mixed',
+} as const;
+
+export type InstallationBackupPolicyDatabaseCoverage = typeof InstallationBackupPolicyDatabaseCoverage[keyof typeof InstallationBackupPolicyDatabaseCoverage];
+
+
+export const InstallationBackupPolicyDatabaseCoverage = {
+  covered: 'covered',
+  not_covered: 'not_covered',
+  unknown: 'unknown',
+} as const;
+
+export type InstallationBackupPolicyBinaryStorageCoverage = typeof InstallationBackupPolicyBinaryStorageCoverage[keyof typeof InstallationBackupPolicyBinaryStorageCoverage];
+
+
+export const InstallationBackupPolicyBinaryStorageCoverage = {
+  covered: 'covered',
+  not_covered: 'not_covered',
+  unknown: 'unknown',
+} as const;
+
+export interface InstallationBackupPolicy {
+  id: number;
+  installationId: number;
+  enabled: number;
+  strategy?: InstallationBackupPolicyStrategy;
+  expectedFrequencyHours?: number | null;
+  /** Configured target only. Null means unconfigured; there is no default SLA. */
+  targetRpoMinutes?: number | null;
+  targetRtoMinutes?: number | null;
+  retentionPolicyReference?: string | null;
+  databaseCoverage: InstallationBackupPolicyDatabaseCoverage;
+  binaryStorageCoverage: InstallationBackupPolicyBinaryStorageCoverage;
+  executorType?: string | null;
+  supportsBackupRequests?: number;
+  updatedByUserId?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type UpsertBackupPolicyInputStrategy = typeof UpsertBackupPolicyInputStrategy[keyof typeof UpsertBackupPolicyInputStrategy];
+
+
+export const UpsertBackupPolicyInputStrategy = {
+  provider_managed: 'provider_managed',
+  logical_dump: 'logical_dump',
+  volume_snapshot: 'volume_snapshot',
+  mixed: 'mixed',
+} as const;
+
+export type UpsertBackupPolicyInputDatabaseCoverage = typeof UpsertBackupPolicyInputDatabaseCoverage[keyof typeof UpsertBackupPolicyInputDatabaseCoverage];
+
+
+export const UpsertBackupPolicyInputDatabaseCoverage = {
+  covered: 'covered',
+  not_covered: 'not_covered',
+  unknown: 'unknown',
+} as const;
+
+export type UpsertBackupPolicyInputBinaryStorageCoverage = typeof UpsertBackupPolicyInputBinaryStorageCoverage[keyof typeof UpsertBackupPolicyInputBinaryStorageCoverage];
+
+
+export const UpsertBackupPolicyInputBinaryStorageCoverage = {
+  covered: 'covered',
+  not_covered: 'not_covered',
+  unknown: 'unknown',
+} as const;
+
+export type UpsertBackupPolicyInputExecutorType = typeof UpsertBackupPolicyInputExecutorType[keyof typeof UpsertBackupPolicyInputExecutorType];
+
+
+export const UpsertBackupPolicyInputExecutorType = {
+  operator: 'operator',
+  ci_cd: 'ci_cd',
+  installation_agent: 'installation_agent',
+  provider: 'provider',
+  imported_evidence: 'imported_evidence',
+} as const;
+
+export interface UpsertBackupPolicyInput {
+  enabled?: boolean;
+  strategy?: UpsertBackupPolicyInputStrategy;
+  expectedFrequencyHours?: number | null;
+  targetRpoMinutes?: number | null;
+  targetRtoMinutes?: number | null;
+  retentionPolicyReference?: string | null;
+  databaseCoverage?: UpsertBackupPolicyInputDatabaseCoverage;
+  binaryStorageCoverage?: UpsertBackupPolicyInputBinaryStorageCoverage;
+  executorType?: UpsertBackupPolicyInputExecutorType;
+  supportsBackupRequests?: boolean;
+}
+
+export type InstallationBackupRequestStatus = typeof InstallationBackupRequestStatus[keyof typeof InstallationBackupRequestStatus];
+
+
+export const InstallationBackupRequestStatus = {
+  requested: 'requested',
+  accepted: 'accepted',
+  executing: 'executing',
+  succeeded: 'succeeded',
+  failed: 'failed',
+  rejected: 'rejected',
+  cancelled: 'cancelled',
+} as const;
+
+export interface InstallationBackupRequest {
+  id: number;
+  installationId: number;
+  status: InstallationBackupRequestStatus;
+  backupType?: string | null;
+  reason: string;
+  requestedByUserId?: number | null;
+  requestedAt: string;
+  statusChangedAt?: string | null;
+  externalReference?: string | null;
+  statusDetail?: string | null;
+}
+
+export type RequestBackupInputBackupType = typeof RequestBackupInputBackupType[keyof typeof RequestBackupInputBackupType];
+
+
+export const RequestBackupInputBackupType = {
+  provider_managed: 'provider_managed',
+  logical_dump: 'logical_dump',
+  volume_snapshot: 'volume_snapshot',
+  mixed: 'mixed',
+} as const;
+
+export interface RequestBackupInput {
+  reason: string;
+  backupType?: RequestBackupInputBackupType;
+}
+
+export type UpdateBackupRequestStatusInputStatus = typeof UpdateBackupRequestStatusInputStatus[keyof typeof UpdateBackupRequestStatusInputStatus];
+
+
+export const UpdateBackupRequestStatusInputStatus = {
+  accepted: 'accepted',
+  executing: 'executing',
+  succeeded: 'succeeded',
+  failed: 'failed',
+  rejected: 'rejected',
+  cancelled: 'cancelled',
+} as const;
+
+export interface UpdateBackupRequestStatusInput {
+  status: UpdateBackupRequestStatusInputStatus;
+  externalReference?: string | null;
+  statusDetail?: string | null;
+}
+
+/**
+ * Derived from the component results, never supplied by the caller.
+ */
+export type InstallationBackupRunResult = typeof InstallationBackupRunResult[keyof typeof InstallationBackupRunResult];
+
+
+export const InstallationBackupRunResult = {
+  succeeded: 'succeeded',
+  partial: 'partial',
+  failed: 'failed',
+} as const;
+
+export type InstallationBackupRunDatabaseResult = typeof InstallationBackupRunDatabaseResult[keyof typeof InstallationBackupRunDatabaseResult];
+
+
+export const InstallationBackupRunDatabaseResult = {
+  succeeded: 'succeeded',
+  failed: 'failed',
+  not_attempted: 'not_attempted',
+  unknown: 'unknown',
+} as const;
+
+export type InstallationBackupRunBinaryStorageResult = typeof InstallationBackupRunBinaryStorageResult[keyof typeof InstallationBackupRunBinaryStorageResult];
+
+
+export const InstallationBackupRunBinaryStorageResult = {
+  succeeded: 'succeeded',
+  failed: 'failed',
+  not_attempted: 'not_attempted',
+  unknown: 'unknown',
+} as const;
+
+export interface InstallationBackupRun {
+  id: number;
+  installationId: number;
+  requestId?: number | null;
+  backupType?: string | null;
+  /** Derived from the component results, never supplied by the caller. */
+  result: InstallationBackupRunResult;
+  databaseResult: InstallationBackupRunDatabaseResult;
+  binaryStorageResult: InstallationBackupRunBinaryStorageResult;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  recoveryPointAt?: string | null;
+  sizeBytes?: number | null;
+  executorType: string;
+  externalReference?: string | null;
+  failureCategory?: string | null;
+  evidenceReceivedAt: string;
+  recordedByUserId?: number | null;
+  supersedesRunId?: number | null;
+}
+
+export type RecordBackupRunInputBackupType = typeof RecordBackupRunInputBackupType[keyof typeof RecordBackupRunInputBackupType];
+
+
+export const RecordBackupRunInputBackupType = {
+  provider_managed: 'provider_managed',
+  logical_dump: 'logical_dump',
+  volume_snapshot: 'volume_snapshot',
+  mixed: 'mixed',
+} as const;
+
+export type RecordBackupRunInputDatabaseResult = typeof RecordBackupRunInputDatabaseResult[keyof typeof RecordBackupRunInputDatabaseResult];
+
+
+export const RecordBackupRunInputDatabaseResult = {
+  succeeded: 'succeeded',
+  failed: 'failed',
+  not_attempted: 'not_attempted',
+  unknown: 'unknown',
+} as const;
+
+export type RecordBackupRunInputBinaryStorageResult = typeof RecordBackupRunInputBinaryStorageResult[keyof typeof RecordBackupRunInputBinaryStorageResult];
+
+
+export const RecordBackupRunInputBinaryStorageResult = {
+  succeeded: 'succeeded',
+  failed: 'failed',
+  not_attempted: 'not_attempted',
+  unknown: 'unknown',
+} as const;
+
+export type RecordBackupRunInputExecutorType = typeof RecordBackupRunInputExecutorType[keyof typeof RecordBackupRunInputExecutorType];
+
+
+export const RecordBackupRunInputExecutorType = {
+  operator: 'operator',
+  ci_cd: 'ci_cd',
+  installation_agent: 'installation_agent',
+  provider: 'provider',
+  imported_evidence: 'imported_evidence',
+} as const;
+
+export interface RecordBackupRunInput {
+  requestId?: number | null;
+  backupType?: RecordBackupRunInputBackupType;
+  databaseResult: RecordBackupRunInputDatabaseResult;
+  binaryStorageResult: RecordBackupRunInputBinaryStorageResult;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  recoveryPointAt?: string | null;
+  sizeBytes?: number | null;
+  executorType?: RecordBackupRunInputExecutorType;
+  externalReference?: string | null;
+  failureCategory?: string | null;
+  supersedesRunId?: number | null;
+}
+
+export interface InstallationTelemetry {
+  id: number;
+  installationId: number;
+  observedAt: string;
+  reportedApplicationVersion?: string | null;
+  reportedGitCommit?: string | null;
+  reportedMigrationVersion?: string | null;
+  applicationHealthy?: number | null;
+  databaseReady?: number | null;
+  storageBackend?: string | null;
+  storageHealthy?: number | null;
+  executorType: string;
+  recordedByUserId?: number | null;
+  updatedAt?: string;
+}
+
+export type RecordTelemetryInputExecutorType = typeof RecordTelemetryInputExecutorType[keyof typeof RecordTelemetryInputExecutorType];
+
+
+export const RecordTelemetryInputExecutorType = {
+  operator: 'operator',
+  ci_cd: 'ci_cd',
+  installation_agent: 'installation_agent',
+  provider: 'provider',
+  imported_evidence: 'imported_evidence',
+} as const;
+
+export interface RecordTelemetryInput {
+  observedAt: string;
+  reportedApplicationVersion?: string | null;
+  reportedGitCommit?: string | null;
+  reportedMigrationVersion?: string | null;
+  applicationHealthy?: boolean | null;
+  databaseReady?: boolean | null;
+  storageBackend?: string | null;
+  storageHealthy?: boolean | null;
+  executorType?: RecordTelemetryInputExecutorType;
+}
+
 export type CreateInstallationInputEnvironmentType = typeof CreateInstallationInputEnvironmentType[keyof typeof CreateInstallationInputEnvironmentType];
 
 
@@ -12315,6 +12749,22 @@ export type UploadOrganizationLogoBody = {
 
 export type UploadOrganizationLogo200 = {
   logoUrl: string;
+};
+
+export type GetFleetHealth200 = {
+  installations: InstallationHealth[];
+};
+
+export type ListInstallationDeployments200 = {
+  deployments: InstallationDeployment[];
+};
+
+export type ListInstallationBackupRequests200 = {
+  requests: InstallationBackupRequest[];
+};
+
+export type ListInstallationBackupRuns200 = {
+  runs: InstallationBackupRun[];
 };
 
 export type ListBreakGlassGrantsParams = {

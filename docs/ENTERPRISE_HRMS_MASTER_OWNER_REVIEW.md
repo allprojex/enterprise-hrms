@@ -364,9 +364,10 @@ The prior 43-item micro-list is retired. Below is the smallest coherent implemen
 | WS-14 | Skills, Competency Framework & Succession | **P2** | Formal proficiency framework, competency linkage, new internal-succession schema (critical roles, successors, readiness) | WS-9 (soft, for recruitment linkage) | OD #5, #7 |
 | WS-15 | Cross-Module Visibility | **P1/P2** | Employee 360 completion, HR Action Centre (org-wide), Manager Portal recruitment-participation source, Reporting execution consolidation | WS-6 | — (**architecture frozen in §31**) — **COMPLETE.** All four bundles implemented (§31.40.7); Global Search is a future approved safe navigation/discovery enhancement, **not implemented** and not a closure blocker (§31.40) |
 | WS-16 | Workflow/Delegation Primitive Generalization | **P2** | Generalize Office Inventory's delegation table, extract authority-resolver | WS-3 (light) | OD #14, #15 — **WS-16 COMPLETE** (formally closed in §32.29). Architecture frozen in §32; scope narrowed by discovery: authority extraction is already largely shared (§32.2), so WS-16 delivers one shared live direct-report helper (Pass 2A) plus a new shared department-head delegation foundation (Pass 2B). Office Inventory is **not** migrated (§32.20); the holder-facing surface is **gated on a first approved consumer** (§32.21). **Pass 2A COMPLETE** (§32.27) — shared live direct-report helper shipped, six consumers migrated, seventh retained. **Pass 2B COMPLETE** (§32.28) — `authority_delegations` foundation shipped on migration `0071`, `department_head` only, holder-only, **zero business consumers by design**. **Pass 2C/2D DEFERRED / CONSUMER-TRIGGERED** — no longer closure blockers (§32.29.1); shared delegation consumer count is **0 by design**, and Office Inventory stays module-owned with its delegate-validation defect still open (§32.25). WS-16 overall **COMPLETE** |
-| WS-17 | Deployment & Backup Operations | **P2** | VPS automation, release-pipeline Levels 3–6, backup/restore build-out, Fleet Health design | WS-1, WS-4 | — |
+| WS-17 | Deployment & Backup Operations | **P2** | Installation deployment history and version state, backup policy/request/evidence control plane, Fleet Health signals, restore governance (deferred to its own gated pass) | WS-1, WS-4 | — — **Slice 1 COMPLETE** (§33); restore NOT implemented. **"Release-pipeline Levels 3–6" removed: repository-wide discovery found no source taxonomy defining Levels 3, 4, 5 or 6, and none was invented** (§33.2) |
 | WS-18 | Security Verification Workstream & Production Security Gate | **P0** (gate, sequenced late) | Live tenant-isolation/IDOR testing, DAST, penetration testing, full business-logic-security sampling, closing the flagged Supabase-production RLS item | WS-1, WS-2, WS-3, WS-4 | — |
 | WS-19 | AI Layer (implementation) | **Future/P2** | Tool Gateway build, first provider selection, Level 1–4 action mapping | WS-3, WS-5, WS-10, WS-4 (for future Control Plane AI scope) | OD #24, #25, #26 |
+| WS-20 | Enterprise Migration Centre | **P2** | Super-Admin-enabled, per-organization onboarding from legacy systems, spreadsheets and paper records: staged upload → parse → validate → preview → correct → approve → import → reconcile, provenance and original effective dates, migration batches, source-document linkage, resumable/idempotent imports, temporary Migration Officer authority, and future human-verified OCR/AI extraction | WS-7, WS-5 | — (**extends WS-7's migration foundations; does not replace them**) |
 
 **Parallel operational track (no engineering sequencing required)**: Payroll — seed confirmed Ghana statutory figures, obtain legal/accounting sign-off, activate for WWM. Can proceed independently of all 19 workstreams above.
 
@@ -3956,3 +3957,193 @@ capability that is not implemented (§31.40). The Office Inventory
 delegate-validation defect, future delegation date ranges, and additional
 delegation authority types all remain separately owned (§32.25).** None is
 absorbed here.
+
+---
+
+## 33. WS-17 — Deployment & Backup Operations (Control Plane, Slice 1)
+
+**Status.** Purely additive. The 31 Owner Decisions in §22 are untouched.
+Slice 1 — deployment history, backup policy/request/evidence, Fleet Health and
+telemetry — is **IMPLEMENTED** on migration `0073`. **Restore is NOT
+implemented** and is deferred to its own gated pass. WS-17 is **not complete**.
+
+### 33.1 The binding principle
+
+**The HRMS is an operational control and governance plane. Infrastructure
+executes.**
+
+The platform may define policy, request an operation, record status, receive
+telemetry, record evidence, display health and audit actions. `pg_dump`, PITR,
+provider snapshots, volume backups, object-store replication, VM and container
+operations, and restore execution all happen in the infrastructure plane.
+
+There is no shell, no command execution, no remote-management surface and no
+provider credential anywhere in this implementation, and none may be added: a
+control plane that can run arbitrary infrastructure actions is a remote shell
+wearing a governance costume.
+
+### 33.2 "Release-pipeline Levels 3–6" — removed, not reinvented
+
+The WS-17 register row previously read *"VPS automation, release-pipeline
+Levels 3–6, backup/restore build-out, Fleet Health design"*.
+
+A repository-wide search — every `.md`, `.ts` and `.yml` file plus git history —
+found **exactly two** occurrences of that phrase: the register row itself and a
+`PROJECT_STATUS.md` entry quoting it. Nothing anywhere defines Level 3, 4, 5 or
+6. §15 defers to "§107–§120 … unchanged from the discovery pass", sections that
+are not in this repository.
+
+**The phrase is therefore removed rather than guessed at.** No maturity model
+was substituted, because inventing one would give fabricated terminology the
+authority of a frozen requirement, and every future workstream reading that row
+would inherit the invention as fact. WS-17 owns installation deployment history
+and current version state, which is what the evidence supports.
+
+### 33.3 Installation authority — every operational record is installation-scoped
+
+`installations` carries no `organizationId`; `installation_organizations` links
+it to tenants. That is the correct authority, and Slice 1 follows it strictly:
+**not one WS-17 table has an `organizationId` column**, verified against the
+generated migration.
+
+The consequence matters most in shared hosting. If installation X serves
+organizations A, B and C, then one deployment is **one** record, one backup is
+**one** record, and one health condition is **one** condition; the three
+affected tenants are derived through the link table. Fabricating three backup
+rows for one `pg_dump` would report to three customers that three backups
+happened when one did.
+
+### 33.4 Platform-operations authority
+
+`hasPermission` resolves roles through `membership_roles`, so it requires an
+organization membership — an axis that does not exist for platform operations.
+Worse, `seed-roles-permissions.ts` grants the super-admin role
+`PERMISSIONS.map((p) => p.key)`: **every** key, blanket. Putting platform keys
+in that catalogue would hand every super-admin every dangerous operational
+mutation automatically, defeating the decision that role alone must not do so,
+and would make platform keys tenant-assignable.
+
+Slice 1 therefore introduces `platform_operation_grants`, granting on the
+**user** axis — the shape `break_glass_grants` already established for
+user-scoped, reasoned, revocable, time-limitable platform authority.
+
+> **Authority is always a conjunction: platform context (super-admin) AND a
+> live grant of the specific key.** Neither half suffices, and both are proved
+> by test — a granted tenant user is refused, and an ungranted super-admin is
+> refused.
+
+Five keys ship: `platform.fleet.read`, `platform.deployment.manage`,
+`platform.backup.policy.manage`, `platform.backup.request`,
+`platform.backup.evidence.record`.
+
+**`platform.restore.request` and `platform.restore.approve` are RESERVED** —
+declared, never granted, never checked by any route. They exist now because the
+frozen maker-checker rule ("a requester must never approve their own production
+restore") is only expressible if the two are separate keys from the outset, and
+reserving them stops a later pass collapsing them into one for convenience.
+
+### 33.5 Deployment history
+
+`installation_deployments` is append-only; `installations`' existing version
+columns remain the current state. **Only a `succeeded` deployment advances
+current state** — a failed one is retained in full as history but must never
+make the version it tried to install look live. One current truth, one history,
+never two competing answers.
+
+`executorType` is **provenance, not authority**: it records where evidence came
+from. Authority came from the grant that admitted the caller.
+
+### 33.6 Backup: target versus observation
+
+`installation_backup_policies` holds **targets**;
+`installation_backup_runs` holds **observations**. They are separate tables so
+that "we configured an RPO" can never be read as "we met an RPO".
+
+**RPO and RTO are nullable with no defaults.** Unconfigured is a truthful state;
+a fabricated default would carry the weight of a commitment nobody made. Nor is
+an observed RTO offered at all — it is not inferable from backup timestamps and
+would require restore evidence, which this slice does not have.
+
+**Coverage is two-dimensional, and the overall result is DERIVED, never
+supplied by the caller:**
+
+| Database | Binary storage | Result |
+|---|---|---|
+| succeeded | succeeded | `succeeded` |
+| succeeded | unknown / not_attempted / not_covered | **`partial`** |
+| failed | any | `failed` |
+
+This is the storage-durability finding made structural: authoritative binaries
+live outside PostgreSQL, so **a database-only backup can never be reported as a
+complete one**. `unknown` is not `covered` — not knowing is not protection.
+
+A **request is not a backup**. `installation_backup_requests` runs an explicit
+state machine (`requested → accepted → executing → succeeded|failed`, plus
+`rejected`/`cancelled`), illegal transitions are refused, and reaching
+`succeeded` there is still not evidence — only a run record is.
+
+Corrections **append** a row naming the one it supersedes. An outcome reported
+once stays readable as what was reported then.
+
+### 33.7 Fleet Health — signals, never a score
+
+Eight signals derive deterministically from recorded evidence: telemetry
+freshness, application liveness, database readiness, storage, backup freshness,
+backup coverage, deployed version, and version drift between registry and
+report.
+
+**There is no composite numeric score, deliberately.** Most installations have
+no telemetry, weights would be invented, and the resulting figure would be
+arithmetic dressed as insight. "Backup evidence overdue" serves an operator far
+better than a percentage that hides which of six things is wrong. Composite
+scoring waits for enough authoritative signals and an approved weighting policy.
+
+**Unknown is a first-class answer and is never healthy.** Absence of failure
+evidence never becomes health. A customer-managed installation that has never
+reported is `unknown` — not green, and not red, because "we cannot see it" is
+not "it is broken". `stale` is distinct: we heard once, too long ago. Overdue
+requires a configured cadence, because without an expectation nothing can be
+late.
+
+**There is no manual health override anywhere.** An administrator cannot paint a
+signal green; if evidence is absent, the surface says so. Signals not backed by
+telemetry — SSL, CPU, disk capacity, provider status — are simply absent rather
+than fabricated.
+
+### 33.8 Telemetry
+
+Push-first: the control plane cannot reach a customer-managed VPS, so polling
+cannot be primary. `installation_telemetry` is **one row per installation,
+updated in place** — deliberately not a snapshot lake, which would be the
+fastest-growing table on the platform and would then demand destructive pruning
+no approved policy authorizes. Operationally meaningful history already lives in
+the append-only deployment and backup tables. An out-of-order report is ignored
+rather than allowed to overwrite fresher truth.
+
+**The universal self-hosted agent is deferred, and so is unauthenticated
+ingestion.** Telemetry is recorded through the authenticated platform-operator
+surface. Introducing an agent-facing ingestion endpoint would require per-
+installation credentials — issuance, rotation, revocation, storage — which is a
+secrets-management subsystem this slice does not build. Building a weaker
+version of that would be the unsafe shortcut the freeze warned against, so the
+boundary is reported rather than crossed.
+
+### 33.9 Retention — policy-driven, nothing invented
+
+No duration is hard-coded, and **no destructive pruning job exists**. Deployment
+evidence, backup evidence and future restore history are strong-history classes.
+Telemetry is the high-volume class and is bounded structurally by being
+current-state only, which is why it needs no pruning today. Absence of policy
+means no automatic deletion — never a silent default.
+
+### 33.10 Deferred, and explicitly not implemented
+
+Restore request, approval, execution and testing; production restore; the
+universal self-hosted agent; incident management (Fleet Health emits signals a
+later capability may consume — no `incidents` table was created because a health
+state went red); feature flags; maintenance records (not structurally required
+by this slice, so deferred rather than half-built); the Enterprise Migration
+Centre (**WS-20**, registered in §20, extending WS-7 rather than replacing it);
+and destructive operational-history retention.
+
+**WS-17 is not complete.** Restore governance is its next gated pass.

@@ -989,6 +989,394 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /platform/fleet:
+    get:
+      operationId: getFleetHealth
+      tags: [platform-operations]
+      summary: Fleet health across all installations
+      description: >-
+        Requires platform super_admin AND the platform.fleet.read grant.
+        Super-admin alone is deliberately insufficient.
+      responses:
+        "200":
+          description: Health for every installation
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [installations]
+                properties:
+                  installations:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/InstallationHealth"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /platform/installations/{installationId}/health:
+    get:
+      operationId: getInstallationHealth
+      tags: [platform-operations]
+      summary: Health signals for one installation
+      parameters:
+        - name: installationId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Installation health
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstallationHealth"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /platform/installations/{installationId}/deployments:
+    get:
+      operationId: listInstallationDeployments
+      tags: [platform-operations]
+      summary: Deployment history for an installation
+      parameters:
+        - name: installationId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deployment history, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deployments]
+                properties:
+                  deployments:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/InstallationDeployment"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: recordInstallationDeployment
+      tags: [platform-operations]
+      summary: Record deployment evidence reported by an external executor
+      description: >-
+        The HRMS records; infrastructure executes. Only a succeeded result
+        advances the installation's current version.
+      parameters:
+        - name: installationId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordDeploymentInput"
+      responses:
+        "201":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstallationDeployment"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /platform/installations/{installationId}/backup-policy:
+    get:
+      operationId: getInstallationBackupPolicy
+      tags: [platform-operations]
+      summary: Backup policy targets for an installation
+      parameters:
+        - name: installationId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Backup policy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstallationBackupPolicy"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No policy configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    put:
+      operationId: upsertInstallationBackupPolicy
+      tags: [platform-operations]
+      summary: Set backup policy targets
+      description: >-
+        Targets only. Populating an RPO records an intention, never a claim
+        that it is met. Unconfigured stays null; there is no default SLA.
+      parameters:
+        - name: installationId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertBackupPolicyInput"
+      responses:
+        "200":
+          description: Updated policy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstallationBackupPolicy"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /platform/installations/{installationId}/backup-requests:
+    get:
+      operationId: listInstallationBackupRequests
+      tags: [platform-operations]
+      summary: Backup requests for an installation
+      parameters:
+        - name: installationId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Backup requests, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [requests]
+                properties:
+                  requests:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/InstallationBackupRequest"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: requestInstallationBackup
+      tags: [platform-operations]
+      summary: Ask an executor to take a backup
+      description: >-
+        A request is not a backup and never becomes evidence. Only a backup run
+        record is evidence.
+      parameters:
+        - name: installationId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestBackupInput"
+      responses:
+        "201":
+          description: Request recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstallationBackupRequest"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /platform/backup-requests/{requestId}/status:
+    post:
+      operationId: updateInstallationBackupRequestStatus
+      tags: [platform-operations]
+      summary: Report a backup request's status transition
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBackupRequestStatusInput"
+      responses:
+        "200":
+          description: Updated request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstallationBackupRequest"
+        "400":
+          description: Illegal transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /platform/installations/{installationId}/backup-runs:
+    get:
+      operationId: listInstallationBackupRuns
+      tags: [platform-operations]
+      summary: Backup evidence for an installation
+      parameters:
+        - name: installationId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Backup runs, newest evidence first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [runs]
+                properties:
+                  runs:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/InstallationBackupRun"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: recordInstallationBackupRun
+      tags: [platform-operations]
+      summary: Record backup evidence
+      description: >-
+        The overall result is DERIVED from the component results and is never
+        accepted from the caller, so a database-only backup can never be
+        reported as complete.
+      parameters:
+        - name: installationId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordBackupRunInput"
+      responses:
+        "201":
+          description: Evidence recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstallationBackupRun"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /platform/installations/{installationId}/telemetry:
+    post:
+      operationId: recordInstallationTelemetry
+      tags: [platform-operations]
+      summary: Record current telemetry for an installation
+      description: >-
+        Current state only. An out-of-order report is ignored rather than
+        allowed to overwrite fresher truth.
+      parameters:
+        - name: installationId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordTelemetryInput"
+      responses:
+        "201":
+          description: Telemetry recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstallationTelemetry"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /installations:
     get:
       operationId: listInstallations
@@ -31604,6 +31992,256 @@ components:
           type: string
           format: date-time
 
+    HealthSignal:
+      type: object
+      required: [key, state, detail]
+      properties:
+        key: { type: string }
+        state:
+          type: string
+          enum: [healthy, degraded, unhealthy, unknown, stale]
+        detail:
+          type: string
+          description: Plain operator-facing reason, so state never depends on colour alone.
+    InstallationHealth:
+      type: object
+      required: [installationId, installationKey, name, overall, signals, affectedOrganizations]
+      properties:
+        installationId: { type: integer }
+        installationKey: { type: string }
+        name: { type: string }
+        environmentType: { type: string }
+        hostingModel: { type: string }
+        status: { type: string }
+        currentApplicationVersion: { type: string, nullable: true }
+        currentGitCommit: { type: string, nullable: true }
+        currentMigrationVersion: { type: string, nullable: true }
+        deployedAt: { type: string, format: date-time, nullable: true }
+        overall:
+          type: string
+          enum: [healthy, degraded, unhealthy, unknown, stale]
+          description: The worst signal present. Deliberately not a numeric score.
+        signals:
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthSignal"
+        affectedOrganizations:
+          type: array
+          description: Derived through installation_organizations, never stored per event.
+          items:
+            type: object
+            required: [organizationId, name]
+            properties:
+              organizationId: { type: integer }
+              name: { type: string }
+    InstallationDeployment:
+      type: object
+      required: [id, installationId, result, executorType, recordedAt]
+      properties:
+        id: { type: integer }
+        installationId: { type: integer }
+        applicationVersion: { type: string, nullable: true }
+        gitCommit: { type: string, nullable: true }
+        migrationVersion: { type: string, nullable: true }
+        previousApplicationVersion: { type: string, nullable: true }
+        previousGitCommit: { type: string, nullable: true }
+        result:
+          type: string
+          enum: [in_progress, succeeded, failed, rolled_back]
+        startedAt: { type: string, format: date-time, nullable: true }
+        completedAt: { type: string, format: date-time, nullable: true }
+        executorType:
+          type: string
+          enum: [operator, ci_cd, installation_agent, provider, imported_evidence]
+        externalReference: { type: string, nullable: true }
+        rolledBackFromDeploymentId: { type: integer, nullable: true }
+        notes: { type: string, nullable: true }
+        recordedByUserId: { type: integer, nullable: true }
+        recordedAt: { type: string, format: date-time }
+    RecordDeploymentInput:
+      type: object
+      required: [result, executorType]
+      properties:
+        applicationVersion: { type: string, nullable: true }
+        gitCommit: { type: string, nullable: true }
+        migrationVersion: { type: string, nullable: true }
+        result:
+          type: string
+          enum: [in_progress, succeeded, failed, rolled_back]
+        startedAt: { type: string, format: date-time, nullable: true }
+        completedAt: { type: string, format: date-time, nullable: true }
+        executorType:
+          type: string
+          enum: [operator, ci_cd, installation_agent, provider, imported_evidence]
+        externalReference: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+    InstallationBackupPolicy:
+      type: object
+      required: [id, installationId, enabled, databaseCoverage, binaryStorageCoverage]
+      properties:
+        id: { type: integer }
+        installationId: { type: integer }
+        enabled: { type: integer }
+        strategy:
+          type: string
+          nullable: true
+          enum: [provider_managed, logical_dump, volume_snapshot, mixed]
+        expectedFrequencyHours: { type: integer, nullable: true }
+        targetRpoMinutes:
+          type: integer
+          nullable: true
+          description: Configured target only. Null means unconfigured; there is no default SLA.
+        targetRtoMinutes: { type: integer, nullable: true }
+        retentionPolicyReference: { type: string, nullable: true }
+        databaseCoverage:
+          type: string
+          enum: [covered, not_covered, unknown]
+        binaryStorageCoverage:
+          type: string
+          enum: [covered, not_covered, unknown]
+        executorType: { type: string, nullable: true }
+        supportsBackupRequests: { type: integer }
+        updatedByUserId: { type: integer, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    UpsertBackupPolicyInput:
+      type: object
+      properties:
+        enabled: { type: boolean }
+        strategy:
+          type: string
+          enum: [provider_managed, logical_dump, volume_snapshot, mixed]
+        expectedFrequencyHours: { type: integer, nullable: true }
+        targetRpoMinutes: { type: integer, nullable: true }
+        targetRtoMinutes: { type: integer, nullable: true }
+        retentionPolicyReference: { type: string, nullable: true }
+        databaseCoverage:
+          type: string
+          enum: [covered, not_covered, unknown]
+        binaryStorageCoverage:
+          type: string
+          enum: [covered, not_covered, unknown]
+        executorType:
+          type: string
+          enum: [operator, ci_cd, installation_agent, provider, imported_evidence]
+        supportsBackupRequests: { type: boolean }
+    InstallationBackupRequest:
+      type: object
+      required: [id, installationId, status, reason, requestedAt]
+      properties:
+        id: { type: integer }
+        installationId: { type: integer }
+        status:
+          type: string
+          enum: [requested, accepted, executing, succeeded, failed, rejected, cancelled]
+        backupType: { type: string, nullable: true }
+        reason: { type: string }
+        requestedByUserId: { type: integer, nullable: true }
+        requestedAt: { type: string, format: date-time }
+        statusChangedAt: { type: string, format: date-time, nullable: true }
+        externalReference: { type: string, nullable: true }
+        statusDetail: { type: string, nullable: true }
+    RequestBackupInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string }
+        backupType:
+          type: string
+          enum: [provider_managed, logical_dump, volume_snapshot, mixed]
+    UpdateBackupRequestStatusInput:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [accepted, executing, succeeded, failed, rejected, cancelled]
+        externalReference: { type: string, nullable: true }
+        statusDetail: { type: string, nullable: true }
+    InstallationBackupRun:
+      type: object
+      required: [id, installationId, result, databaseResult, binaryStorageResult, executorType, evidenceReceivedAt]
+      properties:
+        id: { type: integer }
+        installationId: { type: integer }
+        requestId: { type: integer, nullable: true }
+        backupType: { type: string, nullable: true }
+        result:
+          type: string
+          enum: [succeeded, partial, failed]
+          description: Derived from the component results, never supplied by the caller.
+        databaseResult:
+          type: string
+          enum: [succeeded, failed, not_attempted, unknown]
+        binaryStorageResult:
+          type: string
+          enum: [succeeded, failed, not_attempted, unknown]
+        startedAt: { type: string, format: date-time, nullable: true }
+        completedAt: { type: string, format: date-time, nullable: true }
+        recoveryPointAt: { type: string, format: date-time, nullable: true }
+        sizeBytes: { type: integer, nullable: true }
+        executorType: { type: string }
+        externalReference: { type: string, nullable: true }
+        failureCategory: { type: string, nullable: true }
+        evidenceReceivedAt: { type: string, format: date-time }
+        recordedByUserId: { type: integer, nullable: true }
+        supersedesRunId: { type: integer, nullable: true }
+    RecordBackupRunInput:
+      type: object
+      required: [databaseResult, binaryStorageResult]
+      properties:
+        requestId: { type: integer, nullable: true }
+        backupType:
+          type: string
+          enum: [provider_managed, logical_dump, volume_snapshot, mixed]
+        databaseResult:
+          type: string
+          enum: [succeeded, failed, not_attempted, unknown]
+        binaryStorageResult:
+          type: string
+          enum: [succeeded, failed, not_attempted, unknown]
+        startedAt: { type: string, format: date-time, nullable: true }
+        completedAt: { type: string, format: date-time, nullable: true }
+        recoveryPointAt: { type: string, format: date-time, nullable: true }
+        sizeBytes: { type: integer, nullable: true }
+        executorType:
+          type: string
+          enum: [operator, ci_cd, installation_agent, provider, imported_evidence]
+        externalReference: { type: string, nullable: true }
+        failureCategory: { type: string, nullable: true }
+        supersedesRunId: { type: integer, nullable: true }
+    InstallationTelemetry:
+      type: object
+      required: [id, installationId, observedAt, executorType]
+      properties:
+        id: { type: integer }
+        installationId: { type: integer }
+        observedAt: { type: string, format: date-time }
+        reportedApplicationVersion: { type: string, nullable: true }
+        reportedGitCommit: { type: string, nullable: true }
+        reportedMigrationVersion: { type: string, nullable: true }
+        applicationHealthy: { type: integer, nullable: true }
+        databaseReady: { type: integer, nullable: true }
+        storageBackend: { type: string, nullable: true }
+        storageHealthy: { type: integer, nullable: true }
+        executorType: { type: string }
+        recordedByUserId: { type: integer, nullable: true }
+        updatedAt: { type: string, format: date-time }
+    RecordTelemetryInput:
+      type: object
+      required: [observedAt]
+      properties:
+        observedAt: { type: string, format: date-time }
+        reportedApplicationVersion: { type: string, nullable: true }
+        reportedGitCommit: { type: string, nullable: true }
+        reportedMigrationVersion: { type: string, nullable: true }
+        applicationHealthy: { type: boolean, nullable: true }
+        databaseReady: { type: boolean, nullable: true }
+        storageBackend: { type: string, nullable: true }
+        storageHealthy: { type: boolean, nullable: true }
+        executorType:
+          type: string
+          enum: [operator, ci_cd, installation_agent, provider, imported_evidence]
     CreateInstallationInput:
       type: object
       required: [name, environmentType, hostingModel]

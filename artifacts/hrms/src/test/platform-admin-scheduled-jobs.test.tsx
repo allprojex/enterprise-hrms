@@ -29,6 +29,12 @@ vi.mock('@workspace/api-client-react', () => ({
   useCreateBreakGlassGrant: () => ({ mutate: vi.fn(), isPending: false }),
   useRevokeBreakGlassGrant: () => ({ mutate: vi.fn(), isPending: false }),
   useListOrganizations: emptyList,
+  // WS-17 Slice 1: the Fleet Health section lives on this page, so its hooks
+  // must be registered at the same module boundary this suite already mocks.
+  // Empty fleet keeps these tests about scheduled jobs, which is what they test.
+  useGetFleetHealth: () => ({ data: { installations: [] }, isLoading: false, isError: false }),
+  useListInstallationDeployments: () => ({ data: { deployments: [] }, isLoading: false }),
+  useListInstallationBackupRuns: () => ({ data: { runs: [] }, isLoading: false }),
   useListScheduledJobs: () => ({
     data: [
       { id: 1, jobType: 'reminder.notify', organizationId: 10, status: 'scheduled', attemptCount: 0, maxAttempts: 5, scheduledFor: new Date().toISOString(), lastErrorMessage: null },

@@ -525,6 +525,390 @@ export const EnablePlatformUserResponse = zod.object({
 
 
 /**
+ * Requires platform super_admin AND the platform.fleet.read grant. Super-admin alone is deliberately insufficient.
+ * @summary Fleet health across all installations
+ */
+export const GetFleetHealthResponse = zod.object({
+  "installations": zod.array(zod.object({
+  "installationId": zod.number(),
+  "installationKey": zod.string(),
+  "name": zod.string(),
+  "environmentType": zod.string().optional(),
+  "hostingModel": zod.string().optional(),
+  "status": zod.string().optional(),
+  "currentApplicationVersion": zod.string().nullish(),
+  "currentGitCommit": zod.string().nullish(),
+  "currentMigrationVersion": zod.string().nullish(),
+  "deployedAt": zod.coerce.date().nullish(),
+  "overall": zod.enum(['healthy', 'degraded', 'unhealthy', 'unknown', 'stale']).describe('The worst signal present. Deliberately not a numeric score.'),
+  "signals": zod.array(zod.object({
+  "key": zod.string(),
+  "state": zod.enum(['healthy', 'degraded', 'unhealthy', 'unknown', 'stale']),
+  "detail": zod.string().describe('Plain operator-facing reason, so state never depends on colour alone.')
+})),
+  "affectedOrganizations": zod.array(zod.object({
+  "organizationId": zod.number(),
+  "name": zod.string()
+})).describe('Derived through installation_organizations, never stored per event.')
+}))
+})
+
+
+/**
+ * @summary Health signals for one installation
+ */
+export const GetInstallationHealthParams = zod.object({
+  "installationId": zod.coerce.number()
+})
+
+export const GetInstallationHealthResponse = zod.object({
+  "installationId": zod.number(),
+  "installationKey": zod.string(),
+  "name": zod.string(),
+  "environmentType": zod.string().optional(),
+  "hostingModel": zod.string().optional(),
+  "status": zod.string().optional(),
+  "currentApplicationVersion": zod.string().nullish(),
+  "currentGitCommit": zod.string().nullish(),
+  "currentMigrationVersion": zod.string().nullish(),
+  "deployedAt": zod.coerce.date().nullish(),
+  "overall": zod.enum(['healthy', 'degraded', 'unhealthy', 'unknown', 'stale']).describe('The worst signal present. Deliberately not a numeric score.'),
+  "signals": zod.array(zod.object({
+  "key": zod.string(),
+  "state": zod.enum(['healthy', 'degraded', 'unhealthy', 'unknown', 'stale']),
+  "detail": zod.string().describe('Plain operator-facing reason, so state never depends on colour alone.')
+})),
+  "affectedOrganizations": zod.array(zod.object({
+  "organizationId": zod.number(),
+  "name": zod.string()
+})).describe('Derived through installation_organizations, never stored per event.')
+})
+
+
+/**
+ * @summary Deployment history for an installation
+ */
+export const ListInstallationDeploymentsParams = zod.object({
+  "installationId": zod.coerce.number()
+})
+
+export const ListInstallationDeploymentsResponse = zod.object({
+  "deployments": zod.array(zod.object({
+  "id": zod.number(),
+  "installationId": zod.number(),
+  "applicationVersion": zod.string().nullish(),
+  "gitCommit": zod.string().nullish(),
+  "migrationVersion": zod.string().nullish(),
+  "previousApplicationVersion": zod.string().nullish(),
+  "previousGitCommit": zod.string().nullish(),
+  "result": zod.enum(['in_progress', 'succeeded', 'failed', 'rolled_back']),
+  "startedAt": zod.coerce.date().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "executorType": zod.enum(['operator', 'ci_cd', 'installation_agent', 'provider', 'imported_evidence']),
+  "externalReference": zod.string().nullish(),
+  "rolledBackFromDeploymentId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "recordedByUserId": zod.number().nullish(),
+  "recordedAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * The HRMS records; infrastructure executes. Only a succeeded result advances the installation's current version.
+ * @summary Record deployment evidence reported by an external executor
+ */
+export const RecordInstallationDeploymentParams = zod.object({
+  "installationId": zod.coerce.number()
+})
+
+export const RecordInstallationDeploymentBody = zod.object({
+  "applicationVersion": zod.string().nullish(),
+  "gitCommit": zod.string().nullish(),
+  "migrationVersion": zod.string().nullish(),
+  "result": zod.enum(['in_progress', 'succeeded', 'failed', 'rolled_back']),
+  "startedAt": zod.coerce.date().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "executorType": zod.enum(['operator', 'ci_cd', 'installation_agent', 'provider', 'imported_evidence']),
+  "externalReference": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const RecordInstallationDeploymentResponse = zod.object({
+  "id": zod.number(),
+  "installationId": zod.number(),
+  "applicationVersion": zod.string().nullish(),
+  "gitCommit": zod.string().nullish(),
+  "migrationVersion": zod.string().nullish(),
+  "previousApplicationVersion": zod.string().nullish(),
+  "previousGitCommit": zod.string().nullish(),
+  "result": zod.enum(['in_progress', 'succeeded', 'failed', 'rolled_back']),
+  "startedAt": zod.coerce.date().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "executorType": zod.enum(['operator', 'ci_cd', 'installation_agent', 'provider', 'imported_evidence']),
+  "externalReference": zod.string().nullish(),
+  "rolledBackFromDeploymentId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "recordedByUserId": zod.number().nullish(),
+  "recordedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Backup policy targets for an installation
+ */
+export const GetInstallationBackupPolicyParams = zod.object({
+  "installationId": zod.coerce.number()
+})
+
+export const GetInstallationBackupPolicyResponse = zod.object({
+  "id": zod.number(),
+  "installationId": zod.number(),
+  "enabled": zod.number(),
+  "strategy": zod.enum(['provider_managed', 'logical_dump', 'volume_snapshot', 'mixed']).nullish(),
+  "expectedFrequencyHours": zod.number().nullish(),
+  "targetRpoMinutes": zod.number().nullish().describe('Configured target only. Null means unconfigured; there is no default SLA.'),
+  "targetRtoMinutes": zod.number().nullish(),
+  "retentionPolicyReference": zod.string().nullish(),
+  "databaseCoverage": zod.enum(['covered', 'not_covered', 'unknown']),
+  "binaryStorageCoverage": zod.enum(['covered', 'not_covered', 'unknown']),
+  "executorType": zod.string().nullish(),
+  "supportsBackupRequests": zod.number().optional(),
+  "updatedByUserId": zod.number().nullish(),
+  "createdAt": zod.coerce.date().optional(),
+  "updatedAt": zod.coerce.date().optional()
+})
+
+
+/**
+ * Targets only. Populating an RPO records an intention, never a claim that it is met. Unconfigured stays null; there is no default SLA.
+ * @summary Set backup policy targets
+ */
+export const UpsertInstallationBackupPolicyParams = zod.object({
+  "installationId": zod.coerce.number()
+})
+
+export const UpsertInstallationBackupPolicyBody = zod.object({
+  "enabled": zod.boolean().optional(),
+  "strategy": zod.enum(['provider_managed', 'logical_dump', 'volume_snapshot', 'mixed']).optional(),
+  "expectedFrequencyHours": zod.number().nullish(),
+  "targetRpoMinutes": zod.number().nullish(),
+  "targetRtoMinutes": zod.number().nullish(),
+  "retentionPolicyReference": zod.string().nullish(),
+  "databaseCoverage": zod.enum(['covered', 'not_covered', 'unknown']).optional(),
+  "binaryStorageCoverage": zod.enum(['covered', 'not_covered', 'unknown']).optional(),
+  "executorType": zod.enum(['operator', 'ci_cd', 'installation_agent', 'provider', 'imported_evidence']).optional(),
+  "supportsBackupRequests": zod.boolean().optional()
+})
+
+export const UpsertInstallationBackupPolicyResponse = zod.object({
+  "id": zod.number(),
+  "installationId": zod.number(),
+  "enabled": zod.number(),
+  "strategy": zod.enum(['provider_managed', 'logical_dump', 'volume_snapshot', 'mixed']).nullish(),
+  "expectedFrequencyHours": zod.number().nullish(),
+  "targetRpoMinutes": zod.number().nullish().describe('Configured target only. Null means unconfigured; there is no default SLA.'),
+  "targetRtoMinutes": zod.number().nullish(),
+  "retentionPolicyReference": zod.string().nullish(),
+  "databaseCoverage": zod.enum(['covered', 'not_covered', 'unknown']),
+  "binaryStorageCoverage": zod.enum(['covered', 'not_covered', 'unknown']),
+  "executorType": zod.string().nullish(),
+  "supportsBackupRequests": zod.number().optional(),
+  "updatedByUserId": zod.number().nullish(),
+  "createdAt": zod.coerce.date().optional(),
+  "updatedAt": zod.coerce.date().optional()
+})
+
+
+/**
+ * @summary Backup requests for an installation
+ */
+export const ListInstallationBackupRequestsParams = zod.object({
+  "installationId": zod.coerce.number()
+})
+
+export const ListInstallationBackupRequestsResponse = zod.object({
+  "requests": zod.array(zod.object({
+  "id": zod.number(),
+  "installationId": zod.number(),
+  "status": zod.enum(['requested', 'accepted', 'executing', 'succeeded', 'failed', 'rejected', 'cancelled']),
+  "backupType": zod.string().nullish(),
+  "reason": zod.string(),
+  "requestedByUserId": zod.number().nullish(),
+  "requestedAt": zod.coerce.date(),
+  "statusChangedAt": zod.coerce.date().nullish(),
+  "externalReference": zod.string().nullish(),
+  "statusDetail": zod.string().nullish()
+}))
+})
+
+
+/**
+ * A request is not a backup and never becomes evidence. Only a backup run record is evidence.
+ * @summary Ask an executor to take a backup
+ */
+export const RequestInstallationBackupParams = zod.object({
+  "installationId": zod.coerce.number()
+})
+
+export const RequestInstallationBackupBody = zod.object({
+  "reason": zod.string(),
+  "backupType": zod.enum(['provider_managed', 'logical_dump', 'volume_snapshot', 'mixed']).optional()
+})
+
+export const RequestInstallationBackupResponse = zod.object({
+  "id": zod.number(),
+  "installationId": zod.number(),
+  "status": zod.enum(['requested', 'accepted', 'executing', 'succeeded', 'failed', 'rejected', 'cancelled']),
+  "backupType": zod.string().nullish(),
+  "reason": zod.string(),
+  "requestedByUserId": zod.number().nullish(),
+  "requestedAt": zod.coerce.date(),
+  "statusChangedAt": zod.coerce.date().nullish(),
+  "externalReference": zod.string().nullish(),
+  "statusDetail": zod.string().nullish()
+})
+
+
+/**
+ * @summary Report a backup request's status transition
+ */
+export const UpdateInstallationBackupRequestStatusParams = zod.object({
+  "requestId": zod.coerce.number()
+})
+
+export const UpdateInstallationBackupRequestStatusBody = zod.object({
+  "status": zod.enum(['accepted', 'executing', 'succeeded', 'failed', 'rejected', 'cancelled']),
+  "externalReference": zod.string().nullish(),
+  "statusDetail": zod.string().nullish()
+})
+
+export const UpdateInstallationBackupRequestStatusResponse = zod.object({
+  "id": zod.number(),
+  "installationId": zod.number(),
+  "status": zod.enum(['requested', 'accepted', 'executing', 'succeeded', 'failed', 'rejected', 'cancelled']),
+  "backupType": zod.string().nullish(),
+  "reason": zod.string(),
+  "requestedByUserId": zod.number().nullish(),
+  "requestedAt": zod.coerce.date(),
+  "statusChangedAt": zod.coerce.date().nullish(),
+  "externalReference": zod.string().nullish(),
+  "statusDetail": zod.string().nullish()
+})
+
+
+/**
+ * @summary Backup evidence for an installation
+ */
+export const ListInstallationBackupRunsParams = zod.object({
+  "installationId": zod.coerce.number()
+})
+
+export const ListInstallationBackupRunsResponse = zod.object({
+  "runs": zod.array(zod.object({
+  "id": zod.number(),
+  "installationId": zod.number(),
+  "requestId": zod.number().nullish(),
+  "backupType": zod.string().nullish(),
+  "result": zod.enum(['succeeded', 'partial', 'failed']).describe('Derived from the component results, never supplied by the caller.'),
+  "databaseResult": zod.enum(['succeeded', 'failed', 'not_attempted', 'unknown']),
+  "binaryStorageResult": zod.enum(['succeeded', 'failed', 'not_attempted', 'unknown']),
+  "startedAt": zod.coerce.date().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "recoveryPointAt": zod.coerce.date().nullish(),
+  "sizeBytes": zod.number().nullish(),
+  "executorType": zod.string(),
+  "externalReference": zod.string().nullish(),
+  "failureCategory": zod.string().nullish(),
+  "evidenceReceivedAt": zod.coerce.date(),
+  "recordedByUserId": zod.number().nullish(),
+  "supersedesRunId": zod.number().nullish()
+}))
+})
+
+
+/**
+ * The overall result is DERIVED from the component results and is never accepted from the caller, so a database-only backup can never be reported as complete.
+ * @summary Record backup evidence
+ */
+export const RecordInstallationBackupRunParams = zod.object({
+  "installationId": zod.coerce.number()
+})
+
+export const RecordInstallationBackupRunBody = zod.object({
+  "requestId": zod.number().nullish(),
+  "backupType": zod.enum(['provider_managed', 'logical_dump', 'volume_snapshot', 'mixed']).optional(),
+  "databaseResult": zod.enum(['succeeded', 'failed', 'not_attempted', 'unknown']),
+  "binaryStorageResult": zod.enum(['succeeded', 'failed', 'not_attempted', 'unknown']),
+  "startedAt": zod.coerce.date().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "recoveryPointAt": zod.coerce.date().nullish(),
+  "sizeBytes": zod.number().nullish(),
+  "executorType": zod.enum(['operator', 'ci_cd', 'installation_agent', 'provider', 'imported_evidence']).optional(),
+  "externalReference": zod.string().nullish(),
+  "failureCategory": zod.string().nullish(),
+  "supersedesRunId": zod.number().nullish()
+})
+
+export const RecordInstallationBackupRunResponse = zod.object({
+  "id": zod.number(),
+  "installationId": zod.number(),
+  "requestId": zod.number().nullish(),
+  "backupType": zod.string().nullish(),
+  "result": zod.enum(['succeeded', 'partial', 'failed']).describe('Derived from the component results, never supplied by the caller.'),
+  "databaseResult": zod.enum(['succeeded', 'failed', 'not_attempted', 'unknown']),
+  "binaryStorageResult": zod.enum(['succeeded', 'failed', 'not_attempted', 'unknown']),
+  "startedAt": zod.coerce.date().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "recoveryPointAt": zod.coerce.date().nullish(),
+  "sizeBytes": zod.number().nullish(),
+  "executorType": zod.string(),
+  "externalReference": zod.string().nullish(),
+  "failureCategory": zod.string().nullish(),
+  "evidenceReceivedAt": zod.coerce.date(),
+  "recordedByUserId": zod.number().nullish(),
+  "supersedesRunId": zod.number().nullish()
+})
+
+
+/**
+ * Current state only. An out-of-order report is ignored rather than allowed to overwrite fresher truth.
+ * @summary Record current telemetry for an installation
+ */
+export const RecordInstallationTelemetryParams = zod.object({
+  "installationId": zod.coerce.number()
+})
+
+export const RecordInstallationTelemetryBody = zod.object({
+  "observedAt": zod.coerce.date(),
+  "reportedApplicationVersion": zod.string().nullish(),
+  "reportedGitCommit": zod.string().nullish(),
+  "reportedMigrationVersion": zod.string().nullish(),
+  "applicationHealthy": zod.boolean().nullish(),
+  "databaseReady": zod.boolean().nullish(),
+  "storageBackend": zod.string().nullish(),
+  "storageHealthy": zod.boolean().nullish(),
+  "executorType": zod.enum(['operator', 'ci_cd', 'installation_agent', 'provider', 'imported_evidence']).optional()
+})
+
+export const RecordInstallationTelemetryResponse = zod.object({
+  "id": zod.number(),
+  "installationId": zod.number(),
+  "observedAt": zod.coerce.date(),
+  "reportedApplicationVersion": zod.string().nullish(),
+  "reportedGitCommit": zod.string().nullish(),
+  "reportedMigrationVersion": zod.string().nullish(),
+  "applicationHealthy": zod.number().nullish(),
+  "databaseReady": zod.number().nullish(),
+  "storageBackend": zod.string().nullish(),
+  "storageHealthy": zod.number().nullish(),
+  "executorType": zod.string(),
+  "recordedByUserId": zod.number().nullish(),
+  "updatedAt": zod.coerce.date().optional()
+})
+
+
+/**
  * Platform super_admin only.
  * @summary List installations
  */
