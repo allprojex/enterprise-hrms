@@ -989,6 +989,449 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /platform/installations/{installationId}/restore-requests:
+    get:
+      operationId: listRestoreRequests
+      tags: [platform-restore]
+      summary: Restore requests for an installation
+      parameters:
+        - name: installationId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Restore requests, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [requests]
+                properties:
+                  requests:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/RestoreRequest"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: submitRestoreRequest
+      tags: [platform-restore]
+      summary: Submit a governed physical restore request
+      description: >-
+        Requires platform.restore.request. A partial recovery point is blocked
+        unless the incomplete component is explicitly acknowledged, and the
+        target-bound confirmation phrase must match exactly.
+      parameters:
+        - name: installationId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitRestoreRequestInput"
+      responses:
+        "201":
+          description: Submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RestoreRequest"
+        "400":
+          description: Governance rule refused the submission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /platform/restore-requests/{requestId}:
+    get:
+      operationId: getRestoreRequestDetail
+      tags: [platform-restore]
+      summary: Everything an approver must see before deciding
+      description: >-
+        Returns the request, prior approvals, execution attempts, validation
+        evidence, the live dispatch precheck including blast-radius drift, and
+        observed metrics — so a blind one-click approval is not possible.
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Restore request detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RestoreRequestDetail"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /platform/restore-requests/{requestId}/decision:
+    post:
+      operationId: decideRestoreRequest
+      tags: [platform-restore]
+      summary: Approve or reject a restore request
+      description: >-
+        Requires platform.restore.approve. In production the requester can
+        never approve their own restore, compared on immutable user id.
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RestoreDecisionInput"
+      responses:
+        "201":
+          description: Decision recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RestoreApproval"
+        "400":
+          description: Governance rule refused the decision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /platform/restore-requests/{requestId}/cancel:
+    post:
+      operationId: cancelRestoreRequest
+      tags: [platform-restore]
+      summary: Cancel a restore request before dispatch
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RestoreRequest"
+        "400":
+          description: Governance rule refused the transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RestoreCancelInput"
+  /platform/restore-requests/{requestId}/acknowledge-drift:
+    post:
+      operationId: acknowledgeRestoreDrift
+      tags: [platform-restore]
+      summary: Acknowledge non-invalidating operational drift
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RestoreRequest"
+        "400":
+          description: Governance rule refused the transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema: { type: integer }
+  /platform/restore-requests/{requestId}/invalidate-approval:
+    post:
+      operationId: invalidateRestoreApproval
+      tags: [platform-restore]
+      summary: Invalidate a standing approval
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RestoreRequest"
+        "400":
+          description: Governance rule refused the transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RestoreCancelInput"
+  /platform/restore-requests/{requestId}/quiescence:
+    post:
+      operationId: recordRestoreQuiescence
+      tags: [platform-restore]
+      summary: Record write-quiescence evidence
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RestoreRequest"
+        "400":
+          description: Governance rule refused the transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RestoreQuiescenceInput"
+  /platform/restore-requests/{requestId}/dispatch:
+    post:
+      operationId: dispatchRestore
+      tags: [platform-restore]
+      summary: Produce governed execution intent
+      description: >-
+        Dispatch executes nothing and does not mean the restore succeeded. It
+        is idempotent by key, so a repeated call never starts a second restore.
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RestoreDispatchInput"
+      responses:
+        "201":
+          description: Execution intent recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RestoreExecution"
+        "400":
+          description: Dispatch blocked by a precondition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /platform/restore-executions/{executionId}/evidence:
+    post:
+      operationId: recordRestoreExecutionEvidence
+      tags: [platform-restore]
+      summary: Record what an external executor reported
+      description: A completed attempt can never be rewritten into a different outcome.
+      parameters:
+        - name: executionId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RestoreExecutionEvidenceInput"
+      responses:
+        "200":
+          description: Evidence recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RestoreExecution"
+        "400":
+          description: Refused
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /platform/restore-requests/{requestId}/validations:
+    post:
+      operationId: recordRestoreValidation
+      tags: [platform-restore]
+      summary: Record one post-restore validation check
+      description: >-
+        Execution success is not validation success. An operator attestation
+        may never override an automated failure.
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RestoreValidationInput"
+      responses:
+        "201":
+          description: Validation recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RestoreValidation"
+        "400":
+          description: Refused
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /platform/restore-requests/{requestId}/conclude-validation:
+    post:
+      operationId: concludeRestoreValidation
+      tags: [platform-restore]
+      summary: Conclude validation from recorded evidence
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RestoreRequest"
+        "400":
+          description: Governance rule refused the transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema: { type: integer }
   /platform/fleet:
     get:
       operationId: getFleetHealth
@@ -31992,6 +32435,225 @@ components:
           type: string
           format: date-time
 
+    RestoreRequest:
+      type: object
+      required: [id, installationId, environmentSnapshot, purpose, status, restorePointType, completeness, preRestoreCheckpointState, quiescenceState, affectedOrganizationIdsSnapshot, reason, requestedByUserId, submittedAt]
+      properties:
+        id: { type: integer }
+        installationId: { type: integer }
+        environmentSnapshot: { type: string }
+        purpose:
+          type: string
+          enum: [recovery, test]
+        status:
+          type: string
+          enum: [submitted, approved, rejected, dispatched, executing, succeeded, failed, validated, validation_failed, cancelled, expired]
+        restorePointType:
+          type: string
+          enum: [backup_run, pitr, provider_snapshot]
+        backupRunId: { type: integer, nullable: true }
+        pitrTimestamp: { type: string, format: date-time, nullable: true }
+        providerReference: { type: string, nullable: true }
+        recoveryPointAt: { type: string, format: date-time, nullable: true }
+        completeness:
+          type: string
+          enum: [complete, partial, unknown]
+          description: Derived from backup evidence. Unknown is never complete.
+        incompleteComponents: { nullable: true }
+        incompleteAcknowledgedAt: { type: string, format: date-time, nullable: true }
+        incompleteAcknowledgementNote: { type: string, nullable: true }
+        preRestoreCheckpointState:
+          type: string
+          enum: [not_required, required, satisfied, unsupported_acknowledged]
+        preRestoreBackupRunId: { type: integer, nullable: true }
+        preRestoreExceptionNote: { type: string, nullable: true }
+        quiescenceState:
+          type: string
+          enum: [not_required, required, requested, confirmed, unavailable, released]
+        quiescenceEvidence: { type: string, nullable: true }
+        affectedOrganizationIdsSnapshot:
+          description: The blast radius the requester was shown, frozen at submission.
+        reason: { type: string }
+        requestedByUserId: { type: integer }
+        submittedAt: { type: string, format: date-time }
+        statusChangedAt: { type: string, format: date-time, nullable: true }
+        statusDetail: { type: string, nullable: true }
+        applicationVersionAtRequest: { type: string, nullable: true }
+        migrationVersionAtRequest: { type: string, nullable: true }
+        driftAcknowledgedAt: { type: string, format: date-time, nullable: true }
+    RestoreApproval:
+      type: object
+      required: [id, requestId, decision, approverUserId, decidedAt, affectedOrganizationIdsAtDecision, completenessAtDecision, preRestoreCheckpointAtDecision]
+      properties:
+        id: { type: integer }
+        requestId: { type: integer }
+        decision:
+          type: string
+          enum: [approved, rejected]
+        approverUserId: { type: integer }
+        decidedAt: { type: string, format: date-time }
+        comment: { type: string, nullable: true }
+        affectedOrganizationIdsAtDecision:
+          description: What the approver actually saw, frozen.
+        completenessAtDecision:
+          type: string
+          enum: [complete, partial, unknown]
+        preRestoreCheckpointAtDecision:
+          type: string
+          enum: [not_required, required, satisfied, unsupported_acknowledged]
+        expiresAt: { type: string, format: date-time, nullable: true }
+        invalidatedAt: { type: string, format: date-time, nullable: true }
+        invalidationReason: { type: string, nullable: true }
+    RestoreExecution:
+      type: object
+      required: [id, requestId, attemptNumber, status, idempotencyKey, dispatchedAt]
+      properties:
+        id: { type: integer }
+        requestId: { type: integer }
+        attemptNumber: { type: integer }
+        status:
+          type: string
+          enum: [dispatched, accepted, started, succeeded, failed]
+        idempotencyKey: { type: string }
+        dispatchedByUserId: { type: integer, nullable: true }
+        dispatchedAt: { type: string, format: date-time }
+        startedAt: { type: string, format: date-time, nullable: true }
+        completedAt: { type: string, format: date-time, nullable: true }
+        executorType: { type: string, nullable: true }
+        externalReference: { type: string, nullable: true }
+        failureCategory: { type: string, nullable: true }
+        statusDetail: { type: string, nullable: true }
+    RestoreValidation:
+      type: object
+      required: [id, requestId, checkKey, result, source, observedAt]
+      properties:
+        id: { type: integer }
+        requestId: { type: integer }
+        executionId: { type: integer, nullable: true }
+        checkKey: { type: string }
+        result:
+          type: string
+          enum: [passed, failed, unknown, not_applicable]
+        source:
+          type: string
+          enum: [automated, operator_attestation]
+        detail: { type: string, nullable: true }
+        observedAt: { type: string, format: date-time }
+    RestoreDispatchPrecheck:
+      type: object
+      required: [ok, blockers, driftRequiringAcknowledgement]
+      properties:
+        ok: { type: boolean }
+        blockers:
+          type: array
+          items: { type: string }
+        driftRequiringAcknowledgement:
+          type: array
+          items: { type: string }
+    RestoreObservedMetrics:
+      type: object
+      description: Facts about an execution. No SLA compliance is asserted.
+      properties:
+        recoveryPointAgeMs: { type: integer, nullable: true }
+        executionDurationMs: { type: integer, nullable: true }
+        validationCompletedAt: { type: string, format: date-time, nullable: true }
+    RestoreRequestDetail:
+      type: object
+      required: [request, approvals, executions, validations, precheck, metrics]
+      properties:
+        request:
+          $ref: "#/components/schemas/RestoreRequest"
+        approvals:
+          type: array
+          items:
+            $ref: "#/components/schemas/RestoreApproval"
+        executions:
+          type: array
+          items:
+            $ref: "#/components/schemas/RestoreExecution"
+        validations:
+          type: array
+          items:
+            $ref: "#/components/schemas/RestoreValidation"
+        precheck:
+          $ref: "#/components/schemas/RestoreDispatchPrecheck"
+        metrics:
+          $ref: "#/components/schemas/RestoreObservedMetrics"
+    SubmitRestoreRequestInput:
+      type: object
+      required: [purpose, restorePointType, reason, confirmationPhrase]
+      properties:
+        purpose:
+          type: string
+          enum: [recovery, test]
+        restorePointType:
+          type: string
+          enum: [backup_run, pitr, provider_snapshot]
+        backupRunId: { type: integer, nullable: true }
+        pitrTimestamp: { type: string, format: date-time, nullable: true }
+        providerReference: { type: string, nullable: true }
+        reason: { type: string }
+        confirmationPhrase:
+          type: string
+          description: Must equal "RESTORE <installationKey> <ENVIRONMENT>" exactly.
+        incompleteAcknowledgementNote: { type: string, nullable: true }
+        preRestoreExceptionNote: { type: string, nullable: true }
+        preRestoreBackupRunId: { type: integer, nullable: true }
+        quiescenceRequired: { type: boolean }
+    RestoreDecisionInput:
+      type: object
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [approved, rejected]
+        comment: { type: string, nullable: true }
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Policy-driven only. There is no default expiry.
+    RestoreCancelInput:
+      type: object
+      properties:
+        reason: { type: string }
+    RestoreQuiescenceInput:
+      type: object
+      required: [state]
+      properties:
+        state:
+          type: string
+          enum: [not_required, required, requested, confirmed, unavailable, released]
+        evidence: { type: string, nullable: true }
+    RestoreDispatchInput:
+      type: object
+      required: [idempotencyKey]
+      properties:
+        idempotencyKey: { type: string }
+        executorType: { type: string, nullable: true }
+    RestoreExecutionEvidenceInput:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [accepted, started, succeeded, failed]
+        externalReference: { type: string, nullable: true }
+        failureCategory: { type: string, nullable: true }
+        statusDetail: { type: string, nullable: true }
+    RestoreValidationInput:
+      type: object
+      required: [checkKey, result, source]
+      properties:
+        executionId: { type: integer, nullable: true }
+        checkKey: { type: string }
+        result:
+          type: string
+          enum: [passed, failed, unknown, not_applicable]
+        source:
+          type: string
+          enum: [automated, operator_attestation]
+        detail: { type: string, nullable: true }
     HealthSignal:
       type: object
       required: [key, state, detail]

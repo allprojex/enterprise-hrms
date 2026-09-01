@@ -114,6 +114,7 @@ export * from "./authority-delegations";
 export * from "./stored-objects";
 export * from "./platform-operation-grants";
 export * from "./installation-operations";
+export * from "./installation-restore";
 export * from "./office-inventory-items";
 export * from "./office-inventory-stores";
 export * from "./office-inventory-stock-movements";

@@ -26,6 +26,8 @@ export const installationHostingModelEnum = pgEnum("installation_hosting_model",
   "other",
 ]);
 
+export const restoreApprovalPolicyEnum = pgEnum("installation_restore_approval_policy", ["always_required", "single_operator_non_production"]);
+
 export const installationStatusEnum = pgEnum("installation_status", ["active", "inactive", "decommissioned"]);
 
 export const installationsTable = pgTable(
@@ -56,6 +58,20 @@ export const installationsTable = pgTable(
     // Free-text reference to an org-type-specific extension bundle/profile,
     // if any — reserved for a future workstream, not built out here.
     extensionProfile: text("extension_profile"),
+    // WS-17 Restore Governance (OD-WS17-R1). Whether a restore of THIS
+    // installation may proceed on one authorized operator, or always needs a
+    // second approver.
+    //
+    // FAILS SAFE BY CONSTRUCTION: the column is NOT NULL with a default of
+    // `always_required`, so an unconfigured or newly created installation
+    // demands maker-checker. Relaxation must be an explicit, deliberate act.
+    //
+    // AND IT CANNOT RELAX PRODUCTION. The service ignores this column entirely
+    // when environmentType is "production" — maker-checker there is not
+    // configurable, so no misconfiguration can switch it off. Environment
+    // NAMING is never used to infer relaxed mode either; only this explicit
+    // column, and only outside production.
+    restoreApprovalPolicy: restoreApprovalPolicyEnum("restore_approval_policy").notNull().default("always_required"),
     status: installationStatusEnum("status").notNull().default("active"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })

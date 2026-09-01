@@ -410,6 +410,7 @@ import type {
   ListRecruitmentApprovalStagesParams,
   ListRecruitmentSources200,
   ListRequestApprovalStagesParams,
+  ListRestoreRequests200,
   ListScheduledJobsParams,
   ListServiceRequestsParams,
   ListSkillsParams,
@@ -626,6 +627,17 @@ import type {
   ResolveGrievanceInput,
   ResolveOfficeInventoryStocktakeLineBody,
   RespondToServiceRequestInput,
+  RestoreApproval,
+  RestoreCancelInput,
+  RestoreDecisionInput,
+  RestoreDispatchInput,
+  RestoreExecution,
+  RestoreExecutionEvidenceInput,
+  RestoreQuiescenceInput,
+  RestoreRequest,
+  RestoreRequestDetail,
+  RestoreValidation,
+  RestoreValidationInput,
   RestructureDepartmentInput,
   RestructurePositionInput,
   RetireAssetInput,
@@ -679,6 +691,7 @@ import type {
   SubmitMyServiceRequestInput,
   SubmitPublicOfferResponse201,
   SubmitPublicOfferResponseBody,
+  SubmitRestoreRequestInput,
   SuccessionCandidate,
   SuccessionCandidateEvent,
   SuccessionCoverageResult,
@@ -2645,6 +2658,884 @@ export const useEnablePlatformUser = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getEnablePlatformUserMutationOptions(options));
+    }
+
+export const getListRestoreRequestsUrl = (installationId: number,) => {
+
+
+
+
+  return `/api/platform/installations/${installationId}/restore-requests`
+}
+
+/**
+ * @summary Restore requests for an installation
+ */
+export const listRestoreRequests = async (installationId: number, options?: RequestInit): Promise<ListRestoreRequests200> => {
+
+  return customFetch<ListRestoreRequests200>(getListRestoreRequestsUrl(installationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListRestoreRequestsQueryKey = (installationId: number,) => {
+    return [
+    `/api/platform/installations/${installationId}/restore-requests`
+    ] as const;
+    }
+
+
+export const getListRestoreRequestsQueryOptions = <TData = Awaited<ReturnType<typeof listRestoreRequests>>, TError = ErrorType<ApiError>>(installationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listRestoreRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListRestoreRequestsQueryKey(installationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listRestoreRequests>>> = ({ signal }) => listRestoreRequests(installationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: installationId !== null && installationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listRestoreRequests>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListRestoreRequestsQueryResult = NonNullable<Awaited<ReturnType<typeof listRestoreRequests>>>
+export type ListRestoreRequestsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Restore requests for an installation
+ */
+
+export function useListRestoreRequests<TData = Awaited<ReturnType<typeof listRestoreRequests>>, TError = ErrorType<ApiError>>(
+ installationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listRestoreRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListRestoreRequestsQueryOptions(installationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSubmitRestoreRequestUrl = (installationId: number,) => {
+
+
+
+
+  return `/api/platform/installations/${installationId}/restore-requests`
+}
+
+/**
+ * Requires platform.restore.request. A partial recovery point is blocked unless the incomplete component is explicitly acknowledged, and the target-bound confirmation phrase must match exactly.
+ * @summary Submit a governed physical restore request
+ */
+export const submitRestoreRequest = async (installationId: number,
+    submitRestoreRequestInput: SubmitRestoreRequestInput, options?: RequestInit): Promise<RestoreRequest> => {
+
+  return customFetch<RestoreRequest>(getSubmitRestoreRequestUrl(installationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(submitRestoreRequestInput)
+  }
+);}
+
+
+
+
+
+export const getSubmitRestoreRequestMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitRestoreRequest>>, TError,{installationId: number;data: BodyType<SubmitRestoreRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitRestoreRequest>>, TError,{installationId: number;data: BodyType<SubmitRestoreRequestInput>}, TContext> => {
+
+const mutationKey = ['submitRestoreRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitRestoreRequest>>, {installationId: number;data: BodyType<SubmitRestoreRequestInput>}> = (props) => {
+          const {installationId,data} = props ?? {};
+
+          return  submitRestoreRequest(installationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitRestoreRequestMutationResult = NonNullable<Awaited<ReturnType<typeof submitRestoreRequest>>>
+    export type SubmitRestoreRequestMutationBody = BodyType<SubmitRestoreRequestInput>
+    export type SubmitRestoreRequestMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Submit a governed physical restore request
+ */
+export const useSubmitRestoreRequest = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitRestoreRequest>>, TError,{installationId: number;data: BodyType<SubmitRestoreRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitRestoreRequest>>,
+        TError,
+        {installationId: number;data: BodyType<SubmitRestoreRequestInput>},
+        TContext
+      > => {
+      return useMutation(getSubmitRestoreRequestMutationOptions(options));
+    }
+
+export const getGetRestoreRequestDetailUrl = (requestId: number,) => {
+
+
+
+
+  return `/api/platform/restore-requests/${requestId}`
+}
+
+/**
+ * Returns the request, prior approvals, execution attempts, validation evidence, the live dispatch precheck including blast-radius drift, and observed metrics — so a blind one-click approval is not possible.
+ * @summary Everything an approver must see before deciding
+ */
+export const getRestoreRequestDetail = async (requestId: number, options?: RequestInit): Promise<RestoreRequestDetail> => {
+
+  return customFetch<RestoreRequestDetail>(getGetRestoreRequestDetailUrl(requestId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetRestoreRequestDetailQueryKey = (requestId: number,) => {
+    return [
+    `/api/platform/restore-requests/${requestId}`
+    ] as const;
+    }
+
+
+export const getGetRestoreRequestDetailQueryOptions = <TData = Awaited<ReturnType<typeof getRestoreRequestDetail>>, TError = ErrorType<ApiError>>(requestId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRestoreRequestDetail>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetRestoreRequestDetailQueryKey(requestId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRestoreRequestDetail>>> = ({ signal }) => getRestoreRequestDetail(requestId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: requestId !== null && requestId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRestoreRequestDetail>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetRestoreRequestDetailQueryResult = NonNullable<Awaited<ReturnType<typeof getRestoreRequestDetail>>>
+export type GetRestoreRequestDetailQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Everything an approver must see before deciding
+ */
+
+export function useGetRestoreRequestDetail<TData = Awaited<ReturnType<typeof getRestoreRequestDetail>>, TError = ErrorType<ApiError>>(
+ requestId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRestoreRequestDetail>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetRestoreRequestDetailQueryOptions(requestId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDecideRestoreRequestUrl = (requestId: number,) => {
+
+
+
+
+  return `/api/platform/restore-requests/${requestId}/decision`
+}
+
+/**
+ * Requires platform.restore.approve. In production the requester can never approve their own restore, compared on immutable user id.
+ * @summary Approve or reject a restore request
+ */
+export const decideRestoreRequest = async (requestId: number,
+    restoreDecisionInput: RestoreDecisionInput, options?: RequestInit): Promise<RestoreApproval> => {
+
+  return customFetch<RestoreApproval>(getDecideRestoreRequestUrl(requestId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(restoreDecisionInput)
+  }
+);}
+
+
+
+
+
+export const getDecideRestoreRequestMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideRestoreRequest>>, TError,{requestId: number;data: BodyType<RestoreDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof decideRestoreRequest>>, TError,{requestId: number;data: BodyType<RestoreDecisionInput>}, TContext> => {
+
+const mutationKey = ['decideRestoreRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof decideRestoreRequest>>, {requestId: number;data: BodyType<RestoreDecisionInput>}> = (props) => {
+          const {requestId,data} = props ?? {};
+
+          return  decideRestoreRequest(requestId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DecideRestoreRequestMutationResult = NonNullable<Awaited<ReturnType<typeof decideRestoreRequest>>>
+    export type DecideRestoreRequestMutationBody = BodyType<RestoreDecisionInput>
+    export type DecideRestoreRequestMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Approve or reject a restore request
+ */
+export const useDecideRestoreRequest = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideRestoreRequest>>, TError,{requestId: number;data: BodyType<RestoreDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof decideRestoreRequest>>,
+        TError,
+        {requestId: number;data: BodyType<RestoreDecisionInput>},
+        TContext
+      > => {
+      return useMutation(getDecideRestoreRequestMutationOptions(options));
+    }
+
+export const getCancelRestoreRequestUrl = (requestId: number,) => {
+
+
+
+
+  return `/api/platform/restore-requests/${requestId}/cancel`
+}
+
+/**
+ * @summary Cancel a restore request before dispatch
+ */
+export const cancelRestoreRequest = async (requestId: number,
+    restoreCancelInput: RestoreCancelInput, options?: RequestInit): Promise<RestoreRequest> => {
+
+  return customFetch<RestoreRequest>(getCancelRestoreRequestUrl(requestId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(restoreCancelInput)
+  }
+);}
+
+
+
+
+
+export const getCancelRestoreRequestMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelRestoreRequest>>, TError,{requestId: number;data: BodyType<RestoreCancelInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelRestoreRequest>>, TError,{requestId: number;data: BodyType<RestoreCancelInput>}, TContext> => {
+
+const mutationKey = ['cancelRestoreRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelRestoreRequest>>, {requestId: number;data: BodyType<RestoreCancelInput>}> = (props) => {
+          const {requestId,data} = props ?? {};
+
+          return  cancelRestoreRequest(requestId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelRestoreRequestMutationResult = NonNullable<Awaited<ReturnType<typeof cancelRestoreRequest>>>
+    export type CancelRestoreRequestMutationBody = BodyType<RestoreCancelInput>
+    export type CancelRestoreRequestMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Cancel a restore request before dispatch
+ */
+export const useCancelRestoreRequest = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelRestoreRequest>>, TError,{requestId: number;data: BodyType<RestoreCancelInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelRestoreRequest>>,
+        TError,
+        {requestId: number;data: BodyType<RestoreCancelInput>},
+        TContext
+      > => {
+      return useMutation(getCancelRestoreRequestMutationOptions(options));
+    }
+
+export const getAcknowledgeRestoreDriftUrl = (requestId: number,) => {
+
+
+
+
+  return `/api/platform/restore-requests/${requestId}/acknowledge-drift`
+}
+
+/**
+ * @summary Acknowledge non-invalidating operational drift
+ */
+export const acknowledgeRestoreDrift = async (requestId: number, options?: RequestInit): Promise<RestoreRequest> => {
+
+  return customFetch<RestoreRequest>(getAcknowledgeRestoreDriftUrl(requestId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAcknowledgeRestoreDriftMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acknowledgeRestoreDrift>>, TError,{requestId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof acknowledgeRestoreDrift>>, TError,{requestId: number}, TContext> => {
+
+const mutationKey = ['acknowledgeRestoreDrift'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof acknowledgeRestoreDrift>>, {requestId: number}> = (props) => {
+          const {requestId} = props ?? {};
+
+          return  acknowledgeRestoreDrift(requestId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AcknowledgeRestoreDriftMutationResult = NonNullable<Awaited<ReturnType<typeof acknowledgeRestoreDrift>>>
+
+    export type AcknowledgeRestoreDriftMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Acknowledge non-invalidating operational drift
+ */
+export const useAcknowledgeRestoreDrift = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acknowledgeRestoreDrift>>, TError,{requestId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof acknowledgeRestoreDrift>>,
+        TError,
+        {requestId: number},
+        TContext
+      > => {
+      return useMutation(getAcknowledgeRestoreDriftMutationOptions(options));
+    }
+
+export const getInvalidateRestoreApprovalUrl = (requestId: number,) => {
+
+
+
+
+  return `/api/platform/restore-requests/${requestId}/invalidate-approval`
+}
+
+/**
+ * @summary Invalidate a standing approval
+ */
+export const invalidateRestoreApproval = async (requestId: number,
+    restoreCancelInput: RestoreCancelInput, options?: RequestInit): Promise<RestoreRequest> => {
+
+  return customFetch<RestoreRequest>(getInvalidateRestoreApprovalUrl(requestId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(restoreCancelInput)
+  }
+);}
+
+
+
+
+
+export const getInvalidateRestoreApprovalMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof invalidateRestoreApproval>>, TError,{requestId: number;data: BodyType<RestoreCancelInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof invalidateRestoreApproval>>, TError,{requestId: number;data: BodyType<RestoreCancelInput>}, TContext> => {
+
+const mutationKey = ['invalidateRestoreApproval'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof invalidateRestoreApproval>>, {requestId: number;data: BodyType<RestoreCancelInput>}> = (props) => {
+          const {requestId,data} = props ?? {};
+
+          return  invalidateRestoreApproval(requestId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type InvalidateRestoreApprovalMutationResult = NonNullable<Awaited<ReturnType<typeof invalidateRestoreApproval>>>
+    export type InvalidateRestoreApprovalMutationBody = BodyType<RestoreCancelInput>
+    export type InvalidateRestoreApprovalMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Invalidate a standing approval
+ */
+export const useInvalidateRestoreApproval = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof invalidateRestoreApproval>>, TError,{requestId: number;data: BodyType<RestoreCancelInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof invalidateRestoreApproval>>,
+        TError,
+        {requestId: number;data: BodyType<RestoreCancelInput>},
+        TContext
+      > => {
+      return useMutation(getInvalidateRestoreApprovalMutationOptions(options));
+    }
+
+export const getRecordRestoreQuiescenceUrl = (requestId: number,) => {
+
+
+
+
+  return `/api/platform/restore-requests/${requestId}/quiescence`
+}
+
+/**
+ * @summary Record write-quiescence evidence
+ */
+export const recordRestoreQuiescence = async (requestId: number,
+    restoreQuiescenceInput: RestoreQuiescenceInput, options?: RequestInit): Promise<RestoreRequest> => {
+
+  return customFetch<RestoreRequest>(getRecordRestoreQuiescenceUrl(requestId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(restoreQuiescenceInput)
+  }
+);}
+
+
+
+
+
+export const getRecordRestoreQuiescenceMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordRestoreQuiescence>>, TError,{requestId: number;data: BodyType<RestoreQuiescenceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordRestoreQuiescence>>, TError,{requestId: number;data: BodyType<RestoreQuiescenceInput>}, TContext> => {
+
+const mutationKey = ['recordRestoreQuiescence'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordRestoreQuiescence>>, {requestId: number;data: BodyType<RestoreQuiescenceInput>}> = (props) => {
+          const {requestId,data} = props ?? {};
+
+          return  recordRestoreQuiescence(requestId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordRestoreQuiescenceMutationResult = NonNullable<Awaited<ReturnType<typeof recordRestoreQuiescence>>>
+    export type RecordRestoreQuiescenceMutationBody = BodyType<RestoreQuiescenceInput>
+    export type RecordRestoreQuiescenceMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Record write-quiescence evidence
+ */
+export const useRecordRestoreQuiescence = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordRestoreQuiescence>>, TError,{requestId: number;data: BodyType<RestoreQuiescenceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordRestoreQuiescence>>,
+        TError,
+        {requestId: number;data: BodyType<RestoreQuiescenceInput>},
+        TContext
+      > => {
+      return useMutation(getRecordRestoreQuiescenceMutationOptions(options));
+    }
+
+export const getDispatchRestoreUrl = (requestId: number,) => {
+
+
+
+
+  return `/api/platform/restore-requests/${requestId}/dispatch`
+}
+
+/**
+ * Dispatch executes nothing and does not mean the restore succeeded. It is idempotent by key, so a repeated call never starts a second restore.
+ * @summary Produce governed execution intent
+ */
+export const dispatchRestore = async (requestId: number,
+    restoreDispatchInput: RestoreDispatchInput, options?: RequestInit): Promise<RestoreExecution> => {
+
+  return customFetch<RestoreExecution>(getDispatchRestoreUrl(requestId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(restoreDispatchInput)
+  }
+);}
+
+
+
+
+
+export const getDispatchRestoreMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof dispatchRestore>>, TError,{requestId: number;data: BodyType<RestoreDispatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof dispatchRestore>>, TError,{requestId: number;data: BodyType<RestoreDispatchInput>}, TContext> => {
+
+const mutationKey = ['dispatchRestore'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof dispatchRestore>>, {requestId: number;data: BodyType<RestoreDispatchInput>}> = (props) => {
+          const {requestId,data} = props ?? {};
+
+          return  dispatchRestore(requestId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DispatchRestoreMutationResult = NonNullable<Awaited<ReturnType<typeof dispatchRestore>>>
+    export type DispatchRestoreMutationBody = BodyType<RestoreDispatchInput>
+    export type DispatchRestoreMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Produce governed execution intent
+ */
+export const useDispatchRestore = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof dispatchRestore>>, TError,{requestId: number;data: BodyType<RestoreDispatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof dispatchRestore>>,
+        TError,
+        {requestId: number;data: BodyType<RestoreDispatchInput>},
+        TContext
+      > => {
+      return useMutation(getDispatchRestoreMutationOptions(options));
+    }
+
+export const getRecordRestoreExecutionEvidenceUrl = (executionId: number,) => {
+
+
+
+
+  return `/api/platform/restore-executions/${executionId}/evidence`
+}
+
+/**
+ * A completed attempt can never be rewritten into a different outcome.
+ * @summary Record what an external executor reported
+ */
+export const recordRestoreExecutionEvidence = async (executionId: number,
+    restoreExecutionEvidenceInput: RestoreExecutionEvidenceInput, options?: RequestInit): Promise<RestoreExecution> => {
+
+  return customFetch<RestoreExecution>(getRecordRestoreExecutionEvidenceUrl(executionId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(restoreExecutionEvidenceInput)
+  }
+);}
+
+
+
+
+
+export const getRecordRestoreExecutionEvidenceMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordRestoreExecutionEvidence>>, TError,{executionId: number;data: BodyType<RestoreExecutionEvidenceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordRestoreExecutionEvidence>>, TError,{executionId: number;data: BodyType<RestoreExecutionEvidenceInput>}, TContext> => {
+
+const mutationKey = ['recordRestoreExecutionEvidence'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordRestoreExecutionEvidence>>, {executionId: number;data: BodyType<RestoreExecutionEvidenceInput>}> = (props) => {
+          const {executionId,data} = props ?? {};
+
+          return  recordRestoreExecutionEvidence(executionId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordRestoreExecutionEvidenceMutationResult = NonNullable<Awaited<ReturnType<typeof recordRestoreExecutionEvidence>>>
+    export type RecordRestoreExecutionEvidenceMutationBody = BodyType<RestoreExecutionEvidenceInput>
+    export type RecordRestoreExecutionEvidenceMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Record what an external executor reported
+ */
+export const useRecordRestoreExecutionEvidence = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordRestoreExecutionEvidence>>, TError,{executionId: number;data: BodyType<RestoreExecutionEvidenceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordRestoreExecutionEvidence>>,
+        TError,
+        {executionId: number;data: BodyType<RestoreExecutionEvidenceInput>},
+        TContext
+      > => {
+      return useMutation(getRecordRestoreExecutionEvidenceMutationOptions(options));
+    }
+
+export const getRecordRestoreValidationUrl = (requestId: number,) => {
+
+
+
+
+  return `/api/platform/restore-requests/${requestId}/validations`
+}
+
+/**
+ * Execution success is not validation success. An operator attestation may never override an automated failure.
+ * @summary Record one post-restore validation check
+ */
+export const recordRestoreValidation = async (requestId: number,
+    restoreValidationInput: RestoreValidationInput, options?: RequestInit): Promise<RestoreValidation> => {
+
+  return customFetch<RestoreValidation>(getRecordRestoreValidationUrl(requestId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(restoreValidationInput)
+  }
+);}
+
+
+
+
+
+export const getRecordRestoreValidationMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordRestoreValidation>>, TError,{requestId: number;data: BodyType<RestoreValidationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordRestoreValidation>>, TError,{requestId: number;data: BodyType<RestoreValidationInput>}, TContext> => {
+
+const mutationKey = ['recordRestoreValidation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordRestoreValidation>>, {requestId: number;data: BodyType<RestoreValidationInput>}> = (props) => {
+          const {requestId,data} = props ?? {};
+
+          return  recordRestoreValidation(requestId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordRestoreValidationMutationResult = NonNullable<Awaited<ReturnType<typeof recordRestoreValidation>>>
+    export type RecordRestoreValidationMutationBody = BodyType<RestoreValidationInput>
+    export type RecordRestoreValidationMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Record one post-restore validation check
+ */
+export const useRecordRestoreValidation = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordRestoreValidation>>, TError,{requestId: number;data: BodyType<RestoreValidationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordRestoreValidation>>,
+        TError,
+        {requestId: number;data: BodyType<RestoreValidationInput>},
+        TContext
+      > => {
+      return useMutation(getRecordRestoreValidationMutationOptions(options));
+    }
+
+export const getConcludeRestoreValidationUrl = (requestId: number,) => {
+
+
+
+
+  return `/api/platform/restore-requests/${requestId}/conclude-validation`
+}
+
+/**
+ * @summary Conclude validation from recorded evidence
+ */
+export const concludeRestoreValidation = async (requestId: number, options?: RequestInit): Promise<RestoreRequest> => {
+
+  return customFetch<RestoreRequest>(getConcludeRestoreValidationUrl(requestId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getConcludeRestoreValidationMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof concludeRestoreValidation>>, TError,{requestId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof concludeRestoreValidation>>, TError,{requestId: number}, TContext> => {
+
+const mutationKey = ['concludeRestoreValidation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof concludeRestoreValidation>>, {requestId: number}> = (props) => {
+          const {requestId} = props ?? {};
+
+          return  concludeRestoreValidation(requestId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConcludeRestoreValidationMutationResult = NonNullable<Awaited<ReturnType<typeof concludeRestoreValidation>>>
+
+    export type ConcludeRestoreValidationMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Conclude validation from recorded evidence
+ */
+export const useConcludeRestoreValidation = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof concludeRestoreValidation>>, TError,{requestId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof concludeRestoreValidation>>,
+        TError,
+        {requestId: number},
+        TContext
+      > => {
+      return useMutation(getConcludeRestoreValidationMutationOptions(options));
     }
 
 export const getGetFleetHealthUrl = () => {

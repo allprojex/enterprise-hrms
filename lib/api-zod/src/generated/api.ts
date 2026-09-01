@@ -525,6 +525,520 @@ export const EnablePlatformUserResponse = zod.object({
 
 
 /**
+ * @summary Restore requests for an installation
+ */
+export const ListRestoreRequestsParams = zod.object({
+  "installationId": zod.coerce.number()
+})
+
+export const ListRestoreRequestsResponse = zod.object({
+  "requests": zod.array(zod.object({
+  "id": zod.number(),
+  "installationId": zod.number(),
+  "environmentSnapshot": zod.string(),
+  "purpose": zod.enum(['recovery', 'test']),
+  "status": zod.enum(['submitted', 'approved', 'rejected', 'dispatched', 'executing', 'succeeded', 'failed', 'validated', 'validation_failed', 'cancelled', 'expired']),
+  "restorePointType": zod.enum(['backup_run', 'pitr', 'provider_snapshot']),
+  "backupRunId": zod.number().nullish(),
+  "pitrTimestamp": zod.coerce.date().nullish(),
+  "providerReference": zod.string().nullish(),
+  "recoveryPointAt": zod.coerce.date().nullish(),
+  "completeness": zod.enum(['complete', 'partial', 'unknown']).describe('Derived from backup evidence. Unknown is never complete.'),
+  "incompleteComponents": zod.unknown().nullish(),
+  "incompleteAcknowledgedAt": zod.coerce.date().nullish(),
+  "incompleteAcknowledgementNote": zod.string().nullish(),
+  "preRestoreCheckpointState": zod.enum(['not_required', 'required', 'satisfied', 'unsupported_acknowledged']),
+  "preRestoreBackupRunId": zod.number().nullish(),
+  "preRestoreExceptionNote": zod.string().nullish(),
+  "quiescenceState": zod.enum(['not_required', 'required', 'requested', 'confirmed', 'unavailable', 'released']),
+  "quiescenceEvidence": zod.string().nullish(),
+  "affectedOrganizationIdsSnapshot": zod.unknown().describe('The blast radius the requester was shown, frozen at submission.'),
+  "reason": zod.string(),
+  "requestedByUserId": zod.number(),
+  "submittedAt": zod.coerce.date(),
+  "statusChangedAt": zod.coerce.date().nullish(),
+  "statusDetail": zod.string().nullish(),
+  "applicationVersionAtRequest": zod.string().nullish(),
+  "migrationVersionAtRequest": zod.string().nullish(),
+  "driftAcknowledgedAt": zod.coerce.date().nullish()
+}))
+})
+
+
+/**
+ * Requires platform.restore.request. A partial recovery point is blocked unless the incomplete component is explicitly acknowledged, and the target-bound confirmation phrase must match exactly.
+ * @summary Submit a governed physical restore request
+ */
+export const SubmitRestoreRequestParams = zod.object({
+  "installationId": zod.coerce.number()
+})
+
+export const SubmitRestoreRequestBody = zod.object({
+  "purpose": zod.enum(['recovery', 'test']),
+  "restorePointType": zod.enum(['backup_run', 'pitr', 'provider_snapshot']),
+  "backupRunId": zod.number().nullish(),
+  "pitrTimestamp": zod.coerce.date().nullish(),
+  "providerReference": zod.string().nullish(),
+  "reason": zod.string(),
+  "confirmationPhrase": zod.string().describe('Must equal \"RESTORE <installationKey> <ENVIRONMENT>\" exactly.'),
+  "incompleteAcknowledgementNote": zod.string().nullish(),
+  "preRestoreExceptionNote": zod.string().nullish(),
+  "preRestoreBackupRunId": zod.number().nullish(),
+  "quiescenceRequired": zod.boolean().optional()
+})
+
+export const SubmitRestoreRequestResponse = zod.object({
+  "id": zod.number(),
+  "installationId": zod.number(),
+  "environmentSnapshot": zod.string(),
+  "purpose": zod.enum(['recovery', 'test']),
+  "status": zod.enum(['submitted', 'approved', 'rejected', 'dispatched', 'executing', 'succeeded', 'failed', 'validated', 'validation_failed', 'cancelled', 'expired']),
+  "restorePointType": zod.enum(['backup_run', 'pitr', 'provider_snapshot']),
+  "backupRunId": zod.number().nullish(),
+  "pitrTimestamp": zod.coerce.date().nullish(),
+  "providerReference": zod.string().nullish(),
+  "recoveryPointAt": zod.coerce.date().nullish(),
+  "completeness": zod.enum(['complete', 'partial', 'unknown']).describe('Derived from backup evidence. Unknown is never complete.'),
+  "incompleteComponents": zod.unknown().nullish(),
+  "incompleteAcknowledgedAt": zod.coerce.date().nullish(),
+  "incompleteAcknowledgementNote": zod.string().nullish(),
+  "preRestoreCheckpointState": zod.enum(['not_required', 'required', 'satisfied', 'unsupported_acknowledged']),
+  "preRestoreBackupRunId": zod.number().nullish(),
+  "preRestoreExceptionNote": zod.string().nullish(),
+  "quiescenceState": zod.enum(['not_required', 'required', 'requested', 'confirmed', 'unavailable', 'released']),
+  "quiescenceEvidence": zod.string().nullish(),
+  "affectedOrganizationIdsSnapshot": zod.unknown().describe('The blast radius the requester was shown, frozen at submission.'),
+  "reason": zod.string(),
+  "requestedByUserId": zod.number(),
+  "submittedAt": zod.coerce.date(),
+  "statusChangedAt": zod.coerce.date().nullish(),
+  "statusDetail": zod.string().nullish(),
+  "applicationVersionAtRequest": zod.string().nullish(),
+  "migrationVersionAtRequest": zod.string().nullish(),
+  "driftAcknowledgedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * Returns the request, prior approvals, execution attempts, validation evidence, the live dispatch precheck including blast-radius drift, and observed metrics — so a blind one-click approval is not possible.
+ * @summary Everything an approver must see before deciding
+ */
+export const GetRestoreRequestDetailParams = zod.object({
+  "requestId": zod.coerce.number()
+})
+
+export const GetRestoreRequestDetailResponse = zod.object({
+  "request": zod.object({
+  "id": zod.number(),
+  "installationId": zod.number(),
+  "environmentSnapshot": zod.string(),
+  "purpose": zod.enum(['recovery', 'test']),
+  "status": zod.enum(['submitted', 'approved', 'rejected', 'dispatched', 'executing', 'succeeded', 'failed', 'validated', 'validation_failed', 'cancelled', 'expired']),
+  "restorePointType": zod.enum(['backup_run', 'pitr', 'provider_snapshot']),
+  "backupRunId": zod.number().nullish(),
+  "pitrTimestamp": zod.coerce.date().nullish(),
+  "providerReference": zod.string().nullish(),
+  "recoveryPointAt": zod.coerce.date().nullish(),
+  "completeness": zod.enum(['complete', 'partial', 'unknown']).describe('Derived from backup evidence. Unknown is never complete.'),
+  "incompleteComponents": zod.unknown().nullish(),
+  "incompleteAcknowledgedAt": zod.coerce.date().nullish(),
+  "incompleteAcknowledgementNote": zod.string().nullish(),
+  "preRestoreCheckpointState": zod.enum(['not_required', 'required', 'satisfied', 'unsupported_acknowledged']),
+  "preRestoreBackupRunId": zod.number().nullish(),
+  "preRestoreExceptionNote": zod.string().nullish(),
+  "quiescenceState": zod.enum(['not_required', 'required', 'requested', 'confirmed', 'unavailable', 'released']),
+  "quiescenceEvidence": zod.string().nullish(),
+  "affectedOrganizationIdsSnapshot": zod.unknown().describe('The blast radius the requester was shown, frozen at submission.'),
+  "reason": zod.string(),
+  "requestedByUserId": zod.number(),
+  "submittedAt": zod.coerce.date(),
+  "statusChangedAt": zod.coerce.date().nullish(),
+  "statusDetail": zod.string().nullish(),
+  "applicationVersionAtRequest": zod.string().nullish(),
+  "migrationVersionAtRequest": zod.string().nullish(),
+  "driftAcknowledgedAt": zod.coerce.date().nullish()
+}),
+  "approvals": zod.array(zod.object({
+  "id": zod.number(),
+  "requestId": zod.number(),
+  "decision": zod.enum(['approved', 'rejected']),
+  "approverUserId": zod.number(),
+  "decidedAt": zod.coerce.date(),
+  "comment": zod.string().nullish(),
+  "affectedOrganizationIdsAtDecision": zod.unknown().describe('What the approver actually saw, frozen.'),
+  "completenessAtDecision": zod.enum(['complete', 'partial', 'unknown']),
+  "preRestoreCheckpointAtDecision": zod.enum(['not_required', 'required', 'satisfied', 'unsupported_acknowledged']),
+  "expiresAt": zod.coerce.date().nullish(),
+  "invalidatedAt": zod.coerce.date().nullish(),
+  "invalidationReason": zod.string().nullish()
+})),
+  "executions": zod.array(zod.object({
+  "id": zod.number(),
+  "requestId": zod.number(),
+  "attemptNumber": zod.number(),
+  "status": zod.enum(['dispatched', 'accepted', 'started', 'succeeded', 'failed']),
+  "idempotencyKey": zod.string(),
+  "dispatchedByUserId": zod.number().nullish(),
+  "dispatchedAt": zod.coerce.date(),
+  "startedAt": zod.coerce.date().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "executorType": zod.string().nullish(),
+  "externalReference": zod.string().nullish(),
+  "failureCategory": zod.string().nullish(),
+  "statusDetail": zod.string().nullish()
+})),
+  "validations": zod.array(zod.object({
+  "id": zod.number(),
+  "requestId": zod.number(),
+  "executionId": zod.number().nullish(),
+  "checkKey": zod.string(),
+  "result": zod.enum(['passed', 'failed', 'unknown', 'not_applicable']),
+  "source": zod.enum(['automated', 'operator_attestation']),
+  "detail": zod.string().nullish(),
+  "observedAt": zod.coerce.date()
+})),
+  "precheck": zod.object({
+  "ok": zod.boolean(),
+  "blockers": zod.array(zod.string()),
+  "driftRequiringAcknowledgement": zod.array(zod.string())
+}),
+  "metrics": zod.object({
+  "recoveryPointAgeMs": zod.number().nullish(),
+  "executionDurationMs": zod.number().nullish(),
+  "validationCompletedAt": zod.coerce.date().nullish()
+}).describe('Facts about an execution. No SLA compliance is asserted.')
+})
+
+
+/**
+ * Requires platform.restore.approve. In production the requester can never approve their own restore, compared on immutable user id.
+ * @summary Approve or reject a restore request
+ */
+export const DecideRestoreRequestParams = zod.object({
+  "requestId": zod.coerce.number()
+})
+
+export const DecideRestoreRequestBody = zod.object({
+  "decision": zod.enum(['approved', 'rejected']),
+  "comment": zod.string().nullish(),
+  "expiresAt": zod.coerce.date().nullish().describe('Policy-driven only. There is no default expiry.')
+})
+
+export const DecideRestoreRequestResponse = zod.object({
+  "id": zod.number(),
+  "requestId": zod.number(),
+  "decision": zod.enum(['approved', 'rejected']),
+  "approverUserId": zod.number(),
+  "decidedAt": zod.coerce.date(),
+  "comment": zod.string().nullish(),
+  "affectedOrganizationIdsAtDecision": zod.unknown().describe('What the approver actually saw, frozen.'),
+  "completenessAtDecision": zod.enum(['complete', 'partial', 'unknown']),
+  "preRestoreCheckpointAtDecision": zod.enum(['not_required', 'required', 'satisfied', 'unsupported_acknowledged']),
+  "expiresAt": zod.coerce.date().nullish(),
+  "invalidatedAt": zod.coerce.date().nullish(),
+  "invalidationReason": zod.string().nullish()
+})
+
+
+/**
+ * @summary Cancel a restore request before dispatch
+ */
+export const CancelRestoreRequestParams = zod.object({
+  "requestId": zod.coerce.number()
+})
+
+export const CancelRestoreRequestBody = zod.object({
+  "reason": zod.string().optional()
+})
+
+export const CancelRestoreRequestResponse = zod.object({
+  "id": zod.number(),
+  "installationId": zod.number(),
+  "environmentSnapshot": zod.string(),
+  "purpose": zod.enum(['recovery', 'test']),
+  "status": zod.enum(['submitted', 'approved', 'rejected', 'dispatched', 'executing', 'succeeded', 'failed', 'validated', 'validation_failed', 'cancelled', 'expired']),
+  "restorePointType": zod.enum(['backup_run', 'pitr', 'provider_snapshot']),
+  "backupRunId": zod.number().nullish(),
+  "pitrTimestamp": zod.coerce.date().nullish(),
+  "providerReference": zod.string().nullish(),
+  "recoveryPointAt": zod.coerce.date().nullish(),
+  "completeness": zod.enum(['complete', 'partial', 'unknown']).describe('Derived from backup evidence. Unknown is never complete.'),
+  "incompleteComponents": zod.unknown().nullish(),
+  "incompleteAcknowledgedAt": zod.coerce.date().nullish(),
+  "incompleteAcknowledgementNote": zod.string().nullish(),
+  "preRestoreCheckpointState": zod.enum(['not_required', 'required', 'satisfied', 'unsupported_acknowledged']),
+  "preRestoreBackupRunId": zod.number().nullish(),
+  "preRestoreExceptionNote": zod.string().nullish(),
+  "quiescenceState": zod.enum(['not_required', 'required', 'requested', 'confirmed', 'unavailable', 'released']),
+  "quiescenceEvidence": zod.string().nullish(),
+  "affectedOrganizationIdsSnapshot": zod.unknown().describe('The blast radius the requester was shown, frozen at submission.'),
+  "reason": zod.string(),
+  "requestedByUserId": zod.number(),
+  "submittedAt": zod.coerce.date(),
+  "statusChangedAt": zod.coerce.date().nullish(),
+  "statusDetail": zod.string().nullish(),
+  "applicationVersionAtRequest": zod.string().nullish(),
+  "migrationVersionAtRequest": zod.string().nullish(),
+  "driftAcknowledgedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Acknowledge non-invalidating operational drift
+ */
+export const AcknowledgeRestoreDriftParams = zod.object({
+  "requestId": zod.coerce.number()
+})
+
+export const AcknowledgeRestoreDriftResponse = zod.object({
+  "id": zod.number(),
+  "installationId": zod.number(),
+  "environmentSnapshot": zod.string(),
+  "purpose": zod.enum(['recovery', 'test']),
+  "status": zod.enum(['submitted', 'approved', 'rejected', 'dispatched', 'executing', 'succeeded', 'failed', 'validated', 'validation_failed', 'cancelled', 'expired']),
+  "restorePointType": zod.enum(['backup_run', 'pitr', 'provider_snapshot']),
+  "backupRunId": zod.number().nullish(),
+  "pitrTimestamp": zod.coerce.date().nullish(),
+  "providerReference": zod.string().nullish(),
+  "recoveryPointAt": zod.coerce.date().nullish(),
+  "completeness": zod.enum(['complete', 'partial', 'unknown']).describe('Derived from backup evidence. Unknown is never complete.'),
+  "incompleteComponents": zod.unknown().nullish(),
+  "incompleteAcknowledgedAt": zod.coerce.date().nullish(),
+  "incompleteAcknowledgementNote": zod.string().nullish(),
+  "preRestoreCheckpointState": zod.enum(['not_required', 'required', 'satisfied', 'unsupported_acknowledged']),
+  "preRestoreBackupRunId": zod.number().nullish(),
+  "preRestoreExceptionNote": zod.string().nullish(),
+  "quiescenceState": zod.enum(['not_required', 'required', 'requested', 'confirmed', 'unavailable', 'released']),
+  "quiescenceEvidence": zod.string().nullish(),
+  "affectedOrganizationIdsSnapshot": zod.unknown().describe('The blast radius the requester was shown, frozen at submission.'),
+  "reason": zod.string(),
+  "requestedByUserId": zod.number(),
+  "submittedAt": zod.coerce.date(),
+  "statusChangedAt": zod.coerce.date().nullish(),
+  "statusDetail": zod.string().nullish(),
+  "applicationVersionAtRequest": zod.string().nullish(),
+  "migrationVersionAtRequest": zod.string().nullish(),
+  "driftAcknowledgedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Invalidate a standing approval
+ */
+export const InvalidateRestoreApprovalParams = zod.object({
+  "requestId": zod.coerce.number()
+})
+
+export const InvalidateRestoreApprovalBody = zod.object({
+  "reason": zod.string().optional()
+})
+
+export const InvalidateRestoreApprovalResponse = zod.object({
+  "id": zod.number(),
+  "installationId": zod.number(),
+  "environmentSnapshot": zod.string(),
+  "purpose": zod.enum(['recovery', 'test']),
+  "status": zod.enum(['submitted', 'approved', 'rejected', 'dispatched', 'executing', 'succeeded', 'failed', 'validated', 'validation_failed', 'cancelled', 'expired']),
+  "restorePointType": zod.enum(['backup_run', 'pitr', 'provider_snapshot']),
+  "backupRunId": zod.number().nullish(),
+  "pitrTimestamp": zod.coerce.date().nullish(),
+  "providerReference": zod.string().nullish(),
+  "recoveryPointAt": zod.coerce.date().nullish(),
+  "completeness": zod.enum(['complete', 'partial', 'unknown']).describe('Derived from backup evidence. Unknown is never complete.'),
+  "incompleteComponents": zod.unknown().nullish(),
+  "incompleteAcknowledgedAt": zod.coerce.date().nullish(),
+  "incompleteAcknowledgementNote": zod.string().nullish(),
+  "preRestoreCheckpointState": zod.enum(['not_required', 'required', 'satisfied', 'unsupported_acknowledged']),
+  "preRestoreBackupRunId": zod.number().nullish(),
+  "preRestoreExceptionNote": zod.string().nullish(),
+  "quiescenceState": zod.enum(['not_required', 'required', 'requested', 'confirmed', 'unavailable', 'released']),
+  "quiescenceEvidence": zod.string().nullish(),
+  "affectedOrganizationIdsSnapshot": zod.unknown().describe('The blast radius the requester was shown, frozen at submission.'),
+  "reason": zod.string(),
+  "requestedByUserId": zod.number(),
+  "submittedAt": zod.coerce.date(),
+  "statusChangedAt": zod.coerce.date().nullish(),
+  "statusDetail": zod.string().nullish(),
+  "applicationVersionAtRequest": zod.string().nullish(),
+  "migrationVersionAtRequest": zod.string().nullish(),
+  "driftAcknowledgedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Record write-quiescence evidence
+ */
+export const RecordRestoreQuiescenceParams = zod.object({
+  "requestId": zod.coerce.number()
+})
+
+export const RecordRestoreQuiescenceBody = zod.object({
+  "state": zod.enum(['not_required', 'required', 'requested', 'confirmed', 'unavailable', 'released']),
+  "evidence": zod.string().nullish()
+})
+
+export const RecordRestoreQuiescenceResponse = zod.object({
+  "id": zod.number(),
+  "installationId": zod.number(),
+  "environmentSnapshot": zod.string(),
+  "purpose": zod.enum(['recovery', 'test']),
+  "status": zod.enum(['submitted', 'approved', 'rejected', 'dispatched', 'executing', 'succeeded', 'failed', 'validated', 'validation_failed', 'cancelled', 'expired']),
+  "restorePointType": zod.enum(['backup_run', 'pitr', 'provider_snapshot']),
+  "backupRunId": zod.number().nullish(),
+  "pitrTimestamp": zod.coerce.date().nullish(),
+  "providerReference": zod.string().nullish(),
+  "recoveryPointAt": zod.coerce.date().nullish(),
+  "completeness": zod.enum(['complete', 'partial', 'unknown']).describe('Derived from backup evidence. Unknown is never complete.'),
+  "incompleteComponents": zod.unknown().nullish(),
+  "incompleteAcknowledgedAt": zod.coerce.date().nullish(),
+  "incompleteAcknowledgementNote": zod.string().nullish(),
+  "preRestoreCheckpointState": zod.enum(['not_required', 'required', 'satisfied', 'unsupported_acknowledged']),
+  "preRestoreBackupRunId": zod.number().nullish(),
+  "preRestoreExceptionNote": zod.string().nullish(),
+  "quiescenceState": zod.enum(['not_required', 'required', 'requested', 'confirmed', 'unavailable', 'released']),
+  "quiescenceEvidence": zod.string().nullish(),
+  "affectedOrganizationIdsSnapshot": zod.unknown().describe('The blast radius the requester was shown, frozen at submission.'),
+  "reason": zod.string(),
+  "requestedByUserId": zod.number(),
+  "submittedAt": zod.coerce.date(),
+  "statusChangedAt": zod.coerce.date().nullish(),
+  "statusDetail": zod.string().nullish(),
+  "applicationVersionAtRequest": zod.string().nullish(),
+  "migrationVersionAtRequest": zod.string().nullish(),
+  "driftAcknowledgedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * Dispatch executes nothing and does not mean the restore succeeded. It is idempotent by key, so a repeated call never starts a second restore.
+ * @summary Produce governed execution intent
+ */
+export const DispatchRestoreParams = zod.object({
+  "requestId": zod.coerce.number()
+})
+
+export const DispatchRestoreBody = zod.object({
+  "idempotencyKey": zod.string(),
+  "executorType": zod.string().nullish()
+})
+
+export const DispatchRestoreResponse = zod.object({
+  "id": zod.number(),
+  "requestId": zod.number(),
+  "attemptNumber": zod.number(),
+  "status": zod.enum(['dispatched', 'accepted', 'started', 'succeeded', 'failed']),
+  "idempotencyKey": zod.string(),
+  "dispatchedByUserId": zod.number().nullish(),
+  "dispatchedAt": zod.coerce.date(),
+  "startedAt": zod.coerce.date().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "executorType": zod.string().nullish(),
+  "externalReference": zod.string().nullish(),
+  "failureCategory": zod.string().nullish(),
+  "statusDetail": zod.string().nullish()
+})
+
+
+/**
+ * A completed attempt can never be rewritten into a different outcome.
+ * @summary Record what an external executor reported
+ */
+export const RecordRestoreExecutionEvidenceParams = zod.object({
+  "executionId": zod.coerce.number()
+})
+
+export const RecordRestoreExecutionEvidenceBody = zod.object({
+  "status": zod.enum(['accepted', 'started', 'succeeded', 'failed']),
+  "externalReference": zod.string().nullish(),
+  "failureCategory": zod.string().nullish(),
+  "statusDetail": zod.string().nullish()
+})
+
+export const RecordRestoreExecutionEvidenceResponse = zod.object({
+  "id": zod.number(),
+  "requestId": zod.number(),
+  "attemptNumber": zod.number(),
+  "status": zod.enum(['dispatched', 'accepted', 'started', 'succeeded', 'failed']),
+  "idempotencyKey": zod.string(),
+  "dispatchedByUserId": zod.number().nullish(),
+  "dispatchedAt": zod.coerce.date(),
+  "startedAt": zod.coerce.date().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "executorType": zod.string().nullish(),
+  "externalReference": zod.string().nullish(),
+  "failureCategory": zod.string().nullish(),
+  "statusDetail": zod.string().nullish()
+})
+
+
+/**
+ * Execution success is not validation success. An operator attestation may never override an automated failure.
+ * @summary Record one post-restore validation check
+ */
+export const RecordRestoreValidationParams = zod.object({
+  "requestId": zod.coerce.number()
+})
+
+export const RecordRestoreValidationBody = zod.object({
+  "executionId": zod.number().nullish(),
+  "checkKey": zod.string(),
+  "result": zod.enum(['passed', 'failed', 'unknown', 'not_applicable']),
+  "source": zod.enum(['automated', 'operator_attestation']),
+  "detail": zod.string().nullish()
+})
+
+export const RecordRestoreValidationResponse = zod.object({
+  "id": zod.number(),
+  "requestId": zod.number(),
+  "executionId": zod.number().nullish(),
+  "checkKey": zod.string(),
+  "result": zod.enum(['passed', 'failed', 'unknown', 'not_applicable']),
+  "source": zod.enum(['automated', 'operator_attestation']),
+  "detail": zod.string().nullish(),
+  "observedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Conclude validation from recorded evidence
+ */
+export const ConcludeRestoreValidationParams = zod.object({
+  "requestId": zod.coerce.number()
+})
+
+export const ConcludeRestoreValidationResponse = zod.object({
+  "id": zod.number(),
+  "installationId": zod.number(),
+  "environmentSnapshot": zod.string(),
+  "purpose": zod.enum(['recovery', 'test']),
+  "status": zod.enum(['submitted', 'approved', 'rejected', 'dispatched', 'executing', 'succeeded', 'failed', 'validated', 'validation_failed', 'cancelled', 'expired']),
+  "restorePointType": zod.enum(['backup_run', 'pitr', 'provider_snapshot']),
+  "backupRunId": zod.number().nullish(),
+  "pitrTimestamp": zod.coerce.date().nullish(),
+  "providerReference": zod.string().nullish(),
+  "recoveryPointAt": zod.coerce.date().nullish(),
+  "completeness": zod.enum(['complete', 'partial', 'unknown']).describe('Derived from backup evidence. Unknown is never complete.'),
+  "incompleteComponents": zod.unknown().nullish(),
+  "incompleteAcknowledgedAt": zod.coerce.date().nullish(),
+  "incompleteAcknowledgementNote": zod.string().nullish(),
+  "preRestoreCheckpointState": zod.enum(['not_required', 'required', 'satisfied', 'unsupported_acknowledged']),
+  "preRestoreBackupRunId": zod.number().nullish(),
+  "preRestoreExceptionNote": zod.string().nullish(),
+  "quiescenceState": zod.enum(['not_required', 'required', 'requested', 'confirmed', 'unavailable', 'released']),
+  "quiescenceEvidence": zod.string().nullish(),
+  "affectedOrganizationIdsSnapshot": zod.unknown().describe('The blast radius the requester was shown, frozen at submission.'),
+  "reason": zod.string(),
+  "requestedByUserId": zod.number(),
+  "submittedAt": zod.coerce.date(),
+  "statusChangedAt": zod.coerce.date().nullish(),
+  "statusDetail": zod.string().nullish(),
+  "applicationVersionAtRequest": zod.string().nullish(),
+  "migrationVersionAtRequest": zod.string().nullish(),
+  "driftAcknowledgedAt": zod.coerce.date().nullish()
+})
+
+
+/**
  * Requires platform super_admin AND the platform.fleet.read grant. Super-admin alone is deliberately insufficient.
  * @summary Fleet health across all installations
  */

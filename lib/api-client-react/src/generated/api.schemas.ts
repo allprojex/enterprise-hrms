@@ -1675,6 +1675,346 @@ export interface Installation {
   updatedAt: string;
 }
 
+export type RestoreRequestPurpose = typeof RestoreRequestPurpose[keyof typeof RestoreRequestPurpose];
+
+
+export const RestoreRequestPurpose = {
+  recovery: 'recovery',
+  test: 'test',
+} as const;
+
+export type RestoreRequestStatus = typeof RestoreRequestStatus[keyof typeof RestoreRequestStatus];
+
+
+export const RestoreRequestStatus = {
+  submitted: 'submitted',
+  approved: 'approved',
+  rejected: 'rejected',
+  dispatched: 'dispatched',
+  executing: 'executing',
+  succeeded: 'succeeded',
+  failed: 'failed',
+  validated: 'validated',
+  validation_failed: 'validation_failed',
+  cancelled: 'cancelled',
+  expired: 'expired',
+} as const;
+
+export type RestoreRequestRestorePointType = typeof RestoreRequestRestorePointType[keyof typeof RestoreRequestRestorePointType];
+
+
+export const RestoreRequestRestorePointType = {
+  backup_run: 'backup_run',
+  pitr: 'pitr',
+  provider_snapshot: 'provider_snapshot',
+} as const;
+
+/**
+ * Derived from backup evidence. Unknown is never complete.
+ */
+export type RestoreRequestCompleteness = typeof RestoreRequestCompleteness[keyof typeof RestoreRequestCompleteness];
+
+
+export const RestoreRequestCompleteness = {
+  complete: 'complete',
+  partial: 'partial',
+  unknown: 'unknown',
+} as const;
+
+export type RestoreRequestPreRestoreCheckpointState = typeof RestoreRequestPreRestoreCheckpointState[keyof typeof RestoreRequestPreRestoreCheckpointState];
+
+
+export const RestoreRequestPreRestoreCheckpointState = {
+  not_required: 'not_required',
+  required: 'required',
+  satisfied: 'satisfied',
+  unsupported_acknowledged: 'unsupported_acknowledged',
+} as const;
+
+export type RestoreRequestQuiescenceState = typeof RestoreRequestQuiescenceState[keyof typeof RestoreRequestQuiescenceState];
+
+
+export const RestoreRequestQuiescenceState = {
+  not_required: 'not_required',
+  required: 'required',
+  requested: 'requested',
+  confirmed: 'confirmed',
+  unavailable: 'unavailable',
+  released: 'released',
+} as const;
+
+export interface RestoreRequest {
+  id: number;
+  installationId: number;
+  environmentSnapshot: string;
+  purpose: RestoreRequestPurpose;
+  status: RestoreRequestStatus;
+  restorePointType: RestoreRequestRestorePointType;
+  backupRunId?: number | null;
+  pitrTimestamp?: string | null;
+  providerReference?: string | null;
+  recoveryPointAt?: string | null;
+  /** Derived from backup evidence. Unknown is never complete. */
+  completeness: RestoreRequestCompleteness;
+  incompleteComponents?: unknown | null;
+  incompleteAcknowledgedAt?: string | null;
+  incompleteAcknowledgementNote?: string | null;
+  preRestoreCheckpointState: RestoreRequestPreRestoreCheckpointState;
+  preRestoreBackupRunId?: number | null;
+  preRestoreExceptionNote?: string | null;
+  quiescenceState: RestoreRequestQuiescenceState;
+  quiescenceEvidence?: string | null;
+  /** The blast radius the requester was shown, frozen at submission. */
+  affectedOrganizationIdsSnapshot: unknown;
+  reason: string;
+  requestedByUserId: number;
+  submittedAt: string;
+  statusChangedAt?: string | null;
+  statusDetail?: string | null;
+  applicationVersionAtRequest?: string | null;
+  migrationVersionAtRequest?: string | null;
+  driftAcknowledgedAt?: string | null;
+}
+
+export type RestoreApprovalDecision = typeof RestoreApprovalDecision[keyof typeof RestoreApprovalDecision];
+
+
+export const RestoreApprovalDecision = {
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export type RestoreApprovalCompletenessAtDecision = typeof RestoreApprovalCompletenessAtDecision[keyof typeof RestoreApprovalCompletenessAtDecision];
+
+
+export const RestoreApprovalCompletenessAtDecision = {
+  complete: 'complete',
+  partial: 'partial',
+  unknown: 'unknown',
+} as const;
+
+export type RestoreApprovalPreRestoreCheckpointAtDecision = typeof RestoreApprovalPreRestoreCheckpointAtDecision[keyof typeof RestoreApprovalPreRestoreCheckpointAtDecision];
+
+
+export const RestoreApprovalPreRestoreCheckpointAtDecision = {
+  not_required: 'not_required',
+  required: 'required',
+  satisfied: 'satisfied',
+  unsupported_acknowledged: 'unsupported_acknowledged',
+} as const;
+
+export interface RestoreApproval {
+  id: number;
+  requestId: number;
+  decision: RestoreApprovalDecision;
+  approverUserId: number;
+  decidedAt: string;
+  comment?: string | null;
+  /** What the approver actually saw, frozen. */
+  affectedOrganizationIdsAtDecision: unknown;
+  completenessAtDecision: RestoreApprovalCompletenessAtDecision;
+  preRestoreCheckpointAtDecision: RestoreApprovalPreRestoreCheckpointAtDecision;
+  expiresAt?: string | null;
+  invalidatedAt?: string | null;
+  invalidationReason?: string | null;
+}
+
+export type RestoreExecutionStatus = typeof RestoreExecutionStatus[keyof typeof RestoreExecutionStatus];
+
+
+export const RestoreExecutionStatus = {
+  dispatched: 'dispatched',
+  accepted: 'accepted',
+  started: 'started',
+  succeeded: 'succeeded',
+  failed: 'failed',
+} as const;
+
+export interface RestoreExecution {
+  id: number;
+  requestId: number;
+  attemptNumber: number;
+  status: RestoreExecutionStatus;
+  idempotencyKey: string;
+  dispatchedByUserId?: number | null;
+  dispatchedAt: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  executorType?: string | null;
+  externalReference?: string | null;
+  failureCategory?: string | null;
+  statusDetail?: string | null;
+}
+
+export type RestoreValidationResult = typeof RestoreValidationResult[keyof typeof RestoreValidationResult];
+
+
+export const RestoreValidationResult = {
+  passed: 'passed',
+  failed: 'failed',
+  unknown: 'unknown',
+  not_applicable: 'not_applicable',
+} as const;
+
+export type RestoreValidationSource = typeof RestoreValidationSource[keyof typeof RestoreValidationSource];
+
+
+export const RestoreValidationSource = {
+  automated: 'automated',
+  operator_attestation: 'operator_attestation',
+} as const;
+
+export interface RestoreValidation {
+  id: number;
+  requestId: number;
+  executionId?: number | null;
+  checkKey: string;
+  result: RestoreValidationResult;
+  source: RestoreValidationSource;
+  detail?: string | null;
+  observedAt: string;
+}
+
+export interface RestoreDispatchPrecheck {
+  ok: boolean;
+  blockers: string[];
+  driftRequiringAcknowledgement: string[];
+}
+
+/**
+ * Facts about an execution. No SLA compliance is asserted.
+ */
+export interface RestoreObservedMetrics {
+  recoveryPointAgeMs?: number | null;
+  executionDurationMs?: number | null;
+  validationCompletedAt?: string | null;
+}
+
+export interface RestoreRequestDetail {
+  request: RestoreRequest;
+  approvals: RestoreApproval[];
+  executions: RestoreExecution[];
+  validations: RestoreValidation[];
+  precheck: RestoreDispatchPrecheck;
+  metrics: RestoreObservedMetrics;
+}
+
+export type SubmitRestoreRequestInputPurpose = typeof SubmitRestoreRequestInputPurpose[keyof typeof SubmitRestoreRequestInputPurpose];
+
+
+export const SubmitRestoreRequestInputPurpose = {
+  recovery: 'recovery',
+  test: 'test',
+} as const;
+
+export type SubmitRestoreRequestInputRestorePointType = typeof SubmitRestoreRequestInputRestorePointType[keyof typeof SubmitRestoreRequestInputRestorePointType];
+
+
+export const SubmitRestoreRequestInputRestorePointType = {
+  backup_run: 'backup_run',
+  pitr: 'pitr',
+  provider_snapshot: 'provider_snapshot',
+} as const;
+
+export interface SubmitRestoreRequestInput {
+  purpose: SubmitRestoreRequestInputPurpose;
+  restorePointType: SubmitRestoreRequestInputRestorePointType;
+  backupRunId?: number | null;
+  pitrTimestamp?: string | null;
+  providerReference?: string | null;
+  reason: string;
+  /** Must equal "RESTORE <installationKey> <ENVIRONMENT>" exactly. */
+  confirmationPhrase: string;
+  incompleteAcknowledgementNote?: string | null;
+  preRestoreExceptionNote?: string | null;
+  preRestoreBackupRunId?: number | null;
+  quiescenceRequired?: boolean;
+}
+
+export type RestoreDecisionInputDecision = typeof RestoreDecisionInputDecision[keyof typeof RestoreDecisionInputDecision];
+
+
+export const RestoreDecisionInputDecision = {
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export interface RestoreDecisionInput {
+  decision: RestoreDecisionInputDecision;
+  comment?: string | null;
+  /** Policy-driven only. There is no default expiry. */
+  expiresAt?: string | null;
+}
+
+export interface RestoreCancelInput {
+  reason?: string;
+}
+
+export type RestoreQuiescenceInputState = typeof RestoreQuiescenceInputState[keyof typeof RestoreQuiescenceInputState];
+
+
+export const RestoreQuiescenceInputState = {
+  not_required: 'not_required',
+  required: 'required',
+  requested: 'requested',
+  confirmed: 'confirmed',
+  unavailable: 'unavailable',
+  released: 'released',
+} as const;
+
+export interface RestoreQuiescenceInput {
+  state: RestoreQuiescenceInputState;
+  evidence?: string | null;
+}
+
+export interface RestoreDispatchInput {
+  idempotencyKey: string;
+  executorType?: string | null;
+}
+
+export type RestoreExecutionEvidenceInputStatus = typeof RestoreExecutionEvidenceInputStatus[keyof typeof RestoreExecutionEvidenceInputStatus];
+
+
+export const RestoreExecutionEvidenceInputStatus = {
+  accepted: 'accepted',
+  started: 'started',
+  succeeded: 'succeeded',
+  failed: 'failed',
+} as const;
+
+export interface RestoreExecutionEvidenceInput {
+  status: RestoreExecutionEvidenceInputStatus;
+  externalReference?: string | null;
+  failureCategory?: string | null;
+  statusDetail?: string | null;
+}
+
+export type RestoreValidationInputResult = typeof RestoreValidationInputResult[keyof typeof RestoreValidationInputResult];
+
+
+export const RestoreValidationInputResult = {
+  passed: 'passed',
+  failed: 'failed',
+  unknown: 'unknown',
+  not_applicable: 'not_applicable',
+} as const;
+
+export type RestoreValidationInputSource = typeof RestoreValidationInputSource[keyof typeof RestoreValidationInputSource];
+
+
+export const RestoreValidationInputSource = {
+  automated: 'automated',
+  operator_attestation: 'operator_attestation',
+} as const;
+
+export interface RestoreValidationInput {
+  executionId?: number | null;
+  checkKey: string;
+  result: RestoreValidationInputResult;
+  source: RestoreValidationInputSource;
+  detail?: string | null;
+}
+
 export type HealthSignalState = typeof HealthSignalState[keyof typeof HealthSignalState];
 
 
@@ -12749,6 +13089,10 @@ export type UploadOrganizationLogoBody = {
 
 export type UploadOrganizationLogo200 = {
   logoUrl: string;
+};
+
+export type ListRestoreRequests200 = {
+  requests: RestoreRequest[];
 };
 
 export type GetFleetHealth200 = {

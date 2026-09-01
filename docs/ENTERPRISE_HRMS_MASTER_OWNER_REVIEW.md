@@ -364,10 +364,11 @@ The prior 43-item micro-list is retired. Below is the smallest coherent implemen
 | WS-14 | Skills, Competency Framework & Succession | **P2** | Formal proficiency framework, competency linkage, new internal-succession schema (critical roles, successors, readiness) | WS-9 (soft, for recruitment linkage) | OD #5, #7 |
 | WS-15 | Cross-Module Visibility | **P1/P2** | Employee 360 completion, HR Action Centre (org-wide), Manager Portal recruitment-participation source, Reporting execution consolidation | WS-6 | — (**architecture frozen in §31**) — **COMPLETE.** All four bundles implemented (§31.40.7); Global Search is a future approved safe navigation/discovery enhancement, **not implemented** and not a closure blocker (§31.40) |
 | WS-16 | Workflow/Delegation Primitive Generalization | **P2** | Generalize Office Inventory's delegation table, extract authority-resolver | WS-3 (light) | OD #14, #15 — **WS-16 COMPLETE** (formally closed in §32.29). Architecture frozen in §32; scope narrowed by discovery: authority extraction is already largely shared (§32.2), so WS-16 delivers one shared live direct-report helper (Pass 2A) plus a new shared department-head delegation foundation (Pass 2B). Office Inventory is **not** migrated (§32.20); the holder-facing surface is **gated on a first approved consumer** (§32.21). **Pass 2A COMPLETE** (§32.27) — shared live direct-report helper shipped, six consumers migrated, seventh retained. **Pass 2B COMPLETE** (§32.28) — `authority_delegations` foundation shipped on migration `0071`, `department_head` only, holder-only, **zero business consumers by design**. **Pass 2C/2D DEFERRED / CONSUMER-TRIGGERED** — no longer closure blockers (§32.29.1); shared delegation consumer count is **0 by design**, and Office Inventory stays module-owned with its delegate-validation defect still open (§32.25). WS-16 overall **COMPLETE** |
-| WS-17 | Deployment & Backup Operations | **P2** | Installation deployment history and version state, backup policy/request/evidence control plane, Fleet Health signals, restore governance (deferred to its own gated pass) | WS-1, WS-4 | — — **Slice 1 COMPLETE** (§33); restore NOT implemented. **"Release-pipeline Levels 3–6" removed: repository-wide discovery found no source taxonomy defining Levels 3, 4, 5 or 6, and none was invented** (§33.2) |
+| WS-17 | Deployment & Backup Operations | **P2** | Installation deployment history and version state, backup policy/request/evidence control plane, Fleet Health signals, restore governance (deferred to its own gated pass) | WS-1, WS-4 | — — **Slice 1 COMPLETE** (§33) and **restore governance COMPLETE** (§33.11) — governed physical restore with mandatory production maker-checker; live restore EXECUTION remains external and is never performed by the platform. **"Release-pipeline Levels 3–6" removed: repository-wide discovery found no source taxonomy defining Levels 3, 4, 5 or 6, and none was invented** (§33.2) |
 | WS-18 | Security Verification Workstream & Production Security Gate | **P0** (gate, sequenced late) | Live tenant-isolation/IDOR testing, DAST, penetration testing, full business-logic-security sampling, closing the flagged Supabase-production RLS item | WS-1, WS-2, WS-3, WS-4 | — |
 | WS-19 | AI Layer (implementation) | **Future/P2** | Tool Gateway build, first provider selection, Level 1–4 action mapping | WS-3, WS-5, WS-10, WS-4 (for future Control Plane AI scope) | OD #24, #25, #26 |
 | WS-20 | Enterprise Migration Centre | **P2** | Super-Admin-enabled, per-organization onboarding from legacy systems, spreadsheets and paper records: staged upload → parse → validate → preview → correct → approve → import → reconcile, provenance and original effective dates, migration batches, source-document linkage, resumable/idempotent imports, temporary Migration Officer authority, and future human-verified OCR/AI extraction | WS-7, WS-5 | — (**extends WS-7's migration foundations; does not replace them**) |
+| WS-21 | Tenant Recovery & Portability | **P2** | Selective LOGICAL recovery, export and import of ONE organization's data without physically rolling back the other tenants sharing an installation; reuses WS-7's migration/import primitives and WS-17's recovery evidence, and preserves every existing tenant-isolation rule | WS-7, WS-17 | — (**distinct from WS-17 physical restore and from WS-20 onboarding**) |
 
 **Parallel operational track (no engineering sequencing required)**: Payroll — seed confirmed Ghana statutory figures, obtain legal/accounting sign-off, activate for WWM. Can proceed independently of all 19 workstreams above.
 
@@ -4147,3 +4148,94 @@ Centre (**WS-20**, registered in §20, extending WS-7 rather than replacing it);
 and destructive operational-history retention.
 
 **WS-17 is not complete.** Restore governance is its next gated pass.
+
+### 33.11 Restore governance (Pass 2)
+
+Shipped on migration `0074_stale_rachel_grey`. Four append-oriented tables —
+requests, approvals, executions, validations — plus one additive column,
+`installations.restore_approval_policy`. **No restore table carries an
+`organizationId`.**
+
+**The platform governs; it never executes.** Nothing runs `pg_restore`,
+triggers PITR, rolls back a snapshot or opens a shell. There is no provider
+credential and no callback secret. What ships is authority, risk acceptance and
+evidence.
+
+#### 33.11.1 The invariants
+
+- **Production maker-checker is not configurable.** `requiresMakerChecker`
+  returns true for production *without consulting the policy column at all*, so
+  no misconfiguration can switch it off, and environment NAMING is never used to
+  infer relaxation. Non-production defaults to `always_required`; relaxation is
+  an explicit, per-installation act. The comparison is on immutable **user id** —
+  never a name, an email or a membership, because platform authority is
+  user-scoped.
+- **A partial recovery point is blocked.** Completeness is derived from recorded
+  backup evidence via `deriveBackupRunResult`, never from a caller flag, and a
+  PITR or provider point is honestly `unknown`. Proceeding requires an
+  acknowledgement that NAMES the missing component, stored immutably and frozen
+  onto the approval — a recorded risk acceptance, not a dismissed banner, and
+  never a bare `allowPartial=true`.
+- **An approver approves a blast radius, not an id.** The affected organizations
+  are snapshotted at submission, re-derived at approval, and re-derived again
+  before dispatch. If the set changed, dispatch is blocked and the approval is
+  invalidated — the approval row itself is stamped, never rewritten, and the
+  request returns for renewed approval.
+- **Execution success is not validation success.** They are separate states with
+  separate evidence. A restore stops at `succeeded` until validation concludes,
+  and an `unknown` check never counts as passed.
+- **An operator cannot attest away an automated failure.** Attestation exists
+  only for checks no automation can perform in a given environment.
+- **Nothing pretends.** An executor that cannot take a pre-restore checkpoint
+  produces `unsupported_acknowledged`, never `satisfied`. The platform never
+  claims it stopped traffic, and after dispatch it never claims it cancelled
+  infrastructure work it does not control.
+
+#### 33.11.2 Confirmation, idempotency, drift
+
+Typed confirmation is target-bound — `RESTORE <installationKey> <ENVIRONMENT>`,
+matched exactly server-side. A generic `RESTORE`, another installation's
+phrase, or a checkbox is refused.
+
+Dispatch is idempotent by caller-supplied key: a double-click or a retried HTTP
+call returns the same execution rather than starting a second physical restore.
+A retry after failure creates a **second attempt**; both remain visible, and a
+completed attempt can never be rewritten into a different outcome.
+
+Drift is split by severity. Installation, environment, restore point or blast
+radius changing **invalidates approval**. A new deployment, commit or migration
+version leaves the approval standing but requires **re-acknowledgement** before
+dispatch.
+
+#### 33.11.3 Scope boundaries
+
+**Restore tests may never target production**, enforced server-side rather than
+hidden in a UI. They reuse the same workflow through a `purpose` dimension, so
+there is no second state machine to drift.
+
+**Observed metrics are facts, not verdicts** — recovery-point age, execution
+duration, validation completion — kept strictly separate from configured
+targets, with no compliance claim anywhere.
+
+**Fleet Health gains a restore overlay**: an installation with a restore in
+flight reads `degraded` rather than inheriting healthy pre-restore telemetry
+that describes a system which no longer exists; a failed execution or failed
+validation reads `unhealthy`.
+
+#### 33.11.4 Deferred, and why
+
+**Automated executor callbacks remain unimplemented.** They require
+per-installation credential issuance, rotation, revocation and storage — a
+secrets subsystem this pass does not build, and a shared secret would be exactly
+the unsafe shortcut the freeze warned against. Until it exists, a trusted
+platform operator records external evidence through the authenticated surface,
+and the data model is shaped so a future callback needs no schema change.
+
+**Live restore execution, provider integration, the universal agent, logical
+tenant recovery (WS-21) and the Enterprise Migration Centre (WS-20) are all out
+of scope.** Three distinct concepts with three owners: **WS-17** physical
+infrastructure recovery, **WS-21** logical tenant recovery, **WS-20** legacy and
+manual onboarding.
+
+Restore history is strong audit evidence: there is **no ordinary hard-delete
+route and no destructive retention job**, and no retention duration is invented.

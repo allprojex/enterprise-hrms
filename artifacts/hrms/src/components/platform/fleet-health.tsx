@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { useGetFleetHealth, useListInstallationDeployments, useListInstallationBackupRuns } from '@workspace/api-client-react';
+import { RestoreGovernance } from './restore-governance';
 
 type HealthState = 'healthy' | 'degraded' | 'unhealthy' | 'unknown' | 'stale';
 
@@ -198,8 +199,9 @@ export function FleetHealth() {
                 )}
 
                 {isOpen && (
-                  <div className="mt-4 border-t pt-4">
+                  <div className="mt-4 space-y-4 border-t pt-4">
                     <InstallationDetail installationId={inst.installationId} />
+                    <RestoreGovernance installationId={inst.installationId} />
                   </div>
                 )}
               </div>

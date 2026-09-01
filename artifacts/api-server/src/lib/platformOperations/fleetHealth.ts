@@ -33,6 +33,7 @@ import {
   getTelemetry,
   listAffectedOrganizations,
 } from "./operations";
+import { getRestoreHealthOverlay } from "./restore";
 
 /** How a single signal reads. `stale` is distinct from `unknown`: we heard once, but too long ago. */
 export type HealthState = "healthy" | "degraded" | "unhealthy" | "unknown" | "stale";
@@ -211,6 +212,15 @@ export async function getInstallationHealth(installationId: number): Promise<Ins
     });
   } else {
     signals.push({ key: "deployment", state: "healthy", detail: `Running ${installation.applicationVersion}` });
+  }
+
+  // A restore in flight must never read healthy from telemetry gathered
+  // BEFORE the rollback began — that telemetry describes a system that no
+  // longer exists. This overlay is added last so it cannot be masked by an
+  // otherwise-green signal set.
+  const restoreOverlay = await getRestoreHealthOverlay(installationId);
+  if (restoreOverlay) {
+    signals.push({ key: "restore", state: restoreOverlay.state, detail: restoreOverlay.detail });
   }
 
   return {
