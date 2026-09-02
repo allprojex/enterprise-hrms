@@ -17,6 +17,13 @@ import {
   PasswordResetTokenNotFoundError,
   PasswordResetTokenExpiredError,
 } from "../lib/passwordReset";
+import {
+  forgotPasswordIpRateLimiter,
+  forgotPasswordAccountRateLimiter,
+  resetTokenIpRateLimiter,
+  resetTokenAttemptRateLimiter,
+  padToMinimumDuration,
+} from "../lib/authRateLimit";
 
 const router = Router();
 
@@ -120,54 +127,93 @@ router.post("/auth/logout", requireAuth as any, async (req: AuthenticatedRequest
 });
 
 // POST /auth/forgot-password
-router.post("/auth/forgot-password", async (req, res): Promise<void> => {
-  const parsed = ForgotPasswordBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
+//
+// WS-18 Pass 2, F-2. Two limiters, both applied: per-IP stops one host flooding
+// the endpoint, per-submitted-address stops a distributed campaign flooding one
+// victim's mailbox. The per-address limiter keys on the string the client sent,
+// never on a database lookup, so an unregistered address throttles exactly like
+// a registered one and the throttle itself carries no enumeration signal.
+router.post(
+  "/auth/forgot-password",
+  forgotPasswordIpRateLimiter,
+  forgotPasswordAccountRateLimiter,
+  async (req, res): Promise<void> => {
+    const startedAt = Date.now();
 
-  await requestPasswordReset(parsed.data.email);
+    const parsed = ForgotPasswordBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
 
-  // Always the same response regardless of whether the email is registered
-  // or delivery succeeded -- see requestPasswordReset's doc comment.
-  res.json({ message: "If that email is registered, a reset link has been sent." });
-});
+    await requestPasswordReset(parsed.data.email);
+
+    // Equalize response time across the registered/unregistered paths. Body and
+    // status were already identical; without this, the two differ by a database
+    // write and are separable with a stopwatch. See padToMinimumDuration.
+    await padToMinimumDuration(startedAt);
+
+    // Always the same response regardless of whether the email is registered
+    // or delivery succeeded -- see requestPasswordReset's doc comment.
+    res.json({ message: "If that email is registered, a reset link has been sent." });
+  },
+);
 
 // GET /auth/reset-password/:token
 // Public -- no authentication required. Used by the reset-password page.
-router.get("/auth/reset-password/:token", async (req, res): Promise<void> => {
-  const token = Array.isArray(req.params.token) ? req.params.token[0] : req.params.token;
-  const status = await getPasswordResetTokenStatus(token);
-  res.json({ status });
-});
+//
+// Rate-limited per IP and per token so this cannot be used as an unbounded
+// oracle for probing token validity.
+router.get(
+  "/auth/reset-password/:token",
+  resetTokenIpRateLimiter,
+  resetTokenAttemptRateLimiter,
+  async (req, res): Promise<void> => {
+    const token = Array.isArray(req.params.token) ? req.params.token[0] : req.params.token;
+    const status = await getPasswordResetTokenStatus(token);
+    res.json({ status });
+  },
+);
 
 // POST /auth/reset-password/:token
 // Public -- no authentication required. Sets a new password and consumes the token.
-router.post("/auth/reset-password/:token", async (req, res): Promise<void> => {
-  const token = Array.isArray(req.params.token) ? req.params.token[0] : req.params.token;
+//
+// The 404 (unknown/consumed) vs 410 (expired) distinction is retained
+// deliberately. It is a *token* oracle, not an account-enumeration one: it
+// reveals nothing about which email addresses exist, only whether a specific
+// 256-bit random string was ever issued. The reset page relies on it to tell a
+// user "this link expired, request another" rather than a useless generic
+// error, and the brute-force path it might otherwise enable is closed by the two
+// limiters below rather than by degrading the message.
+router.post(
+  "/auth/reset-password/:token",
+  resetTokenIpRateLimiter,
+  resetTokenAttemptRateLimiter,
+  async (req, res): Promise<void> => {
+    const token = Array.isArray(req.params.token) ? req.params.token[0] : req.params.token;
 
-  const parsed = ResetPasswordBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-
-  try {
-    await resetPassword(token, parsed.data.password);
-    res.json({ message: "Password reset. You can now log in." });
-  } catch (err) {
-    if (err instanceof PasswordResetTokenNotFoundError) {
-      res.status(404).json({ error: err.message });
+    const parsed = ResetPasswordBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
       return;
     }
-    if (err instanceof PasswordResetTokenExpiredError) {
-      res.status(410).json({ error: err.message });
-      return;
+
+    try {
+      await resetPassword(token, parsed.data.password);
+      res.json({ message: "Password reset. You can now log in." });
+    } catch (err) {
+      if (err instanceof PasswordResetTokenNotFoundError) {
+        res.status(404).json({ error: err.message });
+        return;
+      }
+      if (err instanceof PasswordResetTokenExpiredError) {
+        res.status(410).json({ error: err.message });
+        return;
+      }
+      throw err;
     }
-    throw err;
-  }
-});
+  },
+);
 
 // POST /auth/switch-organization
 router.post(

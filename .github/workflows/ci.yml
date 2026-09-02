@@ -128,6 +128,89 @@ jobs:
       - name: Typecheck + build every package (root script)
         run: pnpm run build
 
+  container-scan:
+    name: Container scan + SBOM (Trivy)
+    runs-on: ubuntu-latest
+    # WS-18 Pass 3 (F-3). Builds the real production image and scans it, rather
+    # than scanning the source tree — the image is what actually ships, and its
+    # base-OS layer is where most of the vulnerability surface lives.
+    #
+    # Gate policy (tools/ci/check-container-scan.mjs): fail on any CRITICAL or
+    # HIGH that HAS an available fix. The unfixable base-image tail is printed
+    # on every run and analysed in docs/SECURITY.md §10, never suppressed. This
+    # is not "ignore all HIGH" — a fixable HIGH fails the build.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Build the production image
+        run: docker build -t hrms:ci-${{ github.sha }} .
+
+      # Pinned by major.minor so scanner behaviour is reproducible; the
+      # vulnerability database itself is always fetched fresh at scan time.
+      - name: Trivy vulnerability scan
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD:/out" \
+            aquasec/trivy:0.74.0 image \
+              --scanners vuln --format json --output /out/trivy-report.json \
+              --timeout 15m hrms:ci-${{ github.sha }}
+
+      - name: Enforce the container vulnerability gate
+        run: node tools/ci/check-container-scan.mjs trivy-report.json
+
+      # SBOM is generated from the same image that was just scanned, so the
+      # component list and the vulnerability report always describe one artifact.
+      - name: Generate CycloneDX SBOM
+        if: always()
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD:/out" \
+            aquasec/trivy:0.74.0 image \
+              --format cyclonedx --output /out/sbom.cdx.json \
+              hrms:ci-${{ github.sha }}
+
+      # Retained as a build artifact rather than committed: an SBOM is a
+      # ~500KB point-in-time description of one built image, and committing it
+      # would churn on every dependency change while describing an image nobody
+      # can reproduce from the commit alone.
+      - name: Upload SBOM + scan report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-and-container-scan
+          path: |
+            sbom.cdx.json
+            trivy-report.json
+          retention-days: 90
+          if-no-files-found: warn
+
+  rls-coverage:
+    name: RLS coverage gate
+    runs-on: ubuntu-latest
+    # WS-18 Pass 1C (F-1B remediation). Production's HR tables are protected by
+    # RLS deny-by-default; PostgreSQL creates tables with RLS OFF, so a
+    # migration that forgets `ENABLE ROW LEVEL SECURITY` silently drops a table
+    # out of that protection. This gate makes that unmergeable. It is purely
+    # static (reads committed schema + migration SQL), so it needs no database
+    # and no credentials — see docs/SUPABASE_SECURITY_REMEDIATION.md.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      # The self-test runs FIRST and deliberately feeds the checker known-bad
+      # migrations. A gate that cannot be shown to fail proves nothing when it
+      # passes, so if the negative fixtures stop being rejected, CI stops here.
+      - name: Prove the gate rejects unsafe migrations (negative fixtures)
+        run: node tools/ci/check-rls-coverage.mjs --self-test
+      - name: Every application table is RLS deny-by-default
+        run: node tools/ci/check-rls-coverage.mjs
+
   schema-drift:
     name: DB schema drift check
     runs-on: ubuntu-latest

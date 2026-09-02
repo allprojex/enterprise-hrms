@@ -44,6 +44,7 @@ import {
 } from "@workspace/db";
 import { isUniqueViolation } from "./dbErrors";
 import { calculateEmployeePayroll, type EmployeePayrollCalculationResult } from "./payrollCalculation";
+import { violatesSeparationOfDuties } from "./separationOfDuties";
 
 export class PayrollRunCollisionError extends Error {
   constructor() {
@@ -331,7 +332,11 @@ export async function approvePayrollRun(params: {
       .for("update");
     if (!run) throw new PayrollRunNotFoundError();
     if (run.status !== "calculated") throw new PayrollRunNotCalculatedError(run.status);
-    if (run.preparedByMembershipId === params.approverMembershipId) throw new PayrollRunSelfApprovalError();
+    // WS18-P4-02: refuses self-approval AND an unidentifiable preparer (the FK
+    // is ON DELETE SET NULL, so offboarding silently erases the maker).
+    if (violatesSeparationOfDuties(run.preparedByMembershipId, params.approverMembershipId)) {
+      throw new PayrollRunSelfApprovalError();
+    }
 
     const [{ count }] = await tx
       .select({ count: sql<number>`count(*)` })
@@ -365,7 +370,10 @@ export async function lockPayrollRun(params: { organizationId: number; payrollRu
       .for("update");
     if (!run) throw new PayrollRunNotFoundError();
     if (run.status !== "approved") throw new PayrollRunNotApprovedError(run.status);
-    if (run.preparedByMembershipId === params.actorMembershipId) throw new PayrollRunSelfApprovalError();
+    // WS18-P4-02 — see approvePayrollRun.
+    if (violatesSeparationOfDuties(run.preparedByMembershipId, params.actorMembershipId)) {
+      throw new PayrollRunSelfApprovalError();
+    }
 
     const [updated] = await tx
       .update(payrollRunsTable)

@@ -5,8 +5,18 @@
  * database connection is made. The email provider (../lib/email) is mocked
  * so no real Resend call is made and delivery can be forced to fail.
  */
+import crypto from "node:crypto";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import request from "supertest";
+
+/**
+ * WS-18 Pass 2, F-2: reset tokens are persisted as a SHA-256 digest rather than
+ * in plaintext, so a fixture row must hold the digest of the token the test
+ * presents — exactly as lib/passwordReset.ts stores it.
+ */
+function digest(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
 
 function mockTable(name: string, columns: string[]) {
   const table: Record<string, string> & { __name: string } = { __name: name } as never;
@@ -25,6 +35,7 @@ const { fixtures, usersTable, sessionsTable } = vi.hoisted(() => {
       sessionRows: [] as unknown[],
       userRows: [] as Record<string, unknown>[],
       updated: [] as { table: string; values: unknown }[],
+      deleted: [] as { table: string }[],
     },
     usersTable: mockTable("users", ["id", "email", "passwordResetToken", "passwordResetTokenExpiresAt"]),
     sessionsTable: mockTable("sessions", ["token", "userId", "expiresAt"]),
@@ -83,6 +94,20 @@ vi.mock("@workspace/db", () => ({
         },
       }),
     }),
+    // WS-18 Pass 2, F-2: a successful reset now revokes every session for the
+    // account, so the mock needs both a delete and the transaction that wraps
+    // it together with the password update.
+    delete: (table: { __name: string }) => ({
+      where: () => {
+        fixtures.deleted.push({ table: table.__name });
+        if (table === sessionsTable) fixtures.sessionRows.length = 0;
+        return Promise.resolve(undefined);
+      },
+    }),
+    get transaction() {
+      const self = this as unknown as Record<string, unknown>;
+      return async (cb: (tx: unknown) => Promise<unknown>) => cb(self);
+    },
   },
 }));
 
@@ -170,7 +195,7 @@ describe("GET /api/auth/reset-password/:token", () => {
 
   it("reports valid for a live, unexpired token", async () => {
     fixtures.userRows = [
-      { id: 1, email: "known@example.com", firstName: "Ada", passwordResetToken: "good-token", passwordResetTokenExpiresAt: new Date(Date.now() + 100000) },
+      { id: 1, email: "known@example.com", firstName: "Ada", passwordResetToken: digest("good-token"), passwordResetTokenExpiresAt: new Date(Date.now() + 100000) },
     ];
     const res = await request(app).get("/api/auth/reset-password/good-token");
     expect(res.status).toBe(200);
@@ -179,7 +204,7 @@ describe("GET /api/auth/reset-password/:token", () => {
 
   it("reports expired for a token past its expiry", async () => {
     fixtures.userRows = [
-      { id: 1, email: "known@example.com", firstName: "Ada", passwordResetToken: "stale-token", passwordResetTokenExpiresAt: new Date(Date.now() - 1000) },
+      { id: 1, email: "known@example.com", firstName: "Ada", passwordResetToken: digest("stale-token"), passwordResetTokenExpiresAt: new Date(Date.now() - 1000) },
     ];
     const res = await request(app).get("/api/auth/reset-password/stale-token");
     expect(res.status).toBe(200);
@@ -196,7 +221,7 @@ describe("POST /api/auth/reset-password/:token", () => {
 
   it("returns 410 for an expired token", async () => {
     fixtures.userRows = [
-      { id: 1, email: "known@example.com", firstName: "Ada", passwordResetToken: "stale-token", passwordResetTokenExpiresAt: new Date(Date.now() - 1000) },
+      { id: 1, email: "known@example.com", firstName: "Ada", passwordResetToken: digest("stale-token"), passwordResetTokenExpiresAt: new Date(Date.now() - 1000) },
     ];
     const res = await request(app).post("/api/auth/reset-password/stale-token").send({ password: "correct-horse-battery" });
     expect(res.status).toBe(410);
@@ -204,7 +229,7 @@ describe("POST /api/auth/reset-password/:token", () => {
 
   it("returns 400 for a password shorter than the minimum", async () => {
     fixtures.userRows = [
-      { id: 1, email: "known@example.com", firstName: "Ada", passwordResetToken: "good-token", passwordResetTokenExpiresAt: new Date(Date.now() + 100000) },
+      { id: 1, email: "known@example.com", firstName: "Ada", passwordResetToken: digest("good-token"), passwordResetTokenExpiresAt: new Date(Date.now() + 100000) },
     ];
     const res = await request(app).post("/api/auth/reset-password/good-token").send({ password: "short" });
     expect(res.status).toBe(400);
@@ -212,7 +237,7 @@ describe("POST /api/auth/reset-password/:token", () => {
 
   it("sets a new password and clears the token on success", async () => {
     fixtures.userRows = [
-      { id: 1, email: "known@example.com", firstName: "Ada", passwordResetToken: "good-token", passwordResetTokenExpiresAt: new Date(Date.now() + 100000) },
+      { id: 1, email: "known@example.com", firstName: "Ada", passwordResetToken: digest("good-token"), passwordResetTokenExpiresAt: new Date(Date.now() + 100000) },
     ];
 
     const res = await request(app).post("/api/auth/reset-password/good-token").send({ password: "correct-horse-battery" });
@@ -228,7 +253,7 @@ describe("POST /api/auth/reset-password/:token", () => {
 
   it("does not include the password in the response body", async () => {
     fixtures.userRows = [
-      { id: 1, email: "known@example.com", firstName: "Ada", passwordResetToken: "good-token", passwordResetTokenExpiresAt: new Date(Date.now() + 100000) },
+      { id: 1, email: "known@example.com", firstName: "Ada", passwordResetToken: digest("good-token"), passwordResetTokenExpiresAt: new Date(Date.now() + 100000) },
     ];
 
     const res = await request(app).post("/api/auth/reset-password/good-token").send({ password: "correct-horse-battery" });

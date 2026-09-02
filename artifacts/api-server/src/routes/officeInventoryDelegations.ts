@@ -19,6 +19,7 @@ import {
   getCurrentDepartmentHeadCheck,
   DepartmentNotFoundError,
   NotCurrentDepartmentHeadError,
+  InvalidDelegateError,
   DelegationNotFoundError,
 } from "../lib/officeInventoryDelegations";
 
@@ -87,6 +88,14 @@ router.post(
       }
       if (err instanceof NotCurrentDepartmentHeadError) {
         res.status(403).json({ error: err.message });
+        return;
+      }
+      // F-4: an unusable delegate (another tenant, inactive, or the Head
+      // themselves) is a bad request, not a permission failure — the caller IS
+      // the department Head and is entitled to delegate, they just named
+      // someone who cannot hold the authority.
+      if (err instanceof InvalidDelegateError) {
+        res.status(400).json({ error: err.message });
         return;
       }
       throw err;

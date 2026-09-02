@@ -20,7 +20,8 @@
     "backfill:memberships": "tsx ./src/backfill/backfill-memberships.ts",
     "backfill:employee-numbers": "tsx ./src/backfill/backfill-employee-number-allocations.ts",
     "push": "drizzle-kit push --config ./drizzle.config.ts",
-    "push-force": "drizzle-kit push --force --config ./drizzle.config.ts"
+    "push-force": "drizzle-kit push --force --config ./drizzle.config.ts",
+    "verify:posture": "tsx ./src/security/verify-rls-posture.ts"
   },
   "dependencies": {
     "drizzle-orm": "catalog:",

@@ -1,5 +1,15 @@
 # Phase 3B — Attendance Capture Architecture and Implementation Plan
 
+> **⚠️ ENVIRONMENT CLASSIFICATION CORRECTION.** The Supabase project this
+> document calls a *development* environment is the actual **Production**
+> project, confirmed by the owner in the Supabase dashboard (WS-18 Pass 1B/1C).
+> Historical statements below are preserved as written rather than rewritten,
+> but every "development" reference to that project means **Production**. This document
+> asserts that "No production environment exists or has been touched at any
+> point" — **that assertion is false**.
+> See [`ENVIRONMENT_CLASSIFICATION.md`](./ENVIRONMENT_CLASSIFICATION.md).
+
+
 **Status: DRAFT — NOT FROZEN.** This document is a proposal for review, not yet authoritative. Nothing in it may be implemented until it is explicitly approved and its status line is updated to match `docs/PHASE_3A_RECRUITMENT_IMPLEMENTATION_PLAN.md`'s own "FROZEN ... APPROVED" convention. No source code, schema, or migration has been created by producing it.
 
 Per `ROADMAP.md`'s Phase 3 ("Workforce Operations") list and the frozen Phase 3A plan's own explicit anticipation ("Performance, Learning, Asset Management, and Manager Portal remain out of scope here, to be planned separately as Phase 3B/3C/etc."), this is the **Phase 3B** slice: Attendance Capture, built on top of the Attendance *configuration* layer W38 already shipped (Phase 2B). Workstream numbering continues directly from Phase 3A's own final workstream (W63), starting at **W64** — confirmed against `PROJECT_STATUS.md`, which has no workstream beyond W63 anywhere.

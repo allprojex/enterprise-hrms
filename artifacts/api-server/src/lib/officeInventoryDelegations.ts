@@ -16,7 +16,13 @@
  * schema's own header comment for why).
  */
 import { and, eq, isNull } from "drizzle-orm";
-import { db, departmentsTable, officeInventoryApprovalDelegationsTable, type OfficeInventoryApprovalDelegation } from "@workspace/db";
+import {
+  db,
+  departmentsTable,
+  officeInventoryApprovalDelegationsTable,
+  organizationMembershipsTable,
+  type OfficeInventoryApprovalDelegation,
+} from "@workspace/db";
 import { getCurrentDepartmentHead } from "./departmentHeads";
 import { recordAuditEvent } from "./auditLog";
 
@@ -33,6 +39,33 @@ export class NotCurrentDepartmentHeadError extends Error {
 export class DelegationNotFoundError extends Error {
   constructor() {
     super("Delegation not found");
+  }
+}
+/**
+ * WS-18 Pass 2, finding F-4 — the delegate was previously never validated.
+ *
+ * `createDelegation` checked that the caller really is the department's current
+ * Head, but accepted `delegateMembershipId` verbatim: a membership id belonging
+ * to another organization, a suspended or expired membership, or the head's own
+ * membership all wrote a delegation row happily.
+ *
+ * That was correctly graded Low rather than an escalation path, because
+ * `resolveApprovalAuthority` is not the only gate — a delegate still has to get
+ * through requireAuth -> requireMembership -> requirePermission for the target
+ * organization to use the authority, and a foreign or inactive membership never
+ * does. So the row was inert. It was still wrong to store: it produced
+ * authority records that assert a relationship the platform would never honour,
+ * misleads anyone reading the delegation list or the audit trail, and leaves the
+ * isolation guarantee resting entirely on a downstream check rather than on the
+ * data being right in the first place.
+ *
+ * Validation now happens where the row is created. This is deliberately a
+ * module-local fix: it adds no new delegation concepts and changes nothing about
+ * how authority is resolved.
+ */
+export class InvalidDelegateError extends Error {
+  constructor(reason: string) {
+    super(reason);
   }
 }
 
@@ -106,6 +139,37 @@ export async function createDelegation(params: CreateDelegationParams): Promise<
 
   const currentHead = await getCurrentDepartmentHead(params.organizationId, params.departmentId);
   if (!currentHead || currentHead.headMembershipId !== params.actorMembershipId) throw new NotCurrentDepartmentHeadError();
+
+  // F-4 — validate the delegate before writing an authority record about them.
+  // Self-delegation is rejected first because it is meaningless rather than
+  // dangerous: the Head already holds the authority they would be delegating,
+  // and storing it creates a row that can never widen anyone's access while
+  // implying a separation of duties that does not exist.
+  if (params.delegateMembershipId === params.actorMembershipId) {
+    throw new InvalidDelegateError("A department Head cannot delegate approval authority to themselves");
+  }
+
+  const [delegate] = await db
+    .select()
+    .from(organizationMembershipsTable)
+    .where(
+      and(
+        eq(organizationMembershipsTable.id, params.delegateMembershipId),
+        // Scoped to the delegating organization, so a membership id from
+        // another tenant simply does not resolve here.
+        eq(organizationMembershipsTable.organizationId, params.organizationId),
+      ),
+    );
+
+  // One message for "no such membership" and for "belongs to another
+  // organization": distinguishing them would let a Head probe whether a given
+  // membership id exists elsewhere on the platform.
+  if (!delegate) {
+    throw new InvalidDelegateError("The delegate must be an active member of this organization");
+  }
+  if (delegate.status !== "active") {
+    throw new InvalidDelegateError("The delegate must be an active member of this organization");
+  }
 
   const { record, previous } = await db.transaction(async (tx) => {
     const [openRow] = await tx

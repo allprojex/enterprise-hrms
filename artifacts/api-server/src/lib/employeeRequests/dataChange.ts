@@ -19,6 +19,7 @@ import {
   type EligibleField,
 } from "./eligibleFields";
 import { listStages, getStage, membershipSatisfiesStage } from "./approvalStages";
+import { violatesSeparationOfDutiesMulti } from "../separationOfDuties";
 
 /**
  * WS-13 — Employee data change requests (§29.2–29.11, OD #11).
@@ -630,10 +631,15 @@ async function assertMayDecide(params: {
 }): Promise<{ stageOrder: number | null; stageName: string | null }> {
   // MAKER-CHECKER. Checked before anything else, and by BOTH user and
   // membership, so the same human cannot approve through a second membership.
+  // WS18-P4-02: both attribution columns are ON DELETE SET NULL, so a record
+  // whose requester has been offboarded had NEITHER arm match and slid through.
+  // Now at least one identity pair must be verifiable, and every verifiable
+  // pair must name a different principal.
   if (
-    params.request.requestedByUserId === params.actorApplicationUserId ||
-    (params.request.requestedByMembershipId != null &&
-      params.request.requestedByMembershipId === params.actorMembershipId)
+    violatesSeparationOfDutiesMulti([
+      { makerId: params.request.requestedByUserId, actorId: params.actorApplicationUserId },
+      { makerId: params.request.requestedByMembershipId, actorId: params.actorMembershipId },
+    ])
   ) {
     throw new SelfApprovalForbiddenError();
   }

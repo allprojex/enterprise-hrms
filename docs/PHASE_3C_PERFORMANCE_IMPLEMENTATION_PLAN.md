@@ -1,5 +1,15 @@
 # Phase 3C — Performance: Frozen Implementation Plan
 
+> **⚠️ ENVIRONMENT CLASSIFICATION CORRECTION.** The Supabase project this
+> document calls a *development* environment is the actual **Production**
+> project, confirmed by the owner in the Supabase dashboard (WS-18 Pass 1B/1C).
+> Historical statements below are preserved as written rather than rewritten,
+> but every "development" reference to that project means **Production**. This document asserts that
+> "Nothing in this plan authorizes touching production" — **the project it
+> names as development is Production**, so that assertion did not hold.
+> See [`ENVIRONMENT_CLASSIFICATION.md`](./ENVIRONMENT_CLASSIFICATION.md).
+
+
 Status: **FROZEN — APPROVED FOR IMPLEMENTATION** (2026-08-20). No workstream may begin execution until this freeze date; W73 is the first implementation workstream, and does not begin merely because this document is frozen — it still requires its own separate go-ahead, exactly as W64 did after `PHASE_3B_ATTENDANCE_IMPLEMENTATION_PLAN.md` was frozen.
 
 This document was produced across two sessions: an initial discovery/draft pass (no migrations, no routes, no frontend pages, no permission seeding, no module activation, no production access), and this final-reconciliation pass (owner decisions recorded, lifecycle/scoring/historical-integrity/permissions/workstreams reconciled against those decisions — again with no migration, route, frontend, permission seed, module activation, or production access performed). Every claim about the existing codebase was verified by direct inspection (file paths cited); every new-design element is explicitly labeled.

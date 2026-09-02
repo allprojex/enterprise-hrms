@@ -24,7 +24,18 @@
 # baked in anywhere in this file; every environment-specific value comes from
 # a runtime environment variable (see .env.example), never a build ARG.
 
-ARG NODE_IMAGE=node:20-bookworm-slim
+# WS-18 Pass 3 (WS18-P3-04) — base image pinned by DIGEST, not just by tag.
+#
+# `node:20-bookworm-slim` is a moving target: the same tag resolves to
+# different contents week to week, so two builds of the same commit could ship
+# different base layers and a scan result could never be tied to a specific
+# artifact. The digest makes the base an auditable input.
+#
+# UPDATING: this pin must be refreshed deliberately, as a reviewed change —
+# that is the point of it. Get the current digest with
+# `docker buildx imagetools inspect node:20-bookworm-slim` and update BOTH the
+# digest and the human-readable tag comment below together.
+ARG NODE_IMAGE=node:20-bookworm-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
 ARG PNPM_VERSION=9.15.0
 
 # ---------------------------------------------------------------------------
@@ -77,6 +88,44 @@ FROM ${NODE_IMAGE} AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 
+# WS-18 Pass 3 (WS18-P3-03) — apply Debian security updates.
+#
+# The upstream node:20-bookworm-slim tag lags Debian's security archive: the
+# build verified for this pass shipped libgnutls30 3.7.9-2+deb12u6 while
+# deb12u7 (two CRITICALs, three HIGHs) was already published. Pinning the base
+# by digest makes builds reproducible but deliberately freezes that lag in
+# place, so the two changes belong together — the pin for reproducibility, this
+# upgrade for currency.
+#
+# `upgrade`, not `dist-upgrade`: security patches within the release only, no
+# package additions or removals. Lists are removed afterwards so no apt
+# metadata is carried in the final layer.
+RUN apt-get update \
+  && apt-get upgrade -y --no-install-recommends \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/*
+
+# WS-18 Pass 3 (WS18-P3-01) — remove npm and corepack from the RUNTIME image.
+#
+# The container starts with `node artifacts/api-server/dist/index.mjs`, and the
+# healthcheck is also plain `node`. Nothing in the running product invokes npm,
+# npx, corepack, or pnpm — those exist only in the build stages, which are
+# discarded. Yet npm ships ~1,500 bundled dependencies of its own, and Trivy
+# attributed 1 CRITICAL and 20 HIGH findings to them (tar, pacote, sigstore,
+# glob, minimatch, brace-expansion, cross-spawn) — every one of them
+# unreachable, and every one of them permanent noise in the vulnerability gate
+# that a reader has to re-triage on each scan.
+#
+# Deleting them is both a real reduction in attack surface (an attacker who
+# achieves execution in this container cannot fetch and install a package) and
+# an honesty measure: what the scanner reports becomes what the product
+# actually runs.
+RUN rm -rf /usr/local/lib/node_modules/npm \
+           /usr/local/lib/node_modules/corepack \
+           /usr/local/bin/npm \
+           /usr/local/bin/npx \
+           /usr/local/bin/corepack
+
 # api-server's own esbuild bundle (build.mjs) inlines every first-party and
 # bundleable dependency into one file; only genuinely native/dynamically-
 # loaded packages are left external (see build.mjs's own `external` list) —
@@ -128,7 +177,23 @@ RUN mkdir -p /var/lib/hrms/uploads
 
 # Non-root runtime user (Debian slim images ship a low-privilege `node`
 # user/group by default — reuse it rather than inventing a new one).
-RUN chown -R node:node /app /var/lib/hrms
+#
+# WS-18 Pass 3 (WS18-P3-05) — the application no longer OWNS its own code.
+#
+# `chown -R node:node /app` previously made every shipped artifact — the
+# bundle, node_modules, package.json — writable by the very user the server
+# runs as. Nothing needs that: at runtime the process only ever reads /app and
+# writes uploads. Granting write access to the code meant any arbitrary-file-
+# write bug became persistence, letting an attacker rewrite the bundle and
+# survive a restart.
+#
+# /app therefore stays root-owned and world-readable (node reads and executes
+# it, and cannot modify it), while /var/lib/hrms — the mounted upload root — is
+# the one path the runtime user owns. This does not affect the WS-17 storage
+# durability work: uploads live under UPLOADS_DIR, not in /app.
+RUN chown -R root:root /app \
+  && chmod -R a-w /app \
+  && chown -R node:node /var/lib/hrms
 USER node
 
 # The API server itself reads PORT from the environment (defaulting to 3001

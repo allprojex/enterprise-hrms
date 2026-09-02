@@ -19,6 +19,7 @@ import { assertBelongsToOrganization } from "../orgScopedRefs";
 import { recordAuditEvent } from "../auditLog";
 import { listStages, getStage, membershipSatisfiesStage } from "./approvalStages";
 import { SelfApprovalForbiddenError, NotAnApproverError } from "./dataChange";
+import { violatesSeparationOfDuties } from "../separationOfDuties";
 
 /**
  * WS-13 — HR Service Requests (§29.12–29.14, OD #10).
@@ -517,7 +518,11 @@ async function assertMayDecide(params: {
 }): Promise<{ stageOrder: number | null; stageName: string | null }> {
   // MAKER-CHECKER (§29.6) — the same rule as data change, by both user and
   // membership, so a second membership is not a loophole.
-  if (params.request.createdBy === params.actorApplicationUserId) throw new SelfApprovalForbiddenError();
+  // WS18-P4-02: service_requests.created_by is ON DELETE SET NULL, so an
+  // unidentifiable creator must refuse rather than silently pass.
+  if (violatesSeparationOfDuties(params.request.createdBy, params.actorApplicationUserId)) {
+    throw new SelfApprovalForbiddenError();
+  }
 
   if (params.request.stageCountAtRequest === 0 || params.request.currentStageOrder == null) {
     return { stageOrder: null, stageName: null };

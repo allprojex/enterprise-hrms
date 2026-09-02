@@ -51,10 +51,67 @@ export interface TenantAwareRequest extends AuthenticatedRequest {
  * tenant-consistency call sites act on it — see
  * resolveTenantHostFailOpen.test.ts and tenantHostSecurity.test.ts.
  */
+/**
+ * WS-18 Pass 4, finding WS18-P4-01 — the tenant hostname must come from the
+ * connection, not from a header the caller controls.
+ *
+ * Two client-controlled inputs were feeding tenant resolution:
+ *
+ *   1. `X-Tenant-Hostname`, accepted unconditionally. It exists only for this
+ *      project's split-port dev setup (Vite proxy rewrites Host), but nothing
+ *      confined it to development.
+ *   2. `req.hostname` itself. Express derives it from `X-Forwarded-Host` — not
+ *      the real Host header — whenever `trust proxy` is enabled, which is the
+ *      frozen intended Production setting (OD-WS18-9, `TRUST_PROXY=1`). Unless
+ *      the edge proxy overwrites that header, the caller controls it.
+ *
+ * Either one made `GET /tenant-context` — public and unauthenticated — into the
+ * "public tenant directory" its own doc comment explicitly forbids: an
+ * anonymous caller could name any tenant's hostname and receive that
+ * organization's id, name, slug, type, logo and branding. Confirmed live
+ * against both configurations before this fix.
+ *
+ * Resolution now reads the raw `Host` header, which reflects the connection the
+ * client actually made and is unaffected by `X-Forwarded-Host` regardless of
+ * proxy trust. This matches the documented production topology, where Nginx
+ * passes `Host` through unmodified (see `nginx-dast.conf` and
+ * docs/TENANT_DOMAINS_AND_ACCESS.md).
+ *
+ * Note this narrows an input; it cannot grant access. Tenant context only ever
+ * *restricts* (hostnameOrganizationMismatch, and the membership checks in
+ * /auth/login and /auth/switch-organization) — verified during this pass — so a
+ * request that previously resolved via a spoofed header now resolves to no
+ * tenant, which is the safe direction.
+ */
+function tenantHostnameCandidates(req: TenantAwareRequest): string[] {
+  // Raw Host header, port stripped. NOT req.hostname: that follows
+  // X-Forwarded-Host under `trust proxy`. IPv6 literals arrive bracketed
+  // ("[::1]:3001"), so only strip a port that follows the closing bracket.
+  const rawHost = req.headers.host;
+  const host =
+    typeof rawHost === "string"
+      ? rawHost.startsWith("[")
+        ? rawHost.replace(/^(\[[^\]]*\])(:\d+)?$/, "$1")
+        : rawHost.replace(/:\d+$/, "")
+      : undefined;
+
+  const candidates = [host];
+
+  // Development-only escape hatch for the split-port dev setup, where the Vite
+  // proxy rewrites Host before the API ever sees it. Deliberately unavailable
+  // in production: it is, by construction, a caller-supplied tenant identity.
+  // ALLOW_TENANT_HOSTNAME_HEADER exists for the rare non-production environment
+  // that genuinely needs it (a preview stack behind a rewriting proxy) and must
+  // never be set in production.
+  const headerAllowed =
+    process.env.NODE_ENV !== "production" || process.env.ALLOW_TENANT_HOSTNAME_HEADER === "true";
+  if (headerAllowed) candidates.push(req.header("x-tenant-hostname"));
+
+  return candidates.filter((h): h is string => typeof h === "string" && h.length > 0);
+}
+
 export async function resolveTenantHost(req: TenantAwareRequest, _res: Response, next: NextFunction): Promise<void> {
-  const candidates = [req.hostname, req.header("x-tenant-hostname")].filter(
-    (h): h is string => typeof h === "string" && h.length > 0,
-  );
+  const candidates = tenantHostnameCandidates(req);
 
   let resolvedOrganizationId: number | null = null;
   let resolutionFailed = false;

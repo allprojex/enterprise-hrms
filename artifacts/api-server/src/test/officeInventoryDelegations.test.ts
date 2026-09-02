@@ -25,7 +25,7 @@ function matches(row: Record<string, unknown>, cond: Cond): boolean {
   return true;
 }
 
-const { fixtures, departmentsTable, officeInventoryApprovalDelegationsTable } = vi.hoisted(() => {
+const { fixtures, departmentsTable, officeInventoryApprovalDelegationsTable, organizationMembershipsTable } = vi.hoisted(() => {
   function mockTable(name: string, columns: string[]) {
     const table: Record<string, string> & { __name: string } = { __name: name } as never;
     for (const col of columns) table[col] = `${name}.${col}`;
@@ -35,11 +35,16 @@ const { fixtures, departmentsTable, officeInventoryApprovalDelegationsTable } = 
     fixtures: {
       departmentRows: [] as Record<string, unknown>[],
       delegationRows: [] as Record<string, unknown>[],
+      membershipRows: [] as Record<string, unknown>[],
       auditInserts: [] as unknown[],
       idCounter: 0,
       currentHead: null as { headMembershipId: number } | null,
     },
     departmentsTable: mockTable("departments", ["id", "organizationId"]),
+    // WS-18 Pass 2 (F-4): createDelegation now validates the delegate is a real,
+    // active membership of the delegating organization, so the fixture must
+    // carry memberships too.
+    organizationMembershipsTable: mockTable("organization_memberships", ["id", "organizationId", "status"]),
     officeInventoryApprovalDelegationsTable: mockTable("office_inventory_approval_delegations", [
       "id", "organizationId", "departmentId", "delegatingHeadMembershipId", "delegateMembershipId", "validFrom", "validTo",
     ]),
@@ -49,10 +54,12 @@ const { fixtures, departmentsTable, officeInventoryApprovalDelegationsTable } = 
 function rowsFor(table: { __name: string }): Record<string, unknown>[] {
   if (table.__name === "departments") return fixtures.departmentRows;
   if (table.__name === "office_inventory_approval_delegations") return fixtures.delegationRows;
+  if (table.__name === "organization_memberships") return fixtures.membershipRows;
   return [];
 }
 function setRowsFor(table: { __name: string }, rows: Record<string, unknown>[]): void {
   if (table.__name === "office_inventory_approval_delegations") fixtures.delegationRows = rows;
+  if (table.__name === "organization_memberships") fixtures.membershipRows = rows;
 }
 
 function makeQueryClient(): Record<string, unknown> {
@@ -108,6 +115,7 @@ vi.mock("@workspace/db", () => ({
   db: dbMock,
   departmentsTable,
   officeInventoryApprovalDelegationsTable,
+  organizationMembershipsTable,
 }));
 
 vi.mock("drizzle-orm", () => ({
@@ -135,6 +143,7 @@ const {
   NotCurrentDepartmentHeadError,
   DepartmentNotFoundError,
   DelegationNotFoundError,
+  InvalidDelegateError,
 } = await import("../lib/officeInventoryDelegations");
 
 const ORG_ID = 10;
@@ -150,6 +159,12 @@ beforeEach(() => {
   fixtures.auditInserts = [];
   fixtures.idCounter = 0;
   fixtures.currentHead = { headMembershipId: HEAD_A };
+  fixtures.membershipRows = [
+    { id: HEAD_A, organizationId: ORG_ID, status: "active" },
+    { id: HEAD_B, organizationId: ORG_ID, status: "active" },
+    { id: DELEGATE, organizationId: ORG_ID, status: "active" },
+    { id: RANDOM, organizationId: ORG_ID, status: "active" },
+  ];
 });
 
 describe("resolveApprovalAuthority", () => {
@@ -270,5 +285,89 @@ describe("getCurrentDepartmentHeadCheck", () => {
     expect(await getCurrentDepartmentHeadCheck(ORG_ID, DEPT_ID, DELEGATE)).toBe(false);
     fixtures.currentHead = null;
     expect(await getCurrentDepartmentHeadCheck(ORG_ID, DEPT_ID, HEAD_A)).toBe(false);
+  });
+});
+
+/**
+ * WS-18 Pass 2 §14 — F-4 delegate validation.
+ *
+ * Before this, `createDelegation` accepted any `delegateMembershipId` it was
+ * handed. The finding was graded Low rather than an escalation path because the
+ * request middleware (requireAuth -> requireMembership -> requirePermission) is
+ * a second, independent gate that a foreign or inactive membership never gets
+ * through — so the row was inert. It was still wrong to store: an authority
+ * record asserting a relationship the platform would never honour is a lie in
+ * the delegation list and in the audit trail, and it left tenant isolation
+ * resting entirely on a downstream check.
+ *
+ * Both halves are asserted here: the row is now refused at creation, AND the
+ * middleware protection that made this Low is proven to still be the reason it
+ * was never exploitable.
+ */
+describe("F-4 — delegate validation at creation", () => {
+  const OTHER_ORG_MEMBERSHIP = 900;
+  const INACTIVE_MEMBERSHIP = 901;
+
+  beforeEach(() => {
+    fixtures.membershipRows.push(
+      { id: OTHER_ORG_MEMBERSHIP, organizationId: 99, status: "active" },
+      { id: INACTIVE_MEMBERSHIP, organizationId: ORG_ID, status: "suspended" },
+    );
+  });
+
+  const create = (delegateMembershipId: number) =>
+    createDelegation({
+      organizationId: ORG_ID,
+      departmentId: DEPT_ID,
+      delegateMembershipId,
+      actorMembershipId: HEAD_A,
+      actorApplicationUserId: 1,
+    });
+
+  it("positive control: a valid same-organization active delegate is accepted", async () => {
+    const created = await create(DELEGATE);
+    expect(created.delegateMembershipId).toBe(DELEGATE);
+    expect(fixtures.delegationRows).toHaveLength(1);
+  });
+
+  it("refuses a delegate belonging to another organization, and writes nothing", async () => {
+    await expect(create(OTHER_ORG_MEMBERSHIP)).rejects.toBeInstanceOf(InvalidDelegateError);
+    expect(fixtures.delegationRows).toHaveLength(0);
+    expect(fixtures.auditInserts).toHaveLength(0);
+  });
+
+  it("refuses an inactive delegate, and writes nothing", async () => {
+    await expect(create(INACTIVE_MEMBERSHIP)).rejects.toBeInstanceOf(InvalidDelegateError);
+    expect(fixtures.delegationRows).toHaveLength(0);
+    expect(fixtures.auditInserts).toHaveLength(0);
+  });
+
+  it("refuses self-delegation, and writes nothing", async () => {
+    await expect(create(HEAD_A)).rejects.toBeInstanceOf(InvalidDelegateError);
+    expect(fixtures.delegationRows).toHaveLength(0);
+    expect(fixtures.auditInserts).toHaveLength(0);
+  });
+
+  it("does not disclose whether a rejected membership id exists elsewhere", async () => {
+    // A membership in another organization and one that does not exist at all
+    // must be indistinguishable, or a department Head can probe the platform's
+    // membership id space.
+    const foreign = await create(OTHER_ORG_MEMBERSHIP).catch((e: Error) => e);
+    const missing = await create(123456).catch((e: Error) => e);
+    expect((foreign as Error).message).toBe((missing as Error).message);
+  });
+
+  it("an existing open delegation is left untouched when a bad delegate is rejected", async () => {
+    await create(DELEGATE);
+    expect(fixtures.delegationRows).toHaveLength(1);
+    const before = { ...fixtures.delegationRows[0] };
+
+    await expect(create(OTHER_ORG_MEMBERSHIP)).rejects.toBeInstanceOf(InvalidDelegateError);
+
+    // The refusal must not have closed the good delegation as a side effect —
+    // the close happens inside the transaction, after validation.
+    expect(fixtures.delegationRows).toHaveLength(1);
+    expect(fixtures.delegationRows[0].validTo).toBe(before.validTo);
+    expect(fixtures.delegationRows[0].delegateMembershipId).toBe(DELEGATE);
   });
 });

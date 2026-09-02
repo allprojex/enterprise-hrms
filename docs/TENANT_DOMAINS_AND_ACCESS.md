@@ -1,5 +1,15 @@
 # Multi-Organization Tenant Infrastructure
 
+> **⚠️ ENVIRONMENT CLASSIFICATION CORRECTION.** The Supabase project this
+> document calls a *development* environment is the actual **Production**
+> project, confirmed by the owner in the Supabase dashboard (WS-18 Pass 1B/1C).
+> Historical statements below are preserved as written rather than rewritten,
+> but every "development" reference to that project means **Production**. The "existing development
+> organization" described here is a **Production** organization holding real
+> records.
+> See [`ENVIRONMENT_CLASSIFICATION.md`](./ENVIRONMENT_CLASSIFICATION.md).
+
+
 **Status: Implemented and applied to the development database.** Not a phase workstream — this sits alongside Phase 3A/3B as shared platform infrastructure every module (present and future) builds on. Phase 3B (Attendance Capture, W64–W72) remains frozen and is resumed unmodified after this document; see `PHASE_3B_ATTENDANCE_IMPLEMENTATION_PLAN.md`.
 
 ---

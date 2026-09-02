@@ -37,6 +37,7 @@ import { isUniqueViolation } from "./dbErrors";
 import { calculateEmployeePayroll } from "./payrollCalculation";
 import { toMinorUnits, fromMinorUnits } from "./payrollMoney";
 import { PayrollRunNotFoundError } from "./payrollRuns";
+import { violatesSeparationOfDuties } from "./separationOfDuties";
 
 export { PayrollRunNotFoundError };
 
@@ -181,7 +182,10 @@ export async function approvePayrollCorrection(params: {
       .for("update");
     if (!correction) throw new PayrollCorrectionNotFoundError();
     if (correction.status !== "draft") throw new PayrollCorrectionNotDraftError(correction.status);
-    if (correction.createdByMembershipId === params.approverMembershipId) throw new PayrollCorrectionSelfApprovalError();
+    // WS18-P4-02: created_by_membership_id is ON DELETE SET NULL.
+    if (violatesSeparationOfDuties(correction.createdByMembershipId, params.approverMembershipId)) {
+      throw new PayrollCorrectionSelfApprovalError();
+    }
 
     const [updated] = await tx
       .update(payrollCorrectionsTable)
