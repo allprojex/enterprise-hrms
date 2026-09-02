@@ -321,3 +321,76 @@ Stale-authority revocation was verified live and takes effect on the **next
 request** in every case: membership suspended → 403, membership expired → 403,
 user disabled → 401, roles revoked → 403, and reactivation restores access. No
 authority is cached in the session.
+
+---
+
+## 16. gitleaks false-positive handling
+
+`.gitleaks.toml` adds exactly **one** allowlist entry. The upstream default
+ruleset is inherited in full (`[extend] useDefault = true`); nothing is disabled.
+
+### The findings
+
+Three historical findings, all from commit `cb143108` (2026-08-30), all rule
+`generic-api-key`:
+
+| File | Line | Construct |
+|---|---|---|
+| `artifacts/api-server/src/lib/employee360/types.ts` | 79 | `key: <TypeName>;` |
+| `artifacts/api-server/src/lib/employee360/types.ts` | 125 | `key: <TypeName>;` |
+| `lib/api-client-react/src/generated/api.schemas.ts` | 53 | `key: <TypeName>;` |
+
+All three are **CONFIRMED FALSE POSITIVES**. Evidence, established without ever
+printing the matched text:
+
+- The matched span straddles the property label, the colon **and** the trailing
+  semicolon — it is not a self-contained token.
+- The "value" is a 21-character PascalCase identifier: a valid TypeScript
+  identifier, not base64/hex/JWT-shaped.
+- It is **declared as a type** in both flagged files and imported as a symbol
+  elsewhere. It is a type, not data.
+- It never appears inside a string literal and never on the right-hand side of
+  an assignment.
+- All three matches are the identical construct, with identical entropy.
+
+A TypeScript type annotation is erased at compile time. It has no runtime value
+and therefore cannot be a credential.
+
+`generic-api-key` looks for a key-ish label followed by a longish high-entropy
+value; `key: SomePascalCaseTypeName;` matches that shape structurally while
+being, semantically, a type.
+
+### Why the exception is safe
+
+The allowlist regex excuses a match **only** when the entire match is a bare
+type annotation. It requires an unquoted PascalCase identifier terminated by a
+semicolon, so:
+
+- anything **quoted** is still reported — and a real secret in TypeScript is
+  quoted (`key: "sk_live_…"`, `const KEY = '…'`);
+- anything containing `+ / = . - _ :`, or starting with a digit or lowercase, is
+  still reported — which covers essentially every real API key, JWT, base64
+  blob, hex digest and connection string.
+
+It is scoped to the single `generic-api-key` rule. Every other rule stays active
+everywhere, **including in these same files**.
+
+This is deliberately **not** a path-based exclusion of generated code. Excluding
+whole files would also hide genuine secrets inside them; scoping to the syntax
+keeps those files under full scrutiny.
+
+### Negative controls (re-run if the config changes)
+
+Verified against synthetic fixtures held **outside** the repository, so a fake
+secret can never be committed:
+
+| Case | Expected | Result |
+|---|---|---|
+| `key: SomeTypeName;` (the allowlisted construct) | not reported | ✅ not reported |
+| `key: "<quoted secret>"` in the same position | reported | ✅ reported |
+| `api_key: <unquoted base64>` | reported | ✅ reported |
+| `const apiKey = "<secret>"` | reported | ✅ reported |
+| `key: <non-PascalCase identifier>` | reported | ✅ reported |
+| GitHub PAT / Slack bot token / Stripe token (other rules) | reported | ✅ reported |
+
+Repository scan after the change: **250 commits, no leaks found.**
