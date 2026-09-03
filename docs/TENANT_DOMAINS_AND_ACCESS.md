@@ -84,6 +84,20 @@ incoming request
   → next()  — never blocks by itself
 ```
 
+> **Correction (WS-18 Pass 4 / tenant identity hardening, 2026-09-03):** the
+> two paragraphs below describe the original design and are superseded on two
+> points. (1) Resolution reads the **raw `Host` header**, not `req.hostname`
+> (which follows `X-Forwarded-Host` under `trust proxy`), and the
+> `X-Tenant-Hostname` fallback is **ignored in production** — see
+> `docs/SECURITY.md` §13 and `middlewares/resolveTenantHost.ts` (finding
+> WS18-P4-01). (2) A resolution *error* no longer fails open: it is recorded as
+> `tenantResolutionFailed` and every tenant-consistency consumer
+> (`requireMembership`, `requireActiveOrganizationMembership`, login, switch)
+> **fails closed with 503**; only a clean "no tenant found" resolves to `null`.
+> The hostname-resolved tenant is also recorded on the request context for
+> logging (`docs/TENANT_IDENTITY_AND_CUSTOMIZATION.md` §3/§5). The historical
+> text is kept as written.
+
 **Host precedence:** the real `Host` header (`req.hostname`) is tried first — in production, behind Nginx (`proxy_set_header Host $host;`), this is the actual, un-spoofable hostname the browser connected to, and `wwm.example-hrms.com` genuinely differs from `acme.example-hrms.com` at this layer. The `X-Tenant-Hostname` header is a **fallback**, needed only because this project's own development setup runs the frontend (`localhost:5173`) and the API (`localhost:3001`) as separate origins — Vite's dev proxy (`changeOrigin: true`) rewrites the `Host` header before the API ever sees it, so `wwm.localhost:5173` never reaches the API as `wwm.localhost`. The frontend's `initAuth()` (`artifacts/hrms/src/lib/auth.ts`) registers `window.location.hostname` as that fallback via `setTenantHostnameGetter` (`lib/api-client-react/src/custom-fetch.ts`), attached to every request the same way the Bearer token already is.
 
 **This header carries no authorization weight.** Every check built on it (§5) can only ever *add* a denial on top of the real membership/permission checks that already existed — never bypass or replace them. An attacker who strips or spoofs `X-Tenant-Hostname` gains nothing beyond what their real credentials and real permissions already allow (security requirement #15).

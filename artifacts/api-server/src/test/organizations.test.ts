@@ -185,6 +185,7 @@ function mockOrganization(id: number) {
   fixtures.orgRows = [
     {
       id,
+      tenantUuid: `00000000-0000-4000-8000-${String(id).padStart(12, "0")}`,
       name: `Org ${id}`,
       slug: `org-${id}`,
       type: "business",
@@ -336,17 +337,50 @@ describe("PATCH /api/organizations/:id", () => {
     expect(fixtures.auditEvents[0].eventType).toBe("organization.updated");
   });
 
-  it("returns 409 when the new slug is already in use", async () => {
+  // Tenant identity contract: the slug is the tenant CODE and is immutable
+  // after creation — even the platform super_admin cannot rename it through
+  // this route, and the attempt is refused explicitly rather than silently
+  // dropped.
+  it("returns 400 and changes nothing when a slug change is attempted (tenant code is immutable)", async () => {
     mockSession({ id: 1, role: "super_admin", organizationId: 10 });
     mockOrganization(99);
-    fixtures.slugConflict = true;
 
     const res = await request(app)
       .patch("/api/organizations/99")
       .set("Authorization", "Bearer valid-token")
-      .send({ slug: "taken-slug" });
+      .send({ slug: "renamed-slug" });
 
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/immutable/);
+    expect(fixtures.auditEvents).toHaveLength(0);
+  });
+
+  // Phase 9 test 7: a display-name change is just that — it never touches the
+  // tenant's identity (id, tenantUuid, slug) and the audit event names the
+  // same tenant before and after.
+  it("a display-name change leaves the tenant identity untouched", async () => {
+    mockSession({ id: 1, role: "org_admin", organizationId: 10 });
+    mockOrganization(10);
+    mockMembership(1, 10, ["organization.update"]);
+
+    const res = await request(app)
+      .patch("/api/organizations/10")
+      .set("Authorization", "Bearer valid-token")
+      .send({ name: "Completely Different Name" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe(10);
+    expect(res.body.slug).toBe("org-10");
+    expect(res.body.tenantUuid).toBe(fixtures.orgRows[0].tenantUuid);
+    expect(fixtures.auditEvents[0].organizationId).toBe(10);
+    const before = fixtures.auditEvents[0].beforeState as { tenantUuid: string };
+    const after = fixtures.auditEvents[0].afterState as { tenantUuid: string };
+    expect(before.tenantUuid).toBe(after.tenantUuid);
+    expect(fixtures.auditEvents[0].metadata).toMatchObject({
+      blastRadius: "tenant_scoped",
+      targetOrganizationId: 10,
+      operation: "organization.update",
+    });
   });
 });
 
@@ -380,11 +414,22 @@ describe("POST /api/organizations/:id/suspend and /reactivate", () => {
 
     const res = await request(app)
       .post("/api/organizations/10/suspend")
-      .set("Authorization", "Bearer valid-token");
+      .set("Authorization", "Bearer valid-token")
+      .send({ confirmSlug: "org-10", reason: "Ticket #123 — non-payment" });
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("suspended");
     expect(fixtures.auditEvents[0].eventType).toBe("organization.suspended");
+    // Phase 9 test 8: the operation records exactly which tenant it hit,
+    // with its blast radius and the operator's reason.
+    expect(fixtures.auditEvents[0].organizationId).toBe(10);
+    expect(fixtures.auditEvents[0].metadata).toMatchObject({
+      blastRadius: "tenant_scoped",
+      operation: "organization.suspend",
+      targetOrganizationId: 10,
+      tenantSlug: "org-10",
+      reason: "Ticket #123 — non-payment",
+    });
   });
 
   it("reactivates a suspended organization for a super_admin with no membership in it", async () => {
@@ -393,10 +438,44 @@ describe("POST /api/organizations/:id/suspend and /reactivate", () => {
 
     const res = await request(app)
       .post("/api/organizations/99/reactivate")
-      .set("Authorization", "Bearer valid-token");
+      .set("Authorization", "Bearer valid-token")
+      .send({ confirmSlug: "org-99" });
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("active");
     expect(fixtures.auditEvents[0].eventType).toBe("organization.reactivated");
+    expect(fixtures.auditEvents[0].organizationId).toBe(99);
+    expect(fixtures.auditEvents[0].metadata).toMatchObject({ blastRadius: "tenant_scoped", targetOrganizationId: 99 });
+  });
+
+  // Phase 7: a dangerous tenant-specific action names its target twice and
+  // the two must agree. A missing or mismatched tenant code changes nothing
+  // and records nothing — the wrong customer cannot be suspended by a stale
+  // screen or a mistyped id.
+  it("refuses to suspend without a typed confirmSlug", async () => {
+    mockSession({ id: 1, role: "super_admin", organizationId: 10 });
+    mockOrganization(99);
+
+    const res = await request(app)
+      .post("/api/organizations/99/suspend")
+      .set("Authorization", "Bearer valid-token")
+      .send({});
+
+    expect(res.status).toBe(400);
+    expect(fixtures.auditEvents).toHaveLength(0);
+  });
+
+  it("refuses to suspend when confirmSlug names a different tenant", async () => {
+    mockSession({ id: 1, role: "super_admin", organizationId: 10 });
+    mockOrganization(99);
+
+    const res = await request(app)
+      .post("/api/organizations/99/suspend")
+      .set("Authorization", "Bearer valid-token")
+      .send({ confirmSlug: "org-10" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/confirmSlug/);
+    expect(fixtures.auditEvents).toHaveLength(0);
   });
 });

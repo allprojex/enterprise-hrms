@@ -394,3 +394,37 @@ secret can never be committed:
 | GitHub PAT / Slack bot token / Stripe token (other rules) | reported | ✅ reported |
 
 Repository scan after the change: **250 commits, no leaks found.**
+
+## 17. Tenant identity is immutable, explicit and visible (pre-production hardening)
+
+Full record: `docs/TENANT_IDENTITY_AND_CUSTOMIZATION.md`. The security-relevant
+properties, each with a test:
+
+- **`organizations.id` and `organizations.tenant_uuid` cannot change.** A
+  `BEFORE UPDATE` trigger (migration `0075`) refuses the statement; the slug is
+  immutable through the API. A display-name change never alters ownership
+  (`organizations.test.ts`, `tenantIdentityLive.test.ts`).
+- **Every request is bound to at most one authorized tenant** on the request
+  context, derived only from membership / break-glass / platform authority /
+  session scoping and the connection's `Host` header — never from a client
+  header or body (`requestContextLogging.test.ts`; the WS-18 host suites are
+  unchanged). Binding a second, different tenant throws.
+- **Every log line carries `tenant_id`, `request_id`, `user_id`, `environment`,
+  `app_version`**; credentials are censored even when a call site includes
+  them (`LOG_REDACT_PATHS`).
+- **Dangerous tenant-specific actions name their target twice.** Suspend and
+  reactivate require `confirmSlug` to equal the target's slug; feature flags,
+  break-glass grants and domain changes take the organization as an explicit
+  parameter. Nothing infers a target from the session's last-viewed
+  organization.
+- **Blast radius is declared before the action and recorded with it.**
+  `classifyOperation` refuses a tenant-scoped action without an explicit
+  organization and an installation-wide action pinned to one organization
+  (`blastRadius.test.ts`).
+- **Per-tenant feature flags / controlled extensions default OFF, are
+  platform-managed (a tenant cannot enable its own), and never leak across
+  tenants** (`featureFlags.test.ts`, `platformTenants.test.ts`,
+  `admin-endpoints.test.ts`).
+
+The RLS posture (§6), the membership chain (§4) and the host-header rule (§13)
+are unchanged.

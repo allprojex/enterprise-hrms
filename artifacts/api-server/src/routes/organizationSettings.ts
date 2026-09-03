@@ -63,6 +63,15 @@ router.patch(
       return;
     }
 
+    // Tenant identity hardening: platform-managed namespaces (feature flags /
+    // controlled extensions) are never self-service. They change only through
+    // the explicit, tenant-targeted, audited platform operation in
+    // routes/platformTenants.ts.
+    if (CONFIG_NAMESPACES[namespace].platformManaged) {
+      res.status(403).json({ error: `Configuration namespace "${namespace}" is managed by the platform` });
+      return;
+    }
+
     const parsed = UpdateOrganizationConfigBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.message });

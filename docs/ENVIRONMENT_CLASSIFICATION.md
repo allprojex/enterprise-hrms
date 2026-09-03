@@ -82,3 +82,11 @@ environment validation, rollback strategy, deployment documentation.
 At the time of writing, Production is **19 migrations behind** the repository
 (`0056` applied vs `0074` committed; 121 of 198 tables exist). Closing that gap
 is a Production deployment, not a routine catch-up.
+
+> **Update (2026-09-03, tenant identity hardening):** the repository now
+> carries `0075_chilly_felicia_hardy` (`organizations.tenant_uuid`, its unique
+> index and an identity-immutability trigger — additive, no new table). The
+> Production gap is therefore **20 migrations** (`0056` applied vs `0075`
+> committed; still 121 of 198 tables). Nothing has been applied to Production;
+> the manual backup gate remains unsatisfied. See
+> `docs/TENANT_IDENTITY_AND_CUSTOMIZATION.md` §9.

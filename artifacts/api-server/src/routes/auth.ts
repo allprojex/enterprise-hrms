@@ -8,6 +8,7 @@ import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAu
 import type { TenantAwareRequest } from "../middlewares/resolveTenantHost";
 import { getActiveMembership, resolveActiveOrganizationId } from "../lib/membership";
 import { recordAuditEvent } from "../lib/auditLog";
+import { bindTenantContext } from "../lib/requestContext";
 import { isSuperAdmin } from "../lib/authorization";
 import { shouldFailClosedForTenantResolution } from "../lib/organizationDomains";
 import {
@@ -114,6 +115,10 @@ router.post("/auth/login", loginRateLimiter, async (req: TenantAwareRequest, res
   await db.insert(sessionsTable).values({ token, userId: user.id, expiresAt, activeOrganizationId: tenantOrganizationId });
 
   const activeOrganizationId = await resolveActiveOrganizationId(user.id, tenantOrganizationId, user.organizationId);
+  // Tenant identity hardening: the tenant this session was scoped to (already
+  // membership-verified above, or resolved from the user's own memberships)
+  // is what the login log line and audit trail attribute the request to.
+  if (activeOrganizationId != null) bindTenantContext(activeOrganizationId, "session");
 
   res.json({ user: formatUser(user, activeOrganizationId), token });
 });
@@ -255,6 +260,8 @@ router.post(
       res.status(403).json({ error: "Forbidden" });
       return;
     }
+
+    bindTenantContext(organizationId, "session");
 
     const token = req.headers.authorization!.slice(7);
     await db.update(sessionsTable).set({ activeOrganizationId: organizationId }).where(eq(sessionsTable.token, token));

@@ -45,6 +45,7 @@ import {
 } from "@workspace/db";
 import { recordAuditEvent } from "../auditLog";
 import { deriveBackupRunResult, listAffectedOrganizations, InstallationNotFoundError } from "./operations";
+import { classifyOperation, auditScopeMetadata } from "./blastRadius";
 import { PLATFORM_OPERATION_PERMISSIONS, RESERVED_RESTORE_PERMISSIONS, hasPlatformAuthority } from "./authority";
 import type { User } from "../membership";
 
@@ -277,6 +278,7 @@ export async function submitRestoreRequest(params: SubmitRestoreParams): Promise
     eventType: "platform_restore.submitted",
     targetType: "installation_restore_request",
     targetId: String(record.id),
+    metadata: auditScopeMetadata(classifyOperation("installation.restore", { installationId: params.installationId })),
     afterState: {
       installationId: params.installationId,
       environment: installation.environmentType,

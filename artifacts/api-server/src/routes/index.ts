@@ -9,6 +9,7 @@ import installationsRouter from "./installations";
 import platformOperationsRouter from "./platformOperations";
 import platformRestoreRouter from "./platformRestore";
 import breakGlassRouter from "./breakGlass";
+import platformTenantsRouter from "./platformTenants";
 import meRouter from "./me";
 import employeesRouter from "./employees";
 import employeeNumberingRouter from "./employeeNumbering";
@@ -141,6 +142,9 @@ router.use(installationsRouter);
 router.use(platformOperationsRouter);
 router.use(platformRestoreRouter);
 router.use(breakGlassRouter);
+// Tenant identity hardening — Super Admin tenant identity card and
+// platform-managed feature flags / controlled extensions.
+router.use(platformTenantsRouter);
 router.use(meRouter);
 router.use(employeesRouter);
 router.use(employeeNumberingRouter);

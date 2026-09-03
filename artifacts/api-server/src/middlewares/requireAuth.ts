@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { db, sessionsTable, usersTable } from "@workspace/db";
 import { eq, and, gt } from "drizzle-orm";
+import { setCurrentUserId } from "../lib/requestContext";
 
 export interface AuthenticatedRequest extends Request {
   userId?: number;
@@ -56,5 +57,8 @@ export async function requireAuth(
   req.userId = sessions[0].user.id;
   req.user = sessions[0].user;
   req.session = sessions[0].session;
+  // Tenant identity hardening: the verified user id joins every log line for
+  // the rest of this request (lib/requestContext.ts). Never the token.
+  setCurrentUserId(sessions[0].user.id);
   next();
 }

@@ -252,7 +252,7 @@ function LinkOrganizationsDialog({
   onClose,
 }: {
   installation: Installation;
-  organizations: { id: number; name: string }[];
+  organizations: { id: number; name: string; slug: string }[];
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
@@ -287,7 +287,11 @@ function LinkOrganizationsDialog({
             <Select value={selectedOrgId} onValueChange={setSelectedOrgId}>
               <SelectTrigger><SelectValue placeholder="Select organization" /></SelectTrigger>
               <SelectContent>
-                {organizations.map((org) => <SelectItem key={org.id} value={String(org.id)}>{org.name}</SelectItem>)}
+                {organizations.map((org) => (
+                  <SelectItem key={org.id} value={String(org.id)}>
+                    {org.name} · {org.slug} · #{org.id}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Button
@@ -303,7 +307,14 @@ function LinkOrganizationsDialog({
               const org = organizations.find((o) => o.id === link.organizationId);
               return (
                 <div key={link.id} className="flex items-center justify-between rounded border px-3 py-2">
-                  <span>{org?.name ?? `Organization #${link.organizationId}`}</span>
+                  <span>
+                    {org?.name ?? `Organization #${link.organizationId}`}
+                    {org && (
+                      <span className="ml-2 font-mono text-xs text-muted-foreground">
+                        {org.slug} · #{org.id}
+                      </span>
+                    )}
+                  </span>
                   <Button
                     size="sm"
                     variant="ghost"
@@ -384,7 +395,13 @@ function BreakGlassPanel() {
                 <Select value={form.targetOrganizationId} onValueChange={(v) => setForm({ ...form, targetOrganizationId: v })}>
                   <SelectTrigger><SelectValue placeholder="Select organization" /></SelectTrigger>
                   <SelectContent>
-                    {(organizations ?? []).map((org) => <SelectItem key={org.id} value={String(org.id)}>{org.name}</SelectItem>)}
+                    {/* Tenant identity hardening: never pick a tenant by display name alone — the
+                        tenant code and internal id disambiguate similarly named organizations. */}
+                    {(organizations ?? []).map((org) => (
+                      <SelectItem key={org.id} value={String(org.id)}>
+                        {org.name} · {org.slug} · #{org.id}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

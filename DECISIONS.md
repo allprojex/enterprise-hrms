@@ -101,3 +101,9 @@ Reporting is a reusable Reporting Foundation (registry + metadata + permissions 
 Forgot-password delivery uses a provider abstraction and remains blocked until an email provider is selected. Fake/no-op email delivery is never implemented as a stand-in.
 
 **Resolved (W19):** Resend was selected. `EmailProvider` interface + `ResendEmailProvider` implementation; the rest of the codebase depends only on the interface, so the provider can still be swapped without touching call sites.
+
+---
+
+## ADR-018
+
+Tenant identity is a contract, not a convention. `organizations.id` is the internal security boundary; `organizations.tenant_uuid` (database-generated, unique, immutable — enforced by a `BEFORE UPDATE` trigger, migration `0075`) is the authoritative external identity quoted in support, maintenance and change requests; the slug is the human-readable tenant code, unique and immutable through the API; the display name is never a security boundary. Every request binds to at most one authorized tenant on the request context and every log line carries it. Tenant-specific behaviour is expressed only through the customization hierarchy (configuration → module/feature flag → controlled extension registered in `lib/featureFlagRegistry.ts` → core change) — never a tenant-name conditional in shared logic. Operational actions declare a blast radius (`tenant_scoped` / `multi_tenant` / `platform_wide`) before they run and record it in the audit trail; dangerous tenant-specific actions name their target explicitly (typed `confirmSlug`). See `docs/TENANT_IDENTITY_AND_CUSTOMIZATION.md`.

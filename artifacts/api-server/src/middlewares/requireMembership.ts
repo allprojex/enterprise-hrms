@@ -4,7 +4,7 @@ import { getActiveMembership } from "../lib/membership";
 import { hostnameOrganizationMismatch, shouldFailClosedForTenantResolution } from "../lib/organizationDomains";
 import { isSuperAdmin } from "../lib/authorization";
 import { getActiveGrantForActorAndOrg, type BreakGlassGrant } from "../lib/breakGlass";
-import { setCurrentBreakGlassGrantId } from "../lib/requestContext";
+import { setCurrentBreakGlassGrantId, bindTenantContext } from "../lib/requestContext";
 import type { AuthenticatedRequest } from "./requireAuth";
 import type { TenantAwareRequest } from "./resolveTenantHost";
 
@@ -76,6 +76,9 @@ export function requireMembership(paramName: string = "organizationId") {
     const membership = await getActiveMembership(req.userId!, organizationId);
     if (membership) {
       req.membership = membership;
+      // Tenant identity hardening: this request is now bound to exactly one
+      // authorized tenant for logging/audit correlation (lib/requestContext.ts).
+      bindTenantContext(organizationId, "membership");
       next();
       return;
     }
@@ -85,6 +88,7 @@ export function requireMembership(paramName: string = "organizationId") {
       if (grant) {
         req.breakGlassGrant = grant;
         setCurrentBreakGlassGrantId(grant.id);
+        bindTenantContext(organizationId, "break_glass");
         next();
         return;
       }

@@ -18,6 +18,7 @@
 import { eq, and, gt, inArray } from "drizzle-orm";
 import { db, breakGlassGrantsTable, permissionsTable } from "@workspace/db";
 import { recordAuditEvent } from "./auditLog";
+import { classifyOperation, auditScopeMetadata } from "./platformOperations/blastRadius";
 
 export type BreakGlassGrant = typeof breakGlassGrantsTable.$inferSelect;
 
@@ -111,7 +112,15 @@ export async function createBreakGlassGrant(input: CreateGrantInput): Promise<Br
     targetType: "break_glass_grant",
     targetId: String(grant.id),
     afterState: { scope: grant.scope, expiresAt: grant.expiresAt, targetInstallationId: grant.targetInstallationId },
-    metadata: { reason: grant.reason },
+    metadata: {
+      reason: grant.reason,
+      ...auditScopeMetadata(
+        classifyOperation("break_glass.grant", {
+          organizationId: input.targetOrganizationId,
+          installationId: input.targetInstallationId ?? null,
+        }),
+      ),
+    },
     outcome: "success",
   });
 

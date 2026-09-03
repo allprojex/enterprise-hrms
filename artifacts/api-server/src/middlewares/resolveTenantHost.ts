@@ -1,6 +1,7 @@
 import type { Response, NextFunction } from "express";
 import { resolveTenantByHostname } from "../lib/organizationDomains";
 import { logger } from "../lib/logger";
+import { setCurrentHostTenant } from "../lib/requestContext";
 import type { AuthenticatedRequest } from "./requireAuth";
 
 export interface TenantAwareRequest extends AuthenticatedRequest {
@@ -132,5 +133,9 @@ export async function resolveTenantHost(req: TenantAwareRequest, _res: Response,
 
   req.resolvedTenantOrganizationId = resolvedOrganizationId;
   req.tenantResolutionFailed = resolutionFailed;
+  // Tenant identity hardening: record the connection-derived tenant on the
+  // request context so even an unauthenticated failure on a tenant hostname
+  // is attributable in the logs. Informational only — it grants nothing.
+  setCurrentHostTenant(resolvedOrganizationId);
   next();
 }

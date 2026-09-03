@@ -277,6 +277,7 @@ import type {
   ExpiringTermList,
   ExportCustomFieldValuesParams,
   ExtendProbationInput,
+  FeatureFlagState,
   FinalClearanceResult,
   FinalizePerformanceReviewInput,
   ForgotPasswordInput,
@@ -508,6 +509,7 @@ import type {
   OrganizationMember,
   OrganizationModule,
   OrganizationRole,
+  OrganizationStatusChangeInput,
   OwnPayslipSummary,
   PasswordResetStatus,
   PayrollCorrection,
@@ -674,6 +676,7 @@ import type {
   SetCustomFieldValuesBody,
   SetDataChangeFieldPolicyInput,
   SetDocumentLegalHoldBody,
+  SetFeatureFlagInput,
   SetMigrationSourceMappingBody,
   SetPrimaryHrInput,
   SetSuccessionReadinessInput,
@@ -701,6 +704,7 @@ import type {
   TalentPool,
   TalentPoolMember,
   TenantContext,
+  TenantIdentity,
   TransferEmployeeInput,
   UpdateAssetConditionInput,
   UpdateAssetInput,
@@ -2007,17 +2011,18 @@ export const getSuspendOrganizationUrl = (id: number,) => {
 }
 
 /**
- * Sets status to suspended. Requires org_admin (within the organization) or super_admin.
+ * Sets status to suspended. Requires org_admin (within the organization) or super_admin. The body must name the target tenant's slug (confirmSlug) and it must match the organization in the path — a typed confirmation, because this is a dangerous tenant-specific action.
  * @summary Suspend an organization
  */
-export const suspendOrganization = async (id: number, options?: RequestInit): Promise<Organization> => {
+export const suspendOrganization = async (id: number,
+    organizationStatusChangeInput: OrganizationStatusChangeInput, options?: RequestInit): Promise<Organization> => {
 
   return customFetch<Organization>(getSuspendOrganizationUrl(id),
   {
     ...options,
-    method: 'POST'
-
-
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(organizationStatusChangeInput)
   }
 );}
 
@@ -2026,8 +2031,8 @@ export const suspendOrganization = async (id: number, options?: RequestInit): Pr
 
 
 export const getSuspendOrganizationMutationOptions = <TError = ErrorType<ApiError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof suspendOrganization>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof suspendOrganization>>, TError,{id: number}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof suspendOrganization>>, TError,{id: number;data: BodyType<OrganizationStatusChangeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof suspendOrganization>>, TError,{id: number;data: BodyType<OrganizationStatusChangeInput>}, TContext> => {
 
 const mutationKey = ['suspendOrganization'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -2039,10 +2044,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof suspendOrganization>>, {id: number}> = (props) => {
-          const {id} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof suspendOrganization>>, {id: number;data: BodyType<OrganizationStatusChangeInput>}> = (props) => {
+          const {id,data} = props ?? {};
 
-          return  suspendOrganization(id,requestOptions)
+          return  suspendOrganization(id,data,requestOptions)
         }
 
 
@@ -2053,18 +2058,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type SuspendOrganizationMutationResult = NonNullable<Awaited<ReturnType<typeof suspendOrganization>>>
-
+    export type SuspendOrganizationMutationBody = BodyType<OrganizationStatusChangeInput>
     export type SuspendOrganizationMutationError = ErrorType<ApiError>
 
     /**
  * @summary Suspend an organization
  */
 export const useSuspendOrganization = <TError = ErrorType<ApiError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof suspendOrganization>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof suspendOrganization>>, TError,{id: number;data: BodyType<OrganizationStatusChangeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof suspendOrganization>>,
         TError,
-        {id: number},
+        {id: number;data: BodyType<OrganizationStatusChangeInput>},
         TContext
       > => {
       return useMutation(getSuspendOrganizationMutationOptions(options));
@@ -2079,17 +2084,18 @@ export const getReactivateOrganizationUrl = (id: number,) => {
 }
 
 /**
- * Sets status to active. Requires org_admin (within the organization) or super_admin.
+ * Sets status to active. Requires org_admin (within the organization) or super_admin. The body must name the target tenant's slug (confirmSlug) and it must match the organization in the path.
  * @summary Reactivate a suspended organization
  */
-export const reactivateOrganization = async (id: number, options?: RequestInit): Promise<Organization> => {
+export const reactivateOrganization = async (id: number,
+    organizationStatusChangeInput: OrganizationStatusChangeInput, options?: RequestInit): Promise<Organization> => {
 
   return customFetch<Organization>(getReactivateOrganizationUrl(id),
   {
     ...options,
-    method: 'POST'
-
-
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(organizationStatusChangeInput)
   }
 );}
 
@@ -2098,8 +2104,8 @@ export const reactivateOrganization = async (id: number, options?: RequestInit):
 
 
 export const getReactivateOrganizationMutationOptions = <TError = ErrorType<ApiError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateOrganization>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof reactivateOrganization>>, TError,{id: number}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateOrganization>>, TError,{id: number;data: BodyType<OrganizationStatusChangeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reactivateOrganization>>, TError,{id: number;data: BodyType<OrganizationStatusChangeInput>}, TContext> => {
 
 const mutationKey = ['reactivateOrganization'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -2111,10 +2117,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reactivateOrganization>>, {id: number}> = (props) => {
-          const {id} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reactivateOrganization>>, {id: number;data: BodyType<OrganizationStatusChangeInput>}> = (props) => {
+          const {id,data} = props ?? {};
 
-          return  reactivateOrganization(id,requestOptions)
+          return  reactivateOrganization(id,data,requestOptions)
         }
 
 
@@ -2125,18 +2131,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type ReactivateOrganizationMutationResult = NonNullable<Awaited<ReturnType<typeof reactivateOrganization>>>
-
+    export type ReactivateOrganizationMutationBody = BodyType<OrganizationStatusChangeInput>
     export type ReactivateOrganizationMutationError = ErrorType<ApiError>
 
     /**
  * @summary Reactivate a suspended organization
  */
 export const useReactivateOrganization = <TError = ErrorType<ApiError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateOrganization>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateOrganization>>, TError,{id: number;data: BodyType<OrganizationStatusChangeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof reactivateOrganization>>,
         TError,
-        {id: number},
+        {id: number;data: BodyType<OrganizationStatusChangeInput>},
         TContext
       > => {
       return useMutation(getReactivateOrganizationMutationOptions(options));
@@ -4962,6 +4968,236 @@ export const useUnlinkInstallationOrganization = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getUnlinkInstallationOrganizationMutationOptions(options));
+    }
+
+export const getGetTenantIdentityUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/platform/organizations/${organizationId}/identity`
+}
+
+/**
+ * Everything a platform operator needs to positively identify the tenant they are about to act on — immutable tenant UUID, tenant code (slug), display name, status, hostnames, the installation(s) it is linked to with their environment and deployed version, this process's own release identity, module state and feature flags. Contains no HR data. Platform-scoped (super_admin), explicit target in the path.
+ * @summary Tenant identity card for one organization (platform super_admin)
+ */
+export const getTenantIdentity = async (organizationId: number, options?: RequestInit): Promise<TenantIdentity> => {
+
+  return customFetch<TenantIdentity>(getGetTenantIdentityUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTenantIdentityQueryKey = (organizationId: number,) => {
+    return [
+    `/api/platform/organizations/${organizationId}/identity`
+    ] as const;
+    }
+
+
+export const getGetTenantIdentityQueryOptions = <TData = Awaited<ReturnType<typeof getTenantIdentity>>, TError = ErrorType<ApiError>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTenantIdentity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTenantIdentityQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTenantIdentity>>> = ({ signal }) => getTenantIdentity(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTenantIdentity>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTenantIdentityQueryResult = NonNullable<Awaited<ReturnType<typeof getTenantIdentity>>>
+export type GetTenantIdentityQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Tenant identity card for one organization (platform super_admin)
+ */
+
+export function useGetTenantIdentity<TData = Awaited<ReturnType<typeof getTenantIdentity>>, TError = ErrorType<ApiError>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTenantIdentity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTenantIdentityQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListTenantFeatureFlagsUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/platform/organizations/${organizationId}/feature-flags`
+}
+
+/**
+ * @summary Feature flags / controlled extensions for one organization (platform super_admin)
+ */
+export const listTenantFeatureFlags = async (organizationId: number, options?: RequestInit): Promise<FeatureFlagState[]> => {
+
+  return customFetch<FeatureFlagState[]>(getListTenantFeatureFlagsUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListTenantFeatureFlagsQueryKey = (organizationId: number,) => {
+    return [
+    `/api/platform/organizations/${organizationId}/feature-flags`
+    ] as const;
+    }
+
+
+export const getListTenantFeatureFlagsQueryOptions = <TData = Awaited<ReturnType<typeof listTenantFeatureFlags>>, TError = ErrorType<ApiError>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTenantFeatureFlags>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListTenantFeatureFlagsQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listTenantFeatureFlags>>> = ({ signal }) => listTenantFeatureFlags(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listTenantFeatureFlags>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListTenantFeatureFlagsQueryResult = NonNullable<Awaited<ReturnType<typeof listTenantFeatureFlags>>>
+export type ListTenantFeatureFlagsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Feature flags / controlled extensions for one organization (platform super_admin)
+ */
+
+export function useListTenantFeatureFlags<TData = Awaited<ReturnType<typeof listTenantFeatureFlags>>, TError = ErrorType<ApiError>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTenantFeatureFlags>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListTenantFeatureFlagsQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSetTenantFeatureFlagUrl = (organizationId: number,
+    flagKey: string,) => {
+
+
+
+
+  return `/api/platform/organizations/${organizationId}/feature-flags/${flagKey}`
+}
+
+/**
+ * Tenant-scoped, explicitly targeted, audited (feature_flag.enabled / feature_flag.disabled with the blast radius and reason). Enabling a flag for this organization never affects any other organization. Unregistered keys are refused.
+ * @summary Enable or disable one feature flag for exactly one organization (platform super_admin)
+ */
+export const setTenantFeatureFlag = async (organizationId: number,
+    flagKey: string,
+    setFeatureFlagInput: SetFeatureFlagInput, options?: RequestInit): Promise<FeatureFlagState> => {
+
+  return customFetch<FeatureFlagState>(getSetTenantFeatureFlagUrl(organizationId,flagKey),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(setFeatureFlagInput)
+  }
+);}
+
+
+
+
+
+export const getSetTenantFeatureFlagMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setTenantFeatureFlag>>, TError,{organizationId: number;flagKey: string;data: BodyType<SetFeatureFlagInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setTenantFeatureFlag>>, TError,{organizationId: number;flagKey: string;data: BodyType<SetFeatureFlagInput>}, TContext> => {
+
+const mutationKey = ['setTenantFeatureFlag'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setTenantFeatureFlag>>, {organizationId: number;flagKey: string;data: BodyType<SetFeatureFlagInput>}> = (props) => {
+          const {organizationId,flagKey,data} = props ?? {};
+
+          return  setTenantFeatureFlag(organizationId,flagKey,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetTenantFeatureFlagMutationResult = NonNullable<Awaited<ReturnType<typeof setTenantFeatureFlag>>>
+    export type SetTenantFeatureFlagMutationBody = BodyType<SetFeatureFlagInput>
+    export type SetTenantFeatureFlagMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Enable or disable one feature flag for exactly one organization (platform super_admin)
+ */
+export const useSetTenantFeatureFlag = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setTenantFeatureFlag>>, TError,{organizationId: number;flagKey: string;data: BodyType<SetFeatureFlagInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setTenantFeatureFlag>>,
+        TError,
+        {organizationId: number;flagKey: string;data: BodyType<SetFeatureFlagInput>},
+        TContext
+      > => {
+      return useMutation(getSetTenantFeatureFlagMutationOptions(options));
     }
 
 export const getListBreakGlassGrantsUrl = (params?: ListBreakGlassGrantsParams,) => {

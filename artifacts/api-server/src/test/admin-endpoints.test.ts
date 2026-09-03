@@ -978,6 +978,39 @@ describe("GET/PATCH /api/organizations/:organizationId/config/:namespace", () =>
     expect(res.status).toBe(403);
   });
 
+  // Tenant identity hardening (Phase 6): feature flags / controlled extensions
+  // are a platform-managed namespace — readable by the organization, never
+  // writable through its own config route, even with organization.update.
+  it("lets the organization read its feature_flags namespace (default: nothing enabled)", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["organization.read"]);
+    fixtures.settingsRows = [];
+
+    const res = await request(app)
+      .get("/api/organizations/10/config/feature_flags")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ flags: {} });
+  });
+
+  it("refuses self-service writes to the platform-managed feature_flags namespace", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["organization.update"]);
+    fixtures.settingsRows = [];
+
+    const res = await request(app)
+      .patch("/api/organizations/10/config/feature_flags")
+      .set("Authorization", "Bearer valid-token")
+      .send({ data: { flags: { "anything.at_all": true } } });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/managed by the platform/);
+    expect(fixtures.inserted).toHaveLength(0);
+  });
+
   it("rejects a merged config that fails the namespace's schema", async () => {
     mockSession();
     mockActiveMembership();

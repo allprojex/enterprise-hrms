@@ -6,6 +6,7 @@ import { ApplyToInternalVacancyBody } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { getActiveMembershipsForUser, getActiveMembership, resolveActiveOrganizationId } from "../lib/membership";
 import { hostnameOrganizationMismatch, shouldFailClosedForTenantResolution } from "../lib/organizationDomains";
+import { bindTenantContext } from "../lib/requestContext";
 import { requireModuleEnabled } from "../middlewares/requireModuleEnabled";
 import type { MembershipRequest } from "../middlewares/requireMembership";
 import {
@@ -81,6 +82,7 @@ async function requireActiveOrganizationMembership(
   }
 
   req.membership = membership;
+  bindTenantContext(activeOrganizationId, "membership");
   next();
 }
 

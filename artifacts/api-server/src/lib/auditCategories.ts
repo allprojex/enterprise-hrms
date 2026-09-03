@@ -109,6 +109,10 @@ const CATEGORY_BY_PREFIX: Record<string, AuditCategory> = {
   // --- platform / configuration ---
   organization: "platform_configuration",
   organization_domain: "platform_configuration",
+  // tenant identity hardening — per-tenant feature flags / controlled
+  // extensions, set only by platform super_admins through an audited,
+  // tenant-targeted operation (routes/platformTenants.ts).
+  feature_flag: "platform_configuration",
   // WS-6 (Scheduled Jobs / Notifications Foundation, Owner Decision #13):
   // administrative actions on the platform-wide job scheduler (manual
   // cancel/reschedule/retry, all gated to super_admin — see

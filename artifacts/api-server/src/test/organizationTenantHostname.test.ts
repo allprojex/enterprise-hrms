@@ -255,7 +255,7 @@ describe("Organization-route tenant-hostname consistency", () => {
     mockMembership(1, 3, ["organization.update"]);
     mockDomain("wwm.localhost", 3);
 
-    const res = await request(app).post("/api/organizations/3/suspend").set("Authorization", "Bearer valid-token").set("X-Tenant-Hostname", "wwm.localhost");
+    const res = await request(app).post("/api/organizations/3/suspend").set("Authorization", "Bearer valid-token").set("X-Tenant-Hostname", "wwm.localhost").send({ confirmSlug: "org-3" });
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("suspended");
   });
@@ -278,7 +278,7 @@ describe("Organization-route tenant-hostname consistency", () => {
     mockMembership(1, 3, ["organization.update"]);
     mockDomain("wwm.localhost", 3);
 
-    const res = await request(app).post("/api/organizations/3/reactivate").set("Authorization", "Bearer valid-token").set("X-Tenant-Hostname", "wwm.localhost");
+    const res = await request(app).post("/api/organizations/3/reactivate").set("Authorization", "Bearer valid-token").set("X-Tenant-Hostname", "wwm.localhost").send({ confirmSlug: "org-3" });
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("active");
   });

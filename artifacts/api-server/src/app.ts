@@ -5,7 +5,12 @@ import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { resolveTenantHost } from "./middlewares/resolveTenantHost";
-import { runWithRequestId } from "./lib/requestContext";
+import {
+  createRequestContextStore,
+  runWithRequestContext,
+  requestLogContextFor,
+  type RequestContextStore,
+} from "./lib/requestContext";
 
 const app: Express = express();
 
@@ -44,6 +49,14 @@ if (trustProxy) {
   );
 }
 
+// Tenant identity hardening: pino-http writes its completion line from a
+// response event, outside the AsyncLocalStorage context the mixin reads, so
+// the request's identity is added here explicitly from the store attached to
+// the request. Same fields, same source of truth (lib/requestContext.ts).
+function requestIdentity(req: unknown): Record<string, unknown> {
+  return requestLogContextFor((req as { requestContext?: RequestContextStore }).requestContext);
+}
+
 app.use(
   pinoHttp({
     logger,
@@ -61,15 +74,26 @@ app.use(
         };
       },
     },
+    customSuccessObject(req, _res, val) {
+      return { ...val, ...requestIdentity(req) };
+    },
+    customErrorObject(req, _res, _err, val) {
+      return { ...val, ...requestIdentity(req) };
+    },
   }),
 );
 
 // WS-3 (§8): makes pino-http's own per-request id available to
 // recordAuditEvent() for the whole lifetime of the request, without every
 // audit call site needing to thread it through explicitly. Placed
-// immediately after pinoHttp so req.id already exists.
+// immediately after pinoHttp so req.id already exists. The same store now
+// also carries the request's user and authorized tenant (set later by
+// requireAuth / the membership guards) for every log line — see
+// lib/requestContext.ts.
 app.use((req, _res, next) => {
-  runWithRequestId(String((req as unknown as { id: string | number }).id), next);
+  const store = createRequestContextStore(String((req as unknown as { id: string | number }).id));
+  (req as unknown as { requestContext: RequestContextStore }).requestContext = store;
+  runWithRequestContext(store, next);
 });
 
 // This API only ever returns JSON, so a strict default-src is safe and adds
@@ -230,7 +254,10 @@ app.use((err: unknown, req: express.Request, res: express.Response, _next: expre
   // Structured, full-fidelity, server-side only. requestId ties this line to the
   // pino-http request log and to the value handed back to the caller.
   const requestId = (req as { id?: string | number }).id;
-  logger.error({ err, requestId, method: req.method, url: req.originalUrl }, "Unhandled error");
+  logger.error(
+    { err, requestId, method: req.method, url: req.originalUrl, ...requestIdentity(req) },
+    "Unhandled error",
+  );
 
   // Express may have already begun streaming (e.g. a throw mid-response); in
   // that case the only safe action is to destroy the socket rather than append

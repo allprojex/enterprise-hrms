@@ -12,6 +12,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
   DialogTrigger,
 } from '@/components/ui/dialog';
@@ -35,7 +36,10 @@ import {
   useActivateOrganizationDomain,
   useDisableOrganizationDomain,
   useSetPrimaryOrganizationDomain,
+  useGetTenantIdentity,
+  getGetTenantIdentityQueryKey,
 } from '@workspace/api-client-react';
+import { Textarea } from '@/components/ui/textarea';
 import type {
   CreateOrganizationInputType,
   CreateOrganizationDomainInputDomainType,
@@ -272,6 +276,14 @@ export default function Organizations() {
   const [editName, setEditName] = useState('');
   const [editIndustry, setEditIndustry] = useState('');
 
+  // Tenant identity hardening (Phase 7): suspend/reactivate is a dangerous
+  // tenant-specific action, so it goes through a confirmation that shows the
+  // full tenant identity and requires the tenant code to be typed. The
+  // backend independently requires the same confirmSlug.
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [confirmSlug, setConfirmSlug] = useState('');
+  const [statusReason, setStatusReason] = useState('');
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     createMutation.mutate(
@@ -362,19 +374,32 @@ export default function Organizations() {
     );
   };
 
-  const handleToggleStatus = () => {
+  const openStatusDialog = () => {
+    if (!selectedOrg) return;
+    setConfirmSlug('');
+    setStatusReason('');
+    setStatusDialogOpen(true);
+  };
+
+  const handleConfirmStatusChange = (e: React.FormEvent) => {
+    e.preventDefault();
     if (!selectedOrg) return;
     const mutation = selectedOrg.status === 'suspended' ? reactivateMutation : suspendMutation;
     mutation.mutate(
-      { id: selectedOrg.id },
+      { id: selectedOrg.id, data: { confirmSlug: confirmSlug.trim(), reason: statusReason.trim() || undefined } },
       {
         onSuccess: (updated) => {
           queryClient.setQueryData(getGetOrganizationQueryKey(selectedOrg.id), updated);
           queryClient.invalidateQueries({ queryKey: getListOrganizationsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetTenantIdentityQueryKey(selectedOrg.id) });
+          setStatusDialogOpen(false);
           toast({ title: selectedOrg.status === 'suspended' ? 'Organisation reactivated' : 'Organisation suspended' });
         },
-        onError: () =>
-          toast({ title: 'Could not update organisation status', variant: 'destructive' }),
+        onError: (err) => {
+          const message =
+            err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
+          toast({ title: 'Could not update organisation status', description: message, variant: 'destructive' });
+        },
       },
     );
   };
@@ -634,8 +659,18 @@ export default function Organizations() {
                     <dd className="text-base font-semibold text-foreground">{selectedOrg.name}</dd>
                   </div>
                   <div>
-                    <dt className="text-sm font-medium text-muted-foreground mb-1">Slug</dt>
-                    <dd className="text-base text-foreground font-mono text-sm">{selectedOrg.slug}</dd>
+                    <dt className="text-sm font-medium text-muted-foreground mb-1">Tenant code (slug)</dt>
+                    <dd className="text-base text-foreground font-mono text-sm" data-testid="text-org-slug">{selectedOrg.slug}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm font-medium text-muted-foreground mb-1">Tenant ID (immutable)</dt>
+                    <dd className="text-foreground font-mono text-xs break-all" data-testid="text-org-tenant-uuid">
+                      {selectedOrg.tenantUuid}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm font-medium text-muted-foreground mb-1">Internal ID</dt>
+                    <dd className="text-foreground font-mono text-sm" data-testid="text-org-internal-id">#{selectedOrg.id}</dd>
                   </div>
                   <div>
                     <dt className="text-sm font-medium text-muted-foreground mb-1">Type</dt>
@@ -679,7 +714,7 @@ export default function Organizations() {
                       variant={selectedOrg.status === 'suspended' ? 'default' : 'destructive'}
                       className="w-full"
                       disabled={suspendMutation.isPending || reactivateMutation.isPending}
-                      onClick={handleToggleStatus}
+                      onClick={openStatusDialog}
                       data-testid="button-toggle-organization-status"
                     >
                       {selectedOrg.status === 'suspended' ? 'Reactivate' : 'Suspend'}
@@ -687,6 +722,7 @@ export default function Organizations() {
                   )}
                 </dl>
               ) : null}
+              {selectedOrg && me?.role === 'super_admin' && <TenantIdentityPanel organizationId={selectedOrg.id} />}
               {selectedOrg && me?.role === 'super_admin' && <DomainsPanel organizationId={selectedOrg.id} />}
             </CardContent>
           </Card>
@@ -728,6 +764,158 @@ export default function Organizations() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
+        <DialogContent>
+          <form onSubmit={handleConfirmStatusChange}>
+            <DialogHeader>
+              <DialogTitle>
+                {selectedOrg?.status === 'suspended' ? 'Reactivate organisation' : 'Suspend organisation'}
+              </DialogTitle>
+              <DialogDescription>
+                This action affects exactly one tenant. Confirm the target before continuing.
+              </DialogDescription>
+            </DialogHeader>
+            {selectedOrg && (
+              <div className="space-y-4 py-4">
+                <dl className="rounded-md border p-3 text-sm space-y-1" data-testid="status-dialog-target">
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-muted-foreground">Organisation</dt>
+                    <dd className="font-semibold">{selectedOrg.name}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-muted-foreground">Tenant code</dt>
+                    <dd className="font-mono">{selectedOrg.slug}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-muted-foreground">Tenant ID</dt>
+                    <dd className="font-mono text-xs break-all">{selectedOrg.tenantUuid}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-muted-foreground">Current status</dt>
+                    <dd className="capitalize">{selectedOrg.status}</dd>
+                  </div>
+                </dl>
+                <div className="space-y-2">
+                  <Label htmlFor="confirm-org-slug">
+                    Type the tenant code <span className="font-mono">{selectedOrg.slug}</span> to confirm
+                  </Label>
+                  <Input
+                    id="confirm-org-slug"
+                    value={confirmSlug}
+                    onChange={(e) => setConfirmSlug(e.target.value)}
+                    autoComplete="off"
+                    required
+                    data-testid="input-confirm-org-slug"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="status-change-reason">Reason (recorded in the audit trail)</Label>
+                  <Textarea
+                    id="status-change-reason"
+                    value={statusReason}
+                    onChange={(e) => setStatusReason(e.target.value)}
+                    placeholder="Support ticket reference / justification"
+                    data-testid="input-status-change-reason"
+                  />
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button
+                type="submit"
+                variant={selectedOrg?.status === 'suspended' ? 'default' : 'destructive'}
+                disabled={
+                  !selectedOrg ||
+                  confirmSlug.trim() !== selectedOrg.slug ||
+                  suspendMutation.isPending ||
+                  reactivateMutation.isPending
+                }
+                data-testid="button-confirm-organization-status"
+              >
+                {selectedOrg?.status === 'suspended' ? 'Reactivate' : 'Suspend'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+/**
+ * Tenant identity hardening (Phase 7): the operational identity card a
+ * platform super_admin sees before acting on a tenant — immutable tenant ID,
+ * tenant code, hosting/deployment target with its environment and version,
+ * the release identity of the API that served this page, module state and
+ * feature flags. Read-only. Sourced from GET /platform/organizations/:id/identity,
+ * which contains no HR data.
+ */
+function TenantIdentityPanel({ organizationId }: { organizationId: number }) {
+  const { data, isLoading, error } = useGetTenantIdentity(organizationId, {
+    query: { queryKey: getGetTenantIdentityQueryKey(organizationId) },
+  });
+
+  if (isLoading) {
+    return <Skeleton className="mt-6 h-24 w-full" aria-label="Loading tenant identity" />;
+  }
+  if (error || !data) {
+    return (
+      <p className="mt-6 text-sm text-muted-foreground" data-testid="text-tenant-identity-unavailable">
+        Tenant identity is unavailable.
+      </p>
+    );
+  }
+
+  const enabledModules = data.modules.filter((m) => m.enabled).map((m) => m.key);
+  const enabledFlags = data.featureFlags.filter((f) => f.enabled).map((f) => f.key);
+
+  return (
+    <div className="mt-6 space-y-3" data-testid="panel-tenant-identity">
+      <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+        <ShieldAlert className="h-4 w-4" aria-hidden="true" />
+        Operational identity
+      </h3>
+      <dl className="text-sm space-y-2">
+        <div>
+          <dt className="text-muted-foreground">Hosting / deployment target</dt>
+          <dd data-testid="text-tenant-installations">
+            {data.installations.length === 0 ? (
+              <span className="text-muted-foreground">Not linked to any installation</span>
+            ) : (
+              <ul className="space-y-1">
+                {data.installations.map((installation) => (
+                  <li key={installation.id} className="font-mono text-xs">
+                    {installation.installationKey} · {installation.environmentType} · {installation.hostingModel} · v
+                    {installation.applicationVersion ?? 'unknown'}
+                    {installation.migrationVersion ? ` · migration ${installation.migrationVersion}` : ''} ·{' '}
+                    {installation.status}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Serving API</dt>
+          <dd className="font-mono text-xs" data-testid="text-tenant-runtime">
+            {data.runtime.environment} · {data.runtime.appVersion}
+            {data.runtime.installationKey ? ` · ${data.runtime.installationKey}` : ''}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Enabled modules ({enabledModules.length})</dt>
+          <dd className="font-mono text-xs break-words" data-testid="text-tenant-modules">
+            {enabledModules.length ? enabledModules.join(', ') : 'none'}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Feature flags / extensions ({data.featureFlags.length} registered)</dt>
+          <dd className="font-mono text-xs break-words" data-testid="text-tenant-feature-flags">
+            {enabledFlags.length ? `enabled: ${enabledFlags.join(', ')}` : 'none enabled'}
+          </dd>
+        </div>
+      </dl>
     </div>
   );
 }

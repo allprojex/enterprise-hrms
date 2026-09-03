@@ -1,7 +1,9 @@
 import { Router, type Response } from "express";
 import { eq, inArray } from "drizzle-orm";
 import { db, organizationsTable } from "@workspace/db";
-import { CreateOrganizationBody, UpdateOrganizationBody } from "@workspace/api-zod";
+import { CreateOrganizationBody, UpdateOrganizationBody, SuspendOrganizationBody } from "@workspace/api-zod";
+import { bindTenantContext } from "../lib/requestContext";
+import { classifyOperation, auditScopeMetadata } from "../lib/platformOperations/blastRadius";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import type { TenantAwareRequest } from "../middlewares/resolveTenantHost";
 import { isSuperAdmin } from "../lib/authorization";
@@ -47,9 +49,21 @@ function tenantHostnameAllowsOrganization(req: OrganizationScopedRequest, res: R
   return true;
 }
 
+/**
+ * Tenant identity hardening: once a caller is authorized on an organization
+ * RECORD (authorizeOrganizationAction — a member holding the permission, or
+ * the platform super_admin), the request is bound to that one tenant for log
+ * and audit correlation. Recording only; authorization already happened.
+ */
+function bindOrganizationRecordContext(req: OrganizationScopedRequest, organizationId: number): void {
+  bindTenantContext(organizationId, isSuperAdmin(req.user!) ? "platform_authority" : "membership");
+}
+
 function formatOrg(org: typeof organizationsTable.$inferSelect) {
   return {
     id: org.id,
+    // Immutable, globally unique tenant identity — see lib/db organizations.ts.
+    tenantUuid: org.tenantUuid,
     name: org.name,
     slug: org.slug,
     type: org.type,
@@ -126,6 +140,7 @@ router.get("/organizations/:id", requireAuth as any, async (req: OrganizationSco
     res.status(403).json({ error: "Forbidden" });
     return;
   }
+  bindOrganizationRecordContext(req, id);
 
   const orgs = await db
     .select()
@@ -156,6 +171,20 @@ router.patch("/organizations/:id", requireAuth as any, async (req: OrganizationS
     res.status(403).json({ error: "Forbidden" });
     return;
   }
+  bindOrganizationRecordContext(req, id);
+
+  // Tenant identity contract: the slug is the tenant CODE and is immutable
+  // after creation (docs/TENANT_IDENTITY_AND_CUSTOMIZATION.md §2). It is no
+  // longer part of UpdateOrganizationInput, and a client that still sends
+  // one is told so explicitly rather than having it silently dropped —
+  // a support engineer must be able to trust that the code they were
+  // quoted yesterday still names the same tenant today. `id` and
+  // `tenantUuid` are never accepted here at all (and the database refuses
+  // to change them regardless — migration 0075).
+  if (req.body && typeof req.body === "object" && "slug" in req.body) {
+    res.status(400).json({ error: "The organization slug (tenant code) is immutable after creation" });
+    return;
+  }
 
   const parsed = UpdateOrganizationBody.safeParse(req.body);
   if (!parsed.success) {
@@ -169,31 +198,24 @@ router.patch("/organizations/:id", requireAuth as any, async (req: OrganizationS
     return;
   }
 
-  try {
-    const [updated] = await db
-      .update(organizationsTable)
-      .set(parsed.data)
-      .where(eq(organizationsTable.id, id))
-      .returning();
+  const [updated] = await db
+    .update(organizationsTable)
+    .set(parsed.data)
+    .where(eq(organizationsTable.id, id))
+    .returning();
 
-    await recordAuditEvent({
-      actorApplicationUserId: user.id,
-      organizationId: id,
-      eventType: "organization.updated",
-      targetType: "organization",
-      targetId: String(id),
-      beforeState: formatOrg(before),
-      afterState: formatOrg(updated),
-    });
+  await recordAuditEvent({
+    actorApplicationUserId: user.id,
+    organizationId: id,
+    eventType: "organization.updated",
+    targetType: "organization",
+    targetId: String(id),
+    beforeState: formatOrg(before),
+    afterState: formatOrg(updated),
+    metadata: auditScopeMetadata(classifyOperation("organization.update", { organizationId: id })),
+  });
 
-    res.json(formatOrg(updated));
-  } catch (err) {
-    if (isUniqueViolation(err)) {
-      res.status(409).json({ error: "Slug already in use" });
-      return;
-    }
-    throw err;
-  }
+  res.json(formatOrg(updated));
 });
 
 // POST /organizations/:id/suspend
@@ -225,12 +247,35 @@ async function setOrganizationStatus(
     res.status(403).json({ error: "Forbidden" });
     return;
   }
+  bindOrganizationRecordContext(req, id);
+
+  // Tenant identity hardening (Phase 7): suspending or reactivating a tenant
+  // is a dangerous tenant-specific action, so the caller must name the
+  // target twice — the id in the path AND the tenant code in the body — and
+  // the two must agree. A stale screen, a mis-clicked row or a wrong id can
+  // no longer suspend the wrong customer. The typed-confirmation shape is the
+  // same one physical restore already uses (lib/platformOperations/restore.ts).
+  const parsed = SuspendOrganizationBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
 
   const [before] = await db.select().from(organizationsTable).where(eq(organizationsTable.id, id)).limit(1);
   if (!before) {
     res.status(404).json({ error: "Organization not found" });
     return;
   }
+
+  if (parsed.data.confirmSlug !== before.slug) {
+    res.status(400).json({ error: "confirmSlug does not match the target organization's slug" });
+    return;
+  }
+
+  // Classified before anything changes: tenant-scoped, explicit target.
+  const scope = classifyOperation(status === "suspended" ? "organization.suspend" : "organization.reactivate", {
+    organizationId: id,
+  });
 
   const [updated] = await db
     .update(organizationsTable)
@@ -246,6 +291,13 @@ async function setOrganizationStatus(
     targetId: String(id),
     beforeState: { status: before.status },
     afterState: { status: updated.status },
+    metadata: {
+      reason: parsed.data.reason ?? null,
+      tenantSlug: before.slug,
+      tenantUuid: before.tenantUuid,
+      ...auditScopeMetadata(scope),
+    },
+    outcome: "success",
   });
 
   res.json(formatOrg(updated));

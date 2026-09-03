@@ -61,3 +61,16 @@ the actual exposure; real policies are a deliberate follow-on, not rushed in her
 
 `0036_enable_rls_deny_default.down.sql` is the matching hand-written rollback — disables RLS on
 exactly the same 68 tables, touches no data.
+
+## 0075_chilly_felicia_hardy.sql
+
+Tenant identity hardening (2026-09-03). The generated statements add
+`organizations.tenant_uuid uuid NOT NULL DEFAULT gen_random_uuid()` and a unique index; a
+hand-authored addition in the same file (drizzle-kit does not model triggers, as with `0036`
+and `0058`) creates the `organizations_identity_immutable` BEFORE UPDATE trigger, which refuses
+any change to `id` or `tenant_uuid`. Additive only: no table, no RLS change, no data rewrite —
+every existing organization receives its identity from the column default at migration time.
+`0075_chilly_felicia_hardy.down.sql` drops the trigger, function, index and column; note that
+re-applying `0075` afterwards generates **new** UUIDs, so a rollback invalidates any tenant
+identifier already quoted externally. Verified on a disposable PostgreSQL 17 container: all 76
+migrations apply from empty, and the down/up round-trip restores the objects.

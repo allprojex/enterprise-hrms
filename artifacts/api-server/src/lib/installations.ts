@@ -228,3 +228,50 @@ export async function unlinkOrganization(
 
   return updated!;
 }
+
+/**
+ * Tenant identity hardening (Phase 7): the installations an organization is
+ * CURRENTLY linked to (active links only), joined to their deployment and
+ * version identity — the "where does this tenant run, on what version"
+ * half of the Super Admin tenant identity card. Read-only.
+ */
+export interface TenantInstallationView {
+  id: number;
+  installationKey: string;
+  name: string;
+  environmentType: Installation["environmentType"];
+  hostingModel: Installation["hostingModel"];
+  hostingProvider: string | null;
+  primaryDomain: string | null;
+  applicationVersion: string | null;
+  gitCommit: string | null;
+  migrationVersion: string | null;
+  deployedAt: Date | null;
+  status: Installation["status"];
+  linkedAt: Date;
+}
+
+export async function listInstallationsForOrganization(organizationId: number): Promise<TenantInstallationView[]> {
+  const rows = await db
+    .select({ installation: installationsTable, linkedAt: installationOrganizationsTable.linkedAt })
+    .from(installationOrganizationsTable)
+    .innerJoin(installationsTable, eq(installationOrganizationsTable.installationId, installationsTable.id))
+    .where(
+      and(eq(installationOrganizationsTable.organizationId, organizationId), isNull(installationOrganizationsTable.unlinkedAt)),
+    );
+  return rows.map(({ installation, linkedAt }) => ({
+    id: installation.id,
+    installationKey: installation.installationKey,
+    name: installation.name,
+    environmentType: installation.environmentType,
+    hostingModel: installation.hostingModel,
+    hostingProvider: installation.hostingProvider,
+    primaryDomain: installation.primaryDomain,
+    applicationVersion: installation.applicationVersion,
+    gitCommit: installation.gitCommit,
+    migrationVersion: installation.migrationVersion,
+    deployedAt: installation.deployedAt,
+    status: installation.status,
+    linkedAt,
+  }));
+}

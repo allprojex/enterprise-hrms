@@ -123,7 +123,7 @@ This confirms both halves: the repository's migrations do enable RLS on all 198 
 
 ## What remains open
 
-- **Production is 19 migrations behind** (`0056` applied vs `0074` in the repository; 121 of 198 tables exist). Deploying them is a separate, explicitly-approved action — not authorised by, and not performed during, WS-18 Pass 1C.
+- **Production is 19 migrations behind** (`0056` applied vs `0074` in the repository; 121 of 198 tables exist). Deploying them is a separate, explicitly-approved action — not authorised by, and not performed during, WS-18 Pass 1C. *Updated 2026-09-03:* the tenant identity hardening added `0075` (one additive column, one unique index and one trigger on `organizations`; no new table, no RLS change), so the pending set is now **20 migrations, `0057`–`0075`**. The deployment-safety proof above was re-run for `0075` on a disposable PostgreSQL container: all 76 migrations apply from empty, and `0075`'s `.down.sql` reverses it cleanly (down/up round-trip verified). Production remains untouched.
 - **Tenant/permission-aware RLS policies** remain future defense-in-depth work — useful chiefly if this application, or some future integration, ever legitimately queries as `anon`/`authenticated` (it does not today). Deny-by-default plus zero grants is the current, deliberate posture.
 - **`supabase_admin` default privileges** — the residual above. Closing it requires a Supabase support request.
 - **Schema `USAGE` on `public`** is still held by the `PUBLIC` pseudo-role (`=U/pg_database_owner`), so revoking `USAGE` from `anon`/`authenticated` alone would achieve nothing. Revoking it from `PUBLIC` is available as further hardening but was outside Pass 1C's authorised scope.

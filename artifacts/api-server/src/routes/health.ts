@@ -1,3 +1,4 @@
+import { APP_VERSION } from "../lib/releaseInfo";
 import { Router, type IRouter } from "express";
 import { HealthCheckResponse, ReadinessCheckResponse } from "@workspace/api-zod";
 import { pool } from "@workspace/db";
@@ -10,7 +11,9 @@ const router: IRouter = Router();
 // `export` before `pnpm start`) — never required, never guessed. Falls back
 // to "unknown" rather than fabricating a value, so a healthz response never
 // implies a release identity that wasn't actually set.
-const RELEASE_VERSION = process.env.RELEASE_VERSION ?? process.env.GIT_COMMIT_SHA ?? "unknown";
+// Single source of release identity, shared with the logger and the Super
+// Admin tenant identity surface (lib/releaseInfo.ts).
+const RELEASE_VERSION = APP_VERSION;
 
 // Liveness only — is the process itself up and serving requests. Never
 // touches the database, so it stays cheap and can't be dragged down by a

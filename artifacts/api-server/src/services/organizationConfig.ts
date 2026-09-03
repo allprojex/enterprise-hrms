@@ -18,6 +18,7 @@
  * schema column default) keep that data readable and mergeable instead of
  * being rejected on the first read after this change ships.
  */
+import { FEATURE_FLAG_REGISTRY, FEATURE_FLAG_KEY_PATTERN, isRegisteredFeatureFlag } from "../lib/featureFlagRegistry";
 import { eq, and } from "drizzle-orm";
 import { db, organizationSettingsTable } from "@workspace/db";
 import { z } from "zod/v4";
@@ -287,7 +288,31 @@ interface NamespaceDefinition {
   // reachable. Foundation namespaces (general, terminology) have none — they
   // predate Module Management. Undefined means no gate.
   moduleKey?: string;
+  // Tenant identity hardening: a platform-managed namespace is readable by
+  // the organization (organization.read) but writable ONLY through a
+  // platform super_admin's explicit, tenant-targeted, audited operation —
+  // never through the organization's own config PATCH route. Used for
+  // feature flags / controlled extensions, which are platform decisions
+  // about a tenant rather than the tenant's own policy.
+  platformManaged?: boolean;
 }
+
+// Tenant identity hardening (customization levels 2 and 3). The set of
+// legal keys is the code-side registry in lib/featureFlagRegistry.ts; an
+// unregistered key is rejected here at the storage boundary as well as by
+// the service, so a stale row can never carry a flag the platform no longer
+// knows. Values are plain booleans — there is deliberately no percentage,
+// cohort or expression language.
+const featureFlagsConfigSchema = z
+  .object({
+    flags: z
+      .record(z.string().regex(FEATURE_FLAG_KEY_PATTERN), z.boolean())
+      .refine((flags) => Object.keys(flags).every((key) => isRegisteredFeatureFlag(key, FEATURE_FLAG_REGISTRY)), {
+        message: "Unknown feature flag key",
+      })
+      .optional(),
+  })
+  .passthrough();
 
 // WS-11 — Employment Lifecycle Events Expansion (§27.17).
 //
@@ -528,6 +553,15 @@ export const CONFIG_NAMESPACES: Record<string, NamespaceDefinition> = {
       financialRetentionDays: 730,
       legalHold: false,
     }),
+  },
+  // Tenant identity hardening — per-tenant feature flags and controlled
+  // extensions (lib/featureFlags.ts). Default: nothing enabled. No moduleKey:
+  // whether a flag is on is a platform decision independent of modules.
+  feature_flags: {
+    schemaVersion: 1,
+    schema: featureFlagsConfigSchema,
+    defaults: () => ({ flags: {} }),
+    platformManaged: true,
   },
 };
 

@@ -33,6 +33,7 @@ import {
   type OperationalExecutorType,
 } from "@workspace/db";
 import { recordAuditEvent } from "../auditLog";
+import { classifyOperation, auditScopeMetadata } from "./blastRadius";
 
 export class InstallationNotFoundError extends Error {
   constructor() {
@@ -147,6 +148,9 @@ export async function recordDeployment(params: RecordDeploymentParams): Promise<
     eventType: "platform_deployment.recorded",
     targetType: "installation_deployment",
     targetId: String(record.id),
+    metadata: auditScopeMetadata(
+      classifyOperation("installation.deployment.record", { installationId: params.installationId }),
+    ),
     afterState: {
       installationId: params.installationId,
       result: params.result,
@@ -236,6 +240,7 @@ export async function upsertBackupPolicy(params: UpsertBackupPolicyParams): Prom
     eventType: existing ? "platform_backup_policy.updated" : "platform_backup_policy.created",
     targetType: "installation_backup_policy",
     targetId: String(row.id),
+    metadata: auditScopeMetadata(classifyOperation("installation.backup.policy", { installationId: params.installationId })),
     beforeState: existing
       ? {
           targetRpoMinutes: existing.targetRpoMinutes,
@@ -321,6 +326,7 @@ export async function requestBackup(params: {
     eventType: "platform_backup_request.created",
     targetType: "installation_backup_request",
     targetId: String(row.id),
+    metadata: auditScopeMetadata(classifyOperation("installation.backup.request", { installationId: params.installationId })),
     afterState: { installationId: params.installationId, reason, status: row.status },
   });
 
@@ -449,6 +455,7 @@ export async function recordBackupRun(params: RecordBackupRunParams): Promise<In
     eventType: "platform_backup_run.recorded",
     targetType: "installation_backup_run",
     targetId: String(row.id),
+    metadata: auditScopeMetadata(classifyOperation("installation.backup.run", { installationId: params.installationId })),
     afterState: {
       installationId: params.installationId,
       result,
