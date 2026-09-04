@@ -16,7 +16,7 @@ import { describe, it, expect } from "vitest";
 import { SYSTEM_ROLES, PERMISSIONS, ROLE_PERMISSIONS } from "@workspace/db/seed/roles-permissions-definitions";
 import { HR_DELEGATION_PROHIBITED_KEYS, PLATFORM_RESTRICTED_KEYS, isProhibitedForHrDelegation } from "../lib/roleDelegation";
 
-const catalogue = new Set(PERMISSIONS.map((p) => p.key));
+const catalogue = new Set<string>(PERMISSIONS.map((p) => p.key));
 
 describe("system role templates", () => {
   it("defines the five templates, including hr_administrator", () => {
