@@ -89,3 +89,11 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 - See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
 - See `artifacts/hrms/README.md` for the full project README including deployment portability guide
+
+## Production edge (Nginx)
+
+`deploy/nginx/hrms.afripebbles.com.conf` and `deploy/nginx/snippets/hrms-security-headers.conf`
+are the source of truth for the Production reverse proxy. Rollout: copy both to
+`/etc/nginx/sites-available/hrms.afripebbles.com` and `/etc/nginx/snippets/`, run `nginx -t`,
+then `systemctl reload nginx` (graceful — never restart). Verify with
+`node tools/security/edge-header-probes.mjs https://hrms.afripebbles.com`. See `docs/SECURITY.md` §18.

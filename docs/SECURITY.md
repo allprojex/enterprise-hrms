@@ -428,3 +428,29 @@ properties, each with a test:
 
 The RLS posture (§6), the membership chain (§4) and the host-header rule (§13)
 are unchanged.
+
+## 18. Edge security headers and indexing policy (post-deployment hardening)
+
+The Production Nginx configuration is source-controlled in `deploy/nginx/`
+(`hrms.afripebbles.com.conf` + `snippets/hrms-security-headers.conf`) and
+installed verbatim on the VPS. Header ownership is explicit:
+
+- **Static SPA surface** (document, assets, robots): the edge snippet sends
+  HSTS (`max-age=31536000; includeSubDomains`, no preload), `X-Robots-Tag:
+  noindex, nofollow, noarchive, nosnippet`, `X-Frame-Options: DENY`,
+  `nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`,
+  `Permissions-Policy: camera=(), microphone=(), geolocation=()` and a
+  **report-only** CSP. Enforcing the CSP is a separate, later authorization.
+- **`/api/`**: Helmet in the container is authoritative (enforced CSP, XFO,
+  nosniff, `Referrer-Policy: no-referrer`, COOP/CORP). The edge hides Helmet's
+  HSTS and emits exactly one copy, and adds `X-Robots-Tag`. Nothing else is
+  duplicated. `securityHeaders.test.ts` pins the Helmet baseline.
+- **Indexing**: the application is authenticated, multi-tenant HR data and is
+  never indexed. Declared at source (`artifacts/hrms/index.html` meta,
+  `public/robots.txt` `Disallow: /`, guarded by `indexing-policy.test.ts`)
+  and at the edge (`X-Robots-Tag`, `/sitemap.xml` → 404). A future public
+  careers exception is an explicit tenant-level feature, not a default.
+
+`tools/security/edge-header-probes.mjs <https://host>` verifies the live
+matrix: one HSTS per surface, no duplicated API headers, report-only CSP on
+the SPA, no-index everywhere, no HSTS on the plain-HTTP redirect.
