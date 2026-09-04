@@ -454,3 +454,93 @@ installed verbatim on the VPS. Header ownership is explicit:
 `tools/security/edge-header-probes.mjs <https://host>` verifies the live
 matrix: one HSTS per surface, no duplicated API headers, report-only CSP on
 the SPA, no-index everywhere, no HSTS on the plain-HTTP redirect.
+
+## 19. Primary HR Administrator and safe HR-team delegation
+
+**Decision (owner, 2026-09-04).** An organization's Primary HR may build and
+manage their own HR team without holding `org_admin`, unrestricted
+`membership.manage` or unrestricted `role.manage`. The designation "Primary HR"
+(`primary_hr_assignments`, one active row per organization) is now an
+**authorization boundary**, not metadata.
+
+### The model
+
+| Path | Who | What they may do |
+|---|---|---|
+| `org_admin` | any member whose effective permissions include `membership.manage` (member routes) or `role.manage` (role routes); a break-glass grant whose scope carries the key behaves the same | Unchanged, with two new hard limits: the `super_admin` **template** is never assignable through organization routes, and a platform-restricted audit key (`audit.read.security`, `audit.read.platform_configuration`) cannot be granted to a role by someone who does not hold it |
+| `hr_team` | the organization's **active** Primary HR whose effective permissions include `hr_team.manage` | Add/invite/revoke members, assign/revoke roles, copy templates and edit organization-owned roles — **only inside their own boundary** (rules below) |
+
+Both paths are resolved by `requireDelegationAuthority(adminKey)`
+(`artifacts/api-server/src/middlewares/requireDelegationAuthority.ts`), which
+replaces `requirePermission("membership.manage" | "role.manage")` on every
+member/invitation/role write route and attaches `req.delegation`. Nobody else
+reaches those routes: an `hr_team.manage` holder who is not the active Primary
+HR, or a Primary HR whose designation was revoked or who lost the key, gets
+`403`.
+
+### The rules (lib/roleDelegation.ts — pure, unit-tested)
+
+1. **Ownership.** A role is loadable only if it is a system template
+   (`organizationId IS NULL AND isSystemRole`) or owned by the request's
+   organization. Another tenant's role is indistinguishable from a nonexistent
+   one (`404`), on both paths. Previously assign-role and invite validated only
+   that the id existed.
+2. **Template.** The `super_admin` template (`NON_ASSIGNABLE_TEMPLATE_KEYS`) is
+   never assignable, copyable or invitable through organization routes, on both
+   paths.
+3. **Prohibited keys (hr_team only).** A role, grant or target member carrying
+   any of `organization.update`, `module.manage`, `primary_hr.manage`,
+   `role.manage`, `membership.manage`, `migration.manage`, `migration.execute`,
+   `audit.read`, `audit.read.security`, `audit.read.platform_configuration`,
+   `audit.read.payroll`, or **any `payroll.*` key** is outside the HR boundary.
+   Payroll is deliberately excluded from HR delegation (maker-checker and
+   separation of duties, §14, are untouched).
+4. **Subset (hr_team only).** A role may be delegated, copied or edited, and a
+   permission granted, only if every key involved is one the Primary HR
+   themselves holds. Delegation can never exceed the delegator.
+5. **Scope (hr_team only).** A member may be revoked, or have a role removed,
+   only if that member's *entire* effective permission set is inside the
+   boundary. The HR team cannot strip an `org_admin`.
+6. **Grant rule (both paths).** `POST /roles/:id/permissions` looks the
+   permission up by id and applies `permissionGrantVerdict` before the write,
+   closing the previous `role.manage` self-escalation (any key could be added to
+   an organization role and then self-assigned).
+
+`hr_team.manage` is itself delegable by the Primary HR (it is in their own
+set) but confers nothing on its own: the middleware requires the *active
+Primary HR designation*, which only `primary_hr.manage` — a prohibited key —
+can move. A Primary HR can therefore prepare a deputy without being able to
+appoint one.
+
+### The template
+
+`hr_administrator` ("HR Administrator") is a fifth system template seeded by
+`seed:roles` (idempotent, additive, no schema migration): a strict superset of
+`hr_manager` plus `membership.read`, `hr_team.manage`, the office-inventory
+keys and HR configuration/audit/grievance/succession keys. It never carries
+`membership.manage`, `role.manage`, `primary_hr.manage`, `organization.update`,
+`module.manage`, any `payroll.*` key or a platform-restricted audit key
+(pinned by `rolesPermissionsSeed.test.ts`).
+
+### UI
+
+`GET /organizations/:id/roles` now returns `delegable` per role — the server's
+own verdict for the calling user. The admin console offers only delegable
+roles in the invite and assign selects and hides the copy affordance on
+non-delegable templates. The active Primary HR holding `hr_administrator` sees
+the console in **HR Team Management** mode (Members and Roles tabs only) via
+`useCanManageHrTeam`; every write is re-checked server-side regardless.
+
+### Adversarial coverage
+
+`hrTeamDelegation.security.test.ts` (adversarial harness, 26 cases, positive
+control on every route): non-primary `hr_team.manage` holder, revoked Primary
+HR, key removed mid-designation, `org_admin`/`super_admin`/payroll/beyond-
+boundary/cross-tenant role assignment, invitation with each of those initial
+roles, revoking an `org_admin`, revoking a delegable role from a member who
+also holds out-of-boundary authority, template copy of `org_admin`/
+`super_admin`/custom/cross-tenant roles, grants of prohibited/un-held keys,
+editing a role that already reaches outside the boundary, `org_admin`'s
+platform-restricted grant, protected system templates, the `delegable` flag
+for each authority level, and break-glass. `roleDelegation.test.ts` pins the
+pure rules; `rolesPermissionsSeed.test.ts` pins the template shape.

@@ -34,8 +34,6 @@ import {
   useRevokeMember,
   useAssignMemberRole,
   useRevokeMemberRole,
-  useListRoles,
-  getListRolesQueryKey,
   useGetPrimaryHr,
   getGetPrimaryHrQueryKey,
   useSetPrimaryHr,
@@ -89,7 +87,13 @@ function MembersTab({ organizationId }: { organizationId: number }) {
   const { data: members, isLoading, error, refetch } = useListMembers(organizationId, {
     query: { queryKey: getListMembersQueryKey(organizationId), enabled: organizationId > 0 },
   });
-  const { data: roles } = useListRoles({ query: { queryKey: getListRolesQueryKey() } });
+  // Server-authoritative role list: `delegable` is the backend's own verdict
+  // on whether THIS caller may assign the role here (org_admin path vs the
+  // Primary HR's HR-team path). Non-delegable roles are simply not offered.
+  const { data: organizationRoles } = useListOrganizationRoles(organizationId, {
+    query: { queryKey: getListOrganizationRolesQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+  const roles = organizationRoles?.filter((r) => r.delegable !== false);
 
   const invalidateMembers = () =>
     queryClient.invalidateQueries({ queryKey: getListMembersQueryKey(organizationId) });
@@ -924,7 +928,11 @@ function RolesTab({ organizationId }: { organizationId: number }) {
                     </TableCell>
                     <TableCell>
                       {role.isSystemRole ? (
-                        copyingRoleId === role.id ? (
+                        role.delegable === false ? (
+                          <span className="text-xs text-muted-foreground" data-testid={`role-not-delegable-${role.id}`}>
+                            Not delegable
+                          </span>
+                        ) : copyingRoleId === role.id ? (
                           <div className="flex gap-2">
                             <Input
                               placeholder="Key"
@@ -1482,6 +1490,14 @@ export default function Admin() {
 
   const currentMembership = myOrganizations?.find((m) => m.organizationId === organizationId);
   const isOrgAdmin = currentMembership?.roles.some((r) => r === 'org_admin' || r === 'super_admin') ?? false;
+  // Primary HR Administrator delegation (server: requireDelegationAuthority):
+  // the ACTIVE Primary HR holding hr_administrator may manage the HR team —
+  // Members and Roles only, limited to delegable roles. Both signals come
+  // from the same membership summary the org_admin gate reads.
+  const canManageHrTeam =
+    currentMembership?.isPrimaryHr === true && currentMembership.roles.includes('hr_administrator');
+  const hrTeamMode = !isOrgAdmin && canManageHrTeam;
+  const canOpen = isOrgAdmin || canManageHrTeam;
   const stillChecking = userLoading || membershipsLoading;
 
   // UX-level route guard only — every mutation/query this page makes is
@@ -1490,12 +1506,12 @@ export default function Admin() {
   // confusing wall of 403s, to a user whose roles wouldn't let them act on
   // any of it.
   useEffect(() => {
-    if (!stillChecking && !isOrgAdmin) {
+    if (!stillChecking && !canOpen) {
       setLocation('/unauthorized');
     }
-  }, [stillChecking, isOrgAdmin, setLocation]);
+  }, [stillChecking, canOpen, setLocation]);
 
-  if (!stillChecking && !isOrgAdmin) {
+  if (!stillChecking && !canOpen) {
     return null;
   }
 
@@ -1513,44 +1529,58 @@ export default function Admin() {
       <div className="space-y-2">
         <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
           <ShieldCheck className="h-7 w-7 text-primary" aria-hidden="true" />
-          Admin Console
+          {hrTeamMode ? 'HR Team Management' : 'Admin Console'}
         </h1>
         <p className="text-muted-foreground">
-          Manage members, roles, Primary HR, organisation settings, and the audit log
+          {hrTeamMode
+            ? 'Invite HR team members and assign the HR roles you are entitled to delegate'
+            : 'Manage members, roles, Primary HR, organisation settings, and the audit log'}
         </p>
       </div>
 
       <Tabs defaultValue="members">
         <TabsList>
           <TabsTrigger value="members" data-testid="tab-members">Members</TabsTrigger>
-          <TabsTrigger value="hr-settings" data-testid="tab-hr-settings">Primary HR &amp; Settings</TabsTrigger>
-          <TabsTrigger value="modules" data-testid="tab-modules">Modules</TabsTrigger>
+          {!hrTeamMode && (
+            <>
+              <TabsTrigger value="hr-settings" data-testid="tab-hr-settings">Primary HR &amp; Settings</TabsTrigger>
+              <TabsTrigger value="modules" data-testid="tab-modules">Modules</TabsTrigger>
+            </>
+          )}
           <TabsTrigger value="roles" data-testid="tab-roles">Roles</TabsTrigger>
-          <TabsTrigger value="master-data" data-testid="tab-master-data">Master Data</TabsTrigger>
-          <TabsTrigger value="audit" data-testid="tab-audit">Audit Log</TabsTrigger>
-          <TabsTrigger value="reports" data-testid="tab-reports">Reports</TabsTrigger>
+          {!hrTeamMode && (
+            <>
+              <TabsTrigger value="master-data" data-testid="tab-master-data">Master Data</TabsTrigger>
+              <TabsTrigger value="audit" data-testid="tab-audit">Audit Log</TabsTrigger>
+              <TabsTrigger value="reports" data-testid="tab-reports">Reports</TabsTrigger>
+            </>
+          )}
         </TabsList>
         <TabsContent value="members">
           <MembersTab organizationId={organizationId} />
         </TabsContent>
-        <TabsContent value="hr-settings">
-          <PrimaryHrAndSettingsTab organizationId={organizationId} />
-        </TabsContent>
-        <TabsContent value="modules">
-          <ModulesTab organizationId={organizationId} />
-        </TabsContent>
         <TabsContent value="roles">
           <RolesTab organizationId={organizationId} />
         </TabsContent>
-        <TabsContent value="master-data">
-          <MasterDataTab organizationId={organizationId} />
-        </TabsContent>
-        <TabsContent value="audit">
-          <AuditLogTab organizationId={organizationId} />
-        </TabsContent>
-        <TabsContent value="reports">
-          <ReportsTab organizationId={organizationId} />
-        </TabsContent>
+        {!hrTeamMode && (
+          <>
+            <TabsContent value="hr-settings">
+              <PrimaryHrAndSettingsTab organizationId={organizationId} />
+            </TabsContent>
+            <TabsContent value="modules">
+              <ModulesTab organizationId={organizationId} />
+            </TabsContent>
+            <TabsContent value="master-data">
+              <MasterDataTab organizationId={organizationId} />
+            </TabsContent>
+            <TabsContent value="audit">
+              <AuditLogTab organizationId={organizationId} />
+            </TabsContent>
+            <TabsContent value="reports">
+              <ReportsTab organizationId={organizationId} />
+            </TabsContent>
+          </>
+        )}
       </Tabs>
     </div>
   );

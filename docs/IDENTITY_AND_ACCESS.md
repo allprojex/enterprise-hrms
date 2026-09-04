@@ -98,3 +98,32 @@ This platform has no external identity provider (no Supabase Auth, OIDC, or SAML
 - **Typecheck**: clean, whole workspace, after the schema/route/OpenAPI changes.
 - **Schema drift**: `pnpm --filter @workspace/db run generate` produces no further changes after migration `0056` is committed — schema and migration journal agree.
 - **Codegen drift**: `pnpm --filter @workspace/api-spec run codegen` produces no further changes after the new OpenAPI paths/schemas and their generated clients are committed.
+
+---
+
+## 10. Primary HR Administrator — delegated HR-team management (2026-09-04)
+
+The Primary HR designation (`primary_hr_assignments`, §1 model unchanged) is
+now an **authorization boundary**. The organization's active Primary HR whose
+effective permissions include `hr_team.manage` may add, invite and revoke
+members and assign, revoke, copy and edit roles — but only within their own
+permission set, never any organization-level authority key, never payroll,
+never the `super_admin` template, never another tenant's role, and never
+against a member who holds authority they lack. `org_admin` behaviour is
+unchanged apart from the `super_admin`-template and platform-restricted-grant
+limits.
+
+- Middleware: `requireDelegationAuthority("membership.manage" | "role.manage")`
+  (replaces `requirePermission` on every member/invitation/role write route;
+  attaches `req.delegation = { mode: "org_admin" | "hr_team", ... }`).
+- Rules: `artifacts/api-server/src/lib/roleDelegation.ts` (ownership, template,
+  prohibited-key, subset, scope, grant).
+- Template: `hr_administrator` (fifth system template; seed `seed:roles` is
+  idempotent and additive — no migration).
+- Frontend: `useCanManageHrTeam` (hr_administrator **and** `isPrimaryHr` from
+  `GET /me/organizations`) gates the console's HR Team Management mode; role
+  selects use the server's `delegable` flag from `GET /organizations/:id/roles`.
+- Audit: `membership.added|invited|revoked|role_assigned|role_revoked` carry
+  `metadata.delegationMode`.
+
+Full rationale, rule table and adversarial coverage: `docs/SECURITY.md` §19.

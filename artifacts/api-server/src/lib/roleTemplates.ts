@@ -82,7 +82,7 @@ export async function copyRoleTemplate(params: {
   label: string;
   description?: string;
   actorApplicationUserId: number;
-  actorMembershipId: number;
+  actorMembershipId: number | null;
 }) {
   const [template] = await db
     .select()
@@ -139,7 +139,7 @@ export async function grantPermissionToOrgRole(params: {
   roleId: number;
   permissionId: number;
   actorApplicationUserId: number;
-  actorMembershipId: number;
+  actorMembershipId: number | null;
 }) {
   const found = await findOrgOwnedRole(params.organizationId, params.roleId);
   if (found.protected) throw new ProtectedSystemRoleError(params.roleId);
@@ -174,7 +174,7 @@ export async function revokePermissionFromOrgRole(params: {
   roleId: number;
   permissionId: number;
   actorApplicationUserId: number;
-  actorMembershipId: number;
+  actorMembershipId: number | null;
 }) {
   const found = await findOrgOwnedRole(params.organizationId, params.roleId);
   if (found.protected) throw new ProtectedSystemRoleError(params.roleId);

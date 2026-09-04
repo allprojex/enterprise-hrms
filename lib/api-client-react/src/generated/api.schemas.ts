@@ -6946,6 +6946,8 @@ export interface OrganizationRole {
   description?: string | null;
   isSystemRole: boolean;
   permissionKeys: string[];
+  /** Whether the CALLING user may assign this role (server-derived from the role's actual permission set and the caller's delegation authority — organization admin, or Primary HR with hr_team.manage). UI convenience only; every assignment is re-checked server-side. */
+  delegable?: boolean;
 }
 
 export interface CopyRoleTemplateInput {

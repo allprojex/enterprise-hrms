@@ -339,7 +339,8 @@ export function createEngine(store: Store) {
 // ---------------------------------------------------------------------------
 
 export const TABLES = {
-  users: mockTable("users", ["id", "email", "role", "organizationId", "disabledAt"]),
+  users: mockTable("users", ["id", "email", "role", "organizationId", "disabledAt", "firstName", "lastName"]),
+  organizations: mockTable("organizations", ["id", "name", "slug"]),
   sessions: mockTable("sessions", ["token", "userId", "expiresAt"]),
   organizationMemberships: mockTable("organization_memberships", [
     "id",
@@ -347,10 +348,14 @@ export const TABLES = {
     "organizationId",
     "status",
     "expiresAt",
+    "joinedAt",
+    "inviteToken",
   ]),
   membershipRoles: mockTable("membership_roles", ["membershipId", "roleId"]),
   rolePermissions: mockTable("role_permissions", ["roleId", "permissionId"]),
   permissions: mockTable("permissions", ["id", "key"]),
+  roles: mockTable("roles", ["id", "key", "organizationId", "label", "description", "isSystemRole"]),
+  primaryHrAssignments: mockTable("primary_hr_assignments", ["id", "organizationId", "membershipId", "revokedAt"]),
   modules: mockTable("modules", ["id", "key", "status", "requiredModuleKeys"]),
   organizationModules: mockTable("organization_modules", ["organizationId", "moduleId", "enabled"]),
   // `status` (not a revokedAt timestamp) is what lib/breakGlass.ts actually
@@ -421,6 +426,10 @@ export function seedTwoOrgs(options?: {
 }): TwoOrgFixture {
   const store: Store = {};
   for (const t of Object.values(TABLES)) store[t.__name] = [];
+  store.organizations.push(
+    { id: ORG_A, name: "Org A", slug: "org-a" },
+    { id: ORG_B, name: "Org B", slug: "org-b" },
+  );
 
   const perms = {
     employee: options?.permissions?.employee ?? [],
@@ -468,6 +477,14 @@ export function seedTwoOrgs(options?: {
       });
       if (params.permissionKeys.length > 0) {
         const roleId = roleSeq++;
+        store.roles.push({
+          id: roleId,
+          key: `fixture_role_${roleId}`,
+          organizationId: params.organizationId,
+          label: `Fixture role ${roleId}`,
+          description: null,
+          isSystemRole: false,
+        });
         store.membership_roles.push({ membershipId, roleId });
         for (const key of params.permissionKeys) {
           store.role_permissions.push({ roleId, permissionId: permIdByKey.get(key) });

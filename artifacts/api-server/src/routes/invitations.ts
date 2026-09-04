@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { CreateInvitationBody, AcceptInvitationBody } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
-import { requireMembership, type MembershipRequest } from "../middlewares/requireMembership";
-import { requirePermission } from "../middlewares/requirePermission";
+import { requireMembership } from "../middlewares/requireMembership";
+import { requireDelegationAuthority, type DelegationRequest } from "../middlewares/requireDelegationAuthority";
+import { loadAssignableRole, roleDelegationVerdict } from "../lib/roleDelegation";
 import {
   inviteMember,
   getInvitationByToken,
@@ -34,15 +35,32 @@ router.post(
   "/organizations/:organizationId/invitations",
   requireAuth as any,
   requireMembership("organizationId"),
-  requirePermission("membership.manage"),
-  async (req: MembershipRequest, res): Promise<void> => {
+  requireDelegationAuthority("membership.manage"),
+  async (req: DelegationRequest, res): Promise<void> => {
     const parsed = CreateInvitationBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.message });
       return;
     }
 
-    const organizationId = req.membership!.organizationId;
+    const organizationId = req.delegation!.organizationId;
+
+    // The initial role goes through the same ownership / template / subset /
+    // prohibited-key guards as a direct assignment (lib/roleDelegation.ts).
+    let roleKey: string | null = null;
+    if (parsed.data.roleId != null) {
+      const role = await loadAssignableRole(organizationId, parsed.data.roleId);
+      if (!role) {
+        res.status(404).json({ error: "Role not found" });
+        return;
+      }
+      const verdict = roleDelegationVerdict(req.delegation!, role);
+      if (!verdict.ok) {
+        res.status(403).json({ error: verdict.reason });
+        return;
+      }
+      roleKey = role.key;
+    }
 
     try {
       const { membership, token } = await inviteMember({
@@ -53,12 +71,13 @@ router.post(
 
       await recordAuditEvent({
         actorApplicationUserId: req.userId!,
-        actorMembershipId: req.membership!.id,
+        actorMembershipId: req.membership?.id ?? null,
         organizationId,
         eventType: "membership.invited",
         targetType: "organization_membership",
         targetId: String(membership.id),
         afterState: formatMembership(membership),
+        metadata: { roleKey, delegationMode: req.delegation!.mode },
       });
 
       res.status(201).json({ ...formatMembership(membership), inviteToken: token });

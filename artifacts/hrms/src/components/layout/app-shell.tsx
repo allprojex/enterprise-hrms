@@ -82,7 +82,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { useMyProfilePhoto } from '@/hooks/use-employee-photo';
-import { useIsOrgAdmin, useIsHrCapable } from '@/hooks/use-hr-capable';
+import { useIsOrgAdmin, useIsHrCapable, useCanManageHrTeam } from '@/hooks/use-hr-capable';
 import { clearToken } from '@/lib/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -414,6 +414,10 @@ export function AppShell({ children }: AppShellProps) {
   // rather than re-deriving the roles lookup here a second time.
   const isOrgAdmin = useIsOrgAdmin(activeOrganizationId ?? 0);
   const isHrCapable = useIsHrCapable(activeOrganizationId ?? 0);
+  // Primary HR Administrator delegation: the active Primary HR holding the
+  // hr_administrator role reaches the same console in its HR-team mode
+  // (Members + Roles only; server-side requireDelegationAuthority decides).
+  const canManageHrTeam = useCanManageHrTeam(activeOrganizationId ?? 0);
 
   // WWM Organization Administrator verification (WWM Readiness W3): the
   // profile card previously showed `user.role` -- the legacy platform-wide
@@ -429,6 +433,7 @@ export function AppShell({ children }: AppShellProps) {
     const roles = currentOrg?.roles ?? [];
     if (roles.includes('super_admin')) return 'Super Admin';
     if (roles.includes('org_admin')) return 'Organization Administrator';
+    if (roles.includes('hr_administrator')) return 'HR Administrator';
     if (roles.includes('hr_manager')) return 'HR Manager';
     if (roles.includes('employee')) return 'Employee';
     if (roles.length > 0) return roles[0].replace(/_/g, ' ');
@@ -720,7 +725,9 @@ export function AppShell({ children }: AppShellProps) {
         { href: '/organizations', label: 'Organisations', icon: Building },
         ...(isOrgAdmin
           ? [{ href: '/admin', label: 'Organization Administration', icon: ShieldCheck } satisfies NavItem]
-          : []),
+          : canManageHrTeam
+            ? [{ href: '/admin', label: 'HR Team Management', icon: ShieldCheck } satisfies NavItem]
+            : []),
       ],
     },
   ];

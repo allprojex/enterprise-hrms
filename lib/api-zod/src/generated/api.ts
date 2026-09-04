@@ -9918,7 +9918,8 @@ export const ListOrganizationRolesResponseItem = zod.object({
   "label": zod.string(),
   "description": zod.string().nullish(),
   "isSystemRole": zod.boolean(),
-  "permissionKeys": zod.array(zod.string())
+  "permissionKeys": zod.array(zod.string()),
+  "delegable": zod.boolean().optional().describe('Whether the CALLING user may assign this role (server-derived from the role\'s actual permission set and the caller\'s delegation authority — organization admin, or Primary HR with hr_team.manage). UI convenience only; every assignment is re-checked server-side.')
 })
 export const ListOrganizationRolesResponse = zod.array(ListOrganizationRolesResponseItem)
 
@@ -9949,7 +9950,8 @@ export const CopyRoleTemplateResponse = zod.object({
   "label": zod.string(),
   "description": zod.string().nullish(),
   "isSystemRole": zod.boolean(),
-  "permissionKeys": zod.array(zod.string())
+  "permissionKeys": zod.array(zod.string()),
+  "delegable": zod.boolean().optional().describe('Whether the CALLING user may assign this role (server-derived from the role\'s actual permission set and the caller\'s delegation authority — organization admin, or Primary HR with hr_team.manage). UI convenience only; every assignment is re-checked server-side.')
 })
 
 

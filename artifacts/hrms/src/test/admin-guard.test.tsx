@@ -28,8 +28,8 @@ vi.mock('@workspace/api-client-react', () => ({
   useRevokeMember: () => ({ mutate: vi.fn(), isPending: false }),
   useAssignMemberRole: () => ({ mutate: vi.fn(), isPending: false }),
   useRevokeMemberRole: () => ({ mutate: vi.fn(), isPending: false }),
-  useListRoles: emptyList,
-  getListRolesQueryKey: () => ['roles'],
+  useListOrganizationRoles: emptyList,
+  getListOrganizationRolesQueryKey: (id: number) => ['organizationRoles', id],
   useGetPrimaryHr: emptyObject,
   getGetPrimaryHrQueryKey: (id: number) => ['primaryHr', id],
   useSetPrimaryHr: () => ({ mutate: vi.fn(), isPending: false }),
@@ -91,5 +91,68 @@ describe('Admin console route guard', () => {
     expect(screen.getByTestId('tab-members')).toBeInTheDocument();
     expect(screen.getByTestId('tab-hr-settings')).toBeInTheDocument();
     expect(screen.getByTestId('tab-audit')).toBeInTheDocument();
+  });
+
+  // Primary HR Administrator delegation: the ACTIVE Primary HR holding
+  // hr_administrator gets the console in HR-team mode (Members + Roles only).
+  it('renders HR Team Management (Members and Roles only) for the Primary HR holding hr_administrator', async () => {
+    vi.mocked(useListMyOrganizations).mockReturnValue({
+      data: [{ organizationId: 10, organizationName: 'Acme', organizationSlug: 'acme', status: 'active', roles: ['hr_administrator'], isPrimaryHr: true }],
+      isLoading: false,
+    } as never);
+
+    const history = renderAdmin();
+
+    await waitFor(() => {
+      expect(screen.getByText('HR Team Management')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('tab-members')).toBeInTheDocument();
+    expect(screen.getByTestId('tab-roles')).toBeInTheDocument();
+    expect(screen.queryByTestId('tab-hr-settings')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('tab-modules')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('tab-master-data')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('tab-audit')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('tab-reports')).not.toBeInTheDocument();
+    expect(history).not.toContain('/unauthorized');
+  });
+
+  it('redirects an hr_administrator who is not the Primary HR', async () => {
+    vi.mocked(useListMyOrganizations).mockReturnValue({
+      data: [{ organizationId: 10, organizationName: 'Acme', organizationSlug: 'acme', status: 'active', roles: ['hr_administrator'], isPrimaryHr: false }],
+      isLoading: false,
+    } as never);
+
+    const history = renderAdmin();
+
+    await waitFor(() => {
+      expect(history[history.length - 1]).toBe('/unauthorized');
+    });
+  });
+
+  it('redirects a Primary HR who does not hold hr_administrator', async () => {
+    vi.mocked(useListMyOrganizations).mockReturnValue({
+      data: [{ organizationId: 10, organizationName: 'Acme', organizationSlug: 'acme', status: 'active', roles: ['hr_manager'], isPrimaryHr: true }],
+      isLoading: false,
+    } as never);
+
+    const history = renderAdmin();
+
+    await waitFor(() => {
+      expect(history[history.length - 1]).toBe('/unauthorized');
+    });
+  });
+
+  it('keeps the full console for an org_admin who is also the Primary HR', async () => {
+    vi.mocked(useListMyOrganizations).mockReturnValue({
+      data: [{ organizationId: 10, organizationName: 'Acme', organizationSlug: 'acme', status: 'active', roles: ['org_admin', 'hr_administrator'], isPrimaryHr: true }],
+      isLoading: false,
+    } as never);
+
+    renderAdmin();
+
+    await waitFor(() => {
+      expect(screen.getByText('Admin Console')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('tab-modules')).toBeInTheDocument();
   });
 });

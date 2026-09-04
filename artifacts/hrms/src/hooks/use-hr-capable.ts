@@ -51,3 +51,20 @@ export function useIsHrCapable(organizationId: number): boolean {
   const roles = useMyRoles(organizationId);
   return roles.some((r) => r === 'org_admin' || r === 'hr_manager' || r === 'super_admin');
 }
+
+/**
+ * Whether the caller may manage the organization's HR team through the
+ * Primary HR delegation path: they hold the hr_administrator system role AND
+ * are the organization's active Primary HR. Mirrors the backend's
+ * requireDelegationAuthority (hr_team.manage + active Primary HR) using the
+ * two signals the frontend has (role keys and isPrimaryHr). The server is
+ * authoritative — this only decides which affordances to show.
+ */
+export function useCanManageHrTeam(organizationId: number): boolean {
+  const { data: myOrganizations } = useListMyOrganizations({
+    query: { queryKey: getListMyOrganizationsQueryKey(), enabled: organizationId > 0 },
+  });
+  const currentOrg = myOrganizations?.find((m) => m.organizationId === organizationId);
+  if (!currentOrg) return false;
+  return currentOrg.isPrimaryHr === true && currentOrg.roles.includes('hr_administrator');
+}

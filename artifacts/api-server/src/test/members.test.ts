@@ -37,7 +37,7 @@ const {
       membershipRoleRows: [] as { roleId: number; membershipId?: number }[],
       permissionRows: [] as { key: string }[],
       targetUserRows: [] as unknown[],
-      roleRows: [] as { id: number; key: string }[],
+      roleRows: [] as { id: number; key: string; organizationId?: number | null; isSystemRole?: boolean }[],
       inserted: [] as { table: string; values: unknown }[],
       idCounters: new Map<string, number>(),
     },
@@ -51,8 +51,8 @@ const {
     ]),
     membershipRolesTable: mockTable("membership_roles", ["membershipId", "roleId"]),
     rolePermissionsTable: mockTable("role_permissions", ["roleId", "permissionId"]),
-    permissionsTable: mockTable("permissions", ["key"]),
-    rolesTable: mockTable("roles", ["id", "key"]),
+    permissionsTable: mockTable("permissions", ["id", "key"]),
+    rolesTable: mockTable("roles", ["id", "key", "organizationId", "isSystemRole"]),
     primaryHrAssignmentsTable: mockTable("primary_hr_assignments", ["membershipId", "revokedAt"]),
     auditEventsTable: mockTable("audit_events", []),
   };
@@ -70,12 +70,16 @@ type Cond =
   | { __op: "eq"; field: string; val: unknown }
   | { __op: "in"; field: string; vals: unknown[] }
   | { __op: "and"; conds: Cond[] }
+  | { __op: "or"; conds: Cond[] }
+  | { __op: "isNull"; field: string }
   | undefined;
 function matches(row: Record<string, unknown>, cond: Cond): boolean {
   if (!cond) return true;
   if (cond.__op === "eq") return row[cond.field] === cond.val;
   if (cond.__op === "in") return cond.vals.includes(row[cond.field]);
   if (cond.__op === "and") return cond.conds.every((c) => matches(row, c));
+  if (cond.__op === "or") return cond.conds.some((c) => matches(row, c));
+  if (cond.__op === "isNull") return row[cond.field] == null;
   return true;
 }
 
@@ -161,8 +165,13 @@ vi.mock("@workspace/db", () => ({
 vi.mock("drizzle-orm", () => ({
   eq: (col: string, val: unknown) => ({ __op: "eq", field: col.split(".").pop(), val }),
   and: (...conds: Cond[]) => ({ __op: "and", conds: conds.filter(Boolean) }),
-  or: () => undefined,
-  isNull: () => undefined,
+  or: (...conds: Cond[]) => {
+    const defined = conds.filter(Boolean);
+    return defined.length > 0 ? { __op: "or", conds: defined } : undefined;
+  },
+  // Columns the mock tables do not model arrive as undefined; treat those
+  // predicates as no-ops exactly as the previous stub did.
+  isNull: (col?: string) => (col ? { __op: "isNull", field: col.split(".").pop() } : undefined),
   gt: () => undefined,
   inArray: (col: string, vals: unknown[]) => ({ __op: "in", field: col.split(".").pop(), vals }),
 }));
@@ -348,7 +357,7 @@ describe("POST /api/organizations/:organizationId/members/:membershipId/roles", 
     mockSession({ id: 1 });
     mockActiveMembership({ id: 5, organizationId: 10 });
     mockPermissions(["membership.manage"]);
-    fixtures.roleRows = [{ id: 2, key: "hr_manager" }];
+    fixtures.roleRows = [{ id: 2, key: "hr_manager", organizationId: null, isSystemRole: true }];
 
     const res = await request(app)
       .post("/api/organizations/10/members/5/roles")
