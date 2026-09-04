@@ -258,3 +258,26 @@ All sixteen scenarios from the brief were verified, split across two evidence so
 Backend: 754/754 tests pass (was 706; +48 net new). Frontend: 240/240 tests pass (was 234; +6 net new). Typecheck clean (libs + api-server + hrms). Lint clean (`eslint src --max-warnings=0`). OpenAPI → codegen: byte-identical output across two consecutive runs (`@workspace/api-zod`, `@workspace/api-client-react`). `drizzle-kit generate`: "No schema changes, nothing to migrate" after the migration was applied. Production builds succeed for `api-server`, `hrms`, and `mockup-sandbox`. Migration `0035` applied to the development Supabase project only (`vkvirwdxoiwsiftaarox`) after confirming no pre-existing `organization_domains` table; verified column-for-column and index-for-index against the migration file after applying; migrations `0000`–`0034` were independently confirmed already applied there via `drizzle-kit migrate`'s own tracking table (`drizzle.__drizzle_migrations`, 35 rows, hash-verified against `0034`'s own file). Migration `0035` was applied via a direct SQL statement rather than `drizzle-kit migrate` itself (this session's tooling reaches the database directly), so its tracking row was added by hand afterward — same `sha256(file contents)` hash algorithm drizzle-kit itself uses, verified by reproducing `0034`'s recorded hash from its file first — and `drizzle-kit migrate` was then run once more against the same database to confirm it now reports success with nothing further to apply. Production database: **untouched**.
 
 **Update — resolved, see `docs/SUPABASE_SECURITY_REMEDIATION.md`:** the RLS-disabled condition flagged here was investigated as a full security audit and closed in development via migration `0036` (deny-by-default RLS on all 68 public tables, no policies, no application changes required — this app's server connects as the `postgres` role, which owns every table and carries `BYPASSRLS`, so it is architecturally unaffected by RLS state either way). That audit found the Data API/PostgREST endpoint for this project genuinely reachable with default `anon`/`authenticated` grants permitting full CRUD, and classified this as a confirmed exposure *path* (a live, provable capability) — not evidence of any historical exploitation, which a log review within the available retention window found no sign of. See that document for the full investigation, live verification, and remediation record. Tenant/permission-aware RLS policies (mirroring the real `organization_memberships` authorization chain) remain explicitly out of scope and are tracked there as deliberate follow-on defense-in-depth work, not rushed into the deny-by-default fix.
+
+## Production tenant hostnames (added 2026-09-04)
+
+A tenant's Production hostname is a `platform_subdomain` under `hrms.afripebbles.com`
+(e.g. `wwm.hrms.afripebbles.com`). Enablement is three independent, governed steps, in any order,
+and the hostname only works once all three exist:
+
+1. **DNS** (owner, registrar): `A  wwm.hrms  →  191.215.40.231` (no wildcard record — unregistered
+   subdomains must not resolve).
+2. **Tenant directory** (Super Admin UI: Organizations → tenant → Domains, or
+   `POST /organizations/{id}/domains` with `domainType: platform_subdomain`): the row is active
+   immediately; `resolveTenantByHostname` matches the raw `Host` and the login page shows the
+   tenant's branding. Optionally mark it primary.
+3. **Edge** (`deploy/nginx/hrms.afripebbles.com.conf`): add the hostname to both `server_name`
+   lists, install, `nginx -t`, reload, then `certbot --nginx --expand -d hrms.afripebbles.com
+   -d <tenant host>` so the single certificate covers it.
+
+Nothing in the application configuration changes: `APP_BASE_URL` stays the platform host (reset
+links open on it and work for every tenant), sessions are bearer tokens in per-origin localStorage,
+CORS stays same-origin, and HSTS `includeSubDomains` already covers tenant hosts. On a tenant host a
+non-super_admin login requires an active membership in that organization and every org-scoped
+request is held to that organization (`hostnameOrganizationMismatch`), so a tenant hostname can
+never be used to reach another tenant.
