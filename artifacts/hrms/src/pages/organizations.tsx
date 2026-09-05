@@ -341,6 +341,11 @@ export default function Organizations() {
   // real authority signal is the caller's own membership for the selected
   // organization, same source app-shell's isOrgAdmin already reads from.
   const selectedOrgMembership = myOrganizations?.find((m) => m.organizationId === selectedOrg?.id);
+  // Platform control-plane authority: the genuine platform super_admin role
+  // (users.role), never a tenant role. Only this may create tenants or run
+  // platform tenant lifecycle (suspend/reactivate). The server enforces the
+  // same via requireSuperAdmin; this only decides what to show.
+  const isPlatformSuperAdmin = me?.role === 'super_admin';
   const canManageSelectedOrg =
     !!me &&
     !!selectedOrg &&
@@ -439,7 +444,9 @@ export default function Organizations() {
         <div className="space-y-2">
           <h1 className="text-3xl font-bold text-foreground">Organisations</h1>
           <p className="text-muted-foreground">
-            View and manage organisations you have access to
+            {isPlatformSuperAdmin
+              ? 'View and manage the organisations on this platform'
+              : 'Switch between the organisations you belong to'}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -454,6 +461,7 @@ export default function Organizations() {
               </Button>
             </Link>
           )}
+          {isPlatformSuperAdmin && (
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button data-testid="button-add-organization">
@@ -517,6 +525,7 @@ export default function Organizations() {
             </form>
           </DialogContent>
           </Dialog>
+          )}
         </div>
       </div>
 
@@ -720,7 +729,7 @@ export default function Organizations() {
                       {formatDate(selectedOrg.createdAt)}
                     </dd>
                   </div>
-                  {canManageSelectedOrg && (
+                  {isPlatformSuperAdmin && (
                     <Button
                       variant={selectedOrg.status === 'suspended' ? 'default' : 'destructive'}
                       className="w-full"

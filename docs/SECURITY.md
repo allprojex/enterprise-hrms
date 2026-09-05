@@ -622,3 +622,65 @@ destruction and role replacement, `membership.reinvited` audit, active-member
 join resolution (a foreign-key-to-`id` join is now correct even when both sides
 carry an `id`). Frontend: admin-guard fail-closed and "Managing" cases, invite
 page revoked/branding cases.
+
+## 21. Platform organisation-ownership boundary (2026-09-05)
+
+A tenant HR Administrator could see "+ New Organisation" and, worse, the create
+endpoint accepted any authenticated caller. Creating a tenant is a platform
+control-plane action; a tenant user must never provision or run the lifecycle of
+an organisation.
+
+### Root cause
+`POST /organizations` carried only `requireAuth` — no authority check. Any
+authenticated user could create a tenant, and `onboardOrganization` then made
+the creator that tenant's org_admin **and** Primary HR. The frontend's
+`me.role === 'super_admin'` guard wrapped only the "Platform Administration"
+link; the "New Organisation" dialog that followed was ungated, so every tenant
+user saw the button.
+
+### Authority model (organizations control plane)
+
+| Operation | Authority |
+|---|---|
+| `POST /organizations` (create/onboard) | Platform Super Admin only (`requireSuperAdmin`) |
+| `POST /organizations/:id/suspend`, `/reactivate` | Platform Super Admin only |
+| `GET /organizations` (list) | Super Admin sees all; a tenant user sees only organisations they are an active member of |
+| `GET /organizations/:id` (read) | `authorizeOrganizationAction(organization.read)` — own org (tenant admin) or Super Admin |
+| `PATCH /organizations/:id` (update own config) | `authorizeOrganizationAction(organization.update)` — own org (Organization Admin) or Super Admin; another tenant is 403 |
+| domains, modules, roles, members, Admin Console | tenant-scoped, unchanged (requireMembership + requirePermission / delegation, `/admin/:organizationId`) |
+
+Platform authority is the genuine `users.role === "super_admin"` (via
+`requireSuperAdmin`/`isSuperAdmin`), never a tenant role name, membership,
+Primary HR designation, client state, or legacy `users.organizationId`.
+
+### Effect by identity
+- **HR Administrator / Primary HR / HR Manager**: cannot create or suspend a
+  tenant (403, direct API included); retains all WWM HR functions and the
+  `/admin/:organizationId` HR-team console.
+- **Organization Admin**: cannot create a tenant or suspend any organisation
+  (including its own); still reads and updates its own organisation's config and
+  administers its own org.
+- **Ordinary member / unauthenticated**: cannot create (403 / 401).
+- **Platform Super Admin**: unchanged — full portfolio management, create,
+  suspend/reactivate, platform administration.
+- **Cross-tenant**: a tenant admin cannot read/update/suspend another
+  organisation (`authorizeOrganizationAction` requires an active membership;
+  lifecycle requires Super Admin).
+
+### Frontend
+"+ New Organisation" (whole dialog) and the suspend/reactivate control render
+only for `me.role === 'super_admin'`; the page description reads "Switch between
+the organisations you belong to" for a tenant user. Edit and Administer remain
+for a tenant Organization Admin of its own org. The `/admin/:organizationId`
+explicit-org model (SECURITY §20) is untouched.
+
+### Coverage
+`organizationCreationAuthorization.security.test.ts` (adversarial harness, 10
+cases): create refused for unauthenticated, employee, HR Manager, HR
+Administrator, Organization Admin and Primary HR (direct-API bypass included),
+allowed for the platform super_admin; suspend refused for a tenant org_admin on
+its own and another org, allowed for Super Admin; tenant self-admin (read,
+update own, scoped list) preserved and cross-tenant update refused.
+`organizations.test.ts` updated so a tenant org_admin suspend is now 403.
+Frontend `organizations-create-guard.test.tsx`: button hidden for an HR
+Administrator, shown for Super Admin. No schema migration.

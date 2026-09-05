@@ -119,7 +119,7 @@ vi.mock("drizzle-orm", () => ({
 
 const { default: app } = await import("../app");
 
-function mockSession(user: { id: number }) {
+function mockSession(user: { id: number; role?: string }) {
   fixtures.sessionRows = [
     {
       session: { id: 1, token: "valid-token", userId: user.id, expiresAt: new Date(Date.now() + 100000) },
@@ -128,7 +128,7 @@ function mockSession(user: { id: number }) {
         email: "user@example.com",
         firstName: "Test",
         lastName: "User",
-        role: "employee",
+        role: user.role ?? "super_admin",
         organizationId: 10,
         avatarUrl: null,
         jobTitle: null,
@@ -154,6 +154,18 @@ describe("POST /api/organizations (onboarding)", () => {
       .post("/api/organizations")
       .send({ name: "Acme", slug: "acme", type: "business" });
     expect(res.status).toBe(401);
+  });
+
+  it("returns 403 for a non-super-admin (a tenant user cannot provision a tenant)", async () => {
+    mockSession({ id: 1, role: "employee" });
+
+    const res = await request(app)
+      .post("/api/organizations")
+      .set("Authorization", "Bearer valid-token")
+      .send({ name: "Acme", slug: "acme", type: "business" });
+
+    expect(res.status).toBe(403);
+    expect(fixtures.inserted.map((i) => i.table)).not.toContain("organizations");
   });
 
   it("returns 400 for a malformed body", async () => {

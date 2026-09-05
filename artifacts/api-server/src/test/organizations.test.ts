@@ -407,7 +407,11 @@ describe("POST /api/organizations/:id/suspend and /reactivate", () => {
     expect(res.status).toBe(403);
   });
 
-  it("suspends the organization and records an audit event for a member with organization.update", async () => {
+  // Platform ownership boundary: suspend/reactivate is platform tenant
+  // lifecycle, reserved to the genuine platform super_admin. A tenant
+  // Organization Admin holding organization.update can no longer suspend even
+  // its own organisation.
+  it("returns 403 when a tenant org_admin (organization.update) attempts to suspend its own organisation", async () => {
     mockSession({ id: 1, role: "org_admin", organizationId: 10 });
     mockOrganization(10);
     mockMembership(1, 10, ["organization.update"]);
@@ -417,11 +421,22 @@ describe("POST /api/organizations/:id/suspend and /reactivate", () => {
       .set("Authorization", "Bearer valid-token")
       .send({ confirmSlug: "org-10", reason: "Ticket #123 — non-payment" });
 
+    expect(res.status).toBe(403);
+    expect(fixtures.auditEvents).toHaveLength(0);
+  });
+
+  it("suspends the organization and records an audit event for the platform super_admin", async () => {
+    mockSession({ id: 1, role: "super_admin", organizationId: 10 });
+    mockOrganization(10);
+
+    const res = await request(app)
+      .post("/api/organizations/10/suspend")
+      .set("Authorization", "Bearer valid-token")
+      .send({ confirmSlug: "org-10", reason: "Ticket #123 — non-payment" });
+
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("suspended");
     expect(fixtures.auditEvents[0].eventType).toBe("organization.suspended");
-    // Phase 9 test 8: the operation records exactly which tenant it hit,
-    // with its blast radius and the operator's reason.
     expect(fixtures.auditEvents[0].organizationId).toBe(10);
     expect(fixtures.auditEvents[0].metadata).toMatchObject({
       blastRadius: "tenant_scoped",

@@ -249,8 +249,8 @@ describe("Organization-route tenant-hostname consistency", () => {
   });
 
   // 5. suspend matching tenant context + required authority -> allowed
-  it("5. suspend allowed when hostname matches and authority is held", async () => {
-    mockSession({ id: 1, role: "org_admin", organizationId: 3 });
+  it("5. suspend allowed when hostname matches and platform authority is held", async () => {
+    mockSession({ id: 1, role: "super_admin", organizationId: 3 });
     mockOrganization(3);
     mockMembership(1, 3, ["organization.update"]);
     mockDomain("wwm.localhost", 3);
@@ -272,8 +272,8 @@ describe("Organization-route tenant-hostname consistency", () => {
   });
 
   // 7. reactivate matching tenant context + required authority -> allowed
-  it("7. reactivate allowed when hostname matches and authority is held", async () => {
-    mockSession({ id: 1, role: "org_admin", organizationId: 3 });
+  it("7. reactivate allowed when hostname matches and platform authority is held", async () => {
+    mockSession({ id: 1, role: "super_admin", organizationId: 3 });
     mockOrganization(3, "suspended");
     mockMembership(1, 3, ["organization.update"]);
     mockDomain("wwm.localhost", 3);

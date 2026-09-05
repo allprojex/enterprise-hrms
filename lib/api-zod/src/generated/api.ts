@@ -223,7 +223,7 @@ export const ListOrganizationsResponse = zod.array(ListOrganizationsResponseItem
 
 
 /**
- * Creates a new organization and, atomically, makes the caller its first active member with the org_admin role and Primary HR.
+ * Platform control plane — Platform Super Admin only. Creates a new organization and, atomically, makes the caller its first active member with the org_admin role and Primary HR. A tenant user cannot provision a tenant.
  * @summary Create (onboard) an organization
  */
 
@@ -327,7 +327,7 @@ export const UploadOrganizationLogoResponse = zod.object({
 
 
 /**
- * Sets status to suspended. Requires org_admin (within the organization) or super_admin. The body must name the target tenant's slug (confirmSlug) and it must match the organization in the path — a typed confirmation, because this is a dangerous tenant-specific action.
+ * Sets status to suspended. Platform tenant lifecycle — Platform Super Admin only. The body must name the target tenant's slug (confirmSlug) and it must match the organization in the path — a typed confirmation, because this is a dangerous platform action.
  * @summary Suspend an organization
  */
 export const SuspendOrganizationParams = zod.object({
@@ -359,7 +359,7 @@ export const SuspendOrganizationResponse = zod.object({
 
 
 /**
- * Sets status to active. Requires org_admin (within the organization) or super_admin. The body must name the target tenant's slug (confirmSlug) and it must match the organization in the path.
+ * Sets status to active. Platform tenant lifecycle — Platform Super Admin only. The body must name the target tenant's slug (confirmSlug) and it must match the organization in the path.
  * @summary Reactivate a suspended organization
  */
 export const ReactivateOrganizationParams = zod.object({

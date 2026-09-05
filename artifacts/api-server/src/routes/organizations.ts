@@ -5,6 +5,7 @@ import { CreateOrganizationBody, UpdateOrganizationBody, SuspendOrganizationBody
 import { bindTenantContext } from "../lib/requestContext";
 import { classifyOperation, auditScopeMetadata } from "../lib/platformOperations/blastRadius";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
+import { requireSuperAdmin } from "../middlewares/requireSuperAdmin";
 import type { TenantAwareRequest } from "../middlewares/resolveTenantHost";
 import { isSuperAdmin } from "../lib/authorization";
 import { authorizeOrganizationAction } from "../lib/organizationAuthorization";
@@ -103,7 +104,13 @@ router.get("/organizations", requireAuth as any, async (req: AuthenticatedReques
 });
 
 // POST /organizations
-router.post("/organizations", requireAuth as any, async (req: AuthenticatedRequest, res): Promise<void> => {
+// Platform control plane: creating a tenant is Super-Admin-only. A tenant
+// user (org_admin, hr_administrator, Primary HR, custom admin, employee) must
+// never provision a new organisation merely by being authenticated -- doing so
+// would hand the creator org_admin + Primary HR of a brand-new tenant
+// (onboardOrganization). Authority is the platform super_admin role only,
+// never a tenant role name, membership or legacy users.organizationId.
+router.post("/organizations", requireAuth as any, requireSuperAdmin as any, async (req: AuthenticatedRequest, res): Promise<void> => {
   const parsed = CreateOrganizationBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -219,12 +226,15 @@ router.patch("/organizations/:id", requireAuth as any, async (req: OrganizationS
 });
 
 // POST /organizations/:id/suspend
-router.post("/organizations/:id/suspend", requireAuth as any, async (req: OrganizationScopedRequest, res): Promise<void> => {
+// Platform tenant lifecycle: activation/suspension of a tenant is a
+// control-plane action reserved to the platform super_admin -- a tenant
+// administrator cannot suspend even its own organisation.
+router.post("/organizations/:id/suspend", requireAuth as any, requireSuperAdmin as any, async (req: OrganizationScopedRequest, res): Promise<void> => {
   await setOrganizationStatus(req, res, "suspended", "organization.suspended");
 });
 
 // POST /organizations/:id/reactivate
-router.post("/organizations/:id/reactivate", requireAuth as any, async (req: OrganizationScopedRequest, res): Promise<void> => {
+router.post("/organizations/:id/reactivate", requireAuth as any, requireSuperAdmin as any, async (req: OrganizationScopedRequest, res): Promise<void> => {
   await setOrganizationStatus(req, res, "active", "organization.reactivated");
 });
 
