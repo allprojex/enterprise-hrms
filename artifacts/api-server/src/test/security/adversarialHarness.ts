@@ -169,6 +169,52 @@ export interface Store {
  * assert it stays empty, so a route that outgrows the mock fails loudly instead
  * of silently producing a 500 that a careless test would read as "denied".
  */
+/**
+ * Evaluates a JOIN predicate with table-qualified column resolution. A
+ * reference like "organizations.id" is read from whichever of the two joined
+ * rows owns that table, so a foreign-key-to-`id` join is correct even when
+ * both sides have an `id` column. Anything not a plain column reference falls
+ * back to the merged-row matcher (post-join literal filters still work).
+ */
+function matchesJoin(
+  l: Record<string, unknown>,
+  r: Record<string, unknown>,
+  lt: string,
+  rt: string,
+  merged: Record<string, unknown>,
+  cond: Cond,
+): boolean {
+  if (!cond) return true;
+  const resolve = (ref: unknown): { hit: boolean; value: unknown } => {
+    if (typeof ref !== "string") return { hit: false, value: ref };
+    const dot = ref.indexOf(".");
+    if (dot === -1) return { hit: false, value: ref };
+    const tbl = ref.slice(0, dot);
+    const name = ref.slice(dot + 1);
+    if (tbl === lt && name in l) return { hit: true, value: l[name] };
+    if (tbl === rt && name in r) return { hit: true, value: r[name] };
+    return { hit: false, value: ref };
+  };
+  switch (cond.__op) {
+    case "and":
+      return cond.conds.every((c) => matchesJoin(l, r, lt, rt, merged, c));
+    case "or":
+      return cond.conds.some((c) => matchesJoin(l, r, lt, rt, merged, c));
+    case "eq":
+    case "ne": {
+      const left = resolve(cond.field);
+      const right = resolve(cond.val);
+      // Only take over when this really is a column-to-column join predicate;
+      // otherwise defer to the ordinary matcher against the merged row.
+      if (!left.hit && !right.hit) return matches(merged, cond);
+      const eq = left.value === right.value;
+      return cond.__op === "eq" ? eq : !eq;
+    }
+    default:
+      return matches(merged, cond);
+  }
+}
+
 export function createEngine(store: Store) {
   const unsupported: string[] = [];
   const rows = (t: MockTable) => (store[t.__name] ??= []);
@@ -192,11 +238,16 @@ export function createEngine(store: Store) {
           innerJoin(other: MockTable, cond: Cond) {
             const right = rows(other);
             const joined: Record<string, unknown>[] = [];
+            const lt = table.__name;
+            const rt = other.__name;
             for (const l of working) {
               for (const r of right) {
-                // Merge then test, so the condition can reference either side.
+                // Merge (left wins) for the post-join projection/where, but
+                // evaluate the JOIN predicate with table-qualified resolution:
+                // eq(a.fk, b.id) must compare a's fk to b's id even when both
+                // tables carry an `id` column (a naive merge would clobber it).
                 const merged = { ...r, ...l };
-                if (matches(merged, cond)) {
+                if (matchesJoin(l as Record<string, unknown>, r, lt, rt, merged, cond)) {
                   joined.push({
                     ...merged,
                     __left: { ...l, __table: table.__name },
@@ -340,7 +391,7 @@ export function createEngine(store: Store) {
 
 export const TABLES = {
   users: mockTable("users", ["id", "email", "role", "organizationId", "disabledAt", "firstName", "lastName"]),
-  organizations: mockTable("organizations", ["id", "name", "slug"]),
+  organizations: mockTable("organizations", ["id", "name", "slug", "status", "type", "logoUrl"]),
   sessions: mockTable("sessions", ["token", "userId", "expiresAt"]),
   organizationMemberships: mockTable("organization_memberships", [
     "id",
@@ -427,8 +478,8 @@ export function seedTwoOrgs(options?: {
   const store: Store = {};
   for (const t of Object.values(TABLES)) store[t.__name] = [];
   store.organizations.push(
-    { id: ORG_A, name: "Org A", slug: "org-a" },
-    { id: ORG_B, name: "Org B", slug: "org-b" },
+    { id: ORG_A, name: "Org A", slug: "org-a", status: "active", type: "business", logoUrl: null },
+    { id: ORG_B, name: "Org B", slug: "org-b", status: "active", type: "business", logoUrl: null },
   );
 
   const perms = {

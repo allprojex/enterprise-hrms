@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useLocation } from 'wouter';
+import { useState, useEffect, useRef } from 'react';
+import { useLocation, useRoute } from 'wouter';
 import { ShieldCheck, UserPlus, Trash2, Star, History, Settings2, Mail, Copy, FileBarChart, Download } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -82,7 +82,12 @@ function MembersTab({ organizationId }: { organizationId: number }) {
   const [roleToAssign, setRoleToAssign] = useState<Record<number, string>>({});
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRoleId, setInviteRoleId] = useState('');
-  const [inviteLink, setInviteLink] = useState<{ email: string; url: string } | null>(null);
+  const [inviteLink, setInviteLink] = useState<{ email: string; url: string; reinvited: boolean } | null>(null);
+  // Never let a link issued for one organization linger when the console
+  // switches to another -- clear whenever the target organization changes.
+  useEffect(() => {
+    setInviteLink(null);
+  }, [organizationId]);
 
   const { data: members, isLoading, error, refetch } = useListMembers(organizationId, {
     query: { queryKey: getListMembersQueryKey(organizationId), enabled: organizationId > 0 },
@@ -137,10 +142,16 @@ function MembersTab({ organizationId }: { organizationId: number }) {
           invalidateMembers();
           setInviteEmail('');
           setInviteRoleId('');
-          setInviteLink({ email: inviteEmail.trim(), url: `${window.location.origin}/invite/${result.inviteToken}` });
-          toast({ title: 'Invitation created', description: 'Share the link below with the invitee -- no email is sent automatically.' });
+          setInviteLink({ email: inviteEmail.trim(), url: result.inviteUrl, reinvited: result.reinvited });
+          toast({
+            title: result.reinvited ? 'Invitation re-issued' : 'Invitation created',
+            description: 'Share the new link below with the invitee -- no email is sent automatically.',
+          });
         },
         onError: (err) => {
+          // A failed invite must never leave a previous link on screen as
+          // though it were this action's result.
+          setInviteLink(null);
           toast({
             title: 'Could not create invitation',
             description: errorMessage(err) ?? 'Check the email and try again.',
@@ -190,6 +201,8 @@ function MembersTab({ organizationId }: { organizationId: number }) {
       {
         onSuccess: () => {
           invalidateMembers();
+          // The revoked invitation's link is now dead server-side; drop it here too.
+          setInviteLink(null);
           toast({ title: 'Membership revoked' });
         },
         onError: (err) => toast({ title: 'Could not revoke membership', description: errorMessage(err), variant: 'destructive' }),
@@ -269,8 +282,8 @@ function MembersTab({ organizationId }: { organizationId: number }) {
           {inviteLink && (
             <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2" data-testid="card-invite-link">
               <p className="text-sm text-muted-foreground">
-                Invitation link for <span className="font-medium text-foreground">{inviteLink.email}</span> -- share it
-                with them directly:
+                {inviteLink.reinvited ? 'Fresh invitation link for ' : 'Invitation link for '}
+                <span className="font-medium text-foreground">{inviteLink.email}</span> -- share it with them directly:
               </p>
               <div className="flex gap-2">
                 <Input readOnly value={inviteLink.url} className="text-xs" data-testid="input-invite-link" />
@@ -1481,8 +1494,17 @@ function ReportsTab({ organizationId }: { organizationId: number }) {
 
 export default function Admin() {
   const [, setLocation] = useLocation();
+  const [, routeParams] = useRoute('/admin/:organizationId');
   const { data: user, isLoading: userLoading } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
-  const organizationId = user?.activeOrganizationId ?? user?.organizationId ?? 0;
+
+  // Fail-closed organization context: the target organization is the EXPLICIT
+  // route parameter, never a session/user default. Every Admin Console API
+  // call targets this id, and the server re-authorizes the actor against it
+  // (requireMembership + requireDelegationAuthority). A missing or invalid id
+  // performs no mutation -- the console does not render.
+  const routeOrgId = routeParams?.organizationId ? Number(routeParams.organizationId) : NaN;
+  const hasExplicitOrg = Number.isInteger(routeOrgId) && routeOrgId > 0;
+  const organizationId = hasExplicitOrg ? routeOrgId : 0;
 
   const { data: myOrganizations, isLoading: membershipsLoading } = useListMyOrganizations({
     query: { queryKey: getListMyOrganizationsQueryKey(), enabled: !!user },
@@ -1497,7 +1519,8 @@ export default function Admin() {
   const canManageHrTeam =
     currentMembership?.isPrimaryHr === true && currentMembership.roles.includes('hr_administrator');
   const hrTeamMode = !isOrgAdmin && canManageHrTeam;
-  const canOpen = isOrgAdmin || canManageHrTeam;
+  const canOpen = hasExplicitOrg && (isOrgAdmin || canManageHrTeam);
+  const managingName = currentMembership?.organizationName ?? null;
   const stillChecking = userLoading || membershipsLoading;
 
   // UX-level route guard only — every mutation/query this page makes is
@@ -1506,10 +1529,18 @@ export default function Admin() {
   // confusing wall of 403s, to a user whose roles wouldn't let them act on
   // any of it.
   useEffect(() => {
-    if (!stillChecking && !canOpen) {
+    if (stillChecking) return;
+    // No explicit organization selected -> send the admin to pick one, never
+    // silently administer a default org.
+    if (!hasExplicitOrg) {
+      setLocation('/organizations');
+      return;
+    }
+    // Explicit org, but the caller is not authorized for it -> unauthorized.
+    if (!canOpen) {
       setLocation('/unauthorized');
     }
-  }, [stillChecking, canOpen, setLocation]);
+  }, [stillChecking, hasExplicitOrg, canOpen, setLocation]);
 
   if (!stillChecking && !canOpen) {
     return null;
@@ -1531,6 +1562,11 @@ export default function Admin() {
           <ShieldCheck className="h-7 w-7 text-primary" aria-hidden="true" />
           {hrTeamMode ? 'HR Team Management' : 'Admin Console'}
         </h1>
+        {managingName && (
+          <p className="text-sm font-medium" data-testid="admin-managing-org">
+            Managing: <span className="text-foreground">{managingName}</span>
+          </p>
+        )}
         <p className="text-muted-foreground">
           {hrTeamMode
             ? 'Invite HR team members and assign the HR roles you are entitled to delegate'

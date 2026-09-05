@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useLocation } from 'wouter';
 import { useGetTenantContext, getGetTenantContextQueryKey } from '@workspace/api-client-react';
 
 // Maps TenantThemeTokens keys straight onto the CSS custom property names
@@ -36,8 +37,13 @@ const ALL_CSS_VARIABLES = Object.values(CSS_VARIABLE_BY_THEME_KEY);
  */
 export function TenantTheme() {
   const { data: tenantContext } = useGetTenantContext({ query: { queryKey: getGetTenantContextQueryKey() } });
+  const [location] = useLocation();
+  // The invitation accept page owns its theme from the INVITED organization
+  // (invite-accept.tsx), never from the hostname the link was opened on.
+  const onInvitePage = location.startsWith('/invite/');
 
   useEffect(() => {
+    if (onInvitePage) return;
     const root = document.documentElement;
     for (const cssVar of ALL_CSS_VARIABLES) {
       root.style.removeProperty(cssVar);
@@ -50,7 +56,7 @@ export function TenantTheme() {
       const value = theme[themeKey as keyof typeof CSS_VARIABLE_BY_THEME_KEY];
       if (value) root.style.setProperty(cssVar, value);
     }
-  }, [tenantContext]);
+  }, [tenantContext, onInvitePage]);
 
   return null;
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link, useLocation } from 'wouter';
 import { Building2, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -7,6 +7,18 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useGetInvitation, getGetInvitationQueryKey, useAcceptInvitation } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
+
+const CSS_VAR_BY_THEME_KEY: Record<string, string> = {
+  sidebar: '--sidebar',
+  sidebarForeground: '--sidebar-foreground',
+  sidebarAccent: '--sidebar-accent',
+  sidebarAccentForeground: '--sidebar-accent-foreground',
+  primary: '--primary',
+  primaryForeground: '--primary-foreground',
+  accent: '--accent',
+  accentForeground: '--accent-foreground',
+  ring: '--ring',
+};
 
 function errorMessage(err: unknown): string | undefined {
   return err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
@@ -25,6 +37,31 @@ export default function InviteAccept() {
     query: { queryKey: getGetInvitationQueryKey(token), enabled: !!token },
   });
   const acceptMutation = useAcceptInvitation();
+
+  // The INVITATION decides the organization. Apply the invited organization's
+  // own theme tokens on this page only (scoped to the invite root element),
+  // regardless of which hostname the link was opened on -- an Org A invitation
+  // never picks up Org B's branding. Cleared on unmount.
+  const brand = invitation?.organization ?? null;
+  const orgName = brand?.organizationName ?? invitation?.organizationName ?? 'your organisation';
+  const systemName = brand?.systemDisplayName ?? 'Enterprise HRMS';
+  const logoUrl = brand?.logoUrl ?? null;
+  useEffect(() => {
+    const root = document.documentElement;
+    const theme = brand?.theme ?? null;
+    if (!theme) return;
+    const applied: string[] = [];
+    for (const [k, cssVar] of Object.entries(CSS_VAR_BY_THEME_KEY)) {
+      const value = (theme as Record<string, string | undefined>)[k];
+      if (value) {
+        root.style.setProperty(cssVar, value);
+        applied.push(cssVar);
+      }
+    }
+    return () => {
+      for (const cssVar of applied) root.style.removeProperty(cssVar);
+    };
+  }, [brand]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,15 +86,18 @@ export default function InviteAccept() {
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white">
             <Building2 className="h-7 w-7 text-primary" />
           </div>
-          <h1 className="text-xl font-semibold text-white font-sans">Enterprise HRMS</h1>
+          {logoUrl ? (
+            <img src={logoUrl} alt="" className="h-8 w-8 rounded-md bg-white object-contain" />
+          ) : null}
+          <h1 className="text-xl font-semibold text-white font-sans">{systemName}</h1>
         </div>
         <div className="space-y-6">
-          <h2 className="text-4xl font-bold text-white leading-tight">You've been invited</h2>
+          <h2 className="text-4xl font-bold text-white leading-tight">You've been invited to join {orgName}</h2>
           <p className="text-lg text-white/90 leading-relaxed max-w-md">
-            Set a password to finish creating your account and join your organisation.
+            Set a password to finish creating your account and join {orgName}.
           </p>
         </div>
-        <div className="text-sm text-white/70">© {new Date().getFullYear()} Enterprise HRMS. All rights reserved.</div>
+        <div className="text-sm text-white/70">© {new Date().getFullYear()} {systemName}. All rights reserved.</div>
       </div>
 
       <div className="flex-1 flex items-center justify-center p-8 bg-background">
@@ -66,7 +106,7 @@ export default function InviteAccept() {
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
               <Building2 className="h-7 w-7 text-primary-foreground" />
             </div>
-            <h1 className="text-xl font-semibold text-foreground font-sans">Enterprise HRMS</h1>
+            <h1 className="text-xl font-semibold text-foreground font-sans">{systemName}</h1>
           </div>
 
           {isLoading ? (
@@ -97,9 +137,22 @@ export default function InviteAccept() {
               <h2 className="text-2xl font-bold text-foreground">This invitation has expired</h2>
               <p className="text-muted-foreground">Ask an administrator at {invitation.organizationName} to invite you again.</p>
             </div>
+          ) : invitation.status === 'revoked' ? (
+            <div className="space-y-4 text-center">
+              <h2 className="text-2xl font-bold text-foreground">This invitation is no longer valid</h2>
+              <p className="text-muted-foreground">
+                Ask an administrator at {orgName} to send you a new invitation.
+              </p>
+              <Link href="/login" data-testid="link-return-login">
+                <Button variant="outline" className="w-full">Return to login</Button>
+              </Link>
+            </div>
           ) : invitation.status === 'accepted' ? (
             <div className="space-y-6 text-center">
               <h2 className="text-2xl font-bold text-foreground">This invitation was already used</h2>
+              <p className="text-muted-foreground">
+                If this is your account, log in instead. Otherwise ask {orgName} for a new invitation.
+              </p>
               <Link href="/login" data-testid="link-return-login">
                 <Button className="w-full">Go to login</Button>
               </Link>
@@ -122,7 +175,7 @@ export default function InviteAccept() {
           ) : (
             <div className="space-y-6">
               <div className="space-y-2 text-center lg:text-left">
-                <h2 className="text-3xl font-bold text-foreground">Join {invitation.organizationName}</h2>
+                <h2 className="text-3xl font-bold text-foreground">Join {orgName}</h2>
                 <p className="text-muted-foreground">
                   Create your account for <span className="font-medium text-foreground">{invitation.email}</span>
                 </p>

@@ -81,6 +81,56 @@ export async function listDomainsForOrganization(organizationId: number): Promis
   return db.select().from(organizationDomainsTable).where(eq(organizationDomainsTable.organizationId, organizationId));
 }
 
+export type InvitationOriginSource =
+  | "primary_domain"
+  | "single_active_domain"
+  | "app_base_url"
+  | "app_base_url_ambiguous_domains";
+
+export interface InvitationOrigin {
+  /** Scheme + host, no trailing slash, e.g. https://wwm.example.com */
+  origin: string;
+  source: InvitationOriginSource;
+}
+
+/**
+ * The public origin an organization's onboarding links (invitations) should
+ * be issued on. Derived ONLY from the organization's governed domain
+ * configuration and APP_BASE_URL — never from the request's Host,
+ * X-Forwarded-Host or X-Tenant-Hostname, so a caller can never steer an
+ * invitation link onto a hostname of their choosing (WS-18 Pass 4 stays
+ * intact: the request hostname is not an input here at all).
+ *
+ * Resolution order:
+ *   1. the organization's designated primary domain, if active;
+ *   2. otherwise its single active domain (unambiguous);
+ *   3. otherwise APP_BASE_URL — the platform host, on which the accept page
+ *      brands itself from the invitation, so it is always correct even if
+ *      not tenant-specific. When several active domains exist without a
+ *      primary, the platform host is used and the source says so; the
+ *      administrator should designate a primary domain to get tenant links.
+ *
+ * Returns null only when nothing is configured (no domain, no APP_BASE_URL):
+ * callers must then refuse to issue the invitation rather than invent a URL.
+ */
+export async function resolveInvitationOrigin(organizationId: number): Promise<InvitationOrigin | null> {
+  const appBase = (process.env.APP_BASE_URL ?? "").trim().replace(/\/+$/, "");
+  let scheme = "https";
+  if (appBase) {
+    try {
+      scheme = new URL(appBase).protocol.replace(/:$/, "") || "https";
+    } catch {
+      scheme = "https";
+    }
+  }
+  const active = (await listDomainsForOrganization(organizationId)).filter((d) => d.status === "active");
+  const primary = active.find((d) => d.isPrimary);
+  if (primary) return { origin: `${scheme}://${primary.hostname}`, source: "primary_domain" };
+  if (active.length === 1) return { origin: `${scheme}://${active[0].hostname}`, source: "single_active_domain" };
+  if (!appBase) return null;
+  return { origin: appBase, source: active.length === 0 ? "app_base_url" : "app_base_url_ambiguous_domains" };
+}
+
 /**
  * Creates a domain for an organization. platform_subdomain rows are
  * immediately active — the platform itself controls those hostnames, there

@@ -7117,13 +7117,32 @@ export const InvitationCreatedStatus = {
   revoked: 'revoked',
 } as const;
 
+/**
+ * Which rule produced inviteUrl. app_base_url_ambiguous_domains means the organization has several active domains and no primary, so the platform host was used -- designate a primary domain to get tenant-specific links.
+ */
+export type InvitationCreatedInviteUrlSource = typeof InvitationCreatedInviteUrlSource[keyof typeof InvitationCreatedInviteUrlSource];
+
+
+export const InvitationCreatedInviteUrlSource = {
+  primary_domain: 'primary_domain',
+  single_active_domain: 'single_active_domain',
+  app_base_url: 'app_base_url',
+  app_base_url_ambiguous_domains: 'app_base_url_ambiguous_domains',
+} as const;
+
 export interface InvitationCreated {
   membershipId: number;
   applicationUserId: number;
   organizationId: number;
   status: InvitationCreatedStatus;
-  /** Build the accept link as `/invite/{inviteToken}` on the frontend origin. Share it with the invitee out-of-band -- no email is sent. */
+  /** The raw accept token (returned exactly once). Prefer inviteUrl; share it with the invitee out-of-band -- no email is sent. */
   inviteToken: string;
+  /** Complete accept link, built SERVER-SIDE from the invited organization's governed domain configuration (primary active domain, else its single active domain, else APP_BASE_URL). Never derived from the request Host or any forwarded header. */
+  inviteUrl: string;
+  /** Which rule produced inviteUrl. app_base_url_ambiguous_domains means the organization has several active domains and no primary, so the platform host was used -- designate a primary domain to get tenant-specific links. */
+  inviteUrlSource: InvitationCreatedInviteUrlSource;
+  /** True when an existing revoked or expired-pending membership was re-issued a fresh invitation (new token, fresh expiry, roles replaced) instead of a new membership being created. */
+  reinvited: boolean;
 }
 
 export type InvitationPreviewStatus = typeof InvitationPreviewStatus[keyof typeof InvitationPreviewStatus];
@@ -7133,12 +7152,24 @@ export const InvitationPreviewStatus = {
   pending: 'pending',
   expired: 'expired',
   accepted: 'accepted',
+  revoked: 'revoked',
 } as const;
+
+export interface InvitationOrganizationBranding {
+  organizationName: string;
+  /** @nullable */
+  logoUrl: string | null;
+  /** @nullable */
+  systemDisplayName: string | null;
+  theme: TenantThemeTokens | null;
+}
 
 export interface InvitationPreview {
   organizationName: string;
   email: string;
   status: InvitationPreviewStatus;
+  /** Public branding of the INVITED organization (the invitation decides the organization; the hostname the link is opened on never does). Null only when the organization is not currently presentable (e.g. suspended). */
+  organization: InvitationOrganizationBranding | null;
 }
 
 export interface AcceptInvitationInput {

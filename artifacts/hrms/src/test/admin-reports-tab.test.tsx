@@ -16,7 +16,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
-import { Router } from 'wouter';
+import { Router, Route, Switch } from 'wouter';
 import { memoryLocation } from 'wouter/memory-location';
 
 const { state, runReportSpy, urlSpy } = vi.hoisted(() => ({
@@ -88,12 +88,15 @@ vi.mock('@workspace/api-client-react', () => ({
 const { default: Admin } = await import('@/pages/admin');
 
 function tree() {
-  const { hook } = memoryLocation({ path: '/admin' });
+  const { hook } = memoryLocation({ path: '/admin/10' });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return (
     <QueryClientProvider client={client}>
       <Router hook={hook}>
-        <Admin />
+        <Switch>
+          <Route path="/admin/:organizationId" component={Admin} />
+          <Route path="/admin" component={Admin} />
+        </Switch>
       </Router>
     </QueryClientProvider>
   );

@@ -51,6 +51,8 @@ vi.mock("@workspace/db", async () => {
     modulesTable: h.TABLES.modules,
     organizationModulesTable: h.TABLES.organizationModules,
     breakGlassGrantsTable: h.TABLES.breakGlassGrants,
+    organizationDomainsTable: h.mockTable("organization_domains", ["id", "organizationId", "hostname", "status", "isPrimary", "domainType"]),
+    organizationSettingsTable: h.mockTable("organization_settings", ["id", "organizationId", "namespace", "schemaVersion", "settings"]),
     auditEventsTable: h.mockTable("audit_events", [
       "id",
       "organizationId",
@@ -63,6 +65,7 @@ vi.mock("@workspace/db", async () => {
   };
 });
 
+process.env.APP_BASE_URL = "https://platform.test";
 const { default: app } = await import("../app");
 
 // ---------------------------------------------------------------------------
@@ -127,6 +130,8 @@ function seed() {
   });
   for (const key of Object.keys(fx.store)) state.store[key] = fx.store[key];
   state.store.audit_events = [];
+  state.store.organization_domains = [];
+  state.store.organization_settings = [];
 
   addRole(ROLE.superAdmin, "super_admin", null, true, SUPER_ADMIN_KEYS);
   addRole(ROLE.orgAdmin, "org_admin", null, true, ORG_ADMIN_KEYS);

@@ -72,6 +72,42 @@ describe('InviteAccept', () => {
     });
   });
 
+  it('shows a revoked message (not "already used") for a revoked invitation', async () => {
+    getInvitationResult.data = { organizationName: 'Acme Co', email: 'invitee@example.com', status: 'revoked', organization: null };
+    getInvitationResult.isLoading = false;
+    getInvitationResult.error = null;
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('This invitation is no longer valid')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('This invitation was already used')).not.toBeInTheDocument();
+  });
+
+  it('brands the page from the INVITED organization, not the host', async () => {
+    getInvitationResult.data = {
+      organizationName: 'Worldwide Word Ministries',
+      email: 'gloria@example.com',
+      status: 'pending',
+      organization: {
+        organizationName: 'Worldwide Word Ministries',
+        logoUrl: null,
+        systemDisplayName: 'WWM HR',
+        theme: null,
+      },
+    };
+    getInvitationResult.isLoading = false;
+    getInvitationResult.error = null;
+
+    renderPage('good-token');
+
+    await waitFor(() => {
+      expect(screen.getByText('Join Worldwide Word Ministries')).toBeInTheDocument();
+    });
+    expect(screen.getAllByText(/You've been invited to join Worldwide Word Ministries/).length).toBeGreaterThan(0);
+  });
+
   it('renders the accept form for a pending invitation and submits it', async () => {
     getInvitationResult.data = { organizationName: 'Acme Co', email: 'invitee@example.com', status: 'pending' };
     getInvitationResult.isLoading = false;

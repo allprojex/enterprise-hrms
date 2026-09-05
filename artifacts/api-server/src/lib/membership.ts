@@ -183,8 +183,19 @@ export async function addMemberByEmail(organizationId: number, email: string): P
   const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase())).limit(1);
   if (!user) throw new UserNotFoundError(`No user with email ${email}`);
 
-  const existing = await getActiveMembership(user.id, organizationId);
-  if (existing) throw new AlreadyMemberError(`User is already an active member of this organization`);
+  // The (user, organization) row is unique. A live membership (active, or a
+  // pending invitation) is a conflict; a revoked one is reactivated in place
+  // with any stale invitation credential cleared -- never a second row.
+  const existing = await getAnyMembership(user.id, organizationId);
+  if (existing) {
+    if (existing.status !== "revoked") throw new AlreadyMemberError(`User already has a membership in this organization`);
+    const [reactivated] = await db
+      .update(organizationMembershipsTable)
+      .set({ status: "active", joinedAt: new Date(), revokedAt: null, revokedBy: null, inviteToken: null, inviteTokenExpiresAt: null })
+      .where(eq(organizationMembershipsTable.id, existing.id))
+      .returning();
+    return reactivated;
+  }
 
   const [membership] = await db
     .insert(organizationMembershipsTable)
@@ -214,11 +225,16 @@ export async function revokeRoleFromMembership(membershipId: number, roleId: num
     .where(and(eq(membershipRolesTable.membershipId, membershipId), eq(membershipRolesTable.roleId, roleId)));
 }
 
-/** Revokes a membership (soft — sets status/revokedAt/revokedBy; the row and its history are kept). */
+/**
+ * Revokes a membership (soft — sets status/revokedAt/revokedBy; the row and
+ * its history are kept). Any outstanding invitation credential is destroyed
+ * in the same statement: a revoked invitation's token must stop resolving
+ * immediately and can never be shown or accepted again.
+ */
 export async function revokeMembership(membershipId: number, revokedBy: number): Promise<Membership | null> {
   const [updated] = await db
     .update(organizationMembershipsTable)
-    .set({ status: "revoked", revokedAt: new Date(), revokedBy })
+    .set({ status: "revoked", revokedAt: new Date(), revokedBy, inviteToken: null, inviteTokenExpiresAt: null })
     .where(eq(organizationMembershipsTable.id, membershipId))
     .returning();
   return updated ?? null;
@@ -236,6 +252,7 @@ export async function revokeMembership(membershipId: number, revokedBy: number):
 export class InvitationNotFoundError extends Error {}
 export class InvitationExpiredError extends Error {}
 export class InvitationNotPendingError extends Error {}
+export class InvitationRevokedError extends Error {}
 
 export interface Invitation {
   membership: Membership;
@@ -266,18 +283,75 @@ async function getAnyMembership(applicationUserId: number, organizationId: numbe
  * rather than creating a duplicate; throws AlreadyMemberError if they
  * already have any membership (invited or otherwise) in this organization.
  */
+/**
+ * A membership that may be re-issued an invitation: it was revoked, or its
+ * invitation is still pending but the credential has expired. Anything
+ * else (active, suspended, a live pending invitation) is a real conflict.
+ */
+export function isReissuableInvitation(membership: Pick<Membership, "status" | "inviteTokenExpiresAt">): boolean {
+  if (membership.status === "revoked") return true;
+  if (membership.status === "invited") {
+    return !!membership.inviteTokenExpiresAt && membership.inviteTokenExpiresAt < new Date();
+  }
+  return false;
+}
+
+/** The user (if any) behind an email and that user's membership row (if any) in the organization. */
+export async function findInvitationTarget(
+  organizationId: number,
+  email: string,
+): Promise<{ user: User | null; membership: Membership | null }> {
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase())).limit(1);
+  if (!user) return { user: null, membership: null };
+  return { user, membership: await getAnyMembership(user.id, organizationId) };
+}
+
 export async function inviteMember(params: {
   organizationId: number;
   email: string;
   roleId?: number;
-}): Promise<{ membership: Membership; user: User; token: string }> {
+}): Promise<{ membership: Membership; user: User; token: string; reissued: boolean; previousStatus: string | null }> {
   const email = params.email.toLowerCase();
+  const token = generateToken();
+  const inviteTokenExpiresAt = new Date(Date.now() + INVITATION_TTL_MS);
 
-  let [user] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
-  if (user) {
-    const existingMembership = await getAnyMembership(user.id, params.organizationId);
-    if (existingMembership) throw new AlreadyMemberError(`User already has a membership in this organization`);
-  } else {
+  let { user, membership: existing } = await findInvitationTarget(params.organizationId, email);
+
+  if (existing) {
+    // Governed re-invite: the (user, organization) row is unique, so a
+    // revoked or expired-pending membership is re-issued in place — a NEW
+    // random token, a fresh expiry, status back to "invited", and the role
+    // links REPLACED by the newly chosen (already guard-checked) role. The
+    // previous token was destroyed on revoke; the previous revocation stays
+    // in the audit log. Live memberships are a genuine conflict.
+    if (!isReissuableInvitation(existing)) {
+      throw new AlreadyMemberError(`User already has a membership in this organization`);
+    }
+    const previousStatus = existing.status;
+    const membership = await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(organizationMembershipsTable)
+        .set({
+          status: "invited",
+          invitedAt: new Date(),
+          joinedAt: null,
+          revokedAt: null,
+          revokedBy: null,
+          inviteToken: token,
+          inviteTokenExpiresAt,
+        })
+        .where(eq(organizationMembershipsTable.id, existing!.id))
+        .returning();
+      await tx.delete(membershipRolesTable).where(eq(membershipRolesTable.membershipId, existing!.id));
+      if (params.roleId) {
+        await tx.insert(membershipRolesTable).values({ membershipId: existing!.id, roleId: params.roleId });
+      }
+      return updated;
+    });
+    return { membership, user: user!, token, reissued: true, previousStatus };
+  }
+
+  if (!user) {
     const localPart = email.split("@")[0] || "New";
     [user] = await db
       .insert(usersTable)
@@ -291,7 +365,6 @@ export async function inviteMember(params: {
       .returning();
   }
 
-  const token = generateToken();
   const [membership] = await db
     .insert(organizationMembershipsTable)
     .values({
@@ -300,7 +373,7 @@ export async function inviteMember(params: {
       status: "invited",
       invitedAt: new Date(),
       inviteToken: token,
-      inviteTokenExpiresAt: new Date(Date.now() + INVITATION_TTL_MS),
+      inviteTokenExpiresAt,
     })
     .returning();
 
@@ -308,7 +381,7 @@ export async function inviteMember(params: {
     await db.insert(membershipRolesTable).values({ membershipId: membership.id, roleId: params.roleId });
   }
 
-  return { membership, user, token };
+  return { membership, user, token, reissued: false, previousStatus: null };
 }
 
 /** Preview an invitation by its token, for the public accept page. Does not mutate anything. */
@@ -325,8 +398,11 @@ export async function getInvitationByToken(token: string): Promise<Invitation | 
 }
 
 function assertPendingAndUnexpired(invitation: Invitation): void {
+  if (invitation.membership.status === "revoked") {
+    throw new InvitationRevokedError("This invitation has been revoked");
+  }
   if (invitation.membership.status !== "invited") {
-    throw new InvitationNotPendingError("This invitation has already been used or revoked");
+    throw new InvitationNotPendingError("This invitation has already been used");
   }
   if (invitation.membership.inviteTokenExpiresAt && invitation.membership.inviteTokenExpiresAt < new Date()) {
     throw new InvitationExpiredError("This invitation has expired");

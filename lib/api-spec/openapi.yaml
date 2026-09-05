@@ -38184,7 +38184,7 @@ components:
 
     InvitationCreated:
       type: object
-      required: [membershipId, applicationUserId, organizationId, status, inviteToken]
+      required: [membershipId, applicationUserId, organizationId, status, inviteToken, inviteUrl, inviteUrlSource, reinvited]
       properties:
         membershipId:
           type: integer
@@ -38197,11 +38197,28 @@ components:
           enum: [invited, active, suspended, expired, revoked]
         inviteToken:
           type: string
-          description: Build the accept link as `/invite/{inviteToken}` on the frontend origin. Share it with the invitee out-of-band -- no email is sent.
+          description: The raw accept token (returned exactly once). Prefer inviteUrl; share it with the invitee out-of-band -- no email is sent.
+        inviteUrl:
+          type: string
+          description: >-
+            Complete accept link, built SERVER-SIDE from the invited organization's
+            governed domain configuration (primary active domain, else its single
+            active domain, else APP_BASE_URL). Never derived from the request Host or
+            any forwarded header.
+        inviteUrlSource:
+          type: string
+          enum: [primary_domain, single_active_domain, app_base_url, app_base_url_ambiguous_domains]
+          description: >-
+            Which rule produced inviteUrl. app_base_url_ambiguous_domains means the
+            organization has several active domains and no primary, so the platform
+            host was used -- designate a primary domain to get tenant-specific links.
+        reinvited:
+          type: boolean
+          description: True when an existing revoked or expired-pending membership was re-issued a fresh invitation (new token, fresh expiry, roles replaced) instead of a new membership being created.
 
     InvitationPreview:
       type: object
-      required: [organizationName, email, status]
+      required: [organizationName, email, status, organization]
       properties:
         organizationName:
           type: string
@@ -38209,7 +38226,30 @@ components:
           type: string
         status:
           type: string
-          enum: [pending, expired, accepted]
+          enum: [pending, expired, accepted, revoked]
+        organization:
+          description: >-
+            Public branding of the INVITED organization (the invitation decides the
+            organization; the hostname the link is opened on never does). Null only
+            when the organization is not currently presentable (e.g. suspended).
+          anyOf:
+            - $ref: "#/components/schemas/InvitationOrganizationBranding"
+            - type: "null"
+
+    InvitationOrganizationBranding:
+      type: object
+      required: [organizationName, logoUrl, systemDisplayName, theme]
+      properties:
+        organizationName:
+          type: string
+        logoUrl:
+          type: ["string", "null"]
+        systemDisplayName:
+          type: ["string", "null"]
+        theme:
+          anyOf:
+            - $ref: "#/components/schemas/TenantThemeTokens"
+            - type: "null"
 
     AcceptInvitationInput:
       type: object

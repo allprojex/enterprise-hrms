@@ -544,3 +544,81 @@ editing a role that already reaches outside the boundary, `org_admin`'s
 platform-restricted grant, protected system templates, the `delegable` flag
 for each authority level, and break-glass. `roleDelegation.test.ts` pins the
 pure rules; `rolesPermissionsSeed.test.ts` pins the template shape.
+
+## 20. Invitation and tenant-onboarding safety (2026-09-05)
+
+A Production invitation test surfaced three defects; all are fixed platform-wide
+(no schema migration).
+
+### Fail-closed organization context
+
+The Admin Console targets an **explicit** organization from the route
+(`/admin/:organizationId`), never a session or `users.organization_id` default.
+Every Admin Console mutation calls `/organizations/:organizationId/...`, and the
+server re-authorizes the actor against that path organization
+(`requireMembership` + `requireDelegationAuthority`). A missing or invalid id
+renders no console and performs no mutation — the page redirects to
+`/organizations`; a caller not authorized for the routed organization is sent to
+`/unauthorized`. The console header shows "Managing: {organization}". The
+Organisations page's "Administer" action and the sidebar link both navigate with
+the explicit id. (Root cause of the incident: a Super Admin on the platform host,
+whose session had no active organization, fell back to org #1 while believing
+they were administering WWM.)
+
+### Revocation destroys the invitation credential
+
+`revokeMembership` now clears `invite_token` and `invite_token_expires_at` in the
+same statement. A revoked invitation's token stops resolving immediately and can
+never be previewed or accepted again. The preview endpoint distinguishes
+`revoked` from `accepted`.
+
+### Governed re-invite
+
+Inviting an email whose membership in the organization is revoked (or an expired
+pending invitation) re-issues it in place — the (user, organization) row is
+unique — with a **new** `randomBytes` token, a fresh expiry, status back to
+`invited`, and the role links replaced by the newly chosen (guard-checked) role.
+On the HR-team path the former member must have been inside the actor's boundary.
+A live membership stays a 409. Audited as `membership.reinvited`. The previous
+token, already destroyed on revoke, never becomes valid again.
+
+### Server-built, tenant-scoped invitation URL
+
+`resolveInvitationOrigin(organizationId)` builds the accept link from the invited
+organization's governed domains — primary active domain, else its single active
+domain, else `APP_BASE_URL` — and **never** from the request Host,
+`X-Forwarded-Host` or `X-Tenant-Hostname` (WS-18 Pass 4 stays intact; the request
+hostname is not an input). When several active domains exist without a primary,
+the platform host is used and `inviteUrlSource` reports
+`app_base_url_ambiguous_domains`. If nothing is configured, the invitation is
+refused (503) rather than issued on a guessed URL. The response returns
+`inviteUrl`; the UI shows it verbatim and never reconstructs it client-side.
+
+### Invitation-scoped branding
+
+`GET /invitations/:token` returns the invited organization's public branding
+(name, logo URL, system display name, theme via `getPublicTenantContext`). The
+accept page shows "You've been invited to join {organization}" and applies that
+organization's theme, scoped to the page and cleared on unmount; the global
+`TenantTheme` yields the invite route. An Org A invitation opened on Org B's
+hostname keeps Org A's identity — the invitation, not the hostname, is
+authoritative.
+
+### Frontend stale-state
+
+The invitation link panel clears on revoke, on invite/re-invite error, and
+whenever the console's target organization changes, so a previously issued link
+is never shown as the result of a later action.
+
+### Coverage
+
+`invitationOnboarding.security.test.ts` (adversarial harness, positive control
+per route): path-org authority and the incident reproduction, cross-tenant
+invite refusal, WS-18 Host-mismatch refusal, URL derivation for each domain
+configuration, forwarded/tenant header independence, the full
+invite→accept→replay and invite→revoke→re-invite lifecycle with token
+destruction and role replacement, `membership.reinvited` audit, active-member
+409, and invitation-scoped branding. The shared harness gained table-qualified
+join resolution (a foreign-key-to-`id` join is now correct even when both sides
+carry an `id`). Frontend: admin-guard fail-closed and "Managing" cases, invite
+page revoked/branding cases.

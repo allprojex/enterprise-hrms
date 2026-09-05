@@ -723,10 +723,10 @@ export function AppShell({ children }: AppShellProps) {
       label: 'Administration',
       items: [
         { href: '/organizations', label: 'Organisations', icon: Building },
-        ...(isOrgAdmin
-          ? [{ href: '/admin', label: 'Organization Administration', icon: ShieldCheck } satisfies NavItem]
-          : canManageHrTeam
-            ? [{ href: '/admin', label: 'HR Team Management', icon: ShieldCheck } satisfies NavItem]
+        ...(activeOrganizationId && isOrgAdmin
+          ? [{ href: `/admin/${activeOrganizationId}`, label: 'Organization Administration', icon: ShieldCheck } satisfies NavItem]
+          : activeOrganizationId && canManageHrTeam
+            ? [{ href: `/admin/${activeOrganizationId}`, label: 'HR Team Management', icon: ShieldCheck } satisfies NavItem]
             : []),
       ],
     },

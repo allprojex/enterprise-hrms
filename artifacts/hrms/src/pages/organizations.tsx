@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Link } from 'wouter';
-import { Building, Users, Calendar, CheckCircle, Clock, Ban, Plus, Pencil, Globe, Copy, Star, PowerOff, Power, ShieldAlert } from 'lucide-react';
+import { Link, useLocation } from 'wouter';
+import { Building, Users, Calendar, CheckCircle, Clock, Ban, Plus, Pencil, Globe, Copy, Star, PowerOff, Power, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -254,6 +254,7 @@ function DomainsPanel({ organizationId }: { organizationId: number }) {
 export default function Organizations() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [selectedOrgId, setSelectedOrgId] = useState<number | null>(null);
 
   const [open, setOpen] = useState(false);
@@ -627,11 +628,21 @@ export default function Organizations() {
                       : 'Select an organisation to view details'}
                   </CardDescription>
                 </div>
-                {canManageSelectedOrg && (
-                  <Button size="sm" variant="outline" onClick={openEditDialog} data-testid="button-edit-organization">
-                    <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                    Edit
-                  </Button>
+                {canManageSelectedOrg && selectedOrg && (
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => setLocation(`/admin/${selectedOrg.id}`)}
+                      data-testid="button-administer-organization"
+                    >
+                      <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                      Administer
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={openEditDialog} data-testid="button-edit-organization">
+                      <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                      Edit
+                    </Button>
+                  </div>
                 )}
               </div>
             </CardHeader>

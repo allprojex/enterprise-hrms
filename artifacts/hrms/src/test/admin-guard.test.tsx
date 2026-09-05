@@ -7,7 +7,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
-import { Router } from 'wouter';
+import { Router, Route, Switch } from 'wouter';
 import { memoryLocation } from 'wouter/memory-location';
 import Admin from '@/pages/admin';
 
@@ -50,13 +50,18 @@ vi.mock('@workspace/api-client-react', () => ({
 
 import { useListMyOrganizations } from '@workspace/api-client-react';
 
-function renderAdmin() {
+function renderAdmin(path = '/admin/10') {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const { hook, history } = memoryLocation({ path: '/admin', record: true });
+  const { hook, history } = memoryLocation({ path, record: true });
   render(
     <QueryClientProvider client={queryClient}>
       <Router hook={hook}>
-        <Admin />
+        {/* Mirror App.tsx: Admin lives behind explicit routes, so navigating
+            away unmounts it (no standalone-mount re-fire). */}
+        <Switch>
+          <Route path="/admin/:organizationId" component={Admin} />
+          <Route path="/admin" component={Admin} />
+        </Switch>
       </Router>
     </QueryClientProvider>,
   );
@@ -64,6 +69,46 @@ function renderAdmin() {
 }
 
 describe('Admin console route guard', () => {
+  it('redirects to /organizations when no explicit organization is in the route (fail closed)', async () => {
+    vi.mocked(useListMyOrganizations).mockReturnValue({
+      data: [{ organizationId: 10, organizationName: 'Acme', organizationSlug: 'acme', status: 'active', roles: ['org_admin'], isPrimaryHr: false }],
+      isLoading: false,
+    } as never);
+
+    const history = renderAdmin('/admin');
+
+    await waitFor(() => {
+      expect(history[history.length - 1]).toBe('/organizations');
+    });
+  });
+
+  it('redirects a caller not a member of the routed organization to /unauthorized', async () => {
+    // Authorized for org 10, but the route targets org 99 -> not this org's admin.
+    vi.mocked(useListMyOrganizations).mockReturnValue({
+      data: [{ organizationId: 10, organizationName: 'Acme', organizationSlug: 'acme', status: 'active', roles: ['org_admin'], isPrimaryHr: false }],
+      isLoading: false,
+    } as never);
+
+    const history = renderAdmin('/admin/99');
+
+    await waitFor(() => {
+      expect(history[history.length - 1]).toBe('/unauthorized');
+    });
+  });
+
+  it('shows which organization is being managed', async () => {
+    vi.mocked(useListMyOrganizations).mockReturnValue({
+      data: [{ organizationId: 10, organizationName: 'Worldwide Word Ministries', organizationSlug: 'wwm', status: 'active', roles: ['org_admin'], isPrimaryHr: false }],
+      isLoading: false,
+    } as never);
+
+    renderAdmin('/admin/10');
+
+    await waitFor(() => {
+      expect(screen.getByTestId('admin-managing-org')).toHaveTextContent('Worldwide Word Ministries');
+    });
+  });
+
   it('redirects a non-admin member to /unauthorized', async () => {
     vi.mocked(useListMyOrganizations).mockReturnValue({
       data: [{ organizationId: 10, organizationName: 'Acme', organizationSlug: 'acme', status: 'active', roles: ['employee'], isPrimaryHr: false }],

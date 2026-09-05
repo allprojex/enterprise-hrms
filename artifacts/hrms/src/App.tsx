@@ -280,6 +280,9 @@ function Router() {
       <Route path="/add-candidate">
         {() => <SecureRoute component={ManualCandidateCapture} />}
       </Route>
+      <Route path="/admin/:organizationId">
+        {() => <SecureRoute component={Admin} />}
+      </Route>
       <Route path="/admin">
         {() => <SecureRoute component={Admin} />}
       </Route>

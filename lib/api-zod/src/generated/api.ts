@@ -9667,7 +9667,10 @@ export const CreateInvitationResponse = zod.object({
   "applicationUserId": zod.number(),
   "organizationId": zod.number(),
   "status": zod.enum(['invited', 'active', 'suspended', 'expired', 'revoked']),
-  "inviteToken": zod.string().describe('Build the accept link as `\/invite\/{inviteToken}` on the frontend origin. Share it with the invitee out-of-band -- no email is sent.')
+  "inviteToken": zod.string().describe('The raw accept token (returned exactly once). Prefer inviteUrl; share it with the invitee out-of-band -- no email is sent.'),
+  "inviteUrl": zod.string().describe('Complete accept link, built SERVER-SIDE from the invited organization\'s governed domain configuration (primary active domain, else its single active domain, else APP_BASE_URL). Never derived from the request Host or any forwarded header.'),
+  "inviteUrlSource": zod.enum(['primary_domain', 'single_active_domain', 'app_base_url', 'app_base_url_ambiguous_domains']).describe('Which rule produced inviteUrl. app_base_url_ambiguous_domains means the organization has several active domains and no primary, so the platform host was used -- designate a primary domain to get tenant-specific links.'),
+  "reinvited": zod.boolean().describe('True when an existing revoked or expired-pending membership was re-issued a fresh invitation (new token, fresh expiry, roles replaced) instead of a new membership being created.')
 })
 
 
@@ -9682,7 +9685,23 @@ export const GetInvitationParams = zod.object({
 export const GetInvitationResponse = zod.object({
   "organizationName": zod.string(),
   "email": zod.string(),
-  "status": zod.enum(['pending', 'expired', 'accepted'])
+  "status": zod.enum(['pending', 'expired', 'accepted', 'revoked']),
+  "organization": zod.union([zod.object({
+  "organizationName": zod.string(),
+  "logoUrl": zod.string().nullable(),
+  "systemDisplayName": zod.string().nullable(),
+  "theme": zod.union([zod.object({
+  "sidebar": zod.string().optional(),
+  "sidebarForeground": zod.string().optional(),
+  "sidebarAccent": zod.string().optional(),
+  "sidebarAccentForeground": zod.string().optional(),
+  "primary": zod.string().optional(),
+  "primaryForeground": zod.string().optional(),
+  "accent": zod.string().optional(),
+  "accentForeground": zod.string().optional(),
+  "ring": zod.string().optional()
+}).describe('Each value is an HSL triple string, e.g. \"217 45% 17%\" (no hsl() wrapper, no leading'),zod.null()])
+}),zod.null()]).describe('Public branding of the INVITED organization (the invitation decides the organization; the hostname the link is opened on never does). Null only when the organization is not currently presentable (e.g. suspended).')
 })
 
 

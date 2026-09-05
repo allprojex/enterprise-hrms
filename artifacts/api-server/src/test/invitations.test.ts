@@ -22,6 +22,8 @@ const {
   membershipRolesTable,
   rolePermissionsTable,
   permissionsTable,
+  organizationDomainsTable,
+  organizationSettingsTable,
   auditEventsTable,
 } = vi.hoisted(() => {
   function mockTable(name: string, columns: string[]) {
@@ -55,6 +57,8 @@ const {
     membershipRolesTable: mockTable("membership_roles", ["membershipId", "roleId"]),
     rolePermissionsTable: mockTable("role_permissions", ["roleId", "permissionId"]),
     permissionsTable: mockTable("permissions", ["id", "key"]),
+    organizationDomainsTable: mockTable("organization_domains", ["id", "organizationId", "hostname", "status", "isPrimary", "domainType"]),
+    organizationSettingsTable: mockTable("organization_settings", ["id", "organizationId", "namespace", "schemaVersion", "settings"]),
     auditEventsTable: mockTable("audit_events", ["organizationId"]),
   };
 });
@@ -173,6 +177,8 @@ vi.mock("@workspace/db", () => ({
   membershipRolesTable,
   rolePermissionsTable,
   permissionsTable,
+  organizationDomainsTable,
+  organizationSettingsTable,
   auditEventsTable,
   db: dbMock,
 }));
@@ -186,6 +192,7 @@ vi.mock("drizzle-orm", () => ({
   inArray: (col: string, vals: unknown[]) => ({ __op: "in", field: col.split(".").pop(), vals }),
 }));
 
+process.env.APP_BASE_URL = process.env.APP_BASE_URL ?? "https://platform.test";
 const { default: app } = await import("../app");
 
 function mockSession(userId = 1) {
@@ -297,7 +304,7 @@ describe("GET /api/invitations/:token", () => {
     const res = await request(app).get("/api/invitations/good-token");
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ organizationName: "Acme Co", email: "invitee@example.com", status: "pending" });
+    expect(res.body).toMatchObject({ organizationName: "Acme Co", email: "invitee@example.com", status: "pending" });
   });
 
   it("returns 404 for an unknown token", async () => {
