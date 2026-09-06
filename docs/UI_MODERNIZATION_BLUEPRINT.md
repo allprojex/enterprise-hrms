@@ -422,8 +422,8 @@ Feasible. Playwright (already used locally for screenshots) as a dev dependency 
 
 ### Recommended workstream identifier
 
-**WS-22 — Enterprise UI Modernization** (sub-tasks numbered from W122 onward, following the existing W-numbering).
+**WS-25 — Enterprise UI/UX Modernization** (sub-tasks numbered from W122 onward, following the existing W-numbering). The draft proposed WS-22, but the owner reserved WS-22 for Fleet Agent & Executor Credentials (see the header and `docs/ENTERPRISE_HRMS_MASTER_OWNER_REVIEW.md` §20); this workstream is WS-25.
 
 ### Recommended next task
 
-Owner approval of this blueprint, then Phase 0 (baseline screenshots + contrast test) and Phase A1 on a branch `ws-22/a1-foundation`, with no deployment.
+Owner approval of this blueprint, then Phase 0 (baseline screenshots + contrast test) and Phase A1 on a branch `ws-25/a1-foundation`, with no deployment.
