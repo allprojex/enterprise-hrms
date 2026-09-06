@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { SignatureSlotContext } from '@/components/signature/signature-slot-context';
+import { SignatureField } from '@/components/signature/signature-field';
 import type {
   Answers,
   ChoiceGroupItem,
@@ -359,6 +361,30 @@ function RepeatingTable({ item, answers, readOnly, disabled, onChange }: { item:
 }
 
 function SignatureSlot({ item }: { item: SignatureSlotItem }) {
+  const ctx = React.useContext(SignatureSlotContext);
+  if (ctx) {
+    // WS-26B: inside a submission, the slot becomes a live signature field.
+    return (
+      <div className="grid gap-3 sm:grid-cols-2" data-testid={`signature-${item.key}`}>
+        <SignatureField
+          organizationId={ctx.organizationId}
+          submissionId={ctx.submissionId}
+          slotKey={item.key}
+          slotLabel={item.label}
+          allowedMethods={ctx.allowedMethods(item.key)}
+          applied={ctx.applied(item.key)}
+          canSign={ctx.canSign(item.key)}
+          onChanged={ctx.onChanged}
+        />
+        {item.dateLabel && (
+          <div className="rounded-md border border-dashed border-border-strong bg-surface-muted px-3 py-3">
+            <p className="text-label text-foreground">{item.dateLabel}</p>
+            <p className="text-helper text-foreground-muted">Recorded when signed.</p>
+          </div>
+        )}
+      </div>
+    );
+  }
   return (
     <div className="grid gap-3 sm:grid-cols-2" data-testid={`signature-${item.key}`}>
       <div className="rounded-md border border-dashed border-border-strong bg-surface-muted px-3 py-3">

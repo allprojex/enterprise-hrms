@@ -32,6 +32,7 @@ import customFieldsRouter from "./customFields";
 // WS-26 — Tenant Form, Workflow & Signature Engine.
 import formTemplatesRouter from "./formTemplates";
 import formSubmissionsRouter from "./formSubmissions";
+import formSignaturesRouter from "./formSignatures";
 import recruitmentCompletionRouter from "./recruitmentCompletion";
 import employeeSkillsQualificationsRouter from "./employeeSkillsQualifications";
 import employeeDisciplinaryRecordsRouter from "./employeeDisciplinaryRecords";
@@ -139,6 +140,7 @@ router.use(healthRouter);
 router.use(authRouter);
 router.use(formTemplatesRouter);
 router.use(formSubmissionsRouter);
+router.use(formSignaturesRouter);
 router.use(organizationsRouter);
 router.use(notificationsRouter);
 router.use(usersRouter);
