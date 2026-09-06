@@ -73,12 +73,15 @@ import {
   useListNotifications,
   getListNotificationsQueryKey,
   useListMyOrganizations,
+  useListOrganizationModules,
+  getListOrganizationModulesQueryKey,
   getListMyOrganizationsQueryKey,
   useSwitchOrganization,
   getGetDashboardSummaryQueryKey,
   useLogout,
   type MembershipSummary,
 } from '@workspace/api-client-react';
+import { isModuleAccessible } from '@/lib/module-access';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { useMyProfilePhoto } from '@/hooks/use-employee-photo';
@@ -162,6 +165,63 @@ function groupSlug(label: string): string {
  * expanded; other sections start collapsed but remain independently
  * toggleable, and expanding one never collapses another.
  */
+/**
+ * Sidebar/route authorization consistency: every navigation entry whose
+ * destination route is wrapped in <ModuleGate moduleKey="..."> (App.tsx) is
+ * mapped here to that key. A module-gated entry is shown only when the module
+ * is enabled for the ACTIVE organization (isModuleAccessible) AND the caller
+ * already passes its existing role/permission/capability condition — the same
+ * effective authorization the destination enforces. This never grants access
+ * (requireModuleEnabled remains the server authority, no super_admin bypass);
+ * it only stops advertising a page that would immediately redirect to
+ * /unauthorized for an organization that has not enabled the module (e.g. the
+ * platform's own System Administration org, which enables no HR modules).
+ */
+const MODULE_BY_HREF: Record<string, string> = {
+  '/self-service': 'employee_self_service',
+  '/my-onboarding': 'onboarding',
+  '/manager': 'manager_portal',
+  '/onboarding': 'onboarding',
+  '/attendance-register': 'attendance',
+  '/attendance-dashboard': 'attendance',
+  '/attendance-reports': 'attendance',
+  '/attendance-settings': 'attendance',
+  '/leave-approvals': 'leave',
+  '/leave-calendar': 'leave',
+  '/public-holidays': 'leave',
+  '/leave-types': 'leave',
+  '/leave-balances': 'leave',
+  '/performance': 'performance',
+  '/performance-reviews': 'performance',
+  '/performance-team': 'performance',
+  '/performance-cycles': 'performance',
+  '/performance-templates': 'performance',
+  '/performance-rating-scales': 'performance',
+  '/performance-reports': 'performance',
+  '/learning': 'learning',
+  '/learning-courses': 'learning',
+  '/learning-team-training': 'learning',
+  '/learning-enrollments': 'learning',
+  '/learning-reports': 'learning',
+  '/assets-dashboard': 'asset_management',
+  '/assets': 'asset_management',
+  '/team-assets': 'asset_management',
+  '/asset-workspace': 'asset_management',
+  '/asset-reports': 'asset_management',
+  '/office-inventory': 'office_inventory',
+  '/recruitment': 'recruitment',
+  '/requisitions': 'recruitment',
+  '/requisition-approvals': 'recruitment',
+  '/vacancies': 'recruitment',
+  '/applications': 'recruitment',
+  '/pipeline': 'recruitment',
+  '/interviews': 'recruitment',
+  '/talent-pools': 'recruitment',
+  '/offers': 'recruitment',
+  '/recruitment-reports': 'recruitment',
+  '/recruitment-settings': 'recruitment',
+};
+
 function NavGroupList({
   groups,
   location,
@@ -418,6 +478,16 @@ export function AppShell({ children }: AppShellProps) {
   // hr_administrator role reaches the same console in its HR-team mode
   // (Members + Roles only; server-side requireDelegationAuthority decides).
   const canManageHrTeam = useCanManageHrTeam(activeOrganizationId ?? 0);
+  // Module enablement for the active organization, the same source ModuleGate
+  // (frontend) and requireModuleEnabled (backend) use. A module-gated nav item
+  // needs BOTH its module enabled here AND its existing role/permission below.
+  const { data: activeOrgModules } = useListOrganizationModules(activeOrganizationId ?? 0, {
+    query: {
+      queryKey: getListOrganizationModulesQueryKey(activeOrganizationId ?? 0),
+      enabled: (activeOrganizationId ?? 0) > 0,
+    },
+  });
+  const canModule = (moduleKey: string): boolean => !!activeOrgModules && isModuleAccessible(activeOrgModules, moduleKey);
 
   // WWM Organization Administrator verification (WWM Readiness W3): the
   // profile card previously showed `user.role` -- the legacy platform-wide
@@ -736,7 +806,10 @@ export function AppShell({ children }: AppShellProps) {
             : []),
       ],
     },
-  ];
+  ].map((group) => ({
+    ...group,
+    items: group.items.filter((item) => !MODULE_BY_HREF[item.href] || canModule(MODULE_BY_HREF[item.href])),
+  }));
 
   if (userLoading) {
     return (
@@ -957,6 +1030,27 @@ export function AppShell({ children }: AppShellProps) {
           >
             <Menu className="h-5 w-5" aria-hidden="true" />
           </Button>
+
+          {/* Organization-context safeguard: the active organization is named
+              in the persistent top bar at every width, so an operator always
+              knows which tenant they are changing (this ambiguity is what let
+              a logo be uploaded to the wrong organization). The /admin/:id
+              "Managing:" banner remains the authority for admin mutations. */}
+          {currentOrg && (
+            <div
+              className="flex min-w-0 items-center gap-1.5"
+              data-testid="active-org-indicator"
+              aria-label={`Operating in ${currentOrg.organizationName}`}
+            >
+              <span className="hidden shrink-0 text-body-sm text-foreground-muted sm:inline">Operating in:</span>
+              <span
+                className="min-w-0 truncate text-body-sm font-semibold text-foreground"
+                title={currentOrg.organizationName}
+              >
+                {currentOrg.organizationName}
+              </span>
+            </div>
+          )}
 
           {/* No global search control here: there is no real cross-module
               search capability to back it, and a search box that visually

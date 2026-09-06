@@ -49,11 +49,12 @@ const SINGLE_ORG_MEMBERSHIPS = [
   },
 ];
 
-const { useListMyOrganizationsMock, logoutMutateMock, useGetMeMock, clearTokenMock } = vi.hoisted(() => ({
+const { useListMyOrganizationsMock, logoutMutateMock, useGetMeMock, clearTokenMock, modulesMock } = vi.hoisted(() => ({
   useListMyOrganizationsMock: vi.fn(),
   logoutMutateMock: vi.fn(),
   useGetMeMock: vi.fn(),
   clearTokenMock: vi.fn(),
+  modulesMock: vi.fn(),
 }));
 
 const DEFAULT_ME = {
@@ -94,6 +95,8 @@ vi.mock('@workspace/api-client-react', () => ({
   useLogout: () => ({ mutate: logoutMutateMock, isPending: false }),
   useGetMyEmployee: () => ({ data: { linked: false, employee: null } }),
   getGetMyEmployeeQueryKey: () => ['getMyEmployee'],
+  useListOrganizationModules: () => modulesMock(),
+  getListOrganizationModulesQueryKey: (id: number) => ['orgModules', id],
 }));
 
 function renderShell() {
@@ -113,6 +116,7 @@ function renderShell() {
 beforeEach(() => {
   useGetMeMock.mockReturnValue(DEFAULT_ME);
   clearTokenMock.mockReset();
+  modulesMock.mockReturnValue({ data: [] });
 });
 
 describe('AppShell organisation switcher', () => {
@@ -253,6 +257,7 @@ describe('AppShell grouped navigation', () => {
   });
 
   it('renders labelled, collapsible group headers', () => {
+    modulesMock.mockReturnValue(modulesEnabled('attendance')); // Attendance is module-gated
     renderShell();
     expect(screen.getByTestId('button-nav-group-overview')).toBeInTheDocument();
     expect(screen.getByTestId('button-nav-group-personnel')).toBeInTheDocument();
@@ -358,5 +363,98 @@ describe('AppShell session invalidation (e.g. platform-disabled account)', () =>
     useGetMeMock.mockReturnValue({ data: undefined, isLoading: false, error: { status: 500 } });
     renderShell();
     expect(clearTokenMock).not.toHaveBeenCalled();
+  });
+});
+
+function modulesEnabled(...keys: string[]) {
+  return { data: keys.map((key) => ({ key, enabled: true, requiredModuleKeys: [] as string[] })) };
+}
+
+/** org 10, HR-capable (org_admin), the default active organisation. */
+function hrCapableOrg() {
+  useListMyOrganizationsMock.mockReturnValue({ data: MULTI_ORG_MEMBERSHIPS });
+  useGetMeMock.mockReturnValue({ ...DEFAULT_ME, data: { ...DEFAULT_ME.data, activeOrganizationId: 10 } });
+}
+
+describe('AppShell — sidebar/route authorization consistency (module-gated navigation)', () => {
+  it('hides module-gated groups when the module is not enabled for the active organisation', () => {
+    hrCapableOrg();
+    modulesMock.mockReturnValue({ data: [] }); // no modules enabled (e.g. System Administration)
+    renderShell();
+    // Module-gated groups are absent...
+    expect(screen.queryByTestId('button-nav-group-attendance')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('button-nav-group-leave-management')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('button-nav-group-performance')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('button-nav-group-recruitment')).not.toBeInTheDocument();
+    // ...while permission-only Personnel and Administration remain available.
+    expect(screen.getByTestId('button-nav-group-personnel')).toBeInTheDocument();
+    expect(screen.getByTestId('button-nav-group-administration')).toBeInTheDocument();
+  });
+
+  it('shows a module-gated group when the module is enabled and the caller is authorized', () => {
+    hrCapableOrg();
+    modulesMock.mockReturnValue(modulesEnabled('attendance', 'leave'));
+    renderShell();
+    expect(screen.getByTestId('button-nav-group-attendance')).toBeInTheDocument();
+    expect(screen.getByTestId('button-nav-group-leave-management')).toBeInTheDocument();
+    // A module NOT enabled stays hidden even alongside enabled ones.
+    expect(screen.queryByTestId('button-nav-group-performance')).not.toBeInTheDocument();
+  });
+
+  it('hides a module-gated group when the module is enabled but the caller lacks the role', () => {
+    // Active org 20 where this caller is only an employee (not HR-capable).
+    useListMyOrganizationsMock.mockReturnValue({ data: MULTI_ORG_MEMBERSHIPS });
+    useGetMeMock.mockReturnValue({ ...DEFAULT_ME, data: { ...DEFAULT_ME.data, role: 'employee', activeOrganizationId: 20 } });
+    modulesMock.mockReturnValue(modulesEnabled('attendance'));
+    renderShell();
+    // Enabled module, but the HR-only Attendance group needs a role the
+    // employee does not have -> still hidden (no bypass either direction).
+    expect(screen.queryByTestId('button-nav-group-attendance')).not.toBeInTheDocument();
+  });
+
+  it('keeps the WS-26 Forms navigation (not module-gated) intact', async () => {
+    hrCapableOrg();
+    modulesMock.mockReturnValue({ data: [] });
+    const user = userEvent.setup();
+    renderShell();
+    // Forms lives in the permission-only Personnel group; expand it and assert.
+    await user.click(screen.getByTestId('button-nav-group-personnel'));
+    expect(await screen.findByRole('link', { name: /^Forms$/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Form Templates/ })).toBeInTheDocument();
+  });
+});
+
+describe('AppShell — organization-context indicator', () => {
+  it('names the active organisation prominently in the top bar', () => {
+    hrCapableOrg();
+    renderShell();
+    expect(screen.getByTestId('active-org-indicator')).toHaveTextContent('Acme HQ');
+  });
+
+  it('shows "System Administration" when operating in organisation 1', () => {
+    useListMyOrganizationsMock.mockReturnValue({
+      data: [{ organizationId: 1, organizationName: 'System Administration', organizationSlug: 'system-administration', status: 'active', roles: ['super_admin'], isPrimaryHr: false }],
+    });
+    useGetMeMock.mockReturnValue({ ...DEFAULT_ME, data: { ...DEFAULT_ME.data, role: 'super_admin', organizationId: 1, activeOrganizationId: 1 } });
+    renderShell();
+    const indicator = screen.getByTestId('active-org-indicator');
+    expect(indicator).toHaveTextContent('System Administration');
+    expect(indicator).toHaveAttribute('aria-label', 'Operating in System Administration');
+  });
+
+  it('shows the WWM identity when operating in Worldwide Word Ministries', () => {
+    useListMyOrganizationsMock.mockReturnValue({
+      data: [{ organizationId: 3, organizationName: 'Worldwide Word Ministries', organizationSlug: 'wwm', status: 'active', roles: ['org_admin'], isPrimaryHr: false }],
+    });
+    useGetMeMock.mockReturnValue({ ...DEFAULT_ME, data: { ...DEFAULT_ME.data, organizationId: 3, activeOrganizationId: 3 } });
+    renderShell();
+    expect(screen.getByTestId('active-org-indicator')).toHaveTextContent('Worldwide Word Ministries');
+  });
+
+  it('reflects a different active organisation (org switch)', () => {
+    useListMyOrganizationsMock.mockReturnValue({ data: MULTI_ORG_MEMBERSHIPS });
+    useGetMeMock.mockReturnValue({ ...DEFAULT_ME, data: { ...DEFAULT_ME.data, activeOrganizationId: 20 } });
+    renderShell();
+    expect(screen.getByTestId('active-org-indicator')).toHaveTextContent('Acme Satellite');
   });
 });
