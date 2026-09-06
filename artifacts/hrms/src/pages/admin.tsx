@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation, useRoute } from 'wouter';
 import { ShieldCheck, UserPlus, Trash2, Star, History, Settings2, Mail, Copy, FileBarChart, Download } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { OrganizationBrandingCard } from '@/components/organization/organization-branding-card';
 import {
   AlertDialog,
   AlertDialogTrigger,
@@ -584,6 +585,12 @@ function PrimaryHrAndSettingsTab({ organizationId }: { organizationId: number })
           </div>
         </CardContent>
       </Card>
+
+      {/* WS-25 Organization Branding: governed logo upload through
+          PATCH /organizations/:id/logo (organization.update). The colour
+          theme and system display name stay in the Branding config card
+          below until WS-25B gives them their own controls. */}
+      <OrganizationBrandingCard organizationId={organizationId} />
 
       <NamespaceConfigCard
         organizationId={organizationId}

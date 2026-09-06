@@ -25,7 +25,7 @@
  * embedding it in a public URL is the same trust level already extended
  * to organization name/type/slug via GET /tenant-context.
  */
-import { Router } from "express";
+import { Router, type Response, type NextFunction } from "express";
 import multer from "multer";
 import path from "path";
 import { eq } from "drizzle-orm";
@@ -39,6 +39,29 @@ import { recordAuditEvent } from "../lib/auditLog";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+
+/**
+ * Converts a MulterError (e.g. LIMIT_FILE_SIZE for a >5MB body, or an
+ * unexpected field name) into the same res.status(400).json({ error })
+ * shape every other validation failure on this route already returns,
+ * mirroring learningEnrollmentEvidence.ts's identical wrapper. Runs only
+ * after requireAuth/requireMembership/requirePermission have passed, so an
+ * unauthorized caller never reaches the parser at all.
+ */
+function handleLogoUpload(req: MembershipRequest & AuthenticatedRequest, res: Response, next: NextFunction): void {
+  upload.single("file")(req as never, res as never, (err: unknown) => {
+    if (err instanceof multer.MulterError) {
+      const message = err.code === "LIMIT_FILE_SIZE" ? "File exceeds the 5MB size limit" : err.message;
+      res.status(400).json({ error: message });
+      return;
+    }
+    if (err) {
+      next(err);
+      return;
+    }
+    next();
+  });
+}
 
 const LOGO_SUBDIR = "branding";
 const CONTENT_TYPE_BY_EXTENSION: Record<string, string> = {
@@ -94,7 +117,7 @@ router.patch(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("organization.update"),
-  upload.single("file"),
+  handleLogoUpload,
   async (req: MembershipRequest & AuthenticatedRequest, res): Promise<void> => {
     if (!req.file) {
       res.status(400).json({ error: "No file provided" });

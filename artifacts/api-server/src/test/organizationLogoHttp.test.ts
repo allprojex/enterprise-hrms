@@ -102,6 +102,10 @@ vi.mock("../lib/fileStorage", () => ({
   deleteOrgFile: vi.fn(async () => undefined),
 }));
 
+vi.mock("../lib/auditLog", () => ({
+  recordAuditEvent: vi.fn(async () => undefined),
+}));
+
 vi.mock("drizzle-orm", () => ({
   eq: () => "eq",
   and: () => "and",
@@ -112,6 +116,8 @@ vi.mock("drizzle-orm", () => ({
 }));
 
 const { default: app } = await import("../app");
+const { writeOrgFile, deleteOrgFile } = await import("../lib/fileStorage");
+const { recordAuditEvent } = await import("../lib/auditLog");
 
 const REAL_TOKEN = "test-session-token";
 
@@ -224,5 +230,185 @@ describe("PATCH /organizations/:id/logo (authenticated)", () => {
       .attach("file", pngBytes, { filename: "logo.png", contentType: "image/png" });
     expect(res.status).toBe(200);
     expect(res.body.logoUrl).toBe("/api/organizations/3/logo/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png");
+  });
+});
+
+/**
+ * Organization Branding upload UI (WS-25) — server-side guarantees the UI
+ * relies on. The UI is convenience only; every rule below is enforced here
+ * regardless of what the client sends.
+ */
+describe("PATCH /organizations/:id/logo — security and storage guarantees", () => {
+  const NEW_KEY = "branding/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png";
+  const NEW_URL = "/api/organizations/3/logo/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png";
+
+  async function transparentPng(): Promise<Buffer> {
+    return sharp({ create: { width: 32, height: 24, channels: 4, background: { r: 10, g: 20, b: 30, alpha: 0.4 } } })
+      .png()
+      .toBuffer();
+  }
+
+  beforeEach(() => {
+    fixtures.sessionRows = [activeSession()];
+    fixtures.orgRows = [{ id: 3, status: "trial", logoUrl: null }];
+    fixtures.updated = [];
+    vi.mocked(writeOrgFile).mockClear();
+    vi.mocked(deleteOrgFile).mockClear();
+    vi.mocked(deleteOrgFile).mockImplementation(async () => undefined);
+    vi.mocked(recordAuditEvent).mockClear();
+  });
+
+  it("401s an unauthenticated caller before touching storage", async () => {
+    membership(["org_admin"]);
+    mockPermissions(["organization.update"]);
+    const res = await request(app)
+      .patch("/api/organizations/3/logo")
+      .attach("file", await transparentPng(), { filename: "logo.png", contentType: "image/png" });
+    expect(res.status).toBe(401);
+    expect(writeOrgFile).not.toHaveBeenCalled();
+  });
+
+  it("403s an authenticated user with no active membership in the target organization (cross-tenant)", async () => {
+    fixtures.membershipRows = [];
+    fixtures.membershipRoleRows = [];
+    mockPermissions(["organization.update"]);
+    const res = await request(app)
+      .patch("/api/organizations/4/logo")
+      .set("Authorization", `Bearer ${REAL_TOKEN}`)
+      .attach("file", await transparentPng(), { filename: "logo.png", contentType: "image/png" });
+    expect(res.status).toBe(403);
+    expect(writeOrgFile).not.toHaveBeenCalled();
+    expect(fixtures.updated).toEqual([]);
+  });
+
+  it("writes under the VERIFIED membership's organization, never a client-controlled id", async () => {
+    membership(["org_admin"]);
+    mockPermissions(["organization.update"]);
+    const res = await request(app)
+      .patch("/api/organizations/3/logo")
+      .set("Authorization", `Bearer ${REAL_TOKEN}`)
+      .field("organizationId", "999")
+      .attach("file", await transparentPng(), { filename: "logo.png", contentType: "image/png" });
+    expect(res.status).toBe(200);
+    expect(writeOrgFile).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(writeOrgFile).mock.calls[0][0]).toBe(3);
+  });
+
+  it("rejects SVG (declared type and content) with 400", async () => {
+    membership(["org_admin"]);
+    mockPermissions(["organization.update"]);
+    const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
+    const declared = await request(app)
+      .patch("/api/organizations/3/logo")
+      .set("Authorization", `Bearer ${REAL_TOKEN}`)
+      .attach("file", svg, { filename: "logo.svg", contentType: "image/svg+xml" });
+    expect(declared.status).toBe(400);
+    const disguised = await request(app)
+      .patch("/api/organizations/3/logo")
+      .set("Authorization", `Bearer ${REAL_TOKEN}`)
+      .attach("file", svg, { filename: "logo.png", contentType: "image/png" });
+    expect(disguised.status).toBe(400);
+    expect(writeOrgFile).not.toHaveBeenCalled();
+  });
+
+  it("magic bytes decide: non-image content is rejected whatever the declared type, and the stored extension follows the declared allowed type — never the filename", async () => {
+    membership(["org_admin"]);
+    mockPermissions(["organization.update"]);
+    // Executable-looking bytes declared as JPEG: signature check rejects.
+    const fake = Buffer.concat([Buffer.from("MZ\x90\x00"), Buffer.alloc(64)]);
+    const rejected = await request(app)
+      .patch("/api/organizations/3/logo")
+      .set("Authorization", `Bearer ${REAL_TOKEN}`)
+      .attach("file", fake, { filename: "logo.jpg", contentType: "image/jpeg" });
+    expect(rejected.status).toBe(400);
+    expect(writeOrgFile).not.toHaveBeenCalled();
+
+    // Real JPEG bytes with a misleading filename: accepted, stored as .jpg
+    // under the fixed branding subdir — the filename plays no part.
+    const jpegBytes = await sharp({ create: { width: 8, height: 8, channels: 3, background: "#123456" } }).jpeg().toBuffer();
+    const res = await request(app)
+      .patch("/api/organizations/3/logo")
+      .set("Authorization", `Bearer ${REAL_TOKEN}`)
+      .attach("file", jpegBytes, { filename: "logo.exe.png", contentType: "image/jpeg" });
+    expect(res.status).toBe(200);
+    expect(vi.mocked(writeOrgFile).mock.calls[0][1]).toBe("branding");
+    expect(vi.mocked(writeOrgFile).mock.calls[0][2]).toBe("jpg");
+  });
+
+  it("rejects a file over 5MB with a 400 JSON error, not a 500", async () => {
+    membership(["org_admin"]);
+    mockPermissions(["organization.update"]);
+    const big = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(5 * 1024 * 1024 + 16)]);
+    const res = await request(app)
+      .patch("/api/organizations/3/logo")
+      .set("Authorization", `Bearer ${REAL_TOKEN}`)
+      .attach("file", big, { filename: "logo.png", contentType: "image/png" });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/5MB/);
+    expect(writeOrgFile).not.toHaveBeenCalled();
+  });
+
+  it("never lets the supplied filename influence the storage path (fixed subdir, server-generated key)", async () => {
+    membership(["org_admin"]);
+    mockPermissions(["organization.update"]);
+    const res = await request(app)
+      .patch("/api/organizations/3/logo")
+      .set("Authorization", `Bearer ${REAL_TOKEN}`)
+      .attach("file", await transparentPng(), { filename: "../../../etc/passwd.png", contentType: "image/png" });
+    expect(res.status).toBe(200);
+    const [orgId, subdir, extension] = vi.mocked(writeOrgFile).mock.calls[0];
+    expect(orgId).toBe(3);
+    expect(subdir).toBe("branding");
+    expect(extension).toBe("png");
+    expect(res.body.logoUrl).toBe(NEW_URL);
+    expect(res.body.logoUrl).not.toContain("..");
+  });
+
+  it("replaces a DANGLING previous logo (reference exists, binary missing): delete failure never aborts the upload", async () => {
+    membership(["org_admin"]);
+    mockPermissions(["organization.update"]);
+    const oldUrl = "/api/organizations/3/logo/f854992789a923b5310294c7280688ec9e141d18289ca11c.png";
+    fixtures.orgRows = [{ id: 3, status: "trial", logoUrl: oldUrl }];
+    vi.mocked(deleteOrgFile).mockRejectedValueOnce(new Error("ENOENT: previous binary was never on this host"));
+
+    const res = await request(app)
+      .patch("/api/organizations/3/logo")
+      .set("Authorization", `Bearer ${REAL_TOKEN}`)
+      .attach("file", await transparentPng(), { filename: "official.png", contentType: "image/png" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.logoUrl).toBe(NEW_URL);
+    // new object written first, then the old reference's file removed best-effort
+    expect(writeOrgFile).toHaveBeenCalledTimes(1);
+    expect(deleteOrgFile).toHaveBeenCalledWith(3, "branding/f854992789a923b5310294c7280688ec9e141d18289ca11c.png");
+    // the dangling reference is gone from the organization row
+    const update = fixtures.updated.find((u) => u.table === "organizations");
+    expect(update?.values).toEqual({ logoUrl: NEW_URL });
+    expect(fixtures.orgRows[0].logoUrl).toBe(NEW_URL);
+    // and the new asset now serves publicly
+    const served = await request(app).get(NEW_URL);
+    expect(served.status).toBe(200);
+    expect(served.headers["content-type"]).toContain("image/png");
+    void NEW_KEY;
+  });
+
+  it("records an organization.logo_updated audit event with before/after references", async () => {
+    membership(["org_admin"]);
+    mockPermissions(["organization.update"]);
+    fixtures.orgRows = [{ id: 3, status: "trial", logoUrl: "/api/organizations/3/logo/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.png" }];
+    const res = await request(app)
+      .patch("/api/organizations/3/logo")
+      .set("Authorization", `Bearer ${REAL_TOKEN}`)
+      .attach("file", await transparentPng(), { filename: "logo.png", contentType: "image/png" });
+    expect(res.status).toBe(200);
+    expect(recordAuditEvent).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(recordAuditEvent).mock.calls[0][0]).toMatchObject({
+      organizationId: 3,
+      eventType: "organization.logo_updated",
+      targetType: "organization",
+      targetId: "3",
+      beforeState: { logoUrl: "/api/organizations/3/logo/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.png" },
+      afterState: { logoUrl: NEW_URL },
+    });
   });
 });

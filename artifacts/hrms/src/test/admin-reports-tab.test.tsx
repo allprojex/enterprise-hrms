@@ -66,6 +66,16 @@ vi.mock('@workspace/api-client-react', () => ({
   }),
   getGetOrganizationConfigQueryKey: (id: number, namespace: string) => ['config', id, namespace],
   useUpdateOrganizationConfig: () => ({ mutate: vi.fn(), isPending: false }),
+  // WS-25 Organization Branding card (Primary HR & Settings tab).
+  useGetOrganization: () => ({
+    data: { id: 10, name: 'Acme', slug: 'acme', type: 'business', status: 'active', logoUrl: null },
+    isLoading: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+  getGetOrganizationQueryKey: (id: number) => ['organization', id],
+  useUploadOrganizationLogo: () => ({ mutate: vi.fn(), isPending: false }),
+  getGetTenantContextQueryKey: () => ['tenantContext'],
   useListAuditEvents: () => ({
     data: { items: [], total: 0, page: 1, pageSize: 20 },
     isLoading: false,

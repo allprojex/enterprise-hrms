@@ -17,3 +17,4 @@ export { ErrorState, type ErrorStateProps } from './error-state';
 export { LoadingState, TableSkeleton, ListSkeleton, type LoadingStateProps, type TableSkeletonProps, type ListSkeletonProps } from './loading-state';
 export { PasswordInput, type PasswordInputProps } from './password-input';
 export { SearchInput, type SearchInputProps } from './search-input';
+export { OrganizationLogo, type OrganizationLogoProps, type OrganizationLogoSize } from './organization-logo';

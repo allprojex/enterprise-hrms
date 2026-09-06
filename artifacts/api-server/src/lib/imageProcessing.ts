@@ -43,6 +43,14 @@ export function validateImageUpload(file: { mimetype: string; size: number; buff
   if (!detected || !ALLOWED_MIME_TYPES.has(detected)) {
     throw new InvalidImageError("File content does not match an allowed image type");
   }
+  // WS-25 Organization Branding: the declared type must also AGREE with the
+  // signature. Before this, a JPEG declared as image/png passed both checks
+  // independently and was silently re-encoded under the declared type; a
+  // spoofed extension/Content-Type is now rejected outright, so the stored
+  // object's format is always the one the bytes actually carry.
+  if (detected !== file.mimetype) {
+    throw new InvalidImageError("File content does not match its declared image type");
+  }
 }
 
 /**
