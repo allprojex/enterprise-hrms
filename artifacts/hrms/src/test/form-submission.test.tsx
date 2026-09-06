@@ -38,6 +38,8 @@ vi.mock('@workspace/api-client-react', () => ({
   useGetFormSubmission: () => ({ data: state.detail, isLoading: false, error: state.error }),
   getGetFormSubmissionQueryKey: (o: number, id: number) => ['formSubmission', o, id],
   getListFormSubmissionsQueryKey: (o: number) => ['formSubmissions', o],
+  useListFormSubmissionSignatures: () => ({ data: { items: [] }, isLoading: false }),
+  getListFormSubmissionSignaturesQueryKey: (o: number, id: number) => ['formSignatures', o, id],
   useSaveFormSubmissionDraft: mutation(spies.saveDraft),
   useSubmitFormSubmission: mutation(spies.submit),
   useActOnFormSubmissionStage: mutation(spies.stage),

@@ -13,9 +13,9 @@
  * `renderSubmissionDocument` and `renderBlankDocument` load what they need
  * (scoped by organization) and hand the result to the structured renderer.
  */
-import { eq } from "drizzle-orm";
+import { eq, and, isNull, asc, inArray } from "drizzle-orm";
 import sharp from "sharp";
-import { db, organizationsTable } from "@workspace/db";
+import { db, organizationsTable, formSignaturesTable, usersTable } from "@workspace/db";
 import { readOrgFile } from "../fileStorage";
 import { renderLayoutPdf, type LayoutDocument, type LayoutElement, type TableRow, type Cell, type JpegImage } from "../pdf/layoutRenderer";
 import type { FormDefinition, FormItem, FormSection, ChoiceGroupItem, MatrixItem, RatedTableItem, TableItem, FieldItem } from "./definition";
@@ -32,6 +32,18 @@ export interface HistoryLine {
   notes: string;
 }
 
+/** WS-26B: an applied signature drawn on the certificate appendix (image + provenance). */
+export interface SignatureCertLine {
+  slotKey: string;
+  slotLabel: string;
+  signer: string;
+  capacity: string;
+  method: string;
+  at: Date;
+  sha256: string;
+  image: JpegImage | null;
+}
+
 export interface BuildInput {
   definition: FormDefinition;
   kind: DocumentKind;
@@ -46,6 +58,7 @@ export interface BuildInput {
   submissionId?: number | null;
   revisionNumber?: number | null;
   history?: HistoryLine[];
+  signatures?: SignatureCertLine[];
 }
 
 const STATUS_MARKER: Record<DocumentKind, string | undefined> = {
@@ -327,6 +340,33 @@ export function buildLayoutDocument(input: BuildInput): LayoutDocument {
     });
   }
 
+  // WS-26B — applied signatures on the certificate appendix. For source forms
+  // with no signature lines (e.g. Staff Evaluation, Probationary Assessment)
+  // the electronic signatures appear here, outside the authoritative body; for
+  // forms with signature slots the body already carries their placement.
+  if (input.kind !== "blank" && input.kind !== "draft" && input.signatures && input.signatures.length > 0) {
+    elements.push({ type: "spacer", height: 14 });
+    elements.push({ type: "heading", text: "Electronic Signatures", size: 11 });
+    elements.push({
+      type: "paragraph",
+      size: 8,
+      runs: [
+        {
+          text:
+            "Each signature below was applied by an authorized signer through an explicit action. Identity is established by the signing session, intent by that action, and integrity by the SHA-256 of the signature image. This is not a claim of any particular legal standing.",
+        },
+      ],
+    });
+    for (const s of input.signatures) {
+      elements.push({
+        type: "signature_line",
+        label: s.slotLabel,
+        image: s.image,
+        caption: `${s.signer} — ${s.capacity} — ${s.method} — ${s.at.toISOString().replace("T", " ").slice(0, 19)} UTC — SHA-256 ${s.sha256.slice(0, 16)}…`,
+      });
+    }
+  }
+
   const footerParts = [input.organizationName, `${input.templateTitle} v${input.versionNumber}`];
   if (input.submissionId) footerParts.push(`Submission #${input.submissionId}`);
   if (input.revisionNumber) footerParts.push(`Revision ${input.revisionNumber}`);
@@ -359,6 +399,43 @@ export async function loadOrganizationLogo(organizationId: number): Promise<{ na
 }
 
 /** Renders a submission (current or given revision) as the requested kind. */
+/** WS-26B: the active (non-revoked) applied signatures for the certificate, with embeddable images. */
+async function loadAppliedSignatures(organizationId: number, submissionId: number, definition: FormDefinition): Promise<SignatureCertLine[]> {
+  const rows = await db
+    .select()
+    .from(formSignaturesTable)
+    .where(and(eq(formSignaturesTable.organizationId, organizationId), eq(formSignaturesTable.submissionId, submissionId), isNull(formSignaturesTable.revokedAt)))
+    .orderBy(asc(formSignaturesTable.stageOrder), asc(formSignaturesTable.signedAt));
+  if (rows.length === 0) return [];
+  const labels = new Map<string, string>();
+  for (const section of definition.sections) for (const item of section.items) if (item.kind === "signature") labels.set(item.key, item.label);
+  const signerIds = [...new Set(rows.map((r) => r.signerUserId))];
+  const users = await db.select({ id: usersTable.id, firstName: usersTable.firstName, lastName: usersTable.lastName }).from(usersTable).where(inArray(usersTable.id, signerIds));
+  const names = new Map(users.map((u) => [u.id, `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim() || `User ${u.id}`]));
+  const out: SignatureCertLine[] = [];
+  for (const r of rows) {
+    let image: JpegImage | null = null;
+    try {
+      const bytes = await readOrgFile(organizationId, r.storageKey);
+      const { data, info } = await sharp(bytes).flatten({ background: "#ffffff" }).jpeg({ quality: 90 }).toBuffer({ resolveWithObject: true });
+      image = { jpeg: data, pixelWidth: info.width, pixelHeight: info.height };
+    } catch {
+      image = null; // a missing image never blocks the certificate; provenance still prints
+    }
+    out.push({
+      slotKey: r.slotKey,
+      slotLabel: labels.get(r.slotKey) ?? r.slotKey,
+      signer: names.get(r.signerUserId) ?? `User ${r.signerUserId}`,
+      capacity: r.authority,
+      method: r.method,
+      at: r.signedAt,
+      sha256: r.sha256,
+      image,
+    });
+  }
+  return out;
+}
+
 export async function renderSubmissionDocument(params: { organizationId: number; submissionId: number; kind: DocumentKind; revisionId?: number | null }): Promise<Buffer> {
   // Imported lazily to avoid a module cycle with submissions.ts.
   const submissions = await import("./submissions");
@@ -373,8 +450,10 @@ export async function renderSubmissionDocument(params: { organizationId: number;
   if (revision && revision.submissionId !== submission.id) throw new submissions.FormSubmissionNotFoundError();
   const { name, logo } = await loadOrganizationLogo(params.organizationId);
   const history = await submissions.historyForCertificate(params.organizationId, submission.id);
+  const definition = templates.parseDefinition(version);
+  const signatures = await loadAppliedSignatures(params.organizationId, submission.id, definition);
   const doc = buildLayoutDocument({
-    definition: templates.parseDefinition(version),
+    definition,
     kind: params.kind,
     answers: (revision?.answers as Answers) ?? {},
     autofill: (revision?.autofillSnapshot as AutofillSnapshot) ?? {},
@@ -387,6 +466,7 @@ export async function renderSubmissionDocument(params: { organizationId: number;
     submissionId: submission.id,
     revisionNumber: revision?.revisionNumber ?? null,
     history,
+    signatures,
   });
   return renderLayoutPdf(doc);
 }

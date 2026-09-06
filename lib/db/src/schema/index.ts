@@ -171,3 +171,6 @@ export * from "./succession";
 
 // WS-26 — Tenant Form, Workflow & Signature Engine (WS-26A foundation).
 export * from "./form-engine";
+
+// WS-26B — Signature & Signature Device Engine.
+export * from "./signature-engine";

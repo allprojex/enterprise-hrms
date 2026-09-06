@@ -25,6 +25,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { PageContainer, PageHeader, StatusBadge, ErrorState, LoadingState } from '@/components/foundation';
 import { FormRenderer } from '@/components/forms/form-renderer';
+import { useListFormSubmissionSignatures, getListFormSubmissionSignaturesQueryKey } from '@workspace/api-client-react';
+import { SignatureSlotProvider } from '@/components/signature/signature-slot-context';
+import type { SignatureMethod } from '@/components/signature/signature-providers';
 import { useToast } from '@/hooks/use-toast';
 import { FORM_EVENT_LABEL, FORM_STATUS_LABEL, isFormDefinition, type Answers } from '@/lib/form-definition';
 
@@ -70,6 +73,11 @@ export default function FormSubmissionPage() {
     query: { queryKey: getGetFormSubmissionQueryKey(organizationId, submissionId), enabled },
   });
   const detail = detailQuery.data;
+
+  // WS-26B — applied signatures for this submission (for the live signature slots).
+  const signaturesQuery = useListFormSubmissionSignatures(organizationId, submissionId, {
+    query: { queryKey: getListFormSubmissionSignaturesQueryKey(organizationId, submissionId), enabled },
+  });
 
   const [answers, setAnswers] = useState<Answers>({});
   const [dirty, setDirty] = useState(false);
@@ -166,6 +174,35 @@ export default function FormSubmissionPage() {
   const { submission, viewer } = detail;
   const status = submission.status;
   const currentStage = detail.stages.find((s) => s.stageOrder === submission.currentStageOrder);
+
+  // WS-26B — per-slot signing context for the live signature fields.
+  const signaturePolicy = (detail.version as { signaturePolicy?: { slots?: { key: string; methods?: string[] }[] } }).signaturePolicy;
+  const appliedSignatures = signaturesQuery.data?.items ?? [];
+  const minStageOrder = detail.stages.length > 0 ? Math.min(...detail.stages.map((s) => s.stageOrder)) : null;
+  const signatureContext = {
+    organizationId,
+    submissionId,
+    allowedMethods: (slotKey: string): SignatureMethod[] => {
+      const slot = signaturePolicy?.slots?.find((s) => s.key === slotKey);
+      const methods = (slot?.methods ?? ['drawn', 'uploaded']).filter((m): m is SignatureMethod => m === 'drawn' || m === 'uploaded' || m === 'device');
+      return methods.length > 0 ? methods : ['drawn', 'uploaded'];
+    },
+    applied: (slotKey: string) => appliedSignatures.find((s) => s.slotKey === slotKey && !s.revokedAt) ?? null,
+    canSign: (slotKey: string): boolean => {
+      const stage = detail.stages.find((s) => s.signatureSlotKey === slotKey);
+      if (!stage) return false;
+      const already = appliedSignatures.some((s) => s.slotKey === slotKey && !s.revokedAt);
+      if (already) return false;
+      const isCurrent = stage.stageOrder === submission.currentStageOrder || (status === 'draft' && stage.stageOrder === minStageOrder);
+      const isStageActor = viewer.availableActions.length > 0;
+      const isSubjectSlot = stage.participant === 'employee' || stage.resolver === 'subject_employee';
+      return isCurrent && (isStageActor || (viewer.isSubject && isSubjectSlot));
+    },
+    onChanged: () => {
+      queryClient.invalidateQueries({ queryKey: getListFormSubmissionSignaturesQueryKey(organizationId, submissionId) });
+      queryClient.invalidateQueries({ queryKey: getGetFormSubmissionQueryKey(organizationId, submissionId) });
+    },
+  };
   const currentKind: FormDocumentKind =
     status === 'draft' ? 'draft' : status === 'returned' ? 'returned' : status === 'rejected' ? 'rejected' : status === 'approved' ? 'approved' : status === 'finalized' || status === 'archived' ? 'final' : 'submitted';
 
@@ -206,15 +243,17 @@ export default function FormSubmissionPage() {
         {currentStage ? `, awaiting ${currentStage.name}` : ''}
       </div>
 
-      <FormRenderer
-        definition={detail.version.definition}
-        answers={answers}
-        autofill={detail.currentRevision?.autofillSnapshot ?? {}}
-        computed={(detail.currentRevision?.computed as Record<string, number | null>) ?? {}}
-        editableSectionKeys={viewer.editableSectionKeys}
-        disabled={busy}
-        onChange={handleChange}
-      />
+      <SignatureSlotProvider value={signatureContext}>
+        <FormRenderer
+          definition={detail.version.definition}
+          answers={answers}
+          autofill={detail.currentRevision?.autofillSnapshot ?? {}}
+          computed={(detail.currentRevision?.computed as Record<string, number | null>) ?? {}}
+          editableSectionKeys={viewer.editableSectionKeys}
+          disabled={busy}
+          onChange={handleChange}
+        />
+      </SignatureSlotProvider>
 
       {(viewer.canSubmit || viewer.availableActions.length > 0 || viewer.canFinalize || viewer.canArchive) && (
         <Card variant="summary" data-testid="form-actions">

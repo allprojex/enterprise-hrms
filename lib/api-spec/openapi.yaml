@@ -31120,8 +31120,233 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/signature-assets:
+    get:
+      operationId: listSignatureAssets
+      tags: [forms]
+      summary: List the caller's own stored signature assets (WS-26B)
+      parameters:
+        - { name: organizationId, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The caller's stored signatures
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SignatureAssetList" }
+    post:
+      operationId: uploadSignatureAsset
+      tags: [forms]
+      summary: Upload a stored signature image owned by the caller (WS-26B)
+      description: >-
+        multipart/form-data. PNG/JPEG/WebP, validated by file signature, 5MB
+        max. Stored as a signature_assets row owned by the uploader; applying it
+        to a document is a separate explicit action.
+      parameters:
+        - { name: organizationId, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        "201":
+          description: Stored signature
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SignatureAssetView" }
+        "400":
+          description: Invalid file
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiError" }
+  /organizations/{organizationId}/signature-assets/{assetId}/revoke:
+    post:
+      operationId: revokeSignatureAsset
+      tags: [forms]
+      summary: Revoke one of the caller's stored signature assets (WS-26B)
+      parameters:
+        - { name: organizationId, in: path, required: true, schema: { type: integer } }
+        - { name: assetId, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RevokeSignatureBody" }
+      responses:
+        "200":
+          description: Revoked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SignatureAssetView" }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiError" }
+  /organizations/{organizationId}/form-submissions/{submissionId}/signatures:
+    get:
+      operationId: listFormSubmissionSignatures
+      tags: [forms]
+      summary: List signatures applied to a submission the caller may view (WS-26B)
+      parameters:
+        - { name: organizationId, in: path, required: true, schema: { type: integer } }
+        - { name: submissionId, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Applied signatures
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FormSignatureList" }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiError" }
+    post:
+      operationId: applyFormSubmissionSignature
+      tags: [forms]
+      summary: Apply a signature to a slot on a submission (WS-26B)
+      description: >-
+        multipart/form-data. Authorization is checked INDEPENDENTLY — the caller
+        must resolve as the participant of the workflow stage that owns the slot;
+        possession of an image is never authorization. drawn/device carry a
+        binary "file"; uploaded carries "sourceAssetId" (a stored asset owned by
+        the caller) and no file.
+      parameters:
+        - { name: organizationId, in: path, required: true, schema: { type: integer } }
+        - { name: submissionId, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [slotKey, method]
+              properties:
+                slotKey: { type: string }
+                method: { type: string, enum: [drawn, uploaded, device] }
+                file: { type: string, format: binary }
+                sourceAssetId: { type: integer }
+                deviceProvider: { type: string }
+                deviceMetadata: { type: string }
+      responses:
+        "201":
+          description: Signature applied
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FormSignatureView" }
+        "400":
+          description: Invalid
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiError" }
+        "403":
+          description: Not authorized to sign this slot
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiError" }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiError" }
+        "409":
+          description: State conflict
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiError" }
+  /organizations/{organizationId}/form-submissions/{submissionId}/signatures/{signatureId}/revoke:
+    post:
+      operationId: revokeFormSubmissionSignature
+      tags: [forms]
+      summary: Revoke an applied signature — a new fact, never a delete (WS-26B)
+      parameters:
+        - { name: organizationId, in: path, required: true, schema: { type: integer } }
+        - { name: submissionId, in: path, required: true, schema: { type: integer } }
+        - { name: signatureId, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RevokeSignatureBody" }
+      responses:
+        "200":
+          description: Revoked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FormSignatureView" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiError" }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiError" }
+        "409":
+          description: Finalized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiError" }
+
 components:
   schemas:
+    SignatureAssetView:
+      type: object
+      required: [id, status, mimeType, sha256, uploadedAt]
+      properties:
+        id: { type: integer }
+        status: { type: string, enum: [active, revoked] }
+        mimeType: { type: string }
+        widthPx: { type: integer, nullable: true }
+        heightPx: { type: integer, nullable: true }
+        byteSize: { type: integer, nullable: true }
+        sha256: { type: string }
+        uploadedAt: { type: string, format: date-time }
+        revokedAt: { type: string, format: date-time, nullable: true }
+    SignatureAssetList:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/SignatureAssetView" } }
+    FormSignatureView:
+      type: object
+      required: [id, submissionId, revisionId, slotKey, signerUserId, signerMembershipId, authority, method, sha256, mimeType, signedAt]
+      properties:
+        id: { type: integer }
+        submissionId: { type: integer }
+        revisionId: { type: integer }
+        slotKey: { type: string }
+        signerUserId: { type: integer }
+        signerMembershipId: { type: integer }
+        representedEmployeeId: { type: integer, nullable: true }
+        authority: { type: string }
+        stageOrder: { type: integer, nullable: true }
+        method: { type: string, enum: [drawn, uploaded, device] }
+        sourceAssetId: { type: integer, nullable: true }
+        deviceProvider: { type: string, nullable: true }
+        sha256: { type: string }
+        mimeType: { type: string }
+        widthPx: { type: integer, nullable: true }
+        heightPx: { type: integer, nullable: true }
+        signedAt: { type: string, format: date-time }
+        revokedAt: { type: string, format: date-time, nullable: true }
+        revokeReason: { type: string, nullable: true }
+    FormSignatureList:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/FormSignatureView" } }
+    RevokeSignatureBody:
+      type: object
+      properties:
+        reason: { type: string }
 
     # --- WS-15 P2/P3 — Employee 360 (§31.29) ---------------------------------
 

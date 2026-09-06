@@ -5,6 +5,69 @@
  * Enterprise HRMS API
  * OpenAPI spec version: 0.1.0
  */
+export type SignatureAssetViewStatus = typeof SignatureAssetViewStatus[keyof typeof SignatureAssetViewStatus];
+
+
+export const SignatureAssetViewStatus = {
+  active: 'active',
+  revoked: 'revoked',
+} as const;
+
+export interface SignatureAssetView {
+  id: number;
+  status: SignatureAssetViewStatus;
+  mimeType: string;
+  widthPx?: number | null;
+  heightPx?: number | null;
+  byteSize?: number | null;
+  sha256: string;
+  uploadedAt: string;
+  revokedAt?: string | null;
+}
+
+export interface SignatureAssetList {
+  items: SignatureAssetView[];
+}
+
+export type FormSignatureViewMethod = typeof FormSignatureViewMethod[keyof typeof FormSignatureViewMethod];
+
+
+export const FormSignatureViewMethod = {
+  drawn: 'drawn',
+  uploaded: 'uploaded',
+  device: 'device',
+} as const;
+
+export interface FormSignatureView {
+  id: number;
+  submissionId: number;
+  revisionId: number;
+  slotKey: string;
+  signerUserId: number;
+  signerMembershipId: number;
+  representedEmployeeId?: number | null;
+  authority: string;
+  stageOrder?: number | null;
+  method: FormSignatureViewMethod;
+  sourceAssetId?: number | null;
+  deviceProvider?: string | null;
+  sha256: string;
+  mimeType: string;
+  widthPx?: number | null;
+  heightPx?: number | null;
+  signedAt: string;
+  revokedAt?: string | null;
+  revokeReason?: string | null;
+}
+
+export interface FormSignatureList {
+  items: FormSignatureView[];
+}
+
+export interface RevokeSignatureBody {
+  reason?: string;
+}
+
 /**
  * The modules §31.29 names as absent from the employee page. Succession and Payroll are deliberately not among them.
  */
@@ -15014,5 +15077,27 @@ export type ListFormSubmissions200 = {
 export type DownloadFormSubmissionDocumentParams = {
 kind?: FormDocumentKind;
 revisionId?: number;
+};
+
+export type UploadSignatureAssetBody = {
+  file: Blob;
+};
+
+export type ApplyFormSubmissionSignatureBodyMethod = typeof ApplyFormSubmissionSignatureBodyMethod[keyof typeof ApplyFormSubmissionSignatureBodyMethod];
+
+
+export const ApplyFormSubmissionSignatureBodyMethod = {
+  drawn: 'drawn',
+  uploaded: 'uploaded',
+  device: 'device',
+} as const;
+
+export type ApplyFormSubmissionSignatureBody = {
+  slotKey: string;
+  method: ApplyFormSubmissionSignatureBodyMethod;
+  file?: Blob;
+  sourceAssetId?: number;
+  deviceProvider?: string;
+  deviceMetadata?: string;
 };
 

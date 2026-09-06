@@ -26943,3 +26943,185 @@ export const DownloadFormSubmissionDocumentQueryParams = zod.object({
 export const DownloadFormSubmissionDocumentResponse = zod.unknown()
 
 
+/**
+ * @summary List the caller's own stored signature assets (WS-26B)
+ */
+export const ListSignatureAssetsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListSignatureAssetsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['active', 'revoked']),
+  "mimeType": zod.string(),
+  "widthPx": zod.number().nullish(),
+  "heightPx": zod.number().nullish(),
+  "byteSize": zod.number().nullish(),
+  "sha256": zod.string(),
+  "uploadedAt": zod.coerce.date(),
+  "revokedAt": zod.coerce.date().nullish()
+}))
+})
+
+
+/**
+ * multipart/form-data. PNG/JPEG/WebP, validated by file signature, 5MB max. Stored as a signature_assets row owned by the uploader; applying it to a document is a separate explicit action.
+ * @summary Upload a stored signature image owned by the caller (WS-26B)
+ */
+export const UploadSignatureAssetParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const UploadSignatureAssetBody = zod.object({
+  "file": zod.instanceof(File)
+})
+
+export const UploadSignatureAssetResponse = zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['active', 'revoked']),
+  "mimeType": zod.string(),
+  "widthPx": zod.number().nullish(),
+  "heightPx": zod.number().nullish(),
+  "byteSize": zod.number().nullish(),
+  "sha256": zod.string(),
+  "uploadedAt": zod.coerce.date(),
+  "revokedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Revoke one of the caller's stored signature assets (WS-26B)
+ */
+export const RevokeSignatureAssetParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "assetId": zod.coerce.number()
+})
+
+export const RevokeSignatureAssetBody = zod.object({
+  "reason": zod.string().optional()
+})
+
+export const RevokeSignatureAssetResponse = zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['active', 'revoked']),
+  "mimeType": zod.string(),
+  "widthPx": zod.number().nullish(),
+  "heightPx": zod.number().nullish(),
+  "byteSize": zod.number().nullish(),
+  "sha256": zod.string(),
+  "uploadedAt": zod.coerce.date(),
+  "revokedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary List signatures applied to a submission the caller may view (WS-26B)
+ */
+export const ListFormSubmissionSignaturesParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "submissionId": zod.coerce.number()
+})
+
+export const ListFormSubmissionSignaturesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "submissionId": zod.number(),
+  "revisionId": zod.number(),
+  "slotKey": zod.string(),
+  "signerUserId": zod.number(),
+  "signerMembershipId": zod.number(),
+  "representedEmployeeId": zod.number().nullish(),
+  "authority": zod.string(),
+  "stageOrder": zod.number().nullish(),
+  "method": zod.enum(['drawn', 'uploaded', 'device']),
+  "sourceAssetId": zod.number().nullish(),
+  "deviceProvider": zod.string().nullish(),
+  "sha256": zod.string(),
+  "mimeType": zod.string(),
+  "widthPx": zod.number().nullish(),
+  "heightPx": zod.number().nullish(),
+  "signedAt": zod.coerce.date(),
+  "revokedAt": zod.coerce.date().nullish(),
+  "revokeReason": zod.string().nullish()
+}))
+})
+
+
+/**
+ * multipart/form-data. Authorization is checked INDEPENDENTLY — the caller must resolve as the participant of the workflow stage that owns the slot; possession of an image is never authorization. drawn/device carry a binary "file"; uploaded carries "sourceAssetId" (a stored asset owned by the caller) and no file.
+ * @summary Apply a signature to a slot on a submission (WS-26B)
+ */
+export const ApplyFormSubmissionSignatureParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "submissionId": zod.coerce.number()
+})
+
+export const ApplyFormSubmissionSignatureBody = zod.object({
+  "slotKey": zod.string(),
+  "method": zod.enum(['drawn', 'uploaded', 'device']),
+  "file": zod.instanceof(File).optional(),
+  "sourceAssetId": zod.number().optional(),
+  "deviceProvider": zod.string().optional(),
+  "deviceMetadata": zod.string().optional()
+})
+
+export const ApplyFormSubmissionSignatureResponse = zod.object({
+  "id": zod.number(),
+  "submissionId": zod.number(),
+  "revisionId": zod.number(),
+  "slotKey": zod.string(),
+  "signerUserId": zod.number(),
+  "signerMembershipId": zod.number(),
+  "representedEmployeeId": zod.number().nullish(),
+  "authority": zod.string(),
+  "stageOrder": zod.number().nullish(),
+  "method": zod.enum(['drawn', 'uploaded', 'device']),
+  "sourceAssetId": zod.number().nullish(),
+  "deviceProvider": zod.string().nullish(),
+  "sha256": zod.string(),
+  "mimeType": zod.string(),
+  "widthPx": zod.number().nullish(),
+  "heightPx": zod.number().nullish(),
+  "signedAt": zod.coerce.date(),
+  "revokedAt": zod.coerce.date().nullish(),
+  "revokeReason": zod.string().nullish()
+})
+
+
+/**
+ * @summary Revoke an applied signature — a new fact, never a delete (WS-26B)
+ */
+export const RevokeFormSubmissionSignatureParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "submissionId": zod.coerce.number(),
+  "signatureId": zod.coerce.number()
+})
+
+export const RevokeFormSubmissionSignatureBody = zod.object({
+  "reason": zod.string().optional()
+})
+
+export const RevokeFormSubmissionSignatureResponse = zod.object({
+  "id": zod.number(),
+  "submissionId": zod.number(),
+  "revisionId": zod.number(),
+  "slotKey": zod.string(),
+  "signerUserId": zod.number(),
+  "signerMembershipId": zod.number(),
+  "representedEmployeeId": zod.number().nullish(),
+  "authority": zod.string(),
+  "stageOrder": zod.number().nullish(),
+  "method": zod.enum(['drawn', 'uploaded', 'device']),
+  "sourceAssetId": zod.number().nullish(),
+  "deviceProvider": zod.string().nullish(),
+  "sha256": zod.string(),
+  "mimeType": zod.string(),
+  "widthPx": zod.number().nullish(),
+  "heightPx": zod.number().nullish(),
+  "signedAt": zod.coerce.date(),
+  "revokedAt": zod.coerce.date().nullish(),
+  "revokeReason": zod.string().nullish()
+})
+
+

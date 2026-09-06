@@ -52,6 +52,7 @@ import type {
   ApplicationListResponse,
   ApplicationStatusResponse,
   ApplicationSubmittedResponse,
+  ApplyFormSubmissionSignatureBody,
   ApplyToPublicVacancyBody,
   ApproveJobRequisitionInput,
   ApproveOfferVersionInput,
@@ -288,6 +289,8 @@ import type {
   FinalizePerformanceReviewInput,
   ForgotPasswordInput,
   FormAnswersError,
+  FormSignatureList,
+  FormSignatureView,
   FormSubmissionDetail,
   FormSubmissionStageActionBody,
   FormTemplate,
@@ -666,6 +669,7 @@ import type {
   ReviewAssetIncidentInput,
   ReviewOfficeInventoryIncidentBody,
   RevokeLearningCertificateInput,
+  RevokeSignatureBody,
   Role,
   RunAssetReportParams,
   RunAttendanceReportParams,
@@ -696,6 +700,8 @@ import type {
   SetMigrationSourceMappingBody,
   SetPrimaryHrInput,
   SetSuccessionReadinessInput,
+  SignatureAssetList,
+  SignatureAssetView,
   Skill,
   SkillGapResult,
   SkillImportResult,
@@ -778,6 +784,7 @@ import type {
   UploadMyEmployeeProfilePictureBody,
   UploadOrganizationLogo200,
   UploadOrganizationLogoBody,
+  UploadSignatureAssetBody,
   UpsertBackupPolicyInput,
   UserProfile,
   UserProfileUpdate,
@@ -61443,4 +61450,478 @@ export function useDownloadFormSubmissionDocument<TData = Awaited<ReturnType<typ
 
 
 
+
+export const getListSignatureAssetsUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/signature-assets`
+}
+
+/**
+ * @summary List the caller's own stored signature assets (WS-26B)
+ */
+export const listSignatureAssets = async (organizationId: number, options?: RequestInit): Promise<SignatureAssetList> => {
+
+  return customFetch<SignatureAssetList>(getListSignatureAssetsUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSignatureAssetsQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/signature-assets`
+    ] as const;
+    }
+
+
+export const getListSignatureAssetsQueryOptions = <TData = Awaited<ReturnType<typeof listSignatureAssets>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSignatureAssets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSignatureAssetsQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSignatureAssets>>> = ({ signal }) => listSignatureAssets(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSignatureAssets>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSignatureAssetsQueryResult = NonNullable<Awaited<ReturnType<typeof listSignatureAssets>>>
+export type ListSignatureAssetsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List the caller's own stored signature assets (WS-26B)
+ */
+
+export function useListSignatureAssets<TData = Awaited<ReturnType<typeof listSignatureAssets>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSignatureAssets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSignatureAssetsQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUploadSignatureAssetUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/signature-assets`
+}
+
+/**
+ * multipart/form-data. PNG/JPEG/WebP, validated by file signature, 5MB max. Stored as a signature_assets row owned by the uploader; applying it to a document is a separate explicit action.
+ * @summary Upload a stored signature image owned by the caller (WS-26B)
+ */
+export const uploadSignatureAsset = async (organizationId: number,
+    uploadSignatureAssetBody: UploadSignatureAssetBody, options?: RequestInit): Promise<SignatureAssetView> => {
+    const formData = new FormData();
+formData.append(`file`, uploadSignatureAssetBody.file);
+
+  return customFetch<SignatureAssetView>(getUploadSignatureAssetUrl(organizationId),
+  {
+    ...options,
+    method: 'POST'
+    ,
+    body: formData
+  }
+);}
+
+
+
+
+
+export const getUploadSignatureAssetMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadSignatureAsset>>, TError,{organizationId: number;data: BodyType<UploadSignatureAssetBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadSignatureAsset>>, TError,{organizationId: number;data: BodyType<UploadSignatureAssetBody>}, TContext> => {
+
+const mutationKey = ['uploadSignatureAsset'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadSignatureAsset>>, {organizationId: number;data: BodyType<UploadSignatureAssetBody>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  uploadSignatureAsset(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadSignatureAssetMutationResult = NonNullable<Awaited<ReturnType<typeof uploadSignatureAsset>>>
+    export type UploadSignatureAssetMutationBody = BodyType<UploadSignatureAssetBody>
+    export type UploadSignatureAssetMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Upload a stored signature image owned by the caller (WS-26B)
+ */
+export const useUploadSignatureAsset = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadSignatureAsset>>, TError,{organizationId: number;data: BodyType<UploadSignatureAssetBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof uploadSignatureAsset>>,
+        TError,
+        {organizationId: number;data: BodyType<UploadSignatureAssetBody>},
+        TContext
+      > => {
+      return useMutation(getUploadSignatureAssetMutationOptions(options));
+    }
+
+export const getRevokeSignatureAssetUrl = (organizationId: number,
+    assetId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/signature-assets/${assetId}/revoke`
+}
+
+/**
+ * @summary Revoke one of the caller's stored signature assets (WS-26B)
+ */
+export const revokeSignatureAsset = async (organizationId: number,
+    assetId: number,
+    revokeSignatureBody?: RevokeSignatureBody, options?: RequestInit): Promise<SignatureAssetView> => {
+
+  return customFetch<SignatureAssetView>(getRevokeSignatureAssetUrl(organizationId,assetId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(revokeSignatureBody)
+  }
+);}
+
+
+
+
+
+export const getRevokeSignatureAssetMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeSignatureAsset>>, TError,{organizationId: number;assetId: number;data?: BodyType<RevokeSignatureBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revokeSignatureAsset>>, TError,{organizationId: number;assetId: number;data?: BodyType<RevokeSignatureBody>}, TContext> => {
+
+const mutationKey = ['revokeSignatureAsset'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeSignatureAsset>>, {organizationId: number;assetId: number;data?: BodyType<RevokeSignatureBody>}> = (props) => {
+          const {organizationId,assetId,data} = props ?? {};
+
+          return  revokeSignatureAsset(organizationId,assetId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokeSignatureAssetMutationResult = NonNullable<Awaited<ReturnType<typeof revokeSignatureAsset>>>
+    export type RevokeSignatureAssetMutationBody = BodyType<RevokeSignatureBody> | undefined
+    export type RevokeSignatureAssetMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Revoke one of the caller's stored signature assets (WS-26B)
+ */
+export const useRevokeSignatureAsset = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeSignatureAsset>>, TError,{organizationId: number;assetId: number;data?: BodyType<RevokeSignatureBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof revokeSignatureAsset>>,
+        TError,
+        {organizationId: number;assetId: number;data?: BodyType<RevokeSignatureBody>},
+        TContext
+      > => {
+      return useMutation(getRevokeSignatureAssetMutationOptions(options));
+    }
+
+export const getListFormSubmissionSignaturesUrl = (organizationId: number,
+    submissionId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/form-submissions/${submissionId}/signatures`
+}
+
+/**
+ * @summary List signatures applied to a submission the caller may view (WS-26B)
+ */
+export const listFormSubmissionSignatures = async (organizationId: number,
+    submissionId: number, options?: RequestInit): Promise<FormSignatureList> => {
+
+  return customFetch<FormSignatureList>(getListFormSubmissionSignaturesUrl(organizationId,submissionId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListFormSubmissionSignaturesQueryKey = (organizationId: number,
+    submissionId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/form-submissions/${submissionId}/signatures`
+    ] as const;
+    }
+
+
+export const getListFormSubmissionSignaturesQueryOptions = <TData = Awaited<ReturnType<typeof listFormSubmissionSignatures>>, TError = ErrorType<ApiError>>(organizationId: number,
+    submissionId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFormSubmissionSignatures>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListFormSubmissionSignaturesQueryKey(organizationId,submissionId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listFormSubmissionSignatures>>> = ({ signal }) => listFormSubmissionSignatures(organizationId,submissionId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && submissionId !== null && submissionId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listFormSubmissionSignatures>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListFormSubmissionSignaturesQueryResult = NonNullable<Awaited<ReturnType<typeof listFormSubmissionSignatures>>>
+export type ListFormSubmissionSignaturesQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List signatures applied to a submission the caller may view (WS-26B)
+ */
+
+export function useListFormSubmissionSignatures<TData = Awaited<ReturnType<typeof listFormSubmissionSignatures>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    submissionId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFormSubmissionSignatures>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListFormSubmissionSignaturesQueryOptions(organizationId,submissionId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getApplyFormSubmissionSignatureUrl = (organizationId: number,
+    submissionId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/form-submissions/${submissionId}/signatures`
+}
+
+/**
+ * multipart/form-data. Authorization is checked INDEPENDENTLY — the caller must resolve as the participant of the workflow stage that owns the slot; possession of an image is never authorization. drawn/device carry a binary "file"; uploaded carries "sourceAssetId" (a stored asset owned by the caller) and no file.
+ * @summary Apply a signature to a slot on a submission (WS-26B)
+ */
+export const applyFormSubmissionSignature = async (organizationId: number,
+    submissionId: number,
+    applyFormSubmissionSignatureBody: ApplyFormSubmissionSignatureBody, options?: RequestInit): Promise<FormSignatureView> => {
+    const formData = new FormData();
+formData.append(`slotKey`, applyFormSubmissionSignatureBody.slotKey);
+formData.append(`method`, applyFormSubmissionSignatureBody.method);
+if(applyFormSubmissionSignatureBody.file !== undefined) {
+ formData.append(`file`, applyFormSubmissionSignatureBody.file);
+ }
+if(applyFormSubmissionSignatureBody.sourceAssetId !== undefined) {
+ formData.append(`sourceAssetId`, applyFormSubmissionSignatureBody.sourceAssetId.toString())
+ }
+if(applyFormSubmissionSignatureBody.deviceProvider !== undefined) {
+ formData.append(`deviceProvider`, applyFormSubmissionSignatureBody.deviceProvider);
+ }
+if(applyFormSubmissionSignatureBody.deviceMetadata !== undefined) {
+ formData.append(`deviceMetadata`, applyFormSubmissionSignatureBody.deviceMetadata);
+ }
+
+  return customFetch<FormSignatureView>(getApplyFormSubmissionSignatureUrl(organizationId,submissionId),
+  {
+    ...options,
+    method: 'POST'
+    ,
+    body: formData
+  }
+);}
+
+
+
+
+
+export const getApplyFormSubmissionSignatureMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applyFormSubmissionSignature>>, TError,{organizationId: number;submissionId: number;data: BodyType<ApplyFormSubmissionSignatureBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof applyFormSubmissionSignature>>, TError,{organizationId: number;submissionId: number;data: BodyType<ApplyFormSubmissionSignatureBody>}, TContext> => {
+
+const mutationKey = ['applyFormSubmissionSignature'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof applyFormSubmissionSignature>>, {organizationId: number;submissionId: number;data: BodyType<ApplyFormSubmissionSignatureBody>}> = (props) => {
+          const {organizationId,submissionId,data} = props ?? {};
+
+          return  applyFormSubmissionSignature(organizationId,submissionId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApplyFormSubmissionSignatureMutationResult = NonNullable<Awaited<ReturnType<typeof applyFormSubmissionSignature>>>
+    export type ApplyFormSubmissionSignatureMutationBody = BodyType<ApplyFormSubmissionSignatureBody>
+    export type ApplyFormSubmissionSignatureMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Apply a signature to a slot on a submission (WS-26B)
+ */
+export const useApplyFormSubmissionSignature = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applyFormSubmissionSignature>>, TError,{organizationId: number;submissionId: number;data: BodyType<ApplyFormSubmissionSignatureBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof applyFormSubmissionSignature>>,
+        TError,
+        {organizationId: number;submissionId: number;data: BodyType<ApplyFormSubmissionSignatureBody>},
+        TContext
+      > => {
+      return useMutation(getApplyFormSubmissionSignatureMutationOptions(options));
+    }
+
+export const getRevokeFormSubmissionSignatureUrl = (organizationId: number,
+    submissionId: number,
+    signatureId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/form-submissions/${submissionId}/signatures/${signatureId}/revoke`
+}
+
+/**
+ * @summary Revoke an applied signature — a new fact, never a delete (WS-26B)
+ */
+export const revokeFormSubmissionSignature = async (organizationId: number,
+    submissionId: number,
+    signatureId: number,
+    revokeSignatureBody?: RevokeSignatureBody, options?: RequestInit): Promise<FormSignatureView> => {
+
+  return customFetch<FormSignatureView>(getRevokeFormSubmissionSignatureUrl(organizationId,submissionId,signatureId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(revokeSignatureBody)
+  }
+);}
+
+
+
+
+
+export const getRevokeFormSubmissionSignatureMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeFormSubmissionSignature>>, TError,{organizationId: number;submissionId: number;signatureId: number;data?: BodyType<RevokeSignatureBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revokeFormSubmissionSignature>>, TError,{organizationId: number;submissionId: number;signatureId: number;data?: BodyType<RevokeSignatureBody>}, TContext> => {
+
+const mutationKey = ['revokeFormSubmissionSignature'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeFormSubmissionSignature>>, {organizationId: number;submissionId: number;signatureId: number;data?: BodyType<RevokeSignatureBody>}> = (props) => {
+          const {organizationId,submissionId,signatureId,data} = props ?? {};
+
+          return  revokeFormSubmissionSignature(organizationId,submissionId,signatureId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokeFormSubmissionSignatureMutationResult = NonNullable<Awaited<ReturnType<typeof revokeFormSubmissionSignature>>>
+    export type RevokeFormSubmissionSignatureMutationBody = BodyType<RevokeSignatureBody> | undefined
+    export type RevokeFormSubmissionSignatureMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Revoke an applied signature — a new fact, never a delete (WS-26B)
+ */
+export const useRevokeFormSubmissionSignature = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeFormSubmissionSignature>>, TError,{organizationId: number;submissionId: number;signatureId: number;data?: BodyType<RevokeSignatureBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof revokeFormSubmissionSignature>>,
+        TError,
+        {organizationId: number;submissionId: number;signatureId: number;data?: BodyType<RevokeSignatureBody>},
+        TContext
+      > => {
+      return useMutation(getRevokeFormSubmissionSignatureMutationOptions(options));
+    }
 
