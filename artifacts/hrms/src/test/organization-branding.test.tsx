@@ -13,7 +13,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 
-const { state, uploadMutateSpy } = vi.hoisted(() => ({
+const { state, uploadMutateSpy, removeMutateSpy } = vi.hoisted(() => ({
   state: {
     organization: { id: 10, name: 'Gloria Health', slug: 'gloria', type: 'hospital', status: 'active', logoUrl: null as string | null },
     isLoading: false,
@@ -23,8 +23,13 @@ const { state, uploadMutateSpy } = vi.hoisted(() => ({
     outcome: { kind: 'success', logoUrl: '/api/organizations/10/logo/new.png' } as
       | { kind: 'success'; logoUrl: string }
       | { kind: 'error'; error: unknown },
+    removePending: false,
+    removeOutcome: { kind: 'success', logoUrl: null } as
+      | { kind: 'success'; logoUrl: string | null }
+      | { kind: 'error'; error: unknown },
   },
   uploadMutateSpy: vi.fn(),
+  removeMutateSpy: vi.fn(),
 }));
 
 vi.mock('@workspace/api-client-react', () => ({
@@ -41,6 +46,14 @@ vi.mock('@workspace/api-client-react', () => ({
       uploadMutateSpy(variables);
       if (state.outcome.kind === 'success') options.onSuccess?.({ logoUrl: state.outcome.logoUrl });
       else options.onError?.(state.outcome.error);
+    },
+  }),
+  useDeleteOrganizationLogo: () => ({
+    isPending: state.removePending,
+    mutate: (variables: unknown, options: { onSuccess?: (r: unknown) => void; onError?: (e: unknown) => void }) => {
+      removeMutateSpy(variables);
+      if (state.removeOutcome.kind === 'success') options.onSuccess?.({ logoUrl: state.removeOutcome.logoUrl });
+      else options.onError?.(state.removeOutcome.error);
     },
   }),
   getListMyOrganizationsQueryKey: () => ['myOrganizations'],
@@ -213,5 +226,47 @@ describe('OrganizationBrandingCard — preview, confirm, upload', () => {
     expect(save).toHaveAttribute('aria-busy', 'true');
     expect(save).toBeDisabled();
     expect(screen.getByTestId('button-cancel-logo')).toBeDisabled();
+  });
+});
+
+describe('OrganizationBrandingCard — governed logo removal', () => {
+  it('shows no Remove control when the organization has no logo', async () => {
+    state.organization = { id: 10, name: 'Gloria Health', slug: 'gloria', type: 'hospital', status: 'active', logoUrl: null };
+    renderCard();
+    await waitFor(() => expect(screen.getByTestId('card-organization-branding')).toBeInTheDocument());
+    expect(screen.queryByTestId('button-remove-logo')).not.toBeInTheDocument();
+  });
+
+  it('offers Remove when a logo exists and requires explicit confirmation (cancel keeps it)', async () => {
+    state.organization = { id: 10, name: 'Gloria Health', slug: 'gloria', type: 'hospital', status: 'active', logoUrl: '/api/organizations/10/logo/current.png' };
+    const user = userEvent.setup();
+    renderCard();
+    await user.click(await screen.findByTestId('button-remove-logo'));
+    // A confirmation dialog naming the organization appears; no request yet.
+    expect(await screen.findByTestId('dialog-remove-logo')).toHaveTextContent(/Gloria Health/);
+    expect(removeMutateSpy).not.toHaveBeenCalled();
+    await user.click(screen.getByTestId('button-remove-logo-cancel'));
+    expect(removeMutateSpy).not.toHaveBeenCalled();
+  });
+
+  it('removes the logo on confirmation and reports success', async () => {
+    state.organization = { id: 10, name: 'Gloria Health', slug: 'gloria', type: 'hospital', status: 'active', logoUrl: '/api/organizations/10/logo/current.png' };
+    state.removeOutcome = { kind: 'success', logoUrl: null };
+    const user = userEvent.setup();
+    renderCard();
+    await user.click(await screen.findByTestId('button-remove-logo'));
+    await user.click(await screen.findByTestId('button-remove-logo-confirm'));
+    expect(removeMutateSpy).toHaveBeenCalledWith({ id: 10 });
+    await waitFor(() => expect(screen.getByTestId('branding-status')).toHaveTextContent(/Logo removed/));
+  });
+
+  it('surfaces an error when removal fails', async () => {
+    state.organization = { id: 10, name: 'Gloria Health', slug: 'gloria', type: 'hospital', status: 'active', logoUrl: '/api/organizations/10/logo/current.png' };
+    state.removeOutcome = { kind: 'error', error: { data: { error: 'Storage unavailable' } } };
+    const user = userEvent.setup();
+    renderCard();
+    await user.click(await screen.findByTestId('button-remove-logo'));
+    await user.click(await screen.findByTestId('button-remove-logo-confirm'));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Storage unavailable/);
   });
 });

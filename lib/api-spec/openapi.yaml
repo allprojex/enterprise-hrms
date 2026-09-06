@@ -646,6 +646,48 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+    delete:
+      operationId: deleteOrganizationLogo
+      tags: [organizations]
+      summary: Remove an organization's logo
+      description: >-
+        Governed removal of the organization's logo, restoring the neutral
+        fallback identity. Sets organizations.logoUrl to null and best-effort
+        deletes the stored object through the same org-scoped storage
+        abstraction the upload uses (an already-missing file is non-fatal).
+        Same authority as the upload: authenticated, active membership in the
+        path organization, organization.update. Audited as
+        organization.logo_updated (after: logoUrl null). Idempotent when there
+        is no current logo.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Logo removed (logoUrl is now null)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [logoUrl]
+                properties:
+                  logoUrl:
+                    type: ["string", "null"]
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /organizations/{id}/suspend:
     post:

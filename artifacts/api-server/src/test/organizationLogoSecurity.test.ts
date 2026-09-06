@@ -400,3 +400,126 @@ describe("PATCH /organizations/:id/logo — replacing a logo whose old binary is
     expect(fileStorage.deleteOrgFile).not.toHaveBeenCalled();
   });
 });
+
+function deleteLogo(orgId: number | string) {
+  return request(app).delete(`/api/organizations/${orgId}/logo`).set("Authorization", `Bearer ${REAL_TOKEN}`);
+}
+
+/** An org-3 that currently carries a logo whose object is present in storage. */
+function orgWithLogo() {
+  fixtures.orgRows = [{ id: 3, status: "active", logoUrl: OLD_URL }];
+  storage.present.add(`branding/${OLD_FILENAME}`);
+}
+
+describe("DELETE /organizations/:id/logo — governed removal", () => {
+  it("401s an unauthenticated request", async () => {
+    fixtures.sessionRows = [];
+    orgWithLogo();
+    const res = await request(app).delete("/api/organizations/3/logo");
+    expect(res.status).toBe(401);
+    expect(fileStorage.deleteOrgFile).not.toHaveBeenCalled();
+  });
+
+  it("403s a caller with no membership in the organization", async () => {
+    orgWithLogo();
+    fixtures.memberships = []; // authenticated, but not a member
+    const res = await deleteLogo(3);
+    expect(res.status).toBe(403);
+    expect(fileStorage.deleteOrgFile).not.toHaveBeenCalled();
+  });
+
+  it("403s a member who lacks organization.update", async () => {
+    orgWithLogo();
+    memberOf(3);
+    grant(["organization.read"]);
+    const res = await deleteLogo(3);
+    expect(res.status).toBe(403);
+    expect(fileStorage.deleteOrgFile).not.toHaveBeenCalled();
+  });
+
+  it("403s a cross-tenant attempt: a member of org 3 cannot remove org 4's logo", async () => {
+    fixtures.orgRows = [{ id: 4, status: "active", logoUrl: "/api/organizations/4/logo/cccccccccccccccccccccccccccccccccccccccccccccccc.png" }];
+    memberOf(3); // active membership only in org 3
+    grant(["organization.update"]);
+    const res = await deleteLogo(4);
+    expect(res.status).toBe(403);
+    expect(fileStorage.deleteOrgFile).not.toHaveBeenCalled();
+  });
+
+  it("does not remove anything for a purely non-numeric organization id (no bypass)", async () => {
+    orgWithLogo();
+    memberOf(3);
+    grant(["organization.update"]);
+    const res = await deleteLogo("abc");
+    expect(res.status).not.toBe(200);
+    expect([400, 403, 404]).toContain(res.status);
+    expect(fileStorage.deleteOrgFile).not.toHaveBeenCalled();
+  });
+
+  it("removes the logo for an authorized same-org caller: clears the reference, deletes the object, audits before/after", async () => {
+    orgWithLogo();
+    memberOf(3);
+    grant(["organization.update"]);
+
+    const res = await deleteLogo(3);
+    expect(res.status).toBe(200);
+    expect(res.body.logoUrl).toBeNull();
+
+    // DB reference cleared to null (no dangling active logo_url remains).
+    const orgUpdate = fixtures.updated.find((u) => u.table === "organizations");
+    expect(orgUpdate).toBeDefined();
+    expect((orgUpdate!.values as Record<string, unknown>).logoUrl).toBeNull();
+
+    // Storage cleanup targeted THIS org's own branding key, never a client value.
+    expect(fileStorage.deleteOrgFile).toHaveBeenCalledTimes(1);
+    expect(fileStorage.deleteOrgFile).toHaveBeenCalledWith(3, `branding/${OLD_FILENAME}`);
+
+    // Audit: organization.logo_updated, before the old URL, after null.
+    const audit = fixtures.inserted.find((i) => i.table === "audit_events");
+    expect(audit).toBeDefined();
+    expect(audit!.values.eventType).toBe("organization.logo_updated");
+    expect(audit!.values.organizationId).toBe(3);
+    expect(audit!.values.beforeState).toEqual({ logoUrl: OLD_URL });
+    expect(audit!.values.afterState).toEqual({ logoUrl: null });
+  });
+
+  it("is non-fatal when the current object is already missing but the reference is valid", async () => {
+    fixtures.orgRows = [{ id: 3, status: "active", logoUrl: OLD_URL }];
+    // storage.present intentionally does NOT contain the object (dangling ref).
+    memberOf(3);
+    grant(["organization.update"]);
+
+    const res = await deleteLogo(3);
+    expect(res.status).toBe(200);
+    expect(res.body.logoUrl).toBeNull();
+    const orgUpdate = fixtures.updated.find((u) => u.table === "organizations");
+    expect((orgUpdate!.values as Record<string, unknown>).logoUrl).toBeNull();
+    expect(fixtures.inserted.some((i) => i.table === "audit_events")).toBe(true);
+  });
+
+  it("is non-fatal when the storage delete itself fails (reference is still cleared and audited)", async () => {
+    orgWithLogo();
+    storage.deleteShouldFail = true;
+    memberOf(3);
+    grant(["organization.update"]);
+
+    const res = await deleteLogo(3);
+    expect(res.status).toBe(200);
+    expect(res.body.logoUrl).toBeNull();
+    const orgUpdate = fixtures.updated.find((u) => u.table === "organizations");
+    expect((orgUpdate!.values as Record<string, unknown>).logoUrl).toBeNull();
+    expect(fixtures.inserted.some((i) => i.table === "audit_events")).toBe(true);
+  });
+
+  it("is idempotent when the organization has no logo: 200, no delete, no audit", async () => {
+    fixtures.orgRows = [{ id: 3, status: "active", logoUrl: null }];
+    memberOf(3);
+    grant(["organization.update"]);
+
+    const res = await deleteLogo(3);
+    expect(res.status).toBe(200);
+    expect(res.body.logoUrl).toBeNull();
+    expect(fileStorage.deleteOrgFile).not.toHaveBeenCalled();
+    expect(fixtures.inserted.some((i) => i.table === "audit_events")).toBe(false);
+  });
+});

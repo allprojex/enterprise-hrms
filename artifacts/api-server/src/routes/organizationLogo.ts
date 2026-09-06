@@ -36,6 +36,7 @@ import { requirePermission } from "../middlewares/requirePermission";
 import { writeOrgFile, readOrgFile, deleteOrgFile } from "../lib/fileStorage";
 import { validateImageUpload, processLogoImage, InvalidImageError } from "../lib/imageProcessing";
 import { recordAuditEvent } from "../lib/auditLog";
+import { logger } from "../lib/logger";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -166,6 +167,70 @@ router.patch(
       }
       throw err;
     }
+  },
+);
+
+// DELETE /organizations/:organizationId/logo
+// Governed removal of an organization's logo, restoring the neutral fallback
+// identity. Same authorization model as the PATCH upload (authenticated,
+// active membership in the PATH organization, organization.update); the target
+// is the server-authoritative :organizationId, never anything client-supplied.
+// Sets logoUrl to null and best-effort deletes the current object through the
+// same storage abstraction the replace path uses — a already-missing file
+// (e.g. a dangling reference whose binary was lost) must not fail the removal,
+// and a storage-delete failure is logged, not surfaced. Audited with the same
+// organization.logo_updated family (after: logoUrl null).
+router.delete(
+  "/organizations/:organizationId/logo",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requirePermission("organization.update"),
+  async (req: MembershipRequest & AuthenticatedRequest, res): Promise<void> => {
+    const organizationId = req.membership!.organizationId;
+
+    const [before] = await db.select().from(organizationsTable).where(eq(organizationsTable.id, organizationId)).limit(1);
+    if (!before) {
+      res.status(404).json({ error: "Organization not found" });
+      return;
+    }
+    if (!before.logoUrl) {
+      // Idempotent: nothing to remove; the organization already shows the fallback.
+      res.json({ logoUrl: null });
+      return;
+    }
+
+    const [updated] = await db
+      .update(organizationsTable)
+      .set({ logoUrl: null })
+      .where(eq(organizationsTable.id, organizationId))
+      .returning();
+
+    // Storage cleanup is scoped to THIS organization's branding boundary: the
+    // filename comes from the organization's own stored logoUrl, and
+    // deleteOrgFile is itself org-scoped, so it can never reach another
+    // tenant's object. Best-effort, exactly like the replace path.
+    const filename = before.logoUrl.split("/").pop();
+    if (filename) {
+      await deleteOrgFile(organizationId, path.posix.join(LOGO_SUBDIR, filename)).catch((err) => {
+        logger.warn(
+          { organizationId, err: err instanceof Error ? err.message : String(err) },
+          "organization logo removed from the record; storage object could not be deleted (non-fatal)",
+        );
+      });
+    }
+
+    await recordAuditEvent({
+      actorApplicationUserId: req.userId!,
+      actorMembershipId: req.membership!.id,
+      organizationId,
+      eventType: "organization.logo_updated",
+      targetType: "organization",
+      targetId: String(organizationId),
+      beforeState: { logoUrl: before.logoUrl },
+      afterState: { logoUrl: updated.logoUrl },
+    });
+
+    res.json({ logoUrl: updated.logoUrl });
   },
 );
 

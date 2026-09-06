@@ -220,6 +220,7 @@ import type {
   DataChangeRequest,
   DecideDataChangeRequestInput,
   DecideHireAuthorizationStageBody,
+  DeleteOrganizationLogo200,
   Department,
   DepartmentHead,
   DevelopmentAction,
@@ -2017,6 +2018,78 @@ export const useUploadOrganizationLogo = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getUploadOrganizationLogoMutationOptions(options));
+    }
+
+export const getDeleteOrganizationLogoUrl = (id: number,) => {
+
+
+
+
+  return `/api/organizations/${id}/logo`
+}
+
+/**
+ * Governed removal of the organization's logo, restoring the neutral fallback identity. Sets organizations.logoUrl to null and best-effort deletes the stored object through the same org-scoped storage abstraction the upload uses (an already-missing file is non-fatal). Same authority as the upload: authenticated, active membership in the path organization, organization.update. Audited as organization.logo_updated (after: logoUrl null). Idempotent when there is no current logo.
+ * @summary Remove an organization's logo
+ */
+export const deleteOrganizationLogo = async (id: number, options?: RequestInit): Promise<DeleteOrganizationLogo200> => {
+
+  return customFetch<DeleteOrganizationLogo200>(getDeleteOrganizationLogoUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteOrganizationLogoMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteOrganizationLogo>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteOrganizationLogo>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteOrganizationLogo'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteOrganizationLogo>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteOrganizationLogo(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteOrganizationLogoMutationResult = NonNullable<Awaited<ReturnType<typeof deleteOrganizationLogo>>>
+
+    export type DeleteOrganizationLogoMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Remove an organization's logo
+ */
+export const useDeleteOrganizationLogo = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteOrganizationLogo>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteOrganizationLogo>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteOrganizationLogoMutationOptions(options));
     }
 
 export const getSuspendOrganizationUrl = (id: number,) => {

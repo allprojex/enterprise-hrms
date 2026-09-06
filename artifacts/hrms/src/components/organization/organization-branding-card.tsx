@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ImageUp, CheckCircle2 } from 'lucide-react';
+import { ImageUp, CheckCircle2, Trash2 } from 'lucide-react';
 import {
   useGetOrganization,
   getGetOrganizationQueryKey,
   useUploadOrganizationLogo,
+  useDeleteOrganizationLogo,
   getListMyOrganizationsQueryKey,
   getGetTenantContextQueryKey,
   type Organization,
@@ -12,6 +13,17 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { ErrorState, OrganizationLogo } from '@/components/foundation';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -88,6 +100,7 @@ export function OrganizationBrandingCard({ organizationId, className }: Organiza
     query: { queryKey: getGetOrganizationQueryKey(organizationId), enabled: organizationId > 0 },
   });
   const uploadMutation = useUploadOrganizationLogo();
+  const removeMutation = useDeleteOrganizationLogo();
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -167,6 +180,35 @@ export function OrganizationBrandingCard({ organizationId, className }: Organiza
     clearSelection();
     setValidationError(null);
     setUploadError(null);
+  };
+
+  // Governed removal: only reachable after explicit confirmation in the
+  // AlertDialog below (never a single click). Invalidates the same readers as
+  // an upload so the neutral fallback renders everywhere at once.
+  const handleRemove = () => {
+    setUploadError(null);
+    setSuccessMessage(null);
+    removeMutation.mutate(
+      { id: organizationId },
+      {
+        onSuccess: (response) => {
+          queryClient.setQueryData<Organization | undefined>(getGetOrganizationQueryKey(organizationId), (previous) =>
+            previous ? { ...previous, logoUrl: response.logoUrl } : previous,
+          );
+          queryClient.invalidateQueries({ queryKey: getGetOrganizationQueryKey(organizationId) });
+          queryClient.invalidateQueries({ queryKey: getListMyOrganizationsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetTenantContextQueryKey() });
+          clearSelection();
+          setSuccessMessage('Logo removed. The organization now shows its neutral fallback identity.');
+          toast({ title: 'Logo removed', description: 'The organization logo has been cleared.', variant: 'success' });
+        },
+        onError: (err) => {
+          const message = extractErrorMessage(err);
+          setUploadError(message);
+          toast({ title: 'Logo not removed', description: message, variant: 'destructive' });
+        },
+      },
+    );
   };
 
   if (isLoading) {
@@ -289,12 +331,46 @@ export function OrganizationBrandingCard({ organizationId, className }: Organiza
                   variant="outline"
                   onClick={openChooser}
                   loading={checking}
+                  disabled={removeMutation.isPending}
                   aria-describedby="logo-file-requirements"
                   data-testid="button-choose-logo"
                 >
                   <ImageUp aria-hidden="true" />
                   {hasLogo ? 'Change logo' : 'Upload logo'}
                 </Button>
+                {hasLogo && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        className="text-danger-soft-foreground"
+                        loading={removeMutation.isPending}
+                        disabled={checking}
+                        data-testid="button-remove-logo"
+                      >
+                        <Trash2 aria-hidden="true" />
+                        Remove logo
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent data-testid="dialog-remove-logo">
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Remove {organization.name}&rsquo;s logo?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This clears the logo for{' '}
+                          <span className="font-medium text-foreground">{organization.name}</span>. The organization
+                          will show its neutral fallback (its initials) on the sign-in page, in navigation and on
+                          invitations until a new logo is uploaded. You can upload a new one at any time.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel data-testid="button-remove-logo-cancel">Keep logo</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleRemove} data-testid="button-remove-logo-confirm">
+                          Remove logo
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
               </div>
             )}
 

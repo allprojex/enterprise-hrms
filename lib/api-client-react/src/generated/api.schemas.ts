@@ -13693,6 +13693,11 @@ export type UploadOrganizationLogo200 = {
   logoUrl: string;
 };
 
+export type DeleteOrganizationLogo200 = {
+  /** @nullable */
+  logoUrl: string | null;
+};
+
 export type ListRestoreRequests200 = {
   requests: RestoreRequest[];
 };

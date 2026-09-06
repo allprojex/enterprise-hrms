@@ -327,6 +327,19 @@ export const UploadOrganizationLogoResponse = zod.object({
 
 
 /**
+ * Governed removal of the organization's logo, restoring the neutral fallback identity. Sets organizations.logoUrl to null and best-effort deletes the stored object through the same org-scoped storage abstraction the upload uses (an already-missing file is non-fatal). Same authority as the upload: authenticated, active membership in the path organization, organization.update. Audited as organization.logo_updated (after: logoUrl null). Idempotent when there is no current logo.
+ * @summary Remove an organization's logo
+ */
+export const DeleteOrganizationLogoParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteOrganizationLogoResponse = zod.object({
+  "logoUrl": zod.string().nullable()
+})
+
+
+/**
  * Sets status to suspended. Platform tenant lifecycle — Platform Super Admin only. The body must name the target tenant's slug (confirmSlug) and it must match the organization in the path — a typed confirmation, because this is a dangerous platform action.
  * @summary Suspend an organization
  */

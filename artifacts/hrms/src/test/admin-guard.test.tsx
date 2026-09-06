@@ -48,6 +48,7 @@ vi.mock('@workspace/api-client-react', () => ({
   }),
   getGetOrganizationQueryKey: (id: number) => ['organization', id],
   useUploadOrganizationLogo: () => ({ mutate: vi.fn(), isPending: false }),
+  useDeleteOrganizationLogo: () => ({ mutate: vi.fn(), isPending: false }),
   getGetTenantContextQueryKey: () => ['tenantContext'],
   useListAuditEvents: () => ({
     data: { items: [], total: 0, page: 1, pageSize: 20 },
