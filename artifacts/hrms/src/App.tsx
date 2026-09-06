@@ -100,6 +100,10 @@ import SkillsSettings from '@/pages/skills-settings';
 import Capability from '@/pages/capability';
 import MySkills from '@/pages/my-skills';
 import SuccessionPage from '@/pages/succession';
+// WS-26 — Tenant Form, Workflow & Signature Engine.
+import FormsPage from '@/pages/forms';
+import FormSubmissionPage from '@/pages/form-submission';
+import FormTemplatesPage from '@/pages/form-templates';
 import ActionCentre from '@/pages/action-centre';
 import MyActions from '@/pages/my-actions';
 import OnboardingDetail from '@/pages/onboarding-detail';
@@ -253,6 +257,22 @@ function Router() {
       </Route>
       <Route path="/succession">
         {() => <SecureRoute component={SuccessionPage} />}
+      </Route>
+      {/*
+        WS-26 — Tenant Form, Workflow & Signature Engine. No moduleKey: a
+        template carries its own optional module key, enforced server-side
+        when a submission is created. "/forms" is ungated beyond
+        authentication because an employee's right to their own forms comes
+        from their employee link; every read is filtered server-side.
+      */}
+      <Route path="/forms/:submissionId">
+        {() => <SecureRoute component={FormSubmissionPage} />}
+      </Route>
+      <Route path="/forms">
+        {() => <SecureRoute component={FormsPage} />}
+      </Route>
+      <Route path="/form-templates">
+        {() => <SecureRoute component={FormTemplatesPage} />}
       </Route>
       {/*
         WS-15 — the HR Action Centre. No moduleKey and no permission gate: it

@@ -1,0 +1,247 @@
+{
+  "blocks": [
+    {
+      "type": "table",
+      "rows": [
+        [
+          "",
+          "WORLDWIDE WORD MINISTRIES ¶ STAFF PERSONAL INFORMATION FORM"
+        ],
+        [
+          ""
+        ]
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Please complete all sections. All information will be kept confidential."
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          "SECTION A: PERSONAL INFORMATION"
+        ],
+        [
+          "Full Name",
+          ""
+        ],
+        [
+          "Date of Birth",
+          ""
+        ],
+        [
+          "Gender",
+          ""
+        ],
+        [
+          "Marital Status",
+          ""
+        ],
+        [
+          "Nationality",
+          ""
+        ],
+        [
+          "Residential Address",
+          ""
+        ],
+        [
+          "Phone Number",
+          ""
+        ],
+        [
+          "Email Address",
+          ""
+        ],
+        [
+          "Spouse's Name",
+          ""
+        ],
+        [
+          "Spouse's Employer",
+          ""
+        ],
+        [
+          "Spouse's Work Phone",
+          ""
+        ]
+      ]
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          "SECTION B: CHURCH & MINISTRY"
+        ],
+        [
+          "Current Ministry Role",
+          ""
+        ],
+        [
+          "Previous Ministry Experience",
+          ""
+        ]
+      ]
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          "OFFICE CALLED TO: (For Clergy Only)"
+        ],
+        [
+          "[ ] APOSTLE",
+          "[ ] PROPHET"
+        ],
+        [
+          "[ ] EVANGELIST",
+          "[ ] PASTOR"
+        ],
+        [
+          "[ ] TEACHER",
+          ""
+        ]
+      ]
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          "SECTION C: EDUCATION"
+        ],
+        [
+          "Highest Qualification",
+          ""
+        ],
+        [
+          "Institution Attended",
+          ""
+        ]
+      ]
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          "SECTION D: EMPLOYMENT DETAILS"
+        ],
+        [
+          "Date of First Appointment",
+          ""
+        ],
+        [
+          "Position on First Appointment",
+          ""
+        ],
+        [
+          "Date of Current Position",
+          ""
+        ],
+        [
+          "Position on Current Appointment",
+          ""
+        ],
+        [
+          "Ghana Card No.",
+          ""
+        ],
+        [
+          "Social Security (SSNIT) No.",
+          ""
+        ],
+        [
+          "Employee No.",
+          ""
+        ]
+      ]
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          "SECTION E: EMERGENCY CONTACT"
+        ],
+        [
+          "Contact Name",
+          ""
+        ],
+        [
+          "Relationship",
+          ""
+        ],
+        [
+          "Phone Number",
+          ""
+        ],
+        [
+          "Address",
+          ""
+        ]
+      ]
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          "DEPENDENT INFORMATION"
+        ],
+        [
+          "Name(s) of Dependent(s)",
+          "Relationship to Employee"
+        ],
+        [
+          "",
+          ""
+        ],
+        [
+          "",
+          ""
+        ],
+        [
+          "",
+          ""
+        ],
+        [
+          "",
+          ""
+        ]
+      ]
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          "SECTION F: ADDITIONAL INFORMATION"
+        ],
+        [
+          "Skills & Talents",
+          ""
+        ],
+        [
+          "Languages Spoken",
+          ""
+        ],
+        [
+          "Medical Conditions (if any)",
+          ""
+        ],
+        [
+          "Any Other Relevant Information",
+          ""
+        ]
+      ]
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          "DECLARATION"
+        ],
+        [
+          "I confirm that the information provided above is accurate to the best of my knowledge. ¶ Signature: _______________________ Date: _______________________"
+        ]
+      ]
+    }
+  ]
+}

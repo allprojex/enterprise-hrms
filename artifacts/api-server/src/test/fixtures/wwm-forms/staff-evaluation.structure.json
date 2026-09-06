@@ -1,0 +1,586 @@
+{
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "WORLDWIDE WORD MINISTRIES"
+    },
+    {
+      "type": "paragraph",
+      "text": "Mailing Address: Box AN11908"
+    },
+    {
+      "type": "paragraph",
+      "text": "STAFF EVALUATION FORM"
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          "Staff Name:",
+          "Position:"
+        ],
+        [
+          "Department:",
+          "Review Period:"
+        ]
+      ]
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          "Please use this form as a guide to evaluate staff performance for the season. Check the appropriate numeric value corresponding to the staff level of performance and provide appropriate comments in the space below."
+        ]
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "SECTION A — Half-Year Goals(January-June)"
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          "Goals Description",
+          "Specific Actions",
+          "Ratings"
+        ],
+        [
+          "",
+          "",
+          "5",
+          "4",
+          "3",
+          "2",
+          "1"
+        ],
+        [
+          "Goal 1",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Goal 2",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Goal 3",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Total Ratings (Half Year)",
+          "",
+          ""
+        ]
+      ]
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          "SECTION B- Half-Year Ratings"
+        ],
+        [
+          "Rating Scale: 5. Outstanding 4. Excellent—exceeds requirements 3. Competent—acceptable proficiency 2. Below Average—Does not meet requirements 1. Unable to determine / not applicable"
+        ],
+        [
+          "Criteria",
+          "5",
+          "4",
+          "3",
+          "2",
+          "1"
+        ],
+        [
+          "Staff attitude towards work: Overall assessment of staff attitude toward work.",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Improvement of Skill: Assess staff improvement on the job in terms of skill and willingness to learn.",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Timelines: Overall assessment of staff ability to meet deadlines.",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Achievements: Assess staff achievement for the season of assessment.",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Professional Impression: Consider self-confidence, maturity, and presence to assess the staff level of professionalism.",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Motivation/Initiative: Analyze staff ability to think and act independently, and goal orientation.",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Interpersonal/Communication Skills: Assess staff ability to express ideas and thoughts clearly, as well as experiences involving teamwork.",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Cost Cutting Consciousness: Assess staff attitude toward cost cutting.",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Flexibility: Assess staff responsiveness to change, tolerance for ambiguity.",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Organizational Fit: Review the staff potential to fit the unique assignment of Worldwide Word Ministry.",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Total Ratings (Half Year)",
+          ""
+        ]
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "SECTION C — Full-Year Goals(July-December)"
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          "Goals Description",
+          "Specific Actions",
+          "Ratings"
+        ],
+        [
+          "",
+          "",
+          "5",
+          "4",
+          "3",
+          "2",
+          "1"
+        ],
+        [
+          "Goal 1",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Goal 2",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Goal 3",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Total Ratings (Full Year)",
+          "",
+          ""
+        ]
+      ]
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          "SECTION D – Full Year Evaluation"
+        ],
+        [
+          "Rating Scale: 5. Outstanding 4. Excellent—exceeds requirements 3. Competent—acceptable proficiency 2. Below Average—Does not meet requirements 1. Unable to determine / not applicable"
+        ],
+        [
+          "Criteria",
+          "5",
+          "4",
+          "3",
+          "2",
+          "1"
+        ],
+        [
+          "Staff attitude towards work: Overall assessment of staff attitude toward work.",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Improvement of Skill: Assess staff improvement on the job in terms of skill and willingness to learn.",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Timelines: Overall assessment of staff ability to meet deadlines.",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Achievements: Assess staff achievement for the season of assessment.",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Professional Impression: Consider self-confidence, maturity, and presence to assess the staff level of professionalism.",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Motivation/Initiative: Analyze staff ability to think and act independently, and goal orientation.",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Interpersonal/Communication Skills: Assess staff ability to express ideas and thoughts clearly, as well as experiences involving teamwork.",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Cost Cutting Consciousness: Assess staff attitude toward cost cutting.",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Flexibility: Assess staff responsiveness to change, tolerance for ambiguity.",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Organizational Fit: Review the staff potential to fit the unique assignment of Worldwide Word Ministry.",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "Total Ratings (Full Year)",
+          ""
+        ]
+      ]
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          "Assessed by:",
+          "Position:"
+        ],
+        [
+          "Comments: ¶ (Please summarize your perceptions of the staff strengths and any concerns that should be considered)"
+        ]
+      ]
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          "Recommendation:"
+        ],
+        [
+          "☐ Not recommended for higher position",
+          "☐ Recommended for higher position",
+          "☐ Recommended for salary increment",
+          "☐ Not recommended for salary increment"
+        ]
+      ]
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          "Summary"
+        ],
+        [
+          "Overall Objectives: Summarize the overarching objectives these goals aim to achieve."
+        ],
+        [
+          "Support Needed: Identify any resources or support needed from management or colleagues to accomplish these goals."
+        ],
+        [
+          "Review Mechanisms: Indicate how and when progress will be reviewed (e.g., monthly check-ins)."
+        ],
+        [
+          "Employee Comments:"
+        ],
+        [
+          ""
+        ],
+        [
+          "Supervisor Comments:"
+        ],
+        [
+          ""
+        ]
+      ]
+    }
+  ]
+}

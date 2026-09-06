@@ -168,3 +168,6 @@ export * from "./service-requests";
 export * from "./skills-catalogue";
 export * from "./employee-capabilities";
 export * from "./succession";
+
+// WS-26 — Tenant Form, Workflow & Signature Engine (WS-26A foundation).
+export * from "./form-engine";

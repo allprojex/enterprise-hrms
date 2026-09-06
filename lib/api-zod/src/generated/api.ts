@@ -25749,3 +25749,1184 @@ export const GetEmployee360SectionsResponse = zod.object({
 })
 
 
+/**
+ * Any active member sees active templates with a published version; form_template.manage or form.read sees every template and version.
+ * @summary List form templates (WS-26)
+ */
+export const ListFormTemplatesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListFormTemplatesResponse = zod.object({
+  "templates": zod.array(zod.object({
+  "id": zod.number(),
+  "templateKey": zod.string(),
+  "formType": zod.enum(['leave_application', 'personal_information', 'staff_evaluation', 'probationary_assessment', 'generic']),
+  "moduleKey": zod.string().nullish(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['active', 'archived']),
+  "currentPublishedVersionId": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "templateId": zod.number(),
+  "versionNumber": zod.number(),
+  "status": zod.enum(['draft', 'published', 'archived']),
+  "publishedAt": zod.coerce.date().nullish(),
+  "firstUsedAt": zod.coerce.date().nullish(),
+  "definitionSha256": zod.string(),
+  "changeNote": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+}))
+}))
+})
+
+
+/**
+ * @summary Create a form template with its first draft version (WS-26)
+ */
+export const CreateFormTemplateParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const createFormTemplateBodyTemplateKeyMax = 64;
+
+
+export const createFormTemplateBodyTemplateKeyRegExp = new RegExp('^[a-z][a-z0-9_]*$');
+export const createFormTemplateBodyTitleMax = 300;
+
+
+
+export const CreateFormTemplateBody = zod.object({
+  "templateKey": zod.string().max(createFormTemplateBodyTemplateKeyMax).regex(createFormTemplateBodyTemplateKeyRegExp),
+  "formType": zod.enum(['leave_application', 'personal_information', 'staff_evaluation', 'probationary_assessment', 'generic']),
+  "moduleKey": zod.string().nullish(),
+  "title": zod.string().max(createFormTemplateBodyTitleMax),
+  "description": zod.string().nullish(),
+  "definition": zod.record(zod.string(), zod.unknown()).describe('Server-validated document model (sections of field \/ choice_group \/ matrix \/ rated_table \/ table \/ note \/ signature \/ computed items). See artifacts\/api-server\/src\/lib\/formEngine\/definition.ts for the contract.'),
+  "signaturePolicy": zod.record(zod.string(), zod.unknown()).nullish(),
+  "renderConfig": zod.record(zod.string(), zod.unknown()).nullish(),
+  "stages": zod.array(zod.object({
+  "stageOrder": zod.number(),
+  "name": zod.string(),
+  "participant": zod.enum(['employee', 'supervisor', 'department_head', 'hr', 'final_approver', 'assessor']),
+  "resolver": zod.enum(['subject_employee', 'reporting_manager', 'department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).nullish(),
+  "editableSectionKeys": zod.array(zod.string()),
+  "allowedActions": zod.array(zod.enum(['complete', 'approve', 'return', 'reject'])),
+  "signatureSlotKey": zod.string().nullish()
+})).optional(),
+  "changeNote": zod.string().nullish()
+})
+
+export const CreateFormTemplateResponse = zod.object({
+  "template": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateKey": zod.string(),
+  "formType": zod.enum(['leave_application', 'personal_information', 'staff_evaluation', 'probationary_assessment', 'generic']),
+  "moduleKey": zod.string().nullish(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['active', 'archived']),
+  "currentPublishedVersionId": zod.number().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "version": zod.object({
+  "id": zod.number(),
+  "templateId": zod.number(),
+  "versionNumber": zod.number(),
+  "status": zod.enum(['draft', 'published', 'archived']),
+  "effectiveFrom": zod.string().nullish(),
+  "effectiveTo": zod.string().nullish(),
+  "definition": zod.record(zod.string(), zod.unknown()).describe('Server-validated document model (sections of field \/ choice_group \/ matrix \/ rated_table \/ table \/ note \/ signature \/ computed items). See artifacts\/api-server\/src\/lib\/formEngine\/definition.ts for the contract.'),
+  "definitionSha256": zod.string(),
+  "signaturePolicy": zod.record(zod.string(), zod.unknown()).nullish(),
+  "renderConfig": zod.record(zod.string(), zod.unknown()).nullish(),
+  "changeNote": zod.string().nullish(),
+  "firstUsedAt": zod.coerce.date().nullish(),
+  "publishedAt": zod.coerce.date().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "stages": zod.array(zod.object({
+  "stageOrder": zod.number(),
+  "name": zod.string(),
+  "participant": zod.enum(['employee', 'supervisor', 'department_head', 'hr', 'final_approver', 'assessor']),
+  "resolver": zod.enum(['subject_employee', 'reporting_manager', 'department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).nullish(),
+  "editableSectionKeys": zod.array(zod.string()),
+  "allowedActions": zod.array(zod.enum(['complete', 'approve', 'return', 'reject'])),
+  "signatureSlotKey": zod.string().nullish()
+}).and(zod.object({
+  "id": zod.number()
+})))
+})
+})
+
+
+/**
+ * @summary Get a form template with its versions (WS-26)
+ */
+export const GetFormTemplateParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "templateId": zod.coerce.number()
+})
+
+export const GetFormTemplateResponse = zod.object({
+  "template": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateKey": zod.string(),
+  "formType": zod.enum(['leave_application', 'personal_information', 'staff_evaluation', 'probationary_assessment', 'generic']),
+  "moduleKey": zod.string().nullish(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['active', 'archived']),
+  "currentPublishedVersionId": zod.number().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "versions": zod.array(zod.object({
+  "id": zod.number(),
+  "templateId": zod.number(),
+  "versionNumber": zod.number(),
+  "status": zod.enum(['draft', 'published', 'archived']),
+  "effectiveFrom": zod.string().nullish(),
+  "effectiveTo": zod.string().nullish(),
+  "definition": zod.record(zod.string(), zod.unknown()).describe('Server-validated document model (sections of field \/ choice_group \/ matrix \/ rated_table \/ table \/ note \/ signature \/ computed items). See artifacts\/api-server\/src\/lib\/formEngine\/definition.ts for the contract.'),
+  "definitionSha256": zod.string(),
+  "signaturePolicy": zod.record(zod.string(), zod.unknown()).nullish(),
+  "renderConfig": zod.record(zod.string(), zod.unknown()).nullish(),
+  "changeNote": zod.string().nullish(),
+  "firstUsedAt": zod.coerce.date().nullish(),
+  "publishedAt": zod.coerce.date().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "stages": zod.array(zod.object({
+  "stageOrder": zod.number(),
+  "name": zod.string(),
+  "participant": zod.enum(['employee', 'supervisor', 'department_head', 'hr', 'final_approver', 'assessor']),
+  "resolver": zod.enum(['subject_employee', 'reporting_manager', 'department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).nullish(),
+  "editableSectionKeys": zod.array(zod.string()),
+  "allowedActions": zod.array(zod.enum(['complete', 'approve', 'return', 'reject'])),
+  "signatureSlotKey": zod.string().nullish()
+}).and(zod.object({
+  "id": zod.number()
+})))
+}))
+})
+
+
+/**
+ * @summary Create a new draft version of a template (WS-26)
+ */
+export const CreateFormTemplateVersionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "templateId": zod.coerce.number()
+})
+
+export const CreateFormTemplateVersionBody = zod.object({
+  "definition": zod.record(zod.string(), zod.unknown()).describe('Server-validated document model (sections of field \/ choice_group \/ matrix \/ rated_table \/ table \/ note \/ signature \/ computed items). See artifacts\/api-server\/src\/lib\/formEngine\/definition.ts for the contract.'),
+  "signaturePolicy": zod.record(zod.string(), zod.unknown()).nullish(),
+  "renderConfig": zod.record(zod.string(), zod.unknown()).nullish(),
+  "stages": zod.array(zod.object({
+  "stageOrder": zod.number(),
+  "name": zod.string(),
+  "participant": zod.enum(['employee', 'supervisor', 'department_head', 'hr', 'final_approver', 'assessor']),
+  "resolver": zod.enum(['subject_employee', 'reporting_manager', 'department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).nullish(),
+  "editableSectionKeys": zod.array(zod.string()),
+  "allowedActions": zod.array(zod.enum(['complete', 'approve', 'return', 'reject'])),
+  "signatureSlotKey": zod.string().nullish()
+})).optional(),
+  "changeNote": zod.string().nullish()
+})
+
+export const CreateFormTemplateVersionResponse = zod.object({
+  "id": zod.number(),
+  "templateId": zod.number(),
+  "versionNumber": zod.number(),
+  "status": zod.enum(['draft', 'published', 'archived']),
+  "effectiveFrom": zod.string().nullish(),
+  "effectiveTo": zod.string().nullish(),
+  "definition": zod.record(zod.string(), zod.unknown()).describe('Server-validated document model (sections of field \/ choice_group \/ matrix \/ rated_table \/ table \/ note \/ signature \/ computed items). See artifacts\/api-server\/src\/lib\/formEngine\/definition.ts for the contract.'),
+  "definitionSha256": zod.string(),
+  "signaturePolicy": zod.record(zod.string(), zod.unknown()).nullish(),
+  "renderConfig": zod.record(zod.string(), zod.unknown()).nullish(),
+  "changeNote": zod.string().nullish(),
+  "firstUsedAt": zod.coerce.date().nullish(),
+  "publishedAt": zod.coerce.date().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "stages": zod.array(zod.object({
+  "stageOrder": zod.number(),
+  "name": zod.string(),
+  "participant": zod.enum(['employee', 'supervisor', 'department_head', 'hr', 'final_approver', 'assessor']),
+  "resolver": zod.enum(['subject_employee', 'reporting_manager', 'department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).nullish(),
+  "editableSectionKeys": zod.array(zod.string()),
+  "allowedActions": zod.array(zod.enum(['complete', 'approve', 'return', 'reject'])),
+  "signatureSlotKey": zod.string().nullish()
+}).and(zod.object({
+  "id": zod.number()
+})))
+})
+
+
+/**
+ * @summary Archive a form template (WS-26)
+ */
+export const ArchiveFormTemplateParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "templateId": zod.coerce.number()
+})
+
+export const ArchiveFormTemplateResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateKey": zod.string(),
+  "formType": zod.enum(['leave_application', 'personal_information', 'staff_evaluation', 'probationary_assessment', 'generic']),
+  "moduleKey": zod.string().nullish(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['active', 'archived']),
+  "currentPublishedVersionId": zod.number().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get a template version with its definition and stages (WS-26)
+ */
+export const GetFormTemplateVersionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const GetFormTemplateVersionResponse = zod.object({
+  "id": zod.number(),
+  "templateId": zod.number(),
+  "versionNumber": zod.number(),
+  "status": zod.enum(['draft', 'published', 'archived']),
+  "effectiveFrom": zod.string().nullish(),
+  "effectiveTo": zod.string().nullish(),
+  "definition": zod.record(zod.string(), zod.unknown()).describe('Server-validated document model (sections of field \/ choice_group \/ matrix \/ rated_table \/ table \/ note \/ signature \/ computed items). See artifacts\/api-server\/src\/lib\/formEngine\/definition.ts for the contract.'),
+  "definitionSha256": zod.string(),
+  "signaturePolicy": zod.record(zod.string(), zod.unknown()).nullish(),
+  "renderConfig": zod.record(zod.string(), zod.unknown()).nullish(),
+  "changeNote": zod.string().nullish(),
+  "firstUsedAt": zod.coerce.date().nullish(),
+  "publishedAt": zod.coerce.date().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "stages": zod.array(zod.object({
+  "stageOrder": zod.number(),
+  "name": zod.string(),
+  "participant": zod.enum(['employee', 'supervisor', 'department_head', 'hr', 'final_approver', 'assessor']),
+  "resolver": zod.enum(['subject_employee', 'reporting_manager', 'department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).nullish(),
+  "editableSectionKeys": zod.array(zod.string()),
+  "allowedActions": zod.array(zod.enum(['complete', 'approve', 'return', 'reject'])),
+  "signatureSlotKey": zod.string().nullish()
+}).and(zod.object({
+  "id": zod.number()
+})))
+})
+
+
+/**
+ * @summary Update a draft version (WS-26). Published versions are immutable.
+ */
+export const UpdateFormTemplateVersionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const UpdateFormTemplateVersionBody = zod.object({
+  "definition": zod.record(zod.string(), zod.unknown()).optional().describe('Server-validated document model (sections of field \/ choice_group \/ matrix \/ rated_table \/ table \/ note \/ signature \/ computed items). See artifacts\/api-server\/src\/lib\/formEngine\/definition.ts for the contract.'),
+  "signaturePolicy": zod.record(zod.string(), zod.unknown()).nullish(),
+  "renderConfig": zod.record(zod.string(), zod.unknown()).nullish(),
+  "stages": zod.array(zod.object({
+  "stageOrder": zod.number(),
+  "name": zod.string(),
+  "participant": zod.enum(['employee', 'supervisor', 'department_head', 'hr', 'final_approver', 'assessor']),
+  "resolver": zod.enum(['subject_employee', 'reporting_manager', 'department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).nullish(),
+  "editableSectionKeys": zod.array(zod.string()),
+  "allowedActions": zod.array(zod.enum(['complete', 'approve', 'return', 'reject'])),
+  "signatureSlotKey": zod.string().nullish()
+})).optional(),
+  "changeNote": zod.string().nullish()
+})
+
+export const UpdateFormTemplateVersionResponse = zod.object({
+  "id": zod.number(),
+  "templateId": zod.number(),
+  "versionNumber": zod.number(),
+  "status": zod.enum(['draft', 'published', 'archived']),
+  "effectiveFrom": zod.string().nullish(),
+  "effectiveTo": zod.string().nullish(),
+  "definition": zod.record(zod.string(), zod.unknown()).describe('Server-validated document model (sections of field \/ choice_group \/ matrix \/ rated_table \/ table \/ note \/ signature \/ computed items). See artifacts\/api-server\/src\/lib\/formEngine\/definition.ts for the contract.'),
+  "definitionSha256": zod.string(),
+  "signaturePolicy": zod.record(zod.string(), zod.unknown()).nullish(),
+  "renderConfig": zod.record(zod.string(), zod.unknown()).nullish(),
+  "changeNote": zod.string().nullish(),
+  "firstUsedAt": zod.coerce.date().nullish(),
+  "publishedAt": zod.coerce.date().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "stages": zod.array(zod.object({
+  "stageOrder": zod.number(),
+  "name": zod.string(),
+  "participant": zod.enum(['employee', 'supervisor', 'department_head', 'hr', 'final_approver', 'assessor']),
+  "resolver": zod.enum(['subject_employee', 'reporting_manager', 'department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).nullish(),
+  "editableSectionKeys": zod.array(zod.string()),
+  "allowedActions": zod.array(zod.enum(['complete', 'approve', 'return', 'reject'])),
+  "signatureSlotKey": zod.string().nullish()
+}).and(zod.object({
+  "id": zod.number()
+})))
+})
+
+
+/**
+ * @summary Publish a draft version, superseding the current one (WS-26)
+ */
+export const PublishFormTemplateVersionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const PublishFormTemplateVersionResponse = zod.object({
+  "id": zod.number(),
+  "templateId": zod.number(),
+  "versionNumber": zod.number(),
+  "status": zod.enum(['draft', 'published', 'archived']),
+  "effectiveFrom": zod.string().nullish(),
+  "effectiveTo": zod.string().nullish(),
+  "definition": zod.record(zod.string(), zod.unknown()).describe('Server-validated document model (sections of field \/ choice_group \/ matrix \/ rated_table \/ table \/ note \/ signature \/ computed items). See artifacts\/api-server\/src\/lib\/formEngine\/definition.ts for the contract.'),
+  "definitionSha256": zod.string(),
+  "signaturePolicy": zod.record(zod.string(), zod.unknown()).nullish(),
+  "renderConfig": zod.record(zod.string(), zod.unknown()).nullish(),
+  "changeNote": zod.string().nullish(),
+  "firstUsedAt": zod.coerce.date().nullish(),
+  "publishedAt": zod.coerce.date().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "stages": zod.array(zod.object({
+  "stageOrder": zod.number(),
+  "name": zod.string(),
+  "participant": zod.enum(['employee', 'supervisor', 'department_head', 'hr', 'final_approver', 'assessor']),
+  "resolver": zod.enum(['subject_employee', 'reporting_manager', 'department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).nullish(),
+  "editableSectionKeys": zod.array(zod.string()),
+  "allowedActions": zod.array(zod.enum(['complete', 'approve', 'return', 'reject'])),
+  "signatureSlotKey": zod.string().nullish()
+}).and(zod.object({
+  "id": zod.number()
+})))
+})
+
+
+/**
+ * @summary Download the blank official form as PDF (WS-26)
+ */
+export const DownloadFormTemplateBlankParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "versionId": zod.coerce.number()
+})
+
+export const DownloadFormTemplateBlankResponse = zod.unknown()
+
+
+/**
+ * @summary List form submissions visible to the caller (WS-26)
+ */
+export const ListFormSubmissionsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListFormSubmissionsQueryParams = zod.object({
+  "templateId": zod.coerce.number().optional(),
+  "subjectEmployeeId": zod.coerce.number().optional(),
+  "status": zod.enum(['draft', 'submitted', 'pending_approval', 'returned', 'rejected', 'resubmitted', 'approved', 'finalized', 'archived']).optional()
+})
+
+export const ListFormSubmissionsResponse = zod.object({
+  "submissions": zod.array(zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateId": zod.number(),
+  "templateKey": zod.string(),
+  "templateTitle": zod.string(),
+  "formType": zod.enum(['leave_application', 'personal_information', 'staff_evaluation', 'probationary_assessment', 'generic']),
+  "templateVersionId": zod.number(),
+  "versionNumber": zod.number(),
+  "subjectEmployeeId": zod.number(),
+  "subjectName": zod.string(),
+  "status": zod.enum(['draft', 'submitted', 'pending_approval', 'returned', 'rejected', 'resubmitted', 'approved', 'finalized', 'archived']),
+  "currentStageOrder": zod.number().nullish(),
+  "stageCountSnapshot": zod.number().nullish(),
+  "createdByMembershipId": zod.number(),
+  "submittedAt": zod.coerce.date().nullish(),
+  "approvedAt": zod.coerce.date().nullish(),
+  "finalizedAt": zod.coerce.date().nullish(),
+  "finalDocumentId": zod.number().nullish(),
+  "finalSha256": zod.string().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Start a form (WS-26) — for oneself via the employee link, or for another employee with form.assess
+ */
+export const CreateFormSubmissionParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const CreateFormSubmissionBody = zod.object({
+  "templateId": zod.number(),
+  "subjectEmployeeId": zod.number().nullish()
+})
+
+export const CreateFormSubmissionResponse = zod.object({
+  "submission": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateId": zod.number(),
+  "templateKey": zod.string(),
+  "templateTitle": zod.string(),
+  "formType": zod.enum(['leave_application', 'personal_information', 'staff_evaluation', 'probationary_assessment', 'generic']),
+  "templateVersionId": zod.number(),
+  "versionNumber": zod.number(),
+  "subjectEmployeeId": zod.number(),
+  "subjectName": zod.string(),
+  "status": zod.enum(['draft', 'submitted', 'pending_approval', 'returned', 'rejected', 'resubmitted', 'approved', 'finalized', 'archived']),
+  "currentStageOrder": zod.number().nullish(),
+  "stageCountSnapshot": zod.number().nullish(),
+  "createdByMembershipId": zod.number(),
+  "submittedAt": zod.coerce.date().nullish(),
+  "approvedAt": zod.coerce.date().nullish(),
+  "finalizedAt": zod.coerce.date().nullish(),
+  "finalDocumentId": zod.number().nullish(),
+  "finalSha256": zod.string().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "template": zod.object({
+  "id": zod.number(),
+  "templateKey": zod.string(),
+  "title": zod.string(),
+  "formType": zod.enum(['leave_application', 'personal_information', 'staff_evaluation', 'probationary_assessment', 'generic'])
+}),
+  "version": zod.object({
+  "id": zod.number(),
+  "versionNumber": zod.number(),
+  "definition": zod.record(zod.string(), zod.unknown()).describe('Server-validated document model (sections of field \/ choice_group \/ matrix \/ rated_table \/ table \/ note \/ signature \/ computed items). See artifacts\/api-server\/src\/lib\/formEngine\/definition.ts for the contract.'),
+  "signaturePolicy": zod.record(zod.string(), zod.unknown()).nullish(),
+  "definitionSha256": zod.string()
+}),
+  "stages": zod.array(zod.object({
+  "stageOrder": zod.number(),
+  "name": zod.string(),
+  "participant": zod.enum(['employee', 'supervisor', 'department_head', 'hr', 'final_approver', 'assessor']),
+  "resolver": zod.enum(['subject_employee', 'reporting_manager', 'department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).nullish(),
+  "editableSectionKeys": zod.array(zod.string()),
+  "allowedActions": zod.array(zod.enum(['complete', 'approve', 'return', 'reject'])),
+  "signatureSlotKey": zod.string().nullish()
+}).and(zod.object({
+  "id": zod.number()
+}))),
+  "currentRevision": zod.union([zod.object({
+  "id": zod.number(),
+  "revisionNumber": zod.number(),
+  "kind": zod.string(),
+  "answers": zod.record(zod.string(), zod.unknown()).describe('Answers keyed by item key; value shape depends on the item kind.'),
+  "autofillSnapshot": zod.record(zod.string(), zod.unknown()),
+  "computed": zod.record(zod.string(), zod.unknown()),
+  "stageOrder": zod.number().nullish(),
+  "savedAt": zod.coerce.date()
+}),zod.null()]),
+  "revisions": zod.array(zod.object({
+  "id": zod.number(),
+  "revisionNumber": zod.number(),
+  "kind": zod.enum(['draft', 'submitted', 'resubmitted', 'stage_update']),
+  "stageOrder": zod.number().nullish(),
+  "savedByMembershipId": zod.number(),
+  "savedAt": zod.coerce.date()
+})),
+  "events": zod.array(zod.object({
+  "id": zod.number(),
+  "eventType": zod.string(),
+  "stageOrder": zod.number().nullish(),
+  "stageName": zod.string().nullish(),
+  "revisionId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "details": zod.record(zod.string(), zod.unknown()).nullish(),
+  "actorUserId": zod.number().nullish(),
+  "actorMembershipId": zod.number().nullish(),
+  "actorName": zod.string().nullish(),
+  "occurredAt": zod.coerce.date()
+})),
+  "viewer": zod.object({
+  "canEdit": zod.boolean(),
+  "editableSectionKeys": zod.array(zod.string()),
+  "canSubmit": zod.boolean(),
+  "availableActions": zod.array(zod.enum(['complete', 'approve', 'return', 'reject'])),
+  "canFinalize": zod.boolean(),
+  "canArchive": zod.boolean(),
+  "isSubject": zod.boolean()
+})
+})
+
+
+/**
+ * @summary Get a submission with its definition, current revision, history and the caller's allowed actions (WS-26)
+ */
+export const GetFormSubmissionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "submissionId": zod.coerce.number()
+})
+
+export const GetFormSubmissionResponse = zod.object({
+  "submission": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateId": zod.number(),
+  "templateKey": zod.string(),
+  "templateTitle": zod.string(),
+  "formType": zod.enum(['leave_application', 'personal_information', 'staff_evaluation', 'probationary_assessment', 'generic']),
+  "templateVersionId": zod.number(),
+  "versionNumber": zod.number(),
+  "subjectEmployeeId": zod.number(),
+  "subjectName": zod.string(),
+  "status": zod.enum(['draft', 'submitted', 'pending_approval', 'returned', 'rejected', 'resubmitted', 'approved', 'finalized', 'archived']),
+  "currentStageOrder": zod.number().nullish(),
+  "stageCountSnapshot": zod.number().nullish(),
+  "createdByMembershipId": zod.number(),
+  "submittedAt": zod.coerce.date().nullish(),
+  "approvedAt": zod.coerce.date().nullish(),
+  "finalizedAt": zod.coerce.date().nullish(),
+  "finalDocumentId": zod.number().nullish(),
+  "finalSha256": zod.string().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "template": zod.object({
+  "id": zod.number(),
+  "templateKey": zod.string(),
+  "title": zod.string(),
+  "formType": zod.enum(['leave_application', 'personal_information', 'staff_evaluation', 'probationary_assessment', 'generic'])
+}),
+  "version": zod.object({
+  "id": zod.number(),
+  "versionNumber": zod.number(),
+  "definition": zod.record(zod.string(), zod.unknown()).describe('Server-validated document model (sections of field \/ choice_group \/ matrix \/ rated_table \/ table \/ note \/ signature \/ computed items). See artifacts\/api-server\/src\/lib\/formEngine\/definition.ts for the contract.'),
+  "signaturePolicy": zod.record(zod.string(), zod.unknown()).nullish(),
+  "definitionSha256": zod.string()
+}),
+  "stages": zod.array(zod.object({
+  "stageOrder": zod.number(),
+  "name": zod.string(),
+  "participant": zod.enum(['employee', 'supervisor', 'department_head', 'hr', 'final_approver', 'assessor']),
+  "resolver": zod.enum(['subject_employee', 'reporting_manager', 'department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).nullish(),
+  "editableSectionKeys": zod.array(zod.string()),
+  "allowedActions": zod.array(zod.enum(['complete', 'approve', 'return', 'reject'])),
+  "signatureSlotKey": zod.string().nullish()
+}).and(zod.object({
+  "id": zod.number()
+}))),
+  "currentRevision": zod.union([zod.object({
+  "id": zod.number(),
+  "revisionNumber": zod.number(),
+  "kind": zod.string(),
+  "answers": zod.record(zod.string(), zod.unknown()).describe('Answers keyed by item key; value shape depends on the item kind.'),
+  "autofillSnapshot": zod.record(zod.string(), zod.unknown()),
+  "computed": zod.record(zod.string(), zod.unknown()),
+  "stageOrder": zod.number().nullish(),
+  "savedAt": zod.coerce.date()
+}),zod.null()]),
+  "revisions": zod.array(zod.object({
+  "id": zod.number(),
+  "revisionNumber": zod.number(),
+  "kind": zod.enum(['draft', 'submitted', 'resubmitted', 'stage_update']),
+  "stageOrder": zod.number().nullish(),
+  "savedByMembershipId": zod.number(),
+  "savedAt": zod.coerce.date()
+})),
+  "events": zod.array(zod.object({
+  "id": zod.number(),
+  "eventType": zod.string(),
+  "stageOrder": zod.number().nullish(),
+  "stageName": zod.string().nullish(),
+  "revisionId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "details": zod.record(zod.string(), zod.unknown()).nullish(),
+  "actorUserId": zod.number().nullish(),
+  "actorMembershipId": zod.number().nullish(),
+  "actorName": zod.string().nullish(),
+  "occurredAt": zod.coerce.date()
+})),
+  "viewer": zod.object({
+  "canEdit": zod.boolean(),
+  "editableSectionKeys": zod.array(zod.string()),
+  "canSubmit": zod.boolean(),
+  "availableActions": zod.array(zod.enum(['complete', 'approve', 'return', 'reject'])),
+  "canFinalize": zod.boolean(),
+  "canArchive": zod.boolean(),
+  "isSubject": zod.boolean()
+})
+})
+
+
+/**
+ * @summary Save draft answers (WS-26) — appends a revision
+ */
+export const SaveFormSubmissionDraftParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "submissionId": zod.coerce.number()
+})
+
+export const SaveFormSubmissionDraftBody = zod.object({
+  "answers": zod.record(zod.string(), zod.unknown()).describe('Answers keyed by item key; value shape depends on the item kind.')
+})
+
+export const SaveFormSubmissionDraftResponse = zod.object({
+  "submission": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateId": zod.number(),
+  "templateKey": zod.string(),
+  "templateTitle": zod.string(),
+  "formType": zod.enum(['leave_application', 'personal_information', 'staff_evaluation', 'probationary_assessment', 'generic']),
+  "templateVersionId": zod.number(),
+  "versionNumber": zod.number(),
+  "subjectEmployeeId": zod.number(),
+  "subjectName": zod.string(),
+  "status": zod.enum(['draft', 'submitted', 'pending_approval', 'returned', 'rejected', 'resubmitted', 'approved', 'finalized', 'archived']),
+  "currentStageOrder": zod.number().nullish(),
+  "stageCountSnapshot": zod.number().nullish(),
+  "createdByMembershipId": zod.number(),
+  "submittedAt": zod.coerce.date().nullish(),
+  "approvedAt": zod.coerce.date().nullish(),
+  "finalizedAt": zod.coerce.date().nullish(),
+  "finalDocumentId": zod.number().nullish(),
+  "finalSha256": zod.string().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "template": zod.object({
+  "id": zod.number(),
+  "templateKey": zod.string(),
+  "title": zod.string(),
+  "formType": zod.enum(['leave_application', 'personal_information', 'staff_evaluation', 'probationary_assessment', 'generic'])
+}),
+  "version": zod.object({
+  "id": zod.number(),
+  "versionNumber": zod.number(),
+  "definition": zod.record(zod.string(), zod.unknown()).describe('Server-validated document model (sections of field \/ choice_group \/ matrix \/ rated_table \/ table \/ note \/ signature \/ computed items). See artifacts\/api-server\/src\/lib\/formEngine\/definition.ts for the contract.'),
+  "signaturePolicy": zod.record(zod.string(), zod.unknown()).nullish(),
+  "definitionSha256": zod.string()
+}),
+  "stages": zod.array(zod.object({
+  "stageOrder": zod.number(),
+  "name": zod.string(),
+  "participant": zod.enum(['employee', 'supervisor', 'department_head', 'hr', 'final_approver', 'assessor']),
+  "resolver": zod.enum(['subject_employee', 'reporting_manager', 'department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).nullish(),
+  "editableSectionKeys": zod.array(zod.string()),
+  "allowedActions": zod.array(zod.enum(['complete', 'approve', 'return', 'reject'])),
+  "signatureSlotKey": zod.string().nullish()
+}).and(zod.object({
+  "id": zod.number()
+}))),
+  "currentRevision": zod.union([zod.object({
+  "id": zod.number(),
+  "revisionNumber": zod.number(),
+  "kind": zod.string(),
+  "answers": zod.record(zod.string(), zod.unknown()).describe('Answers keyed by item key; value shape depends on the item kind.'),
+  "autofillSnapshot": zod.record(zod.string(), zod.unknown()),
+  "computed": zod.record(zod.string(), zod.unknown()),
+  "stageOrder": zod.number().nullish(),
+  "savedAt": zod.coerce.date()
+}),zod.null()]),
+  "revisions": zod.array(zod.object({
+  "id": zod.number(),
+  "revisionNumber": zod.number(),
+  "kind": zod.enum(['draft', 'submitted', 'resubmitted', 'stage_update']),
+  "stageOrder": zod.number().nullish(),
+  "savedByMembershipId": zod.number(),
+  "savedAt": zod.coerce.date()
+})),
+  "events": zod.array(zod.object({
+  "id": zod.number(),
+  "eventType": zod.string(),
+  "stageOrder": zod.number().nullish(),
+  "stageName": zod.string().nullish(),
+  "revisionId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "details": zod.record(zod.string(), zod.unknown()).nullish(),
+  "actorUserId": zod.number().nullish(),
+  "actorMembershipId": zod.number().nullish(),
+  "actorName": zod.string().nullish(),
+  "occurredAt": zod.coerce.date()
+})),
+  "viewer": zod.object({
+  "canEdit": zod.boolean(),
+  "editableSectionKeys": zod.array(zod.string()),
+  "canSubmit": zod.boolean(),
+  "availableActions": zod.array(zod.enum(['complete', 'approve', 'return', 'reject'])),
+  "canFinalize": zod.boolean(),
+  "canArchive": zod.boolean(),
+  "isSubject": zod.boolean()
+})
+})
+
+
+/**
+ * @summary Submit (or resubmit) a form into its workflow (WS-26)
+ */
+export const SubmitFormSubmissionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "submissionId": zod.coerce.number()
+})
+
+export const SubmitFormSubmissionBody = zod.object({
+  "answers": zod.record(zod.string(), zod.unknown()).optional().describe('Answers keyed by item key; value shape depends on the item kind.')
+})
+
+export const SubmitFormSubmissionResponse = zod.object({
+  "submission": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateId": zod.number(),
+  "templateKey": zod.string(),
+  "templateTitle": zod.string(),
+  "formType": zod.enum(['leave_application', 'personal_information', 'staff_evaluation', 'probationary_assessment', 'generic']),
+  "templateVersionId": zod.number(),
+  "versionNumber": zod.number(),
+  "subjectEmployeeId": zod.number(),
+  "subjectName": zod.string(),
+  "status": zod.enum(['draft', 'submitted', 'pending_approval', 'returned', 'rejected', 'resubmitted', 'approved', 'finalized', 'archived']),
+  "currentStageOrder": zod.number().nullish(),
+  "stageCountSnapshot": zod.number().nullish(),
+  "createdByMembershipId": zod.number(),
+  "submittedAt": zod.coerce.date().nullish(),
+  "approvedAt": zod.coerce.date().nullish(),
+  "finalizedAt": zod.coerce.date().nullish(),
+  "finalDocumentId": zod.number().nullish(),
+  "finalSha256": zod.string().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "template": zod.object({
+  "id": zod.number(),
+  "templateKey": zod.string(),
+  "title": zod.string(),
+  "formType": zod.enum(['leave_application', 'personal_information', 'staff_evaluation', 'probationary_assessment', 'generic'])
+}),
+  "version": zod.object({
+  "id": zod.number(),
+  "versionNumber": zod.number(),
+  "definition": zod.record(zod.string(), zod.unknown()).describe('Server-validated document model (sections of field \/ choice_group \/ matrix \/ rated_table \/ table \/ note \/ signature \/ computed items). See artifacts\/api-server\/src\/lib\/formEngine\/definition.ts for the contract.'),
+  "signaturePolicy": zod.record(zod.string(), zod.unknown()).nullish(),
+  "definitionSha256": zod.string()
+}),
+  "stages": zod.array(zod.object({
+  "stageOrder": zod.number(),
+  "name": zod.string(),
+  "participant": zod.enum(['employee', 'supervisor', 'department_head', 'hr', 'final_approver', 'assessor']),
+  "resolver": zod.enum(['subject_employee', 'reporting_manager', 'department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).nullish(),
+  "editableSectionKeys": zod.array(zod.string()),
+  "allowedActions": zod.array(zod.enum(['complete', 'approve', 'return', 'reject'])),
+  "signatureSlotKey": zod.string().nullish()
+}).and(zod.object({
+  "id": zod.number()
+}))),
+  "currentRevision": zod.union([zod.object({
+  "id": zod.number(),
+  "revisionNumber": zod.number(),
+  "kind": zod.string(),
+  "answers": zod.record(zod.string(), zod.unknown()).describe('Answers keyed by item key; value shape depends on the item kind.'),
+  "autofillSnapshot": zod.record(zod.string(), zod.unknown()),
+  "computed": zod.record(zod.string(), zod.unknown()),
+  "stageOrder": zod.number().nullish(),
+  "savedAt": zod.coerce.date()
+}),zod.null()]),
+  "revisions": zod.array(zod.object({
+  "id": zod.number(),
+  "revisionNumber": zod.number(),
+  "kind": zod.enum(['draft', 'submitted', 'resubmitted', 'stage_update']),
+  "stageOrder": zod.number().nullish(),
+  "savedByMembershipId": zod.number(),
+  "savedAt": zod.coerce.date()
+})),
+  "events": zod.array(zod.object({
+  "id": zod.number(),
+  "eventType": zod.string(),
+  "stageOrder": zod.number().nullish(),
+  "stageName": zod.string().nullish(),
+  "revisionId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "details": zod.record(zod.string(), zod.unknown()).nullish(),
+  "actorUserId": zod.number().nullish(),
+  "actorMembershipId": zod.number().nullish(),
+  "actorName": zod.string().nullish(),
+  "occurredAt": zod.coerce.date()
+})),
+  "viewer": zod.object({
+  "canEdit": zod.boolean(),
+  "editableSectionKeys": zod.array(zod.string()),
+  "canSubmit": zod.boolean(),
+  "availableActions": zod.array(zod.enum(['complete', 'approve', 'return', 'reject'])),
+  "canFinalize": zod.boolean(),
+  "canArchive": zod.boolean(),
+  "isSubject": zod.boolean()
+})
+})
+
+
+/**
+ * @summary Complete, approve, return or reject the current workflow stage (WS-26)
+ */
+export const ActOnFormSubmissionStageParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "submissionId": zod.coerce.number()
+})
+
+export const ActOnFormSubmissionStageBody = zod.object({
+  "action": zod.enum(['complete', 'approve', 'return', 'reject']),
+  "answers": zod.record(zod.string(), zod.unknown()).optional().describe('Answers keyed by item key; value shape depends on the item kind.'),
+  "notes": zod.string().nullish()
+})
+
+export const ActOnFormSubmissionStageResponse = zod.object({
+  "submission": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateId": zod.number(),
+  "templateKey": zod.string(),
+  "templateTitle": zod.string(),
+  "formType": zod.enum(['leave_application', 'personal_information', 'staff_evaluation', 'probationary_assessment', 'generic']),
+  "templateVersionId": zod.number(),
+  "versionNumber": zod.number(),
+  "subjectEmployeeId": zod.number(),
+  "subjectName": zod.string(),
+  "status": zod.enum(['draft', 'submitted', 'pending_approval', 'returned', 'rejected', 'resubmitted', 'approved', 'finalized', 'archived']),
+  "currentStageOrder": zod.number().nullish(),
+  "stageCountSnapshot": zod.number().nullish(),
+  "createdByMembershipId": zod.number(),
+  "submittedAt": zod.coerce.date().nullish(),
+  "approvedAt": zod.coerce.date().nullish(),
+  "finalizedAt": zod.coerce.date().nullish(),
+  "finalDocumentId": zod.number().nullish(),
+  "finalSha256": zod.string().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "template": zod.object({
+  "id": zod.number(),
+  "templateKey": zod.string(),
+  "title": zod.string(),
+  "formType": zod.enum(['leave_application', 'personal_information', 'staff_evaluation', 'probationary_assessment', 'generic'])
+}),
+  "version": zod.object({
+  "id": zod.number(),
+  "versionNumber": zod.number(),
+  "definition": zod.record(zod.string(), zod.unknown()).describe('Server-validated document model (sections of field \/ choice_group \/ matrix \/ rated_table \/ table \/ note \/ signature \/ computed items). See artifacts\/api-server\/src\/lib\/formEngine\/definition.ts for the contract.'),
+  "signaturePolicy": zod.record(zod.string(), zod.unknown()).nullish(),
+  "definitionSha256": zod.string()
+}),
+  "stages": zod.array(zod.object({
+  "stageOrder": zod.number(),
+  "name": zod.string(),
+  "participant": zod.enum(['employee', 'supervisor', 'department_head', 'hr', 'final_approver', 'assessor']),
+  "resolver": zod.enum(['subject_employee', 'reporting_manager', 'department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).nullish(),
+  "editableSectionKeys": zod.array(zod.string()),
+  "allowedActions": zod.array(zod.enum(['complete', 'approve', 'return', 'reject'])),
+  "signatureSlotKey": zod.string().nullish()
+}).and(zod.object({
+  "id": zod.number()
+}))),
+  "currentRevision": zod.union([zod.object({
+  "id": zod.number(),
+  "revisionNumber": zod.number(),
+  "kind": zod.string(),
+  "answers": zod.record(zod.string(), zod.unknown()).describe('Answers keyed by item key; value shape depends on the item kind.'),
+  "autofillSnapshot": zod.record(zod.string(), zod.unknown()),
+  "computed": zod.record(zod.string(), zod.unknown()),
+  "stageOrder": zod.number().nullish(),
+  "savedAt": zod.coerce.date()
+}),zod.null()]),
+  "revisions": zod.array(zod.object({
+  "id": zod.number(),
+  "revisionNumber": zod.number(),
+  "kind": zod.enum(['draft', 'submitted', 'resubmitted', 'stage_update']),
+  "stageOrder": zod.number().nullish(),
+  "savedByMembershipId": zod.number(),
+  "savedAt": zod.coerce.date()
+})),
+  "events": zod.array(zod.object({
+  "id": zod.number(),
+  "eventType": zod.string(),
+  "stageOrder": zod.number().nullish(),
+  "stageName": zod.string().nullish(),
+  "revisionId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "details": zod.record(zod.string(), zod.unknown()).nullish(),
+  "actorUserId": zod.number().nullish(),
+  "actorMembershipId": zod.number().nullish(),
+  "actorName": zod.string().nullish(),
+  "occurredAt": zod.coerce.date()
+})),
+  "viewer": zod.object({
+  "canEdit": zod.boolean(),
+  "editableSectionKeys": zod.array(zod.string()),
+  "canSubmit": zod.boolean(),
+  "availableActions": zod.array(zod.enum(['complete', 'approve', 'return', 'reject'])),
+  "canFinalize": zod.boolean(),
+  "canArchive": zod.boolean(),
+  "isSubject": zod.boolean()
+})
+})
+
+
+/**
+ * @summary Generate the immutable final document and finalize (WS-26) — requires form.finalize
+ */
+export const FinalizeFormSubmissionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "submissionId": zod.coerce.number()
+})
+
+export const FinalizeFormSubmissionResponse = zod.object({
+  "submission": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateId": zod.number(),
+  "templateKey": zod.string(),
+  "templateTitle": zod.string(),
+  "formType": zod.enum(['leave_application', 'personal_information', 'staff_evaluation', 'probationary_assessment', 'generic']),
+  "templateVersionId": zod.number(),
+  "versionNumber": zod.number(),
+  "subjectEmployeeId": zod.number(),
+  "subjectName": zod.string(),
+  "status": zod.enum(['draft', 'submitted', 'pending_approval', 'returned', 'rejected', 'resubmitted', 'approved', 'finalized', 'archived']),
+  "currentStageOrder": zod.number().nullish(),
+  "stageCountSnapshot": zod.number().nullish(),
+  "createdByMembershipId": zod.number(),
+  "submittedAt": zod.coerce.date().nullish(),
+  "approvedAt": zod.coerce.date().nullish(),
+  "finalizedAt": zod.coerce.date().nullish(),
+  "finalDocumentId": zod.number().nullish(),
+  "finalSha256": zod.string().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "template": zod.object({
+  "id": zod.number(),
+  "templateKey": zod.string(),
+  "title": zod.string(),
+  "formType": zod.enum(['leave_application', 'personal_information', 'staff_evaluation', 'probationary_assessment', 'generic'])
+}),
+  "version": zod.object({
+  "id": zod.number(),
+  "versionNumber": zod.number(),
+  "definition": zod.record(zod.string(), zod.unknown()).describe('Server-validated document model (sections of field \/ choice_group \/ matrix \/ rated_table \/ table \/ note \/ signature \/ computed items). See artifacts\/api-server\/src\/lib\/formEngine\/definition.ts for the contract.'),
+  "signaturePolicy": zod.record(zod.string(), zod.unknown()).nullish(),
+  "definitionSha256": zod.string()
+}),
+  "stages": zod.array(zod.object({
+  "stageOrder": zod.number(),
+  "name": zod.string(),
+  "participant": zod.enum(['employee', 'supervisor', 'department_head', 'hr', 'final_approver', 'assessor']),
+  "resolver": zod.enum(['subject_employee', 'reporting_manager', 'department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).nullish(),
+  "editableSectionKeys": zod.array(zod.string()),
+  "allowedActions": zod.array(zod.enum(['complete', 'approve', 'return', 'reject'])),
+  "signatureSlotKey": zod.string().nullish()
+}).and(zod.object({
+  "id": zod.number()
+}))),
+  "currentRevision": zod.union([zod.object({
+  "id": zod.number(),
+  "revisionNumber": zod.number(),
+  "kind": zod.string(),
+  "answers": zod.record(zod.string(), zod.unknown()).describe('Answers keyed by item key; value shape depends on the item kind.'),
+  "autofillSnapshot": zod.record(zod.string(), zod.unknown()),
+  "computed": zod.record(zod.string(), zod.unknown()),
+  "stageOrder": zod.number().nullish(),
+  "savedAt": zod.coerce.date()
+}),zod.null()]),
+  "revisions": zod.array(zod.object({
+  "id": zod.number(),
+  "revisionNumber": zod.number(),
+  "kind": zod.enum(['draft', 'submitted', 'resubmitted', 'stage_update']),
+  "stageOrder": zod.number().nullish(),
+  "savedByMembershipId": zod.number(),
+  "savedAt": zod.coerce.date()
+})),
+  "events": zod.array(zod.object({
+  "id": zod.number(),
+  "eventType": zod.string(),
+  "stageOrder": zod.number().nullish(),
+  "stageName": zod.string().nullish(),
+  "revisionId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "details": zod.record(zod.string(), zod.unknown()).nullish(),
+  "actorUserId": zod.number().nullish(),
+  "actorMembershipId": zod.number().nullish(),
+  "actorName": zod.string().nullish(),
+  "occurredAt": zod.coerce.date()
+})),
+  "viewer": zod.object({
+  "canEdit": zod.boolean(),
+  "editableSectionKeys": zod.array(zod.string()),
+  "canSubmit": zod.boolean(),
+  "availableActions": zod.array(zod.enum(['complete', 'approve', 'return', 'reject'])),
+  "canFinalize": zod.boolean(),
+  "canArchive": zod.boolean(),
+  "isSubject": zod.boolean()
+})
+})
+
+
+/**
+ * @summary Archive a finalized or rejected submission (WS-26)
+ */
+export const ArchiveFormSubmissionParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "submissionId": zod.coerce.number()
+})
+
+export const ArchiveFormSubmissionResponse = zod.object({
+  "submission": zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "templateId": zod.number(),
+  "templateKey": zod.string(),
+  "templateTitle": zod.string(),
+  "formType": zod.enum(['leave_application', 'personal_information', 'staff_evaluation', 'probationary_assessment', 'generic']),
+  "templateVersionId": zod.number(),
+  "versionNumber": zod.number(),
+  "subjectEmployeeId": zod.number(),
+  "subjectName": zod.string(),
+  "status": zod.enum(['draft', 'submitted', 'pending_approval', 'returned', 'rejected', 'resubmitted', 'approved', 'finalized', 'archived']),
+  "currentStageOrder": zod.number().nullish(),
+  "stageCountSnapshot": zod.number().nullish(),
+  "createdByMembershipId": zod.number(),
+  "submittedAt": zod.coerce.date().nullish(),
+  "approvedAt": zod.coerce.date().nullish(),
+  "finalizedAt": zod.coerce.date().nullish(),
+  "finalDocumentId": zod.number().nullish(),
+  "finalSha256": zod.string().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "template": zod.object({
+  "id": zod.number(),
+  "templateKey": zod.string(),
+  "title": zod.string(),
+  "formType": zod.enum(['leave_application', 'personal_information', 'staff_evaluation', 'probationary_assessment', 'generic'])
+}),
+  "version": zod.object({
+  "id": zod.number(),
+  "versionNumber": zod.number(),
+  "definition": zod.record(zod.string(), zod.unknown()).describe('Server-validated document model (sections of field \/ choice_group \/ matrix \/ rated_table \/ table \/ note \/ signature \/ computed items). See artifacts\/api-server\/src\/lib\/formEngine\/definition.ts for the contract.'),
+  "signaturePolicy": zod.record(zod.string(), zod.unknown()).nullish(),
+  "definitionSha256": zod.string()
+}),
+  "stages": zod.array(zod.object({
+  "stageOrder": zod.number(),
+  "name": zod.string(),
+  "participant": zod.enum(['employee', 'supervisor', 'department_head', 'hr', 'final_approver', 'assessor']),
+  "resolver": zod.enum(['subject_employee', 'reporting_manager', 'department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).nullish(),
+  "editableSectionKeys": zod.array(zod.string()),
+  "allowedActions": zod.array(zod.enum(['complete', 'approve', 'return', 'reject'])),
+  "signatureSlotKey": zod.string().nullish()
+}).and(zod.object({
+  "id": zod.number()
+}))),
+  "currentRevision": zod.union([zod.object({
+  "id": zod.number(),
+  "revisionNumber": zod.number(),
+  "kind": zod.string(),
+  "answers": zod.record(zod.string(), zod.unknown()).describe('Answers keyed by item key; value shape depends on the item kind.'),
+  "autofillSnapshot": zod.record(zod.string(), zod.unknown()),
+  "computed": zod.record(zod.string(), zod.unknown()),
+  "stageOrder": zod.number().nullish(),
+  "savedAt": zod.coerce.date()
+}),zod.null()]),
+  "revisions": zod.array(zod.object({
+  "id": zod.number(),
+  "revisionNumber": zod.number(),
+  "kind": zod.enum(['draft', 'submitted', 'resubmitted', 'stage_update']),
+  "stageOrder": zod.number().nullish(),
+  "savedByMembershipId": zod.number(),
+  "savedAt": zod.coerce.date()
+})),
+  "events": zod.array(zod.object({
+  "id": zod.number(),
+  "eventType": zod.string(),
+  "stageOrder": zod.number().nullish(),
+  "stageName": zod.string().nullish(),
+  "revisionId": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "details": zod.record(zod.string(), zod.unknown()).nullish(),
+  "actorUserId": zod.number().nullish(),
+  "actorMembershipId": zod.number().nullish(),
+  "actorName": zod.string().nullish(),
+  "occurredAt": zod.coerce.date()
+})),
+  "viewer": zod.object({
+  "canEdit": zod.boolean(),
+  "editableSectionKeys": zod.array(zod.string()),
+  "canSubmit": zod.boolean(),
+  "availableActions": zod.array(zod.enum(['complete', 'approve', 'return', 'reject'])),
+  "canFinalize": zod.boolean(),
+  "canArchive": zod.boolean(),
+  "isSubject": zod.boolean()
+})
+})
+
+
+/**
+ * @summary Download the form at a state (WS-26) — blank, draft, submitted, returned, rejected, approved, or the immutable final snapshot
+ */
+export const DownloadFormSubmissionDocumentParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "submissionId": zod.coerce.number()
+})
+
+export const DownloadFormSubmissionDocumentQueryParams = zod.object({
+  "kind": zod.enum(['blank', 'draft', 'submitted', 'returned', 'rejected', 'approved', 'final']).optional(),
+  "revisionId": zod.coerce.number().optional()
+})
+
+export const DownloadFormSubmissionDocumentResponse = zod.unknown()
+
+

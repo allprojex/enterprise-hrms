@@ -29,6 +29,9 @@ import legacyImportRouter from "./legacyImport";
 import migrationsRouter from "./migrations";
 import payrollOpeningBalancesRouter from "./payrollOpeningBalances";
 import customFieldsRouter from "./customFields";
+// WS-26 — Tenant Form, Workflow & Signature Engine.
+import formTemplatesRouter from "./formTemplates";
+import formSubmissionsRouter from "./formSubmissions";
 import recruitmentCompletionRouter from "./recruitmentCompletion";
 import employeeSkillsQualificationsRouter from "./employeeSkillsQualifications";
 import employeeDisciplinaryRecordsRouter from "./employeeDisciplinaryRecords";
@@ -134,6 +137,8 @@ const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
+router.use(formTemplatesRouter);
+router.use(formSubmissionsRouter);
 router.use(organizationsRouter);
 router.use(notificationsRouter);
 router.use(usersRouter);

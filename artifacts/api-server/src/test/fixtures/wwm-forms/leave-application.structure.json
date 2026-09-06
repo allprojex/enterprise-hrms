@@ -1,0 +1,112 @@
+{
+  "blocks": [
+    {
+      "type": "table",
+      "rows": [
+        [
+          "",
+          "WORLDWIDE WORD MINISTRIES ¶ EMPLOYEE LEAVE APPLICATION FORM"
+        ],
+        [
+          ""
+        ]
+      ]
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          "EMPLOYEE DETAILS"
+        ],
+        [
+          "Employee Name: ___________________________________________________",
+          "Department: _______________________________"
+        ]
+      ]
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          "TYPE OF LEAVE REQUESTED"
+        ],
+        [
+          "□ Annual Leave",
+          "□ Sick Leave",
+          "□ Maternity Leave"
+        ],
+        [
+          "□ Paternity Leave",
+          "□ Bereavement Leave",
+          "□ Leave Without Pay"
+        ],
+        [
+          "Other (specify): ____________________________________________________________________________________"
+        ]
+      ]
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          "LEAVE PERIOD & CONTACT INFORMATION"
+        ],
+        [
+          "From: ________________",
+          "To: _________________",
+          "No. of Days Requested: __________________"
+        ],
+        [
+          "Contact Information During Leave (can be an emergency contact)"
+        ],
+        [
+          "Phone Number: ¶ ____________________________________________",
+          "Email Address: ¶ ______________________________________"
+        ]
+      ]
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          "EMPLOYEE DECLARATION"
+        ],
+        [
+          "Employee Signature:",
+          "Date: __________________________________"
+        ]
+      ]
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          "APPROVAL SECTION - TO BE COMPLETED BY MANAGER / SUPERVISOR"
+        ],
+        [
+          "□ Approved",
+          "□ Rejected"
+        ],
+        [
+          "Approved By: \n\n______________________________________",
+          "Date Approved: _______________________________"
+        ],
+        [
+          "Signature: ¶ _____________________________________",
+          "No. of Days Remaining: ____________________ ¶ Date of Resumption: ________________________"
+        ],
+        [
+          "(If Rejected) Reason for Rejection: ¶ ___________________________________________________________________________________"
+        ]
+      ]
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          "NOTE: Please submit this form at least 7 working days prior to your planned leave date."
+        ]
+      ]
+    }
+  ]
+}

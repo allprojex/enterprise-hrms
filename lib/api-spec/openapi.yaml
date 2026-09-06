@@ -8,6 +8,8 @@ servers:
   - url: /api
     description: Base API path
 tags:
+  - name: forms
+    description: WS-26 Tenant Form, Workflow & Signature Engine
   - name: health
     description: Health operations
   - name: auth
@@ -30403,6 +30405,679 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  # ------------------------------------------------------------------
+  # WS-26 — Tenant Form, Workflow & Signature Engine (WS-26A foundation)
+  # ------------------------------------------------------------------
+  /organizations/{organizationId}/form-templates:
+    get:
+      operationId: listFormTemplates
+      tags: [forms]
+      summary: List form templates (WS-26)
+      description: Any active member sees active templates with a published version; form_template.manage or form.read sees every template and version.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Templates
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [templates]
+                properties:
+                  templates:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/FormTemplateSummary"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createFormTemplate
+      tags: [forms]
+      summary: Create a form template with its first draft version (WS-26)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFormTemplateBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [template, version]
+                properties:
+                  template:
+                    $ref: "#/components/schemas/FormTemplate"
+                  version:
+                    $ref: "#/components/schemas/FormTemplateVersion"
+        "400":
+          description: Invalid definition or stages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — requires form_template.manage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Template key already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/form-templates/{templateId}:
+    get:
+      operationId: getFormTemplate
+      tags: [forms]
+      summary: Get a form template with its versions (WS-26)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Template
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [template, versions]
+                properties:
+                  template:
+                    $ref: "#/components/schemas/FormTemplate"
+                  versions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/FormTemplateVersion"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/form-templates/{templateId}/versions:
+    post:
+      operationId: createFormTemplateVersion
+      tags: [forms]
+      summary: Create a new draft version of a template (WS-26)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFormTemplateVersionBody"
+      responses:
+        "201":
+          description: Draft version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormTemplateVersion"
+        "400":
+          description: Invalid definition or stages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: A draft already exists or the template is archived
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/form-templates/{templateId}/archive:
+    post:
+      operationId: archiveFormTemplate
+      tags: [forms]
+      summary: Archive a form template (WS-26)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Archived
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormTemplate"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/form-template-versions/{versionId}:
+    get:
+      operationId: getFormTemplateVersion
+      tags: [forms]
+      summary: Get a template version with its definition and stages (WS-26)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: versionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormTemplateVersion"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    patch:
+      operationId: updateFormTemplateVersion
+      tags: [forms]
+      summary: Update a draft version (WS-26). Published versions are immutable.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: versionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateFormTemplateVersionBody"
+      responses:
+        "200":
+          description: Updated draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormTemplateVersion"
+        "409":
+          description: Version is not an editable draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/form-template-versions/{versionId}/publish:
+    post:
+      operationId: publishFormTemplateVersion
+      tags: [forms]
+      summary: Publish a draft version, superseding the current one (WS-26)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: versionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Published version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormTemplateVersion"
+        "403":
+          description: Forbidden — requires form_template.publish
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Not a draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/form-template-versions/{versionId}/blank.pdf:
+    get:
+      operationId: downloadFormTemplateBlank
+      tags: [forms]
+      summary: Download the blank official form as PDF (WS-26)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: versionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/form-submissions:
+    get:
+      operationId: listFormSubmissions
+      tags: [forms]
+      summary: List form submissions visible to the caller (WS-26)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: templateId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: subjectEmployeeId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/FormSubmissionStatus"
+      responses:
+        "200":
+          description: Submissions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [submissions]
+                properties:
+                  submissions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/FormSubmissionSummary"
+    post:
+      operationId: createFormSubmission
+      tags: [forms]
+      summary: Start a form (WS-26) — for oneself via the employee link, or for another employee with form.assess
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFormSubmissionBody"
+      responses:
+        "201":
+          description: Draft submission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormSubmissionDetail"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Template not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/form-submissions/{submissionId}:
+    get:
+      operationId: getFormSubmission
+      tags: [forms]
+      summary: Get a submission with its definition, current revision, history and the caller's allowed actions (WS-26)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: submissionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Submission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormSubmissionDetail"
+        "404":
+          description: Not found (or not visible to the caller)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/form-submissions/{submissionId}/draft:
+    put:
+      operationId: saveFormSubmissionDraft
+      tags: [forms]
+      summary: Save draft answers (WS-26) — appends a revision
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: submissionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveFormSubmissionDraftBody"
+      responses:
+        "200":
+          description: Submission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormSubmissionDetail"
+        "400":
+          description: Invalid answers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormAnswersError"
+        "409":
+          description: Not editable in this state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/form-submissions/{submissionId}/submit:
+    post:
+      operationId: submitFormSubmission
+      tags: [forms]
+      summary: Submit (or resubmit) a form into its workflow (WS-26)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: submissionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitFormSubmissionBody"
+      responses:
+        "200":
+          description: Submission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormSubmissionDetail"
+        "400":
+          description: Required answers missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormAnswersError"
+        "409":
+          description: Not submittable in this state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/form-submissions/{submissionId}/stage-action:
+    post:
+      operationId: actOnFormSubmissionStage
+      tags: [forms]
+      summary: Complete, approve, return or reject the current workflow stage (WS-26)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: submissionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FormSubmissionStageActionBody"
+      responses:
+        "200":
+          description: Submission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormSubmissionDetail"
+        "400":
+          description: Invalid answers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormAnswersError"
+        "403":
+          description: Not the actor for this stage, or maker-checker violation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Not awaiting a stage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/form-submissions/{submissionId}/finalize:
+    post:
+      operationId: finalizeFormSubmission
+      tags: [forms]
+      summary: Generate the immutable final document and finalize (WS-26) — requires form.finalize
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: submissionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Submission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormSubmissionDetail"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Not approved, or already finalized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/form-submissions/{submissionId}/archive:
+    post:
+      operationId: archiveFormSubmission
+      tags: [forms]
+      summary: Archive a finalized or rejected submission (WS-26)
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: submissionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Submission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FormSubmissionDetail"
+        "409":
+          description: Not archivable in this state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/form-submissions/{submissionId}/document.pdf:
+    get:
+      operationId: downloadFormSubmissionDocument
+      tags: [forms]
+      summary: Download the form at a state (WS-26) — blank, draft, submitted, returned, rejected, approved, or the immutable final snapshot
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: submissionId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: kind
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/FormDocumentKind"
+        - name: revisionId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Final document not yet generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
 
@@ -46924,3 +47599,592 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/OpenServiceRequestRow"
+
+    # ------------------------------------------------------------------
+    # WS-26 — Tenant Form, Workflow & Signature Engine (WS-26A foundation)
+    # ------------------------------------------------------------------
+    FormTemplateType:
+      type: string
+      enum: [leave_application, personal_information, staff_evaluation, probationary_assessment, generic]
+
+    FormTemplateStatus:
+      type: string
+      enum: [active, archived]
+
+    FormTemplateVersionStatus:
+      type: string
+      enum: [draft, published, archived]
+
+    FormStageParticipant:
+      type: string
+      enum: [employee, supervisor, department_head, hr, final_approver, assessor]
+
+    FormStageResolver:
+      type: string
+      enum: [subject_employee, reporting_manager, department_head, permission_holder, specific_membership]
+
+    FormSubmissionStatus:
+      type: string
+      enum: [draft, submitted, pending_approval, returned, rejected, resubmitted, approved, finalized, archived]
+
+    FormDocumentKind:
+      type: string
+      enum: [blank, draft, submitted, returned, rejected, approved, final]
+
+    FormStageAction:
+      type: string
+      enum: [complete, approve, return, reject]
+
+    FormDefinition:
+      type: object
+      description: >-
+        Server-validated document model (sections of field / choice_group / matrix / rated_table / table / note /
+        signature / computed items). See artifacts/api-server/src/lib/formEngine/definition.ts for the contract.
+      additionalProperties: true
+
+    FormAnswers:
+      type: object
+      description: Answers keyed by item key; value shape depends on the item kind.
+      additionalProperties: true
+
+    FormWorkflowStageInput:
+      type: object
+      required: [stageOrder, name, participant, resolver, editableSectionKeys, allowedActions]
+      properties:
+        stageOrder:
+          type: integer
+        name:
+          type: string
+        participant:
+          $ref: "#/components/schemas/FormStageParticipant"
+        resolver:
+          $ref: "#/components/schemas/FormStageResolver"
+        resolverConfig:
+          type: object
+          additionalProperties: true
+          nullable: true
+        editableSectionKeys:
+          type: array
+          items:
+            type: string
+        allowedActions:
+          type: array
+          items:
+            $ref: "#/components/schemas/FormStageAction"
+        signatureSlotKey:
+          type: string
+          nullable: true
+
+    FormWorkflowStage:
+      allOf:
+        - $ref: "#/components/schemas/FormWorkflowStageInput"
+        - type: object
+          required: [id]
+          properties:
+            id:
+              type: integer
+
+    FormTemplate:
+      type: object
+      required: [id, organizationId, templateKey, formType, title, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        templateKey:
+          type: string
+        formType:
+          $ref: "#/components/schemas/FormTemplateType"
+        moduleKey:
+          type: string
+          nullable: true
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          $ref: "#/components/schemas/FormTemplateStatus"
+        currentPublishedVersionId:
+          type: integer
+          nullable: true
+        archivedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    FormTemplateVersionSummary:
+      type: object
+      required: [id, templateId, versionNumber, status, definitionSha256, createdAt]
+      properties:
+        id:
+          type: integer
+        templateId:
+          type: integer
+        versionNumber:
+          type: integer
+        status:
+          $ref: "#/components/schemas/FormTemplateVersionStatus"
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        firstUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+        definitionSha256:
+          type: string
+        changeNote:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    FormTemplateSummary:
+      type: object
+      required: [id, templateKey, formType, title, status, createdAt, updatedAt, versions]
+      properties:
+        id:
+          type: integer
+        templateKey:
+          type: string
+        formType:
+          $ref: "#/components/schemas/FormTemplateType"
+        moduleKey:
+          type: string
+          nullable: true
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          $ref: "#/components/schemas/FormTemplateStatus"
+        currentPublishedVersionId:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        versions:
+          type: array
+          items:
+            $ref: "#/components/schemas/FormTemplateVersionSummary"
+
+    FormTemplateVersion:
+      type: object
+      required: [id, templateId, versionNumber, status, definition, definitionSha256, createdAt, stages]
+      properties:
+        id:
+          type: integer
+        templateId:
+          type: integer
+        versionNumber:
+          type: integer
+        status:
+          $ref: "#/components/schemas/FormTemplateVersionStatus"
+        effectiveFrom:
+          type: string
+          nullable: true
+        effectiveTo:
+          type: string
+          nullable: true
+        definition:
+          $ref: "#/components/schemas/FormDefinition"
+        definitionSha256:
+          type: string
+        signaturePolicy:
+          type: object
+          additionalProperties: true
+          nullable: true
+        renderConfig:
+          type: object
+          additionalProperties: true
+          nullable: true
+        changeNote:
+          type: string
+          nullable: true
+        firstUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        archivedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        stages:
+          type: array
+          items:
+            $ref: "#/components/schemas/FormWorkflowStage"
+
+    CreateFormTemplateBody:
+      type: object
+      required: [templateKey, formType, title, definition]
+      properties:
+        templateKey:
+          type: string
+          pattern: "^[a-z][a-z0-9_]*$"
+          maxLength: 64
+        formType:
+          $ref: "#/components/schemas/FormTemplateType"
+        moduleKey:
+          type: string
+          nullable: true
+        title:
+          type: string
+          maxLength: 300
+        description:
+          type: string
+          nullable: true
+        definition:
+          $ref: "#/components/schemas/FormDefinition"
+        signaturePolicy:
+          type: object
+          additionalProperties: true
+          nullable: true
+        renderConfig:
+          type: object
+          additionalProperties: true
+          nullable: true
+        stages:
+          type: array
+          items:
+            $ref: "#/components/schemas/FormWorkflowStageInput"
+        changeNote:
+          type: string
+          nullable: true
+
+    CreateFormTemplateVersionBody:
+      type: object
+      required: [definition]
+      properties:
+        definition:
+          $ref: "#/components/schemas/FormDefinition"
+        signaturePolicy:
+          type: object
+          additionalProperties: true
+          nullable: true
+        renderConfig:
+          type: object
+          additionalProperties: true
+          nullable: true
+        stages:
+          type: array
+          items:
+            $ref: "#/components/schemas/FormWorkflowStageInput"
+        changeNote:
+          type: string
+          nullable: true
+
+    UpdateFormTemplateVersionBody:
+      type: object
+      properties:
+        definition:
+          $ref: "#/components/schemas/FormDefinition"
+        signaturePolicy:
+          type: object
+          additionalProperties: true
+          nullable: true
+        renderConfig:
+          type: object
+          additionalProperties: true
+          nullable: true
+        stages:
+          type: array
+          items:
+            $ref: "#/components/schemas/FormWorkflowStageInput"
+        changeNote:
+          type: string
+          nullable: true
+
+    FormSubmissionSummary:
+      type: object
+      required: [id, organizationId, templateId, templateKey, templateTitle, formType, templateVersionId, versionNumber, subjectEmployeeId, subjectName, status, createdByMembershipId, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        templateId:
+          type: integer
+        templateKey:
+          type: string
+        templateTitle:
+          type: string
+        formType:
+          $ref: "#/components/schemas/FormTemplateType"
+        templateVersionId:
+          type: integer
+        versionNumber:
+          type: integer
+        subjectEmployeeId:
+          type: integer
+        subjectName:
+          type: string
+        status:
+          $ref: "#/components/schemas/FormSubmissionStatus"
+        currentStageOrder:
+          type: integer
+          nullable: true
+        stageCountSnapshot:
+          type: integer
+          nullable: true
+        createdByMembershipId:
+          type: integer
+        submittedAt:
+          type: string
+          format: date-time
+          nullable: true
+        approvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        finalizedAt:
+          type: string
+          format: date-time
+          nullable: true
+        finalDocumentId:
+          type: integer
+          nullable: true
+        finalSha256:
+          type: string
+          nullable: true
+        archivedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    FormSubmissionRevisionSummary:
+      type: object
+      required: [id, revisionNumber, kind, savedByMembershipId, savedAt]
+      properties:
+        id:
+          type: integer
+        revisionNumber:
+          type: integer
+        kind:
+          type: string
+          enum: [draft, submitted, resubmitted, stage_update]
+        stageOrder:
+          type: integer
+          nullable: true
+        savedByMembershipId:
+          type: integer
+        savedAt:
+          type: string
+          format: date-time
+
+    FormSubmissionCurrentRevision:
+      type: object
+      required: [id, revisionNumber, kind, answers, autofillSnapshot, computed, savedAt]
+      properties:
+        id:
+          type: integer
+        revisionNumber:
+          type: integer
+        kind:
+          type: string
+        answers:
+          $ref: "#/components/schemas/FormAnswers"
+        autofillSnapshot:
+          type: object
+          additionalProperties: true
+        computed:
+          type: object
+          additionalProperties: true
+        stageOrder:
+          type: integer
+          nullable: true
+        savedAt:
+          type: string
+          format: date-time
+
+    FormSubmissionEvent:
+      type: object
+      required: [id, eventType, occurredAt]
+      properties:
+        id:
+          type: integer
+        eventType:
+          type: string
+        stageOrder:
+          type: integer
+          nullable: true
+        stageName:
+          type: string
+          nullable: true
+        revisionId:
+          type: integer
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        details:
+          type: object
+          additionalProperties: true
+          nullable: true
+        actorUserId:
+          type: integer
+          nullable: true
+        actorMembershipId:
+          type: integer
+          nullable: true
+        actorName:
+          type: string
+          nullable: true
+        occurredAt:
+          type: string
+          format: date-time
+
+    FormSubmissionViewer:
+      type: object
+      required: [canEdit, editableSectionKeys, canSubmit, availableActions, canFinalize, canArchive, isSubject]
+      properties:
+        canEdit:
+          type: boolean
+        editableSectionKeys:
+          type: array
+          items:
+            type: string
+        canSubmit:
+          type: boolean
+        availableActions:
+          type: array
+          items:
+            $ref: "#/components/schemas/FormStageAction"
+        canFinalize:
+          type: boolean
+        canArchive:
+          type: boolean
+        isSubject:
+          type: boolean
+
+    FormSubmissionDetail:
+      type: object
+      required: [submission, template, version, stages, currentRevision, revisions, events, viewer]
+      properties:
+        submission:
+          $ref: "#/components/schemas/FormSubmissionSummary"
+        template:
+          type: object
+          required: [id, templateKey, title, formType]
+          properties:
+            id:
+              type: integer
+            templateKey:
+              type: string
+            title:
+              type: string
+            formType:
+              $ref: "#/components/schemas/FormTemplateType"
+        version:
+          type: object
+          required: [id, versionNumber, definition, definitionSha256]
+          properties:
+            id:
+              type: integer
+            versionNumber:
+              type: integer
+            definition:
+              $ref: "#/components/schemas/FormDefinition"
+            signaturePolicy:
+              type: object
+              additionalProperties: true
+              nullable: true
+            definitionSha256:
+              type: string
+        stages:
+          type: array
+          items:
+            $ref: "#/components/schemas/FormWorkflowStage"
+        currentRevision:
+          oneOf:
+            - $ref: "#/components/schemas/FormSubmissionCurrentRevision"
+            - type: "null"
+        revisions:
+          type: array
+          items:
+            $ref: "#/components/schemas/FormSubmissionRevisionSummary"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/FormSubmissionEvent"
+        viewer:
+          $ref: "#/components/schemas/FormSubmissionViewer"
+
+    CreateFormSubmissionBody:
+      type: object
+      required: [templateId]
+      properties:
+        templateId:
+          type: integer
+        subjectEmployeeId:
+          type: integer
+          nullable: true
+
+    SaveFormSubmissionDraftBody:
+      type: object
+      required: [answers]
+      properties:
+        answers:
+          $ref: "#/components/schemas/FormAnswers"
+
+    SubmitFormSubmissionBody:
+      type: object
+      properties:
+        answers:
+          $ref: "#/components/schemas/FormAnswers"
+
+    FormSubmissionStageActionBody:
+      type: object
+      required: [action]
+      properties:
+        action:
+          $ref: "#/components/schemas/FormStageAction"
+        answers:
+          $ref: "#/components/schemas/FormAnswers"
+        notes:
+          type: string
+          nullable: true
+
+    FormAnswersError:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        issues:
+          type: array
+          items:
+            type: object
+            required: [key, message]
+            properties:
+              key:
+                type: string
+              message:
+                type: string

@@ -486,6 +486,10 @@ export function AppShell({ children }: AppShellProps) {
       label: 'Personnel',
       items: [
         { href: '/employees', label: 'Employees', icon: Users },
+        // WS-26 — official forms. HR sees every submission and administers
+        // templates; the backend gates both with form.read / form_template.manage.
+        ...(isHrCapable ? [{ href: '/forms', label: 'Forms', icon: FileText } satisfies NavItem] : []),
+        ...(isHrCapable ? [{ href: '/form-templates', label: 'Form Templates', icon: FileSignature } satisfies NavItem] : []),
         // Phase 3H, W119 — Reporting & Legacy Import. Same isHrCapable-only
         // nav precedent as every other reports/import surface; the backend
         // remains personnel_file.read/personnel_file.manage+
@@ -596,6 +600,8 @@ export function AppShell({ children }: AppShellProps) {
         // employee record server-side and renders an empty state otherwise.
         { href: '/my-actions', label: 'My Actions', icon: CheckSquare },
         { href: '/my-skills', label: 'My Skills', icon: GraduationCap },
+        // WS-26 — an employee's own forms (draft, in approval, finalized).
+        ...(isHrCapable ? [] : [{ href: '/forms', label: 'My Forms', icon: FileText } satisfies NavItem]),
         // Phase 3G, W111 — unconditional nav visibility (frozen plan §25):
         // manager eligibility is a pure live reportingManagerId
         // relationship, never a role, so there is no role flag to gate this

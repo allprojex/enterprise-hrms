@@ -618,6 +618,17 @@ export const PERMISSIONS = [
   { key: "onboarding.manage", resource: "onboarding", action: "manage" },
   { key: "onboarding.configure", resource: "onboarding", action: "configure" },
   { key: "onboarding.task.complete", resource: "onboarding", action: "task.complete" },
+  // WS-26 — Tenant Form, Workflow & Signature Engine. Template administration
+  // is organization configuration (manage/publish split like WS-8/WS-10);
+  // submitting one's own form needs no key — it comes from the employee link.
+  { key: "form_template.manage", resource: "form_template", action: "manage" },
+  { key: "form_template.publish", resource: "form_template", action: "publish" },
+  { key: "form.read", resource: "form", action: "read" },
+  { key: "form.assess", resource: "form", action: "assess" },
+  { key: "form.approve", resource: "form", action: "approve" },
+  { key: "form.finalize", resource: "form", action: "finalize" },
+  { key: "form.signature.apply", resource: "form", action: "signature.apply" },
+  { key: "form.final.read", resource: "form", action: "final.read" },
 ] as const;
 
 export const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
@@ -786,6 +797,16 @@ export const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "onboarding.manage",
     "onboarding.configure",
     "onboarding.task.complete",
+    // WS-26 — organization administration owns form templates and their
+    // publication, and every form operation.
+    "form_template.manage",
+    "form_template.publish",
+    "form.read",
+    "form.assess",
+    "form.approve",
+    "form.finalize",
+    "form.signature.apply",
+    "form.final.read",
   ],
   hr_manager: [
     // WS-14 — an HR manager runs capability and succession day to day but does
@@ -952,6 +973,16 @@ export const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "onboarding.read",
     "onboarding.manage",
     "onboarding.task.complete",
+    // WS-26 — HR runs forms day to day and may draft templates, but
+    // publishing a template is an organization-configuration act and is
+    // withheld here (same split as onboarding.configure above).
+    "form_template.manage",
+    "form.read",
+    "form.assess",
+    "form.approve",
+    "form.finalize",
+    "form.signature.apply",
+    "form.final.read",
   ],
   employee: [
     "organization.read",

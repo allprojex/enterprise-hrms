@@ -13317,6 +13317,374 @@ export interface RequestReports {
   openServiceRequests?: OpenServiceRequestRow[] | null;
 }
 
+export type FormTemplateType = typeof FormTemplateType[keyof typeof FormTemplateType];
+
+
+export const FormTemplateType = {
+  leave_application: 'leave_application',
+  personal_information: 'personal_information',
+  staff_evaluation: 'staff_evaluation',
+  probationary_assessment: 'probationary_assessment',
+  generic: 'generic',
+} as const;
+
+export type FormTemplateStatus = typeof FormTemplateStatus[keyof typeof FormTemplateStatus];
+
+
+export const FormTemplateStatus = {
+  active: 'active',
+  archived: 'archived',
+} as const;
+
+export type FormTemplateVersionStatus = typeof FormTemplateVersionStatus[keyof typeof FormTemplateVersionStatus];
+
+
+export const FormTemplateVersionStatus = {
+  draft: 'draft',
+  published: 'published',
+  archived: 'archived',
+} as const;
+
+export type FormStageParticipant = typeof FormStageParticipant[keyof typeof FormStageParticipant];
+
+
+export const FormStageParticipant = {
+  employee: 'employee',
+  supervisor: 'supervisor',
+  department_head: 'department_head',
+  hr: 'hr',
+  final_approver: 'final_approver',
+  assessor: 'assessor',
+} as const;
+
+export type FormStageResolver = typeof FormStageResolver[keyof typeof FormStageResolver];
+
+
+export const FormStageResolver = {
+  subject_employee: 'subject_employee',
+  reporting_manager: 'reporting_manager',
+  department_head: 'department_head',
+  permission_holder: 'permission_holder',
+  specific_membership: 'specific_membership',
+} as const;
+
+export type FormSubmissionStatus = typeof FormSubmissionStatus[keyof typeof FormSubmissionStatus];
+
+
+export const FormSubmissionStatus = {
+  draft: 'draft',
+  submitted: 'submitted',
+  pending_approval: 'pending_approval',
+  returned: 'returned',
+  rejected: 'rejected',
+  resubmitted: 'resubmitted',
+  approved: 'approved',
+  finalized: 'finalized',
+  archived: 'archived',
+} as const;
+
+export type FormDocumentKind = typeof FormDocumentKind[keyof typeof FormDocumentKind];
+
+
+export const FormDocumentKind = {
+  blank: 'blank',
+  draft: 'draft',
+  submitted: 'submitted',
+  returned: 'returned',
+  rejected: 'rejected',
+  approved: 'approved',
+  final: 'final',
+} as const;
+
+export type FormStageAction = typeof FormStageAction[keyof typeof FormStageAction];
+
+
+export const FormStageAction = {
+  complete: 'complete',
+  approve: 'approve',
+  return: 'return',
+  reject: 'reject',
+} as const;
+
+/**
+ * Server-validated document model (sections of field / choice_group / matrix / rated_table / table / note / signature / computed items). See artifacts/api-server/src/lib/formEngine/definition.ts for the contract.
+ */
+export interface FormDefinition { [key: string]: unknown }
+
+/**
+ * Answers keyed by item key; value shape depends on the item kind.
+ */
+export interface FormAnswers { [key: string]: unknown }
+
+export type FormWorkflowStageInputResolverConfig = { [key: string]: unknown } | null;
+
+export interface FormWorkflowStageInput {
+  stageOrder: number;
+  name: string;
+  participant: FormStageParticipant;
+  resolver: FormStageResolver;
+  resolverConfig?: FormWorkflowStageInputResolverConfig;
+  editableSectionKeys: string[];
+  allowedActions: FormStageAction[];
+  signatureSlotKey?: string | null;
+}
+
+export type FormWorkflowStage = FormWorkflowStageInput & {
+  id: number;
+};
+
+export interface FormTemplate {
+  id: number;
+  organizationId: number;
+  templateKey: string;
+  formType: FormTemplateType;
+  moduleKey?: string | null;
+  title: string;
+  description?: string | null;
+  status: FormTemplateStatus;
+  currentPublishedVersionId?: number | null;
+  archivedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FormTemplateVersionSummary {
+  id: number;
+  templateId: number;
+  versionNumber: number;
+  status: FormTemplateVersionStatus;
+  publishedAt?: string | null;
+  firstUsedAt?: string | null;
+  definitionSha256: string;
+  changeNote?: string | null;
+  createdAt: string;
+}
+
+export interface FormTemplateSummary {
+  id: number;
+  templateKey: string;
+  formType: FormTemplateType;
+  moduleKey?: string | null;
+  title: string;
+  description?: string | null;
+  status: FormTemplateStatus;
+  currentPublishedVersionId?: number | null;
+  createdAt: string;
+  updatedAt: string;
+  versions: FormTemplateVersionSummary[];
+}
+
+export type FormTemplateVersionSignaturePolicy = { [key: string]: unknown } | null;
+
+export type FormTemplateVersionRenderConfig = { [key: string]: unknown } | null;
+
+export interface FormTemplateVersion {
+  id: number;
+  templateId: number;
+  versionNumber: number;
+  status: FormTemplateVersionStatus;
+  effectiveFrom?: string | null;
+  effectiveTo?: string | null;
+  definition: FormDefinition;
+  definitionSha256: string;
+  signaturePolicy?: FormTemplateVersionSignaturePolicy;
+  renderConfig?: FormTemplateVersionRenderConfig;
+  changeNote?: string | null;
+  firstUsedAt?: string | null;
+  publishedAt?: string | null;
+  archivedAt?: string | null;
+  createdAt: string;
+  stages: FormWorkflowStage[];
+}
+
+export type CreateFormTemplateBodySignaturePolicy = { [key: string]: unknown } | null;
+
+export type CreateFormTemplateBodyRenderConfig = { [key: string]: unknown } | null;
+
+export interface CreateFormTemplateBody {
+  /**
+     * @maxLength 64
+     * @pattern ^[a-z][a-z0-9_]*$
+     */
+  templateKey: string;
+  formType: FormTemplateType;
+  moduleKey?: string | null;
+  /** @maxLength 300 */
+  title: string;
+  description?: string | null;
+  definition: FormDefinition;
+  signaturePolicy?: CreateFormTemplateBodySignaturePolicy;
+  renderConfig?: CreateFormTemplateBodyRenderConfig;
+  stages?: FormWorkflowStageInput[];
+  changeNote?: string | null;
+}
+
+export type CreateFormTemplateVersionBodySignaturePolicy = { [key: string]: unknown } | null;
+
+export type CreateFormTemplateVersionBodyRenderConfig = { [key: string]: unknown } | null;
+
+export interface CreateFormTemplateVersionBody {
+  definition: FormDefinition;
+  signaturePolicy?: CreateFormTemplateVersionBodySignaturePolicy;
+  renderConfig?: CreateFormTemplateVersionBodyRenderConfig;
+  stages?: FormWorkflowStageInput[];
+  changeNote?: string | null;
+}
+
+export type UpdateFormTemplateVersionBodySignaturePolicy = { [key: string]: unknown } | null;
+
+export type UpdateFormTemplateVersionBodyRenderConfig = { [key: string]: unknown } | null;
+
+export interface UpdateFormTemplateVersionBody {
+  definition?: FormDefinition;
+  signaturePolicy?: UpdateFormTemplateVersionBodySignaturePolicy;
+  renderConfig?: UpdateFormTemplateVersionBodyRenderConfig;
+  stages?: FormWorkflowStageInput[];
+  changeNote?: string | null;
+}
+
+export interface FormSubmissionSummary {
+  id: number;
+  organizationId: number;
+  templateId: number;
+  templateKey: string;
+  templateTitle: string;
+  formType: FormTemplateType;
+  templateVersionId: number;
+  versionNumber: number;
+  subjectEmployeeId: number;
+  subjectName: string;
+  status: FormSubmissionStatus;
+  currentStageOrder?: number | null;
+  stageCountSnapshot?: number | null;
+  createdByMembershipId: number;
+  submittedAt?: string | null;
+  approvedAt?: string | null;
+  finalizedAt?: string | null;
+  finalDocumentId?: number | null;
+  finalSha256?: string | null;
+  archivedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type FormSubmissionRevisionSummaryKind = typeof FormSubmissionRevisionSummaryKind[keyof typeof FormSubmissionRevisionSummaryKind];
+
+
+export const FormSubmissionRevisionSummaryKind = {
+  draft: 'draft',
+  submitted: 'submitted',
+  resubmitted: 'resubmitted',
+  stage_update: 'stage_update',
+} as const;
+
+export interface FormSubmissionRevisionSummary {
+  id: number;
+  revisionNumber: number;
+  kind: FormSubmissionRevisionSummaryKind;
+  stageOrder?: number | null;
+  savedByMembershipId: number;
+  savedAt: string;
+}
+
+export type FormSubmissionCurrentRevisionAutofillSnapshot = { [key: string]: unknown };
+
+export type FormSubmissionCurrentRevisionComputed = { [key: string]: unknown };
+
+export interface FormSubmissionCurrentRevision {
+  id: number;
+  revisionNumber: number;
+  kind: string;
+  answers: FormAnswers;
+  autofillSnapshot: FormSubmissionCurrentRevisionAutofillSnapshot;
+  computed: FormSubmissionCurrentRevisionComputed;
+  stageOrder?: number | null;
+  savedAt: string;
+}
+
+export type FormSubmissionEventDetails = { [key: string]: unknown } | null;
+
+export interface FormSubmissionEvent {
+  id: number;
+  eventType: string;
+  stageOrder?: number | null;
+  stageName?: string | null;
+  revisionId?: number | null;
+  notes?: string | null;
+  details?: FormSubmissionEventDetails;
+  actorUserId?: number | null;
+  actorMembershipId?: number | null;
+  actorName?: string | null;
+  occurredAt: string;
+}
+
+export interface FormSubmissionViewer {
+  canEdit: boolean;
+  editableSectionKeys: string[];
+  canSubmit: boolean;
+  availableActions: FormStageAction[];
+  canFinalize: boolean;
+  canArchive: boolean;
+  isSubject: boolean;
+}
+
+export type FormSubmissionDetailTemplate = {
+  id: number;
+  templateKey: string;
+  title: string;
+  formType: FormTemplateType;
+};
+
+export type FormSubmissionDetailVersionSignaturePolicy = { [key: string]: unknown } | null;
+
+export type FormSubmissionDetailVersion = {
+  id: number;
+  versionNumber: number;
+  definition: FormDefinition;
+  signaturePolicy?: FormSubmissionDetailVersionSignaturePolicy;
+  definitionSha256: string;
+};
+
+export interface FormSubmissionDetail {
+  submission: FormSubmissionSummary;
+  template: FormSubmissionDetailTemplate;
+  version: FormSubmissionDetailVersion;
+  stages: FormWorkflowStage[];
+  currentRevision: FormSubmissionCurrentRevision | null;
+  revisions: FormSubmissionRevisionSummary[];
+  events: FormSubmissionEvent[];
+  viewer: FormSubmissionViewer;
+}
+
+export interface CreateFormSubmissionBody {
+  templateId: number;
+  subjectEmployeeId?: number | null;
+}
+
+export interface SaveFormSubmissionDraftBody {
+  answers: FormAnswers;
+}
+
+export interface SubmitFormSubmissionBody {
+  answers?: FormAnswers;
+}
+
+export interface FormSubmissionStageActionBody {
+  action: FormStageAction;
+  answers?: FormAnswers;
+  notes?: string | null;
+}
+
+export type FormAnswersErrorIssuesItem = {
+  key: string;
+  message: string;
+};
+
+export interface FormAnswersError {
+  error: string;
+  issues?: FormAnswersErrorIssuesItem[];
+}
+
 export type UploadOrganizationLogoBody = {
   file: Blob;
 };
@@ -14612,5 +14980,34 @@ export type GetActionCentreCountsParams = {
 scope?: ActionScope;
 sourceModule?: ActionSourceModule;
 dueState?: ActionDueState;
+};
+
+export type ListFormTemplates200 = {
+  templates: FormTemplateSummary[];
+};
+
+export type CreateFormTemplate201 = {
+  template: FormTemplate;
+  version: FormTemplateVersion;
+};
+
+export type GetFormTemplate200 = {
+  template: FormTemplate;
+  versions: FormTemplateVersion[];
+};
+
+export type ListFormSubmissionsParams = {
+templateId?: number;
+subjectEmployeeId?: number;
+status?: FormSubmissionStatus;
+};
+
+export type ListFormSubmissions200 = {
+  submissions: FormSubmissionSummary[];
+};
+
+export type DownloadFormSubmissionDocumentParams = {
+kind?: FormDocumentKind;
+revisionId?: number;
 };
 
