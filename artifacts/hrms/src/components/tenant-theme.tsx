@@ -1,24 +1,7 @@
 import { useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { useGetTenantContext, getGetTenantContextQueryKey } from '@workspace/api-client-react';
-
-// Maps TenantThemeTokens keys straight onto the CSS custom property names
-// index.css already defines (see :root / .dark there). Deliberately a
-// small, fixed list — not a general theming engine — so an organization
-// can only ever recolor these specific tokens, never inject arbitrary CSS.
-const CSS_VARIABLE_BY_THEME_KEY = {
-  sidebar: '--sidebar',
-  sidebarForeground: '--sidebar-foreground',
-  sidebarAccent: '--sidebar-accent',
-  sidebarAccentForeground: '--sidebar-accent-foreground',
-  primary: '--primary',
-  primaryForeground: '--primary-foreground',
-  accent: '--accent',
-  accentForeground: '--accent-foreground',
-  ring: '--ring',
-} as const;
-
-const ALL_CSS_VARIABLES = Object.values(CSS_VARIABLE_BY_THEME_KEY);
+import { applyTenantTheme, clearTenantTheme } from '@/lib/tenant-theme-tokens';
 
 /**
  * Renders nothing — applies the current tenant's own theme tokens (if any)
@@ -26,6 +9,11 @@ const ALL_CSS_VARIABLES = Object.values(CSS_VARIABLE_BY_THEME_KEY);
  * once near the app root so it runs identically before and after login
  * (GET /tenant-context is public and hostname-scoped either way), driving
  * both the login page and the authenticated shell from one source.
+ *
+ * The token mapping, derivation (hover / soft / focus / sidebar states) and
+ * the readability clamp live in lib/tenant-theme-tokens.ts so the invitation
+ * page — which scopes its theme to the INVITED organization, never the
+ * hostname — applies exactly the same rules.
  *
  * An organization that hasn't configured a theme (every organization but
  * WWM today) leaves every property untouched — the stylesheet's own
@@ -45,17 +33,12 @@ export function TenantTheme() {
   useEffect(() => {
     if (onInvitePage) return;
     const root = document.documentElement;
-    for (const cssVar of ALL_CSS_VARIABLES) {
-      root.style.removeProperty(cssVar);
-    }
-
     const theme = tenantContext?.resolved ? tenantContext.theme : null;
-    if (!theme) return;
-
-    for (const [themeKey, cssVar] of Object.entries(CSS_VARIABLE_BY_THEME_KEY)) {
-      const value = theme[themeKey as keyof typeof CSS_VARIABLE_BY_THEME_KEY];
-      if (value) root.style.setProperty(cssVar, value);
+    if (!theme) {
+      clearTenantTheme(root);
+      return;
     }
+    applyTenantTheme(root, theme, { dark: root.classList.contains('dark') });
   }, [tenantContext, onInvitePage]);
 
   return null;

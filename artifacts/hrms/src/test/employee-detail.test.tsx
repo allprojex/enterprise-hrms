@@ -431,7 +431,7 @@ describe('Employee detail page', () => {
       renderPage();
 
       const list = screen.getByTestId('list-employment-history');
-      const card = list.closest('.rounded-xl');
+      const card = list.closest('[data-variant]');
       expect(card).not.toBeNull();
       expect(within(card as HTMLElement).queryAllByRole('button')).toHaveLength(0);
     });

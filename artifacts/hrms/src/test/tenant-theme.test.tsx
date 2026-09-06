@@ -75,4 +75,53 @@ describe('TenantTheme', () => {
     );
     expect(document.documentElement.style.getPropertyValue('--sidebar')).toBe('');
   });
+
+  // WS-25A: tenant branding sits on top of the design system.
+
+  it('derives hover / soft / focus companions from the tenant primary and clears them with it', () => {
+    state.tenantContext = { resolved: true, theme: { primary: '220 55% 16%', primaryForeground: '0 0% 100%' } };
+    const { rerender } = renderTenantTheme();
+    const root = document.documentElement.style;
+    expect(root.getPropertyValue('--primary')).toBe('220 55% 16%');
+    expect(root.getPropertyValue('--primary-hover')).not.toBe('');
+    expect(root.getPropertyValue('--primary-soft')).not.toBe('');
+    expect(root.getPropertyValue('--focus')).toBe('220 55% 16%');
+
+    state.tenantContext = { resolved: true, theme: null };
+    rerender(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <TenantTheme />
+      </QueryClientProvider>,
+    );
+    expect(root.getPropertyValue('--primary-hover')).toBe('');
+    expect(root.getPropertyValue('--primary-soft')).toBe('');
+    expect(root.getPropertyValue('--focus')).toBe('');
+  });
+
+  it('clamps an unreadable tenant foreground instead of rendering it', () => {
+    state.tenantContext = { resolved: true, theme: { primary: '48 100% 50%', primaryForeground: '0 0% 100%' } };
+    renderTenantTheme();
+    expect(document.documentElement.style.getPropertyValue('--primary')).toBe('48 100% 50%');
+    expect(document.documentElement.style.getPropertyValue('--primary-foreground')).not.toBe('0 0% 100%');
+  });
+
+  it('never lets a tenant recolour semantic status, text or surface tokens', () => {
+    state.tenantContext = {
+      resolved: true,
+      theme: { primary: '220 55% 16%', success: '0 100% 50%', danger: '120 100% 50%', foreground: '0 0% 100%', background: '0 0% 0%' },
+    };
+    renderTenantTheme();
+    const root = document.documentElement.style;
+    expect(root.getPropertyValue('--primary')).toBe('220 55% 16%');
+    for (const v of ['--success', '--danger', '--warning', '--info', '--foreground', '--background', '--surface', '--border']) {
+      expect(root.getPropertyValue(v), v).toBe('');
+    }
+  });
+
+  it('ignores a malformed theme value rather than writing it to the document', () => {
+    state.tenantContext = { resolved: true, theme: { primary: 'url(javascript:alert(1))', accent: '#ff0000' } };
+    renderTenantTheme();
+    expect(document.documentElement.style.getPropertyValue('--primary')).toBe('');
+    expect(document.documentElement.style.getPropertyValue('--accent')).toBe('');
+  });
 });

@@ -251,7 +251,7 @@ function OrgBrandHeader({ currentOrg }: { currentOrg: MembershipSummary }) {
         {/* Tenant identity hardening: the tenant code is always visible, so a
             user reporting a problem can quote it and support can be sure which
             tenant they mean — display names are not unique and can change. */}
-        <p className="truncate font-mono text-[11px] text-sidebar-foreground/60" data-testid="text-org-current-slug">
+        <p className="truncate font-mono text-helper text-sidebar-foreground/60" data-testid="text-org-current-slug">
           {currentOrg.organizationSlug}
         </p>
       </div>
@@ -288,7 +288,7 @@ function OrgBrandSwitcher({
               {currentOrg.systemDisplayName && (
                 <p className="truncate text-xs text-sidebar-foreground/70">{currentOrg.systemDisplayName}</p>
               )}
-              <p className="truncate font-mono text-[11px] text-sidebar-foreground/60" data-testid="text-org-current-slug">
+              <p className="truncate font-mono text-helper text-sidebar-foreground/60" data-testid="text-org-current-slug">
                 {currentOrg.organizationSlug}
               </p>
             </div>

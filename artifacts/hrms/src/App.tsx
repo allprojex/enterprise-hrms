@@ -5,6 +5,8 @@ import { Route, Switch, Router as WouterRouter } from 'wouter';
 import { AppShell } from '@/components/layout/app-shell';
 import { TenantTheme } from '@/components/tenant-theme';
 import { ErrorBoundary } from '@/components/error-boundary';
+import { MotionConfig } from 'framer-motion';
+import DesignFoundationShowcase from '@/pages/dev/design-foundation';
 import Login from '@/pages/login';
 import ForgotPassword from '@/pages/forgot-password';
 import ResetPassword from '@/pages/reset-password';
@@ -446,6 +448,16 @@ function Router() {
         {() => <SecureRoute component={RecruitmentReports} moduleKey="recruitment" />}
       </Route>
 
+      {/* WS-25A design-foundation showcase — development builds only. The
+          conditional is on a compile-time constant, so the page and its route
+          are dead-code-eliminated from the production bundle; nothing here is
+          reachable on a deployed host. */}
+      {import.meta.env.DEV && (
+        <Route path="/dev/design-foundation">
+          {() => <DesignFoundationShowcase />}
+        </Route>
+      )}
+
       {/* 404 fallback */}
       <Route component={NotFound} />
     </Switch>
@@ -457,12 +469,20 @@ function App() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <TenantTheme />
-        <TooltipProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-            <Router />
-          </WouterRouter>
-          <Toaster />
-        </TooltipProvider>
+        {/* framer-motion honours the OS reduced-motion preference for the
+            few remaining JS-driven animations; CSS motion is covered by the
+            global rule in index.css. */}
+        <MotionConfig reducedMotion="user">
+          <TooltipProvider>
+            <a href="#main-content" className="skip-link">
+              Skip to content
+            </a>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+              <Router />
+            </WouterRouter>
+            <Toaster />
+          </TooltipProvider>
+        </MotionConfig>
       </QueryClientProvider>
     </ErrorBoundary>
   );

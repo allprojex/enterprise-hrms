@@ -7,18 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useGetInvitation, getGetInvitationQueryKey, useAcceptInvitation } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
-
-const CSS_VAR_BY_THEME_KEY: Record<string, string> = {
-  sidebar: '--sidebar',
-  sidebarForeground: '--sidebar-foreground',
-  sidebarAccent: '--sidebar-accent',
-  sidebarAccentForeground: '--sidebar-accent-foreground',
-  primary: '--primary',
-  primaryForeground: '--primary-foreground',
-  accent: '--accent',
-  accentForeground: '--accent-foreground',
-  ring: '--ring',
-};
+import { applyTenantTheme, type TenantThemeInput } from '@/lib/tenant-theme-tokens';
 
 function errorMessage(err: unknown): string | undefined {
   return err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
@@ -48,16 +37,11 @@ export default function InviteAccept() {
   const logoUrl = brand?.logoUrl ?? null;
   useEffect(() => {
     const root = document.documentElement;
-    const theme = brand?.theme ?? null;
+    const theme = (brand?.theme ?? null) as TenantThemeInput | null;
     if (!theme) return;
-    const applied: string[] = [];
-    for (const [k, cssVar] of Object.entries(CSS_VAR_BY_THEME_KEY)) {
-      const value = (theme as Record<string, string | undefined>)[k];
-      if (value) {
-        root.style.setProperty(cssVar, value);
-        applied.push(cssVar);
-      }
-    }
+    // Same mapping, derivation and readability clamp as the hostname-driven
+    // TenantTheme component — one rule set for every tenant-branded surface.
+    const applied = applyTenantTheme(root, theme, { dark: root.classList.contains('dark') });
     return () => {
       for (const cssVar of applied) root.style.removeProperty(cssVar);
     };

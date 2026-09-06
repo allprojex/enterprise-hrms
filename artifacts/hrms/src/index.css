@@ -1,408 +1,676 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap');
+/*
+ * Enterprise HRMS — Design Foundation (WS-25A).
+ *
+ * One stylesheet owns every visual constant the application uses: colour,
+ * type, spacing, shape, depth, layering and motion. Pages and components
+ * consume these through Tailwind utilities (`bg-surface`, `text-title`,
+ * `duration-base`) or the `hsl(var(--token))` contract — never through
+ * hard-coded values.
+ *
+ * Contract rules (enforced by src/test/design-tokens.test.ts):
+ *   - Every colour token is an HSL triple (`h s% l%`) so that the existing
+ *     tenant-branding pipeline (organization_settings.branding.theme, applied
+ *     by components/tenant-theme.tsx) keeps writing straight into it.
+ *   - Tenant branding may override brand tokens only (primary, accent,
+ *     sidebar, ring). Semantic status colours, text, borders, surfaces,
+ *     spacing, shape and type are never tenant-set.
+ *   - Every text/background pair used for body text meets WCAG AA (4.5:1).
+ *   - Fonts are self-hosted (@fontsource-variable/inter, OFL-1.1); no
+ *     third-party font or style origin is requested, so the edge CSP
+ *     (`style-src 'self' 'unsafe-inline'; font-src 'self' data:`) is honoured.
+ *   - `prefers-reduced-motion: reduce` collapses every animation/transition.
+ */
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
 
+/* ------------------------------------------------------------------------ */
+/* Tailwind theme bridge — exposes the tokens below as utilities.            */
+/* ------------------------------------------------------------------------ */
 @theme inline {
+  /* Canvas + text */
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
+  --color-foreground-muted: hsl(var(--foreground-muted));
+  --color-foreground-subtle: hsl(var(--foreground-subtle));
+
+  /* Surfaces */
+  --color-surface: hsl(var(--surface));
+  --color-surface-elevated: hsl(var(--surface-elevated));
+  --color-surface-muted: hsl(var(--surface-muted));
+  --color-surface-sunken: hsl(var(--surface-sunken));
+  --color-surface-hover: hsl(var(--surface-hover));
+
+  /* Lines */
   --color-border: hsl(var(--border));
+  --color-border-strong: hsl(var(--border-strong));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
+  --color-focus: hsl(var(--focus));
 
+  /* shadcn compatibility aliases (card / popover / muted / secondary) */
   --color-card: hsl(var(--card));
   --color-card-foreground: hsl(var(--card-foreground));
-  --color-card-border: hsl(var(--card-border));
-
   --color-popover: hsl(var(--popover));
   --color-popover-foreground: hsl(var(--popover-foreground));
-  --color-popover-border: hsl(var(--popover-border));
-
-  --color-primary: hsl(var(--primary));
-  --color-primary-foreground: hsl(var(--primary-foreground));
-  --color-primary-border: var(--primary-border);
-
-  --color-secondary: hsl(var(--secondary));
-  --color-secondary-foreground: hsl(var(--secondary-foreground));
-  --color-secondary-border: var(--secondary-border);
-
   --color-muted: hsl(var(--muted));
   --color-muted-foreground: hsl(var(--muted-foreground));
-  --color-muted-border: var(--muted-border);
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
 
+  /* Brand (tenant may override primary / accent / sidebar / ring) */
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-primary-hover: hsl(var(--primary-hover));
+  --color-primary-soft: hsl(var(--primary-soft));
+  --color-primary-soft-foreground: hsl(var(--primary-soft-foreground));
   --color-accent: hsl(var(--accent));
   --color-accent-foreground: hsl(var(--accent-foreground));
-  --color-accent-border: var(--accent-border);
+  --color-accent-soft: hsl(var(--accent-soft));
+  --color-accent-soft-foreground: hsl(var(--accent-soft-foreground));
 
+  /* Semantic status (never tenant-set) */
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+  --color-success-soft: hsl(var(--success-soft));
+  --color-success-soft-foreground: hsl(var(--success-soft-foreground));
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+  --color-warning-soft: hsl(var(--warning-soft));
+  --color-warning-soft-foreground: hsl(var(--warning-soft-foreground));
+  --color-danger: hsl(var(--danger));
+  --color-danger-foreground: hsl(var(--danger-foreground));
+  --color-danger-soft: hsl(var(--danger-soft));
+  --color-danger-soft-foreground: hsl(var(--danger-soft-foreground));
+  --color-info: hsl(var(--info));
+  --color-info-foreground: hsl(var(--info-foreground));
+  --color-info-soft: hsl(var(--info-soft));
+  --color-info-soft-foreground: hsl(var(--info-soft-foreground));
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
-  --color-destructive-border: var(--destructive-border);
 
+  /* Interaction */
+  --color-disabled: hsl(var(--disabled-surface));
+  --color-disabled-foreground: hsl(var(--disabled-foreground));
+  --color-overlay: hsl(var(--overlay) / var(--overlay-opacity));
+
+  /* Charts */
   --color-chart-1: hsl(var(--chart-1));
   --color-chart-2: hsl(var(--chart-2));
   --color-chart-3: hsl(var(--chart-3));
   --color-chart-4: hsl(var(--chart-4));
   --color-chart-5: hsl(var(--chart-5));
 
+  /* Sidebar */
   --color-sidebar: hsl(var(--sidebar));
   --color-sidebar-foreground: hsl(var(--sidebar-foreground));
   --color-sidebar-border: hsl(var(--sidebar-border));
   --color-sidebar-primary: hsl(var(--sidebar-primary));
   --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
-  --color-sidebar-primary-border: var(--sidebar-primary-border);
   --color-sidebar-accent: hsl(var(--sidebar-accent));
   --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
-  --color-sidebar-accent-border: var(--sidebar-accent-border);
+  --color-sidebar-hover: hsl(var(--sidebar-hover));
+  --color-sidebar-active: hsl(var(--sidebar-active));
+  --color-sidebar-active-foreground: hsl(var(--sidebar-active-foreground));
   --color-sidebar-ring: hsl(var(--sidebar-ring));
 
+  /* Type */
   --font-sans: var(--app-font-sans);
-  --font-serif: var(--app-font-serif);
   --font-mono: var(--app-font-mono);
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  /* Shape */
+  --radius-xs: 2px;
+  --radius-sm: var(--radius-sm-value);
+  --radius-md: var(--radius-md-value);
+  --radius-lg: var(--radius-lg-value);
+  --radius-xl: var(--radius-xl-value);
+  --radius-2xl: var(--radius-2xl-value);
+
+  /* Depth */
+  --shadow-xs: var(--shadow-xs-value);
+  --shadow-sm: var(--shadow-sm-value);
+  --shadow-md: var(--shadow-md-value);
+  --shadow-lg: var(--shadow-lg-value);
+  --shadow-xl: var(--shadow-lg-value);
+  --shadow-2xl: var(--shadow-lg-value);
+
+  /* Motion — timing functions become `ease-standard` / `ease-enter` / `ease-exit` */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0, 0, 0.2, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  /* Layout */
+  --spacing-sidebar: var(--sidebar-width);
+  --spacing-sidebar-rail: var(--sidebar-width-rail);
+  --spacing-header: var(--header-height);
+  --spacing-control-sm: var(--control-height-sm);
+  --spacing-control: var(--control-height);
+  --spacing-control-lg: var(--control-height-lg);
+  --container-content: var(--content-max-width);
+  --container-content-narrow: var(--content-narrow-width);
+  --container-content-form: var(--content-form-width);
 }
 
-/* LIGHT MODE */
+/* ------------------------------------------------------------------------ */
+/* LIGHT THEME (the product)                                                 */
+/* ------------------------------------------------------------------------ */
 :root {
-  --button-outline: rgba(0, 0, 0, 0.1);
-  --badge-outline: rgba(0, 0, 0, 0.05);
+  color-scheme: light;
 
-  /* Automatic computation of border around primary / danger buttons */
-  --opaque-button-border-intensity: -8; /* In terms of percentages */
-
-  /* Backgrounds applied on top of other backgrounds when hovered/active */
-  --elevate-1: rgba(0, 0, 0, 0.03);
-  --elevate-2: rgba(0, 0, 0, 0.08);
-
+  /* Canvas + text */
   --background: 210 20% 98%;
-  --foreground: 217 25% 15%;
+  --foreground: 222 30% 12%;
+  --foreground-muted: 215 14% 40%;
+  --foreground-subtle: 215 12% 45%;
 
-  --border: 217 15% 88%;
+  /* Surfaces */
+  --surface: 0 0% 100%;
+  --surface-elevated: 0 0% 100%;
+  --surface-muted: 214 24% 96%;
+  --surface-sunken: 214 22% 93%;
+  --surface-hover: 214 24% 95%;
 
-  --card: 0 0% 100%;
-  --card-foreground: 217 25% 15%;
-  --card-border: 217 15% 90%;
+  /* Lines */
+  --border: 215 18% 88%;
+  --border-strong: 215 16% 58%;
+  --input: 215 16% 74%;
 
-  --sidebar: 217 35% 96%;
-  --sidebar-foreground: 217 25% 20%;
-  --sidebar-border: 217 15% 88%;
-  --sidebar-primary: 217 50% 50%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 30 85% 55%;
-  --sidebar-accent-foreground: 0 0% 100%;
-  --sidebar-ring: 217 50% 50%;
+  /* shadcn aliases — kept so every existing `bg-card` / `bg-popover` /
+     `text-muted-foreground` / `bg-secondary` keeps resolving. */
+  --card: var(--surface);
+  --card-foreground: var(--foreground);
+  --popover: var(--surface-elevated);
+  --popover-foreground: var(--foreground);
+  --muted: var(--surface-muted);
+  --muted-foreground: var(--foreground-muted);
+  --secondary: 214 22% 94%;
+  --secondary-foreground: 222 30% 18%;
 
-  --popover: 0 0% 100%;
-  --popover-foreground: 217 25% 15%;
-  --popover-border: 217 15% 88%;
-
-  --primary: 217 50% 50%;
+  /* Brand — deep enterprise blue. Tenant branding may override
+     --primary / --primary-foreground / --accent / --accent-foreground /
+     --sidebar* / --ring (see components/tenant-theme.tsx); the derived
+     -hover / -soft tokens are recomputed from the tenant value there. */
+  --primary: 222 47% 31%;
   --primary-foreground: 0 0% 100%;
+  --primary-hover: 222 47% 25%;
+  --primary-soft: 222 60% 95%;
+  --primary-soft-foreground: 222 47% 28%;
+  --accent: 36 78% 46%;
+  --accent-foreground: 24 40% 12%;
+  --accent-soft: 38 90% 94%;
+  --accent-soft-foreground: 30 70% 26%;
+  --ring: 222 47% 31%;
+  --focus: var(--ring);
 
-  --secondary: 217 15% 92%;
-  --secondary-foreground: 217 25% 20%;
+  /* Semantic status — never tenant-set */
+  --success: 152 55% 32%;
+  --success-foreground: 0 0% 100%;
+  --success-soft: 150 50% 94%;
+  --success-soft-foreground: 152 60% 22%;
+  --warning: 34 90% 33%;
+  --warning-foreground: 0 0% 100%;
+  --warning-soft: 42 95% 93%;
+  --warning-soft-foreground: 30 80% 24%;
+  --danger: 0 68% 44%;
+  --danger-foreground: 0 0% 100%;
+  --danger-soft: 0 80% 96%;
+  --danger-soft-foreground: 0 65% 32%;
+  --info: 212 80% 40%;
+  --info-foreground: 0 0% 100%;
+  --info-soft: 212 90% 95%;
+  --info-soft-foreground: 214 75% 28%;
+  --destructive: var(--danger);
+  --destructive-foreground: var(--danger-foreground);
 
-  --muted: 217 15% 94%;
-  --muted-foreground: 217 15% 45%;
+  /* Interaction */
+  --disabled-surface: 215 20% 95%;
+  --disabled-foreground: 215 12% 50%;
+  --overlay: 222 47% 11%;
+  --overlay-opacity: 0.45;
 
-  --accent: 30 85% 55%;
-  --accent-foreground: 0 0% 100%;
+  /* Charts: primary, info, success, warning, neutral — tenant primary
+     therefore influences series 1 only. */
+  --chart-1: var(--primary);
+  --chart-2: var(--info);
+  --chart-3: var(--success);
+  --chart-4: var(--warning);
+  --chart-5: 215 14% 55%;
 
-  --destructive: 0 70% 50%;
-  --destructive-foreground: 0 0% 100%;
+  /* Sidebar — restrained tinted neutral by default; tenants may retone it. */
+  --sidebar: 216 33% 97%;
+  --sidebar-foreground: 222 25% 22%;
+  --sidebar-border: 215 18% 88%;
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-hover: 216 28% 93%;
+  --sidebar-active: 222 60% 93%;
+  --sidebar-active-foreground: 222 47% 26%;
+  --sidebar-ring: var(--ring);
 
-  --input: 217 15% 80%;
-  --ring: 217 50% 50%;
-  
-  --chart-1: 217 50% 50%;
-  --chart-2: 30 85% 55%;
-  --chart-3: 160 60% 45%;
-  --chart-4: 280 50% 55%;
-  --chart-5: 340 60% 55%;
+  /* Type */
+  --app-font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --app-font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
 
-  --app-font-sans: 'DM Sans', system-ui, -apple-system, sans-serif;
-  --app-font-serif: 'Fraunces', Georgia, serif;
-  --app-font-mono: 'SF Mono', Monaco, 'Cascadia Code', monospace;
-  --radius: 0.5rem;
-  
-  --shadow-2xs: 0px 1px 2px 0px rgba(217, 30, 70, 0.05);
-  --shadow-xs: 0px 1px 3px 0px rgba(217, 30, 70, 0.08);
-  --shadow-sm:
-    0px 2px 4px -1px rgba(217, 30, 70, 0.06),
-    0px 1px 2px -1px rgba(217, 30, 70, 0.04);
-  --shadow:
-    0px 4px 6px -1px rgba(217, 30, 70, 0.08),
-    0px 2px 4px -2px rgba(217, 30, 70, 0.04);
-  --shadow-md:
-    0px 6px 10px -2px rgba(217, 30, 70, 0.08),
-    0px 2px 4px -2px rgba(217, 30, 70, 0.04);
-  --shadow-lg:
-    0px 10px 15px -3px rgba(217, 30, 70, 0.08),
-    0px 4px 6px -4px rgba(217, 30, 70, 0.04);
-  --shadow-xl:
-    0px 20px 25px -5px rgba(217, 30, 70, 0.08),
-    0px 8px 10px -6px rgba(217, 30, 70, 0.04);
-  --shadow-2xl: 0px 25px 50px -12px rgba(217, 30, 70, 0.1);
-  --tracking-normal: 0em;
+  /* Shape */
+  --radius: 6px;
+  --radius-sm-value: 4px;
+  --radius-md-value: 6px;
+  --radius-lg-value: 8px;
+  --radius-xl-value: 12px;
+  --radius-2xl-value: 16px;
+
+  /* Depth — neutral slate tint, never coloured */
+  --shadow-xs-value: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+  --shadow-sm-value: 0 1px 3px 0 rgba(15, 23, 42, 0.08), 0 1px 2px -1px rgba(15, 23, 42, 0.04);
+  --shadow-md-value: 0 4px 12px -2px rgba(15, 23, 42, 0.1), 0 2px 4px -2px rgba(15, 23, 42, 0.05);
+  --shadow-lg-value: 0 12px 32px -6px rgba(15, 23, 42, 0.14), 0 4px 8px -4px rgba(15, 23, 42, 0.06);
+
+  /* Layout */
+  --sidebar-width: 264px;
+  --sidebar-width-rail: 56px;
+  --header-height: 56px;
+  --control-height-sm: 2rem;
+  --control-height: 2.25rem;
+  --control-height-lg: 2.5rem;
+  --content-max-width: 1440px;
+  --content-narrow-width: 720px;
+  --content-form-width: 960px;
+  --touch-target: 44px;
+
+  /* Layering */
+  --z-base: 0;
+  --z-raised: 10;
+  --z-sticky: 20;
+  --z-sidebar: 30;
+  --z-header: 30;
+  --z-overlay: 40;
+  --z-modal: 50;
+  --z-popover: 60;
+  --z-toast: 100;
+
+  /* Motion */
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --dur-slow: 240ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0, 0, 0.2, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
   --spacing: 0.25rem;
-
-  /* Automatically computed borders - intensity can be controlled by the user by the --opaque-button-border-intensity setting */
-
-  /* Fallback for older browsers */
-  --sidebar-primary-border: hsl(var(--sidebar-primary));
-  --sidebar-primary-border: hsl(
-    from hsl(var(--sidebar-primary)) h s
-      calc(l + var(--opaque-button-border-intensity)) / alpha
-  );
-
-  /* Fallback for older browsers */
-  --sidebar-accent-border: hsl(var(--sidebar-accent));
-  --sidebar-accent-border: hsl(
-    from hsl(var(--sidebar-accent)) h s
-      calc(l + var(--opaque-button-border-intensity)) / alpha
-  );
-
-  /* Fallback for older browsers */
-  --primary-border: hsl(var(--primary));
-  --primary-border: hsl(
-    from hsl(var(--primary)) h s
-      calc(l + var(--opaque-button-border-intensity)) / alpha
-  );
-
-  /* Fallback for older browsers */
-  --secondary-border: hsl(var(--secondary));
-  --secondary-border: hsl(
-    from hsl(var(--secondary)) h s
-      calc(l + var(--opaque-button-border-intensity)) / alpha
-  );
-
-  /* Fallback for older browsers */
-  --muted-border: hsl(var(--muted));
-  --muted-border: hsl(
-    from hsl(var(--muted)) h s calc(l + var(--opaque-button-border-intensity)) /
-      alpha
-  );
-
-  /* Fallback for older browsers */
-  --accent-border: hsl(var(--accent));
-  --accent-border: hsl(
-    from hsl(var(--accent)) h s
-      calc(l + var(--opaque-button-border-intensity)) / alpha
-  );
-
-  /* Fallback for older browsers */
-  --destructive-border: hsl(var(--destructive));
-  --destructive-border: hsl(
-    from hsl(var(--destructive)) h s
-      calc(l + var(--opaque-button-border-intensity)) / alpha
-  );
 }
 
+/* ------------------------------------------------------------------------ */
+/* DARK THEME — token-complete, not yet exposed through a toggle.            */
+/* ------------------------------------------------------------------------ */
 .dark {
-  --button-outline: rgba(255, 255, 255, 0.1);
-  --badge-outline: rgba(255, 255, 255, 0.05);
+  color-scheme: dark;
 
-  --opaque-button-border-intensity: 9; /* In terms of percentages */
+  --background: 222 28% 8%;
+  --foreground: 210 20% 94%;
+  --foreground-muted: 215 15% 68%;
+  --foreground-subtle: 215 12% 58%;
 
-  /* Backgrounds applied on top of other backgrounds when hovered/active */
-  --elevate-1: rgba(255, 255, 255, 0.04);
-  --elevate-2: rgba(255, 255, 255, 0.09);
+  --surface: 222 24% 11%;
+  --surface-elevated: 222 22% 14%;
+  --surface-muted: 222 20% 14%;
+  --surface-sunken: 222 24% 9%;
+  --surface-hover: 222 20% 17%;
 
-  --background: 217 30% 8%;
-  --foreground: 210 20% 95%;
+  --border: 220 16% 20%;
+  --border-strong: 220 14% 47%;
+  --input: 220 16% 34%;
 
-  --border: 217 20% 18%;
-
-  --card: 217 25% 12%;
-  --card-foreground: 210 20% 95%;
-  --card-border: 217 20% 18%;
-
-  --sidebar: 217 30% 10%;
-  --sidebar-foreground: 210 20% 90%;
-  --sidebar-border: 217 20% 18%;
-  --sidebar-primary: 217 50% 55%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 30 85% 60%;
-  --sidebar-accent-foreground: 0 0% 100%;
-  --sidebar-ring: 217 50% 55%;
-
-  --popover: 217 25% 12%;
-  --popover-foreground: 210 20% 95%;
-  --popover-border: 217 20% 18%;
-
-  --primary: 217 50% 55%;
-  --primary-foreground: 0 0% 100%;
-
-  --secondary: 217 20% 18%;
+  --card: var(--surface);
+  --card-foreground: var(--foreground);
+  --popover: var(--surface-elevated);
+  --popover-foreground: var(--foreground);
+  --muted: var(--surface-muted);
+  --muted-foreground: var(--foreground-muted);
+  --secondary: 222 18% 18%;
   --secondary-foreground: 210 20% 90%;
 
-  --muted: 217 20% 16%;
-  --muted-foreground: 217 15% 60%;
+  --primary: 220 70% 66%;
+  --primary-foreground: 222 47% 8%;
+  --primary-hover: 220 70% 72%;
+  --primary-soft: 222 40% 18%;
+  --primary-soft-foreground: 220 80% 82%;
+  --accent: 38 80% 58%;
+  --accent-foreground: 24 40% 10%;
+  --accent-soft: 36 40% 18%;
+  --accent-soft-foreground: 40 85% 78%;
+  --ring: 220 70% 66%;
+  --focus: var(--ring);
 
-  --accent: 30 85% 60%;
-  --accent-foreground: 0 0% 100%;
+  --success: 150 55% 48%;
+  --success-foreground: 150 60% 8%;
+  --success-soft: 150 40% 14%;
+  --success-soft-foreground: 150 60% 72%;
+  --warning: 38 90% 58%;
+  --warning-foreground: 30 80% 8%;
+  --warning-soft: 36 45% 15%;
+  --warning-soft-foreground: 40 90% 75%;
+  --danger: 0 70% 62%;
+  --danger-foreground: 0 60% 8%;
+  --danger-soft: 0 40% 16%;
+  --danger-soft-foreground: 0 90% 82%;
+  --info: 212 85% 64%;
+  --info-foreground: 212 80% 8%;
+  --info-soft: 212 45% 16%;
+  --info-soft-foreground: 212 95% 82%;
+  --destructive: var(--danger);
+  --destructive-foreground: var(--danger-foreground);
 
-  --destructive: 0 70% 55%;
-  --destructive-foreground: 0 0% 100%;
+  --disabled-surface: 222 18% 15%;
+  --disabled-foreground: 215 12% 48%;
+  --overlay: 222 40% 4%;
+  --overlay-opacity: 0.65;
 
-  --input: 217 20% 25%;
-  --ring: 217 50% 55%;
-  
-  --chart-1: 217 50% 55%;
-  --chart-2: 30 85% 60%;
-  --chart-3: 160 60% 50%;
-  --chart-4: 280 50% 60%;
-  --chart-5: 340 60% 60%;
+  --chart-1: var(--primary);
+  --chart-2: var(--info);
+  --chart-3: var(--success);
+  --chart-4: var(--warning);
+  --chart-5: 215 14% 60%;
 
-  --shadow-2xs: 0px 1px 2px 0px rgba(0, 0, 0, 0.3);
-  --shadow-xs: 0px 1px 3px 0px rgba(0, 0, 0, 0.4);
-  --shadow-sm:
-    0px 2px 4px -1px rgba(0, 0, 0, 0.3),
-    0px 1px 2px -1px rgba(0, 0, 0, 0.2);
-  --shadow:
-    0px 4px 6px -1px rgba(0, 0, 0, 0.4),
-    0px 2px 4px -2px rgba(0, 0, 0, 0.2);
-  --shadow-md:
-    0px 6px 10px -2px rgba(0, 0, 0, 0.4),
-    0px 2px 4px -2px rgba(0, 0, 0, 0.2);
-  --shadow-lg:
-    0px 10px 15px -3px rgba(0, 0, 0, 0.4),
-    0px 4px 6px -4px rgba(0, 0, 0, 0.2);
-  --shadow-xl:
-    0px 20px 25px -5px rgba(0, 0, 0, 0.4),
-    0px 8px 10px -6px rgba(0, 0, 0, 0.2);
-  --shadow-2xl: 0px 25px 50px -12px rgba(0, 0, 0, 0.5);
+  --sidebar: 222 28% 9%;
+  --sidebar-foreground: 210 20% 88%;
+  --sidebar-border: 220 16% 18%;
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-hover: 222 20% 15%;
+  --sidebar-active: 222 40% 18%;
+  --sidebar-active-foreground: 220 80% 84%;
+  --sidebar-ring: var(--ring);
+
+  --shadow-xs-value: 0 1px 2px 0 rgba(0, 0, 0, 0.35);
+  --shadow-sm-value: 0 1px 3px 0 rgba(0, 0, 0, 0.45), 0 1px 2px -1px rgba(0, 0, 0, 0.3);
+  --shadow-md-value: 0 4px 12px -2px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+  --shadow-lg-value: 0 12px 32px -6px rgba(0, 0, 0, 0.6), 0 4px 8px -4px rgba(0, 0, 0, 0.35);
 }
 
+/* ------------------------------------------------------------------------ */
+/* BASE                                                                      */
+/* ------------------------------------------------------------------------ */
 @layer base {
   * {
     @apply border-border;
   }
 
-  body {
-    @apply font-sans antialiased bg-background text-foreground;
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
   }
 
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    font-feature-settings: 'cv11', 'ss01', 'calt';
+  }
+
+  /* Confident, compact headings. Sizes come from the type scale utilities
+     below (or a page's own utility classes) — never from element defaults
+     that would make titles unnecessarily large. */
   h1, h2, h3, h4, h5, h6 {
-    font-family: var(--app-font-serif);
+    font-family: var(--app-font-sans);
     font-weight: 600;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+
+  /* One focus treatment for everything interactive: 2px ring in the focus
+     colour, offset from the element so it reads on any surface. */
+  :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 2px solid hsl(var(--focus));
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: hsl(var(--primary-soft));
+    color: hsl(var(--primary-soft-foreground));
+  }
+
+  /* Reduced motion — mandatory. Every animation and transition collapses to
+     effectively instant; scroll snapping stays, smooth scrolling does not. */
+  @media (prefers-reduced-motion: reduce) {
+    *, ::before, ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
-/**
- * Using the elevate system.
- * Automatic contrast adjustment.
- *
- * <element className="hover-elevate" />
- * <element className="active-elevate-2" />
- *
- * // Using the tailwind utility when a data attribute is "on"
- * <element className="toggle-elevate data-[state=on]:toggle-elevated" />
- * // Or manually controlling the toggle state
- * <element className="toggle-elevate toggle-elevated" />
- *
- * Elevation systems have to handle many states.
- * - not-hovered, vs. hovered vs. active  (three mutually exclusive states)
- * - toggled or not
- * - focused or not (this is not handled with these utilities)
- *
- * Even without handling focused or not, this is six possible combinations that
- * need to be distinguished from eachother visually.
- */
+/* ------------------------------------------------------------------------ */
+/* TYPE SCALE — enterprise hierarchy; nothing below 12px.                    */
+/* ------------------------------------------------------------------------ */
+@utility text-display {
+  font-size: 1.75rem;      /* 28 */
+  line-height: 2.125rem;   /* 34 */
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+@utility text-title {
+  font-size: 1.375rem;     /* 22 */
+  line-height: 1.75rem;    /* 28 */
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+@utility text-heading {
+  font-size: 1.125rem;     /* 18 */
+  line-height: 1.5rem;     /* 24 */
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+@utility text-section {
+  font-size: 1.0625rem;    /* 17 */
+  line-height: 1.5rem;     /* 24 */
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+@utility text-card-title {
+  font-size: 0.9375rem;    /* 15 */
+  line-height: 1.375rem;   /* 22 */
+  font-weight: 600;
+}
+@utility text-body {
+  font-size: 0.875rem;     /* 14 */
+  line-height: 1.25rem;    /* 20 */
+  font-weight: 400;
+}
+@utility text-body-sm {
+  font-size: 0.8125rem;    /* 13 */
+  line-height: 1.125rem;   /* 18 */
+  font-weight: 400;
+}
+@utility text-label {
+  font-size: 0.8125rem;    /* 13 */
+  line-height: 1.125rem;   /* 18 */
+  font-weight: 500;
+}
+@utility text-helper {
+  font-size: 0.75rem;      /* 12 */
+  line-height: 1rem;       /* 16 */
+  font-weight: 400;
+}
+@utility text-meta {
+  font-size: 0.75rem;      /* 12 */
+  line-height: 1rem;       /* 16 */
+  font-weight: 400;
+  color: hsl(var(--foreground-subtle));
+}
+@utility text-kpi {
+  font-size: 1.75rem;      /* 28 */
+  line-height: 2rem;       /* 32 */
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+@utility text-kpi-sm {
+  font-size: 1.25rem;      /* 20 */
+  line-height: 1.5rem;     /* 24 */
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+@utility text-button {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+}
+@utility text-table {
+  font-size: 0.8125rem;    /* 13 */
+  line-height: 1.25rem;    /* 20 */
+}
+@utility text-table-head {
+  font-size: 0.75rem;      /* 12 */
+  line-height: 1rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: hsl(var(--foreground-muted));
+}
+@utility text-overline {
+  font-size: 0.6875rem;    /* 11 — uppercase labels only, never running text */
+  line-height: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: hsl(var(--foreground-muted));
+}
+
+/* ------------------------------------------------------------------------ */
+/* MOTION PRIMITIVES                                                         */
+/* ------------------------------------------------------------------------ */
+@utility duration-fast {
+  --tw-duration: var(--dur-fast);
+  transition-duration: var(--dur-fast);
+  animation-duration: var(--dur-fast);
+}
+@utility duration-base {
+  --tw-duration: var(--dur-base);
+  transition-duration: var(--dur-base);
+  animation-duration: var(--dur-base);
+}
+@utility duration-slow {
+  --tw-duration: var(--dur-slow);
+  transition-duration: var(--dur-slow);
+  animation-duration: var(--dur-slow);
+}
+
+/* Interactive control: colour/border/shadow feedback only, never layout. */
+@utility motion-interactive {
+  transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+  transition-duration: var(--dur-fast);
+  transition-timing-function: var(--ease-standard);
+}
+/* Menus, dropdowns, selects, popovers, tooltips (Radix data-state driven). */
+@utility motion-menu {
+  --tw-duration: var(--dur-base);
+  animation-duration: var(--dur-base);
+  animation-timing-function: var(--ease-standard);
+  transform-origin: var(--radix-dropdown-menu-content-transform-origin, var(--radix-popover-content-transform-origin, var(--radix-select-content-transform-origin, center)));
+}
+/* Dialogs and alert dialogs. */
+@utility motion-dialog {
+  --tw-duration: var(--dur-base);
+  animation-duration: var(--dur-base);
+  animation-timing-function: var(--ease-standard);
+}
+/* Sheets, drawers, sidebars (translate). */
+@utility motion-sheet {
+  --tw-duration: var(--dur-slow);
+  animation-duration: var(--dur-slow);
+  animation-timing-function: var(--ease-standard);
+}
+/* Toasts. */
+@utility motion-toast {
+  --tw-duration: var(--dur-base);
+  animation-duration: var(--dur-base);
+  animation-timing-function: var(--ease-standard);
+}
+/* Exit half of any of the above (Radix `data-[state=closed]`). */
+@utility motion-exit {
+  --tw-duration: var(--dur-fast);
+  animation-duration: var(--dur-fast);
+  animation-timing-function: var(--ease-exit);
+}
+/* Collapsible groups (sidebar nav groups, accordions): grid-rows technique. */
+@utility motion-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--dur-base) var(--ease-standard);
+}
+@utility motion-collapse-open {
+  grid-template-rows: 1fr;
+}
+/* Tab indicator / underline slide. */
+@utility motion-indicator {
+  transition-property: transform, width, left, background-color, color;
+  transition-duration: var(--dur-base);
+  transition-timing-function: var(--ease-standard);
+}
+
+/* ------------------------------------------------------------------------ */
+/* LAYOUT UTILITIES                                                          */
+/* ------------------------------------------------------------------------ */
+@utility z-sticky { z-index: var(--z-sticky); }
+@utility z-sidebar { z-index: var(--z-sidebar); }
+@utility z-header { z-index: var(--z-header); }
+@utility z-overlay { z-index: var(--z-overlay); }
+@utility z-modal { z-index: var(--z-modal); }
+@utility z-popover { z-index: var(--z-popover); }
+@utility z-toast { z-index: var(--z-toast); }
+
+@utility min-touch {
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+}
+
+/* Table foundation — shared styling every table inherits (ui/table.tsx). */
+@utility table-foundation {
+  --table-row-height: 2.75rem;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+@utility table-compact {
+  --table-row-height: 2.25rem;
+}
+
+/* ------------------------------------------------------------------------ */
+/* MISC                                                                      */
+/* ------------------------------------------------------------------------ */
 @layer utilities {
-  /* Hide ugly search cancel button in Chrome until we can style it properly */
   input[type='search']::-webkit-search-cancel-button {
     @apply hidden;
   }
 
-  /* Placeholder styling for contentEditable div */
   [contenteditable][data-placeholder]:empty::before {
     content: attr(data-placeholder);
-    color: hsl(var(--muted-foreground));
+    color: hsl(var(--foreground-muted));
     pointer-events: none;
   }
 
-  /* .no-default-hover-elevate/no-default-active-elevate is an escape hatch so consumers of
-   * buttons/badges can remove the automatic brightness adjustment on interactions
-   * and program their own. */
-  .no-default-hover-elevate {
-  }
-
-  .no-default-active-elevate {
-  }
-
-  /**
-   * Toggleable backgrounds go behind the content. Hoverable/active goes on top.
-   * This way they can stack/compound. Both will overlap the parent's borders!
-   * So borders will be automatically adjusted both on toggle, and hover/active,
-   * and they will be compounded.
-   */
-  .toggle-elevate::before,
-  .toggle-elevate-2::before {
-    content: '';
-    pointer-events: none;
+  /* Skip link — visually hidden until focused. */
+  .skip-link {
     position: absolute;
-    inset: 0px;
-    /*border-radius: inherit;   match rounded corners */
-    border-radius: inherit;
-    z-index: -1;
-    /* sits behind content but above backdrop */
+    left: 0.75rem;
+    top: 0.75rem;
+    z-index: var(--z-toast);
+    transform: translateY(-200%);
+    background: hsl(var(--surface-elevated));
+    color: hsl(var(--foreground));
+    border: 1px solid hsl(var(--border-strong));
+    border-radius: var(--radius-md-value);
+    padding: 0.5rem 0.75rem;
+    box-shadow: var(--shadow-md-value);
   }
-
-  .toggle-elevate.toggle-elevated::before {
-    background-color: var(--elevate-2);
-  }
-
-  /* If there's a 1px border, adjust the inset so that it covers that parent's border */
-  .border.toggle-elevate::before {
-    inset: -1px;
-  }
-
-  /* Does not work on elements with overflow:hidden! */
-  .hover-elevate:not(.no-default-hover-elevate),
-  .active-elevate:not(.no-default-active-elevate),
-  .hover-elevate-2:not(.no-default-hover-elevate),
-  .active-elevate-2:not(.no-default-active-elevate) {
-    position: relative;
-    z-index: 0;
-  }
-
-  .hover-elevate:not(.no-default-hover-elevate)::after,
-  .active-elevate:not(.no-default-active-elevate)::after,
-  .hover-elevate-2:not(.no-default-hover-elevate)::after,
-  .active-elevate-2:not(.no-default-active-elevate)::after {
-    content: '';
-    pointer-events: none;
-    position: absolute;
-    inset: 0px;
-    /*border-radius: inherit;   match rounded corners */
-    border-radius: inherit;
-    z-index: 999;
-    /* sits in front of content */
-  }
-
-  .hover-elevate:hover:not(.no-default-hover-elevate)::after,
-  .active-elevate:active:not(.no-default-active-elevate)::after {
-    background-color: var(--elevate-1);
-  }
-
-  .hover-elevate-2:hover:not(.no-default-hover-elevate)::after,
-  .active-elevate-2:active:not(.no-default-active-elevate)::after {
-    background-color: var(--elevate-2);
-  }
-
-  /* If there's a 1px border, adjust the inset so that it covers that parent's border */
-  .border.hover-elevate:not(.no-hover-interaction-elevate)::after,
-  .border.active-elevate:not(.no-active-interaction-elevate)::after,
-  .border.hover-elevate-2:not(.no-hover-interaction-elevate)::after,
-  .border.active-elevate-2:not(.no-active-interaction-elevate)::after,
-  .border.hover-elevate:not(.no-hover-interaction-elevate)::after {
-    inset: -1px;
+  .skip-link:focus-visible {
+    transform: translateY(0);
   }
 }
