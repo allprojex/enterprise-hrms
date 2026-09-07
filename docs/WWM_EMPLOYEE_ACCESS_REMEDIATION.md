@@ -76,6 +76,6 @@ Not executed: the browser-automation extension could not resize a maximized wind
 1. Preflight: `origin/main` == release SHA, CI green, Production healthz on `9bd8a54`, ledger `0077` (78 rows), peer sessions idle.
 2. Backups: none required for schema (no migration); take the standard pre-release `pg_dump -Fc` anyway (no PITR) and keep the `.9bd8a54.bak` compose copy.
 3. Build image `enterprise-hrms:<sha>`, update compose, restart `api` + `worker`, verify healthz version.
-4. Run `seed:roles` via the 5432 verify-full URL (never 6543); verify permission count +2 and the four template mappings.
+4. Run `seed:roles` via the 5432 verify-full URL (never 6543); verify permission count +2 and the four template mappings. The seed is sourced from the single definitions file, so the same run must be checked to preserve the WS-26B form mappings as well (org_admin 8, hr_manager / hr_administrator 7 incl. `form.signature.apply`, super_admin 8) — verify both sets in the post-seed query, never just the two new keys.
 5. Post-deploy checks as Kofi Asante (read-only): `/form-templates` → unauthorized; `/employees/436` → `sensitiveFieldsRedacted: true`; `/employees/436/documents` → 403; `/organizations/3/roles` → 403; My Inventory shows item names; dashboard Leave label "for you and your direct reports". As HR: colleague record and documents still visible; role catalogue still visible.
 6. Rollback: image `enterprise-hrms:9bd8a54` + compose `.9bd8a54.bak`; the seeded permissions are additive and harmless to the previous release.
