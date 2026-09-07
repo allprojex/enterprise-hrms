@@ -257,3 +257,20 @@ describe('Dashboard page', () => {
     });
   });
 });
+
+// Administration navigation permission gating (2026-09-07): the dashboard
+// carries no administrative shortcut for anyone — its capability cards are the
+// directory pages every member may read. Regression guard so an admin card can
+// never be added here without a permission gate going unnoticed.
+describe('Dashboard — no administrative shortcuts', () => {
+  it('renders no link to organization administration or the Organisations console for an ordinary employee', () => {
+    state.summary = undefined;
+    state.roles = ['employee', 'wwm_employee_inventory_self_service'];
+    state.orgModules = [orgModule({ key: 'office_inventory', name: 'Office Inventory' })];
+    renderDashboard();
+    expect(document.querySelectorAll('a[href^="/admin"]')).toHaveLength(0);
+    expect(document.querySelectorAll('a[href="/organizations"]')).toHaveLength(0);
+    // ...while the directory capabilities every member may read remain.
+    expect(screen.getByTestId('link-module-employee-records')).toHaveAttribute('href', '/employees');
+  });
+});

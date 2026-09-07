@@ -82,10 +82,11 @@ import {
   type MembershipSummary,
 } from '@workspace/api-client-react';
 import { isModuleAccessible } from '@/lib/module-access';
+import { resolveAdministrationNavEntries } from '@/lib/administration-access';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { useMyProfilePhoto } from '@/hooks/use-employee-photo';
-import { useIsOrgAdmin, useIsHrCapable, useCanManageHrTeam } from '@/hooks/use-hr-capable';
+import { useIsOrgAdmin, useIsHrCapable, useAdministrationAccess } from '@/hooks/use-hr-capable';
 import { clearToken } from '@/lib/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -474,10 +475,14 @@ export function AppShell({ children }: AppShellProps) {
   // rather than re-deriving the roles lookup here a second time.
   const isOrgAdmin = useIsOrgAdmin(activeOrganizationId ?? 0);
   const isHrCapable = useIsHrCapable(activeOrganizationId ?? 0);
-  // Primary HR Administrator delegation: the active Primary HR holding the
-  // hr_administrator role reaches the same console in its HR-team mode
-  // (Members + Roles only; server-side requireDelegationAuthority decides).
-  const canManageHrTeam = useCanManageHrTeam(activeOrganizationId ?? 0);
+  // Administration navigation permission gating (2026-09-07): the
+  // Administration group is resolved from the caller's EFFECTIVE permission
+  // keys for the active organization (MembershipSummary.permissions), never
+  // from membership alone or a role name — see lib/administration-access.ts.
+  // users.role === 'super_admin' is the platform bootstrap identity and only
+  // preserves the existing Organisations control-plane entry; it adds no
+  // console bypass.
+  const administrationAccess = useAdministrationAccess(activeOrganizationId ?? 0, user?.role === 'super_admin');
   // Module enablement for the active organization, the same source ModuleGate
   // (frontend) and requireModuleEnabled (backend) use. A module-gated nav item
   // needs BOTH its module enabled here AND its existing role/permission below.
@@ -796,15 +801,28 @@ export function AppShell({ children }: AppShellProps) {
       // clearer label and the dead stub removed from nav (route still
       // exists for direct-URL access; nothing here changes what any role
       // is authorized to do server-side).
+      //
+      // Administration navigation permission gating (2026-09-07): previously
+      // "Organisations" was unconditional here, so EVERY member — including an
+      // ordinary employee with only self-service permissions — saw an
+      // Administration group. Every child is now resolved from the caller's
+      // effective permissions (lib/administration-access.ts): Organisations
+      // needs organization.update (or the platform super_admin identity),
+      // Organization Administration needs a console authority
+      // (membership.manage / role.manage / module.manage / primary_hr.manage /
+      // organization.update), HR Team Management needs hr_team.manage as the
+      // active Primary HR. With zero authorized children the group renders
+      // nothing (NavGroupList drops empty groups). Module-gated entries, if
+      // ever added here, go through the same MODULE_BY_HREF filter below.
       label: 'Administration',
-      items: [
-        { href: '/organizations', label: 'Organisations', icon: Building },
-        ...(activeOrganizationId && isOrgAdmin
-          ? [{ href: `/admin/${activeOrganizationId}`, label: 'Organization Administration', icon: ShieldCheck } satisfies NavItem]
-          : activeOrganizationId && canManageHrTeam
-            ? [{ href: `/admin/${activeOrganizationId}`, label: 'HR Team Management', icon: ShieldCheck } satisfies NavItem]
-            : []),
-      ],
+      items: resolveAdministrationNavEntries(administrationAccess, activeOrganizationId).map(
+        (entry) =>
+          ({
+            href: entry.href,
+            label: entry.label,
+            icon: entry.key === 'organisations' ? Building : ShieldCheck,
+          }) satisfies NavItem,
+      ),
     },
   ].map((group) => ({
     ...group,

@@ -42,6 +42,7 @@ vi.mock('@workspace/api-client-react', () => ({
         organizationSlug: 'acme',
         status: 'active',
         roles: ['org_admin'],
+        permissions: ['organization.read', 'organization.update', 'membership.read', 'membership.manage', 'role.manage', 'module.manage', 'primary_hr.manage', 'audit.read'],
         isPrimaryHr: false,
       },
     ],

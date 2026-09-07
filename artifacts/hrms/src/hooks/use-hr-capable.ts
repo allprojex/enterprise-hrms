@@ -1,4 +1,5 @@
-import { useListMyOrganizations, getListMyOrganizationsQueryKey } from '@workspace/api-client-react';
+import { useListMyOrganizations, getListMyOrganizationsQueryKey, type MembershipSummary } from '@workspace/api-client-react';
+import { resolveAdministrationAccess, type AdministrationAccess } from '@/lib/administration-access';
 
 /**
  * Shared role lookup underlying both useIsOrgAdmin/useIsHrCapable below —
@@ -72,18 +73,41 @@ export function useIsHrCapable(organizationId: number): boolean {
 }
 
 /**
- * Whether the caller may manage the organization's HR team through the
- * Primary HR delegation path: they hold the hr_administrator system role AND
- * are the organization's active Primary HR. Mirrors the backend's
- * requireDelegationAuthority (hr_team.manage + active Primary HR) using the
- * two signals the frontend has (role keys and isPrimaryHr). The server is
- * authoritative — this only decides which affordances to show.
+ * The caller's own membership summary for `organizationId` (roles, effective
+ * permissions, Primary HR status), or undefined while loading / when the
+ * caller is not a member. Same self-scoped GET /me/organizations source every
+ * hook in this file reads.
  */
-export function useCanManageHrTeam(organizationId: number): boolean {
+export function useMyMembership(organizationId: number): MembershipSummary | undefined {
   const { data: myOrganizations } = useListMyOrganizations({
     query: { queryKey: getListMyOrganizationsQueryKey(), enabled: organizationId > 0 },
   });
-  const currentOrg = myOrganizations?.find((m) => m.organizationId === organizationId);
-  if (!currentOrg) return false;
-  return currentOrg.isPrimaryHr === true && currentOrg.roles.includes('hr_administrator');
+  return myOrganizations?.find((m) => m.organizationId === organizationId);
+}
+
+/**
+ * Administration navigation permission gating (2026-09-07): what
+ * administrative entries the caller may be shown for `organizationId`,
+ * resolved from their EFFECTIVE permission keys (MembershipSummary.permissions)
+ * rather than role names — see lib/administration-access.ts for the rule.
+ * `isPlatformSuperAdmin` is users.role === 'super_admin' (GET /auth/me), the
+ * platform bootstrap identity, and only widens the Organisations control
+ * plane entry exactly as before; it adds no console bypass. The server is
+ * authoritative — this only decides which affordances to show.
+ */
+export function useAdministrationAccess(organizationId: number, isPlatformSuperAdmin: boolean): AdministrationAccess {
+  const membership = useMyMembership(organizationId);
+  return resolveAdministrationAccess({ isPlatformSuperAdmin, membership });
+}
+
+/**
+ * Whether the caller may manage the organization's HR team through the
+ * Primary HR delegation path: they hold hr_team.manage AND are the
+ * organization's active Primary HR — exactly the backend's
+ * requireDelegationAuthority hr_team path, read from the caller's effective
+ * permissions (no longer inferred from the hr_administrator role name). The
+ * server is authoritative — this only decides which affordances to show.
+ */
+export function useCanManageHrTeam(organizationId: number): boolean {
+  return useAdministrationAccess(organizationId, false).canManageHrTeam;
 }

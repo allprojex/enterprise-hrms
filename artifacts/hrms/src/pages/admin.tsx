@@ -70,6 +70,7 @@ import type { AuditEvent, ListAuditEventsCategory } from '@workspace/api-client-
 import { getStoredToken } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
+import { resolveAdministrationAccess } from '@/lib/administration-access';
 import { QueryError } from '@/components/query-error';
 
 function errorMessage(err: unknown): string | undefined {
@@ -1518,13 +1519,21 @@ export default function Admin() {
   });
 
   const currentMembership = myOrganizations?.find((m) => m.organizationId === organizationId);
-  const isOrgAdmin = currentMembership?.roles.some((r) => r === 'org_admin' || r === 'super_admin') ?? false;
+  // Administration navigation permission gating (2026-09-07): the console
+  // opens on the caller's EFFECTIVE permissions for the routed organization
+  // (MembershipSummary.permissions) — the same rule the sidebar's
+  // Administration group applies (lib/administration-access.ts), so a link
+  // is never advertised to a caller this guard would then bounce, and a
+  // caller delegated one console authority through a custom role is not
+  // bounced merely for lacking the org_admin role name. Platform super_admin
+  // gets no bypass here: without a membership in the routed organization
+  // there are no permissions and the console does not open (unchanged).
+  const administrationAccess = resolveAdministrationAccess({ isPlatformSuperAdmin: false, membership: currentMembership });
+  const isOrgAdmin = administrationAccess.canOpenOrganizationAdministration;
   // Primary HR Administrator delegation (server: requireDelegationAuthority):
-  // the ACTIVE Primary HR holding hr_administrator may manage the HR team —
-  // Members and Roles only, limited to delegable roles. Both signals come
-  // from the same membership summary the org_admin gate reads.
-  const canManageHrTeam =
-    currentMembership?.isPrimaryHr === true && currentMembership.roles.includes('hr_administrator');
+  // the ACTIVE Primary HR holding hr_team.manage may manage the HR team —
+  // Members and Roles only, limited to delegable roles.
+  const canManageHrTeam = administrationAccess.canManageHrTeam;
   const hrTeamMode = !isOrgAdmin && canManageHrTeam;
   const canOpen = hasExplicitOrg && (isOrgAdmin || canManageHrTeam);
   const managingName = currentMembership?.organizationName ?? null;

@@ -2937,6 +2937,8 @@ export interface MembershipSummary {
   systemDisplayName: string | null;
   status: MembershipSummaryStatus;
   roles: string[];
+  /** The caller's own EFFECTIVE permission keys for this membership — the union of every permission granted through the membership's roles, exactly what the server evaluates in requirePermission. Self-scoped (never another member's grants) and informational: it lets the client show an administrative entry only when the caller holds a permission its destination actually requires, rather than inferring authority from role names. The server remains authoritative on every request. */
+  permissions: string[];
   isPrimaryHr: boolean;
 }
 

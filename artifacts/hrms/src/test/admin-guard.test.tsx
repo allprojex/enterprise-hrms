@@ -11,6 +11,28 @@ import { Router, Route, Switch } from 'wouter';
 import { memoryLocation } from 'wouter/memory-location';
 import Admin from '@/pages/admin';
 
+// Administration navigation permission gating (2026-09-07): effective
+// permission keys per membership, mirroring the seeded role templates.
+const EMPLOYEE_PERMISSIONS = [
+  'organization.read', 'employee.read', 'branch.read', 'department.read', 'position.read',
+  'leave_request.read.own', 'leave_request.write.own', 'attendance.clock.own', 'attendance.read.own',
+];
+// WWM "Employee — Inventory Self-Service" (Kofi Asante, EMP-0054): employee template + My Inventory keys.
+const KOFI_PERMISSIONS = [
+  ...EMPLOYEE_PERMISSIONS,
+  'office_inventory.request', 'office_inventory.approve', 'office_inventory.receipt.confirm.own',
+  'office_inventory.custody.read', 'office_inventory.return', 'office_inventory.handover',
+  'office_inventory.report_issue.own',
+];
+const HR_ADMINISTRATOR_PERMISSIONS = [
+  'organization.read', 'membership.read', 'master_data.manage', 'hr_team.manage', 'audit.read.hr',
+  'employee.read', 'employee.write',
+];
+const ORG_ADMIN_PERMISSIONS = [
+  'organization.read', 'organization.update', 'membership.read', 'membership.manage', 'role.manage',
+  'module.manage', 'master_data.manage', 'primary_hr.manage', 'audit.read', 'employee.read', 'employee.write',
+];
+
 const { emptyList, emptyObject } = vi.hoisted(() => ({
   emptyList: () => ({ data: [], isLoading: false, error: null, refetch: vi.fn() }),
   emptyObject: () => ({ data: undefined, isLoading: false, error: null, refetch: vi.fn() }),
@@ -82,7 +104,7 @@ function renderAdmin(path = '/admin/10') {
 describe('Admin console route guard', () => {
   it('redirects to /organizations when no explicit organization is in the route (fail closed)', async () => {
     vi.mocked(useListMyOrganizations).mockReturnValue({
-      data: [{ organizationId: 10, organizationName: 'Acme', organizationSlug: 'acme', status: 'active', roles: ['org_admin'], isPrimaryHr: false }],
+      data: [{ organizationId: 10, organizationName: 'Acme', organizationSlug: 'acme', status: 'active', roles: ['org_admin'], permissions: ORG_ADMIN_PERMISSIONS, isPrimaryHr: false }],
       isLoading: false,
     } as never);
 
@@ -96,7 +118,7 @@ describe('Admin console route guard', () => {
   it('redirects a caller not a member of the routed organization to /unauthorized', async () => {
     // Authorized for org 10, but the route targets org 99 -> not this org's admin.
     vi.mocked(useListMyOrganizations).mockReturnValue({
-      data: [{ organizationId: 10, organizationName: 'Acme', organizationSlug: 'acme', status: 'active', roles: ['org_admin'], isPrimaryHr: false }],
+      data: [{ organizationId: 10, organizationName: 'Acme', organizationSlug: 'acme', status: 'active', roles: ['org_admin'], permissions: ORG_ADMIN_PERMISSIONS, isPrimaryHr: false }],
       isLoading: false,
     } as never);
 
@@ -109,7 +131,7 @@ describe('Admin console route guard', () => {
 
   it('shows which organization is being managed', async () => {
     vi.mocked(useListMyOrganizations).mockReturnValue({
-      data: [{ organizationId: 10, organizationName: 'Worldwide Word Ministries', organizationSlug: 'wwm', status: 'active', roles: ['org_admin'], isPrimaryHr: false }],
+      data: [{ organizationId: 10, organizationName: 'Worldwide Word Ministries', organizationSlug: 'wwm', status: 'active', roles: ['org_admin'], permissions: ORG_ADMIN_PERMISSIONS, isPrimaryHr: false }],
       isLoading: false,
     } as never);
 
@@ -122,7 +144,7 @@ describe('Admin console route guard', () => {
 
   it('redirects a non-admin member to /unauthorized', async () => {
     vi.mocked(useListMyOrganizations).mockReturnValue({
-      data: [{ organizationId: 10, organizationName: 'Acme', organizationSlug: 'acme', status: 'active', roles: ['employee'], isPrimaryHr: false }],
+      data: [{ organizationId: 10, organizationName: 'Acme', organizationSlug: 'acme', status: 'active', roles: ['employee'], permissions: EMPLOYEE_PERMISSIONS, isPrimaryHr: false }],
       isLoading: false,
     } as never);
 
@@ -135,7 +157,7 @@ describe('Admin console route guard', () => {
 
   it('renders the console for an org_admin', async () => {
     vi.mocked(useListMyOrganizations).mockReturnValue({
-      data: [{ organizationId: 10, organizationName: 'Acme', organizationSlug: 'acme', status: 'active', roles: ['org_admin'], isPrimaryHr: false }],
+      data: [{ organizationId: 10, organizationName: 'Acme', organizationSlug: 'acme', status: 'active', roles: ['org_admin'], permissions: ORG_ADMIN_PERMISSIONS, isPrimaryHr: false }],
       isLoading: false,
     } as never);
 
@@ -153,7 +175,7 @@ describe('Admin console route guard', () => {
   // hr_administrator gets the console in HR-team mode (Members + Roles only).
   it('renders HR Team Management (Members and Roles only) for the Primary HR holding hr_administrator', async () => {
     vi.mocked(useListMyOrganizations).mockReturnValue({
-      data: [{ organizationId: 10, organizationName: 'Acme', organizationSlug: 'acme', status: 'active', roles: ['hr_administrator'], isPrimaryHr: true }],
+      data: [{ organizationId: 10, organizationName: 'Acme', organizationSlug: 'acme', status: 'active', roles: ['hr_administrator'], permissions: HR_ADMINISTRATOR_PERMISSIONS, isPrimaryHr: true }],
       isLoading: false,
     } as never);
 
@@ -174,7 +196,7 @@ describe('Admin console route guard', () => {
 
   it('redirects an hr_administrator who is not the Primary HR', async () => {
     vi.mocked(useListMyOrganizations).mockReturnValue({
-      data: [{ organizationId: 10, organizationName: 'Acme', organizationSlug: 'acme', status: 'active', roles: ['hr_administrator'], isPrimaryHr: false }],
+      data: [{ organizationId: 10, organizationName: 'Acme', organizationSlug: 'acme', status: 'active', roles: ['hr_administrator'], permissions: HR_ADMINISTRATOR_PERMISSIONS, isPrimaryHr: false }],
       isLoading: false,
     } as never);
 
@@ -187,7 +209,49 @@ describe('Admin console route guard', () => {
 
   it('redirects a Primary HR who does not hold hr_administrator', async () => {
     vi.mocked(useListMyOrganizations).mockReturnValue({
-      data: [{ organizationId: 10, organizationName: 'Acme', organizationSlug: 'acme', status: 'active', roles: ['hr_manager'], isPrimaryHr: true }],
+      data: [{ organizationId: 10, organizationName: 'Acme', organizationSlug: 'acme', status: 'active', roles: ['hr_manager'], permissions: ['organization.read', 'membership.read', 'audit.read.hr', 'employee.read', 'employee.write'], isPrimaryHr: true }],
+      isLoading: false,
+    } as never);
+
+    const history = renderAdmin();
+
+    await waitFor(() => {
+      expect(history[history.length - 1]).toBe('/unauthorized');
+    });
+  });
+
+  // Administration navigation permission gating (2026-09-07): the guard is
+  // permission-driven, matching the sidebar rule (lib/administration-access.ts).
+  it('opens the console for a member delegated one console authority (role.manage) through a custom role, without the org_admin role name', async () => {
+    vi.mocked(useListMyOrganizations).mockReturnValue({
+      data: [{ organizationId: 10, organizationName: 'Acme', organizationSlug: 'acme', status: 'active', roles: ['employee', 'role_steward'], permissions: [...KOFI_PERMISSIONS, 'role.manage'], isPrimaryHr: false }],
+      isLoading: false,
+    } as never);
+
+    const history = renderAdmin();
+
+    await waitFor(() => {
+      expect(screen.getByText('Admin Console')).toBeInTheDocument();
+    });
+    expect(history).not.toContain('/unauthorized');
+  });
+
+  it('redirects a member whose role is NAMED org_admin but whose effective permissions carry no console authority (fail closed)', async () => {
+    vi.mocked(useListMyOrganizations).mockReturnValue({
+      data: [{ organizationId: 10, organizationName: 'Acme', organizationSlug: 'acme', status: 'active', roles: ['org_admin'], permissions: EMPLOYEE_PERMISSIONS, isPrimaryHr: false }],
+      isLoading: false,
+    } as never);
+
+    const history = renderAdmin();
+
+    await waitFor(() => {
+      expect(history[history.length - 1]).toBe('/unauthorized');
+    });
+  });
+
+  it('redirects Kofi Asante (employee + inventory self-service) — inventory keys are not console authority', async () => {
+    vi.mocked(useListMyOrganizations).mockReturnValue({
+      data: [{ organizationId: 10, organizationName: 'Worldwide Word Ministries', organizationSlug: 'wwm', status: 'active', roles: ['employee', 'wwm_employee_inventory_self_service'], permissions: KOFI_PERMISSIONS, isPrimaryHr: false }],
       isLoading: false,
     } as never);
 
@@ -200,7 +264,7 @@ describe('Admin console route guard', () => {
 
   it('keeps the full console for an org_admin who is also the Primary HR', async () => {
     vi.mocked(useListMyOrganizations).mockReturnValue({
-      data: [{ organizationId: 10, organizationName: 'Acme', organizationSlug: 'acme', status: 'active', roles: ['org_admin', 'hr_administrator'], isPrimaryHr: true }],
+      data: [{ organizationId: 10, organizationName: 'Acme', organizationSlug: 'acme', status: 'active', roles: ['org_admin', 'hr_administrator'], permissions: [...ORG_ADMIN_PERMISSIONS, 'hr_team.manage'], isPrimaryHr: true }],
       isLoading: false,
     } as never);
 

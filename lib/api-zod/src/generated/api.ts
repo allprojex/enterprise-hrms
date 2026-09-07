@@ -1894,6 +1894,7 @@ export const ListMyOrganizationsResponseItem = zod.object({
   "systemDisplayName": zod.string().nullable(),
   "status": zod.enum(['invited', 'active', 'suspended', 'expired', 'revoked']),
   "roles": zod.array(zod.string()),
+  "permissions": zod.array(zod.string()).describe('The caller\'s own EFFECTIVE permission keys for this membership — the union of every permission granted through the membership\'s roles, exactly what the server evaluates in requirePermission. Self-scoped (never another member\'s grants) and informational: it lets the client show an administrative entry only when the caller holds a permission its destination actually requires, rather than inferring authority from role names. The server remains authoritative on every request.'),
   "isPrimaryHr": zod.boolean()
 })
 export const ListMyOrganizationsResponse = zod.array(ListMyOrganizationsResponseItem)

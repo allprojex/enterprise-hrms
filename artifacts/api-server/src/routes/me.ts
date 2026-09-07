@@ -1,7 +1,15 @@
 import { Router, type Response, type NextFunction } from "express";
 import multer from "multer";
 import { eq, and, isNull, inArray } from "drizzle-orm";
-import { db, organizationsTable, membershipRolesTable, rolesTable, primaryHrAssignmentsTable } from "@workspace/db";
+import {
+  db,
+  organizationsTable,
+  membershipRolesTable,
+  rolesTable,
+  rolePermissionsTable,
+  permissionsTable,
+  primaryHrAssignmentsTable,
+} from "@workspace/db";
 import { ApplyToInternalVacancyBody } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { getActiveMembershipsForUser, getActiveMembership, resolveActiveOrganizationId } from "../lib/membership";
@@ -105,7 +113,7 @@ router.get("/me/organizations", requireAuth as any, async (req: AuthenticatedReq
   const organizationById = new Map(organizations.map((o) => [o.id, o]));
 
   const roleRows = await db
-    .select({ membershipId: membershipRolesTable.membershipId, key: rolesTable.key })
+    .select({ membershipId: membershipRolesTable.membershipId, roleId: membershipRolesTable.roleId, key: rolesTable.key })
     .from(membershipRolesTable)
     .innerJoin(rolesTable, eq(membershipRolesTable.roleId, rolesTable.id))
     .where(inArray(membershipRolesTable.membershipId, membershipIds));
@@ -114,6 +122,35 @@ router.get("/me/organizations", requireAuth as any, async (req: AuthenticatedReq
     const list = rolesByMembership.get(row.membershipId) ?? [];
     list.push(row.key);
     rolesByMembership.set(row.membershipId, list);
+  }
+
+  // Administration navigation permission gating (2026-09-07): the caller's
+  // EFFECTIVE permission keys per membership -- the same union-of-role-grants
+  // lib/permissions.ts getEffectivePermissions computes for every server-side
+  // requirePermission check, batched here across all memberships. Strictly
+  // self-scoped (only the caller's own grants, never another member's) and it
+  // grants nothing: it lets the frontend show an administrative entry only
+  // when the caller actually holds a permission that entry's destination
+  // requires, instead of inferring authority from role names.
+  const roleIds = [...new Set(roleRows.map((r) => r.roleId))];
+  const permissionRows = roleIds.length
+    ? await db
+        .select({ roleId: rolePermissionsTable.roleId, key: permissionsTable.key })
+        .from(rolePermissionsTable)
+        .innerJoin(permissionsTable, eq(rolePermissionsTable.permissionId, permissionsTable.id))
+        .where(inArray(rolePermissionsTable.roleId, roleIds))
+    : [];
+  const permissionKeysByRole = new Map<number, string[]>();
+  for (const row of permissionRows) {
+    const list = permissionKeysByRole.get(row.roleId) ?? [];
+    list.push(row.key);
+    permissionKeysByRole.set(row.roleId, list);
+  }
+  const permissionsByMembership = new Map<number, Set<string>>();
+  for (const row of roleRows) {
+    const set = permissionsByMembership.get(row.membershipId) ?? new Set<string>();
+    for (const key of permissionKeysByRole.get(row.roleId) ?? []) set.add(key);
+    permissionsByMembership.set(row.membershipId, set);
   }
 
   const primaryHrRows = await db
@@ -152,6 +189,7 @@ router.get("/me/organizations", requireAuth as any, async (req: AuthenticatedReq
         systemDisplayName: typeof systemDisplayName === "string" ? systemDisplayName : null,
         status: membership.status,
         roles: rolesByMembership.get(membership.id) ?? [],
+        permissions: [...(permissionsByMembership.get(membership.id) ?? new Set<string>())].sort(),
         isPrimaryHr: primaryHrMembershipIds.has(membership.id),
       };
     })

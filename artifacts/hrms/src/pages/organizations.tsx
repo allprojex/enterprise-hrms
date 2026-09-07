@@ -50,6 +50,7 @@ import { useToast } from '@/hooks/use-toast';
 import { motion } from 'framer-motion';
 import type { Organization } from '@workspace/api-client-react';
 import { QueryError } from '@/components/query-error';
+import { resolveAdministrationAccess } from '@/lib/administration-access';
 
 const ORG_TYPES: CreateOrganizationInputType[] = [
   'business',
@@ -346,11 +347,18 @@ export default function Organizations() {
   // platform tenant lifecycle (suspend/reactivate). The server enforces the
   // same via requireSuperAdmin; this only decides what to show.
   const isPlatformSuperAdmin = me?.role === 'super_admin';
-  const canManageSelectedOrg =
-    !!me &&
-    !!selectedOrg &&
-    (me.role === 'super_admin' ||
-      (selectedOrgMembership?.roles.some((r) => r === 'org_admin' || r === 'super_admin') ?? false));
+  // Administration navigation permission gating (2026-09-07): the Administer
+  // and Edit controls follow the caller's EFFECTIVE permissions for the
+  // selected organization (MembershipSummary.permissions) — the same rule the
+  // sidebar's Administration group and the admin console guard apply
+  // (lib/administration-access.ts). Platform super_admin keeps its existing
+  // control-plane access; a tenant caller needs a console authority to
+  // Administer, or organization.update to Edit — never a role name.
+  const selectedOrgAccess = resolveAdministrationAccess({ isPlatformSuperAdmin, membership: selectedOrgMembership });
+  const canAdministerSelectedOrg =
+    !!me && !!selectedOrg && (isPlatformSuperAdmin || selectedOrgAccess.canOpenOrganizationAdministration);
+  const canEditSelectedOrg = !!me && !!selectedOrg && selectedOrgAccess.canViewOrganisations;
+  const canManageSelectedOrg = canAdministerSelectedOrg || canEditSelectedOrg;
 
   const openEditDialog = () => {
     if (!selectedOrg) return;
@@ -639,18 +647,22 @@ export default function Organizations() {
                 </div>
                 {canManageSelectedOrg && selectedOrg && (
                   <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => setLocation(`/admin/${selectedOrg.id}`)}
-                      data-testid="button-administer-organization"
-                    >
-                      <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                      Administer
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={openEditDialog} data-testid="button-edit-organization">
-                      <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                      Edit
-                    </Button>
+                    {canAdministerSelectedOrg && (
+                      <Button
+                        size="sm"
+                        onClick={() => setLocation(`/admin/${selectedOrg.id}`)}
+                        data-testid="button-administer-organization"
+                      >
+                        <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                        Administer
+                      </Button>
+                    )}
+                    {canEditSelectedOrg && (
+                      <Button size="sm" variant="outline" onClick={openEditDialog} data-testid="button-edit-organization">
+                        <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                        Edit
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>

@@ -17,6 +17,28 @@ import { AppShell } from '@/components/layout/app-shell';
 const switchMutateMock = vi.fn();
 const invalidateQueriesMock = vi.fn();
 
+// Administration navigation permission gating (2026-09-07): effective
+// permission keys per membership, mirroring the seeded role templates.
+const EMPLOYEE_PERMISSIONS = [
+  'organization.read', 'employee.read', 'branch.read', 'department.read', 'position.read',
+  'leave_request.read.own', 'leave_request.write.own', 'attendance.clock.own', 'attendance.read.own',
+];
+// WWM "Employee — Inventory Self-Service" (Kofi Asante, EMP-0054): employee template + My Inventory keys.
+const KOFI_PERMISSIONS = [
+  ...EMPLOYEE_PERMISSIONS,
+  'office_inventory.request', 'office_inventory.approve', 'office_inventory.receipt.confirm.own',
+  'office_inventory.custody.read', 'office_inventory.return', 'office_inventory.handover',
+  'office_inventory.report_issue.own',
+];
+const HR_ADMINISTRATOR_PERMISSIONS = [
+  'organization.read', 'membership.read', 'master_data.manage', 'hr_team.manage', 'audit.read.hr',
+  'employee.read', 'employee.write',
+];
+const ORG_ADMIN_PERMISSIONS = [
+  'organization.read', 'organization.update', 'membership.read', 'membership.manage', 'role.manage',
+  'module.manage', 'master_data.manage', 'primary_hr.manage', 'audit.read', 'employee.read', 'employee.write',
+];
+
 const MULTI_ORG_MEMBERSHIPS = [
   {
     organizationId: 10,
@@ -24,6 +46,7 @@ const MULTI_ORG_MEMBERSHIPS = [
     organizationSlug: 'acme',
     status: 'active',
     roles: ['org_admin'],
+    permissions: ORG_ADMIN_PERMISSIONS,
     isPrimaryHr: false,
   },
   {
@@ -32,6 +55,7 @@ const MULTI_ORG_MEMBERSHIPS = [
     organizationSlug: 'acme-2',
     status: 'active',
     roles: ['employee'],
+    permissions: EMPLOYEE_PERMISSIONS,
     isPrimaryHr: false,
   },
 ];
@@ -45,6 +69,7 @@ const SINGLE_ORG_MEMBERSHIPS = [
     organizationSlug: 'wwm',
     status: 'active',
     roles: ['org_admin'],
+    permissions: ORG_ADMIN_PERMISSIONS,
     isPrimaryHr: false,
   },
 ];
@@ -433,7 +458,7 @@ describe('AppShell — organization-context indicator', () => {
 
   it('shows "System Administration" when operating in organisation 1', () => {
     useListMyOrganizationsMock.mockReturnValue({
-      data: [{ organizationId: 1, organizationName: 'System Administration', organizationSlug: 'system-administration', status: 'active', roles: ['super_admin'], isPrimaryHr: false }],
+      data: [{ organizationId: 1, organizationName: 'System Administration', organizationSlug: 'system-administration', status: 'active', roles: ['super_admin'], permissions: ORG_ADMIN_PERMISSIONS, isPrimaryHr: false }],
     });
     useGetMeMock.mockReturnValue({ ...DEFAULT_ME, data: { ...DEFAULT_ME.data, role: 'super_admin', organizationId: 1, activeOrganizationId: 1 } });
     renderShell();
@@ -444,7 +469,7 @@ describe('AppShell — organization-context indicator', () => {
 
   it('shows the WWM identity when operating in Worldwide Word Ministries', () => {
     useListMyOrganizationsMock.mockReturnValue({
-      data: [{ organizationId: 3, organizationName: 'Worldwide Word Ministries', organizationSlug: 'wwm', status: 'active', roles: ['org_admin'], isPrimaryHr: false }],
+      data: [{ organizationId: 3, organizationName: 'Worldwide Word Ministries', organizationSlug: 'wwm', status: 'active', roles: ['org_admin'], permissions: ORG_ADMIN_PERMISSIONS, isPrimaryHr: false }],
     });
     useGetMeMock.mockReturnValue({ ...DEFAULT_ME, data: { ...DEFAULT_ME.data, organizationId: 3, activeOrganizationId: 3 } });
     renderShell();
@@ -456,5 +481,159 @@ describe('AppShell — organization-context indicator', () => {
     useGetMeMock.mockReturnValue({ ...DEFAULT_ME, data: { ...DEFAULT_ME.data, activeOrganizationId: 20 } });
     renderShell();
     expect(screen.getByTestId('active-org-indicator')).toHaveTextContent('Acme Satellite');
+  });
+});
+
+// Administration navigation permission gating (2026-09-07). Production
+// defect: every member — including ordinary employees — saw an
+// "Administration" group because its Organisations entry was unconditional.
+// Rule now: a child renders only when the caller holds an effective
+// permission its destination requires (and its module, where gated, is
+// enabled for the active organization); the group renders only when at
+// least one child survives. Never keyed on the employee role name.
+describe('AppShell — Administration group permission gating', () => {
+  function actAsWwmMember(input: {
+    roles: string[];
+    permissions?: string[];
+    isPrimaryHr?: boolean;
+    meRole?: string;
+    memberships?: unknown[];
+  }) {
+    const membership = {
+      organizationId: 3,
+      organizationName: 'Worldwide Word Ministries',
+      organizationSlug: 'wwm',
+      status: 'active',
+      roles: input.roles,
+      ...(input.permissions ? { permissions: input.permissions } : {}),
+      isPrimaryHr: input.isPrimaryHr ?? false,
+    };
+    useListMyOrganizationsMock.mockReturnValue({ data: input.memberships ?? [membership] });
+    useGetMeMock.mockReturnValue({
+      ...DEFAULT_ME,
+      data: { ...DEFAULT_ME.data, id: 431, firstName: 'Kofi', lastName: 'Asante', role: input.meRole ?? 'employee', organizationId: 3, activeOrganizationId: 3 },
+    });
+  }
+
+  async function administrationLinks(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByTestId('button-nav-group-administration'));
+    return screen.getAllByRole('link').filter((a) => (a.getAttribute('data-testid') ?? '').startsWith('link-nav-') && /organisations|organization administration|hr team management/.test(a.getAttribute('data-testid') ?? ''));
+  }
+
+  beforeEach(() => {
+    switchMutateMock.mockReset();
+    invalidateQueriesMock.mockReset();
+    modulesMock.mockReturnValue(modulesEnabled('employee_self_service', 'office_inventory', 'attendance', 'leave'));
+  });
+
+  it('Kofi Asante (employee + wwm_employee_inventory_self_service) sees no Administration group and no administrative link', () => {
+    actAsWwmMember({ roles: ['employee', 'wwm_employee_inventory_self_service'], permissions: KOFI_PERMISSIONS });
+    renderShell();
+    expect(screen.queryByTestId('button-nav-group-administration')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Organisations/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Organization Administration/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /HR Team Management/ })).not.toBeInTheDocument();
+    expect(document.querySelector('a[href^="/admin"]')).toBeNull();
+    expect(document.querySelector('a[href="/organizations"]')).toBeNull();
+  });
+
+  it('keeps every legitimate employee self-service entry for Kofi (no regression)', async () => {
+    actAsWwmMember({ roles: ['employee', 'wwm_employee_inventory_self_service'], permissions: KOFI_PERMISSIONS });
+    const user = userEvent.setup();
+    renderShell();
+    expect(screen.getByTestId('button-nav-group-overview')).toBeInTheDocument();
+    expect(screen.getByTestId('button-nav-group-self-service')).toBeInTheDocument();
+    await user.click(screen.getByTestId('button-nav-group-self-service'));
+    expect(screen.getByRole('link', { name: /Employee Self-Service/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /My Requests/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /My Forms/ })).toBeInTheDocument();
+    // Inventory self-service keys never unlock the HR-only Office Inventory admin surface either.
+    expect(screen.queryByTestId('button-nav-group-office-inventory')).not.toBeInTheDocument();
+  });
+
+  it('an ordinary employee (employee template only) sees no Administration group', () => {
+    actAsWwmMember({ roles: ['employee'], permissions: EMPLOYEE_PERMISSIONS });
+    renderShell();
+    expect(screen.queryByTestId('button-nav-group-administration')).not.toBeInTheDocument();
+  });
+
+  it('an employee delegated one console authority (role.manage) through a custom role sees only Organization Administration', async () => {
+    actAsWwmMember({ roles: ['employee', 'wwm_role_steward'], permissions: [...KOFI_PERMISSIONS, 'role.manage'] });
+    const user = userEvent.setup();
+    renderShell();
+    const links = await administrationLinks(user);
+    expect(links.map((a) => a.textContent?.trim())).toEqual(['Organization Administration']);
+    expect(links[0]).toHaveAttribute('href', '/admin/3');
+    expect(screen.queryByRole('link', { name: /Organisations/ })).not.toBeInTheDocument();
+  });
+
+  it('the Primary HR holding hr_team.manage sees HR Team Management only', async () => {
+    actAsWwmMember({ roles: ['hr_administrator'], permissions: HR_ADMINISTRATOR_PERMISSIONS, isPrimaryHr: true });
+    const user = userEvent.setup();
+    renderShell();
+    const links = await administrationLinks(user);
+    expect(links.map((a) => a.textContent?.trim())).toEqual(['HR Team Management']);
+    expect(links[0]).toHaveAttribute('href', '/admin/3');
+  });
+
+  it('an hr_administrator who is not the Primary HR sees no Administration group', () => {
+    actAsWwmMember({ roles: ['hr_administrator'], permissions: HR_ADMINISTRATOR_PERMISSIONS, isPrimaryHr: false });
+    renderShell();
+    expect(screen.queryByTestId('button-nav-group-administration')).not.toBeInTheDocument();
+  });
+
+  it('an org_admin sees Organisations and Organization Administration', async () => {
+    actAsWwmMember({ roles: ['org_admin'], permissions: ORG_ADMIN_PERMISSIONS });
+    const user = userEvent.setup();
+    renderShell();
+    const links = await administrationLinks(user);
+    expect(links.map((a) => a.textContent?.trim())).toEqual(['Organisations', 'Organization Administration']);
+    expect(screen.queryByRole('link', { name: /HR Team Management/ })).not.toBeInTheDocument();
+  });
+
+  it('module-gated administrative entries stay hidden when the module is disabled, even for an org_admin', async () => {
+    actAsWwmMember({ roles: ['org_admin'], permissions: ORG_ADMIN_PERMISSIONS });
+    modulesMock.mockReturnValue(modulesEnabled('leave')); // attendance NOT enabled
+    renderShell();
+    expect(screen.queryByTestId('button-nav-group-attendance')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Attendance Settings/ })).not.toBeInTheDocument();
+  });
+
+  it('module-gated administrative entries appear once the module is enabled for the active organization', async () => {
+    actAsWwmMember({ roles: ['org_admin'], permissions: ORG_ADMIN_PERMISSIONS });
+    modulesMock.mockReturnValue(modulesEnabled('attendance'));
+    const user = userEvent.setup();
+    renderShell();
+    await user.click(screen.getByTestId('button-nav-group-attendance'));
+    expect(screen.getByRole('link', { name: /Attendance Settings/ })).toHaveAttribute('href', '/attendance-settings');
+  });
+
+  it('a role NAME alone (org_admin without console permissions) does not unlock Administration — permission-driven, fail closed', () => {
+    actAsWwmMember({ roles: ['org_admin'], permissions: EMPLOYEE_PERMISSIONS });
+    renderShell();
+    expect(screen.queryByTestId('button-nav-group-administration')).not.toBeInTheDocument();
+  });
+
+  it('a membership summary without a permissions field fails closed', () => {
+    actAsWwmMember({ roles: ['org_admin'] });
+    renderShell();
+    expect(screen.queryByTestId('button-nav-group-administration')).not.toBeInTheDocument();
+  });
+
+  it('the platform super_admin keeps the Organisations control-plane entry, with no new console bypass', async () => {
+    // No membership in the organization being browsed -> Organisations only.
+    actAsWwmMember({ roles: [], meRole: 'super_admin', memberships: [] });
+    const user = userEvent.setup();
+    renderShell();
+    const links = await administrationLinks(user);
+    expect(links.map((a) => a.textContent?.trim())).toEqual(['Organisations']);
+  });
+
+  it('the platform super_admin operating in its own System Administration membership keeps the full Administration group', async () => {
+    actAsWwmMember({ roles: ['super_admin'], permissions: ORG_ADMIN_PERMISSIONS, meRole: 'super_admin' });
+    const user = userEvent.setup();
+    renderShell();
+    const links = await administrationLinks(user);
+    expect(links.map((a) => a.textContent?.trim())).toEqual(['Organisations', 'Organization Administration']);
   });
 });
