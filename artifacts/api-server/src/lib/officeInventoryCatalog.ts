@@ -184,6 +184,39 @@ export async function listOfficeInventoryItems(organizationId: number): Promise<
   return db.select().from(officeInventoryItemsTable).where(eq(officeInventoryItemsTable.organizationId, organizationId)).orderBy(officeInventoryItemsTable.name);
 }
 
+/**
+ * WWM Employee Access Remediation (2026-09-07): what a REQUESTER may see of
+ * the catalogue — just enough to name what they are asking for. Active
+ * items only, and only display identity (no unit cost, currency, reorder
+ * level, status management or ids of anything else). Gated
+ * office_inventory.request at the route; the full catalogue (GET
+ * .../office-inventory/items) stays office_inventory.item.manage.
+ */
+export interface OfficeInventoryRequestableItem {
+  id: number;
+  itemCode: string;
+  name: string;
+  unitOfMeasure: string;
+  classification: OfficeInventoryItem["classification"];
+}
+
+export async function listRequestableOfficeInventoryItems(organizationId: number): Promise<OfficeInventoryRequestableItem[]> {
+  const rows = await db
+    .select({
+      id: officeInventoryItemsTable.id,
+      itemCode: officeInventoryItemsTable.itemCode,
+      name: officeInventoryItemsTable.name,
+      unitOfMeasure: officeInventoryItemsTable.unitOfMeasure,
+      classification: officeInventoryItemsTable.classification,
+    })
+    .from(officeInventoryItemsTable)
+    .where(and(eq(officeInventoryItemsTable.organizationId, organizationId), eq(officeInventoryItemsTable.status, "active")))
+    .orderBy(officeInventoryItemsTable.name);
+  // Explicit projection on top of the column selection: the wire shape is
+  // the contract, whatever the row source hands back.
+  return rows.map((r) => ({ id: r.id, itemCode: r.itemCode, name: r.name, unitOfMeasure: r.unitOfMeasure, classification: r.classification }));
+}
+
 export async function getOfficeInventoryItem(organizationId: number, itemId: number): Promise<OfficeInventoryItem> {
   const [row] = await db
     .select()

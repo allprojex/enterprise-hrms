@@ -17,6 +17,7 @@ const {
   rolePermissionsTable,
   permissionsTable,
   employeesTable,
+  employeeUserLinksTable,
   employeeDocumentsTable,
   auditEventsTable,
 } = vi.hoisted(() => {
@@ -27,6 +28,10 @@ const {
       membershipRoleRows: [] as { roleId: number }[],
       permissionRows: [] as { key: string }[],
       employeeRows: [] as { id: number; organizationId: number; firstName: string; lastName: string }[],
+      // WWM Employee Access Remediation (2026-09-07): employee_user_links rows
+      // so the route's own-record resolution (resolveOwnEmployeeId) can be
+      // exercised — an empty list means "the caller is not this employee".
+      linkRows: [] as { employeeId: number; applicationUserId: number }[],
       documentRows: [] as Record<string, unknown>[],
       inserted: [] as { table: string; values: unknown }[],
       deleted: [] as { table: string }[],
@@ -39,6 +44,7 @@ const {
     rolePermissionsTable: { __name: "role_permissions" },
     permissionsTable: { __name: "permissions" },
     employeesTable: { __name: "employees" },
+    employeeUserLinksTable: { __name: "employee_user_links" },
     employeeDocumentsTable: { __name: "employee_documents" },
     auditEventsTable: { __name: "audit_events" },
   };
@@ -59,6 +65,7 @@ vi.mock("@workspace/db", () => ({
   rolePermissionsTable,
   permissionsTable,
   employeesTable,
+  employeeUserLinksTable,
   employeeDocumentsTable,
   auditEventsTable,
   db: {
@@ -69,6 +76,7 @@ vi.mock("@workspace/db", () => ({
         else if (table === membershipRolesTable) rows = fixtures.membershipRoleRows;
         else if (table === rolePermissionsTable) rows = fixtures.permissionRows;
         else if (table === employeesTable) rows = fixtures.employeeRows;
+        else if (table === employeeUserLinksTable) rows = fixtures.linkRows;
         else if (table === employeeDocumentsTable) rows = fixtures.documentRows;
         else rows = fixtures.sessionRows;
 
@@ -158,11 +166,24 @@ beforeEach(() => {
   fixtures.membershipRoleRows = [];
   fixtures.permissionRows = [];
   fixtures.employeeRows = [];
+  fixtures.linkRows = [];
   fixtures.documentRows = [];
   fixtures.inserted = [];
   fixtures.deleted = [];
   fixtures.idCounters = new Map();
 });
+
+const CONTRACT_DOCUMENT = {
+  id: 1,
+  organizationId: 10,
+  employeeId: 42,
+  categoryCode: "contract",
+  fileName: "contract.pdf",
+  mimeType: "application/pdf",
+  fileSize: 1024,
+  uploadedBy: 1,
+  createdAt: new Date(),
+};
 
 describe("GET /api/organizations/:organizationId/employees/:employeeId/documents", () => {
   it("returns 403 when the caller has no active membership (tenant isolation)", async () => {
@@ -185,24 +206,43 @@ describe("GET /api/organizations/:organizationId/employees/:employeeId/documents
     expect(res.status).toBe(404);
   });
 
-  it("lists documents for the employee", async () => {
+  it("lists documents for the employee to a caller holding employee.documents.read (HR)", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["employee.read", "employee.documents.read"]);
+    fixtures.employeeRows = [{ id: 42, organizationId: 10, firstName: "Ada", lastName: "Lovelace" }];
+    fixtures.documentRows = [CONTRACT_DOCUMENT];
+
+    const res = await request(app).get("/api/organizations/10/employees/42/documents").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].fileName).toBe("contract.pdf");
+  });
+
+  // WWM Employee Access Remediation (2026-09-07): same-tenant privacy — the
+  // directory grant alone never reveals a colleague's personnel documents.
+  it("returns 403 (no metadata) to a colleague holding only employee.read", async () => {
     mockSession();
     mockActiveMembership();
     mockPermissions(["employee.read"]);
     fixtures.employeeRows = [{ id: 42, organizationId: 10, firstName: "Ada", lastName: "Lovelace" }];
-    fixtures.documentRows = [
-      {
-        id: 1,
-        organizationId: 10,
-        employeeId: 42,
-        categoryCode: "contract",
-        fileName: "contract.pdf",
-        mimeType: "application/pdf",
-        fileSize: 1024,
-        uploadedBy: 1,
-        createdAt: new Date(),
-      },
-    ];
+    fixtures.linkRows = [];
+    fixtures.documentRows = [CONTRACT_DOCUMENT];
+
+    const res = await request(app).get("/api/organizations/10/employees/42/documents").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(403);
+    expect(JSON.stringify(res.body)).not.toContain("contract.pdf");
+  });
+
+  it("lists the caller's OWN documents with employee.read alone (ESS My Documents, link resolved server-side)", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["employee.read"]);
+    fixtures.employeeRows = [{ id: 42, organizationId: 10, firstName: "Ada", lastName: "Lovelace" }];
+    fixtures.linkRows = [{ employeeId: 42, applicationUserId: 1 }];
+    fixtures.documentRows = [CONTRACT_DOCUMENT];
 
     const res = await request(app).get("/api/organizations/10/employees/42/documents").set("Authorization", "Bearer valid-token");
 

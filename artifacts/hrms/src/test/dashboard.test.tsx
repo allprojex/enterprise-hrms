@@ -35,6 +35,7 @@ vi.mock('@workspace/api-client-react', () => ({
 }));
 
 const LEAVE_METRICS: NonNullable<DashboardSummary['leaveMetrics']> = {
+  scope: 'organization',
   employeesOnLeave: 2,
   upcomingApprovedLeave: 4,
   pendingApprovalCount: 1,
@@ -194,6 +195,21 @@ describe('Dashboard page', () => {
       expect(screen.getByTestId('card-leave-requests-by-status')).toHaveTextContent('Approved: 5');
       expect(screen.getByTestId('card-leave-requests-by-status')).toHaveTextContent('Rejected: 0');
       expect(screen.getByTestId('card-leave-requests-by-status')).toHaveTextContent('Cancelled: 2');
+      expect(screen.getByTestId('text-leave-metrics-scope')).toHaveTextContent('for your organisation');
+    });
+
+    // WWM Employee Access Remediation (2026-09-07): the backend scopes the
+    // figures; the label must not call an employee's own numbers "your
+    // organisation".
+    it('labels the Leave section as own + direct reports when the backend scope is own_and_reports', () => {
+      state.roles = ['employee'];
+      state.orgModules = [];
+      state.summary = { totalEmployees: null, activeModules: 1, unreadNotifications: 0, leaveMetrics: { ...LEAVE_METRICS, scope: 'own_and_reports' }, attendanceMetrics: null, assetMetrics: null, inventoryMetrics: null };
+      state.isLoading = false;
+      state.error = undefined;
+      renderDashboard();
+      expect(screen.getByTestId('text-leave-metrics-scope')).toHaveTextContent('for you and your direct reports');
+      expect(screen.getByTestId('text-leave-metrics-scope')).not.toHaveTextContent('organisation');
     });
 
     it('does not crash on an error state', () => {

@@ -688,7 +688,7 @@ describe("POST /api/organizations/:organizationId/master-data/:domain", () => {
 });
 
 describe("GET /api/organizations/:organizationId/roles", () => {
-  it("returns 403 without organization.read", async () => {
+  it("returns 403 without membership.read", async () => {
     mockSession();
     mockActiveMembership();
     mockPermissions([]);
@@ -698,10 +698,24 @@ describe("GET /api/organizations/:organizationId/roles", () => {
     expect(res.status).toBe(403);
   });
 
+  // WWM Employee Access Remediation (2026-09-07): organization.read (held by
+  // every employee) no longer unlocks the role/permission catalogue.
+  it("returns 403 to an ordinary employee holding organization.read but not membership.read", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["organization.read", "employee.read"]);
+    fixtures.roleRows = [{ id: 1, key: "org_admin", label: "Organization Admin", isSystemRole: true, organizationId: null }];
+
+    const res = await request(app).get("/api/organizations/10/roles").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(403);
+    expect(JSON.stringify(res.body)).not.toContain("org_admin");
+  });
+
   it("merges system templates with this organization's own roles, excluding another organization's", async () => {
     mockSession();
     mockActiveMembership();
-    mockPermissions(["organization.read"]);
+    mockPermissions(["membership.read"]);
     fixtures.roleRows = [
       { id: 1, key: "org_admin", label: "Organization Admin", isSystemRole: true, organizationId: null },
       { id: 2, key: "hr_manager_custom", label: "Custom HR Manager", isSystemRole: false, organizationId: 10 },

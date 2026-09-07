@@ -43,6 +43,24 @@ export const PERMISSIONS = [
   { key: "employee.write", resource: "employee", action: "write" },
   { key: "employee.notes.read", resource: "employee", action: "notes.read" },
   { key: "employee.disciplinary.read", resource: "employee", action: "disciplinary.read" },
+  // WWM Employee Access Remediation (2026-09-07): `employee.read` is the
+  // organization's DIRECTORY grant (name, number, work contact, department,
+  // position, manager, status) and every role — including the employee
+  // template — holds it so colleagues can find each other. It never
+  // implied the right to a colleague's personal identity data. These two
+  // field-category keys (same shape as employee.notes.read /
+  // employee.disciplinary.read) now gate what the directory grant alone
+  // must not reveal. A caller always sees their OWN full record regardless.
+  //   employee.sensitive.read  — date of birth, gender, marital status,
+  //     nationality, national ID, passport, personal email, alternate
+  //     phone, residential address, emergency contacts, separation reason.
+  //   employee.documents.read  — another employee's personnel-document
+  //     metadata (GET .../employees/:id/documents). Upload/delete stay on
+  //     employee.write; there is no binary download route.
+  // Granted to org_admin and hr_manager (hr_administrator inherits by
+  // composition, super_admin by the blanket rule); never to employee.
+  { key: "employee.sensitive.read", resource: "employee", action: "sensitive.read" },
+  { key: "employee.documents.read", resource: "employee", action: "documents.read" },
   { key: "branch.read", resource: "branch", action: "read" },
   { key: "branch.manage", resource: "branch", action: "manage" },
   { key: "department.read", resource: "department", action: "read" },
@@ -643,6 +661,8 @@ export const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "employee.write",
     "employee.notes.read",
     "employee.disciplinary.read",
+    "employee.sensitive.read",
+    "employee.documents.read",
     "branch.read",
     "branch.manage",
     "department.read",
@@ -842,6 +862,8 @@ export const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "employee.write",
     "employee.notes.read",
     "employee.disciplinary.read",
+    "employee.sensitive.read",
+    "employee.documents.read",
     "branch.read",
     "branch.manage",
     "department.read",

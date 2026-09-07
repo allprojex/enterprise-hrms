@@ -2202,7 +2202,7 @@ export const ListMyInternalApplicationsResponse = zod.object({
 
 
 /**
- * Search, filter, and paginate the organization's employee directory
+ * Search, filter, and paginate the organization's employee directory. Gated employee.read (the directory grant every role holds). Personal identity fields on each row are nulled with `sensitiveFieldsRedacted: true` unless the caller holds employee.sensitive.read or the row is their own record — see the Employee schema.
  * @summary List employees
  */
 export const ListEmployeesParams = zod.object({
@@ -2271,12 +2271,13 @@ export const ListEmployeesResponse = zod.object({
   "separationDate": zod.coerce.date().nullish(),
   "separationReason": zod.string().nullish().describe('Code from the \"separation_reason\" Master Data domain.'),
   "notes": zod.string().nullish(),
+  "sensitiveFieldsRedacted": zod.boolean().optional().describe('True when the personal identity fields above were withheld from this caller (directory-only visibility).'),
   "linkedApplicationUserId": zod.number().nullish().describe('Set when this employee record is linked to a login account (see POST\/DELETE ...\/link-user).'),
   "createdBy": zod.number().nullish(),
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-})),
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')),
   "total": zod.number(),
   "page": zod.number(),
   "pageSize": zod.number()
@@ -2383,15 +2384,17 @@ export const CreateEmployeeResponse = zod.object({
   "separationDate": zod.coerce.date().nullish(),
   "separationReason": zod.string().nullish().describe('Code from the \"separation_reason\" Master Data domain.'),
   "notes": zod.string().nullish(),
+  "sensitiveFieldsRedacted": zod.boolean().optional().describe('True when the personal identity fields above were withheld from this caller (directory-only visibility).'),
   "linkedApplicationUserId": zod.number().nullish().describe('Set when this employee record is linked to a login account (see POST\/DELETE ...\/link-user).'),
   "createdBy": zod.number().nullish(),
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-})
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')
 
 
 /**
+ * Gated employee.read. Personal identity fields are nulled with `sensitiveFieldsRedacted: true` unless the caller holds employee.sensitive.read or this is their own record (resolved server-side via employee_user_links) — see the Employee schema.
  * @summary Get an employee
  */
 export const GetEmployeeParams = zod.object({
@@ -2447,12 +2450,13 @@ export const GetEmployeeResponse = zod.object({
   "separationDate": zod.coerce.date().nullish(),
   "separationReason": zod.string().nullish().describe('Code from the \"separation_reason\" Master Data domain.'),
   "notes": zod.string().nullish(),
+  "sensitiveFieldsRedacted": zod.boolean().optional().describe('True when the personal identity fields above were withheld from this caller (directory-only visibility).'),
   "linkedApplicationUserId": zod.number().nullish().describe('Set when this employee record is linked to a login account (see POST\/DELETE ...\/link-user).'),
   "createdBy": zod.number().nullish(),
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-})
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')
 
 
 /**
@@ -2555,12 +2559,13 @@ export const UpdateEmployeeResponse = zod.object({
   "separationDate": zod.coerce.date().nullish(),
   "separationReason": zod.string().nullish().describe('Code from the \"separation_reason\" Master Data domain.'),
   "notes": zod.string().nullish(),
+  "sensitiveFieldsRedacted": zod.boolean().optional().describe('True when the personal identity fields above were withheld from this caller (directory-only visibility).'),
   "linkedApplicationUserId": zod.number().nullish().describe('Set when this employee record is linked to a login account (see POST\/DELETE ...\/link-user).'),
   "createdBy": zod.number().nullish(),
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-})
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')
 
 
 /**
@@ -2624,12 +2629,13 @@ export const UploadEmployeeProfilePictureResponse = zod.object({
   "separationDate": zod.coerce.date().nullish(),
   "separationReason": zod.string().nullish().describe('Code from the \"separation_reason\" Master Data domain.'),
   "notes": zod.string().nullish(),
+  "sensitiveFieldsRedacted": zod.boolean().optional().describe('True when the personal identity fields above were withheld from this caller (directory-only visibility).'),
   "linkedApplicationUserId": zod.number().nullish().describe('Set when this employee record is linked to a login account (see POST\/DELETE ...\/link-user).'),
   "createdBy": zod.number().nullish(),
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-})
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')
 
 
 /**
@@ -2688,12 +2694,13 @@ export const RemoveEmployeeProfilePictureResponse = zod.object({
   "separationDate": zod.coerce.date().nullish(),
   "separationReason": zod.string().nullish().describe('Code from the \"separation_reason\" Master Data domain.'),
   "notes": zod.string().nullish(),
+  "sensitiveFieldsRedacted": zod.boolean().optional().describe('True when the personal identity fields above were withheld from this caller (directory-only visibility).'),
   "linkedApplicationUserId": zod.number().nullish().describe('Set when this employee record is linked to a login account (see POST\/DELETE ...\/link-user).'),
   "createdBy": zod.number().nullish(),
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-})
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')
 
 
 /**
@@ -2789,12 +2796,13 @@ export const SeparateEmployeeResponse = zod.object({
   "separationDate": zod.coerce.date().nullish(),
   "separationReason": zod.string().nullish().describe('Code from the \"separation_reason\" Master Data domain.'),
   "notes": zod.string().nullish(),
+  "sensitiveFieldsRedacted": zod.boolean().optional().describe('True when the personal identity fields above were withheld from this caller (directory-only visibility).'),
   "linkedApplicationUserId": zod.number().nullish().describe('Set when this employee record is linked to a login account (see POST\/DELETE ...\/link-user).'),
   "createdBy": zod.number().nullish(),
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-})
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')
 
 
 /**
@@ -2854,12 +2862,13 @@ export const RehireEmployeeResponse = zod.object({
   "separationDate": zod.coerce.date().nullish(),
   "separationReason": zod.string().nullish().describe('Code from the \"separation_reason\" Master Data domain.'),
   "notes": zod.string().nullish(),
+  "sensitiveFieldsRedacted": zod.boolean().optional().describe('True when the personal identity fields above were withheld from this caller (directory-only visibility).'),
   "linkedApplicationUserId": zod.number().nullish().describe('Set when this employee record is linked to a login account (see POST\/DELETE ...\/link-user).'),
   "createdBy": zod.number().nullish(),
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-})
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')
 
 
 /**
@@ -2926,12 +2935,13 @@ export const TransferEmployeeResponse = zod.object({
   "separationDate": zod.coerce.date().nullish(),
   "separationReason": zod.string().nullish().describe('Code from the \"separation_reason\" Master Data domain.'),
   "notes": zod.string().nullish(),
+  "sensitiveFieldsRedacted": zod.boolean().optional().describe('True when the personal identity fields above were withheld from this caller (directory-only visibility).'),
   "linkedApplicationUserId": zod.number().nullish().describe('Set when this employee record is linked to a login account (see POST\/DELETE ...\/link-user).'),
   "createdBy": zod.number().nullish(),
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-})
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')
 
 
 /**
@@ -2996,12 +3006,13 @@ export const PromoteEmployeeResponse = zod.object({
   "separationDate": zod.coerce.date().nullish(),
   "separationReason": zod.string().nullish().describe('Code from the \"separation_reason\" Master Data domain.'),
   "notes": zod.string().nullish(),
+  "sensitiveFieldsRedacted": zod.boolean().optional().describe('True when the personal identity fields above were withheld from this caller (directory-only visibility).'),
   "linkedApplicationUserId": zod.number().nullish().describe('Set when this employee record is linked to a login account (see POST\/DELETE ...\/link-user).'),
   "createdBy": zod.number().nullish(),
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-})
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')
 
 
 /**
@@ -3066,12 +3077,13 @@ export const ConfirmEmployeeResponse = zod.object({
   "separationDate": zod.coerce.date().nullish(),
   "separationReason": zod.string().nullish().describe('Code from the \"separation_reason\" Master Data domain.'),
   "notes": zod.string().nullish(),
+  "sensitiveFieldsRedacted": zod.boolean().optional().describe('True when the personal identity fields above were withheld from this caller (directory-only visibility).'),
   "linkedApplicationUserId": zod.number().nullish().describe('Set when this employee record is linked to a login account (see POST\/DELETE ...\/link-user).'),
   "createdBy": zod.number().nullish(),
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-})
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')
 
 
 /**
@@ -3226,6 +3238,7 @@ export const UpdateEmployeeExitProcessResponse = zod.object({
 
 
 /**
+ * Gated employee.read, then (WWM Employee Access Remediation, 2026-09-07) the caller must either be this employee themselves (resolved server-side via employee_user_links — ESS "My Documents") or hold employee.documents.read; any other colleague receives 403. Upload/delete remain employee.write.
  * @summary List an employee's documents
  */
 export const ListEmployeeDocumentsParams = zod.object({
@@ -9470,6 +9483,7 @@ export const GetDashboardSummaryResponse = zod.object({
   "activeModules": zod.number(),
   "unreadNotifications": zod.number(),
   "leaveMetrics": zod.union([zod.object({
+  "scope": zod.enum(['organization', 'own_and_reports']).describe('Which population the figures cover (WWM Employee Access Remediation, 2026-09-07). `organization` when the caller holds leave_request.manage; otherwise `own_and_reports` — the caller\'s own record plus live direct reports, so an ordinary employee sees only their own leave. Lets the dashboard label the section honestly.'),
   "employeesOnLeave": zod.number().describe('Distinct employees (in the viewer\'s scope) with an approved leave request spanning today.'),
   "upcomingApprovedLeave": zod.number().describe('Approved leave requests (in scope) starting within the next 30 days, not yet started.'),
   "pendingApprovalCount": zod.number().describe('Pending leave requests the viewer is authorized to approve — same scope GET ...\/leave-requests\/pending-approvals (W35) uses.'),
@@ -9936,7 +9950,7 @@ export const CreateMasterDataItemResponse = zod.object({
 
 
 /**
- * System role templates (see GET /roles) plus this organization's own customized copies.
+ * System role templates (see GET /roles) plus this organization's own customized copies. Gated membership.read (WWM Employee Access Remediation, 2026-09-07): the catalogue carries every role's full permission key list and is membership-administration metadata, not something the ordinary employee's organization.read entitles them to.
  * @summary List roles available to this organization
  */
 export const ListOrganizationRolesParams = zod.object({
@@ -15670,6 +15684,24 @@ export const ListOfficeInventoryStockMovementsResponse = zod.array(ListOfficeInv
 
 
 /**
+ * WWM Employee Access Remediation (2026-09-07). The New Request dialog needs item names, but the full catalogue (GET .../office-inventory/items) is a stock-management surface gated office_inventory.item.manage that an ordinary requester must not hold. This returns only active items and only their display identity (id, code, name, unit, classification) — no cost, reorder level or status management.
+ * @summary Active catalogue items a requester may ask for — display identity only, gated office_inventory.request
+ */
+export const ListOfficeInventoryRequestableItemsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListOfficeInventoryRequestableItemsResponseItem = zod.object({
+  "id": zod.number(),
+  "itemCode": zod.string(),
+  "name": zod.string(),
+  "unitOfMeasure": zod.string(),
+  "classification": zod.enum(['consumable', 'returnable'])
+}).describe('WWM Employee Access Remediation (2026-09-07): the requester-facing subset of an item — display identity only, active items only.')
+export const ListOfficeInventoryRequestableItemsResponse = zod.array(ListOfficeInventoryRequestableItemsResponseItem)
+
+
+/**
  * @summary List the caller's own submitted Office Inventory requests (Workstream 3)
  */
 export const ListOfficeInventoryMyRequestsParams = zod.object({
@@ -15900,13 +15932,19 @@ export const GetOfficeInventoryRequestApprovalContextResponse = zod.object({
   "itemId": zod.number(),
   "balance": zod.string(),
   "overdue": zod.boolean(),
-  "expectedReturnDate": zod.coerce.date().nullable()
+  "expectedReturnDate": zod.coerce.date().nullable(),
+  "itemName": zod.string().nullable().describe('The held item\'s display name (WWM Employee Access Remediation, 2026-09-07) — resolved server-side for items already in this holder\'s custody so ESS can name them without the catalogue grant (office_inventory.item.manage). Null only if the item row is gone.'),
+  "itemCode": zod.string().nullable(),
+  "classification": zod.union([zod.literal('consumable'),zod.literal('returnable'),zod.literal(null)]).nullable()
 }).describe('Extended in Workstream 5 with live-derived overdue info (§20) — the fields are additive to Workstream 4\'s own original shape, never breaking it. `overdue`\/`expectedReturnDate` are computed from the most recent holder-increasing (`issued`) row for this item, which a handover\'s destination row also is — a handover therefore becomes the new \"most recent\" row and supersedes whatever due date the previous holder was tracking.').nullable(),
   "departmentCurrentCustody": zod.object({
   "itemId": zod.number(),
   "balance": zod.string(),
   "overdue": zod.boolean(),
-  "expectedReturnDate": zod.coerce.date().nullable()
+  "expectedReturnDate": zod.coerce.date().nullable(),
+  "itemName": zod.string().nullable().describe('The held item\'s display name (WWM Employee Access Remediation, 2026-09-07) — resolved server-side for items already in this holder\'s custody so ESS can name them without the catalogue grant (office_inventory.item.manage). Null only if the item row is gone.'),
+  "itemCode": zod.string().nullable(),
+  "classification": zod.union([zod.literal('consumable'),zod.literal('returnable'),zod.literal(null)]).nullable()
 }).describe('Extended in Workstream 5 with live-derived overdue info (§20) — the fields are additive to Workstream 4\'s own original shape, never breaking it. `overdue`\/`expectedReturnDate` are computed from the most recent holder-increasing (`issued`) row for this item, which a handover\'s destination row also is — a handover therefore becomes the new \"most recent\" row and supersedes whatever due date the previous holder was tracking.'),
   "recentEmployeeIssuedQuantity": zod.string().nullable(),
   "recentDepartmentIssuedQuantity": zod.string(),
@@ -16391,7 +16429,10 @@ export const GetOfficeInventoryEmployeeCustodyResponseItem = zod.object({
   "itemId": zod.number(),
   "balance": zod.string(),
   "overdue": zod.boolean(),
-  "expectedReturnDate": zod.coerce.date().nullable()
+  "expectedReturnDate": zod.coerce.date().nullable(),
+  "itemName": zod.string().nullable().describe('The held item\'s display name (WWM Employee Access Remediation, 2026-09-07) — resolved server-side for items already in this holder\'s custody so ESS can name them without the catalogue grant (office_inventory.item.manage). Null only if the item row is gone.'),
+  "itemCode": zod.string().nullable(),
+  "classification": zod.union([zod.literal('consumable'),zod.literal('returnable'),zod.literal(null)]).nullable()
 }).describe('Extended in Workstream 5 with live-derived overdue info (§20) — the fields are additive to Workstream 4\'s own original shape, never breaking it. `overdue`\/`expectedReturnDate` are computed from the most recent holder-increasing (`issued`) row for this item, which a handover\'s destination row also is — a handover therefore becomes the new \"most recent\" row and supersedes whatever due date the previous holder was tracking.')
 export const GetOfficeInventoryEmployeeCustodyResponse = zod.array(GetOfficeInventoryEmployeeCustodyResponseItem)
 
@@ -16408,7 +16449,10 @@ export const GetOfficeInventoryDepartmentCustodyResponseItem = zod.object({
   "itemId": zod.number(),
   "balance": zod.string(),
   "overdue": zod.boolean(),
-  "expectedReturnDate": zod.coerce.date().nullable()
+  "expectedReturnDate": zod.coerce.date().nullable(),
+  "itemName": zod.string().nullable().describe('The held item\'s display name (WWM Employee Access Remediation, 2026-09-07) — resolved server-side for items already in this holder\'s custody so ESS can name them without the catalogue grant (office_inventory.item.manage). Null only if the item row is gone.'),
+  "itemCode": zod.string().nullable(),
+  "classification": zod.union([zod.literal('consumable'),zod.literal('returnable'),zod.literal(null)]).nullable()
 }).describe('Extended in Workstream 5 with live-derived overdue info (§20) — the fields are additive to Workstream 4\'s own original shape, never breaking it. `overdue`\/`expectedReturnDate` are computed from the most recent holder-increasing (`issued`) row for this item, which a handover\'s destination row also is — a handover therefore becomes the new \"most recent\" row and supersedes whatever due date the previous holder was tracking.')
 export const GetOfficeInventoryDepartmentCustodyResponse = zod.array(GetOfficeInventoryDepartmentCustodyResponseItem)
 
@@ -16578,13 +16622,16 @@ export const GetOfficeInventoryMyCustodyResponseItem = zod.object({
   "itemId": zod.number(),
   "balance": zod.string(),
   "overdue": zod.boolean(),
-  "expectedReturnDate": zod.coerce.date().nullable()
+  "expectedReturnDate": zod.coerce.date().nullable(),
+  "itemName": zod.string().nullable().describe('The held item\'s display name (WWM Employee Access Remediation, 2026-09-07) — resolved server-side for items already in this holder\'s custody so ESS can name them without the catalogue grant (office_inventory.item.manage). Null only if the item row is gone.'),
+  "itemCode": zod.string().nullable(),
+  "classification": zod.union([zod.literal('consumable'),zod.literal('returnable'),zod.literal(null)]).nullable()
 }).describe('Extended in Workstream 5 with live-derived overdue info (§20) — the fields are additive to Workstream 4\'s own original shape, never breaking it. `overdue`\/`expectedReturnDate` are computed from the most recent holder-increasing (`issued`) row for this item, which a handover\'s destination row also is — a handover therefore becomes the new \"most recent\" row and supersedes whatever due date the previous holder was tracking.')
 export const GetOfficeInventoryMyCustodyResponse = zod.array(GetOfficeInventoryMyCustodyResponseItem)
 
 
 /**
- * Resolved via resolveOwnEmployeeId exclusively. A caller with no linked employee record gets an empty list, never an error.
+ * Resolved via resolveOwnEmployeeId exclusively. A caller with no linked employee record gets an empty list, never an error. Each row carries the item's own display identity so ESS never needs the catalogue grant.
  * @summary Every ledger movement ever recorded against the caller's own personal custody, newest first — Workstream 8 ESS (§33)
  */
 export const GetOfficeInventoryMyHistoryParams = zod.object({
@@ -16616,7 +16663,10 @@ export const GetOfficeInventoryMyHistoryResponseItem = zod.object({
   "occurredAt": zod.coerce.date(),
   "notes": zod.string().nullable(),
   "createdAt": zod.coerce.date()
-}).describe('Office Inventory, Workstream 2 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.3). One row of the authoritative, append-only stock ledger. Workstream 2 only ever produces `movementType: received` rows; every other enum value exists for later workstreams.')
+}).describe('Office Inventory, Workstream 2 (docs\/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §7.3). One row of the authoritative, append-only stock ledger. Workstream 2 only ever produces `movementType: received` rows; every other enum value exists for later workstreams.').and(zod.object({
+  "itemName": zod.string().nullable(),
+  "itemCode": zod.string().nullable()
+})).describe('One row of the caller\'s own custody history: the ledger movement plus the item\'s display identity (same rationale as OfficeInventoryCustodyEntry.itemName — only items the caller was themselves issued are ever named).')
 export const GetOfficeInventoryMyHistoryResponse = zod.array(GetOfficeInventoryMyHistoryResponseItem)
 
 

@@ -14,7 +14,7 @@
  * (via `resolveOwnEmployeeId`, called by the route) — never a
  * client-supplied one.
  */
-import { listCurrentCustody, listStockMovements } from "./officeInventoryLedger";
+import { listCurrentCustody, listStockMovements, resolveItemIdentities } from "./officeInventoryLedger";
 import type { HolderCustodyEntry } from "./officeInventoryLedger";
 import { returnFromHolder, handover, type ReturnFromHolderParams, type ReturnResult, type HandoverParams, type HandoverResult } from "./officeInventoryTransfers";
 import { assertOwnCustodyAuthority } from "./officeInventoryIncidents";
@@ -26,10 +26,23 @@ export async function getMyCustody(organizationId: number, employeeId: number | 
   return listCurrentCustody(organizationId, "employee", employeeId);
 }
 
+/**
+ * One own-history row: the ledger movement plus the item's display identity
+ * (WWM Employee Access Remediation, 2026-09-07 — same rationale as
+ * HolderCustodyEntry.itemName: a holder may read what THEY were issued
+ * without the catalogue grant; never the wider catalogue).
+ */
+export type MyInventoryHistoryEntry = OfficeInventoryStockMovement & { itemName: string | null; itemCode: string | null };
+
 /** GET .../office-inventory/my/history: every movement ever recorded against the caller's own personal custody, newest first. An unlinked caller gets an empty list, never an error. */
-export async function getMyInventoryHistory(organizationId: number, employeeId: number | null): Promise<OfficeInventoryStockMovement[]> {
+export async function getMyInventoryHistory(organizationId: number, employeeId: number | null): Promise<MyInventoryHistoryEntry[]> {
   if (employeeId === null) return [];
-  return listStockMovements(organizationId, { holderType: "employee", holderId: employeeId });
+  const movements = await listStockMovements(organizationId, { holderType: "employee", holderId: employeeId });
+  const identities = await resolveItemIdentities(organizationId, movements.map((m) => m.itemId));
+  return movements.map((m) => {
+    const identity = identities.get(m.itemId);
+    return { ...m, itemName: identity?.name ?? null, itemCode: identity?.itemCode ?? null };
+  });
 }
 
 export interface ReturnOwnItemParams extends ReturnFromHolderParams {

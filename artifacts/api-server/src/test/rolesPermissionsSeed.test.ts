@@ -56,6 +56,38 @@ describe("permission catalogue", () => {
   });
 });
 
+/**
+ * WWM Employee Access Remediation (2026-09-07): the directory grant
+ * (employee.read) stays with every template, but a colleague's personal
+ * identity fields and personnel-document metadata now sit behind two
+ * field-category keys that only HR-tier templates hold.
+ */
+describe("employee directory vs personal-data keys", () => {
+  const keys = ["employee.sensitive.read", "employee.documents.read"] as const;
+
+  it("catalogues both keys under the employee resource", () => {
+    for (const key of keys) {
+      const entry = PERMISSIONS.find((p) => p.key === key);
+      expect(entry?.resource, key).toBe("employee");
+    }
+  });
+
+  it("grants both to org_admin, hr_manager, hr_administrator and super_admin", () => {
+    for (const role of ["org_admin", "hr_manager", "hr_administrator", "super_admin"]) {
+      const held = new Set(ROLE_PERMISSIONS[role]);
+      for (const key of keys) expect(held.has(key), `${role} -> ${key}`).toBe(true);
+    }
+  });
+
+  it("keeps the employee template on the directory grant only — never the personal-data keys", () => {
+    const employee = new Set(ROLE_PERMISSIONS.employee);
+    expect(employee.has("employee.read")).toBe(true);
+    for (const key of keys) expect(employee.has(key), key).toBe(false);
+    expect(employee.has("employee.notes.read")).toBe(false);
+    expect(employee.has("membership.read")).toBe(false);
+  });
+});
+
 describe("hr_administrator template", () => {
   const hrAdmin = new Set(ROLE_PERMISSIONS.hr_administrator);
   const hrManager = ROLE_PERMISSIONS.hr_manager;

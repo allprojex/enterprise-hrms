@@ -7,12 +7,31 @@ import { useListMyOrganizations, getListMyOrganizationsQueryKey } from '@workspa
  * than each independently re-deriving it (previously duplicated inline in
  * app-shell.tsx).
  */
-function useMyRoles(organizationId: number): string[] {
-  const { data: myOrganizations } = useListMyOrganizations({
+function useMyRolesState(organizationId: number): { roles: string[]; isLoading: boolean } {
+  const { data: myOrganizations, isLoading } = useListMyOrganizations({
     query: { queryKey: getListMyOrganizationsQueryKey(), enabled: organizationId > 0 },
   });
   const currentOrg = myOrganizations?.find((m) => m.organizationId === organizationId);
-  return currentOrg?.roles ?? [];
+  return { roles: currentOrg?.roles ?? [], isLoading: organizationId > 0 && (isLoading || myOrganizations === undefined) };
+}
+
+function useMyRoles(organizationId: number): string[] {
+  return useMyRolesState(organizationId).roles;
+}
+
+const HR_CAPABLE_ROLES = new Set(['org_admin', 'hr_manager', 'super_admin']);
+
+/**
+ * Same heuristic as useIsHrCapable, plus whether the role lookup is still
+ * in flight — for a page-level guard that must not redirect a legitimate HR
+ * caller during the first render before /me/organizations has answered
+ * (WWM Employee Access Remediation, 2026-09-07: /form-templates). The
+ * server remains authoritative; this only decides whether the
+ * administrative page is shown at all.
+ */
+export function useHrCapability(organizationId: number): { isHrCapable: boolean; isLoading: boolean } {
+  const { roles, isLoading } = useMyRolesState(organizationId);
+  return { isHrCapable: roles.some((r) => HR_CAPABLE_ROLES.has(r)), isLoading };
 }
 
 /** Whether the caller holds the org_admin or super_admin system role for `organizationId`. */

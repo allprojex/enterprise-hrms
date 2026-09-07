@@ -35,7 +35,17 @@ export interface LeaveRequestsByStatusCounts {
   cancelled: number;
 }
 
+/**
+ * WWM Employee Access Remediation (2026-09-07): which population the
+ * figures were computed over, so the dashboard can label them honestly.
+ * `organization` = caller holds leave_request.manage (org-wide HR reach);
+ * `own_and_reports` = the caller's own record plus live direct reports —
+ * an ordinary employee with no reports sees only their own leave.
+ */
+export type LeaveDashboardScope = "organization" | "own_and_reports";
+
 export interface LeaveDashboardMetrics {
+  scope: LeaveDashboardScope;
   employeesOnLeave: number;
   upcomingApprovedLeave: number;
   pendingApprovalCount: number;
@@ -63,6 +73,7 @@ export async function getLeaveDashboardMetrics(params: {
   pendingApprovalCount: number;
   today?: string;
 }): Promise<LeaveDashboardMetrics> {
+  const scope: LeaveDashboardScope = params.employeeIds === null ? "organization" : "own_and_reports";
   const today = params.today ?? toIsoDate(new Date());
   const upcomingTo = addDays(today, UPCOMING_WINDOW_DAYS);
 
@@ -74,6 +85,7 @@ export async function getLeaveDashboardMetrics(params: {
 
   if (params.employeeIds != null && params.employeeIds.length === 0) {
     return {
+      scope,
       employeesOnLeave: 0,
       upcomingApprovedLeave: 0,
       pendingApprovalCount: params.pendingApprovalCount,
@@ -145,6 +157,7 @@ export async function getLeaveDashboardMetrics(params: {
   }
 
   return {
+    scope,
     employeesOnLeave: onLeaveEmployeeIds.size,
     upcomingApprovedLeave,
     pendingApprovalCount: params.pendingApprovalCount,

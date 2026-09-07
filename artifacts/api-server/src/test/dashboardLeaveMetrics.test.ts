@@ -314,6 +314,7 @@ describe("GET /api/dashboard/summary — leaveMetrics (W40)", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.leaveMetrics).toEqual({
+      scope: "organization",
       employeesOnLeave: 0,
       upcomingApprovedLeave: 0,
       pendingApprovalCount: 0,
@@ -344,6 +345,7 @@ describe("GET /api/dashboard/summary — leaveMetrics (W40)", () => {
     expect(res.status).toBe(200);
     // Sees the report's on-going approved leave even though the caller (HR
     // admin) isn't that employee's manager — org-wide reach.
+    expect(res.body.leaveMetrics.scope).toBe("organization");
     expect(res.body.leaveMetrics.employeesOnLeave).toBe(1);
     expect(res.body.leaveMetrics.requestsByStatus).toEqual({ pending: 1, pending_hr: 0, approved: 1, rejected: 0, cancelled: 0 });
   });
@@ -369,7 +371,37 @@ describe("GET /api/dashboard/summary — leaveMetrics (W40)", () => {
 
     expect(res.status).toBe(200);
     // Only the manager's own direct report counts, not the other manager's.
+    expect(res.body.leaveMetrics.scope).toBe("own_and_reports");
     expect(res.body.leaveMetrics.employeesOnLeave).toBe(1);
+  });
+
+  // WWM Employee Access Remediation (2026-09-07): an ordinary employee with
+  // no direct reports sees ONLY their own leave — never an organization-wide
+  // figure — and the payload says so (scope) so the dashboard labels it.
+  it("an ordinary employee with no direct reports sees only their own figures, labelled own_and_reports", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockLeaveModuleEnabled(true);
+    fixtures.membershipRoleRows = [{ membershipId: 5, roleId: 1 }];
+    fixtures.permissionRows = [{ roleId: 1, key: "leave_request.read.own" }];
+    fixtures.employeeUserLinkRows = [{ employeeId: REPORT_EMPLOYEE_ID, applicationUserId: 1 }];
+    fixtures.employeeRows = [
+      { id: REPORT_EMPLOYEE_ID, organizationId: ORG_ID, reportingManagerId: MANAGER_EMPLOYEE_ID },
+      { id: OTHER_ORG_EMPLOYEE_ID, organizationId: ORG_ID, reportingManagerId: HR_EMPLOYEE_ID },
+    ];
+    fixtures.leaveRequestRows = [
+      { id: 1, organizationId: ORG_ID, employeeId: REPORT_EMPLOYEE_ID, leavePolicyId: 1, startDate: "2020-01-01", endDate: "2099-01-01", status: "approved" },
+      { id: 2, organizationId: ORG_ID, employeeId: OTHER_ORG_EMPLOYEE_ID, leavePolicyId: 1, startDate: "2020-01-01", endDate: "2099-01-01", status: "approved" },
+      { id: 3, organizationId: ORG_ID, employeeId: OTHER_ORG_EMPLOYEE_ID, leavePolicyId: 1, startDate: "2099-01-01", endDate: "2099-01-02", status: "pending" },
+    ];
+
+    const res = await request(app).get("/api/dashboard/summary").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.leaveMetrics.scope).toBe("own_and_reports");
+    expect(res.body.leaveMetrics.employeesOnLeave).toBe(1);
+    expect(res.body.leaveMetrics.requestsByStatus).toEqual({ pending: 0, pending_hr: 0, approved: 1, rejected: 0, cancelled: 0 });
+    expect(res.body.leaveMetrics.pendingApprovalCount).toBe(0);
   });
 
   it("computes leaveUtilizationPercent from the ledger (usage / credited)", async () => {
@@ -479,6 +511,7 @@ describe("GET /api/dashboard/summary — leaveMetrics (W40)", () => {
     const keys = Object.keys(res.body.leaveMetrics);
     expect(keys.sort()).toEqual(
       [
+        "scope",
         "employeesOnLeave",
         "upcomingApprovedLeave",
         "pendingApprovalCount",

@@ -155,7 +155,15 @@ export default function Dashboard() {
         <div className="space-y-4" data-testid="section-leave-metrics">
           <div>
             <h2 className="text-2xl font-bold text-foreground">Leave</h2>
-            <p className="text-muted-foreground">Real-time Leave metrics for your organisation</p>
+            {/* WWM Employee Access Remediation (2026-09-07): the backend already
+                scopes these figures (org-wide only with leave_request.manage;
+                otherwise own + direct reports) — label them honestly rather than
+                calling an employee's own numbers "your organisation". */}
+            <p className="text-muted-foreground" data-testid="text-leave-metrics-scope">
+              {leaveMetrics.scope === 'organization'
+                ? 'Real-time Leave metrics for your organisation'
+                : 'Real-time Leave metrics for you and your direct reports'}
+            </p>
           </div>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {leaveStats.map((stat, i) => (

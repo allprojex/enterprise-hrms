@@ -2757,7 +2757,13 @@ paths:
       operationId: listEmployees
       tags: [employees]
       summary: List employees
-      description: Search, filter, and paginate the organization's employee directory
+      description: >-
+        Search, filter, and paginate the organization's employee directory.
+        Gated employee.read (the directory grant every role holds). Personal
+        identity fields on each row are nulled with
+        `sensitiveFieldsRedacted: true` unless the caller holds
+        employee.sensitive.read or the row is their own record — see the
+        Employee schema.
       parameters:
         - name: organizationId
           in: path
@@ -2849,6 +2855,11 @@ paths:
       operationId: getEmployee
       tags: [employees]
       summary: Get an employee
+      description: >-
+        Gated employee.read. Personal identity fields are nulled with
+        `sensitiveFieldsRedacted: true` unless the caller holds
+        employee.sensitive.read or this is their own record (resolved
+        server-side via employee_user_links) — see the Employee schema.
       parameters:
         - name: organizationId
           in: path
@@ -3467,6 +3478,12 @@ paths:
       operationId: listEmployeeDocuments
       tags: [employees]
       summary: List an employee's documents
+      description: >-
+        Gated employee.read, then (WWM Employee Access Remediation,
+        2026-09-07) the caller must either be this employee themselves
+        (resolved server-side via employee_user_links — ESS "My Documents")
+        or hold employee.documents.read; any other colleague receives 403.
+        Upload/delete remain employee.write.
       parameters:
         - name: organizationId
           in: path
@@ -11607,7 +11624,11 @@ paths:
       summary: List roles available to this organization
       description: >-
         System role templates (see GET /roles) plus this organization's own
-        customized copies.
+        customized copies. Gated membership.read (WWM Employee Access
+        Remediation, 2026-09-07): the catalogue carries every role's full
+        permission key list and is membership-administration metadata, not
+        something the ordinary employee's organization.read entitles them
+        to.
       parameters:
         - name: organizationId
           in: path
@@ -19016,6 +19037,41 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /organizations/{organizationId}/office-inventory/requestable-items:
+    get:
+      operationId: listOfficeInventoryRequestableItems
+      tags: [office-inventory-requests]
+      summary: Active catalogue items a requester may ask for — display identity only, gated office_inventory.request
+      description: >-
+        WWM Employee Access Remediation (2026-09-07). The New Request
+        dialog needs item names, but the full catalogue (GET
+        .../office-inventory/items) is a stock-management surface gated
+        office_inventory.item.manage that an ordinary requester must not
+        hold. This returns only active items and only their display
+        identity (id, code, name, unit, classification) — no cost, reorder
+        level or status management.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Requestable items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OfficeInventoryRequestableItem"
+        "403":
+          description: Forbidden — requires office_inventory.request, or module not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /organizations/{organizationId}/office-inventory/requests:
     get:
       operationId: listOfficeInventoryMyRequests
@@ -19825,7 +19881,11 @@ paths:
       operationId: getOfficeInventoryMyHistory
       tags: [office-inventory-ess]
       summary: Every ledger movement ever recorded against the caller's own personal custody, newest first — Workstream 8 ESS (§33)
-      description: Resolved via resolveOwnEmployeeId exclusively. A caller with no linked employee record gets an empty list, never an error.
+      description: >-
+        Resolved via resolveOwnEmployeeId exclusively. A caller with no
+        linked employee record gets an empty list, never an error. Each row
+        carries the item's own display identity so ESS never needs the
+        catalogue grant.
       parameters:
         - name: organizationId
           in: path
@@ -19840,7 +19900,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/OfficeInventoryStockMovement"
+                  $ref: "#/components/schemas/OfficeInventoryMyHistoryEntry"
         "403":
           description: Forbidden — module not enabled
           content:
@@ -37743,6 +37803,15 @@ components:
 
     Employee:
       type: object
+      description: >-
+        WWM Employee Access Remediation (2026-09-07): `gender`,
+        `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`,
+        `passportNumber`, `personalEmail`, `alternatePhoneNumber`,
+        `residentialAddress`, `emergencyContacts` and `separationReason`
+        are returned only to a caller holding employee.sensitive.read or
+        viewing their own record; otherwise they are null and
+        `sensitiveFieldsRedacted` is true. `notes` keeps its own
+        employee.notes.read gate.
       required: [id, organizationId, firstName, lastName, employmentStatus, createdAt, updatedAt]
       properties:
         id:
@@ -37830,6 +37899,9 @@ components:
           description: Code from the "separation_reason" Master Data domain.
         notes:
           type: ["string", "null"]
+        sensitiveFieldsRedacted:
+          type: boolean
+          description: True when the personal identity fields above were withheld from this caller (directory-only visibility).
         linkedApplicationUserId:
           type: ["integer", "null"]
           description: Set when this employee record is linked to a login account (see POST/DELETE .../link-user).
@@ -38853,6 +38925,7 @@ components:
         no cache, no new table. "Upcoming"/"expiring" figures use a shared
         30-day window from today.
       required:
+        - scope
         - employeesOnLeave
         - upcomingApprovedLeave
         - pendingApprovalCount
@@ -38861,6 +38934,16 @@ components:
         - expiringCarryForwardBalances
         - requestsByStatus
       properties:
+        scope:
+          type: string
+          enum: [organization, own_and_reports]
+          description: >-
+            Which population the figures cover (WWM Employee Access
+            Remediation, 2026-09-07). `organization` when the caller holds
+            leave_request.manage; otherwise `own_and_reports` — the
+            caller's own record plus live direct reports, so an ordinary
+            employee sees only their own leave. Lets the dashboard label
+            the section honestly.
         employeesOnLeave:
           type: integer
           description: Distinct employees (in the viewer's scope) with an approved leave request spanning today.
@@ -43139,6 +43222,25 @@ components:
           items:
             $ref: "#/components/schemas/OfficeInventoryStoreBalance"
 
+    OfficeInventoryRequestableItem:
+      type: object
+      description: >-
+        WWM Employee Access Remediation (2026-09-07): the requester-facing
+        subset of an item — display identity only, active items only.
+      required: [id, itemCode, name, unitOfMeasure, classification]
+      properties:
+        id:
+          type: integer
+        itemCode:
+          type: string
+        name:
+          type: string
+        unitOfMeasure:
+          type: string
+        classification:
+          type: string
+          enum: [consumable, returnable]
+
     OfficeInventoryRequestLine:
       type: object
       description: >-
@@ -43517,7 +43619,7 @@ components:
         handover's destination row also is — a handover therefore becomes
         the new "most recent" row and supersedes whatever due date the
         previous holder was tracking.
-      required: [itemId, balance, overdue, expectedReturnDate]
+      required: [itemId, balance, overdue, expectedReturnDate, itemName, itemCode, classification]
       properties:
         itemId:
           type: integer
@@ -43529,6 +43631,35 @@ components:
           type: string
           format: date
           nullable: true
+        itemName:
+          type: ["string", "null"]
+          description: >-
+            The held item's display name (WWM Employee Access Remediation,
+            2026-09-07) — resolved server-side for items already in this
+            holder's custody so ESS can name them without the catalogue
+            grant (office_inventory.item.manage). Null only if the item row
+            is gone.
+        itemCode:
+          type: ["string", "null"]
+        classification:
+          type: ["string", "null"]
+          enum: [consumable, returnable, null]
+
+    OfficeInventoryMyHistoryEntry:
+      description: >-
+        One row of the caller's own custody history: the ledger movement
+        plus the item's display identity (same rationale as
+        OfficeInventoryCustodyEntry.itemName — only items the caller was
+        themselves issued are ever named).
+      allOf:
+        - $ref: "#/components/schemas/OfficeInventoryStockMovement"
+        - type: object
+          required: [itemName, itemCode]
+          properties:
+            itemName:
+              type: ["string", "null"]
+            itemCode:
+              type: ["string", "null"]
 
     CreateOfficeInventoryReturnBody:
       type: object

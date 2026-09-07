@@ -369,6 +369,115 @@ describe("GET /api/organizations/:organizationId/employees/:employeeId (link sta
   });
 });
 
+/**
+ * WWM Employee Access Remediation (2026-09-07): employee.read is the
+ * directory grant every role holds; a colleague's personal identity fields
+ * are withheld unless the caller holds employee.sensitive.read or is
+ * reading their own record. Same-tenant privacy, distinct from the
+ * cross-tenant 403s above.
+ */
+describe("GET /api/organizations/:organizationId/employees/:employeeId (sensitive-field redaction)", () => {
+  const SENSITIVE_ROW = {
+    id: 42,
+    organizationId: 10,
+    firstName: "Grace",
+    lastName: "Mensah",
+    employmentStatus: "active",
+    gender: "female",
+    dateOfBirth: new Date("1990-05-01T00:00:00Z"),
+    maritalStatus: "married",
+    nationality: "Ghanaian",
+    nationalId: "GHA-123456789-0",
+    passportNumber: "G1234567",
+    personalEmail: "grace.personal@example.com",
+    workEmail: "grace@example.org",
+    phoneNumber: "+233200000000",
+    alternatePhoneNumber: "+233200000001",
+    residentialAddress: { line1: "1 Ridge Road", city: "Accra" },
+    emergencyContacts: [{ name: "Kwame Mensah", relationship: "spouse", phoneNumber: "+233200000002" }],
+    separationReason: "relocation",
+    notes: "HR-only note",
+  };
+  const SENSITIVE_KEYS = [
+    "gender",
+    "dateOfBirth",
+    "maritalStatus",
+    "nationality",
+    "nationalId",
+    "passportNumber",
+    "personalEmail",
+    "alternatePhoneNumber",
+    "residentialAddress",
+    "emergencyContacts",
+    "separationReason",
+  ];
+
+  beforeEach(() => {
+    fixtures.sessionRows = [];
+    fixtures.membershipRows = [];
+    fixtures.membershipRoleRows = [];
+    fixtures.permissionRows = [];
+    fixtures.employeeRows = [{ ...SENSITIVE_ROW }];
+    fixtures.linkRows = [];
+  });
+
+  it("withholds a colleague's personal identity fields from a directory-only caller (employee.read alone)", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.read"]);
+
+    const res = await request(app).get("/api/organizations/10/employees/42").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.sensitiveFieldsRedacted).toBe(true);
+    for (const key of SENSITIVE_KEYS) expect(res.body[key], key).toBeNull();
+    expect(res.body.notes).toBeNull();
+    // Directory identity stays visible — that is what employee.read is for.
+    expect(res.body.firstName).toBe("Grace");
+    expect(res.body.workEmail).toBe("grace@example.org");
+    expect(res.body.phoneNumber).toBe("+233200000000");
+    expect(JSON.stringify(res.body)).not.toContain("GHA-123456789-0");
+    expect(JSON.stringify(res.body)).not.toContain("Ridge Road");
+  });
+
+  it("reveals the fields to a caller holding employee.sensitive.read (HR)", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.read", "employee.sensitive.read"]);
+
+    const res = await request(app).get("/api/organizations/10/employees/42").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.sensitiveFieldsRedacted).toBe(false);
+    expect(res.body.nationalId).toBe("GHA-123456789-0");
+    expect(res.body.dateOfBirth).toBe("1990-05-01T00:00:00.000Z");
+    expect(res.body.residentialAddress).toEqual({ line1: "1 Ridge Road", city: "Accra" });
+    expect(res.body.emergencyContacts).toHaveLength(1);
+    // notes keep their own, separate gate.
+    expect(res.body.notes).toBeNull();
+  });
+
+  it("reveals the fields on the caller's OWN record without any extra permission (server-resolved link)", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions(["employee.read"]);
+    fixtures.linkRows = [{ employeeId: 42, applicationUserId: 1 }];
+
+    const res = await request(app).get("/api/organizations/10/employees/42").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.sensitiveFieldsRedacted).toBe(false);
+    expect(res.body.nationalId).toBe("GHA-123456789-0");
+    expect(res.body.passportNumber).toBe("G1234567");
+  });
+
+  // The directory listing shares formatEmployee/resolveEmployeeVisibility
+  // with the detail route above, so the same redaction applies per row; this
+  // file's db mock cannot serve listEmployees' paginated query (limit →
+  // offset chain), so the listing is covered by the shared code path rather
+  // than a separate supertest case here.
+});
+
 describe("DELETE /api/organizations/:organizationId/employees/:employeeId/link-user", () => {
   beforeEach(() => {
     fixtures.sessionRows = [];

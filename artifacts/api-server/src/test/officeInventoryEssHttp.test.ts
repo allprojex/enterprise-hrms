@@ -294,6 +294,27 @@ describe("GET my/history — no office_inventory.* permission required", () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual([]);
   });
+
+  // WWM Employee Access Remediation (2026-09-07): each own-history row names
+  // its item (itemName/itemCode) so ESS never needs the catalogue grant
+  // (office_inventory.item.manage) that GET .../office-inventory/items keeps.
+  it("names the caller's own issued item on each row without any office_inventory permission", async () => {
+    mockPermissions([]);
+    fixtures.ownEmployeeId = 42;
+    fixtures.itemRows = [
+      { id: 7, organizationId: ORG_ID, name: "HP ProBook Charger", itemCode: "ITM-0007", classification: "returnable" },
+      { id: 8, organizationId: ORG_ID, name: "Catalogue-only item", itemCode: "ITM-0008", classification: "consumable" },
+    ];
+    fixtures.movementRows = [
+      { id: 1, organizationId: ORG_ID, itemId: 7, movementType: "issued", quantity: "1.00", holderType: "employee", holderId: 42, occurredAt: new Date(), confirmedAt: null },
+    ];
+    const res = await request(app).get(`/api/organizations/${ORG_ID}/office-inventory/my/history`).set("Authorization", "Bearer valid-token");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0]).toMatchObject({ itemId: 7, itemName: "HP ProBook Charger", itemCode: "ITM-0007" });
+    // Only the held item is ever named — nothing about the wider catalogue leaks.
+    expect(JSON.stringify(res.body)).not.toContain("Catalogue-only item");
+  });
 });
 
 describe("POST my/returns — office_inventory.return + own-custody boundary", () => {

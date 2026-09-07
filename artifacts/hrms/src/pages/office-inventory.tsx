@@ -26,6 +26,8 @@ import {
   getGetMeQueryKey,
   useListOfficeInventoryItems,
   getListOfficeInventoryItemsQueryKey,
+  useListOfficeInventoryRequestableItems,
+  getListOfficeInventoryRequestableItemsQueryKey,
   useCreateOfficeInventoryItem,
   useUpdateOfficeInventoryItem,
   useListOfficeInventoryStores,
@@ -1037,8 +1039,11 @@ export function CreateRequestDialog({ organizationId, onCreated }: { organizatio
   const [lines, setLines] = useState<{ itemId: string; quantityRequested: string }[]>([{ itemId: '', quantityRequested: '' }]);
   const mutation = useCreateOfficeInventoryRequest();
 
-  const { data: items } = useListOfficeInventoryItems(organizationId, {
-    query: { queryKey: getListOfficeInventoryItemsQueryKey(organizationId), enabled: organizationId > 0 && open },
+  // WWM Employee Access Remediation (2026-09-07): a requester picks from the
+  // requester-facing item list (office_inventory.request), never the full
+  // catalogue route (office_inventory.item.manage) an ordinary employee lacks.
+  const { data: items } = useListOfficeInventoryRequestableItems(organizationId, {
+    query: { queryKey: getListOfficeInventoryRequestableItemsQueryKey(organizationId), enabled: organizationId > 0 && open },
   });
   const { data: departments } = useListDepartments(organizationId, {
     query: { queryKey: getListDepartmentsQueryKey(organizationId), enabled: organizationId > 0 && open && requestType === 'department' },

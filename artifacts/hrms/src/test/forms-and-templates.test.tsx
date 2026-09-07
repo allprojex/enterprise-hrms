@@ -13,6 +13,10 @@ const { state, spies } = vi.hoisted(() => ({
   state: {
     templates: [] as Record<string, unknown>[],
     submissions: [] as Record<string, unknown>[],
+    // WWM Employee Access Remediation (2026-09-07): role keys drive the
+    // /form-templates admin gate (same heuristic as the sidebar).
+    roles: ['hr_manager'] as string[],
+    rolesLoading: false,
   },
   spies: {
     createSubmission: vi.fn(),
@@ -35,6 +39,8 @@ function mutation(spy: (vars: unknown) => unknown, result: () => unknown) {
 vi.mock('@workspace/api-client-react', () => ({
   useGetMe: () => ({ data: { id: 1, organizationId: 10 }, isLoading: false }),
   getGetMeQueryKey: () => ['getMe'],
+  useListMyOrganizations: () => ({ data: state.rolesLoading ? undefined : [{ organizationId: 10, roles: state.roles }], isLoading: state.rolesLoading }),
+  getListMyOrganizationsQueryKey: () => ['myOrganizations'],
   useListFormTemplates: () => ({ data: { templates: state.templates }, isLoading: false, error: null, refetch: vi.fn() }),
   getListFormTemplatesQueryKey: (o: number) => ['formTemplates', o],
   useListFormSubmissions: () => ({ data: { submissions: state.submissions }, isLoading: false, error: null, refetch: vi.fn() }),
@@ -51,13 +57,13 @@ const { default: FormsPage } = await import('@/pages/forms');
 const { default: FormTemplatesPage } = await import('@/pages/form-templates');
 
 function wrap(ui: React.ReactElement, path: string) {
-  const { hook, navigate } = memoryLocation({ path });
+  const { hook, navigate, history } = memoryLocation({ path, record: true });
   render(
     <QueryClientProvider client={new QueryClient()}>
       <Router hook={hook}>{ui}</Router>
     </QueryClientProvider>,
   );
-  return { navigate, hook };
+  return { navigate, hook, history };
 }
 
 const publishedTemplate = {
@@ -80,6 +86,8 @@ const publishedTemplate = {
 beforeEach(() => {
   state.templates = [publishedTemplate];
   state.submissions = [];
+  state.roles = ['hr_manager'];
+  state.rolesLoading = false;
   Object.values(spies).forEach((s) => s.mockClear());
   if (typeof URL.createObjectURL !== 'function') {
     Object.assign(URL, { createObjectURL: () => 'blob:test', revokeObjectURL: () => undefined });
@@ -112,6 +120,32 @@ describe('FormsPage', () => {
 });
 
 describe('FormTemplatesPage', () => {
+  // WWM Employee Access Remediation (2026-09-07): the administrative page is
+  // never shown to an ordinary employee, even by typing the URL directly —
+  // the sidebar already hides it; this closes the direct-route path. The
+  // backend's form_template.manage/.publish gates remain authoritative.
+  it('redirects an ordinary employee to /unauthorized and never renders New template', async () => {
+    state.roles = ['employee'];
+    const { history } = wrap(<FormTemplatesPage />, '/form-templates');
+    await waitFor(() => expect(history?.at(-1)).toBe('/unauthorized'));
+    expect(screen.queryByTestId('button-new-template')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('row-version-3')).not.toBeInTheDocument();
+  });
+
+  it('shows a skeleton (no redirect, no admin controls) while the role lookup is still loading', async () => {
+    state.rolesLoading = true;
+    const { history } = wrap(<FormTemplatesPage />, '/form-templates');
+    expect(screen.queryByTestId('button-new-template')).not.toBeInTheDocument();
+    expect(history?.at(-1)).toBe('/form-templates');
+  });
+
+  it('renders the admin page for an HR-capable caller', async () => {
+    state.roles = ['org_admin'];
+    const { history } = wrap(<FormTemplatesPage />, '/form-templates');
+    expect(await screen.findByTestId('button-new-template')).toBeInTheDocument();
+    expect(history?.at(-1)).toBe('/form-templates');
+  });
+
   it('lists versions, publishes a draft and downloads the blank form', async () => {
     const user = userEvent.setup();
     wrap(<FormTemplatesPage />, '/form-templates');

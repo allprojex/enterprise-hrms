@@ -43,6 +43,7 @@ const {
   officeInventoryRequestLinesTable,
   officeInventoryApprovalDelegationsTable,
   departmentsTable,
+  officeInventoryItemsTable,
 } = vi.hoisted(() => {
   function mockTable(name: string, columns: string[]) {
     const table: Record<string, string> & { __name: string } = { __name: name } as never;
@@ -61,6 +62,7 @@ const {
       requestLineRows: [] as Record<string, unknown>[],
       delegationRows: [] as Record<string, unknown>[],
       departmentRows: [] as Record<string, unknown>[],
+      itemRows: [] as Record<string, unknown>[],
       idCounters: new Map<string, number>(),
     },
     usersTable: mockTable("users", ["id", "email"]),
@@ -75,6 +77,7 @@ const {
     officeInventoryRequestLinesTable: mockTable("office_inventory_request_lines", ["id", "organizationId", "requestId", "approvalStatus"]),
     officeInventoryApprovalDelegationsTable: mockTable("office_inventory_approval_delegations", ["id", "organizationId", "departmentId", "delegatingHeadMembershipId", "delegateMembershipId", "validTo"]),
     departmentsTable: mockTable("departments", ["id", "organizationId"]),
+    officeInventoryItemsTable: mockTable("office_inventory_items", ["id", "organizationId", "status", "name", "itemCode", "unitOfMeasure", "classification"]),
   };
 });
 
@@ -88,6 +91,7 @@ function rowsFor(table: { __name: string }): Record<string, unknown>[] {
   if (table === officeInventoryRequestLinesTable) return fixtures.requestLineRows;
   if (table === officeInventoryApprovalDelegationsTable) return fixtures.delegationRows;
   if (table === departmentsTable) return fixtures.departmentRows;
+  if (table === officeInventoryItemsTable) return fixtures.itemRows;
   return fixtures.sessionRows;
 }
 
@@ -152,6 +156,7 @@ vi.mock("@workspace/db", () => ({
   officeInventoryRequestLinesTable,
   officeInventoryApprovalDelegationsTable,
   departmentsTable,
+  officeInventoryItemsTable,
   db: dbMock,
 }));
 
@@ -245,6 +250,50 @@ describe("Requests — auth chain", () => {
     mockPermissions([]);
     const res = await request(app).post(`/api/organizations/${ORG_ID}/office-inventory/requests/1/cancel`).set("Authorization", "Bearer valid-token");
     expect(res.status).toBe(403);
+  });
+});
+
+// WWM Employee Access Remediation (2026-09-07): a requester may see WHAT they
+// can ask for (active items, display identity only) without holding the
+// stock-management catalogue grant; nothing beyond identity ever leaks.
+describe("GET requestable-items — office_inventory.request, identity-only subset", () => {
+  beforeEach(() => {
+    fixtures.itemRows = [
+      { id: 1, organizationId: ORG_ID, status: "active", name: "A4 Paper", itemCode: "ITM-0001", unitOfMeasure: "ream", classification: "consumable", unitCost: "45.00", currency: "GHS", reorderLevel: "10.00" },
+      { id: 2, organizationId: ORG_ID, status: "inactive", name: "Retired Stapler", itemCode: "ITM-0002", unitOfMeasure: "each", classification: "returnable", unitCost: "12.00", currency: "GHS", reorderLevel: null },
+      { id: 3, organizationId: 99, status: "active", name: "Other Org Item", itemCode: "ITM-0003", unitOfMeasure: "each", classification: "returnable", unitCost: null, currency: null, reorderLevel: null },
+    ];
+  });
+
+  it("401 without auth", async () => {
+    const res = await request(app).get(`/api/organizations/${ORG_ID}/office-inventory/requestable-items`);
+    expect(res.status).toBe(401);
+  });
+
+  it("403 without office_inventory.request (item.manage alone does not qualify a requester)", async () => {
+    mockPermissions(["office_inventory.item.manage"]);
+    const res = await request(app).get(`/api/organizations/${ORG_ID}/office-inventory/requestable-items`).set("Authorization", "Bearer valid-token");
+    expect(res.status).toBe(403);
+  });
+
+  it("403 when module disabled, even with the permission", async () => {
+    setModuleEnabled(false);
+    mockPermissions(["office_inventory.request"]);
+    const res = await request(app).get(`/api/organizations/${ORG_ID}/office-inventory/requestable-items`).set("Authorization", "Bearer valid-token");
+    expect(res.status).toBe(403);
+  });
+
+  it("returns only this organization's ACTIVE items, and only their display identity", async () => {
+    mockPermissions(["office_inventory.request"]);
+    const res = await request(app).get(`/api/organizations/${ORG_ID}/office-inventory/requestable-items`).set("Authorization", "Bearer valid-token");
+    expect(res.status).toBe(200);
+    expect(res.body.map((i: { id: number }) => i.id)).toEqual([1]);
+    const body = JSON.stringify(res.body);
+    expect(body).not.toContain("Retired Stapler");
+    expect(body).not.toContain("Other Org Item");
+    expect(body).not.toContain("unitCost");
+    expect(body).not.toContain("reorderLevel");
+    expect(body).not.toContain("45.00");
   });
 });
 

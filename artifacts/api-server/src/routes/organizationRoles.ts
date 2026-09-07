@@ -52,11 +52,19 @@ function formatRole(role: {
 // `delegable` is the server's own answer to "may the caller assign this role
 // here?" (ownership / template / subset / prohibited-key rules). The UI uses
 // it to hide non-delegable roles; the write routes re-check regardless.
+//
+// WWM Employee Access Remediation (2026-09-07): gated on membership.read,
+// not organization.read. The role catalogue (every role's full permission
+// key list) is membership-administration metadata consumed only by the
+// Admin console's member/invite/HR-team screens; organization.read is held
+// by every employee and ESS never needs the catalogue. org_admin,
+// hr_manager and hr_administrator all hold membership.read, so no
+// legitimate role-management path changes.
 router.get(
   "/organizations/:organizationId/roles",
   requireAuth as any,
   requireMembership("organizationId"),
-  requirePermission("organization.read"),
+  requirePermission("membership.read"),
   async (req: MembershipRequest, res): Promise<void> => {
     const roles = await listOrganizationRoles(req.membership!.organizationId);
     const authority = await resolveDelegationAuthority(req, "membership.manage");

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useLocation } from 'wouter';
 import { Download, Plus, Rocket, Archive } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -23,6 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { PageContainer, PageHeader, StatusBadge, EmptyState, ErrorState, ListSkeleton } from '@/components/foundation';
 import { useToast } from '@/hooks/use-toast';
+import { useHrCapability } from '@/hooks/use-hr-capable';
 
 const TEMPLATE_TYPES: { value: FormTemplateType; label: string }[] = [
   { value: 'generic', label: 'Generic form' },
@@ -56,11 +58,48 @@ function parseJson(text: string, what: string): unknown {
  * The definition is authored as JSON in this phase; a visual builder is not
  * part of the foundation.
  */
+/**
+ * WWM Employee Access Remediation (2026-09-07). Template management is an
+ * administrative surface (backend: form_template.manage / .publish). The
+ * sidebar already hides it from non-HR roles; this guard closes the direct-
+ * URL path so an ordinary employee never sees the admin page or its "New
+ * template" control. Same role heuristic and same /unauthorized redirect as
+ * the Admin console and ModuleGate — a UX guard only; every write is
+ * re-authorized server-side regardless of what this page shows.
+ */
+function FormTemplatesAdminGate({ organizationId, children }: { organizationId: number; children: React.ReactNode }) {
+  const [, setLocation] = useLocation();
+  const { isHrCapable, isLoading } = useHrCapability(organizationId);
+  const denied = organizationId > 0 && !isLoading && !isHrCapable;
+
+  useEffect(() => {
+    if (denied) setLocation('/unauthorized');
+  }, [denied, setLocation]);
+
+  if (organizationId === 0 || isLoading) {
+    return (
+      <PageContainer className="space-y-6">
+        <ListSkeleton lines={3} />
+      </PageContainer>
+    );
+  }
+  if (denied) return null;
+  return <>{children}</>;
+}
+
 export default function FormTemplatesPage() {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
   const { data: user } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const organizationId = user?.organizationId ?? 0;
+  return (
+    <FormTemplatesAdminGate organizationId={organizationId}>
+      <FormTemplatesAdmin organizationId={organizationId} />
+    </FormTemplatesAdminGate>
+  );
+}
+
+function FormTemplatesAdmin({ organizationId }: { organizationId: number }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const listQuery = useListFormTemplates(organizationId, { query: { queryKey: getListFormTemplatesQueryKey(organizationId), enabled: organizationId > 0 } });
   const createMutation = useCreateFormTemplate();
   const versionMutation = useCreateFormTemplateVersion();

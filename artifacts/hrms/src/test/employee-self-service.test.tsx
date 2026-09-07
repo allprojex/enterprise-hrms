@@ -99,7 +99,8 @@ const { state } = vi.hoisted(() => ({
     myInventoryHistory: [] as unknown[],
     myInventoryHistoryLoading: false,
     myInventoryHistoryError: undefined as unknown,
-    myInventoryItems: [] as unknown[],
+    catalogueSpy: vi.fn(),
+    requestableItems: [] as unknown[],
     createInventoryRequestMutate: vi.fn() as (...args: unknown[]) => void,
     confirmInventoryReceiptMutate: vi.fn() as (...args: unknown[]) => void,
     createInventoryReturnMutate: vi.fn() as (...args: unknown[]) => void,
@@ -231,7 +232,9 @@ vi.mock('@workspace/api-client-react', () => ({
   useReportOfficeInventoryIncident: () => ({ mutate: state.reportInventoryIncidentMutate, isPending: false }),
   useListOfficeInventoryStores: () => ({ data: [] }),
   getListOfficeInventoryStoresQueryKey: () => ['officeInventoryStores'],
-  useListOfficeInventoryItems: () => ({ data: state.myInventoryItems }),
+  useListOfficeInventoryItems: (...args: unknown[]) => { state.catalogueSpy(...args); return { data: [] }; },
+  useListOfficeInventoryRequestableItems: () => ({ data: state.requestableItems }),
+  getListOfficeInventoryRequestableItemsQueryKey: () => ['officeInventoryRequestableItems'],
   getListOfficeInventoryItemsQueryKey: () => ['officeInventoryItems'],
   useListEmployees: () => ({ data: { items: [] } }),
   getListEmployeesQueryKey: () => ['employees'],
@@ -1528,8 +1531,10 @@ describe('Employee Self-Service page', () => {
   });
 
   describe('My Inventory tab (Workstream 8, §33)', () => {
+    // WWM Employee Access Remediation (2026-09-07): custody/history rows carry
+    // the item's own display identity — ESS no longer reads the catalogue.
     function custodyEntry(overrides: Record<string, unknown> = {}) {
-      return { itemId: 1, balance: '2.00', overdue: false, expectedReturnDate: null, ...overrides };
+      return { itemId: 1, balance: '2.00', overdue: false, expectedReturnDate: null, itemName: 'Laptop Bag', itemCode: 'ITM-0001', classification: 'returnable', ...overrides };
     }
     function movement(overrides: Record<string, unknown> = {}) {
       return {
@@ -1539,11 +1544,9 @@ describe('Employee Self-Service page', () => {
         unitCost: null, condition: null, reason: null, expectedReturnDate: null,
         confirmedByMembershipId: null, confirmedAt: null, idempotencyKey: null, actorMembershipId: 3,
         occurredAt: new Date().toISOString(), notes: null, createdAt: new Date().toISOString(),
+        itemName: 'Laptop Bag', itemCode: 'ITM-0001',
         ...overrides,
       };
-    }
-    function officeInventoryItem(overrides: Record<string, unknown> = {}) {
-      return { id: 1, organizationId: 10, itemCode: 'ITM-0001', name: 'Laptop Bag', classification: 'returnable', status: 'active', reorderLevel: null, unitOfMeasure: 'each', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), ...overrides };
     }
 
     function resetInventoryState() {
@@ -1556,7 +1559,6 @@ describe('Employee Self-Service page', () => {
       state.myInventoryHistory = [];
       state.myInventoryHistoryLoading = false;
       state.myInventoryHistoryError = undefined;
-      state.myInventoryItems = [];
       state.createInventoryRequestMutate = vi.fn();
       state.confirmInventoryReceiptMutate = vi.fn();
       state.createInventoryReturnMutate = vi.fn();
@@ -1584,11 +1586,29 @@ describe('Employee Self-Service page', () => {
       expect(screen.getByText(/you have no items currently in your custody/i)).toBeInTheDocument();
     });
 
+    // WWM Employee Access Remediation (2026-09-07): names come from the own-
+    // scoped custody/history payloads; the organization's item catalogue
+    // (office_inventory.item.manage) is never requested by this tab.
+    it('names held items from the custody payload and never calls the item catalogue', async () => {
+      resetInventoryState();
+      state.catalogueSpy.mockClear();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'office_inventory', enabled: true })];
+      state.myInventoryCustody = [custodyEntry({ itemId: 112, itemName: 'HP ProBook Charger', itemCode: 'ITM-0112' })];
+      state.myInventoryHistory = [movement({ id: 5, itemId: 112, itemName: 'HP ProBook Charger', movementType: 'issued', confirmedAt: null })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-inventory'));
+      expect(screen.getByTestId('card-my-custody-112')).toHaveTextContent('HP ProBook Charger');
+      expect(screen.getByTestId('card-my-custody-112')).toHaveTextContent('ITM-0112');
+      expect(screen.getByTestId('row-unconfirmed-receipt-5')).toHaveTextContent('HP ProBook Charger');
+      expect(screen.queryByText(/Item #112/)).not.toBeInTheDocument();
+      expect(state.catalogueSpy.mock.calls).toEqual([]);
+    });
+
     it('renders current custody, showing the item name and an Overdue badge when applicable', async () => {
       resetInventoryState();
       state.myEmployee = { linked: true, employee: baseEmployee() };
       state.modules = [mod({ key: 'office_inventory', enabled: true })];
-      state.myInventoryItems = [officeInventoryItem({ id: 1, name: 'Laptop Bag' })];
       state.myInventoryCustody = [custodyEntry({ itemId: 1, overdue: true, expectedReturnDate: '2020-01-01' })];
       renderEss();
       await userEvent.click(screen.getByTestId('tab-my-inventory'));
@@ -1600,11 +1620,7 @@ describe('Employee Self-Service page', () => {
       resetInventoryState();
       state.myEmployee = { linked: true, employee: baseEmployee() };
       state.modules = [mod({ key: 'office_inventory', enabled: true })];
-      state.myInventoryItems = [
-        officeInventoryItem({ id: 1, name: 'Laptop Bag', classification: 'returnable' }),
-        officeInventoryItem({ id: 2, name: 'Notepad', classification: 'consumable' }),
-      ];
-      state.myInventoryCustody = [custodyEntry({ itemId: 1 }), custodyEntry({ itemId: 2, balance: '5.00' })];
+      state.myInventoryCustody = [custodyEntry({ itemId: 1 }), custodyEntry({ itemId: 2, balance: '5.00', itemName: 'Notepad', itemCode: 'ITM-0002', classification: 'consumable' })];
       renderEss();
       await userEvent.click(screen.getByTestId('tab-my-inventory'));
       expect(screen.getByTestId('button-open-my-return-1')).toBeInTheDocument();
@@ -1620,7 +1636,6 @@ describe('Employee Self-Service page', () => {
       resetInventoryState();
       state.myEmployee = { linked: true, employee: baseEmployee() };
       state.modules = [mod({ key: 'office_inventory', enabled: true })];
-      state.myInventoryItems = [officeInventoryItem({ id: 1, name: 'Laptop Bag' })];
       state.myInventoryCustody = [custodyEntry({ itemId: 1 })];
       renderEss();
       await userEvent.click(screen.getByTestId('tab-my-inventory'));
@@ -1636,7 +1651,6 @@ describe('Employee Self-Service page', () => {
       resetInventoryState();
       state.myEmployee = { linked: true, employee: baseEmployee() };
       state.modules = [mod({ key: 'office_inventory', enabled: true })];
-      state.myInventoryItems = [officeInventoryItem({ id: 1, name: 'Laptop Bag' })];
       state.myInventoryHistory = [movement({ id: 5, itemId: 1, movementType: 'issued', confirmedAt: null })];
       renderEss();
       await userEvent.click(screen.getByTestId('tab-my-inventory'));
@@ -1652,7 +1666,6 @@ describe('Employee Self-Service page', () => {
       resetInventoryState();
       state.myEmployee = { linked: true, employee: baseEmployee() };
       state.modules = [mod({ key: 'office_inventory', enabled: true })];
-      state.myInventoryItems = [officeInventoryItem({ id: 1, name: 'Laptop Bag' })];
       state.myInventoryHistory = [movement({ id: 5, itemId: 1, movementType: 'issued', confirmedAt: new Date().toISOString() })];
       renderEss();
       await userEvent.click(screen.getByTestId('tab-my-inventory'));
@@ -1673,11 +1686,27 @@ describe('Employee Self-Service page', () => {
       expect(screen.getByTestId('button-create-request')).toBeInTheDocument();
     });
 
+    // WWM Employee Access Remediation (2026-09-07): the New Request dialog
+    // lists items from the requester-facing endpoint (office_inventory.request),
+    // never the stock-management catalogue an ordinary employee is denied.
+    it('offers requestable items in New Request without touching the item catalogue', async () => {
+      resetInventoryState();
+      state.catalogueSpy.mockClear();
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'office_inventory', enabled: true })];
+      state.requestableItems = [{ id: 3, itemCode: 'ITM-0003', name: 'A4 Paper', unitOfMeasure: 'ream', classification: 'consumable' }];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-inventory'));
+      await userEvent.click(screen.getByTestId('button-create-request'));
+      await userEvent.click(await screen.findByTestId('select-request-item-0'));
+      expect(await screen.findByText(/A4 Paper \(ITM-0003\)/)).toBeInTheDocument();
+      expect(state.catalogueSpy).not.toHaveBeenCalled();
+    });
+
     it('shows own history with the movement type', async () => {
       resetInventoryState();
       state.myEmployee = { linked: true, employee: baseEmployee() };
       state.modules = [mod({ key: 'office_inventory', enabled: true })];
-      state.myInventoryItems = [officeInventoryItem({ id: 1, name: 'Laptop Bag' })];
       state.myInventoryHistory = [movement({ id: 9, itemId: 1, movementType: 'returned', confirmedAt: new Date().toISOString() })];
       renderEss();
       await userEvent.click(screen.getByTestId('tab-my-inventory'));
@@ -1689,7 +1718,6 @@ describe('Employee Self-Service page', () => {
       resetInventoryState();
       state.myEmployee = { linked: true, employee: baseEmployee() };
       state.modules = [mod({ key: 'office_inventory', enabled: true })];
-      state.myInventoryItems = [officeInventoryItem({ id: 1, name: 'Laptop Bag' })];
       state.myInventoryCustody = [custodyEntry({ itemId: 1 })];
       renderEss();
       await userEvent.click(screen.getByTestId('tab-my-inventory'));

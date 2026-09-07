@@ -492,11 +492,13 @@ import type {
   OfficeInventoryItem,
   OfficeInventoryItemBalance,
   OfficeInventoryMovementActionResult,
+  OfficeInventoryMyHistoryEntry,
   OfficeInventoryReceipt,
   OfficeInventoryReceiptSummary,
   OfficeInventoryRequest,
   OfficeInventoryRequestApprovalContext,
   OfficeInventoryRequestWithLines,
+  OfficeInventoryRequestableItem,
   OfficeInventoryReturnResult,
   OfficeInventoryStockMovement,
   OfficeInventoryStocktake,
@@ -6464,7 +6466,7 @@ export const getListEmployeesUrl = (organizationId: number,
 }
 
 /**
- * Search, filter, and paginate the organization's employee directory
+ * Search, filter, and paginate the organization's employee directory. Gated employee.read (the directory grant every role holds). Personal identity fields on each row are nulled with `sensitiveFieldsRedacted: true` unless the caller holds employee.sensitive.read or the row is their own record — see the Employee schema.
  * @summary List employees
  */
 export const listEmployees = async (organizationId: number,
@@ -6619,6 +6621,7 @@ export const getGetEmployeeUrl = (organizationId: number,
 }
 
 /**
+ * Gated employee.read. Personal identity fields are nulled with `sensitiveFieldsRedacted: true` unless the caller holds employee.sensitive.read or this is their own record (resolved server-side via employee_user_links) — see the Employee schema.
  * @summary Get an employee
  */
 export const getEmployee = async (organizationId: number,
@@ -7839,6 +7842,7 @@ export const getListEmployeeDocumentsUrl = (organizationId: number,
 }
 
 /**
+ * Gated employee.read, then (WWM Employee Access Remediation, 2026-09-07) the caller must either be this employee themselves (resolved server-side via employee_user_links — ESS "My Documents") or hold employee.documents.read; any other colleague receives 403. Upload/delete remain employee.write.
  * @summary List an employee's documents
  */
 export const listEmployeeDocuments = async (organizationId: number,
@@ -24322,7 +24326,7 @@ export const getListOrganizationRolesUrl = (organizationId: number,) => {
 }
 
 /**
- * System role templates (see GET /roles) plus this organization's own customized copies.
+ * System role templates (see GET /roles) plus this organization's own customized copies. Gated membership.read (WWM Employee Access Remediation, 2026-09-07): the catalogue carries every role's full permission key list and is membership-administration metadata, not something the ordinary employee's organization.read entitles them to.
  * @summary List roles available to this organization
  */
 export const listOrganizationRoles = async (organizationId: number, options?: RequestInit): Promise<OrganizationRole[]> => {
@@ -37258,6 +37262,84 @@ export function useListOfficeInventoryStockMovements<TData = Awaited<ReturnType<
 
 
 
+export const getListOfficeInventoryRequestableItemsUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/office-inventory/requestable-items`
+}
+
+/**
+ * WWM Employee Access Remediation (2026-09-07). The New Request dialog needs item names, but the full catalogue (GET .../office-inventory/items) is a stock-management surface gated office_inventory.item.manage that an ordinary requester must not hold. This returns only active items and only their display identity (id, code, name, unit, classification) — no cost, reorder level or status management.
+ * @summary Active catalogue items a requester may ask for — display identity only, gated office_inventory.request
+ */
+export const listOfficeInventoryRequestableItems = async (organizationId: number, options?: RequestInit): Promise<OfficeInventoryRequestableItem[]> => {
+
+  return customFetch<OfficeInventoryRequestableItem[]>(getListOfficeInventoryRequestableItemsUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOfficeInventoryRequestableItemsQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/office-inventory/requestable-items`
+    ] as const;
+    }
+
+
+export const getListOfficeInventoryRequestableItemsQueryOptions = <TData = Awaited<ReturnType<typeof listOfficeInventoryRequestableItems>>, TError = ErrorType<ApiError>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOfficeInventoryRequestableItems>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOfficeInventoryRequestableItemsQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOfficeInventoryRequestableItems>>> = ({ signal }) => listOfficeInventoryRequestableItems(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOfficeInventoryRequestableItems>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOfficeInventoryRequestableItemsQueryResult = NonNullable<Awaited<ReturnType<typeof listOfficeInventoryRequestableItems>>>
+export type ListOfficeInventoryRequestableItemsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Active catalogue items a requester may ask for — display identity only, gated office_inventory.request
+ */
+
+export function useListOfficeInventoryRequestableItems<TData = Awaited<ReturnType<typeof listOfficeInventoryRequestableItems>>, TError = ErrorType<ApiError>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOfficeInventoryRequestableItems>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOfficeInventoryRequestableItemsQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getListOfficeInventoryMyRequestsUrl = (organizationId: number,) => {
 
 
@@ -38799,12 +38881,12 @@ export const getGetOfficeInventoryMyHistoryUrl = (organizationId: number,) => {
 }
 
 /**
- * Resolved via resolveOwnEmployeeId exclusively. A caller with no linked employee record gets an empty list, never an error.
+ * Resolved via resolveOwnEmployeeId exclusively. A caller with no linked employee record gets an empty list, never an error. Each row carries the item's own display identity so ESS never needs the catalogue grant.
  * @summary Every ledger movement ever recorded against the caller's own personal custody, newest first — Workstream 8 ESS (§33)
  */
-export const getOfficeInventoryMyHistory = async (organizationId: number, options?: RequestInit): Promise<OfficeInventoryStockMovement[]> => {
+export const getOfficeInventoryMyHistory = async (organizationId: number, options?: RequestInit): Promise<OfficeInventoryMyHistoryEntry[]> => {
 
-  return customFetch<OfficeInventoryStockMovement[]>(getGetOfficeInventoryMyHistoryUrl(organizationId),
+  return customFetch<OfficeInventoryMyHistoryEntry[]>(getGetOfficeInventoryMyHistoryUrl(organizationId),
   {
     ...options,
     method: 'GET'

@@ -37,8 +37,8 @@
  * inside the same locked transaction immediately before any decreasing
  * insert.
  */
-import { and, eq, gt, gte, sql } from "drizzle-orm";
-import { db, officeInventoryStockMovementsTable, type OfficeInventoryStockMovement } from "@workspace/db";
+import { and, eq, gt, gte, inArray, sql } from "drizzle-orm";
+import { db, officeInventoryItemsTable, officeInventoryStockMovementsTable, type OfficeInventoryStockMovement } from "@workspace/db";
 import { toMinorUnits, fromMinorUnits } from "./payrollMoney";
 
 // Identical shape to numbering.ts's own (unexported) QueryClient convention —
@@ -464,6 +464,36 @@ export interface HolderCustodyEntry {
    */
   overdue: boolean;
   expectedReturnDate: string | null;
+  /**
+   * WWM Employee Access Remediation (2026-09-07): the held item's own
+   * display identity, resolved here (batched, same org) so a holder can
+   * read what they hold WITHOUT the catalogue grant
+   * (office_inventory.item.manage) that GET .../office-inventory/items
+   * requires. Only items already in this holder's custody are ever named —
+   * never the organization's wider catalogue. Null only if the item row is
+   * somehow gone.
+   */
+  itemName: string | null;
+  itemCode: string | null;
+  classification: "consumable" | "returnable" | null;
+}
+
+/** Display identity for the given items, scoped to the organization. Batched; empty input → empty map. */
+export async function resolveItemIdentities(organizationId: number, itemIds: number[]): Promise<Map<number, { name: string; itemCode: string; classification: "consumable" | "returnable" }>> {
+  const map = new Map<number, { name: string; itemCode: string; classification: "consumable" | "returnable" }>();
+  const distinct = [...new Set(itemIds)];
+  if (distinct.length === 0) return map;
+  const rows = await db
+    .select({
+      id: officeInventoryItemsTable.id,
+      name: officeInventoryItemsTable.name,
+      itemCode: officeInventoryItemsTable.itemCode,
+      classification: officeInventoryItemsTable.classification,
+    })
+    .from(officeInventoryItemsTable)
+    .where(and(eq(officeInventoryItemsTable.organizationId, organizationId), inArray(officeInventoryItemsTable.id, distinct)));
+  for (const row of rows) map.set(row.id, { name: row.name, itemCode: row.itemCode, classification: row.classification });
+  return map;
 }
 
 /** Every item an employee or department currently holds any outstanding quantity of, derived live from the ledger — never a mutable "current custodian" table. */
@@ -504,15 +534,20 @@ export async function listCurrentCustody(organizationId: number, holderType: "em
     .orderBy(officeInventoryStockMovementsTable.itemId, sql`${officeInventoryStockMovementsTable.occurredAt} desc`);
   const dueDateByItem = new Map<number, string | null>();
   for (const row of mostRecentIssueRows) dueDateByItem.set(row.itemId, row.expectedReturnDate);
+  const identities = await resolveItemIdentities(organizationId, outstanding.map((r) => r.itemId));
 
   const now = new Date();
   return outstanding.map((r) => {
     const expectedReturnDate = dueDateByItem.get(r.itemId) ?? null;
+    const identity = identities.get(r.itemId);
     return {
       itemId: r.itemId,
       balance: r.balance,
       expectedReturnDate,
       overdue: expectedReturnDate !== null && new Date(expectedReturnDate) < now,
+      itemName: identity?.name ?? null,
+      itemCode: identity?.itemCode ?? null,
+      classification: identity?.classification ?? null,
     };
   });
 }
@@ -542,11 +577,15 @@ export async function getHolderCustodyForItem(organizationId: number, itemId: nu
     .orderBy(sql`${officeInventoryStockMovementsTable.occurredAt} desc`)
     .limit(1);
   const expectedReturnDate = mostRecentIssue?.expectedReturnDate ?? null;
+  const identity = (await resolveItemIdentities(organizationId, [itemId])).get(itemId);
   return {
     itemId,
     balance,
     expectedReturnDate,
     overdue: toMinorUnits(balance) > 0n && expectedReturnDate !== null && new Date(expectedReturnDate) < new Date(),
+    itemName: identity?.name ?? null,
+    itemCode: identity?.itemCode ?? null,
+    classification: identity?.classification ?? null,
   };
 }
 

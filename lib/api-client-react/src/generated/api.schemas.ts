@@ -6041,6 +6041,9 @@ export const EmployeeEmploymentStatus = {
   terminated: 'terminated',
 } as const;
 
+/**
+ * WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.
+ */
 export interface Employee {
   id: number;
   organizationId: number;
@@ -6110,6 +6113,8 @@ export interface Employee {
   separationReason?: string | null;
   /** @nullable */
   notes?: string | null;
+  /** True when the personal identity fields above were withheld from this caller (directory-only visibility). */
+  sensitiveFieldsRedacted?: boolean;
   /**
      * Set when this employee record is linked to a login account (see POST/DELETE .../link-user).
      * @nullable
@@ -6930,6 +6935,17 @@ export interface Notification {
   dismissedAt?: string | null;
 }
 
+/**
+ * Which population the figures cover (WWM Employee Access Remediation, 2026-09-07). `organization` when the caller holds leave_request.manage; otherwise `own_and_reports` — the caller's own record plus live direct reports, so an ordinary employee sees only their own leave. Lets the dashboard label the section honestly.
+ */
+export type LeaveDashboardMetricsScope = typeof LeaveDashboardMetricsScope[keyof typeof LeaveDashboardMetricsScope];
+
+
+export const LeaveDashboardMetricsScope = {
+  organization: 'organization',
+  own_and_reports: 'own_and_reports',
+} as const;
+
 export interface LeaveRequestsByStatusCounts {
   pending: number;
   approved: number;
@@ -6941,6 +6957,8 @@ export interface LeaveRequestsByStatusCounts {
  * W40 — HR Operations Dashboard. Every figure is computed live from leave_requests/leave_balance_entries/public_holidays (W33/W34/W37) — no cache, no new table. "Upcoming"/"expiring" figures use a shared 30-day window from today.
  */
 export interface LeaveDashboardMetrics {
+  /** Which population the figures cover (WWM Employee Access Remediation, 2026-09-07). `organization` when the caller holds leave_request.manage; otherwise `own_and_reports` — the caller's own record plus live direct reports, so an ordinary employee sees only their own leave. Lets the dashboard label the section honestly. */
+  scope: LeaveDashboardMetricsScope;
   /** Distinct employees (in the viewer's scope) with an approved leave request spanning today. */
   employeesOnLeave: number;
   /** Approved leave requests (in scope) starting within the next 30 days, not yet started. */
@@ -10423,6 +10441,25 @@ export interface OfficeInventoryItemBalance {
   byStore: OfficeInventoryStoreBalance[];
 }
 
+export type OfficeInventoryRequestableItemClassification = typeof OfficeInventoryRequestableItemClassification[keyof typeof OfficeInventoryRequestableItemClassification];
+
+
+export const OfficeInventoryRequestableItemClassification = {
+  consumable: 'consumable',
+  returnable: 'returnable',
+} as const;
+
+/**
+ * WWM Employee Access Remediation (2026-09-07): the requester-facing subset of an item — display identity only, active items only.
+ */
+export interface OfficeInventoryRequestableItem {
+  id: number;
+  itemCode: string;
+  name: string;
+  unitOfMeasure: string;
+  classification: OfficeInventoryRequestableItemClassification;
+}
+
 export type OfficeInventoryRequestLineApprovalStatus = typeof OfficeInventoryRequestLineApprovalStatus[keyof typeof OfficeInventoryRequestLineApprovalStatus];
 
 
@@ -10549,6 +10586,17 @@ export interface OfficeInventoryRepeatRequestWarning {
 }
 
 /**
+ * @nullable
+ */
+export type OfficeInventoryCustodyEntryClassification = typeof OfficeInventoryCustodyEntryClassification[keyof typeof OfficeInventoryCustodyEntryClassification] | null;
+
+
+export const OfficeInventoryCustodyEntryClassification = {
+  consumable: 'consumable',
+  returnable: 'returnable',
+} as const;
+
+/**
  * Extended in Workstream 5 with live-derived overdue info (§20) — the fields are additive to Workstream 4's own original shape, never breaking it. `overdue`/`expectedReturnDate` are computed from the most recent holder-increasing (`issued`) row for this item, which a handover's destination row also is — a handover therefore becomes the new "most recent" row and supersedes whatever due date the previous holder was tracking.
  */
 export interface OfficeInventoryCustodyEntry {
@@ -10556,6 +10604,15 @@ export interface OfficeInventoryCustodyEntry {
   balance: string;
   overdue: boolean;
   expectedReturnDate: string | null;
+  /**
+     * The held item's display name (WWM Employee Access Remediation, 2026-09-07) — resolved server-side for items already in this holder's custody so ESS can name them without the catalogue grant (office_inventory.item.manage). Null only if the item row is gone.
+     * @nullable
+     */
+  itemName: string | null;
+  /** @nullable */
+  itemCode: string | null;
+  /** @nullable */
+  classification: OfficeInventoryCustodyEntryClassification;
 }
 
 /**
@@ -10675,6 +10732,16 @@ export interface OfficeInventoryAwaitingFulfilmentEntry {
   request: OfficeInventoryRequest;
   lines: OfficeInventoryRequestLine[];
 }
+
+/**
+ * One row of the caller's own custody history: the ledger movement plus the item's display identity (same rationale as OfficeInventoryCustodyEntry.itemName — only items the caller was themselves issued are ever named).
+ */
+export type OfficeInventoryMyHistoryEntry = OfficeInventoryStockMovement & ({
+  /** @nullable */
+  itemName: string | null;
+  /** @nullable */
+  itemCode: string | null;
+});
 
 export type CreateOfficeInventoryReturnBodyHolderType = typeof CreateOfficeInventoryReturnBodyHolderType[keyof typeof CreateOfficeInventoryReturnBodyHolderType];
 

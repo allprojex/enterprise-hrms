@@ -74,15 +74,12 @@ import {
   useReportOfficeInventoryIncident,
   useListOfficeInventoryStores,
   getListOfficeInventoryStoresQueryKey,
-  useListOfficeInventoryItems,
-  getListOfficeInventoryItemsQueryKey,
   useListEmployees,
   getListEmployeesQueryKey,
   useListDepartments,
   getListDepartmentsQueryKey,
   type OfficeInventoryCustodyEntry,
-  type OfficeInventoryStockMovement,
-  type OfficeInventoryItem,
+  type OfficeInventoryMyHistoryEntry,
   useGetMyEmploymentHistory,
   getGetMyEmploymentHistoryQueryKey,
   useGetMySkills,
@@ -2617,11 +2614,11 @@ function MyInventoryTab({ organizationId, employeeId }: { organizationId: number
   const historyQuery = useGetOfficeInventoryMyHistory(organizationId, {
     query: { queryKey: getGetOfficeInventoryMyHistoryQueryKey(organizationId), enabled: organizationId > 0 },
   });
-  const { data: items } = useListOfficeInventoryItems(organizationId, {
-    query: { queryKey: getListOfficeInventoryItemsQueryKey(organizationId), enabled: organizationId > 0 },
-  });
-  const itemById = new Map<number, OfficeInventoryItem>((items ?? []).map((i) => [i.id, i]));
-
+  // WWM Employee Access Remediation (2026-09-07): item names come from the
+  // own-scoped custody/history responses themselves (itemName/itemCode/
+  // classification, resolved server-side for items the caller actually
+  // holds). This tab no longer asks for the organization's item catalogue,
+  // which an ordinary employee is rightly denied (office_inventory.item.manage).
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: getListOfficeInventoryMyRequestsQueryKey(organizationId) });
     queryClient.invalidateQueries({ queryKey: getGetOfficeInventoryMyCustodyQueryKey(organizationId) });
@@ -2629,7 +2626,7 @@ function MyInventoryTab({ organizationId, employeeId }: { organizationId: number
   };
 
   const custody: OfficeInventoryCustodyEntry[] = custodyQuery.data ?? [];
-  const history: OfficeInventoryStockMovement[] = historyQuery.data ?? [];
+  const history: OfficeInventoryMyHistoryEntry[] = historyQuery.data ?? [];
   const unconfirmedReceipts = history.filter((m) => m.movementType === 'issued' && m.confirmedAt === null);
 
   return (
@@ -2643,7 +2640,7 @@ function MyInventoryTab({ organizationId, employeeId }: { organizationId: number
           <CardContent className="space-y-2">
             {unconfirmedReceipts.map((m) => (
               <div key={m.id} className="flex items-center justify-between rounded-md border border-border p-3 text-sm" data-testid={`row-unconfirmed-receipt-${m.id}`}>
-                <span>{itemById.get(m.itemId)?.name ?? `Item #${m.itemId}`} — {m.quantity} ({new Date(m.occurredAt).toLocaleDateString()})</span>
+                <span>{m.itemName ?? `Item #${m.itemId}`} — {m.quantity} ({new Date(m.occurredAt).toLocaleDateString()})</span>
                 <ConfirmMyReceiptButton organizationId={organizationId} movementId={m.id} onConfirmed={invalidateAll} />
               </div>
             ))}
@@ -2669,15 +2666,15 @@ function MyInventoryTab({ organizationId, employeeId }: { organizationId: number
           ) : (
             <div className="space-y-3">
               {custody.map((c) => {
-                const item = itemById.get(c.itemId);
-                const isConsumable = item?.classification === 'consumable';
-                const isReturnable = item?.classification === 'returnable';
+                const itemName = c.itemName ?? `Item #${c.itemId}`;
+                const isConsumable = c.classification === 'consumable';
+                const isReturnable = c.classification === 'returnable';
                 return (
                   <div key={c.itemId} className="border rounded-md p-4 space-y-2" data-testid={`card-my-custody-${c.itemId}`}>
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <p className="font-medium text-sm text-foreground">{item?.name ?? `Item #${c.itemId}`}</p>
-                        <p className="text-xs text-muted-foreground">{item?.itemCode} · Holding: {c.balance}</p>
+                        <p className="font-medium text-sm text-foreground">{itemName}</p>
+                        <p className="text-xs text-muted-foreground">{c.itemCode ? `${c.itemCode} · ` : ''}Holding: {c.balance}</p>
                       </div>
                       {!isConsumable && c.overdue && <Badge variant="destructive">Overdue</Badge>}
                     </div>
@@ -2686,12 +2683,12 @@ function MyInventoryTab({ organizationId, employeeId }: { organizationId: number
                     )}
                     {isReturnable && (
                       <div className="flex flex-wrap gap-2 pt-1">
-                        <ReturnMyItemDialog organizationId={organizationId} itemId={c.itemId} itemName={item?.name ?? `Item #${c.itemId}`} employeeId={employeeId} onReturned={invalidateAll} />
-                        <HandoverMyItemDialog organizationId={organizationId} itemId={c.itemId} itemName={item?.name ?? `Item #${c.itemId}`} employeeId={employeeId} isReturnable={isReturnable} onHandedOver={invalidateAll} />
+                        <ReturnMyItemDialog organizationId={organizationId} itemId={c.itemId} itemName={itemName} employeeId={employeeId} onReturned={invalidateAll} />
+                        <HandoverMyItemDialog organizationId={organizationId} itemId={c.itemId} itemName={itemName} employeeId={employeeId} isReturnable={isReturnable} onHandedOver={invalidateAll} />
                       </div>
                     )}
                     <div className="flex flex-wrap gap-2 pt-1">
-                      <ReportMyInventoryIssueDialog organizationId={organizationId} itemId={c.itemId} itemName={item?.name ?? `Item #${c.itemId}`} employeeId={employeeId} onReported={invalidateAll} />
+                      <ReportMyInventoryIssueDialog organizationId={organizationId} itemId={c.itemId} itemName={itemName} employeeId={employeeId} onReported={invalidateAll} />
                     </div>
                   </div>
                 );
@@ -2749,7 +2746,7 @@ function MyInventoryTab({ organizationId, employeeId }: { organizationId: number
               {history.map((m) => (
                 <div key={m.id} className="flex items-center justify-between rounded-md border border-border p-3 text-sm" data-testid={`row-my-inventory-history-${m.id}`}>
                   <div>
-                    <p className="text-foreground">{itemById.get(m.itemId)?.name ?? `Item #${m.itemId}`} — {m.quantity}</p>
+                    <p className="text-foreground">{m.itemName ?? `Item #${m.itemId}`} — {m.quantity}</p>
                     <p className="text-muted-foreground text-xs">{new Date(m.occurredAt).toLocaleString()}{m.referenceNumber ? ` · ${m.referenceNumber}` : ''}</p>
                   </div>
                   <Badge variant="outline">{MOVEMENT_TYPE_LABEL[m.movementType] ?? m.movementType}</Badge>

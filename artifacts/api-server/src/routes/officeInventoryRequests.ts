@@ -45,6 +45,7 @@ import {
 } from "../lib/officeInventoryRequests";
 import { resolveApprovalAuthority } from "../lib/officeInventoryDelegations";
 import { getRequestApprovalContext } from "../lib/officeInventoryApprovalContext";
+import { listRequestableOfficeInventoryItems } from "../lib/officeInventoryCatalog";
 
 const router = Router();
 
@@ -52,6 +53,23 @@ function parseId(raw: string | string[] | undefined): number {
   const value = Array.isArray(raw) ? raw[0] : raw;
   return parseInt(value ?? "", 10);
 }
+
+// GET /organizations/:organizationId/office-inventory/requestable-items
+// WWM Employee Access Remediation (2026-09-07): the New Request dialog needs
+// item names, but the full catalogue route is a stock-management surface
+// (office_inventory.item.manage). A requester gets active items' display
+// identity only — see listRequestableOfficeInventoryItems.
+router.get(
+  "/organizations/:organizationId/office-inventory/requestable-items",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requireModuleEnabled("office_inventory"),
+  requirePermission("office_inventory.request"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const items = await listRequestableOfficeInventoryItems(req.membership!.organizationId);
+    res.json(items);
+  },
+);
 
 // GET /organizations/:organizationId/office-inventory/requests
 router.get(

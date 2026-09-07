@@ -51,6 +51,7 @@ import {
   InvalidManualEmployeeNumberError,
 } from "../lib/numbering";
 import { listEmploymentPeriods } from "../lib/employmentLifecycleService";
+import { resolveOwnEmployeeId } from "../lib/leaveRequests";
 import { recordAuditEvent } from "../lib/auditLog";
 import {
   applyEmployeeProfilePicture,
@@ -122,7 +123,37 @@ async function resolveEmployeeLabels(employees: Employee[]): Promise<EmployeeLab
   };
 }
 
-function formatEmployee(employee: Employee, labels: EmployeeLabels, canReadNotes: boolean) {
+async function resolveEmployeeVisibility(req: MembershipRequest): Promise<EmployeeVisibility> {
+  const membershipId = req.membership!.id;
+  const [canReadNotes, canReadSensitive, ownEmployeeId] = await Promise.all([
+    hasPermission(membershipId, "employee.notes.read"),
+    hasPermission(membershipId, "employee.sensitive.read"),
+    resolveOwnEmployeeId(req.membership!.organizationId, req.userId!),
+  ]);
+  return { canReadNotes, canReadSensitive, ownEmployeeId };
+}
+
+/**
+ * WWM Employee Access Remediation (2026-09-07). `employee.read` is the
+ * directory grant every role holds; it must never by itself reveal a
+ * colleague's personal identity data. The fields below are returned only
+ * when the caller holds `employee.sensitive.read` OR the record is the
+ * caller's own (resolved server-side via employee_user_links, never from a
+ * client-supplied id). Otherwise they are nulled and
+ * `sensitiveFieldsRedacted: true` tells the UI honestly that the values
+ * are withheld rather than absent. Same shape as the pre-existing
+ * `employee.notes.read` gate on `notes`.
+ */
+interface EmployeeVisibility {
+  canReadNotes: boolean;
+  canReadSensitive: boolean;
+  /** The caller's own employee id in this organization, or null when unlinked. */
+  ownEmployeeId: number | null;
+}
+
+function formatEmployee(employee: Employee, labels: EmployeeLabels, visibility: EmployeeVisibility) {
+  const { canReadNotes } = visibility;
+  const revealSensitive = visibility.canReadSensitive || (visibility.ownEmployeeId !== null && visibility.ownEmployeeId === employee.id);
   return {
     id: employee.id,
     organizationId: employee.organizationId,
@@ -132,18 +163,19 @@ function formatEmployee(employee: Employee, labels: EmployeeLabels, canReadNotes
     middleName: employee.middleName,
     lastName: employee.lastName,
     preferredName: employee.preferredName,
-    gender: employee.gender,
-    dateOfBirth: employee.dateOfBirth,
-    maritalStatus: employee.maritalStatus,
-    nationality: employee.nationality,
-    nationalId: employee.nationalId,
-    passportNumber: employee.passportNumber,
-    personalEmail: employee.personalEmail,
+    gender: revealSensitive ? employee.gender : null,
+    dateOfBirth: revealSensitive ? employee.dateOfBirth : null,
+    maritalStatus: revealSensitive ? employee.maritalStatus : null,
+    nationality: revealSensitive ? employee.nationality : null,
+    nationalId: revealSensitive ? employee.nationalId : null,
+    passportNumber: revealSensitive ? employee.passportNumber : null,
+    personalEmail: revealSensitive ? employee.personalEmail : null,
     workEmail: employee.workEmail,
     phoneNumber: employee.phoneNumber,
-    alternatePhoneNumber: employee.alternatePhoneNumber,
-    residentialAddress: employee.residentialAddress,
-    emergencyContacts: employee.emergencyContacts,
+    alternatePhoneNumber: revealSensitive ? employee.alternatePhoneNumber : null,
+    residentialAddress: revealSensitive ? employee.residentialAddress : null,
+    emergencyContacts: revealSensitive ? employee.emergencyContacts : null,
+    sensitiveFieldsRedacted: !revealSensitive,
     departmentId: employee.departmentId,
     departmentName: employee.departmentId ? (labels.departmentNameById.get(employee.departmentId) ?? null) : null,
     branchId: employee.branchId,
@@ -160,7 +192,7 @@ function formatEmployee(employee: Employee, labels: EmployeeLabels, canReadNotes
     employmentStatus: employee.employmentStatus,
     workLocation: employee.workLocation,
     separationDate: employee.separationDate,
-    separationReason: employee.separationReason,
+    separationReason: revealSensitive ? employee.separationReason : null,
     notes: canReadNotes ? employee.notes : null,
     linkedApplicationUserId: labels.linkedApplicationUserIdByEmployeeId.get(employee.id) ?? null,
     createdBy: employee.createdBy,
@@ -198,10 +230,10 @@ router.get(
     });
 
     const labels = await resolveEmployeeLabels(items);
-    const canReadNotes = await hasPermission(req.membership!.id, "employee.notes.read");
+    const visibility = await resolveEmployeeVisibility(req);
 
     res.json({
-      items: items.map((e) => formatEmployee(e, labels, canReadNotes)),
+      items: items.map((e) => formatEmployee(e, labels, visibility)),
       total,
       page,
       pageSize,
@@ -233,7 +265,7 @@ router.post(
       });
 
       const labels = await resolveEmployeeLabels([employee]);
-      res.status(201).json(formatEmployee(employee, labels, true));
+      res.status(201).json(formatEmployee(employee, labels, { canReadNotes: true, canReadSensitive: true, ownEmployeeId: null }));
     } catch (err) {
       if (err instanceof CrossOrganizationReferenceError) {
         res.status(400).json({ error: err.message });
@@ -273,8 +305,7 @@ router.get(
     }
 
     const labels = await resolveEmployeeLabels([employee]);
-    const canReadNotes = await hasPermission(req.membership!.id, "employee.notes.read");
-    res.json(formatEmployee(employee, labels, canReadNotes));
+    res.json(formatEmployee(employee, labels, await resolveEmployeeVisibility(req)));
   },
 );
 
@@ -328,8 +359,8 @@ router.patch(
       }
 
       const labels = await resolveEmployeeLabels([updated]);
-      const canReadNotes = await hasPermission(req.membership!.id, "employee.notes.read");
-      res.json(formatEmployee(updated, labels, canReadNotes));
+      const visibility = await resolveEmployeeVisibility(req);
+      res.json(formatEmployee(updated, labels, visibility));
     } catch (err) {
       if (err instanceof CrossOrganizationReferenceError) {
         res.status(400).json({ error: err.message });
@@ -375,8 +406,8 @@ router.post(
       );
 
       const labels = await resolveEmployeeLabels([updated]);
-      const canReadNotes = await hasPermission(req.membership!.id, "employee.notes.read");
-      res.json(formatEmployee(updated, labels, canReadNotes));
+      const visibility = await resolveEmployeeVisibility(req);
+      res.json(formatEmployee(updated, labels, visibility));
     } catch (err) {
       if (err instanceof InvalidImageError) {
         res.status(400).json({ error: err.message });
@@ -438,8 +469,8 @@ router.delete(
     const updated = await clearEmployeeProfilePicture(organizationId, employee, req.userId!);
 
     const labels = await resolveEmployeeLabels([updated]);
-    const canReadNotes = await hasPermission(req.membership!.id, "employee.notes.read");
-    res.json(formatEmployee(updated, labels, canReadNotes));
+    const visibility = await resolveEmployeeVisibility(req);
+    res.json(formatEmployee(updated, labels, visibility));
   },
 );
 
@@ -592,8 +623,8 @@ router.post(
         actorMembershipId: req.membership!.id,
       });
       const labels = await resolveEmployeeLabels([updated]);
-      const canReadNotes = await hasPermission(req.membership!.id, "employee.notes.read");
-      res.json(formatEmployee(updated, labels, canReadNotes));
+      const visibility = await resolveEmployeeVisibility(req);
+      res.json(formatEmployee(updated, labels, visibility));
     } catch (err) {
       if (err instanceof EmployeeNotFoundError) {
         res.status(404).json({ error: err.message });
@@ -630,8 +661,8 @@ router.post(
         actorMembershipId: req.membership!.id,
       });
       const labels = await resolveEmployeeLabels([updated]);
-      const canReadNotes = await hasPermission(req.membership!.id, "employee.notes.read");
-      res.json(formatEmployee(updated, labels, canReadNotes));
+      const visibility = await resolveEmployeeVisibility(req);
+      res.json(formatEmployee(updated, labels, visibility));
     } catch (err) {
       if (err instanceof EmployeeNotFoundError) {
         res.status(404).json({ error: err.message });
@@ -678,8 +709,8 @@ router.post(
         actorMembershipId: req.membership!.id,
       });
       const labels = await resolveEmployeeLabels([updated]);
-      const canReadNotes = await hasPermission(req.membership!.id, "employee.notes.read");
-      res.json(formatEmployee(updated, labels, canReadNotes));
+      const visibility = await resolveEmployeeVisibility(req);
+      res.json(formatEmployee(updated, labels, visibility));
     } catch (err) {
       if (err instanceof EmployeeNotFoundError) {
         res.status(404).json({ error: err.message });
@@ -728,8 +759,8 @@ router.post(
         actorMembershipId: req.membership!.id,
       });
       const labels = await resolveEmployeeLabels([updated]);
-      const canReadNotes = await hasPermission(req.membership!.id, "employee.notes.read");
-      res.json(formatEmployee(updated, labels, canReadNotes));
+      const visibility = await resolveEmployeeVisibility(req);
+      res.json(formatEmployee(updated, labels, visibility));
     } catch (err) {
       if (err instanceof EmployeeNotFoundError) {
         res.status(404).json({ error: err.message });
@@ -778,8 +809,8 @@ router.post(
         actorMembershipId: req.membership!.id,
       });
       const labels = await resolveEmployeeLabels([updated]);
-      const canReadNotes = await hasPermission(req.membership!.id, "employee.notes.read");
-      res.json(formatEmployee(updated, labels, canReadNotes));
+      const visibility = await resolveEmployeeVisibility(req);
+      res.json(formatEmployee(updated, labels, visibility));
     } catch (err) {
       if (err instanceof EmployeeNotFoundError) {
         res.status(404).json({ error: err.message });
@@ -870,6 +901,19 @@ router.get(
     const employee = await getEmployeeById(organizationId, employeeId);
     if (!employee) {
       res.status(404).json({ error: "Employee not found" });
+      return;
+    }
+
+    // WWM Employee Access Remediation (2026-09-07): the directory grant
+    // (employee.read, held by every role) is not enough to list ANOTHER
+    // employee's personnel-document metadata. Own documents (ESS "My
+    // Documents") resolve through employee_user_links; everyone else needs
+    // employee.documents.read. Existence was already confirmed above, so a
+    // colleague probing ids learns nothing new from this 403 vs the 404.
+    const ownEmployeeId = await resolveOwnEmployeeId(organizationId, req.userId!);
+    const isOwn = ownEmployeeId !== null && ownEmployeeId === employeeId;
+    if (!isOwn && !(await hasPermission(req.membership!.id, "employee.documents.read"))) {
+      res.status(403).json({ error: "Forbidden" });
       return;
     }
 

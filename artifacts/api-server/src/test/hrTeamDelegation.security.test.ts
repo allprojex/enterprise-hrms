@@ -453,12 +453,20 @@ describe("GET /organizations/:id/roles delegable flag", () => {
     expect(byKey.get("super_admin")).toBe(false);
   });
 
-  it("a member without either authority sees nothing delegable, and the non-primary hr_team.manage holder likewise", async () => {
-    for (const actor of [fx.a.employee, fx.a.manager]) {
-      const res = await listRoles(actor);
-      expectAllowed(res);
-      expect((res.body as { delegable: boolean }[]).every((r) => r.delegable === false)).toBe(true);
-    }
+  it("the non-primary hr_team.manage holder (membership.read) sees the catalogue with nothing delegable", async () => {
+    const res = await listRoles(fx.a.manager);
+    expectAllowed(res);
+    expect((res.body as { delegable: boolean }[]).every((r) => r.delegable === false)).toBe(true);
+  });
+
+  // WWM Employee Access Remediation (2026-09-07): the catalogue is gated
+  // membership.read — an ordinary employee (organization.read + employee.read)
+  // cannot read the organization's role/permission map at all, let alone a
+  // delegable flag.
+  it("an ordinary employee without membership.read cannot read the role catalogue (403)", async () => {
+    const res = await listRoles(fx.a.employee);
+    expect(res.status).toBe(403);
+    expect(JSON.stringify(res.body)).not.toContain("delegable");
   });
 });
 
