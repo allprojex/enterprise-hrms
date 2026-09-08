@@ -637,3 +637,175 @@ describe('AppShell — Administration group permission gating', () => {
     expect(links.map((a) => a.textContent?.trim())).toEqual(['Organisations', 'Organization Administration']);
   });
 });
+
+
+/**
+ * Super Admin control-plane navigation boundary (2026-09-08).
+ *
+ * Defect: operating in the platform own System Administration organization
+ * — which enables no HR module, and where platform authority is not tenant
+ * authority — the sidebar still showed a Personnel group (Employees,
+ * Branches, Departments, Positions, all unconditional) and a Self-Service
+ * group (Employee Self-Service through My Skills, all unconditional).
+ *
+ * Rule pinned here: tenant navigation derives from the OPERATING CONTEXT
+ * (module enablement plus a membership there) and the caller EFFECTIVE
+ * permissions in it — never from platform role, membership alone, or a role
+ * name — and fails closed when either is missing.
+ */
+describe('AppShell — tenant navigation follows operating context + effective permissions', () => {
+  function actAs(input: {
+    organizationId: number;
+    organizationName: string;
+    roles: string[];
+    permissions?: string[];
+    meRole?: string;
+    memberships?: unknown[];
+  }) {
+    const membership = {
+      organizationId: input.organizationId,
+      organizationName: input.organizationName,
+      organizationSlug: input.organizationName.toLowerCase().replace(/\s+/g, '-'),
+      status: 'active',
+      roles: input.roles,
+      ...(input.permissions ? { permissions: input.permissions } : {}),
+      isPrimaryHr: false,
+    };
+    useListMyOrganizationsMock.mockReturnValue({ data: input.memberships ?? [membership] });
+    useGetMeMock.mockReturnValue({
+      ...DEFAULT_ME,
+      data: {
+        ...DEFAULT_ME.data,
+        role: input.meRole ?? 'employee',
+        organizationId: input.organizationId,
+        activeOrganizationId: input.organizationId,
+      },
+    });
+  }
+
+  const group = (slug: string) => screen.queryByTestId(`button-nav-group-${slug}`);
+
+  async function expandAndRead(user: ReturnType<typeof userEvent.setup>, slug: string): Promise<string[]> {
+    const button = group(slug);
+    if (!button) return [];
+    await user.click(button);
+    return screen
+      .getAllByRole('link')
+      .map((a) => a.getAttribute('data-testid') ?? '')
+      .filter((id) => id.startsWith('link-nav-'));
+  }
+
+  beforeEach(() => {
+    switchMutateMock.mockReset();
+    invalidateQueriesMock.mockReset();
+  });
+
+  it('platform authority alone, operating in System Administration, exposes no Personnel and no Self-Service', () => {
+    modulesMock.mockReturnValue({ data: [] });
+    actAs({ organizationId: 1, organizationName: 'System Administration', roles: [], meRole: 'super_admin', memberships: [] });
+    renderShell();
+    expect(group('personnel')).not.toBeInTheDocument();
+    expect(group('self-service')).not.toBeInTheDocument();
+    expect(group('administration')).toBeInTheDocument();
+  });
+
+  it('a System Administration membership carrying control-plane permissions only exposes no tenant HR navigation', async () => {
+    modulesMock.mockReturnValue({ data: [] });
+    actAs({
+      organizationId: 1,
+      organizationName: 'System Administration',
+      roles: ['platform_operator'],
+      permissions: ['organization.read', 'organization.update', 'membership.read', 'membership.manage', 'role.manage', 'module.manage'],
+      meRole: 'super_admin',
+    });
+    const user = userEvent.setup();
+    renderShell();
+    expect(group('personnel')).not.toBeInTheDocument();
+    // No employee self-service surface survives: each one is Employee Self
+    // Service functionality and that module is disabled here. My Forms is
+    // deliberately not module-gated (WS-26: a template carries its own
+    // optional module key, enforced server-side), so it remains for a genuine
+    // member of this organization and renders an empty state.
+    const selfService = await expandAndRead(user, 'self-service');
+    expect(selfService).toContain('link-nav-my forms');
+    for (const id of ['link-nav-employee self-service', 'link-nav-my onboarding', 'link-nav-my grievances', 'link-nav-my requests', 'link-nav-my actions', 'link-nav-my skills', 'link-nav-manager portal']) {
+      expect(selfService).not.toContain(id);
+    }
+  });
+
+  it('platform owner reaching a tenant from the control plane gets no tenant HR navigation, even where those modules are enabled', () => {
+    modulesMock.mockReturnValue(modulesEnabled('employee_self_service', 'leave', 'attendance', 'manager_portal'));
+    actAs({ organizationId: 3, organizationName: 'Worldwide Word Ministries', roles: [], meRole: 'super_admin', memberships: [] });
+    renderShell();
+    expect(group('personnel')).not.toBeInTheDocument();
+    expect(group('self-service')).not.toBeInTheDocument();
+  });
+
+  it('a membership summary with no permissions field fails closed (no directory, no structure)', async () => {
+    modulesMock.mockReturnValue(modulesEnabled('employee_self_service'));
+    actAs({ organizationId: 3, organizationName: 'Worldwide Word Ministries', roles: ['employee'] });
+    const user = userEvent.setup();
+    renderShell();
+    const personnel = await expandAndRead(user, 'personnel');
+    expect(personnel).not.toContain('link-nav-employees');
+    expect(personnel).not.toContain('link-nav-branches');
+  });
+
+  it('an ordinary WWM employee keeps the tenant directory, structure and every self-service entry', async () => {
+    modulesMock.mockReturnValue(modulesEnabled('employee_self_service', 'onboarding', 'manager_portal'));
+    actAs({ organizationId: 3, organizationName: 'Worldwide Word Ministries', roles: ['employee'], permissions: EMPLOYEE_PERMISSIONS });
+    const user = userEvent.setup();
+    renderShell();
+    const personnel = await expandAndRead(user, 'personnel');
+    expect(personnel).toEqual(expect.arrayContaining(['link-nav-employees', 'link-nav-branches', 'link-nav-departments', 'link-nav-positions']));
+    const selfService = await expandAndRead(user, 'self-service');
+    expect(selfService).toEqual(
+      expect.arrayContaining([
+        'link-nav-employee self-service',
+        'link-nav-my onboarding',
+        'link-nav-my grievances',
+        'link-nav-my requests',
+        'link-nav-my actions',
+        'link-nav-my skills',
+        'link-nav-manager portal',
+      ]),
+    );
+  });
+
+  it('a WWM HR/Admin caller keeps the tenant HR navigation', async () => {
+    modulesMock.mockReturnValue(modulesEnabled('employee_self_service', 'leave'));
+    actAs({ organizationId: 3, organizationName: 'Worldwide Word Ministries', roles: ['org_admin'], permissions: ORG_ADMIN_PERMISSIONS });
+    const user = userEvent.setup();
+    renderShell();
+    const personnel = await expandAndRead(user, 'personnel');
+    expect(personnel).toEqual(expect.arrayContaining(['link-nav-employees', 'link-nav-forms', 'link-nav-form templates']));
+  });
+
+  it('self-service entries follow the Employee Self Service module for a tenant employee too', async () => {
+    modulesMock.mockReturnValue(modulesEnabled('leave'));
+    actAs({ organizationId: 3, organizationName: 'Worldwide Word Ministries', roles: ['employee'], permissions: EMPLOYEE_PERMISSIONS });
+    const user = userEvent.setup();
+    renderShell();
+    const selfService = await expandAndRead(user, 'self-service');
+    for (const id of ['link-nav-employee self-service', 'link-nav-my grievances', 'link-nav-my requests', 'link-nav-my actions', 'link-nav-my skills']) {
+      expect(selfService).not.toContain(id);
+    }
+    const personnel = await expandAndRead(user, 'personnel');
+    expect(personnel).toContain('link-nav-employees');
+  });
+
+  it('visibility follows the permission, never the role name (a custom role holding employee.read sees the directory only)', async () => {
+    modulesMock.mockReturnValue({ data: [] });
+    actAs({
+      organizationId: 3,
+      organizationName: 'Worldwide Word Ministries',
+      roles: ['wwm_custom_reader'],
+      permissions: ['organization.read', 'employee.read'],
+    });
+    const user = userEvent.setup();
+    renderShell();
+    const personnel = await expandAndRead(user, 'personnel');
+    expect(personnel).toContain('link-nav-employees');
+    expect(personnel).not.toContain('link-nav-branches');
+  });
+});
