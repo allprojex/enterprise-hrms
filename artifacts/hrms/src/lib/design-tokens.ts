@@ -70,6 +70,37 @@ export const ICON_CLASS = {
 } as const;
 
 /**
+ * The type-scale utilities the stylesheet defines with `@utility text-*`
+ * (font-size / line-height / weight — never a colour, except the three
+ * semantic captions text-meta, text-table-head and text-overline). Listed
+ * here because `cn()` must teach tailwind-merge that these are FONT-SIZE
+ * utilities: without that, tailwind-merge classifies any unknown `text-*`
+ * class as a text COLOUR, so `cn('text-button text-primary-foreground
+ * text-body-sm')` kept only the last one — a small primary button lost its
+ * foreground colour (dark label on the brand background) and every
+ * `text-body-sm text-muted-foreground` pairing silently lost its size.
+ * src/test/design-tokens.test.ts asserts this list matches the stylesheet.
+ */
+export const TYPE_SCALE_UTILITIES = [
+  'text-display',
+  'text-title',
+  'text-heading',
+  'text-section',
+  'text-card-title',
+  'text-body',
+  'text-body-sm',
+  'text-label',
+  'text-helper',
+  'text-meta',
+  'text-kpi',
+  'text-kpi-sm',
+  'text-button',
+  'text-table',
+  'text-table-head',
+  'text-overline',
+] as const;
+
+/**
  * Brand tokens a tenant is allowed to write (the nine keys the backend's
  * branding theme schema accepts today). Everything else in the stylesheet is
  * platform-owned.

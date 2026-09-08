@@ -92,3 +92,25 @@ describe('Platform Admin — Scheduled Jobs panel', () => {
     expect(row).toHaveTextContent('platform');
   });
 });
+
+// Contrast defect regression: Super Admin → Installations → "+ New Installation"
+// is a size="sm" primary Button. Before the cn()/tailwind-merge fix its
+// text-primary-foreground class was dropped, leaving a dark label and icon on
+// the dark brand background.
+describe('Platform Admin — Installations "+ New Installation" button contrast', () => {
+  it('renders as a primary button that keeps its high-contrast foreground class', () => {
+    renderPage();
+    const button = screen.getByTestId('button-new-installation');
+    const cls = button.className.split(/\s+/);
+    expect(cls).toContain('bg-primary');
+    expect(cls).toContain('text-primary-foreground');
+    expect(cls).toContain('hover:bg-primary-hover');
+    expect(cls).toContain('text-body-sm');
+    expect(cls.filter((c) => /^text-(foreground|muted-foreground|primary)$/.test(c))).toEqual([]);
+    // The leading icon inherits currentColor (no colour class of its own).
+    const icon = button.querySelector('svg');
+    expect(icon).not.toBeNull();
+    expect([...icon!.classList].filter((c) => c.startsWith('text-'))).toEqual([]);
+    expect(button).toHaveTextContent('New Installation');
+  });
+});

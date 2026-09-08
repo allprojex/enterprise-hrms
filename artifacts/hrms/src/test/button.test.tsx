@@ -84,6 +84,50 @@ describe('<Button>', () => {
     expect(screen.queryByTestId('button-spinner')).toBeNull();
   });
 
+  // Contrast defect (Super Admin → Installations → "+ New Installation"):
+  // tailwind-merge treated the type-scale utilities as text colours, so a
+  // size="sm" primary button lost text-primary-foreground and rendered a dark
+  // label/icon on the dark brand background. Every variant × size must keep
+  // BOTH its foreground colour and its type-scale utility.
+  it('keeps the variant foreground colour and the type-scale utility for every size', () => {
+    const expectedForeground = {
+      default: 'text-primary-foreground',
+      destructive: 'text-danger-foreground',
+      outline: 'text-foreground',
+      secondary: 'text-secondary-foreground',
+      ghost: 'text-foreground',
+    } as const;
+    const sizes = ['default', 'sm', 'lg', 'icon', 'icon-sm', 'icon-lg'] as const;
+    for (const [variant, foreground] of Object.entries(expectedForeground) as Array<[keyof typeof expectedForeground, string]>) {
+      for (const size of sizes) {
+        const { unmount } = render(
+          <Button variant={variant} size={size} data-testid={`${variant}-${size}`}>
+            x
+          </Button>,
+        );
+        const cls = screen.getByTestId(`${variant}-${size}`).className.split(/\s+/);
+        expect(cls, `${variant}/${size} foreground`).toContain(foreground);
+        // The type-scale utility survives too: the sm size narrows to text-body-sm, every other size keeps text-button.
+        expect(cls, `${variant}/${size} type scale`).toContain(size === 'sm' ? 'text-body-sm' : 'text-button');
+        // Icons inherit currentColor, so the SVG must not be given its own colour.
+        expect(cls.filter((c) => c.startsWith('[&_svg]:text-'))).toEqual([]);
+        unmount();
+      }
+    }
+  });
+
+  it('a caller-supplied colour still wins over the variant foreground (className override remains possible)', () => {
+    render(
+      <Button size="sm" className="text-danger" data-testid="o">
+        x
+      </Button>,
+    );
+    const cls = screen.getByTestId('o').className.split(/\s+/);
+    expect(cls).toContain('text-danger');
+    expect(cls).not.toContain('text-primary-foreground');
+    expect(cls).toContain('text-body-sm');
+  });
+
   it('is keyboard operable', async () => {
     const onClick = vi.fn();
     render(<Button onClick={onClick}>Go</Button>);

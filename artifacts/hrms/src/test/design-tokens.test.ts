@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { contrastRatio, parseHslTriple, AA_TEXT_CONTRAST, AA_LARGE_CONTRAST, type Hsl } from '@/lib/color';
-import { REQUIRED_COLOR_TOKENS, TENANT_BRAND_TOKENS, TENANT_DERIVED_TOKENS, PLATFORM_OWNED_TOKENS, Z_INDEX, DURATION, SHELL, CONTROL_HEIGHT, CONTENT_WIDTH } from '@/lib/design-tokens';
+import { REQUIRED_COLOR_TOKENS, TENANT_BRAND_TOKENS, TENANT_DERIVED_TOKENS, PLATFORM_OWNED_TOKENS, TYPE_SCALE_UTILITIES, Z_INDEX, DURATION, SHELL, CONTROL_HEIGHT, CONTENT_WIDTH } from '@/lib/design-tokens';
 
 const css = readFileSync(resolve(__dirname, '../index.css'), 'utf8');
 const html = readFileSync(resolve(__dirname, '../../index.html'), 'utf8');
@@ -67,6 +67,8 @@ const TEXT_PAIRS: Array<[string, string, number]> = [
   ['--foreground-muted', '--surface-muted', AA_TEXT_CONTRAST],
   ['--foreground-subtle', '--surface', AA_TEXT_CONTRAST],
   ['--primary-foreground', '--primary', AA_TEXT_CONTRAST],
+  // Primary button hover/active state keeps the same foreground.
+  ['--primary-foreground', '--primary-hover', AA_TEXT_CONTRAST],
   ['--primary-soft-foreground', '--primary-soft', AA_TEXT_CONTRAST],
   ['--accent-foreground', '--accent', AA_TEXT_CONTRAST],
   ['--accent-soft-foreground', '--accent-soft', AA_TEXT_CONTRAST],
@@ -185,9 +187,14 @@ describe('design tokens: shape, depth, layout, motion', () => {
     for (const u of ['motion-interactive', 'motion-menu', 'motion-dialog', 'motion-sheet', 'motion-toast', 'motion-exit', 'motion-collapse', 'motion-indicator', 'duration-fast', 'duration-base', 'duration-slow']) {
       expect(css).toContain(`@utility ${u} `);
     }
-    for (const u of ['text-display', 'text-title', 'text-heading', 'text-section', 'text-card-title', 'text-body', 'text-body-sm', 'text-label', 'text-helper', 'text-meta', 'text-kpi', 'text-table', 'text-table-head', 'text-overline']) {
+    for (const u of TYPE_SCALE_UTILITIES) {
       expect(css).toContain(`@utility ${u} `);
     }
+  });
+
+  it('lists every stylesheet type-scale utility in TYPE_SCALE_UTILITIES (cn() relies on the list being complete)', () => {
+    const inCss = [...css.matchAll(/@utility (text-[a-z-]+) \{/g)].map((m) => m[1]).sort();
+    expect(inCss).toEqual([...TYPE_SCALE_UTILITIES].sort());
   });
 
   it('never sets running text below 12px', () => {
