@@ -6,8 +6,14 @@
  * the fidelity tests. No reusable service imports this module.
  */
 import type { FormDefinition } from "../../lib/formEngine/definition";
-import type { StageInput } from "../../lib/formEngine/templates";
+import type { StageInput, SignaturePolicy } from "../../lib/formEngine/templates";
 import type { FormTemplateType } from "@workspace/db";
+
+// WS-26C: governed signature methods allowed per slot (WS-26B). "drawn" covers
+// mouse/touch/finger/stylus canvas capture; "uploaded" an authorized stored
+// image; "device" a supported external signature-pad adapter. Every application
+// is still an explicit, stage-authorized, audited action — nothing auto-stamps.
+const WWM_SIGNATURE_METHODS: ("drawn" | "uploaded" | "device")[] = ["drawn", "uploaded", "device"];
 import { WWM_LEAVE_APPLICATION_KEY, wwmLeaveApplicationDefinition, wwmLeaveApplicationStages } from "./leaveApplication";
 import { WWM_PERSONAL_INFORMATION_KEY, wwmPersonalInformationDefinition, wwmPersonalInformationStages } from "./personalInformation";
 import { WWM_STAFF_EVALUATION_KEY, wwmStaffEvaluationDefinition, wwmStaffEvaluationStages } from "./staffEvaluation";
@@ -22,6 +28,13 @@ export interface WwmTemplateSeed {
   fixture: string;
   definition: FormDefinition;
   stages: StageInput[];
+  /**
+   * WS-26C: per-slot signature methods (WS-26B). Present only for forms whose
+   * source has signature positions (Leave, PIF). Evaluation and Probationary
+   * Assessment have NO signature items — their signatures live on the appended
+   * Signature & Approval Certificate, so they carry no policy.
+   */
+  signaturePolicy?: SignaturePolicy;
 }
 
 export const WWM_FORM_TEMPLATES: readonly WwmTemplateSeed[] = [
@@ -34,6 +47,12 @@ export const WWM_FORM_TEMPLATES: readonly WwmTemplateSeed[] = [
     fixture: "leave-application",
     definition: wwmLeaveApplicationDefinition,
     stages: wwmLeaveApplicationStages,
+    signaturePolicy: {
+      slots: [
+        { key: "employee_signature", role: "employee", required: true, methods: WWM_SIGNATURE_METHODS },
+        { key: "approver_signature", role: "supervisor", required: true, methods: WWM_SIGNATURE_METHODS },
+      ],
+    },
   },
   {
     templateKey: WWM_PERSONAL_INFORMATION_KEY,
@@ -44,6 +63,9 @@ export const WWM_FORM_TEMPLATES: readonly WwmTemplateSeed[] = [
     fixture: "personal-information",
     definition: wwmPersonalInformationDefinition,
     stages: wwmPersonalInformationStages,
+    signaturePolicy: {
+      slots: [{ key: "employee_signature", role: "employee", required: true, methods: WWM_SIGNATURE_METHODS }],
+    },
   },
   {
     templateKey: WWM_STAFF_EVALUATION_KEY,
