@@ -44,6 +44,14 @@ import {
   type FormActor,
 } from "../lib/formEngine/submissions";
 import { FormAnswersError } from "../lib/formEngine/answers";
+import {
+  createSubmissionLink,
+  listSubmissionLinks,
+  removeSubmissionLink,
+  DomainLinkNotFoundError,
+  DomainLinkValidationError,
+  DomainLinkConflictError,
+} from "../lib/formEngine/domainLinks";
 import { renderSubmissionDocument, documentKindForStatus, type DocumentKind } from "../lib/formEngine/render";
 
 const router = Router();
@@ -76,6 +84,18 @@ function handleError(err: unknown, res: import("express").Response): boolean {
     return true;
   }
   if (err instanceof FormSubmissionStateError || err instanceof FormSubmissionFinalizedError) {
+    res.status(409).json({ error: err.message });
+    return true;
+  }
+  if (err instanceof DomainLinkNotFoundError) {
+    res.status(404).json({ error: "Form submission not found" });
+    return true;
+  }
+  if (err instanceof DomainLinkValidationError) {
+    res.status(400).json({ error: err.message });
+    return true;
+  }
+  if (err instanceof DomainLinkConflictError) {
     res.status(409).json({ error: err.message });
     return true;
   }
@@ -327,6 +347,72 @@ router.get(
       res.set("Content-Disposition", `attachment; filename="${encodeURIComponent(fileName)}"`);
       res.set("Cache-Control", "private, no-store");
       res.send(pdf);
+    });
+  },
+);
+
+// WS-26C — generic submission↔domain links (Option A): associate a governed
+// submission with an existing Leave/Performance/employee record. Linking never
+// creates/approves/mutates the domain record. Visibility via canViewSubmission
+// (withDetail); creating/removing a link is a governed act gated on the
+// effective permission form.approve (not a role-name check). Same-tenant is
+// enforced in the service (a cross-tenant target fails closed).
+
+// GET .../form-submissions/:submissionId/links
+router.get(
+  "/organizations/:organizationId/form-submissions/:submissionId/links",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  async (req: Req, res): Promise<void> => {
+    await withDetail(req, res, async ({ organizationId, submissionId }) => {
+      const items = await listSubmissionLinks(organizationId, submissionId);
+      res.json({ items });
+    });
+  },
+);
+
+// POST .../form-submissions/:submissionId/links
+router.post(
+  "/organizations/:organizationId/form-submissions/:submissionId/links",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  async (req: Req, res): Promise<void> => {
+    await withDetail(req, res, async ({ organizationId, submissionId, viewer, actor }) => {
+      if (!viewer.permissions.has("form.approve")) {
+        res.status(403).json({ error: "form.approve is required to link this submission" });
+        return;
+      }
+      const domainType = typeof req.body?.domainType === "string" ? req.body.domainType : "";
+      const domainEntityId = req.body?.domainEntityId != null ? parseId(String(req.body.domainEntityId)) : NaN;
+      const relationType = typeof req.body?.relationType === "string" ? req.body.relationType : null;
+      if (!domainType || Number.isNaN(domainEntityId)) {
+        res.status(400).json({ error: "domainType and a valid domainEntityId are required" });
+        return;
+      }
+      const link = await createSubmissionLink({ organizationId, actor, submissionId, domainType, domainEntityId, relationType });
+      res.status(201).json(link);
+    });
+  },
+);
+
+// DELETE .../form-submissions/:submissionId/links/:linkId
+router.delete(
+  "/organizations/:organizationId/form-submissions/:submissionId/links/:linkId",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  async (req: Req, res): Promise<void> => {
+    const linkId = parseId(req.params.linkId);
+    if (Number.isNaN(linkId)) {
+      res.status(400).json({ error: "Invalid link id" });
+      return;
+    }
+    await withDetail(req, res, async ({ organizationId, submissionId, viewer, actor }) => {
+      if (!viewer.permissions.has("form.approve")) {
+        res.status(403).json({ error: "form.approve is required to unlink this submission" });
+        return;
+      }
+      await removeSubmissionLink({ organizationId, actor, submissionId, linkId });
+      res.status(204).end();
     });
   },
 );

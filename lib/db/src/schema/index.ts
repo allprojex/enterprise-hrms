@@ -174,3 +174,6 @@ export * from "./form-engine";
 
 // WS-26B — Signature & Signature Device Engine.
 export * from "./signature-engine";
+
+// WS-26C — generic submission-to-domain linkage.
+export * from "./form-submission-links";
