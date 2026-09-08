@@ -66,6 +66,7 @@ import {
   removeEmployeeDocument,
   EmployeeDocumentNotFoundError,
 } from "../lib/employeeDocuments";
+import { listEmployeeFinalizedForms } from "../lib/employeeFormDocuments";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -919,6 +920,40 @@ router.get(
 
     const documents = await listEmployeeDocuments(organizationId, employeeId);
     res.json(documents.map(formatEmployeeDocument));
+  },
+);
+
+// GET /organizations/:organizationId/employees/:employeeId/form-documents
+// WS-26C (U4): the employee's FINALIZED WS-26 forms surfaced through the existing
+// generated_documents store. Same authorization boundary as personnel documents:
+// own (server-resolved) or employee.documents.read; a colleague/guessed id fails
+// closed. Metadata only — the download link points at the existing forms route,
+// which enforces final.read/subject AND sensitivity redaction (no raw bypass).
+router.get(
+  "/organizations/:organizationId/employees/:employeeId/form-documents",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requirePermission("employee.read"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    const employeeIdRaw = Array.isArray(req.params.employeeId) ? req.params.employeeId[0] : req.params.employeeId;
+    const employeeId = parseInt(employeeIdRaw, 10);
+    if (isNaN(employeeId)) {
+      res.status(400).json({ error: "Invalid employee ID" });
+      return;
+    }
+    const organizationId = req.membership!.organizationId;
+    const employee = await getEmployeeById(organizationId, employeeId);
+    if (!employee) {
+      res.status(404).json({ error: "Employee not found" });
+      return;
+    }
+    const ownEmployeeId = await resolveOwnEmployeeId(organizationId, req.userId!);
+    const isOwn = ownEmployeeId !== null && ownEmployeeId === employeeId;
+    if (!isOwn && !(await hasPermission(req.membership!.id, "employee.documents.read"))) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    res.json(await listEmployeeFinalizedForms(organizationId, employeeId));
   },
 );
 
