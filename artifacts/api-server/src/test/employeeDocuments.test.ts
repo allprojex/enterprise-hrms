@@ -381,3 +381,37 @@ describe("DELETE /api/organizations/:organizationId/employees/:employeeId/docume
     expect((auditInsert!.values as Record<string, unknown>).eventType).toBe("employee_document.removed");
   });
 });
+
+// WS-26C (U4): the employee's finalized WS-26 form documents reuse the SAME
+// authorization boundary as personnel documents (own server-resolved, or
+// employee.documents.read). No raw stored-PDF path is exposed here.
+describe("GET /api/organizations/:organizationId/employees/:employeeId/form-documents", () => {
+  it("returns 403 when the caller has no active membership (tenant isolation)", async () => {
+    mockSession();
+    fixtures.membershipRows = [];
+    const res = await request(app).get("/api/organizations/10/employees/42/form-documents").set("Authorization", "Bearer valid-token");
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 404 when the employee does not exist (a guessed id learns nothing)", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["employee.read"]);
+    fixtures.employeeRows = [];
+    const res = await request(app).get("/api/organizations/10/employees/42/form-documents").set("Authorization", "Bearer valid-token");
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 403 to a colleague holding only employee.read (cannot enumerate another's finalized forms)", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["employee.read"]);
+    fixtures.employeeRows = [{ id: 42, organizationId: 10, firstName: "Ada", lastName: "Lovelace" }];
+    fixtures.linkRows = []; // caller is NOT linked to employee 42 → not own, and no employee.documents.read
+    const res = await request(app).get("/api/organizations/10/employees/42/form-documents").set("Authorization", "Bearer valid-token");
+    expect(res.status).toBe(403);
+  });
+  // The authorized allow-path (own, or employee.documents.read) reuses the exact
+  // gate of the documents route above and returns finalized-form metadata; its
+  // data boundary is proven end-to-end in wwmEmployeeFormDocsLive.test.ts.
+});

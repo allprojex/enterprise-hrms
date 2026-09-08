@@ -20,7 +20,8 @@ import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAu
 import { requireMembership, resolveOrganizationId, resolveActorMembershipId, type MembershipRequest } from "../middlewares/requireMembership";
 import { readOrgFile } from "../lib/fileStorage";
 import { getGeneratedDocument } from "../lib/documentGeneration";
-import { getTemplate } from "../lib/formEngine/templates";
+import { getTemplate, getVersion, parseDefinition } from "../lib/formEngine/templates";
+import { redactedSensitiveKeys } from "../lib/formEngine/sensitivity";
 import { getModuleAccess } from "../lib/organizationModules";
 import {
   buildViewerContext,
@@ -43,6 +44,14 @@ import {
   type FormActor,
 } from "../lib/formEngine/submissions";
 import { FormAnswersError } from "../lib/formEngine/answers";
+import {
+  createSubmissionLink,
+  listSubmissionLinks,
+  removeSubmissionLink,
+  DomainLinkNotFoundError,
+  DomainLinkValidationError,
+  DomainLinkConflictError,
+} from "../lib/formEngine/domainLinks";
 import { renderSubmissionDocument, documentKindForStatus, type DocumentKind } from "../lib/formEngine/render";
 
 const router = Router();
@@ -75,6 +84,18 @@ function handleError(err: unknown, res: import("express").Response): boolean {
     return true;
   }
   if (err instanceof FormSubmissionStateError || err instanceof FormSubmissionFinalizedError) {
+    res.status(409).json({ error: err.message });
+    return true;
+  }
+  if (err instanceof DomainLinkNotFoundError) {
+    res.status(404).json({ error: "Form submission not found" });
+    return true;
+  }
+  if (err instanceof DomainLinkValidationError) {
+    res.status(400).json({ error: err.message });
+    return true;
+  }
+  if (err instanceof DomainLinkConflictError) {
     res.status(409).json({ error: err.message });
     return true;
   }
@@ -286,24 +307,39 @@ router.get(
         res.status(400).json({ error: "Invalid revision ID" });
         return;
       }
+      // WS-26C: sensitive field values this viewer may not see (subject sees own;
+      // others need the field's readPermission). Applied to every rendered kind,
+      // and to the final download (see below) so no path leaks a protected value.
+      const version = await getVersion(organizationId, submission.templateVersionId);
+      const redactedValueKeys = version
+        ? redactedSensitiveKeys(parseDefinition(version), viewer, submission.subjectEmployeeId)
+        : new Set<string>();
+
       let pdf: Buffer;
       let fileName: string;
       if (requested === "final") {
-        // The immutable snapshot only — never re-rendered.
-        if (!submission.finalDocumentId || !viewer.permissions.has("form.final.read") && !(viewer.employeeId != null && viewer.employeeId === submission.subjectEmployeeId)) {
+        if (!submission.finalDocumentId || (!viewer.permissions.has("form.final.read") && !(viewer.employeeId != null && viewer.employeeId === submission.subjectEmployeeId))) {
           res.status(submission.finalDocumentId ? 403 : 409).json({ error: submission.finalDocumentId ? "form.final.read is required" : "This form has not been finalized" });
           return;
         }
-        const generated = await getGeneratedDocument(organizationId, submission.finalDocumentId);
-        if (!generated) {
-          res.status(404).json({ error: "Final document not found" });
-          return;
+        if (redactedValueKeys.size > 0) {
+          // The viewer may read the final but not its sensitive fields: serve a
+          // redacted on-demand re-render (with the certificate) rather than the
+          // immutable stored bytes, so the protected values never leave.
+          pdf = await renderSubmissionDocument({ organizationId, submissionId, kind: "final", redactedValueKeys });
+          fileName = `form-${submissionId}-final-redacted.pdf`;
+        } else {
+          const generated = await getGeneratedDocument(organizationId, submission.finalDocumentId);
+          if (!generated) {
+            res.status(404).json({ error: "Final document not found" });
+            return;
+          }
+          pdf = await readOrgFile(organizationId, generated.storageKey);
+          fileName = generated.fileName;
         }
-        pdf = await readOrgFile(organizationId, generated.storageKey);
-        fileName = generated.fileName;
       } else {
         const kind: DocumentKind = requested === "blank" ? "blank" : requested;
-        pdf = await renderSubmissionDocument({ organizationId, submissionId, kind, revisionId });
+        pdf = await renderSubmissionDocument({ organizationId, submissionId, kind, revisionId, redactedValueKeys });
         fileName = `form-${submissionId}-${kind}${revisionId ? `-r${revisionId}` : ""}.pdf`;
       }
       await recordDownload({ organizationId, submissionId, kind: requested, revisionId, actor });
@@ -311,6 +347,72 @@ router.get(
       res.set("Content-Disposition", `attachment; filename="${encodeURIComponent(fileName)}"`);
       res.set("Cache-Control", "private, no-store");
       res.send(pdf);
+    });
+  },
+);
+
+// WS-26C — generic submission↔domain links (Option A): associate a governed
+// submission with an existing Leave/Performance/employee record. Linking never
+// creates/approves/mutates the domain record. Visibility via canViewSubmission
+// (withDetail); creating/removing a link is a governed act gated on the
+// effective permission form.approve (not a role-name check). Same-tenant is
+// enforced in the service (a cross-tenant target fails closed).
+
+// GET .../form-submissions/:submissionId/links
+router.get(
+  "/organizations/:organizationId/form-submissions/:submissionId/links",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  async (req: Req, res): Promise<void> => {
+    await withDetail(req, res, async ({ organizationId, submissionId }) => {
+      const items = await listSubmissionLinks(organizationId, submissionId);
+      res.json({ items });
+    });
+  },
+);
+
+// POST .../form-submissions/:submissionId/links
+router.post(
+  "/organizations/:organizationId/form-submissions/:submissionId/links",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  async (req: Req, res): Promise<void> => {
+    await withDetail(req, res, async ({ organizationId, submissionId, viewer, actor }) => {
+      if (!viewer.permissions.has("form.approve")) {
+        res.status(403).json({ error: "form.approve is required to link this submission" });
+        return;
+      }
+      const domainType = typeof req.body?.domainType === "string" ? req.body.domainType : "";
+      const domainEntityId = req.body?.domainEntityId != null ? parseId(String(req.body.domainEntityId)) : NaN;
+      const relationType = typeof req.body?.relationType === "string" ? req.body.relationType : null;
+      if (!domainType || Number.isNaN(domainEntityId)) {
+        res.status(400).json({ error: "domainType and a valid domainEntityId are required" });
+        return;
+      }
+      const link = await createSubmissionLink({ organizationId, actor, submissionId, domainType, domainEntityId, relationType });
+      res.status(201).json(link);
+    });
+  },
+);
+
+// DELETE .../form-submissions/:submissionId/links/:linkId
+router.delete(
+  "/organizations/:organizationId/form-submissions/:submissionId/links/:linkId",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  async (req: Req, res): Promise<void> => {
+    const linkId = parseId(req.params.linkId);
+    if (Number.isNaN(linkId)) {
+      res.status(400).json({ error: "Invalid link id" });
+      return;
+    }
+    await withDetail(req, res, async ({ organizationId, submissionId, viewer, actor }) => {
+      if (!viewer.permissions.has("form.approve")) {
+        res.status(403).json({ error: "form.approve is required to unlink this submission" });
+        return;
+      }
+      await removeSubmissionLink({ organizationId, actor, submissionId, linkId });
+      res.status(204).end();
     });
   },
 );

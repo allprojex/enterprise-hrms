@@ -547,6 +547,13 @@
       "when": 1788733833444,
       "tag": "0077_massive_tiger_shark",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1788865136575,
+      "tag": "0078_slim_polaris",
+      "breakpoints": true
     }
   ]
 }

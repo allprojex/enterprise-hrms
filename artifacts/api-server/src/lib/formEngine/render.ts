@@ -436,10 +436,22 @@ async function loadAppliedSignatures(organizationId: number, submissionId: numbe
   return out;
 }
 
-export async function renderSubmissionDocument(params: { organizationId: number; submissionId: number; kind: DocumentKind; revisionId?: number | null }): Promise<Buffer> {
+export async function renderSubmissionDocument(params: {
+  organizationId: number;
+  submissionId: number;
+  kind: DocumentKind;
+  revisionId?: number | null;
+  /**
+   * WS-26C: field keys whose sensitive VALUE must be blanked for the caller
+   * viewing/downloading this document (labels/structure preserved). The caller
+   * (route) computes this from the viewer's permissions vs the subject.
+   */
+  redactedValueKeys?: ReadonlySet<string>;
+}): Promise<Buffer> {
   // Imported lazily to avoid a module cycle with submissions.ts.
   const submissions = await import("./submissions");
   const templates = await import("./templates");
+  const { redactValues } = await import("./sensitivity");
   const submission = await submissions.getSubmission(params.organizationId, params.submissionId);
   if (!submission) throw new submissions.FormSubmissionNotFoundError();
   const template = await templates.getTemplate(params.organizationId, submission.templateId);
@@ -452,11 +464,12 @@ export async function renderSubmissionDocument(params: { organizationId: number;
   const history = await submissions.historyForCertificate(params.organizationId, submission.id);
   const definition = templates.parseDefinition(version);
   const signatures = await loadAppliedSignatures(params.organizationId, submission.id, definition);
+  const redact = params.redactedValueKeys ?? new Set<string>();
   const doc = buildLayoutDocument({
     definition,
     kind: params.kind,
-    answers: (revision?.answers as Answers) ?? {},
-    autofill: (revision?.autofillSnapshot as AutofillSnapshot) ?? {},
+    answers: redactValues((revision?.answers as Answers) ?? {}, redact),
+    autofill: redactValues((revision?.autofillSnapshot as AutofillSnapshot) ?? {}, redact),
     computed: (revision?.computed as ComputedValues) ?? {},
     organizationName: name,
     logo,

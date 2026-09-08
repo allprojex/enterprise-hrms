@@ -53,6 +53,7 @@ import { getEffectivePermissions } from "../permissions";
 import type { FormDefinition } from "./definition";
 import { validateAnswers, computeValues, sectionKeysEditableBy, type Answers, type ComputedValues } from "./answers";
 import { resolveAutofill, readonlyKeys, type AutofillSnapshot } from "./bindings";
+import { redactedSensitiveKeys, redactValues } from "./sensitivity";
 import { getTemplate, getPublishedVersion, getVersion, listStages, membershipSatisfiesFormStage, parseDefinition } from "./templates";
 import { renderSubmissionDocument, type DocumentKind, type HistoryLine } from "./render";
 
@@ -260,6 +261,8 @@ export interface SubmissionDetail {
   revisions: { id: number; revisionNumber: number; kind: string; stageOrder: number | null; savedByMembershipId: number; savedAt: Date }[];
   events: { id: number; eventType: string; stageOrder: number | null; stageName: string | null; revisionId: number | null; notes: string | null; details: unknown; actorUserId: number | null; actorMembershipId: number | null; actorName: string | null; occurredAt: Date }[];
   viewer: { canEdit: boolean; editableSectionKeys: string[]; canSubmit: boolean; availableActions: StageAction[]; canFinalize: boolean; canArchive: boolean; isSubject: boolean };
+  /** WS-26C: sensitive field keys whose value was blanked for THIS viewer (structure preserved). */
+  sensitiveRedactedKeys: string[];
 }
 
 async function loadTemplateAndVersion(organizationId: number, submission: FormSubmission): Promise<{ template: FormTemplate; version: FormTemplateVersion }> {
@@ -304,6 +307,9 @@ export async function getSubmissionDetail(organizationId: number, submissionId: 
   const isCreator = submission.createdByMembershipId === viewer.membershipId;
   const editableByEmployee = (submission.status === "draft" || submission.status === "returned") && (isSubject || isCreator);
   const definition = parseDefinition(version);
+  // WS-26C: blank sensitive field values this viewer is not authorized to see
+  // (subject sees own; others need the field's readPermission). Labels/structure stay.
+  const redacted = redactedSensitiveKeys(definition, viewer, submission.subjectEmployeeId);
   const stage = await currentStageFor(organizationId, submission, stages, viewer);
   const stageEditable = stage ? (stage.editableSectionKeys as string[]) : [];
   const editableSectionKeys = editableByEmployee ? [...sectionKeysEditableBy(definition, "employee")] : stageEditable;
@@ -335,7 +341,7 @@ export async function getSubmissionDetail(organizationId: number, submissionId: 
       signatureSlotKey: s.signatureSlotKey,
     })),
     currentRevision: current
-      ? { id: current.id, revisionNumber: current.revisionNumber, kind: current.kind, answers: current.answers as Answers, autofillSnapshot: current.autofillSnapshot as AutofillSnapshot, computed: current.computed as ComputedValues, stageOrder: current.stageOrder, savedAt: current.savedAt }
+      ? { id: current.id, revisionNumber: current.revisionNumber, kind: current.kind, answers: redactValues(current.answers as Answers, redacted), autofillSnapshot: redactValues(current.autofillSnapshot as AutofillSnapshot, redacted), computed: current.computed as ComputedValues, stageOrder: current.stageOrder, savedAt: current.savedAt }
       : null,
     revisions: revisions.map((r) => ({ id: r.id, revisionNumber: r.revisionNumber, kind: r.kind, stageOrder: r.stageOrder, savedByMembershipId: r.savedByMembershipId, savedAt: r.savedAt })),
     events: events.map((e) => ({
@@ -360,6 +366,7 @@ export async function getSubmissionDetail(organizationId: number, submissionId: 
       canArchive: (submission.status === "finalized" || submission.status === "rejected") && viewer.permissions.has("form.approve"),
       isSubject,
     },
+    sensitiveRedactedKeys: [...redacted],
   };
 }
 
