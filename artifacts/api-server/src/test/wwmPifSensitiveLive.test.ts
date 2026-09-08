@@ -104,7 +104,7 @@ describe.skipIf(!LIVE_URL)("WS-26C live: PIF sensitive-field authorization", () 
     const created = await submissions.createSubmission({ organizationId: orgId, templateId, subjectEmployeeId: subject.employeeId, actor: actor(subject) });
     await submissions.saveDraft({ organizationId: orgId, submissionId: created.id, answers: { medical_conditions: MEDICAL }, viewer: subjectViewer, actor: actor(subject) });
     submissionId = created.id;
-  });
+  }, 60000);
 
   let submissionId: number;
 
