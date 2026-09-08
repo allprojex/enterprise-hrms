@@ -28,7 +28,7 @@ export const wwmPersonalInformationDefinition: FormDefinition = {
       layout: "key_value",
       items: [
         { kind: "field", key: "full_name", label: "Full Name", type: "short_text", binding: { source: "employee", ref: "fullName", mode: "readonly" } },
-        { kind: "field", key: "date_of_birth", label: "Date of Birth", type: "date", binding: { source: "employee", ref: "dateOfBirth", mode: "readonly" } },
+        { kind: "field", sensitive: true, key: "date_of_birth", label: "Date of Birth", type: "date", binding: { source: "employee", ref: "dateOfBirth", mode: "readonly" } },
         { kind: "field", key: "gender", label: "Gender", type: "short_text", binding: { source: "employee", ref: "gender", mode: "readonly" } },
         { kind: "field", key: "marital_status", label: "Marital Status", type: "short_text", binding: { source: "employee", ref: "maritalStatus", mode: "prefill" } },
         { kind: "field", key: "nationality", label: "Nationality", type: "short_text", binding: { source: "employee", ref: "nationality", mode: "prefill" } },
@@ -87,8 +87,8 @@ export const wwmPersonalInformationDefinition: FormDefinition = {
         { kind: "field", key: "position_on_first_appointment", label: "Position on First Appointment", type: "short_text" },
         { kind: "field", key: "date_of_current_position", label: "Date of Current Position", type: "date" },
         { kind: "field", key: "position_on_current_appointment", label: "Position on Current Appointment", type: "short_text", binding: { source: "position", ref: "title", mode: "prefill" } },
-        { kind: "field", key: "ghana_card_no", label: "Ghana Card No.", type: "short_text", binding: { source: "employee", ref: "nationalId", mode: "readonly" } },
-        { kind: "field", key: "ssnit_no", label: "Social Security (SSNIT) No.", type: "short_text", binding: { source: "statutory", ref: "ssnitNumber", mode: "readonly" } },
+        { kind: "field", sensitive: true, key: "ghana_card_no", label: "Ghana Card No.", type: "short_text", binding: { source: "employee", ref: "nationalId", mode: "readonly" } },
+        { kind: "field", sensitive: true, key: "ssnit_no", label: "Social Security (SSNIT) No.", type: "short_text", binding: { source: "statutory", ref: "ssnitNumber", mode: "readonly" } },
         { kind: "field", key: "employee_no", label: "Employee No.", type: "short_text", binding: { source: "employee", ref: "employeeNumber", mode: "readonly" } },
       ],
     },
@@ -126,7 +126,7 @@ export const wwmPersonalInformationDefinition: FormDefinition = {
       items: [
         { kind: "field", key: "skills_talents", label: "Skills & Talents", type: "long_text" },
         { kind: "field", key: "languages_spoken", label: "Languages Spoken", type: "short_text" },
-        { kind: "field", key: "medical_conditions", label: "Medical Conditions (if any)", type: "long_text" },
+        { kind: "field", sensitive: true, key: "medical_conditions", label: "Medical Conditions (if any)", type: "long_text" },
         { kind: "field", key: "other_information", label: "Any Other Relevant Information", type: "long_text" },
       ],
     },

@@ -20,7 +20,8 @@ import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAu
 import { requireMembership, resolveOrganizationId, resolveActorMembershipId, type MembershipRequest } from "../middlewares/requireMembership";
 import { readOrgFile } from "../lib/fileStorage";
 import { getGeneratedDocument } from "../lib/documentGeneration";
-import { getTemplate } from "../lib/formEngine/templates";
+import { getTemplate, getVersion, parseDefinition } from "../lib/formEngine/templates";
+import { redactedSensitiveKeys } from "../lib/formEngine/sensitivity";
 import { getModuleAccess } from "../lib/organizationModules";
 import {
   buildViewerContext,
@@ -286,24 +287,39 @@ router.get(
         res.status(400).json({ error: "Invalid revision ID" });
         return;
       }
+      // WS-26C: sensitive field values this viewer may not see (subject sees own;
+      // others need the field's readPermission). Applied to every rendered kind,
+      // and to the final download (see below) so no path leaks a protected value.
+      const version = await getVersion(organizationId, submission.templateVersionId);
+      const redactedValueKeys = version
+        ? redactedSensitiveKeys(parseDefinition(version), viewer, submission.subjectEmployeeId)
+        : new Set<string>();
+
       let pdf: Buffer;
       let fileName: string;
       if (requested === "final") {
-        // The immutable snapshot only — never re-rendered.
-        if (!submission.finalDocumentId || !viewer.permissions.has("form.final.read") && !(viewer.employeeId != null && viewer.employeeId === submission.subjectEmployeeId)) {
+        if (!submission.finalDocumentId || (!viewer.permissions.has("form.final.read") && !(viewer.employeeId != null && viewer.employeeId === submission.subjectEmployeeId))) {
           res.status(submission.finalDocumentId ? 403 : 409).json({ error: submission.finalDocumentId ? "form.final.read is required" : "This form has not been finalized" });
           return;
         }
-        const generated = await getGeneratedDocument(organizationId, submission.finalDocumentId);
-        if (!generated) {
-          res.status(404).json({ error: "Final document not found" });
-          return;
+        if (redactedValueKeys.size > 0) {
+          // The viewer may read the final but not its sensitive fields: serve a
+          // redacted on-demand re-render (with the certificate) rather than the
+          // immutable stored bytes, so the protected values never leave.
+          pdf = await renderSubmissionDocument({ organizationId, submissionId, kind: "final", redactedValueKeys });
+          fileName = `form-${submissionId}-final-redacted.pdf`;
+        } else {
+          const generated = await getGeneratedDocument(organizationId, submission.finalDocumentId);
+          if (!generated) {
+            res.status(404).json({ error: "Final document not found" });
+            return;
+          }
+          pdf = await readOrgFile(organizationId, generated.storageKey);
+          fileName = generated.fileName;
         }
-        pdf = await readOrgFile(organizationId, generated.storageKey);
-        fileName = generated.fileName;
       } else {
         const kind: DocumentKind = requested === "blank" ? "blank" : requested;
-        pdf = await renderSubmissionDocument({ organizationId, submissionId, kind, revisionId });
+        pdf = await renderSubmissionDocument({ organizationId, submissionId, kind, revisionId, redactedValueKeys });
         fileName = `form-${submissionId}-${kind}${revisionId ? `-r${revisionId}` : ""}.pdf`;
       }
       await recordDownload({ organizationId, submissionId, kind: requested, revisionId, actor });

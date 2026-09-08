@@ -51,6 +51,17 @@ export interface FieldItem {
   helpText?: string;
   /** grid layout hint: full | half | third */
   width?: "full" | "half" | "third";
+  /**
+   * Generic field-level sensitivity (WS-26C). When true, the field's VALUE
+   * (answer or autofilled) is disclosed only to the subject employee or a
+   * caller holding `readPermission`; everyone else who can otherwise see the
+   * submission gets the field with its value redacted (the label/structure is
+   * preserved). This is organization-neutral metadata; it does not change the
+   * printed form wording or layout.
+   */
+  sensitive?: boolean;
+  /** Effective-permission key that unlocks a sensitive value; defaults to `employee.sensitive.read`. */
+  readPermission?: string;
 }
 
 /** A row of checkboxes such as "TYPE OF LEAVE REQUESTED" or "OFFICE CALLED TO". */
@@ -334,6 +345,13 @@ export function validateFormDefinition(raw: unknown): FormDefinition {
           if (it.width !== undefined) {
             if (!["full", "half", "third"].includes(String(it.width))) throw new FormDefinitionError(`${where} width is invalid`);
             item.width = it.width as FieldItem["width"];
+          }
+          const sensitive = bool(it.sensitive, `${where} sensitive`);
+          if (sensitive !== undefined) item.sensitive = sensitive;
+          const readPermission = optionalStr(it.readPermission, `${where} readPermission`);
+          if (readPermission) {
+            if (!sensitive) throw new FormDefinitionError(`${where} readPermission is only valid on a sensitive field`);
+            item.readPermission = readPermission;
           }
           return item;
         }
