@@ -16,9 +16,20 @@
 import { and, eq } from "drizzle-orm";
 import { db, formTemplatesTable } from "@workspace/db";
 import { recordAuditEvent } from "../auditLog";
+import { authorizeActor } from "../actorAuthorization";
 import { createTemplate, publishVersion } from "./templates";
 import type { FormDefinition } from "./definition";
 import type { StageInput, SignaturePolicy } from "./templates";
+
+/**
+ * The authority installing templates requires — deliberately the SAME keys the
+ * governed routes enforce (routes/formTemplates.ts): creating a template needs
+ * `form_template.manage`, and publishing a version additionally needs
+ * `form_template.publish`. Draft-only installation (`publish: false`) therefore
+ * needs manage alone, exactly as it would through the API.
+ */
+export const TEMPLATE_INSTALL_PERMISSION = "form_template.manage";
+export const TEMPLATE_PUBLISH_PERMISSION = "form_template.publish";
 
 /** The minimum a seed must provide to be installed. WwmTemplateSeed satisfies this. */
 export interface InstallableTemplateSeed {
@@ -66,6 +77,22 @@ export async function installTemplates(params: {
   const { organizationId, seeds } = params;
   if (!Number.isInteger(organizationId) || organizationId <= 0) throw new Error("installTemplates requires an explicit target organizationId");
   const publish = params.publish !== false;
+
+  // Authorization BEFORE any mutation. The actor ids are not a label on the
+  // audit record — they are the authority for this act, so they are proven
+  // against the same membership/permission services the governed routes use
+  // (lib/actorAuthorization.ts). Nothing below runs for an actor who could not
+  // perform the equivalent action through the API: no template, no version, no
+  // stage, no audit event. Publishing demands the publish key in addition to
+  // manage, so a manage-only actor can still install drafts but can never
+  // publish them.
+  const actor = await authorizeActor({
+    organizationId,
+    actorApplicationUserId: params.actorApplicationUserId,
+    actorMembershipId: params.actorMembershipId,
+    requiredPermissions: publish ? [TEMPLATE_INSTALL_PERMISSION, TEMPLATE_PUBLISH_PERMISSION] : [TEMPLATE_INSTALL_PERMISSION],
+  });
+
   const results: TemplateInstallResult[] = [];
 
   for (const seed of seeds) {
@@ -84,20 +111,20 @@ export async function installTemplates(params: {
       definition: seed.definition,
       stages: seed.stages,
       signaturePolicy: seed.signaturePolicy,
-      actorApplicationUserId: params.actorApplicationUserId,
-      actorMembershipId: params.actorMembershipId,
+      actorApplicationUserId: actor.applicationUserId,
+      actorMembershipId: actor.membershipId,
     });
     let published = false;
     if (publish) {
-      await publishVersion({ organizationId, versionId: version.id, actorApplicationUserId: params.actorApplicationUserId, actorMembershipId: params.actorMembershipId });
+      await publishVersion({ organizationId, versionId: version.id, actorApplicationUserId: actor.applicationUserId, actorMembershipId: actor.membershipId });
       published = true;
     }
     results.push({ templateKey: seed.templateKey, action: "installed", templateId: template.id, versionId: version.id, published });
   }
 
   await recordAuditEvent({
-    actorApplicationUserId: params.actorApplicationUserId,
-    actorMembershipId: params.actorMembershipId,
+    actorApplicationUserId: actor.applicationUserId,
+    actorMembershipId: actor.membershipId,
     organizationId,
     eventType: "form_template.activation_run",
     targetType: "organization",
