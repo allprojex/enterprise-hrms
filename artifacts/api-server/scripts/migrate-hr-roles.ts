@@ -16,11 +16,18 @@
  * `membership.manage` in the target organization.
  *
  *   DATABASE_URL=... npx tsx scripts/migrate-hr-roles.ts \
- *     --org <id> --actor-user <id> --actor-membership <id> [--confirm]
+ *     --org <id> --actor-user <id> --actor-membership <id> [--membership <id>]... [--confirm]
  *
- * Idempotent: a membership already on `hr` with no deprecated role is reported
- * as `already_migrated` and left alone. Revoked memberships are migrated too
- * (their role links are still real assignments) but are reported separately.
+ * Idempotent: a membership already on `hr` with no deprecated role is simply
+ * absent from the plan.
+ *
+ * ACTIVE MEMBERSHIPS ONLY (owner decision, 2026-09-09). A revoked or otherwise
+ * non-active membership is historical record: its role links describe what was
+ * true when it was live, and rewriting them for catalogue tidiness would edit
+ * history without granting anyone anything. Such memberships are listed as
+ * SKIPPED so the operator can see they were considered and deliberately left
+ * alone. There is no flag to include them — re-including history is not a
+ * routine operation.
  *
  * Historical audit events are NEVER rewritten — they keep naming whichever role
  * was in force at the time. This script only appends new events.
@@ -115,14 +122,46 @@ async function main() {
     plan.fromRoleKeys.push(deprecatedById.get(row.roleId)!.key);
     byMembership.set(row.membershipId, plan);
   }
-  const plans = [...byMembership.values()].sort((a, b) => a.membershipId - b.membershipId);
+  const all = [...byMembership.values()].sort((a, b) => a.membershipId - b.membershipId);
+
+  // Optional explicit subset: --membership may be repeated, and restricts the
+  // run to exactly those ids. Lets a reviewed decision migrate some holders and
+  // defer others through the SAME governed, audited path rather than a direct
+  // database edit.
+  const only = process.argv.reduce<number[]>((acc, a, i) => {
+    if (a === "--membership") {
+      const n = Number(process.argv[i + 1]);
+      if (!Number.isInteger(n) || n <= 0) throw new Error("--membership <id> must be a positive integer");
+      acc.push(n);
+    }
+    return acc;
+  }, []);
+  if (only.length > 0) console.log(`Restricted to membership(s): ${only.join(", ")}`);
+
+  // Active only. Everything else is history and is reported, never touched.
+  const selected = only.length > 0 ? all.filter((p) => only.includes(p.membershipId)) : all;
+  const plans = selected.filter((p) => p.membershipStatus === "active");
+  const skipped = all.filter((p) => p.membershipStatus !== "active" || (only.length > 0 && !only.includes(p.membershipId)));
+
+  for (const id of only) {
+    if (!all.some((p) => p.membershipId === id)) {
+      throw new Error(`--membership ${id} holds no deprecated HR role in organization ${org}`);
+    }
+  }
+
+  if (skipped.length > 0) {
+    console.log(`\nSKIPPED — not active, or outside the requested subset; left exactly as they are (${skipped.length}):`);
+    for (const p of skipped) {
+      console.log(`  membership ${p.membershipId} (user ${p.applicationUserId}, ${p.membershipStatus}): keeps ${p.fromRoleKeys.sort().join(" + ")}`);
+    }
+  }
 
   if (plans.length === 0) {
-    console.log("No membership in this organization holds a deprecated HR role. Nothing to migrate.");
+    console.log("\nNo ACTIVE membership in this organization holds a deprecated HR role. Nothing to migrate.");
     return;
   }
 
-  console.log(`\nPlan (${plans.length} membership(s)):`);
+  console.log(`\nPlan (${plans.length} active membership(s)):`);
   for (const p of plans) {
     console.log(`  membership ${p.membershipId} (user ${p.applicationUserId}, ${p.membershipStatus}): ${p.fromRoleKeys.sort().join(" + ")} -> ${CANONICAL_HR_ROLE_KEY}`);
   }

@@ -281,6 +281,47 @@ describe.skipIf(!LIVE_URL)("HR role consolidation (live)", () => {
     expect(resolves).toBe(true);
   });
 
+  it("a revoked membership holding a deprecated HR role is never selected for migration", async () => {
+    // Owner decision 2026-09-09: revoked memberships are historical record.
+    // The CLI selects on status === "active"; this proves the predicate that
+    // selection rests on, for a membership that would otherwise qualify.
+    const org = await makeOrg("revoked");
+    const n = ++seq;
+    const [user] = await db
+      .insert(schema.usersTable)
+      .values({ email: `rev-${n}-${suffix}@example.invalid`, passwordHash: "x", firstName: "rev", lastName: "U", organizationId: org })
+      .returning();
+    const [membership] = await db
+      .insert(schema.organizationMembershipsTable)
+      .values({ applicationUserId: user.id, organizationId: org, status: "revoked" })
+      .returning();
+    await db.insert(schema.membershipRolesTable).values({ membershipId: membership.id, roleId: hrAdministratorTemplateId });
+
+    const rows = await db
+      .select({ id: schema.organizationMembershipsTable.id, status: schema.organizationMembershipsTable.status })
+      .from(schema.membershipRolesTable)
+      .innerJoin(
+        schema.organizationMembershipsTable,
+        eq(schema.organizationMembershipsTable.id, schema.membershipRolesTable.membershipId),
+      )
+      .where(
+        and(
+          eq(schema.organizationMembershipsTable.organizationId, org),
+          eq(schema.membershipRolesTable.roleId, hrAdministratorTemplateId),
+        ),
+      );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe("revoked");
+    expect(rows.filter((r) => r.status === "active")).toHaveLength(0);
+
+    // Its deprecated role link is still there, untouched.
+    const links = await db
+      .select()
+      .from(schema.membershipRolesTable)
+      .where(eq(schema.membershipRolesTable.membershipId, membership.id));
+    expect(links.map((l) => l.roleId)).toEqual([hrAdministratorTemplateId]);
+  });
+
   it("deprecated templates remain readable so historical audit stays interpretable", async () => {
     for (const key of DEPRECATED_ROLE_KEYS) {
       expect(ROLE_PERMISSIONS[key]).toBeDefined();
