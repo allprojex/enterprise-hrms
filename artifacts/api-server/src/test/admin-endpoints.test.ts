@@ -734,7 +734,7 @@ describe("POST /api/organizations/:organizationId/roles", () => {
     mockSession();
     mockActiveMembership();
     mockPermissions(["organization.read"]);
-    fixtures.roleRows = [{ id: 1, key: "hr_manager", label: "HR Manager", isSystemRole: true, organizationId: null }];
+    fixtures.roleRows = [{ id: 1, key: "hr", label: "HR", isSystemRole: true, organizationId: null }];
 
     const res = await request(app)
       .post("/api/organizations/10/roles")
@@ -764,7 +764,7 @@ describe("POST /api/organizations/:organizationId/roles", () => {
     // Caller's own grant uses roleId 99 so it doesn't collide with the
     // template role (id 1) whose permission rows this test also seeds.
     mockPermissions(["role.manage"], 5, 99);
-    fixtures.roleRows = [{ id: 1, key: "hr_manager", label: "HR Manager", isSystemRole: true, organizationId: null }];
+    fixtures.roleRows = [{ id: 1, key: "hr", label: "HR", isSystemRole: true, organizationId: null }];
     fixtures.permissionRows.push(
       { roleId: 1, key: "employee.read" },
       { roleId: 1, key: "employee.write" },
@@ -793,7 +793,7 @@ describe("POST /api/organizations/:organizationId/roles", () => {
     mockActiveMembership();
     mockPermissions(["role.manage"]);
     fixtures.roleRows = [
-      { id: 1, key: "hr_manager", label: "HR Manager", isSystemRole: true, organizationId: null },
+      { id: 1, key: "hr", label: "HR", isSystemRole: true, organizationId: null },
       { id: 2, key: "taken", label: "Taken", isSystemRole: false, organizationId: 10 },
     ];
 
@@ -811,7 +811,7 @@ describe("POST/DELETE .../roles/:roleId/permissions", () => {
     mockSession();
     mockActiveMembership();
     mockPermissions(["role.manage"]);
-    fixtures.roleRows = [{ id: 1, key: "hr_manager", label: "HR Manager", isSystemRole: true, organizationId: null }];
+    fixtures.roleRows = [{ id: 1, key: "hr", label: "HR", isSystemRole: true, organizationId: null }];
 
     const res = await request(app)
       .post("/api/organizations/10/roles/1/permissions")
@@ -840,7 +840,7 @@ describe("POST/DELETE .../roles/:roleId/permissions", () => {
     mockSession();
     mockActiveMembership();
     mockPermissions(["role.manage"]);
-    fixtures.roleRows = [{ id: 1, key: "hr_manager", label: "HR Manager", isSystemRole: true, organizationId: null }];
+    fixtures.roleRows = [{ id: 1, key: "hr", label: "HR", isSystemRole: true, organizationId: null }];
 
     const res = await request(app)
       .delete("/api/organizations/10/roles/1/permissions/10")

@@ -135,8 +135,8 @@ function seed() {
 
   addRole(ROLE.superAdmin, "super_admin", null, true, SUPER_ADMIN_KEYS);
   addRole(ROLE.orgAdmin, "org_admin", null, true, ORG_ADMIN_KEYS);
-  addRole(ROLE.hrAdministrator, "hr_administrator", null, true, HR_ADMIN_KEYS);
-  addRole(ROLE.hrManager, "hr_manager", null, true, HR_MANAGER_KEYS);
+  addRole(ROLE.hrAdministrator, "hr", null, true, HR_ADMIN_KEYS); // canonical HR role (2026-09-09 consolidation); was hr_administrator
+  addRole(ROLE.hrManager, "hr", null, true, HR_MANAGER_KEYS);
   addRole(ROLE.employee, "employee", null, true, EMPLOYEE_KEYS);
   addRole(ROLE.aPayrollClerk, "payroll_clerk", ORG_A, false, ["payroll.read"]);
   addRole(ROLE.aLeaveAdmin, "leave_admin", ORG_A, false, ["employee.read", "leave.approve"]);
@@ -223,7 +223,7 @@ describe("delegation authority gate", () => {
     expect(state.store.membership_roles).toContainEqual(expect.objectContaining({ membershipId: fx.a.employee.membershipId, roleId: ROLE.hrManager }));
     const audit = state.store.audit_events.find((e) => e.eventType === "membership.role_assigned");
     expect(audit).toMatchObject({ organizationId: ORG_A, actorMembershipId: fx.a.hr.membershipId });
-    expect((audit as { metadata?: Record<string, unknown> }).metadata).toMatchObject({ delegationMode: "hr_team", roleKey: "hr_manager" });
+    expect((audit as { metadata?: Record<string, unknown> }).metadata).toMatchObject({ delegationMode: "hr_team", roleKey: "hr" });
     expect(state.unsupported).toEqual([]);
   });
 
@@ -284,7 +284,7 @@ describe("role assignment through the HR-team path", () => {
     expect(state.store.membership_roles).not.toContainEqual(expect.objectContaining({ membershipId: target(), roleId: ROLE.bStaff }));
   });
 
-  it("allows an organization-owned role entirely inside the boundary, and the hr_administrator template", async () => {
+  it("allows an organization-owned role entirely inside the boundary, and the canonical HR template", async () => {
     expectAllowed(await assignRole(fx.a.hr, target(), ROLE.aHrAssistant));
     expectAllowed(await assignRole(fx.a.hr, target(), ROLE.hrAdministrator));
     expect(state.unsupported).toEqual([]);
@@ -350,7 +350,7 @@ describe("membership changes through the HR-team path", () => {
     expect(typeof ok.body.inviteToken).toBe("string");
     expect(ok.body.inviteToken.length).toBeGreaterThan(16);
     const audit = state.store.audit_events.find((e) => e.eventType === "membership.invited");
-    expect((audit as { metadata?: Record<string, unknown> }).metadata).toMatchObject({ delegationMode: "hr_team", roleKey: "hr_manager" });
+    expect((audit as { metadata?: Record<string, unknown> }).metadata).toMatchObject({ delegationMode: "hr_team", roleKey: "hr" });
     expect(state.unsupported).toEqual([]);
   });
 });
@@ -435,7 +435,7 @@ describe("GET /organizations/:id/roles delegable flag", () => {
     const byKey = new Map((res.body as { key: string; delegable: boolean; organizationId: number | null }[]).map((r) => [r.key, r]));
     expect(byKey.has("b_staff")).toBe(false);
     expect(byKey.get("employee")?.delegable).toBe(true);
-    expect(byKey.get("hr_manager")?.delegable).toBe(true);
+    expect(byKey.get("hr")?.delegable).toBe(true);
     expect(byKey.get("hr_assistant")?.delegable).toBe(true);
     expect(byKey.get("org_admin")?.delegable).toBe(false);
     expect(byKey.get("super_admin")?.delegable).toBe(false);

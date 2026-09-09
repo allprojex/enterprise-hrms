@@ -46,6 +46,23 @@ describe.skipIf(!LIVE_URL)("WS-26C live: WWM template activation", () => {
     const [m] = await db.insert(schema.organizationMembershipsTable).values({ applicationUserId: u.id, organizationId: orgId, status: "active" }).returning();
     actorUser = u.id;
     actorMembership = m.id;
+
+    // installTemplates authorizes its actor against real effective permissions
+    // (lib/actorAuthorization.ts), so this harness actor must genuinely hold the
+    // same keys the governed routes demand — granted here through a real
+    // org-scoped role rather than assumed.
+    const [role] = await db
+      .insert(schema.rolesTable)
+      .values({ key: `act_installer_${suffix}`, organizationId: orgId, label: `Activation installer ${suffix}`, isSystemRole: false })
+      .returning();
+    for (const key of ["form_template.manage", "form_template.publish"]) {
+      const [existing] = await db.select().from(schema.permissionsTable).where(eq(schema.permissionsTable.key, key)).limit(1);
+      const permission =
+        existing ??
+        (await db.insert(schema.permissionsTable).values({ key, resource: key.split(".")[0], action: key.split(".")[1] }).returning())[0];
+      await db.insert(schema.rolePermissionsTable).values({ roleId: role.id, permissionId: permission.id });
+    }
+    await db.insert(schema.membershipRolesTable).values({ membershipId: actorMembership, roleId: role.id });
   }, 60000);
 
   it("installs and publishes all four WWM templates in the named org", async () => {

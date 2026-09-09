@@ -48,6 +48,18 @@ export const HR_TEAM_MANAGE = "hr_team.manage";
 export const NON_ASSIGNABLE_TEMPLATE_KEYS: readonly string[] = ["super_admin"];
 
 /**
+ * HR role consolidation (2026-09-09). Deprecated templates still exist and
+ * still work for whoever already holds them — audit history references them by
+ * name and must stay truthful — but they can never be assigned again. Sourced
+ * from the seed definitions so the two can never drift.
+ *
+ * Deliberately scoped to ASSIGNMENT: revocation must remain possible, or an
+ * existing holder could never be migrated onto the canonical role.
+ */
+import { DEPRECATED_ROLE_KEYS } from "@workspace/db/seed/roles-permissions-definitions";
+export { DEPRECATED_ROLE_KEYS };
+
+/**
  * Keys that must never be delegated through the HR-team path — organization
  * identity/entitlement, member/role administration, Primary HR reassignment,
  * bulk migration, platform-wide/security audit, and (owner decision, this
@@ -90,13 +102,24 @@ export interface Verdict {
   reason?: string;
 }
 
-/** Pure: may this authority assign/revoke a role with these permission keys? */
+/**
+ * Pure: may this authority assign/revoke a role with these permission keys?
+ *
+ * `intent` defaults to "assign" (the safe default: a caller that forgets to
+ * say gets the stricter answer). Pass "revoke" on removal paths so a
+ * deprecated template can still be taken away from an existing holder.
+ */
 export function roleDelegationVerdict(
   authority: Pick<DelegationAuthority, "mode" | "actorPermissions">,
   role: { key: string; isSystemRole: boolean; permissionKeys: readonly string[] },
+  opts?: { intent?: "assign" | "revoke" },
 ): Verdict {
+  const intent = opts?.intent ?? "assign";
   if (role.isSystemRole && NON_ASSIGNABLE_TEMPLATE_KEYS.includes(role.key)) {
     return { ok: false, reason: `The ${role.key} template cannot be assigned through organization routes` };
+  }
+  if (intent === "assign" && role.isSystemRole && DEPRECATED_ROLE_KEYS.includes(role.key)) {
+    return { ok: false, reason: `The ${role.key} role is deprecated and can no longer be assigned — use the HR role instead` };
   }
   if (authority.mode === "org_admin") return { ok: true };
   const prohibited = role.permissionKeys.find(isProhibitedForHrDelegation);

@@ -150,6 +150,8 @@ export default function Profile() {
     const roles = currentOrg?.roles ?? [];
     if (roles.includes('super_admin')) return 'Super Admin';
     if (roles.includes('org_admin')) return 'Organization Administrator';
+    if (roles.includes('hr')) return 'HR';
+    if (roles.includes('hr_administrator')) return 'HR Administrator';
     if (roles.includes('hr_manager')) return 'HR Manager';
     if (roles.includes('employee')) return 'Employee';
     if (roles.length > 0) return roles[0].replace(/_/g, ' ');

@@ -10,7 +10,8 @@
     "worker": "node --enable-source-maps ./dist/worker.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "activate:wwm": "tsx ./scripts/activate-wwm-templates.ts"
+    "activate:wwm": "tsx ./scripts/activate-wwm-templates.ts",
+    "migrate:hr-roles": "tsx ./scripts/migrate-hr-roles.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1121.0",

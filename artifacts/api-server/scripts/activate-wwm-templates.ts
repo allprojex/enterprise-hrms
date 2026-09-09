@@ -10,10 +10,14 @@
  *   DATABASE_URL=... npx tsx scripts/activate-wwm-templates.ts \
  *     --org 3 --actor-user <id> --actor-membership <id> [--no-publish] [--confirm]
  *
- * Without --confirm it prints the plan and exits (nothing is written).
+ * Without --confirm it validates the actor and prints the plan, then exits
+ * (nothing is written). The actor must hold form_template.manage, plus
+ * form_template.publish unless --no-publish is passed — the same authority the
+ * governed template routes demand.
  */
 import { WWM_FORM_TEMPLATES } from "../src/formTemplates/wwm";
-import { installTemplates } from "../src/lib/formEngine/templateInstaller";
+import { authorizeActor } from "../src/lib/actorAuthorization";
+import { installTemplates, TEMPLATE_INSTALL_PERMISSION, TEMPLATE_PUBLISH_PERMISSION } from "../src/lib/formEngine/templateInstaller";
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -34,6 +38,20 @@ async function main() {
 
   console.log(`WWM template activation: org=${org} publish=${publish} confirm=${confirm}`);
   console.log(`Templates: ${WWM_FORM_TEMPLATES.map((t) => t.templateKey).join(", ")}`);
+
+  // Authorization preflight. installTemplates enforces this itself before it
+  // writes anything, but the dry run must exercise the SAME check — otherwise
+  // a dry run "passes" for an actor who cannot actually perform the act, and
+  // the first real validation would only happen under --confirm. This reads;
+  // it never writes.
+  const required = publish ? [TEMPLATE_INSTALL_PERMISSION, TEMPLATE_PUBLISH_PERMISSION] : [TEMPLATE_INSTALL_PERMISSION];
+  const actor = await authorizeActor({
+    organizationId: org,
+    actorApplicationUserId: actorUser,
+    actorMembershipId: actorMembership,
+    requiredPermissions: required,
+  });
+  console.log(`Actor authorized: user ${actor.applicationUserId} via membership ${actor.membershipId} in org ${actor.organizationId} (${required.join(", ")})`);
 
   if (!confirm) {
     console.log("DRY RUN (no --confirm): nothing written. Re-run with --confirm to activate.");

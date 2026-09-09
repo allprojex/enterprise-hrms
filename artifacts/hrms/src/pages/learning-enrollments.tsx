@@ -49,6 +49,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { QueryError } from '@/components/query-error';
+import { isHrCapableRole } from '@/hooks/use-hr-capable';
 
 function errorMessage(err: unknown): string | undefined {
   return err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
@@ -572,7 +573,7 @@ export default function LearningEnrollments() {
 
   const { data: myOrganizations } = useListMyOrganizations({ query: { queryKey: getListMyOrganizationsQueryKey() } });
   const currentOrg = myOrganizations?.find((m) => m.organizationId === organizationId);
-  const isHrCapable = currentOrg?.roles.some((r) => r === 'org_admin' || r === 'hr_manager' || r === 'super_admin') ?? false;
+  const isHrCapable = isHrCapableRole(currentOrg?.roles);
 
   const { data: employeesPage } = useListEmployees(organizationId, { pageSize: 200 }, {
     query: { queryKey: getListEmployeesQueryKey(organizationId, { pageSize: 200 }), enabled: organizationId > 0 },

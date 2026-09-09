@@ -30,6 +30,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { QueryError } from '@/components/query-error';
 import { useToast } from '@/hooks/use-toast';
+import { isHrCapableRole } from '@/hooks/use-hr-capable';
 
 const NONE = '__none__';
 const PAGE_SIZE = 20;
@@ -93,7 +94,7 @@ export default function AttendanceRegister() {
   // employee-initiated-request branch for the wrong employee.
   const { data: myOrganizations } = useListMyOrganizations({ query: { queryKey: getListMyOrganizationsQueryKey() } });
   const currentOrg = myOrganizations?.find((m) => m.organizationId === organizationId);
-  const isHrCapable = currentOrg?.roles.some((r) => r === 'org_admin' || r === 'hr_manager' || r === 'super_admin') ?? false;
+  const isHrCapable = isHrCapableRole(currentOrg?.roles);
 
   const [from, setFrom] = useState(todayIso());
   const [to, setTo] = useState(todayIso());

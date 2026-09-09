@@ -357,7 +357,7 @@ describe("POST /api/organizations/:organizationId/members/:membershipId/roles", 
     mockSession({ id: 1 });
     mockActiveMembership({ id: 5, organizationId: 10 });
     mockPermissions(["membership.manage"]);
-    fixtures.roleRows = [{ id: 2, key: "hr_manager", organizationId: null, isSystemRole: true }];
+    fixtures.roleRows = [{ id: 2, key: "hr", organizationId: null, isSystemRole: true }];
 
     const res = await request(app)
       .post("/api/organizations/10/members/5/roles")
