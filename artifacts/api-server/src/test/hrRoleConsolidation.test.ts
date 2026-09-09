@@ -98,7 +98,7 @@ describe("canonical HR role — authority it must NOT have", () => {
   });
 
   it("grants HR no key that is absent from the catalogue", () => {
-    const known = new Set(catalogue);
+    const known = new Set<string>(catalogue);
     for (const key of hr) expect(known.has(key), key).toBe(true);
   });
 });
@@ -129,7 +129,7 @@ describe("deprecated HR templates", () => {
     isSystemRole: true,
     permissionKeys: [...keys(key)],
   });
-  const orgAdminAuthority = { mode: "org_admin" as const, actorPermissions: new Set(catalogue) };
+  const orgAdminAuthority = { mode: "org_admin" as const, actorPermissions: new Set<string>(catalogue) };
 
   it("can no longer be ASSIGNED, even by an org_admin", () => {
     for (const key of DEPRECATED_ROLE_KEYS) {
