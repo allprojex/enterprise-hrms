@@ -66,6 +66,8 @@ describe("prohibited-key table", () => {
 describe("roleDelegationVerdict", () => {
   const employee = { key: "employee", isSystemRole: true, permissionKeys: ["employee.read"] };
   const hrManager = { key: "hr_manager", isSystemRole: true, permissionKeys: ["employee.read", "employee.write"] };
+  // The canonical HR template that replaced hr_manager (2026-09-09 consolidation).
+  const hr = { key: "hr", isSystemRole: true, permissionKeys: ["employee.read", "employee.write"] };
   const orgAdminRole = { key: "org_admin", isSystemRole: true, permissionKeys: ["membership.manage", "employee.read"] };
   const superAdmin = { key: "super_admin", isSystemRole: true, permissionKeys: ["membership.manage"] };
   const payroll = { key: "payroll_clerk", isSystemRole: false, permissionKeys: ["payroll.read"] };
@@ -73,7 +75,13 @@ describe("roleDelegationVerdict", () => {
 
   it("lets the HR team delegate narrow HR roles within its own boundary", () => {
     expect(roleDelegationVerdict(hrTeam, employee).ok).toBe(true);
-    expect(roleDelegationVerdict(hrTeam, hrManager).ok).toBe(true);
+    expect(roleDelegationVerdict(hrTeam, hr).ok).toBe(true);
+  });
+
+  it("refuses to ASSIGN a deprecated HR template but still allows revoking it", () => {
+    // hr_manager was superseded by hr; existing holders must remain removable.
+    expect(roleDelegationVerdict(hrTeam, hrManager).ok).toBe(false);
+    expect(roleDelegationVerdict(hrTeam, hrManager, { intent: "revoke" }).ok).toBe(true);
   });
 
   it("denies the HR team any role carrying a prohibited key", () => {

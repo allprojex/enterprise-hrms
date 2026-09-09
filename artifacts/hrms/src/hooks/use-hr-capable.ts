@@ -20,7 +20,28 @@ function useMyRoles(organizationId: number): string[] {
   return useMyRolesState(organizationId).roles;
 }
 
-const HR_CAPABLE_ROLES = new Set(['org_admin', 'hr_manager', 'super_admin']);
+/**
+ * Role keys that carry HR-administrator authority by the platform's standard
+ * templates. `hr` is the canonical HR role (2026-09-09 consolidation);
+ * `hr_administrator` and `hr_manager` are its deprecated predecessors, kept
+ * here so existing holders are not locked out of HR surfaces before their
+ * assignments are migrated — and because `hr_administrator` was missing from
+ * these checks entirely, which silently denied HR surfaces to the platform's
+ * own principal-HR role. Exported as the single definition: the pages that
+ * used to inline this list now call isHrCapableRole.
+ */
+export const HR_CAPABLE_ROLES: ReadonlySet<string> = new Set([
+  'hr',
+  'org_admin',
+  'super_admin',
+  'hr_administrator',
+  'hr_manager',
+]);
+
+/** Whether any of `roles` carries HR-administrator authority. */
+export function isHrCapableRole(roles: readonly string[] | undefined): boolean {
+  return roles?.some((r) => HR_CAPABLE_ROLES.has(r)) ?? false;
+}
 
 /**
  * Same heuristic as useIsHrCapable, plus whether the role lookup is still
@@ -69,7 +90,7 @@ export function useIsOrgAdmin(organizationId: number): boolean {
  */
 export function useIsHrCapable(organizationId: number): boolean {
   const roles = useMyRoles(organizationId);
-  return roles.some((r) => r === 'org_admin' || r === 'hr_manager' || r === 'super_admin');
+  return isHrCapableRole(roles);
 }
 
 /**

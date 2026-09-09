@@ -58,6 +58,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { QueryError } from '@/components/query-error';
 import { getStoredToken } from '@/lib/auth';
+import { isHrCapableRole } from '@/hooks/use-hr-capable';
 
 export function errorMessage(err: unknown): string | undefined {
   return err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
@@ -1136,7 +1137,7 @@ export default function Assets() {
 
   const { data: myOrganizations } = useListMyOrganizations({ query: { queryKey: getListMyOrganizationsQueryKey() } });
   const currentOrg = myOrganizations?.find((m) => m.organizationId === organizationId);
-  const isHrCapable = currentOrg?.roles.some((r) => r === 'org_admin' || r === 'hr_manager' || r === 'super_admin') ?? false;
+  const isHrCapable = isHrCapableRole(currentOrg?.roles);
 
   const { data: branches } = useListBranches(organizationId, {
     query: { queryKey: getListBranchesQueryKey(organizationId), enabled: organizationId > 0 },

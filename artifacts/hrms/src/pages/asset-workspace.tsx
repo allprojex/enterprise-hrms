@@ -36,6 +36,7 @@ import {
   ReturnAssetDialog,
   IncidentRow,
 } from '@/pages/assets';
+import { isHrCapableRole } from '@/hooks/use-hr-capable';
 
 const ALL = '__all__';
 const PAGE_SIZE = 20;
@@ -86,7 +87,7 @@ export default function AssetWorkspace() {
 
   const { data: myOrganizations } = useListMyOrganizations({ query: { queryKey: getListMyOrganizationsQueryKey() } });
   const currentOrg = myOrganizations?.find((m) => m.organizationId === organizationId);
-  const isHrCapable = currentOrg?.roles.some((r) => r === 'org_admin' || r === 'hr_manager' || r === 'super_admin') ?? false;
+  const isHrCapable = isHrCapableRole(currentOrg?.roles);
 
   const invalidateAssets = () => queryClient.invalidateQueries({ queryKey: getListAssetsQueryKey(organizationId) });
   const invalidateIncidents = () => queryClient.invalidateQueries({ queryKey: getListAssetIncidentsQueryKey(organizationId) });

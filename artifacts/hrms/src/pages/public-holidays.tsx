@@ -33,6 +33,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { QueryError } from '@/components/query-error';
+import { isHrCapableRole } from '@/hooks/use-hr-capable';
 
 function errorMessage(err: unknown): string | undefined {
   return err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
@@ -63,7 +64,7 @@ export default function PublicHolidays() {
     query: { queryKey: getListMyOrganizationsQueryKey() },
   });
   const currentOrg = myOrganizations?.find((m) => m.organizationId === organizationId);
-  const canManage = currentOrg?.roles.some((r) => r === 'org_admin' || r === 'super_admin' || r === 'hr_manager') ?? false;
+  const canManage = isHrCapableRole(currentOrg?.roles);
 
   const {
     data: holidays,

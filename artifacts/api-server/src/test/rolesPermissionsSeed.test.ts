@@ -13,18 +13,38 @@
  *   - every mapped key exists in the catalogue; hr_team.manage is catalogued.
  */
 import { describe, it, expect } from "vitest";
-import { SYSTEM_ROLES, PERMISSIONS, ROLE_PERMISSIONS } from "@workspace/db/seed/roles-permissions-definitions";
+import {
+  SYSTEM_ROLES,
+  PERMISSIONS,
+  ROLE_PERMISSIONS,
+  DEPRECATED_ROLE_KEYS,
+  CANONICAL_HR_ROLE_KEY,
+  ORG_GOVERNANCE_ONLY_KEYS,
+} from "@workspace/db/seed/roles-permissions-definitions";
 import { HR_DELEGATION_PROHIBITED_KEYS, PLATFORM_RESTRICTED_KEYS, isProhibitedForHrDelegation } from "../lib/roleDelegation";
 
 const catalogue = new Set<string>(PERMISSIONS.map((p) => p.key));
 
 describe("system role templates", () => {
-  it("defines the five templates, including hr_administrator", () => {
+  it("defines the six templates, including the canonical hr role", () => {
     expect(SYSTEM_ROLES.map((r) => r.key).sort()).toEqual(
-      ["employee", "hr_administrator", "hr_manager", "org_admin", "super_admin"].sort(),
+      ["employee", "hr", "hr_administrator", "hr_manager", "org_admin", "super_admin"].sort(),
     );
-    const hrAdmin = SYSTEM_ROLES.find((r) => r.key === "hr_administrator");
-    expect(hrAdmin?.label).toBe("HR Administrator");
+    const hr = SYSTEM_ROLES.find((r) => r.key === "hr");
+    expect(hr?.label).toBe("HR");
+  });
+
+  it("labels the superseded HR templates as deprecated, and keeps them present", () => {
+    // Present, so existing assignments keep resolving and old audit events
+    // naming these keys stay interpretable.
+    for (const key of DEPRECATED_ROLE_KEYS) {
+      const role = SYSTEM_ROLES.find((r) => r.key === key);
+      expect(role, key).toBeDefined();
+      expect(role!.label, key).toMatch(/deprecated/i);
+    }
+    expect([...DEPRECATED_ROLE_KEYS].sort()).toEqual(["hr_administrator", "hr_manager"]);
+    // The canonical role is NOT deprecated.
+    expect(DEPRECATED_ROLE_KEYS).not.toContain(CANONICAL_HR_ROLE_KEY);
   });
 
   it("maps permissions for every template", () => {

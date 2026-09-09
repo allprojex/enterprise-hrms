@@ -11,7 +11,23 @@ export const SYSTEM_ROLES = [
     label: "Organization Admin",
     description: "Full administrative access within an organization.",
   },
-  { key: "hr_manager", label: "HR Manager", description: "Manages HR records within an organization." },
+  // CANONICAL HR ROLE (owner architecture decision, 2026-09-09). One operational
+  // HR authority per organization, held by as many people as the organization
+  // needs. It is NOT organization governance: org_admin keeps organization
+  // identity, entitlement, membership/role administration and Primary HR
+  // designation (see ORG_GOVERNANCE_ONLY_KEYS below). Primary HR remains a
+  // separate organization-scoped DESIGNATION (primary_hr_assignments), never a
+  // competing role — a Primary HR person should normally also hold this role.
+  {
+    key: "hr",
+    label: "HR",
+    description: "The organization's HR authority: full HR operations, HR form governance and controlled HR-team delegation, without organization or platform administration.",
+  },
+  // DEPRECATED (2026-09-09) — superseded by `hr`. Retained so existing
+  // assignments keep working and historical audit records stay interpretable;
+  // blocked from NEW assignment by DEPRECATED_ROLE_KEYS below. Do not delete:
+  // audit events reference these keys by name and must remain truthful.
+  { key: "hr_manager", label: "HR Manager (deprecated)", description: "Deprecated — superseded by HR. Manages HR records within an organization." },
   // Primary HR Administrator (platform capability, 2026-09-04): the organization's
   // principal HR administrator. Everything hr_manager has, plus office inventory,
   // HR-domain configuration and audit views, grievance/succession, and controlled
@@ -19,8 +35,8 @@ export const SYSTEM_ROLES = [
   // administration — see artifacts/api-server/src/lib/roleDelegation.ts.
   {
     key: "hr_administrator",
-    label: "HR Administrator",
-    description: "Principal HR administrator: full HR operations plus controlled HR-team delegation, without organization or platform administration.",
+    label: "HR Administrator (deprecated)",
+    description: "Deprecated — superseded by HR. Principal HR administrator: full HR operations plus controlled HR-team delegation, without organization or platform administration.",
   },
   {
     key: "employee",
@@ -1076,6 +1092,55 @@ const HR_ADMINISTRATOR_ADDITIONS: readonly string[] = [
   "succession.confidential.read",
 ];
 ROLE_PERMISSIONS.hr_administrator = [...new Set([...ROLE_PERMISSIONS.hr_manager, ...HR_ADMINISTRATOR_ADDITIONS])];
+
+// ---------------------------------------------------------------------------
+// hr — the canonical HR role (owner architecture decision, 2026-09-09).
+//
+// Composed from hr_administrator so it can never drift BELOW the authority the
+// deprecated roles already carry: every existing HR holder keeps everything
+// they have when migrated. The only addition is form_template.publish.
+//
+// Why that key moves: publishing an HR form template is HR content
+// administration, not organization governance. It was the single HR-operational
+// key that sat on the org_admin side, which is why WS-26 could not find a
+// legitimate HR publisher (org_admin/super_admin were the only holders).
+// org_admin keeps it too — this grants, it never revokes.
+//
+// Deliberately NOT added, and asserted by tests: payroll.* (a separate licensed
+// module), the organization-governance keys in ORG_GOVERNANCE_ONLY_KEYS, and
+// the platform/security audit keys. Module and licence gates remain
+// authoritative above all of this — HR authority never reaches a disabled
+// module, because module enablement is enforced independently of permissions.
+// ---------------------------------------------------------------------------
+export const CANONICAL_HR_ROLE_KEY = "hr";
+
+const HR_CANONICAL_ADDITIONS: readonly string[] = ["form_template.publish"];
+ROLE_PERMISSIONS.hr = [...new Set([...ROLE_PERMISSIONS.hr_administrator, ...HR_CANONICAL_ADDITIONS])];
+
+/**
+ * Role templates that still exist (so current holders keep working and old
+ * audit records stay interpretable) but may never be assigned again. Enforced
+ * at the single assignment chokepoint: roleDelegationVerdict in
+ * artifacts/api-server/src/lib/roleDelegation.ts. Revocation stays allowed —
+ * otherwise existing holders could never be migrated off them.
+ */
+export const DEPRECATED_ROLE_KEYS: readonly string[] = ["hr_administrator", "hr_manager"];
+
+/**
+ * The organization-governance authority that HR must never acquire merely by
+ * being HR. These stay org_admin-only; the consolidation is asserted against
+ * this list so a future edit cannot quietly hand governance to HR.
+ */
+export const ORG_GOVERNANCE_ONLY_KEYS: readonly string[] = [
+  "organization.update",
+  "membership.manage",
+  "role.manage",
+  "module.manage",
+  "primary_hr.manage",
+  "migration.manage",
+  "migration.execute",
+  "audit.read",
+];
 
 // Sanity: every mapped key must exist in the catalogue (caught at seed time and by tests).
 const CATALOGUE = new Set<string>(PERMISSIONS.map((p) => p.key));

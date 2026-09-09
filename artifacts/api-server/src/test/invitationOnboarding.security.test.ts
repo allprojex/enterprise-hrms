@@ -78,7 +78,7 @@ function seed(domains: { a?: { host: string; primary?: boolean }[]; b?: { host: 
   state.store.organization_domains = [];
   state.store.organization_settings = [];
   addRole(ROLE.employee, "employee", ["employee.read"]);
-  addRole(ROLE.hrManager, "hr_manager", ["employee.read", "employee.write", "organization.read"]);
+  addRole(ROLE.hrManager, "hr", ["employee.read", "employee.write", "organization.read"]);
   let did = 1;
   const aDomains = domains.a ?? [{ host: "a.hrms.test", primary: true }];
   for (const d of aDomains) state.store.organization_domains.push({ id: did++, organizationId: ORG_A, hostname: d.host, status: "active", isPrimary: !!d.primary, domainType: "custom_domain" });

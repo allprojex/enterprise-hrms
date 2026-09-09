@@ -228,8 +228,11 @@ router.delete(
       return;
     }
     // HR-team path may only remove roles it could have delegated, and only from
-    // members within its boundary — it cannot strip an org_admin.
-    const verdict = roleDelegationVerdict(req.delegation!, role);
+    // members within its boundary — it cannot strip an org_admin. Removal is
+    // explicitly "revoke": a deprecated template can no longer be assigned but
+    // must still be removable, otherwise existing holders could never be
+    // migrated onto the canonical HR role.
+    const verdict = roleDelegationVerdict(req.delegation!, role, { intent: "revoke" });
     if (!verdict.ok) {
       res.status(403).json({ error: verdict.reason });
       return;
