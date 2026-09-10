@@ -74,6 +74,30 @@ jobs:
           cache: pnpm
       - name: Install dependencies (deterministic)
         run: pnpm install --frozen-lockfile
+      # The governed release wrapper runs the operator CLIs through their
+      # package scripts, which shell out to tsx. artifacts/api-server once did
+      # not declare tsx, so under pnpm's strict isolation Production failed with
+      # "sh: 1: tsx: not found". Assert resolution in the same frozen-lockfile
+      # layout Production installs, then prove the CLIs actually launch and
+      # reach their own argument validation (no --confirm, no database).
+      - name: Operator CLI packaging (tsx resolvable under strict isolation)
+        # A placeholder URL only satisfies the module-level DATABASE_URL check in
+        # @workspace/db; the pg Pool is lazy and these runs pass no --org, so they
+        # exit on argument validation without opening a connection. No --confirm.
+        env:
+          DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
+        run: |
+          pnpm --filter @workspace/api-server exec tsx --version
+          for script in migrate:hr-roles activate:wwm; do
+            out=$(pnpm --filter @workspace/api-server run "$script" 2>&1 || true)
+            echo "$out" | tail -3
+            if echo "$out" | grep -q "tsx: not found"; then
+              echo "::error::$script cannot resolve tsx — the packaging defect has regressed"; exit 1
+            fi
+            if ! echo "$out" | grep -q -- "--org <id> is required"; then
+              echo "::error::$script did not reach its own argument validation"; exit 1
+            fi
+          done
       - name: Backend tests (Vitest + Supertest, @workspace/db mocked — no live database)
         run: pnpm --filter @workspace/api-server run test
 
