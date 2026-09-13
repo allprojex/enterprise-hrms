@@ -66,7 +66,7 @@ export function validateImageUpload(file: { mimetype: string; size: number; buff
  * `fit: "inside"` (never crops, only shrinks an oversized source, preserving
  * the original aspect ratio), matching processLogoImage's own precedent.
  *
- * This deliberately replaced `resize(AVATAR_SIZE, AVATAR_SIZE, { fit: "inside", withoutEnlargement: true })`.
+ * This deliberately replaced `resize(AVATAR_SIZE, AVATAR_SIZE, { fit: "cover" })`.
  * That variant discarded pixels permanently at upload: sharp's "cover" crops to
  * the requested box around `position` (default `centre`), so a normal portrait
  * photograph — where the head sits in the upper part of the frame — had the top
