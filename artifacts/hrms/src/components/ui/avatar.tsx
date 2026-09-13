@@ -19,13 +19,32 @@ const Avatar = React.forwardRef<
 ));
 Avatar.displayName = AvatarPrimitive.Root.displayName;
 
+/**
+ * `object-cover` is required, not cosmetic: without an explicit object-fit an
+ * <img> defaults to `fill`, which STRETCHES a non-square photograph into the
+ * square avatar box. Stored avatars keep their own aspect ratio
+ * (api-server lib/imageProcessing.ts `processAvatarImage`, fit: "inside"), so
+ * `fill` would visibly distort every portrait.
+ *
+ * `object-top` frames the crop from the top of the photograph rather than its
+ * vertical centre. A circular avatar necessarily crops a portrait to a square,
+ * and centring that square on the middle of the frame cuts the top of the head
+ * off — the head sits in the upper part of a normal head-and-shoulders
+ * portrait, not the middle. Anchoring to the top keeps the whole head (hair
+ * included) and lets the shoulders be what falls outside the circle instead.
+ *
+ * This is a general rule for portrait composition, not a per-photograph offset,
+ * and it is a no-op for an already-square image (no overflow to position). Any
+ * call site needing different framing can pass its own `object-*` class —
+ * tailwind-merge lets the later class win.
+ */
 const AvatarImage = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Image>,
   React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>
 >(({ className, ...props }, ref) => (
   <AvatarPrimitive.Image
     ref={ref}
-    className={cn('aspect-square h-full w-full', className)}
+    className={cn('aspect-square h-full w-full object-cover object-top', className)}
     {...props}
   />
 ));
