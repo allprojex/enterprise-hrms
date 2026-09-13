@@ -4,7 +4,10 @@ export class InvalidImageError extends Error {}
 
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5MB
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-const AVATAR_SIZE = 512;
+// Long-edge cap for a stored avatar. Not a crop box: the image keeps its own
+// aspect ratio and is only shrunk if it exceeds this on either edge, so a
+// portrait photograph stays a portrait photograph.
+const AVATAR_MAX_DIMENSION = 512;
 
 const SIGNATURES: { mime: string; check: (buf: Buffer) => boolean }[] = [
   { mime: "image/jpeg", check: (b) => b.length > 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff },
@@ -54,16 +57,40 @@ export function validateImageUpload(file: { mimetype: string; size: number; buff
 }
 
 /**
- * Resizes to a square avatar and re-encodes as JPEG. `.rotate()` with no
- * argument applies the EXIF orientation tag before sharp discards it —
- * sharp does not copy source metadata into its output unless
+ * Bounds an avatar to a sensible stored size and re-encodes as JPEG.
+ * `.rotate()` with no argument applies the EXIF orientation tag before sharp
+ * discards it — sharp does not copy source metadata into its output unless
  * `.withMetadata()` is called, so this strips EXIF (GPS, camera info, etc.)
  * by default.
+ *
+ * `fit: "inside"` (never crops, only shrinks an oversized source, preserving
+ * the original aspect ratio), matching processLogoImage's own precedent.
+ *
+ * This deliberately replaced `resize(AVATAR_SIZE, AVATAR_SIZE, { fit: "inside", withoutEnlargement: true })`.
+ * That variant discarded pixels permanently at upload: sharp's "cover" crops to
+ * the requested box around `position` (default `centre`), so a normal portrait
+ * photograph — where the head sits in the upper part of the frame — had the top
+ * of the head and the shoulders cut away before anything was ever stored. The
+ * original upload buffer is not retained anywhere (see
+ * lib/employeeProfilePicture.ts: only the processed bytes are written), so that
+ * crop was unrecoverable, and no amount of CSS could put the head back: a square
+ * stored image inside a square avatar box has no overflow for `object-position`
+ * to act on.
+ *
+ * Framing is now a RENDERING decision, made per context by the circular avatar
+ * (see components/ui/avatar.tsx), where it can differ between a 96px profile
+ * header and a 32px list row and can be changed later without a re-upload.
+ * Storage keeps the whole photograph.
+ *
+ * NOTE FOR EXISTING PICTURES: avatars uploaded before this change are already
+ * stored square-cropped. They are not rewritten (that would be a destructive
+ * migration of customer data); those employees must simply re-upload to get the
+ * full composition.
  */
 export async function processAvatarImage(buffer: Buffer): Promise<Buffer> {
   return sharp(buffer)
     .rotate()
-    .resize(AVATAR_SIZE, AVATAR_SIZE, { fit: "cover" })
+    .resize(AVATAR_MAX_DIMENSION, AVATAR_MAX_DIMENSION, { fit: "inside", withoutEnlargement: true })
     .jpeg({ quality: 82 })
     .toBuffer();
 }
