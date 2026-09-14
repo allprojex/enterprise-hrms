@@ -19,6 +19,9 @@ import { Label } from '@/components/ui/label';
 import { PageContainer, PageHeader, StatusBadge, EmptyState, ErrorState, TableSkeleton } from '@/components/foundation';
 import { useToast } from '@/hooks/use-toast';
 import { FORM_STATUS_LABEL } from '@/lib/form-definition';
+import { Badge } from '@/components/ui/badge';
+import { AssistedSubmissionDialog } from '@/components/forms/assisted-submission-dialog';
+import { useMyPermissions } from '@/hooks/use-my-permissions';
 
 /**
  * Forms (WS-26A): the forms the caller may see — their own, those they raised,
@@ -38,6 +41,18 @@ export default function FormsPage() {
   });
   const createMutation = useCreateFormSubmission();
   const [templateId, setTemplateId] = useState('');
+
+  // "Complete on behalf" is an explicit capability, not an inference from being
+  // able to manage forms. The list is further narrowed to templates whose
+  // PUBLISHED version opts in, so a form that has not enabled assisted
+  // completion is never offered — matching the server's fail-closed policy.
+  const permissions = useMyPermissions(organizationId);
+  const canAssist = permissions.has('form_submission.create_on_behalf');
+  const assistable = useMemo(
+    () => (templatesQuery.data?.templates ?? []).filter((t) => t.status === 'active' && t.currentPublishedVersionId != null && t.allowsOnBehalfSubmission),
+    [templatesQuery.data],
+  );
+  const actorName = [user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.email || 'You';
 
   const startable = useMemo(() => (templatesQuery.data?.templates ?? []).filter((t) => t.status === 'active' && t.currentPublishedVersionId != null), [templatesQuery.data]);
 
@@ -86,6 +101,19 @@ export default function FormsPage() {
                 <FilePlus2 aria-hidden="true" />
                 Start
               </Button>
+              {canAssist && (
+                <AssistedSubmissionDialog
+                  organizationId={organizationId}
+                  templates={assistable}
+                  actorName={actorName}
+                  onCreated={(id, title) => {
+                    queryClient.invalidateQueries({ queryKey: getListFormSubmissionsQueryKey(organizationId) });
+                    toast({ title: 'Assisted form created', description: title, variant: 'success' });
+                    setLocation(`/forms/${id}`);
+                  }}
+                  onError={(message) => toast({ title: 'Assisted form not created', description: message, variant: 'destructive' })}
+                />
+              )}
             </div>
           ) : undefined
         }
@@ -123,7 +151,16 @@ export default function FormsPage() {
                         </Link>
                         <p className="text-helper text-foreground-muted">#{s.id} · v{s.versionNumber}</p>
                       </TableCell>
-                      <TableCell>{s.subjectName}</TableCell>
+                      <TableCell>
+                        <span>{s.subjectName}</span>
+                        {s.assisted && (
+                          // Marker only. The assistance NOTES are never part of a list projection —
+                          // they can carry medical or accessibility detail.
+                          <Badge variant="secondary" className="ml-2 align-middle" data-testid={`badge-assisted-${s.id}`}>
+                            HR-assisted
+                          </Badge>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <StatusBadge status={s.status} label={FORM_STATUS_LABEL[s.status] ?? s.status} />
                       </TableCell>

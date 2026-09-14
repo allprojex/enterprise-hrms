@@ -35,6 +35,12 @@ export interface WwmTemplateSeed {
    * Signature & Approval Certificate, so they carry no policy.
    */
   signaturePolicy?: SignaturePolicy;
+  /**
+   * WS-26 assisted submissions: version-level rules about HOW a submission may
+   * be raised. Present only on forms an authorized HR user may complete on an
+   * employee's behalf. Absent means fail-closed — assisted completion refused.
+   */
+  submissionPolicy?: Record<string, unknown>;
 }
 
 export const WWM_FORM_TEMPLATES: readonly WwmTemplateSeed[] = [
@@ -66,6 +72,15 @@ export const WWM_FORM_TEMPLATES: readonly WwmTemplateSeed[] = [
     signaturePolicy: {
       slots: [{ key: "employee_signature", role: "employee", required: true, methods: WWM_SIGNATURE_METHODS }],
     },
+    // The PIF is the one WWM form HR may complete for an employee who genuinely
+    // cannot do it themselves — a new starter with no account yet, incapacity,
+    // or accessibility need. The other three stay closed: an evaluation, a
+    // probation assessment and a leave application are all first-person acts.
+    //
+    // This unlocks the capability only. It does not let HR sign the employee's
+    // signature slot: that slot resolves to `subject_employee`, so the stage
+    // resolver still requires the employee's own membership.
+    submissionPolicy: { allowOnBehalfSubmission: true },
   },
   {
     templateKey: WWM_STAFF_EVALUATION_KEY,

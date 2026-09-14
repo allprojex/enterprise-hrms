@@ -51,6 +51,7 @@ import { recordAuditEvent } from "../auditLog";
 import { writeOrgFile, discardOrphanedFile } from "../fileStorage";
 import { getEffectivePermissions } from "../permissions";
 import type { FormDefinition } from "./definition";
+import type { ResolvedAssistance } from "./assistedSubmission";
 import { validateAnswers, computeValues, sectionKeysEditableBy, type Answers, type ComputedValues } from "./answers";
 import { resolveAutofill, readonlyKeys, type AutofillSnapshot } from "./bindings";
 import { redactedSensitiveKeys, redactValues } from "./sensitivity";
@@ -172,6 +173,11 @@ export function toSummary(r: {
     currentStageOrder: s.currentStageOrder,
     stageCountSnapshot: s.stageCountSnapshot,
     createdByMembershipId: s.createdByMembershipId,
+    // HR monitoring marker. The CATEGORY is safe to list; assistanceNotes is
+    // deliberately absent from every summary projection because it may carry
+    // medical or accessibility detail.
+    assisted: s.assisted,
+    assistanceReason: s.assistanceReason,
     submittedAt: s.submittedAt,
     approvedAt: s.approvedAt,
     finalizedAt: s.finalizedAt,
@@ -456,7 +462,18 @@ function audit(actor: FormActor, organizationId: number, eventType: string, subm
   });
 }
 
-export async function createSubmission(params: { organizationId: number; templateId: number; subjectEmployeeId: number; actor: FormActor }) {
+export async function createSubmission(params: {
+  organizationId: number;
+  templateId: number;
+  subjectEmployeeId: number;
+  actor: FormActor;
+  /**
+   * Present only for an assisted ("on behalf of") creation, already authorized
+   * and validated by lib/formEngine/assistedSubmission.ts. Written once here and
+   * never updated afterwards — these columns are provenance, not state.
+   */
+  assistance?: ResolvedAssistance;
+}) {
   const template = await getTemplate(params.organizationId, params.templateId);
   if (!template || template.status !== "active") throw new FormSubmissionStateError("Template is not available");
   const version = await getPublishedVersion(params.organizationId, params.templateId);
@@ -485,13 +502,36 @@ export async function createSubmission(params: { organizationId: number; templat
         subjectEmployeeId: params.subjectEmployeeId,
         status: "draft",
         createdByMembershipId: params.actor.membershipId,
+        assisted: params.assistance?.assisted ?? false,
+        assistanceReason: params.assistance?.assistanceReason ?? null,
+        assistanceNotes: params.assistance?.assistanceNotes ?? null,
       })
       .returning();
     const revision = await appendRevision(tx, { organizationId: params.organizationId, submission, kind: "draft", answers: {}, autofillSnapshot: autofill, computed: computeValues(definition, {}), actor: params.actor });
-    await appendEvent(tx, { organizationId: params.organizationId, submissionId: submission.id, eventType: "created", revisionId: revision.id, actor: params.actor, details: { templateVersionId: version.id, versionNumber: version.versionNumber } });
+    await appendEvent(tx, {
+      organizationId: params.organizationId,
+      submissionId: submission.id,
+      eventType: params.assistance ? "created_on_behalf" : "created",
+      revisionId: revision.id,
+      actor: params.actor,
+      // Category only. assistanceNotes may carry medical detail and is never
+      // copied into the event chronology or the audit log.
+      details: {
+        templateVersionId: version.id,
+        versionNumber: version.versionNumber,
+        ...(params.assistance
+          ? { assisted: true, assistanceReason: params.assistance.assistanceReason, subjectEmployeeId: params.subjectEmployeeId }
+          : {}),
+      },
+    });
     return { ...submission, currentRevisionId: revision.id };
   });
-  await audit(params.actor, params.organizationId, "form.created", created.id, { templateId: template.id, templateVersionId: version.id, subjectEmployeeId: params.subjectEmployeeId });
+  await audit(params.actor, params.organizationId, params.assistance ? "form.created_on_behalf" : "form.created", created.id, {
+    templateId: template.id,
+    templateVersionId: version.id,
+    subjectEmployeeId: params.subjectEmployeeId,
+    ...(params.assistance ? { assisted: true, assistanceReason: params.assistance.assistanceReason } : {}),
+  });
   return created;
 }
 

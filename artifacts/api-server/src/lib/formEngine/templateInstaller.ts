@@ -41,6 +41,8 @@ export interface InstallableTemplateSeed {
   definition: FormDefinition;
   stages: StageInput[];
   signaturePolicy?: SignaturePolicy;
+  /** Version-level submission rules, e.g. { allowOnBehalfSubmission: true }. Absent = fail closed. */
+  submissionPolicy?: Record<string, unknown>;
 }
 
 export interface TemplateInstallResult {
@@ -111,6 +113,7 @@ export async function installTemplates(params: {
       definition: seed.definition,
       stages: seed.stages,
       signaturePolicy: seed.signaturePolicy,
+      submissionPolicy: seed.submissionPolicy,
       actorApplicationUserId: actor.applicationUserId,
       actorMembershipId: actor.membershipId,
     });

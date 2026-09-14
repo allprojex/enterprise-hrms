@@ -24,6 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { PageContainer, PageHeader, StatusBadge, ErrorState, LoadingState } from '@/components/foundation';
+import { Badge } from '@/components/ui/badge';
 import { FormRenderer } from '@/components/forms/form-renderer';
 import { useListFormSubmissionSignatures, getListFormSubmissionSignaturesQueryKey } from '@workspace/api-client-react';
 import { SignatureSlotProvider } from '@/components/signature/signature-slot-context';
@@ -206,6 +207,17 @@ export default function FormSubmissionPage() {
   const currentKind: FormDocumentKind =
     status === 'draft' ? 'draft' : status === 'returned' ? 'returned' : status === 'rejected' ? 'rejected' : status === 'approved' ? 'approved' : status === 'finalized' || status === 'archived' ? 'final' : 'submitted';
 
+  // Category wording for the assisted banner. The operator NOTES are never
+  // rendered here: they can carry medical or accessibility detail, and this
+  // page is the one the subject employee themselves opens.
+  const ASSISTANCE_LABEL: Record<string, string> = {
+    system_access_unavailable: "they could not access the system",
+    medical_or_incapacity: "a medical reason or incapacity",
+    accessibility_assistance: "accessibility assistance",
+    administrative_assistance: "administrative assistance",
+    other: "a recorded reason",
+  };
+
   return (
     <PageContainer className="space-y-6" width="form">
       <PageHeader
@@ -222,6 +234,9 @@ export default function FormSubmissionPage() {
               {submission.subjectName} · form #{submission.id} · version {submission.versionNumber}
               {currentStage ? ` · awaiting ${currentStage.name}` : ''}
             </span>
+            {submission.assisted && (
+              <Badge variant="secondary" data-testid="badge-assisted">HR-assisted</Badge>
+            )}
           </span>
         }
         actions={
@@ -237,6 +252,20 @@ export default function FormSubmissionPage() {
           </div>
         }
       />
+
+      {submission.assisted && (
+        <div className="rounded-lg border border-border bg-surface-muted p-3 text-body-sm" role="note" data-testid="panel-assisted">
+          <p>
+            <span className="font-medium">This form belongs to {submission.subjectName}.</span> HR helped prepare it because
+            {' '}{ASSISTANCE_LABEL[submission.assistanceReason ?? 'other'] ?? 'a recorded reason'}.
+          </p>
+          <p className="mt-1 text-foreground-muted">
+            HR entered the information — they did not sign in as the employee, and the form is not recorded as having been
+            completed by them. Where this form requires the employee's signature, only the employee can apply it from their
+            own account.
+          </p>
+        </div>
+      )}
 
       <div role="status" aria-live="polite" className="sr-only">
         {FORM_STATUS_LABEL[status] ?? status}

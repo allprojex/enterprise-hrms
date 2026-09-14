@@ -30872,7 +30872,7 @@ paths:
     post:
       operationId: createFormSubmission
       tags: [forms]
-      summary: Start a form (WS-26) — for oneself via the employee link, or for another employee with form.assess
+      summary: Start a form (WS-26) — for oneself via the employee link, or on behalf of another employee with form_submission.create_on_behalf where the template version permits it
       parameters:
         - name: organizationId
           in: path
@@ -48164,6 +48164,9 @@ components:
       type: object
       required: [id, templateKey, formType, title, status, createdAt, updatedAt, versions]
       properties:
+        allowsOnBehalfSubmission:
+          type: boolean
+          description: True when this template's PUBLISHED version permits an authorized HR user to complete it on an employee's behalf. Absent policy is false.
         id:
           type: integer
         templateKey:
@@ -48329,8 +48332,16 @@ components:
 
     FormSubmissionSummary:
       type: object
-      required: [id, organizationId, templateId, templateKey, templateTitle, formType, templateVersionId, versionNumber, subjectEmployeeId, subjectName, status, createdByMembershipId, createdAt, updatedAt]
+      required: [id, organizationId, templateId, templateKey, templateTitle, formType, templateVersionId, versionNumber, subjectEmployeeId, subjectName, status, createdByMembershipId, assisted, createdAt, updatedAt]
       properties:
+        assisted:
+          type: boolean
+          description: True when an authorized HR user completed this form on the subject employee's behalf.
+        assistanceReason:
+          allOf:
+            - $ref: "#/components/schemas/FormAssistanceReason"
+          nullable: true
+          description: Category only. The operator's free-text notes are deliberately not part of any summary.
         id:
           type: integer
         organizationId:
@@ -48557,6 +48568,26 @@ components:
         subjectEmployeeId:
           type: integer
           nullable: true
+        # Required only when subjectEmployeeId is another employee. The caller must
+        # hold form_submission.create_on_behalf AND the template version's policy
+        # must set allowOnBehalfSubmission; absent policy fails closed.
+        assistanceReason:
+          $ref: "#/components/schemas/FormAssistanceReason"
+        assistanceNotes:
+          type: string
+          nullable: true
+          maxLength: 2000
+          description: Supporting detail. Required when assistanceReason is "other". May contain sensitive detail and is never returned in list projections.
+
+    FormAssistanceReason:
+      type: string
+      description: Why a form was completed by someone other than its subject employee.
+      enum:
+        - system_access_unavailable
+        - medical_or_incapacity
+        - accessibility_assistance
+        - administrative_assistance
+        - other
 
     SaveFormSubmissionDraftBody:
       type: object

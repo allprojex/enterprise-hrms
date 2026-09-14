@@ -13593,6 +13593,8 @@ export interface FormTemplateVersionSummary {
 }
 
 export interface FormTemplateSummary {
+  /** True when this template's PUBLISHED version permits an authorized HR user to complete it on an employee's behalf. Absent policy is false. */
+  allowsOnBehalfSubmission?: boolean;
   id: number;
   templateKey: string;
   formType: FormTemplateType;
@@ -13675,7 +13677,25 @@ export interface UpdateFormTemplateVersionBody {
   changeNote?: string | null;
 }
 
+/**
+ * Why a form was completed by someone other than its subject employee.
+ */
+export type FormAssistanceReason = typeof FormAssistanceReason[keyof typeof FormAssistanceReason];
+
+
+export const FormAssistanceReason = {
+  system_access_unavailable: 'system_access_unavailable',
+  medical_or_incapacity: 'medical_or_incapacity',
+  accessibility_assistance: 'accessibility_assistance',
+  administrative_assistance: 'administrative_assistance',
+  other: 'other',
+} as const;
+
 export interface FormSubmissionSummary {
+  /** True when an authorized HR user completed this form on the subject employee's behalf. */
+  assisted: boolean;
+  /** Category only. The operator's free-text notes are deliberately not part of any summary. */
+  assistanceReason?: FormAssistanceReason | null;
   id: number;
   organizationId: number;
   templateId: number;
@@ -13791,6 +13811,12 @@ export interface FormSubmissionDetail {
 export interface CreateFormSubmissionBody {
   templateId: number;
   subjectEmployeeId?: number | null;
+  assistanceReason?: FormAssistanceReason;
+  /**
+     * Supporting detail. Required when assistanceReason is "other". May contain sensitive detail and is never returned in list projections.
+     * @maxLength 2000
+     */
+  assistanceNotes?: string | null;
 }
 
 export interface SaveFormSubmissionDraftBody {
