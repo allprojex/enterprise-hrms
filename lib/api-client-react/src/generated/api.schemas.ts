@@ -6967,6 +6967,10 @@ export interface LeaveDashboardMetrics {
   upcomingApprovedLeave: number;
   /** Pending leave requests the viewer is authorized to approve — same scope GET .../leave-requests/pending-approvals (W35) uses. */
   pendingApprovalCount: number;
+  /** Of pendingApprovalCount, requests at a stage this viewer can decide now — `pending` only for the employee's current Department Head, `pending_hr` only for a leave_request.manage holder, never the viewer's own request. */
+  awaitingMyActionCount: number;
+  /** Of pendingApprovalCount, requests the viewer can see but which wait on another approver (e.g. HR monitoring a request still with the Department Head). Monitoring only — not an action for this viewer. */
+  awaitingOtherStageCount: number;
   /** Organization-wide public holiday occurrences within the next 30 days. */
   upcomingPublicHolidays: number;
   /** 100 * (ledger usage) / (ledger opening_balance + accrual + carry_forward credits) across the viewer's scope; 0 when nothing has been credited yet. */
@@ -6993,6 +6997,8 @@ export interface InventoryDashboardMetrics {
 }
 
 export interface DashboardSummary {
+  /** Employees whose employment status is active, probation or on_leave (suspended and terminated excluded). Same employee.write gate as totalEmployees — null, never zero, without it. */
+  activeEmployees: number | null;
   /** Null when the caller lacks employee.write (the same org_admin/hr_manager-only tier that gates every employee-record mutation) — the broad employee.read every role holds only implies "may view the directory," never "may see an aggregate organization headcount." */
   totalEmployees: number | null;
   activeModules: number;
@@ -7005,6 +7011,107 @@ export interface DashboardSummary {
   assetMetrics: AssetDashboardMetrics | null;
   /** Null when the "office_inventory" module is disabled for the caller's active organization, or when the caller lacks office_inventory.reports.read. */
   inventoryMetrics: InventoryDashboardMetrics | null;
+}
+
+export type HrTaskSourceModule = typeof HrTaskSourceModule[keyof typeof HrTaskSourceModule];
+
+
+export const HrTaskSourceModule = {
+  leave: 'leave',
+  learning: 'learning',
+  onboarding: 'onboarding',
+  skills: 'skills',
+  performance: 'performance',
+  recruitment: 'recruitment',
+  employee_requests: 'employee_requests',
+  employee_relations: 'employee_relations',
+  succession: 'succession',
+  employment_lifecycle: 'employment_lifecycle',
+  forms: 'forms',
+} as const;
+
+/**
+ * A task the caller can perform now. The Action Centre's safe pointer shape (§31.6) plus a short context line; read-only (no inline commands). No narrative, no priority.
+ */
+export interface HrTask {
+  sourceModule: HrTaskSourceModule;
+  sourceType: string;
+  sourceId: number;
+  actionKind: ActionKind;
+  title: string;
+  employeeId?: number | null;
+  employeeFirstName?: string | null;
+  employeeLastName?: string | null;
+  status: string;
+  createdAt: string;
+  dueAt?: string | null;
+  /** Null where dueAt is null — never false (§31.16). */
+  overdue?: boolean | null;
+  /** Safe context such as the current workflow stage or a probation end date. */
+  context: string | null;
+  deepLink: string;
+}
+
+export interface HrTaskList {
+  /** At most 25 tasks, overdue first, then due soon, then undated oldest first. */
+  items: HrTask[];
+  total: number;
+  overdue: number;
+  /** Authorized task sources whose work could not be loaded. */
+  unavailableSources: string[];
+}
+
+export type HrAttentionCardKey = typeof HrAttentionCardKey[keyof typeof HrAttentionCardKey];
+
+
+export const HrAttentionCardKey = {
+  attendance_exceptions: 'attendance_exceptions',
+  probation_reviews_due: 'probation_reviews_due',
+  performance_reviews_due: 'performance_reviews_due',
+  personnel_files_attention: 'personnel_files_attention',
+  assets_awaiting_return: 'assets_awaiting_return',
+  forms_awaiting_review: 'forms_awaiting_review',
+} as const;
+
+export interface HrAttentionCard {
+  key: HrAttentionCardKey;
+  count: number;
+  /** Monitoring figure where the source has one (forms waiting at other stages). */
+  secondaryCount: number | null;
+  deepLink: string;
+}
+
+export interface HrUpcomingHoliday {
+  id: number;
+  name: string;
+  /** ISO calendar date (YYYY-MM-DD). */
+  date: string;
+}
+
+/**
+ * HR-category audit event, redacted to what a dashboard needs — no state, IP, user agent or metadata.
+ */
+export interface HrActivityItem {
+  id: number;
+  occurredAt: string;
+  eventType: string;
+  targetType: string | null;
+  actorName: string | null;
+}
+
+export interface HrCommandCentre {
+  organizationId: number;
+  generatedAt: string;
+  /** Null when the caller is authorized for no task source at all. */
+  tasks: HrTaskList | null;
+  /** Only cards whose module is enabled and whose permission the caller holds. */
+  attention: HrAttentionCard[];
+  /** Next 60 days (max 5). Null without public_holiday.read or with Leave disabled. */
+  upcomingHolidays: HrUpcomingHoliday[] | null;
+  /** Latest HR-category audit events. Null without audit.read or audit.read.hr. */
+  recentActivity: HrActivityItem[] | null;
+  /** Authorized sections whose data could not be loaded. */
+  unavailableSections: string[];
 }
 
 export interface Role {

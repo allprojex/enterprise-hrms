@@ -239,31 +239,80 @@ export async function canViewSubmission(organizationId: number, submission: Form
   return false;
 }
 
+/** Per-call cache of a version's stages, so a list resolves each version's stages once. */
+function stageLoader(organizationId: number) {
+  const cache = new Map<number, FormWorkflowStage[]>();
+  return async (templateVersionId: number): Promise<FormWorkflowStage[]> => {
+    let stages = cache.get(templateVersionId);
+    if (!stages) {
+      stages = await listStages(organizationId, templateVersionId);
+      cache.set(templateVersionId, stages);
+    }
+    return stages;
+  };
+}
+
+/** The pending stage this membership currently resolves to for a submission, or null. */
+async function stageAssignedToViewer(
+  organizationId: number,
+  summary: { status: FormSubmission["status"]; currentStageOrder: number | null; templateVersionId: number; subjectEmployeeId: number },
+  viewer: ViewerContext,
+  loadStages: (templateVersionId: number) => Promise<FormWorkflowStage[]>,
+): Promise<FormWorkflowStage | null> {
+  if (summary.status !== "pending_approval" || summary.currentStageOrder == null) return null;
+  const stage = (await loadStages(summary.templateVersionId)).find((s) => s.stageOrder === summary.currentStageOrder);
+  if (!stage) return null;
+  const satisfied = await membershipSatisfiesFormStage({ organizationId, stage, membershipId: viewer.membershipId, subjectEmployeeId: summary.subjectEmployeeId });
+  return satisfied ? stage : null;
+}
+
 /** Submissions a non-HR viewer may list: own (as subject or creator) plus those awaiting their stage. */
 export async function listVisibleSubmissions(organizationId: number, viewer: ViewerContext, filter: SubmissionListFilter = {}) {
   const all = await listSubmissions(organizationId, filter);
   if (viewer.permissions.has("form.read")) return all;
-  const stageCache = new Map<number, FormWorkflowStage[]>();
+  const loadStages = stageLoader(organizationId);
   const visible = [];
   for (const summary of all) {
     const own = (viewer.employeeId != null && summary.subjectEmployeeId === viewer.employeeId) || summary.createdByMembershipId === viewer.membershipId;
-    if (own) {
-      visible.push(summary);
-      continue;
-    }
-    if (summary.status === "pending_approval" && summary.currentStageOrder != null) {
-      let stages = stageCache.get(summary.templateVersionId);
-      if (!stages) {
-        stages = await listStages(organizationId, summary.templateVersionId);
-        stageCache.set(summary.templateVersionId, stages);
-      }
-      const stage = stages.find((s) => s.stageOrder === summary.currentStageOrder);
-      if (stage && (await membershipSatisfiesFormStage({ organizationId, stage, membershipId: viewer.membershipId, subjectEmployeeId: summary.subjectEmployeeId }))) {
-        visible.push(summary);
-      }
-    }
+    if (own || (await stageAssignedToViewer(organizationId, summary, viewer, loadStages))) visible.push(summary);
   }
   return visible;
+}
+
+/**
+ * Submissions currently waiting on THIS viewer to act, as distinct from
+ * submissions the viewer can merely see.
+ *
+ * A submission counts only when it is `pending_approval`, its current stage
+ * resolves to the viewer live (membershipSatisfiesFormStage — the same check
+ * stageAction enforces), and at least one of that stage's allowed actions
+ * survives the maker-checker rule getSubmissionDetail applies: a subject or
+ * creator may only `complete`, never approve/return/reject. So:
+ *
+ *   - a form waiting at another stage (e.g. a Department Head) is excluded,
+ *     even for an HR viewer holding form.read;
+ *   - an HR-assisted ("on behalf of") draft is excluded — it is a draft, not
+ *     a stage — and HR does not become its approver by having raised it.
+ *
+ * `awaitingOthers` counts the remaining pending_approval submissions, and is
+ * returned only to a form.read holder (HR oversight); for anyone else it is
+ * null, because they have no authority to know those submissions exist.
+ */
+export async function listSubmissionsAwaitingViewer(organizationId: number, viewer: ViewerContext) {
+  const pending = await listSubmissions(organizationId, { status: "pending_approval" });
+  const loadStages = stageLoader(organizationId);
+  const awaiting: (ReturnType<typeof toSummary> & { stageName: string })[] = [];
+  for (const summary of pending) {
+    const stage = await stageAssignedToViewer(organizationId, summary, viewer, loadStages);
+    if (!stage) continue;
+    const isMaker = (viewer.employeeId != null && viewer.employeeId === summary.subjectEmployeeId) || summary.createdByMembershipId === viewer.membershipId;
+    const actions = (stage.allowedActions as StageAction[]).filter((a) => a === "complete" || !isMaker);
+    if (actions.length > 0) awaiting.push({ ...summary, stageName: stage.name });
+  }
+  return {
+    awaiting,
+    awaitingOthers: viewer.permissions.has("form.read") ? pending.length - awaiting.length : null,
+  };
 }
 
 /* ---------------------------------------------------------------------- */

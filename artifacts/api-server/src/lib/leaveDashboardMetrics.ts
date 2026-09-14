@@ -49,6 +49,10 @@ export interface LeaveDashboardMetrics {
   employeesOnLeave: number;
   upcomingApprovedLeave: number;
   pendingApprovalCount: number;
+  /** Of pendingApprovalCount: requests at a stage this viewer can decide now. */
+  awaitingMyActionCount: number;
+  /** Of pendingApprovalCount: requests visible to this viewer but waiting on another approver (monitor only). */
+  awaitingOtherStageCount: number;
   upcomingPublicHolidays: number;
   leaveUtilizationPercent: number;
   expiringCarryForwardBalances: number;
@@ -71,8 +75,14 @@ export async function getLeaveDashboardMetrics(params: {
   organizationId: number;
   employeeIds: number[] | null;
   pendingApprovalCount: number;
+  awaitingMyActionCount?: number;
+  awaitingOtherStageCount?: number;
   today?: string;
 }): Promise<LeaveDashboardMetrics> {
+  const approvalSplit = {
+    awaitingMyActionCount: params.awaitingMyActionCount ?? params.pendingApprovalCount,
+    awaitingOtherStageCount: params.awaitingOtherStageCount ?? 0,
+  };
   const scope: LeaveDashboardScope = params.employeeIds === null ? "organization" : "own_and_reports";
   const today = params.today ?? toIsoDate(new Date());
   const upcomingTo = addDays(today, UPCOMING_WINDOW_DAYS);
@@ -89,6 +99,7 @@ export async function getLeaveDashboardMetrics(params: {
       employeesOnLeave: 0,
       upcomingApprovedLeave: 0,
       pendingApprovalCount: params.pendingApprovalCount,
+      ...approvalSplit,
       upcomingPublicHolidays,
       leaveUtilizationPercent: 0,
       expiringCarryForwardBalances: 0,
@@ -161,6 +172,7 @@ export async function getLeaveDashboardMetrics(params: {
     employeesOnLeave: onLeaveEmployeeIds.size,
     upcomingApprovedLeave,
     pendingApprovalCount: params.pendingApprovalCount,
+    ...approvalSplit,
     upcomingPublicHolidays,
     leaveUtilizationPercent,
     expiringCarryForwardBalances,

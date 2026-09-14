@@ -7,7 +7,7 @@ import { resolveActiveOrganizationId, getActiveMembership } from "../lib/members
 import { listOrganizationModules, getModuleAccess } from "../lib/organizationModules";
 import { hasPermission } from "../lib/permissions";
 import { resolveOwnEmployeeId } from "../lib/leaveRequests";
-import { listPendingApprovals } from "../lib/leaveApprovals";
+import { listPendingApprovals, partitionPendingApprovalsForActor } from "../lib/leaveApprovals";
 import { listDepartmentsHeadedByMembership } from "../lib/departmentHeads";
 import { listLiveDirectReportEmployeeIds } from "../lib/directReports";
 import { getLeaveDashboardMetrics, type LeaveDashboardMetrics } from "../lib/leaveDashboardMetrics";
@@ -51,11 +51,19 @@ async function resolveLeaveDashboardMetrics(
 
   const headedDepartmentIds = isOrgWide ? [] : await listDepartmentsHeadedByMembership(organizationId, membership.id);
   const pendingApprovals = await listPendingApprovals(organizationId, { isOrgWideHr: isOrgWide, headedDepartmentIds });
+  // HR sees both approval stages; only the stage this viewer can decide is theirs to act on.
+  const split = await partitionPendingApprovalsForActor(organizationId, pendingApprovals, {
+    membershipId: membership.id,
+    employeeId: ownEmployeeId,
+    isHr: isOrgWide,
+  });
 
   return getLeaveDashboardMetrics({
     organizationId,
     employeeIds,
     pendingApprovalCount: pendingApprovals.length,
+    awaitingMyActionCount: split.actionable.length,
+    awaitingOtherStageCount: split.awaitingOtherStage.length,
   });
 }
 
@@ -140,10 +148,23 @@ async function resolveInventoryDashboardMetrics(organizationId: number, membersh
  * for a caller without it — the same "hide, don't fabricate zero" contract
  * every other dashboard metric here already follows.
  */
-async function resolveTotalEmployees(organizationId: number, membershipId: number): Promise<number | null> {
+/**
+ * Employment statuses counted as the current workforce. `suspended` and
+ * `terminated` are excluded: neither is someone HR expects at work.
+ */
+export const ACTIVE_WORKFORCE_STATUSES = ["active", "probation", "on_leave"] as const;
+
+async function resolveEmployeeCounts(
+  organizationId: number,
+  membershipId: number,
+): Promise<{ total: number; active: number } | null> {
   if (!(await hasPermission(membershipId, "employee.write"))) return null;
-  const rows = await db.select({ id: employeesTable.id }).from(employeesTable).where(eq(employeesTable.organizationId, organizationId));
-  return rows.length;
+  const rows = await db
+    .select({ id: employeesTable.id, employmentStatus: employeesTable.employmentStatus })
+    .from(employeesTable)
+    .where(eq(employeesTable.organizationId, organizationId));
+  const active = rows.filter((r) => (ACTIVE_WORKFORCE_STATUSES as readonly string[]).includes(r.employmentStatus ?? "active")).length;
+  return { total: rows.length, active };
 }
 
 const router = Router();
@@ -200,9 +221,9 @@ router.get("/dashboard/summary", requireAuth as any, async (req: AuthenticatedRe
 
   const activeMembership = activeOrganizationId ? await getActiveMembership(req.userId!, activeOrganizationId) : null;
 
-  const [totalEmployees, activeModules, leaveMetrics, attendanceMetrics, assetMetrics, inventoryMetrics] = await Promise.all([
+  const [employeeCounts, activeModules, leaveMetrics, attendanceMetrics, assetMetrics, inventoryMetrics] = await Promise.all([
     activeOrganizationId && activeMembership
-      ? resolveTotalEmployees(activeOrganizationId, activeMembership.id)
+      ? resolveEmployeeCounts(activeOrganizationId, activeMembership.id)
       : Promise.resolve(null),
     activeOrganizationId ? listOrganizationModules(activeOrganizationId) : Promise.resolve([]),
     activeOrganizationId ? resolveLeaveDashboardMetrics(req.userId!, activeOrganizationId) : Promise.resolve(null),
@@ -225,7 +246,8 @@ router.get("/dashboard/summary", requireAuth as any, async (req: AuthenticatedRe
   const unreadCount = unreadNotifications.filter((n) => !n.read).length;
 
   res.json({
-    totalEmployees,
+    totalEmployees: employeeCounts?.total ?? null,
+    activeEmployees: employeeCounts?.active ?? null,
     activeModules: activeModules.filter((m) => m.enabled).length,
     unreadNotifications: unreadCount,
     leaveMetrics,
