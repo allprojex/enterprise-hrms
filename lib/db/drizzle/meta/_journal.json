@@ -554,6 +554,13 @@
       "when": 1788865136575,
       "tag": "0078_slim_polaris",
       "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1789348481151,
+      "tag": "0079_nosy_goblin_queen",
+      "breakpoints": true
     }
   ]
 }

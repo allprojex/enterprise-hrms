@@ -662,6 +662,11 @@ export const PERMISSIONS = [
   { key: "form.approve", resource: "form", action: "approve" },
   { key: "form.finalize", resource: "form", action: "finalize" },
   { key: "form.signature.apply", resource: "form", action: "signature.apply" },
+  // Raising a form submission FOR ANOTHER EMPLOYEE. Deliberately separate from
+  // form.assess (assessor-stage participation), which used to authorize this by
+  // accident and no longer does. Assisted completion is an exception path with
+  // its own reason, provenance and audit, so it gets its own key.
+  { key: "form_submission.create_on_behalf", resource: "form_submission", action: "create_on_behalf" },
   { key: "form.final.read", resource: "form", action: "final.read" },
 ] as const;
 
@@ -1114,7 +1119,7 @@ ROLE_PERMISSIONS.hr_administrator = [...new Set([...ROLE_PERMISSIONS.hr_manager,
 // ---------------------------------------------------------------------------
 export const CANONICAL_HR_ROLE_KEY = "hr";
 
-const HR_CANONICAL_ADDITIONS: readonly string[] = ["form_template.publish"];
+const HR_CANONICAL_ADDITIONS: readonly string[] = ["form_template.publish", "form_submission.create_on_behalf"];
 ROLE_PERMISSIONS.hr = [...new Set([...ROLE_PERMISSIONS.hr_administrator, ...HR_CANONICAL_ADDITIONS])];
 
 /**

@@ -60926,7 +60926,7 @@ export const getCreateFormSubmissionUrl = (organizationId: number,) => {
 }
 
 /**
- * @summary Start a form (WS-26) — for oneself via the employee link, or for another employee with form.assess
+ * @summary Start a form (WS-26) — for oneself via the employee link, or on behalf of another employee with form_submission.create_on_behalf where the template version permits it
  */
 export const createFormSubmission = async (organizationId: number,
     createFormSubmissionBody: CreateFormSubmissionBody, options?: RequestInit): Promise<FormSubmissionDetail> => {
@@ -60976,7 +60976,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CreateFormSubmissionMutationError = ErrorType<ApiError>
 
     /**
- * @summary Start a form (WS-26) — for oneself via the employee link, or for another employee with form.assess
+ * @summary Start a form (WS-26) — for oneself via the employee link, or on behalf of another employee with form_submission.create_on_behalf where the template version permits it
  */
 export const useCreateFormSubmission = <TError = ErrorType<ApiError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createFormSubmission>>, TError,{organizationId: number;data: BodyType<CreateFormSubmissionBody>}, TContext>, request?: SecondParameter<typeof customFetch>}

@@ -176,6 +176,7 @@ export async function listTemplates(organizationId: number, filter: { status?: F
       publishedAt: formTemplateVersionsTable.publishedAt,
       firstUsedAt: formTemplateVersionsTable.firstUsedAt,
       definitionSha256: formTemplateVersionsTable.definitionSha256,
+      submissionPolicy: formTemplateVersionsTable.submissionPolicy,
       changeNote: formTemplateVersionsTable.changeNote,
       createdAt: formTemplateVersionsTable.createdAt,
     })
@@ -260,6 +261,8 @@ export async function createTemplate(params: {
   description?: string | null;
   definition: unknown;
   signaturePolicy?: unknown;
+  /** Version-level submission rules (e.g. allowOnBehalfSubmission). Fail-closed when absent. */
+  submissionPolicy?: unknown;
   renderConfig?: unknown;
   stages?: unknown;
   changeNote?: string | null;
@@ -299,6 +302,7 @@ export async function createTemplate(params: {
         definition,
         definitionSha256: definitionSha256(definition),
         signaturePolicy,
+        submissionPolicy: isPlainObject(params.submissionPolicy) ? params.submissionPolicy : null,
         renderConfig: isPlainObject(params.renderConfig) ? params.renderConfig : null,
         changeNote: params.changeNote?.trim() || null,
         createdByMembershipId: params.actorMembershipId,
@@ -327,6 +331,8 @@ export async function createDraftVersion(params: {
   templateId: number;
   definition: unknown;
   signaturePolicy?: unknown;
+  /** Version-level submission rules (e.g. allowOnBehalfSubmission). Fail-closed when absent. */
+  submissionPolicy?: unknown;
   renderConfig?: unknown;
   stages?: unknown;
   changeNote?: string | null;
@@ -353,6 +359,7 @@ export async function createDraftVersion(params: {
         definition,
         definitionSha256: definitionSha256(definition),
         signaturePolicy,
+        submissionPolicy: isPlainObject(params.submissionPolicy) ? params.submissionPolicy : null,
         renderConfig: isPlainObject(params.renderConfig) ? params.renderConfig : null,
         changeNote: params.changeNote?.trim() || null,
         createdByMembershipId: params.actorMembershipId,
@@ -380,6 +387,8 @@ export async function updateDraftVersion(params: {
   versionId: number;
   definition?: unknown;
   signaturePolicy?: unknown;
+  /** Version-level submission rules (e.g. allowOnBehalfSubmission). Fail-closed when absent. */
+  submissionPolicy?: unknown;
   renderConfig?: unknown;
   stages?: unknown;
   changeNote?: string | null;
@@ -402,6 +411,12 @@ export async function updateDraftVersion(params: {
         definition,
         definitionSha256: sha,
         signaturePolicy,
+        // Only an explicit value changes the policy. Omitting it (e.g. an edit
+        // that touches only the change note) must never silently close a draft
+        // that was deliberately opened for assisted completion.
+        ...(params.submissionPolicy !== undefined
+          ? { submissionPolicy: isPlainObject(params.submissionPolicy) ? params.submissionPolicy : null }
+          : {}),
         ...(params.renderConfig !== undefined ? { renderConfig: isPlainObject(params.renderConfig) ? params.renderConfig : null } : {}),
         ...(params.changeNote !== undefined ? { changeNote: params.changeNote?.trim() || null } : {}),
       })

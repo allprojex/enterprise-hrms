@@ -24,6 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { PageContainer, PageHeader, StatusBadge, ErrorState, LoadingState } from '@/components/foundation';
+import { Badge } from '@/components/ui/badge';
 import { FormRenderer } from '@/components/forms/form-renderer';
 import { useListFormSubmissionSignatures, getListFormSubmissionSignaturesQueryKey } from '@workspace/api-client-react';
 import { SignatureSlotProvider } from '@/components/signature/signature-slot-context';
@@ -128,8 +129,31 @@ export default function FormSubmissionPage() {
 
   const handleSave = () =>
     saveMutation.mutate({ organizationId, submissionId, data: { answers: editableAnswers } }, { onSuccess: (d) => { applyDetail(d); toast({ title: 'Draft saved', variant: 'success' }); }, onError: fail('Draft not saved') });
-  const handleSubmit = () =>
-    submitMutation.mutate({ organizationId, submissionId, data: { answers: editableAnswers } }, { onSuccess: (d) => { applyDetail(d); toast({ title: 'Form submitted', variant: 'success' }); }, onError: fail('Form not submitted') });
+  // Normal employee flow: when the subject has already signed their own
+  // confirmation slot, submitting also confirms. These remain two backend
+  // actions (submit, then the stage-1 "complete"), each authorized and audited
+  // separately — the stage boundary is preserved; only the clicks are joined.
+  const handleSubmit = (alsoConfirm = false) =>
+    submitMutation.mutate(
+      { organizationId, submissionId, data: { answers: editableAnswers } },
+      {
+        onSuccess: (d) => {
+          applyDetail(d);
+          if (!alsoConfirm) {
+            toast({ title: 'Form submitted', variant: 'success' });
+            return;
+          }
+          stageMutation.mutate(
+            { organizationId, submissionId, data: { action: 'complete', answers: editableAnswers, notes: null } },
+            {
+              onSuccess: (d2) => { applyDetail(d2); toast({ title: 'Form submitted and confirmed', description: 'It is now with HR for review.', variant: 'success' }); },
+              onError: fail('Submitted, but not yet confirmed'),
+            },
+          );
+        },
+        onError: fail('Form not submitted'),
+      },
+    );
   const handleStage = (action: FormStageAction) =>
     stageMutation.mutate(
       { organizationId, submissionId, data: { action, answers: editableAnswers, notes: notes.trim() || null } },
@@ -203,8 +227,29 @@ export default function FormSubmissionPage() {
       queryClient.invalidateQueries({ queryKey: getGetFormSubmissionQueryKey(organizationId, submissionId) });
     },
   };
+  // A subject-employee confirmation stage that owns a signature slot (PIF v2
+  // stage 1). The server enforces the signature; the UI only guides.
+  const isSignatureStage = (s: typeof currentStage) => !!s && s.resolver === 'subject_employee' && !!s.signatureSlotKey;
+  const awaitingEmployeeSignature = status === 'pending_approval' && isSignatureStage(currentStage);
+  const myConfirmationStage = awaitingEmployeeSignature && viewer.availableActions.includes('complete') ? currentStage! : null;
+  const myConfirmationSigned = myConfirmationStage ? signatureContext.applied(myConfirmationStage.signatureSlotKey!) != null : false;
+  const firstStage = detail.stages.find((s) => s.stageOrder === minStageOrder);
+  const submitAlsoConfirms =
+    viewer.canSubmit && viewer.isSubject && status === 'draft' && isSignatureStage(firstStage) && signatureContext.applied(firstStage!.signatureSlotKey!) != null;
+
   const currentKind: FormDocumentKind =
     status === 'draft' ? 'draft' : status === 'returned' ? 'returned' : status === 'rejected' ? 'rejected' : status === 'approved' ? 'approved' : status === 'finalized' || status === 'archived' ? 'final' : 'submitted';
+
+  // Category wording for the assisted banner. The operator NOTES are never
+  // rendered here: they can carry medical or accessibility detail, and this
+  // page is the one the subject employee themselves opens.
+  const ASSISTANCE_LABEL: Record<string, string> = {
+    system_access_unavailable: "they could not access the system",
+    medical_or_incapacity: "a medical reason or incapacity",
+    accessibility_assistance: "accessibility assistance",
+    administrative_assistance: "administrative assistance",
+    other: "a recorded reason",
+  };
 
   return (
     <PageContainer className="space-y-6" width="form">
@@ -222,6 +267,9 @@ export default function FormSubmissionPage() {
               {submission.subjectName} · form #{submission.id} · version {submission.versionNumber}
               {currentStage ? ` · awaiting ${currentStage.name}` : ''}
             </span>
+            {submission.assisted && (
+              <Badge variant="secondary" data-testid="badge-assisted">HR-assisted</Badge>
+            )}
           </span>
         }
         actions={
@@ -237,6 +285,36 @@ export default function FormSubmissionPage() {
           </div>
         }
       />
+
+      {submission.assisted && (
+        <div className="rounded-lg border border-border bg-surface-muted p-3 text-body-sm" role="note" data-testid="panel-assisted">
+          <p>
+            <span className="font-medium">This form belongs to {submission.subjectName}.</span> HR helped prepare it because
+            {' '}{ASSISTANCE_LABEL[submission.assistanceReason ?? 'other'] ?? 'a recorded reason'}.
+          </p>
+          <p className="mt-1 text-foreground-muted">
+            HR entered the information — they did not sign in as the employee, and the form is not recorded as having been
+            completed by them. The employee must review the form and apply their own signature from their own account before
+            HR reviews it. HR cannot sign for them.
+          </p>
+        </div>
+      )}
+
+      {awaitingEmployeeSignature && (
+        <div className="rounded-lg border border-warning/25 bg-warning-soft p-3 text-body-sm text-warning-soft-foreground" role="note" data-testid="panel-awaiting-employee-signature">
+          {myConfirmationStage ? (
+            <p>
+              <span className="font-medium">Awaiting your confirmation &amp; signature.</span> Review the information below, apply
+              your own signature, then confirm. HR reviews the form after you confirm.
+            </p>
+          ) : (
+            <p>
+              <span className="font-medium">Awaiting {currentStage!.name}.</span> {submission.subjectName} must review the form
+              and apply their own signature before HR review.
+            </p>
+          )}
+        </div>
+      )}
 
       <div role="status" aria-live="polite" className="sr-only">
         {FORM_STATUS_LABEL[status] ?? status}
@@ -260,8 +338,15 @@ export default function FormSubmissionPage() {
           <CardHeader>
             <CardTitle>Actions</CardTitle>
             <CardDescription>
-              {viewer.canSubmit && 'Save your progress, or submit when the form is complete.'}
-              {viewer.availableActions.length > 0 && currentStage && `You are the ${currentStage.name} stage for this form.`}
+              {viewer.canSubmit &&
+                (submitAlsoConfirms
+                  ? 'You have signed. Submitting also confirms the form and sends it to HR for review.'
+                  : 'Save your progress, or submit when the form is complete.')}
+              {myConfirmationStage
+                ? myConfirmationSigned
+                  ? 'Signed. Confirm to send the form to HR for review.'
+                  : 'Apply your signature in the form above before confirming.'
+                : viewer.availableActions.length > 0 && currentStage && `You are the ${currentStage.name} stage for this form.`}
               {viewer.canFinalize && 'Approved. Finalizing generates the immutable signed document.'}
             </CardDescription>
           </CardHeader>
@@ -279,16 +364,21 @@ export default function FormSubmissionPage() {
                     <Save aria-hidden="true" />
                     Save draft
                   </Button>
-                  <Button onClick={handleSubmit} loading={submitMutation.isPending} disabled={busy} data-testid="button-submit-form">
+                  <Button onClick={() => handleSubmit(submitAlsoConfirms)} loading={submitMutation.isPending} disabled={busy} data-testid="button-submit-form">
                     <Send aria-hidden="true" />
-                    {status === 'returned' ? 'Resubmit' : 'Submit'}
+                    {status === 'returned' ? 'Resubmit' : submitAlsoConfirms ? 'Submit & confirm' : 'Submit'}
                   </Button>
                 </>
               )}
               {viewer.availableActions.includes('complete') && (
-                <Button onClick={() => handleStage('complete')} loading={stageMutation.isPending} disabled={busy} data-testid="button-stage-complete">
+                <Button
+                  onClick={() => handleStage('complete')}
+                  loading={stageMutation.isPending}
+                  disabled={busy || (myConfirmationStage != null && !myConfirmationSigned)}
+                  data-testid="button-stage-complete"
+                >
                   <CheckCircle2 aria-hidden="true" />
-                  Complete my part
+                  {myConfirmationStage ? 'Confirm & send to HR' : 'Complete my part'}
                 </Button>
               )}
               {viewer.availableActions.includes('approve') && (

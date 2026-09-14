@@ -20,7 +20,13 @@ import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAu
 import { requireMembership, resolveOrganizationId, resolveActorMembershipId, type MembershipRequest } from "../middlewares/requireMembership";
 import { readOrgFile } from "../lib/fileStorage";
 import { getGeneratedDocument } from "../lib/documentGeneration";
-import { getTemplate, getVersion, parseDefinition } from "../lib/formEngine/templates";
+import { getTemplate, getPublishedVersion, getVersion, parseDefinition } from "../lib/formEngine/templates";
+import {
+  authorizeOnBehalf,
+  CREATE_ON_BEHALF_PERMISSION,
+  AssistedSubmissionPolicyError,
+  AssistedSubmissionValidationError,
+} from "../lib/formEngine/assistedSubmission";
 import { redactedSensitiveKeys } from "../lib/formEngine/sensitivity";
 import { getModuleAccess } from "../lib/organizationModules";
 import {
@@ -141,8 +147,11 @@ router.post(
       res.status(400).json({ error: "You are not linked to an employee record; choose the employee this form is for" });
       return;
     }
-    if (subjectEmployeeId !== viewer.employeeId && !viewer.permissions.has("form.assess")) {
-      res.status(403).json({ error: "form.assess is required to raise a form for another employee" });
+    // Permission FIRST, before any template or version lookup: a caller without
+    // the capability must not learn whether a template exists, has a published
+    // version, or permits assisted completion. authorizeOnBehalf re-checks it.
+    if (subjectEmployeeId !== viewer.employeeId && !viewer.permissions.has(CREATE_ON_BEHALF_PERMISSION)) {
+      res.status(403).json({ error: `${CREATE_ON_BEHALF_PERMISSION} is required to complete a form on behalf of another employee` });
       return;
     }
     const template = await getTemplate(organizationId, parsed.data.templateId);
@@ -150,12 +159,42 @@ router.post(
       res.status(404).json({ error: "Form template not found" });
       return;
     }
+
+    // Raising a form for SOMEONE ELSE is a governed exception, not an incidental
+    // consequence of holding an assessor permission. It needs the explicit
+    // capability, a published version whose policy opts in, and a classified
+    // reason. form.assess deliberately no longer authorizes this.
+    let assistance;
+    if (subjectEmployeeId !== viewer.employeeId) {
+      const version = await getPublishedVersion(organizationId, template.id);
+      if (!version) {
+        res.status(409).json({ error: "This form has no published version" });
+        return;
+      }
+      try {
+        assistance = authorizeOnBehalf({
+          permissions: viewer.permissions,
+          version,
+          assistance: { reason: parsed.data.assistanceReason, notes: parsed.data.assistanceNotes },
+        });
+      } catch (err) {
+        if (err instanceof AssistedSubmissionPolicyError) {
+          res.status(403).json({ error: err.message });
+          return;
+        }
+        if (err instanceof AssistedSubmissionValidationError) {
+          res.status(400).json({ error: err.message });
+          return;
+        }
+        throw err;
+      }
+    }
     if (template.moduleKey && !(await getModuleAccess(organizationId, template.moduleKey)).enabled) {
       res.status(403).json({ error: `Module "${template.moduleKey}" is not enabled for this organization` });
       return;
     }
     try {
-      const created = await createSubmission({ organizationId, templateId: template.id, subjectEmployeeId, actor });
+      const created = await createSubmission({ organizationId, templateId: template.id, subjectEmployeeId, actor, assistance });
       const detail = await getSubmissionDetail(organizationId, created.id, viewer);
       res.status(201).json(detail);
     } catch (err) {
