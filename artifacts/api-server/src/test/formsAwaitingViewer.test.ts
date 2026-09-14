@@ -29,6 +29,7 @@ vi.mock("@workspace/db", () => {
   const chain: Record<string, unknown> = {};
   chain.from = () => chain;
   chain.innerJoin = () => chain;
+  chain.leftJoin = () => chain;
   chain.where = (w: unknown) => {
     m.whereArgs.push(w);
     return chain;
@@ -40,6 +41,8 @@ vi.mock("@workspace/db", () => {
     formSubmissionsTable: table("form_submissions"),
     formTemplatesTable: table("form_templates"),
     formTemplateVersionsTable: table("form_template_versions"),
+    formWorkflowStagesTable: table("form_workflow_stages"),
+    formSignaturesTable: table("form_signatures"),
     employeesTable: table("employees"),
     employeeUserLinksTable: table("employee_user_links"),
     organizationMembershipsTable: table("organization_memberships"),
@@ -51,6 +54,7 @@ vi.mock("drizzle-orm", () => ({
   asc: (a: unknown) => ({ asc: a }),
   desc: (a: unknown) => ({ desc: a }),
   inArray: (a: unknown, b: unknown) => ({ inArray: [a, b] }),
+  isNull: (a: unknown) => ({ isNull: a }),
   sql: () => ({}),
 }));
 vi.mock("../lib/auditLog", () => ({ recordAuditEvent: vi.fn() }));

@@ -383,7 +383,8 @@ export async function resolveHrCommandCentre(ctx: CommandCentreContext, now: Dat
         createdAt: submittedAt,
         dueAt: null,
         overdue: deriveOverdue(null, now),
-        context: `Stage: ${s.stageName}`,
+        // The assistance CATEGORY marker only; assistance notes never reach the dashboard.
+        context: s.assisted ? `Stage: ${s.stageName} · HR-assisted` : `Stage: ${s.stageName}`,
         deepLink: `/forms/${s.id}`,
       });
     }
