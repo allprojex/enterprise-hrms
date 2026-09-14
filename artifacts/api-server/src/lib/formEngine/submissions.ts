@@ -585,6 +585,11 @@ export async function submit(params: { organizationId: number; submissionId: num
   const autofill = await resolveAutofill(params.organizationId, submission.subjectEmployeeId, definition);
   const computed = computeValues(definition, answers);
   const resubmission = submission.status === "returned";
+  // An assisted form submitted by someone other than its subject (the HR user
+  // who raised it) is recorded as submitted ON BEHALF, never as the employee's
+  // own submission. The subject submitting their own assisted form is a plain
+  // submission.
+  const submittedOnBehalf = submission.assisted && params.viewer.employeeId !== submission.subjectEmployeeId;
   const stageCount = submission.stageCountSnapshot ?? stages.length;
   const now = new Date();
 
@@ -599,11 +604,30 @@ export async function submit(params: { organizationId: number; submissionId: num
       .where(and(eq(formSubmissionsTable.id, submission.id), inArray(formSubmissionsTable.status, ["draft", "returned"])))
       .returning();
     if (!s) throw new FormSubmissionStateError("Form state changed; reload and try again");
-    await appendEvent(tx, { organizationId: params.organizationId, submissionId: s.id, eventType: resubmission ? "resubmitted" : "submitted", revisionId: revision.id, actor: params.actor, details: { stageCount } });
+    await appendEvent(tx, {
+      organizationId: params.organizationId,
+      submissionId: s.id,
+      eventType: resubmission ? "resubmitted" : submittedOnBehalf ? "submitted_on_behalf" : "submitted",
+      revisionId: revision.id,
+      actor: params.actor,
+      // Category only — assistance notes never enter the chronology.
+      details: { stageCount, ...(submittedOnBehalf ? { assisted: true, assistanceReason: submission.assistanceReason, subjectEmployeeId: submission.subjectEmployeeId } : {}) },
+    });
     if (stageCount === 0) await appendEvent(tx, { organizationId: params.organizationId, submissionId: s.id, eventType: "approved", revisionId: revision.id, actor: params.actor, details: { automatic: true } });
     return s;
   });
-  await audit(params.actor, params.organizationId, resubmission ? "form.resubmitted" : "form.submitted", updated.id, { templateId: template.id, templateVersionId: version.id, stageCount });
+  await audit(
+    params.actor,
+    params.organizationId,
+    resubmission ? "form.resubmitted" : submittedOnBehalf ? "form.submitted_on_behalf" : "form.submitted",
+    updated.id,
+    {
+      templateId: template.id,
+      templateVersionId: version.id,
+      stageCount,
+      ...(submission.assisted ? { assisted: true, assistanceReason: submission.assistanceReason, subjectEmployeeId: submission.subjectEmployeeId } : {}),
+    },
+  );
   return updated;
 }
 

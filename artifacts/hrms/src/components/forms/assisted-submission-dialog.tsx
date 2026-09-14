@@ -72,7 +72,7 @@ export function AssistedSubmissionDialog({ organizationId, templates, actorName,
     { pageSize: 200 },
     { query: { queryKey: getListEmployeesQueryKey(organizationId, { pageSize: 200 }), enabled: open && organizationId > 0 } },
   );
-  const employees = employeesQuery.data?.items ?? [];
+  const employees = useMemo(() => employeesQuery.data?.items ?? [], [employeesQuery.data]);
   const employee = useMemo(() => employees.find((e: Employee) => String(e.id) === employeeId), [employees, employeeId]);
   const template = useMemo(() => templates.find((t) => String(t.id) === templateId), [templates, templateId]);
 
@@ -215,7 +215,8 @@ export function AssistedSubmissionDialog({ organizationId, templates, actorName,
                 data-testid="input-assisted-notes"
               />
               <p className="text-helper text-foreground-muted">
-                Notes are stored with the form and visible to people who can already open it. Do not record clinical detail.
+                Notes are kept with the form's assistance record. They are not shown in form lists, the form's history or to
+                the employee. Do not record clinical detail.
               </p>
             </div>
           </div>

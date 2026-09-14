@@ -23,6 +23,7 @@ import { getGeneratedDocument } from "../lib/documentGeneration";
 import { getTemplate, getPublishedVersion, getVersion, parseDefinition } from "../lib/formEngine/templates";
 import {
   authorizeOnBehalf,
+  CREATE_ON_BEHALF_PERMISSION,
   AssistedSubmissionPolicyError,
   AssistedSubmissionValidationError,
 } from "../lib/formEngine/assistedSubmission";
@@ -144,6 +145,13 @@ router.post(
     const subjectEmployeeId = parsed.data.subjectEmployeeId ?? viewer.employeeId;
     if (subjectEmployeeId == null) {
       res.status(400).json({ error: "You are not linked to an employee record; choose the employee this form is for" });
+      return;
+    }
+    // Permission FIRST, before any template or version lookup: a caller without
+    // the capability must not learn whether a template exists, has a published
+    // version, or permits assisted completion. authorizeOnBehalf re-checks it.
+    if (subjectEmployeeId !== viewer.employeeId && !viewer.permissions.has(CREATE_ON_BEHALF_PERMISSION)) {
+      res.status(403).json({ error: `${CREATE_ON_BEHALF_PERMISSION} is required to complete a form on behalf of another employee` });
       return;
     }
     const template = await getTemplate(organizationId, parsed.data.templateId);

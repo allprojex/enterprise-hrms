@@ -411,7 +411,12 @@ export async function updateDraftVersion(params: {
         definition,
         definitionSha256: sha,
         signaturePolicy,
-        submissionPolicy: isPlainObject(params.submissionPolicy) ? params.submissionPolicy : null,
+        // Only an explicit value changes the policy. Omitting it (e.g. an edit
+        // that touches only the change note) must never silently close a draft
+        // that was deliberately opened for assisted completion.
+        ...(params.submissionPolicy !== undefined
+          ? { submissionPolicy: isPlainObject(params.submissionPolicy) ? params.submissionPolicy : null }
+          : {}),
         ...(params.renderConfig !== undefined ? { renderConfig: isPlainObject(params.renderConfig) ? params.renderConfig : null } : {}),
         ...(params.changeNote !== undefined ? { changeNote: params.changeNote?.trim() || null } : {}),
       })
