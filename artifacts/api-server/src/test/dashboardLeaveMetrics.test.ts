@@ -318,6 +318,8 @@ describe("GET /api/dashboard/summary — leaveMetrics (W40)", () => {
       employeesOnLeave: 0,
       upcomingApprovedLeave: 0,
       pendingApprovalCount: 0,
+      awaitingMyActionCount: 0,
+      awaitingOtherStageCount: 0,
       upcomingPublicHolidays: 0,
       leaveUtilizationPercent: 0,
       expiringCarryForwardBalances: 0,
@@ -348,6 +350,32 @@ describe("GET /api/dashboard/summary — leaveMetrics (W40)", () => {
     expect(res.body.leaveMetrics.scope).toBe("organization");
     expect(res.body.leaveMetrics.employeesOnLeave).toBe(1);
     expect(res.body.leaveMetrics.requestsByStatus).toEqual({ pending: 1, pending_hr: 0, approved: 1, rejected: 0, cancelled: 0 });
+  });
+
+  // HR Dashboard Command Centre: HR monitors both approval stages, but only
+  // the HR stage is HR's to decide — and never HR's own request.
+  it("splits HR's pending approvals: a request still with the Department Head is monitoring, not HR's action", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockLeaveModuleEnabled(true);
+    mockHrAdmin();
+    fixtures.employeeUserLinkRows = [{ employeeId: HR_EMPLOYEE_ID, applicationUserId: 1 }];
+    fixtures.employeeRows = [
+      { id: HR_EMPLOYEE_ID, organizationId: ORG_ID, reportingManagerId: null, departmentId: null },
+      { id: REPORT_EMPLOYEE_ID, organizationId: ORG_ID, reportingManagerId: MANAGER_EMPLOYEE_ID, departmentId: 3 },
+    ];
+    fixtures.leaveRequestRows = [
+      { id: 1, organizationId: ORG_ID, employeeId: REPORT_EMPLOYEE_ID, leavePolicyId: 1, status: "pending", startDate: "2099-01-01", endDate: "2099-01-02" },
+      { id: 2, organizationId: ORG_ID, employeeId: REPORT_EMPLOYEE_ID, leavePolicyId: 1, status: "pending_hr", startDate: "2099-02-01", endDate: "2099-02-02" },
+      { id: 3, organizationId: ORG_ID, employeeId: HR_EMPLOYEE_ID, leavePolicyId: 1, status: "pending_hr", startDate: "2099-03-01", endDate: "2099-03-02" },
+    ];
+
+    const res = await request(app).get("/api/dashboard/summary").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.leaveMetrics.pendingApprovalCount).toBe(3);
+    expect(res.body.leaveMetrics.awaitingMyActionCount).toBe(1);
+    expect(res.body.leaveMetrics.awaitingOtherStageCount).toBe(2);
   });
 
   it("a manager without leave_request.manage sees only their own + direct reports' figures, not another team's", async () => {
@@ -515,6 +543,8 @@ describe("GET /api/dashboard/summary — leaveMetrics (W40)", () => {
         "employeesOnLeave",
         "upcomingApprovedLeave",
         "pendingApprovalCount",
+        "awaitingMyActionCount",
+        "awaitingOtherStageCount",
         "upcomingPublicHolidays",
         "leaveUtilizationPercent",
         "expiringCarryForwardBalances",

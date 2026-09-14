@@ -9480,6 +9480,7 @@ export const RetryScheduledJobResponse = zod.object({
  * @summary Dashboard summary
  */
 export const GetDashboardSummaryResponse = zod.object({
+  "activeEmployees": zod.union([zod.number(),zod.null()]).describe('Employees whose employment status is active, probation or on_leave (suspended and terminated excluded). Same employee.write gate as totalEmployees — null, never zero, without it.'),
   "totalEmployees": zod.union([zod.number(),zod.null()]).describe('Null when the caller lacks employee.write (the same org_admin\/hr_manager-only tier that gates every employee-record mutation) — the broad employee.read every role holds only implies \"may view the directory,\" never \"may see an aggregate organization headcount.\"'),
   "activeModules": zod.number(),
   "unreadNotifications": zod.number(),
@@ -9488,6 +9489,8 @@ export const GetDashboardSummaryResponse = zod.object({
   "employeesOnLeave": zod.number().describe('Distinct employees (in the viewer\'s scope) with an approved leave request spanning today.'),
   "upcomingApprovedLeave": zod.number().describe('Approved leave requests (in scope) starting within the next 30 days, not yet started.'),
   "pendingApprovalCount": zod.number().describe('Pending leave requests the viewer is authorized to approve — same scope GET ...\/leave-requests\/pending-approvals (W35) uses.'),
+  "awaitingMyActionCount": zod.number().describe('Of pendingApprovalCount, requests at a stage this viewer can decide now — `pending` only for the employee\'s current Department Head, `pending_hr` only for a leave_request.manage holder, never the viewer\'s own request.'),
+  "awaitingOtherStageCount": zod.number().describe('Of pendingApprovalCount, requests the viewer can see but which wait on another approver (e.g. HR monitoring a request still with the Department Head). Monitoring only — not an action for this viewer.'),
   "upcomingPublicHolidays": zod.number().describe('Organization-wide public holiday occurrences within the next 30 days.'),
   "leaveUtilizationPercent": zod.number().describe('100 \* (ledger usage) \/ (ledger opening_balance + accrual + carry_forward credits) across the viewer\'s scope; 0 when nothing has been credited yet.'),
   "expiringCarryForwardBalances": zod.number().describe('Carry-forward ledger entries (in scope) expiring within the next 30 days, counted only under a policy whose carryForwardExpiryMonths is actually set.'),
@@ -9508,6 +9511,60 @@ export const GetDashboardSummaryResponse = zod.object({
   "inventoryMetrics": zod.union([zod.object({
   "totalItems": zod.number().describe('Office Inventory items whose status is \"active\".')
 }),zod.null()]).describe('Null when the \"office_inventory\" module is disabled for the caller\'s active organization, or when the caller lacks office_inventory.reports.read.')
+})
+
+
+/**
+ * One aggregated, read-only call composing the owning modules' existing services (Action Centre providers, form engine stage resolver, Performance, Employment Lifecycle, personnel custody, Assets, Attendance, public holidays, HR-category audit events). The organization comes from the caller's verified membership, never from client input. Each section is authorized by its own module enablement and permission: a section the caller may not see is omitted entirely (no card, no count, no zero), indistinguishably from the module being disabled. `tasks` holds only work the caller can perform now — monitor-only items (e.g. a leave request still with its Department Head, a form at another stage) are never tasks. No permission is minted; a break-glass grant without a membership receives 403.
+ * @summary HR dashboard command centre — tasks, attention, holidays, recent activity
+ */
+export const GetHrCommandCentreParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetHrCommandCentreResponse = zod.object({
+  "organizationId": zod.number(),
+  "generatedAt": zod.string(),
+  "tasks": zod.union([zod.object({
+  "items": zod.array(zod.object({
+  "sourceModule": zod.enum(['leave', 'learning', 'onboarding', 'skills', 'performance', 'recruitment', 'employee_requests', 'employee_relations', 'succession', 'employment_lifecycle', 'forms']),
+  "sourceType": zod.string(),
+  "sourceId": zod.number(),
+  "actionKind": zod.enum(['approve', 'complete', 'verify', 'review', 'decide', 'fulfil', 'acknowledge']),
+  "title": zod.string(),
+  "employeeId": zod.number().nullish(),
+  "employeeFirstName": zod.string().nullish(),
+  "employeeLastName": zod.string().nullish(),
+  "status": zod.string(),
+  "createdAt": zod.string(),
+  "dueAt": zod.string().nullish(),
+  "overdue": zod.boolean().nullish().describe('Null where dueAt is null — never false (§31.16).'),
+  "context": zod.string().nullable().describe('Safe context such as the current workflow stage or a probation end date.'),
+  "deepLink": zod.string()
+}).describe('A task the caller can perform now. The Action Centre\'s safe pointer shape (§31.6) plus a short context line; read-only (no inline commands). No narrative, no priority.')).describe('At most 25 tasks, overdue first, then due soon, then undated oldest first.'),
+  "total": zod.number(),
+  "overdue": zod.number(),
+  "unavailableSources": zod.array(zod.string()).describe('Authorized task sources whose work could not be loaded.')
+}),zod.null()]).describe('Null when the caller is authorized for no task source at all.'),
+  "attention": zod.array(zod.object({
+  "key": zod.enum(['attendance_exceptions', 'probation_reviews_due', 'performance_reviews_due', 'personnel_files_attention', 'assets_awaiting_return', 'forms_awaiting_review']),
+  "count": zod.number(),
+  "secondaryCount": zod.number().nullable().describe('Monitoring figure where the source has one (forms waiting at other stages).'),
+  "deepLink": zod.string()
+})).describe('Only cards whose module is enabled and whose permission the caller holds.'),
+  "upcomingHolidays": zod.union([zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "date": zod.string().describe('ISO calendar date (YYYY-MM-DD).')
+})),zod.null()]).describe('Next 60 days (max 5). Null without public_holiday.read or with Leave disabled.'),
+  "recentActivity": zod.union([zod.array(zod.object({
+  "id": zod.number(),
+  "occurredAt": zod.string(),
+  "eventType": zod.string(),
+  "targetType": zod.string().nullable(),
+  "actorName": zod.string().nullable()
+}).describe('HR-category audit event, redacted to what a dashboard needs — no state, IP, user agent or metadata.')),zod.null()]).describe('Latest HR-category audit events. Null without audit.read or audit.read.hr.'),
+  "unavailableSections": zod.array(zod.string()).describe('Authorized sections whose data could not be loaded.')
 })
 
 

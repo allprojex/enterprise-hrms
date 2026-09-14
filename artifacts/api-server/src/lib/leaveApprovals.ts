@@ -21,7 +21,7 @@ import { db, leaveRequestsTable, leavePoliciesTable, employeesTable, type LeaveR
 import { recordAuditEvent } from "./auditLog";
 import { LeaveRequestNotFoundError } from "./leaveRequests";
 import { getAvailableBalance, postApprovedUsageEntry } from "./leaveBalances";
-import { resolveDepartmentHeadIdentity } from "./departmentHeads";
+import { resolveDepartmentHeadIdentity, listDepartmentsHeadedByMembership } from "./departmentHeads";
 
 export class LeaveRequestNotPendingError extends Error {
   constructor() {
@@ -116,6 +116,66 @@ export async function listPendingApprovals(
       ),
     )
     .orderBy(desc(leaveRequestsTable.createdAt));
+}
+
+export interface PendingApprovalPartition {
+  /** Requests at a stage this actor can decide right now (approve/reject would not be refused). */
+  actionable: LeaveRequest[];
+  /** Requests the actor may see but which currently wait on someone else — monitoring only. */
+  awaitingOtherStage: LeaveRequest[];
+}
+
+/**
+ * Splits pending requests into "this actor can act now" versus "waiting
+ * elsewhere in the workflow", using exactly the stage authority
+ * approveLeaveRequest/rejectLeaveRequest enforce:
+ *
+ *   - `pending`    → only the employee's CURRENT Department Head;
+ *   - `pending_hr` → only a holder of leave_request.manage (`isHr`);
+ *   - never the requester's own request (SelfApprovalNotAllowedError).
+ *
+ * listPendingApprovals deliberately hands HR both stages so HR can monitor
+ * the whole queue; a request still at the Department Head stage is not an
+ * HR task, and presenting it as one would offer an action the server then
+ * refuses with NotAuthorizedForStageError. Pure over the rows it is given —
+ * it never widens what the caller could already see.
+ */
+export async function partitionPendingApprovalsForActor(
+  organizationId: number,
+  requests: LeaveRequest[],
+  actor: { membershipId: number; employeeId: number | null; isHr: boolean },
+): Promise<PendingApprovalPartition> {
+  const actionable: LeaveRequest[] = [];
+  const awaitingOtherStage: LeaveRequest[] = [];
+  if (requests.length === 0) return { actionable, awaitingOtherStage };
+
+  const hodStageEmployeeIds = [...new Set(requests.filter((r) => r.status === "pending").map((r) => r.employeeId))];
+  let departmentByEmployee = new Map<number, number | null>();
+  let headedDepartments = new Set<number>();
+  if (hodStageEmployeeIds.length > 0) {
+    const [employees, headed] = await Promise.all([
+      db
+        .select({ id: employeesTable.id, departmentId: employeesTable.departmentId })
+        .from(employeesTable)
+        .where(and(eq(employeesTable.organizationId, organizationId), inArray(employeesTable.id, hodStageEmployeeIds))),
+      listDepartmentsHeadedByMembership(organizationId, actor.membershipId),
+    ]);
+    departmentByEmployee = new Map(employees.map((e) => [e.id, e.departmentId]));
+    headedDepartments = new Set(headed);
+  }
+
+  for (const request of requests) {
+    const isOwn = actor.employeeId != null && actor.employeeId === request.employeeId;
+    let canAct = false;
+    if (!isOwn && request.status === "pending") {
+      const departmentId = departmentByEmployee.get(request.employeeId) ?? null;
+      canAct = departmentId != null && headedDepartments.has(departmentId);
+    } else if (!isOwn && request.status === "pending_hr") {
+      canAct = actor.isHr;
+    }
+    (canAct ? actionable : awaitingOtherStage).push(request);
+  }
+  return { actionable, awaitingOtherStage };
 }
 
 async function findOwnLeaveRequest(organizationId: number, employeeId: number, leaveRequestId: number) {

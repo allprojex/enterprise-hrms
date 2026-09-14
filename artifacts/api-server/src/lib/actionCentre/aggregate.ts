@@ -91,12 +91,14 @@ async function runProvider(provider: ActionProvider, ctx: ProviderContext): Prom
  * reason §31.18 records: that surface has no due dates, and surfacing the newest
  * item above a three-week-overdue one would be the wrong operational answer.
  */
-function tierOf(item: ActionItem): number {
+type SortableItem = Pick<ActionItem, "dueAt" | "overdue" | "createdAt" | "sourceId"> & { sourceModule: string };
+
+function tierOf(item: SortableItem): number {
   if (item.dueAt == null) return 2;
   return item.overdue ? 0 : 1;
 }
 
-export function sortActionItems(items: ActionItem[]): ActionItem[] {
+export function sortActionItems<T extends SortableItem>(items: T[]): T[] {
   return [...items].sort((a, b) => {
     const tierDiff = tierOf(a) - tierOf(b);
     if (tierDiff !== 0) return tierDiff;
@@ -134,26 +136,43 @@ function providersFor(scope: ActionScope): readonly ActionProvider[] {
   return scope === "assigned" ? ASSIGNABLE_PROVIDERS : P1_PROVIDERS;
 }
 
+/**
+ * Runs every provider for a scope once and keeps the three outcomes apart.
+ * `answeredSources` lists sources that returned `ok` (even with zero items) —
+ * it is how a composing surface such as the HR dashboard can tell "nothing to
+ * do" from "no authorized source at all" without a second provider run.
+ */
+export async function collectActionItems(
+  ctx: Omit<ProviderContext, "scope">,
+  scope: ActionScope,
+): Promise<{ items: ActionItem[]; answeredSources: ActionSourceModule[]; unavailableSources: ActionSourceModule[] }> {
+  const providerCtx: ProviderContext = { ...ctx, scope };
+  const providers = providersFor(scope);
+  const outcomes = await Promise.all(providers.map((p) => runProvider(p, providerCtx)));
+
+  const items: ActionItem[] = [];
+  const answered = new Set<ActionSourceModule>();
+  const unavailable = new Set<ActionSourceModule>();
+  outcomes.forEach((outcome, index) => {
+    const sourceModule = providers[index]!.sourceModule;
+    if (outcome.state === "ok") {
+      items.push(...outcome.items);
+      answered.add(sourceModule);
+    } else if (outcome.state === "failed") unavailable.add(sourceModule);
+    // `hidden` contributes nothing at all — deliberately.
+  });
+
+  return { items, answeredSources: [...answered].sort(), unavailableSources: [...unavailable].sort() };
+}
+
 export async function resolveActionCentre(
   ctx: Omit<ProviderContext, "scope">,
   query: ActionCentreQuery,
 ): Promise<ActionCentreResult> {
-  const providerCtx: ProviderContext = { ...ctx, scope: query.scope };
-  const providers = providersFor(query.scope);
-
-  const outcomes = await Promise.all(providers.map((p) => runProvider(p, providerCtx)));
-
-  const items: ActionItem[] = [];
-  const unavailable = new Set<ActionSourceModule>();
-  outcomes.forEach((outcome, index) => {
-    if (outcome.state === "ok") items.push(...outcome.items);
-    else if (outcome.state === "failed") unavailable.add(providers[index]!.sourceModule);
-    // `hidden` contributes nothing at all — deliberately.
-  });
-
+  const { items, unavailableSources } = await collectActionItems(ctx, query.scope);
   return {
     items: sortActionItems(applyFilters(items, query)),
-    unavailableSources: [...unavailable].sort(),
+    unavailableSources,
   };
 }
 

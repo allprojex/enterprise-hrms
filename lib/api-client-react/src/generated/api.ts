@@ -327,6 +327,7 @@ import type {
   HealthStatus,
   HireAuthorization,
   HireAuthorizationDetail,
+  HrCommandCentre,
   InitiateOffboardingInput,
   InitiateOffboardingResult,
   InlineActionCommand,
@@ -22779,6 +22780,84 @@ export function useGetDashboardSummary<TData = Awaited<ReturnType<typeof getDash
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetDashboardSummaryQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetHrCommandCentreUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/dashboard/command-centre`
+}
+
+/**
+ * One aggregated, read-only call composing the owning modules' existing services (Action Centre providers, form engine stage resolver, Performance, Employment Lifecycle, personnel custody, Assets, Attendance, public holidays, HR-category audit events). The organization comes from the caller's verified membership, never from client input. Each section is authorized by its own module enablement and permission: a section the caller may not see is omitted entirely (no card, no count, no zero), indistinguishably from the module being disabled. `tasks` holds only work the caller can perform now — monitor-only items (e.g. a leave request still with its Department Head, a form at another stage) are never tasks. No permission is minted; a break-glass grant without a membership receives 403.
+ * @summary HR dashboard command centre — tasks, attention, holidays, recent activity
+ */
+export const getHrCommandCentre = async (organizationId: number, options?: RequestInit): Promise<HrCommandCentre> => {
+
+  return customFetch<HrCommandCentre>(getGetHrCommandCentreUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetHrCommandCentreQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/dashboard/command-centre`
+    ] as const;
+    }
+
+
+export const getGetHrCommandCentreQueryOptions = <TData = Awaited<ReturnType<typeof getHrCommandCentre>>, TError = ErrorType<ApiError>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHrCommandCentre>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetHrCommandCentreQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getHrCommandCentre>>> = ({ signal }) => getHrCommandCentre(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getHrCommandCentre>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetHrCommandCentreQueryResult = NonNullable<Awaited<ReturnType<typeof getHrCommandCentre>>>
+export type GetHrCommandCentreQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary HR dashboard command centre — tasks, attention, holidays, recent activity
+ */
+
+export function useGetHrCommandCentre<TData = Awaited<ReturnType<typeof getHrCommandCentre>>, TError = ErrorType<ApiError>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHrCommandCentre>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetHrCommandCentreQueryOptions(organizationId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

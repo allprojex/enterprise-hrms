@@ -10983,6 +10983,50 @@ paths:
               schema:
                 $ref: "#/components/schemas/DashboardSummary"
 
+  /organizations/{organizationId}/dashboard/command-centre:
+    get:
+      operationId: getHrCommandCentre
+      tags: [users]
+      summary: HR dashboard command centre — tasks, attention, holidays, recent activity
+      description: >-
+        One aggregated, read-only call composing the owning modules' existing
+        services (Action Centre providers, form engine stage resolver,
+        Performance, Employment Lifecycle, personnel custody, Assets,
+        Attendance, public holidays, HR-category audit events). The
+        organization comes from the caller's verified membership, never from
+        client input. Each section is authorized by its own module enablement
+        and permission: a section the caller may not see is omitted entirely
+        (no card, no count, no zero), indistinguishably from the module being
+        disabled. `tasks` holds only work the caller can perform now —
+        monitor-only items (e.g. a leave request still with its Department
+        Head, a form at another stage) are never tasks. No permission is
+        minted; a break-glass grant without a membership receives 403.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Command centre sections the caller is authorized for
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HrCommandCentre"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Not an active member of the organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /roles:
     get:
       operationId: listRoles
@@ -38838,8 +38882,16 @@ components:
 
     DashboardSummary:
       type: object
-      required: [totalEmployees, activeModules, unreadNotifications, leaveMetrics, attendanceMetrics, assetMetrics, inventoryMetrics]
+      required: [totalEmployees, activeEmployees, activeModules, unreadNotifications, leaveMetrics, attendanceMetrics, assetMetrics, inventoryMetrics]
       properties:
+        activeEmployees:
+          description: >-
+            Employees whose employment status is active, probation or on_leave
+            (suspended and terminated excluded). Same employee.write gate as
+            totalEmployees — null, never zero, without it.
+          anyOf:
+            - type: integer
+            - type: "null"
         totalEmployees:
           description: >-
             Null when the caller lacks employee.write (the same
@@ -38890,6 +38942,176 @@ components:
           anyOf:
             - $ref: "#/components/schemas/InventoryDashboardMetrics"
             - type: "null"
+
+    HrTask:
+      type: object
+      required: [sourceModule, sourceType, sourceId, actionKind, title, status, createdAt, deepLink, context]
+      description: >-
+        A task the caller can perform now. The Action Centre's safe pointer
+        shape (§31.6) plus a short context line; read-only (no inline
+        commands). No narrative, no priority.
+      properties:
+        sourceModule:
+          type: string
+          enum:
+            [
+              leave,
+              learning,
+              onboarding,
+              skills,
+              performance,
+              recruitment,
+              employee_requests,
+              employee_relations,
+              succession,
+              employment_lifecycle,
+              forms,
+            ]
+        sourceType:
+          type: string
+        sourceId:
+          type: integer
+        actionKind:
+          $ref: "#/components/schemas/ActionKind"
+        title:
+          type: string
+        employeeId:
+          type: integer
+          nullable: true
+        employeeFirstName:
+          type: string
+          nullable: true
+        employeeLastName:
+          type: string
+          nullable: true
+        status:
+          type: string
+        createdAt:
+          type: string
+        dueAt:
+          type: string
+          nullable: true
+        overdue:
+          type: boolean
+          nullable: true
+          description: Null where dueAt is null — never false (§31.16).
+        context:
+          type: string
+          nullable: true
+          description: Safe context such as the current workflow stage or a probation end date.
+        deepLink:
+          type: string
+
+    HrTaskList:
+      type: object
+      required: [items, total, overdue, unavailableSources]
+      properties:
+        items:
+          type: array
+          description: At most 25 tasks, overdue first, then due soon, then undated oldest first.
+          items:
+            $ref: "#/components/schemas/HrTask"
+        total:
+          type: integer
+        overdue:
+          type: integer
+        unavailableSources:
+          type: array
+          description: Authorized task sources whose work could not be loaded.
+          items:
+            type: string
+
+    HrAttentionCard:
+      type: object
+      required: [key, count, secondaryCount, deepLink]
+      properties:
+        key:
+          type: string
+          enum:
+            [
+              attendance_exceptions,
+              probation_reviews_due,
+              performance_reviews_due,
+              personnel_files_attention,
+              assets_awaiting_return,
+              forms_awaiting_review,
+            ]
+        count:
+          type: integer
+        secondaryCount:
+          type: integer
+          nullable: true
+          description: Monitoring figure where the source has one (forms waiting at other stages).
+        deepLink:
+          type: string
+
+    HrUpcomingHoliday:
+      type: object
+      required: [id, name, date]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        date:
+          type: string
+          description: ISO calendar date (YYYY-MM-DD).
+
+    HrActivityItem:
+      type: object
+      required: [id, occurredAt, eventType, targetType, actorName]
+      description: HR-category audit event, redacted to what a dashboard needs — no state, IP, user agent or metadata.
+      properties:
+        id:
+          type: integer
+        occurredAt:
+          type: string
+        eventType:
+          type: string
+        targetType:
+          type: string
+          nullable: true
+        actorName:
+          type: string
+          nullable: true
+
+    HrCommandCentre:
+      type: object
+      required: [organizationId, generatedAt, tasks, attention, upcomingHolidays, recentActivity, unavailableSections]
+      properties:
+        organizationId:
+          type: integer
+        generatedAt:
+          type: string
+        tasks:
+          description: Null when the caller is authorized for no task source at all.
+          anyOf:
+            - $ref: "#/components/schemas/HrTaskList"
+            - type: "null"
+        attention:
+          type: array
+          description: Only cards whose module is enabled and whose permission the caller holds.
+          items:
+            $ref: "#/components/schemas/HrAttentionCard"
+        upcomingHolidays:
+          description: Next 60 days (max 5). Null without public_holiday.read or with Leave disabled.
+          anyOf:
+            - type: array
+              items:
+                $ref: "#/components/schemas/HrUpcomingHoliday"
+            - type: "null"
+        recentActivity:
+          description: Latest HR-category audit events. Null without audit.read or audit.read.hr.
+          anyOf:
+            - type: array
+              items:
+                $ref: "#/components/schemas/HrActivityItem"
+            - type: "null"
+        unavailableSections:
+          type: array
+          description: Authorized sections whose data could not be loaded.
+          items:
+            type: string
 
     AttendanceDashboardMetrics:
       type: object
@@ -38942,6 +39164,8 @@ components:
         - employeesOnLeave
         - upcomingApprovedLeave
         - pendingApprovalCount
+        - awaitingMyActionCount
+        - awaitingOtherStageCount
         - upcomingPublicHolidays
         - leaveUtilizationPercent
         - expiringCarryForwardBalances
@@ -38966,6 +39190,19 @@ components:
         pendingApprovalCount:
           type: integer
           description: Pending leave requests the viewer is authorized to approve — same scope GET .../leave-requests/pending-approvals (W35) uses.
+        awaitingMyActionCount:
+          type: integer
+          description: >-
+            Of pendingApprovalCount, requests at a stage this viewer can decide
+            now — `pending` only for the employee's current Department Head,
+            `pending_hr` only for a leave_request.manage holder, never the
+            viewer's own request.
+        awaitingOtherStageCount:
+          type: integer
+          description: >-
+            Of pendingApprovalCount, requests the viewer can see but which wait
+            on another approver (e.g. HR monitoring a request still with the
+            Department Head). Monitoring only — not an action for this viewer.
         upcomingPublicHolidays:
           type: integer
           description: Organization-wide public holiday occurrences within the next 30 days.
