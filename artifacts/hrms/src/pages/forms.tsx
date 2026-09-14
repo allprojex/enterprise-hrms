@@ -162,7 +162,10 @@ export default function FormsPage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <StatusBadge status={s.status} label={FORM_STATUS_LABEL[s.status] ?? s.status} />
+                        <StatusBadge
+                          status={s.status}
+                          label={s.status === 'pending_approval' && s.currentStageName ? `Awaiting ${s.currentStageName}` : FORM_STATUS_LABEL[s.status] ?? s.status}
+                        />
                       </TableCell>
                       <TableCell className="tabular-nums">{s.currentStageOrder != null && s.stageCountSnapshot ? `${s.currentStageOrder} of ${s.stageCountSnapshot}` : '—'}</TableCell>
                       <TableCell className="text-foreground-muted">{new Date(s.updatedAt).toLocaleDateString()}</TableCell>

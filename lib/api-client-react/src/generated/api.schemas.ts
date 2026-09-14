@@ -13696,6 +13696,8 @@ export interface FormSubmissionSummary {
   assisted: boolean;
   /** Category only. The operator's free-text notes are deliberately not part of any summary. */
   assistanceReason?: FormAssistanceReason | null;
+  /** Name of the workflow stage the submission is waiting at (e.g. "Employee Confirmation & Signature"); null unless pending approval. */
+  currentStageName?: string | null;
   id: number;
   organizationId: number;
   templateId: number;

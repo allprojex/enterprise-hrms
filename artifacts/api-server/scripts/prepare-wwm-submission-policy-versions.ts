@@ -39,8 +39,13 @@ async function main() {
     dryRun: !confirm,
   });
   for (const r of results) {
-    const where = r.templateId ? ` (template ${r.templateId}, published v${r.publishedVersionNumber ?? "?"}${r.draftVersionId ? `, draft ${r.draftVersionId}` : ""})` : "";
-    console.log(`  ${r.templateKey}: ${r.action}${where}`);
+    const where = r.templateId ? ` (template ${r.templateId}${r.draftVersionId ? `, draft version ${r.draftVersionId}` : ""})` : "";
+    console.log(`${r.templateKey}: ${r.action}${where}`);
+    if (r.publishedVersionNumber != null) console.log(`  v${r.publishedVersionNumber} published — unchanged`);
+    if (r.proposedChanges && r.proposedChanges.length > 0) {
+      console.log(`  v${(r.publishedVersionNumber ?? 0) + 1} draft — proposed changes:`);
+      for (const change of r.proposedChanges) console.log(`    - ${change}`);
+    }
   }
   if (!confirm) console.log("DRY RUN (no --confirm): nothing written.");
 }

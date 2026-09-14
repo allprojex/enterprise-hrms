@@ -142,8 +142,14 @@ export const wwmPersonalInformationDefinition: FormDefinition = {
   ],
 };
 
-/** The employee completes and signs; HR reviews and approves. */
-export const wwmPersonalInformationStages: StageInput[] = [
+/**
+ * The PIF workflow as published in v1: HR review only. FROZEN HISTORY — never
+ * edit. It is the known baseline the governed v2 preparation must find
+ * published before it will prepare the owner-approved workflow below; any
+ * other published workflow fails closed. The required employee signature
+ * declared by the definition has no owning stage here, so v1 cannot collect it.
+ */
+export const wwmPersonalInformationV1Stages: StageInput[] = [
   {
     stageOrder: 1,
     name: "HR review",
@@ -153,4 +159,26 @@ export const wwmPersonalInformationStages: StageInput[] = [
     editableSectionKeys: [],
     allowedActions: ["approve", "return", "reject"],
   },
+];
+
+/**
+ * PIF v2 workflow (owner decision): the subject employee confirms and signs
+ * BEFORE HR review. Stage 1 resolves only to the subject employee's own
+ * membership and owns the required employee signature, which the engine
+ * enforces before the stage can complete — so neither an assisting HR user nor
+ * a form creator can satisfy it. HR review is otherwise unchanged and moves to
+ * stage 2. No editable sections at stage 1: the employee confirms what was
+ * entered; corrections go back through HR review (return).
+ */
+export const wwmPersonalInformationStages: StageInput[] = [
+  {
+    stageOrder: 1,
+    name: "Employee Confirmation & Signature",
+    participant: "employee",
+    resolver: "subject_employee",
+    editableSectionKeys: [],
+    allowedActions: ["complete"],
+    signatureSlotKey: "employee_signature",
+  },
+  { ...wwmPersonalInformationV1Stages[0]!, stageOrder: 2 },
 ];

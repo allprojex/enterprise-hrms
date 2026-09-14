@@ -26230,6 +26230,7 @@ export const ListFormSubmissionsResponse = zod.object({
   "submissions": zod.array(zod.object({
   "assisted": zod.boolean().describe('True when an authorized HR user completed this form on the subject employee\'s behalf.'),
   "assistanceReason": zod.enum(['system_access_unavailable', 'medical_or_incapacity', 'accessibility_assistance', 'administrative_assistance', 'other']).describe('Why a form was completed by someone other than its subject employee.').nullish().describe('Category only. The operator\'s free-text notes are deliberately not part of any summary.'),
+  "currentStageName": zod.string().nullish().describe('Name of the workflow stage the submission is waiting at (e.g. \"Employee Confirmation & Signature\"); null unless pending approval.'),
   "id": zod.number(),
   "organizationId": zod.number(),
   "templateId": zod.number(),
@@ -26278,6 +26279,7 @@ export const CreateFormSubmissionResponse = zod.object({
   "submission": zod.object({
   "assisted": zod.boolean().describe('True when an authorized HR user completed this form on the subject employee\'s behalf.'),
   "assistanceReason": zod.enum(['system_access_unavailable', 'medical_or_incapacity', 'accessibility_assistance', 'administrative_assistance', 'other']).describe('Why a form was completed by someone other than its subject employee.').nullish().describe('Category only. The operator\'s free-text notes are deliberately not part of any summary.'),
+  "currentStageName": zod.string().nullish().describe('Name of the workflow stage the submission is waiting at (e.g. \"Employee Confirmation & Signature\"); null unless pending approval.'),
   "id": zod.number(),
   "organizationId": zod.number(),
   "templateId": zod.number(),
@@ -26381,6 +26383,7 @@ export const GetFormSubmissionResponse = zod.object({
   "submission": zod.object({
   "assisted": zod.boolean().describe('True when an authorized HR user completed this form on the subject employee\'s behalf.'),
   "assistanceReason": zod.enum(['system_access_unavailable', 'medical_or_incapacity', 'accessibility_assistance', 'administrative_assistance', 'other']).describe('Why a form was completed by someone other than its subject employee.').nullish().describe('Category only. The operator\'s free-text notes are deliberately not part of any summary.'),
+  "currentStageName": zod.string().nullish().describe('Name of the workflow stage the submission is waiting at (e.g. \"Employee Confirmation & Signature\"); null unless pending approval.'),
   "id": zod.number(),
   "organizationId": zod.number(),
   "templateId": zod.number(),
@@ -26488,6 +26491,7 @@ export const SaveFormSubmissionDraftResponse = zod.object({
   "submission": zod.object({
   "assisted": zod.boolean().describe('True when an authorized HR user completed this form on the subject employee\'s behalf.'),
   "assistanceReason": zod.enum(['system_access_unavailable', 'medical_or_incapacity', 'accessibility_assistance', 'administrative_assistance', 'other']).describe('Why a form was completed by someone other than its subject employee.').nullish().describe('Category only. The operator\'s free-text notes are deliberately not part of any summary.'),
+  "currentStageName": zod.string().nullish().describe('Name of the workflow stage the submission is waiting at (e.g. \"Employee Confirmation & Signature\"); null unless pending approval.'),
   "id": zod.number(),
   "organizationId": zod.number(),
   "templateId": zod.number(),
@@ -26595,6 +26599,7 @@ export const SubmitFormSubmissionResponse = zod.object({
   "submission": zod.object({
   "assisted": zod.boolean().describe('True when an authorized HR user completed this form on the subject employee\'s behalf.'),
   "assistanceReason": zod.enum(['system_access_unavailable', 'medical_or_incapacity', 'accessibility_assistance', 'administrative_assistance', 'other']).describe('Why a form was completed by someone other than its subject employee.').nullish().describe('Category only. The operator\'s free-text notes are deliberately not part of any summary.'),
+  "currentStageName": zod.string().nullish().describe('Name of the workflow stage the submission is waiting at (e.g. \"Employee Confirmation & Signature\"); null unless pending approval.'),
   "id": zod.number(),
   "organizationId": zod.number(),
   "templateId": zod.number(),
@@ -26704,6 +26709,7 @@ export const ActOnFormSubmissionStageResponse = zod.object({
   "submission": zod.object({
   "assisted": zod.boolean().describe('True when an authorized HR user completed this form on the subject employee\'s behalf.'),
   "assistanceReason": zod.enum(['system_access_unavailable', 'medical_or_incapacity', 'accessibility_assistance', 'administrative_assistance', 'other']).describe('Why a form was completed by someone other than its subject employee.').nullish().describe('Category only. The operator\'s free-text notes are deliberately not part of any summary.'),
+  "currentStageName": zod.string().nullish().describe('Name of the workflow stage the submission is waiting at (e.g. \"Employee Confirmation & Signature\"); null unless pending approval.'),
   "id": zod.number(),
   "organizationId": zod.number(),
   "templateId": zod.number(),
@@ -26807,6 +26813,7 @@ export const FinalizeFormSubmissionResponse = zod.object({
   "submission": zod.object({
   "assisted": zod.boolean().describe('True when an authorized HR user completed this form on the subject employee\'s behalf.'),
   "assistanceReason": zod.enum(['system_access_unavailable', 'medical_or_incapacity', 'accessibility_assistance', 'administrative_assistance', 'other']).describe('Why a form was completed by someone other than its subject employee.').nullish().describe('Category only. The operator\'s free-text notes are deliberately not part of any summary.'),
+  "currentStageName": zod.string().nullish().describe('Name of the workflow stage the submission is waiting at (e.g. \"Employee Confirmation & Signature\"); null unless pending approval.'),
   "id": zod.number(),
   "organizationId": zod.number(),
   "templateId": zod.number(),
@@ -26910,6 +26917,7 @@ export const ArchiveFormSubmissionResponse = zod.object({
   "submission": zod.object({
   "assisted": zod.boolean().describe('True when an authorized HR user completed this form on the subject employee\'s behalf.'),
   "assistanceReason": zod.enum(['system_access_unavailable', 'medical_or_incapacity', 'accessibility_assistance', 'administrative_assistance', 'other']).describe('Why a form was completed by someone other than its subject employee.').nullish().describe('Category only. The operator\'s free-text notes are deliberately not part of any summary.'),
+  "currentStageName": zod.string().nullish().describe('Name of the workflow stage the submission is waiting at (e.g. \"Employee Confirmation & Signature\"); null unless pending approval.'),
   "id": zod.number(),
   "organizationId": zod.number(),
   "templateId": zod.number(),

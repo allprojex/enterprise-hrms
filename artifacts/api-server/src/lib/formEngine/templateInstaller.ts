@@ -43,6 +43,12 @@ export interface InstallableTemplateSeed {
   signaturePolicy?: SignaturePolicy;
   /** Version-level submission rules, e.g. { allowOnBehalfSubmission: true }. Absent = fail closed. */
   submissionPolicy?: Record<string, unknown>;
+  /**
+   * Workflows this seed has previously been PUBLISHED with, as frozen history.
+   * prepareSubmissionPolicyVersions only prepares a new version when the
+   * published workflow equals the current seed or one of these known baselines.
+   */
+  priorPublishedStages?: readonly StageInput[][];
 }
 
 export interface TemplateInstallResult {
@@ -148,7 +154,7 @@ export async function installTemplates(params: {
 export type PolicyVersionAction =
   | "not_installed"
   | "blocked_no_published_version"
-  | "policy_unchanged"
+  | "unchanged"
   | "blocked_content_changed"
   | "blocked_existing_draft"
   | "draft_already_prepared"
@@ -162,6 +168,34 @@ export interface PolicyVersionResult {
   publishedVersionId?: number;
   publishedVersionNumber?: number;
   draftVersionId?: number;
+  /** Human-readable delta between the published version and the prepared (or proposed) draft. */
+  proposedChanges?: string[];
+}
+
+/** Lists what a prepared draft changes relative to the published version: policy keys and stage moves/additions/removals. */
+function describeVersionChanges(
+  publishedPolicy: unknown,
+  desiredPolicy: Record<string, unknown> | null,
+  publishedStages: Parameters<typeof stageShape>[0][],
+  desiredStages: Parameters<typeof stageShape>[0][],
+): string[] {
+  const changes: string[] = [];
+  const before = (publishedPolicy && typeof publishedPolicy === "object" && !Array.isArray(publishedPolicy) ? publishedPolicy : {}) as Record<string, unknown>;
+  const after = desiredPolicy ?? {};
+  for (const key of [...new Set([...Object.keys(before), ...Object.keys(after)])].sort()) {
+    if (canonicalJson(before[key]) !== canonicalJson(after[key])) changes.push(`submissionPolicy.${key} = ${JSON.stringify(after[key] ?? null)}`);
+  }
+  const withoutOrder = (s: Parameters<typeof stageShape>[0]) => stageShape({ ...s, stageOrder: 0 });
+  for (const stage of desiredStages) {
+    const prior = publishedStages.find((p) => p.name === stage.name);
+    if (!prior) changes.push(`stage ${stage.stageOrder} added: "${stage.name}" (resolver ${stage.resolver})`);
+    else if (prior.stageOrder !== stage.stageOrder) changes.push(`"${stage.name}" moves from stage ${prior.stageOrder} to stage ${stage.stageOrder}`);
+    if (prior && withoutOrder(prior) !== withoutOrder(stage)) changes.push(`"${stage.name}" configuration changed`);
+  }
+  for (const prior of publishedStages) {
+    if (!desiredStages.some((s) => s.name === prior.name)) changes.push(`stage ${prior.stageOrder} removed: "${prior.name}"`);
+  }
+  return changes;
 }
 
 /** Stable JSON: object keys sorted, undefined treated as null — for equality only. */
@@ -262,22 +296,33 @@ export async function prepareSubmissionPolicyVersions(params: {
     }
     const base = { templateKey: seed.templateKey, templateId, publishedVersionId: published.id, publishedVersionNumber: published.versionNumber };
     const desiredPolicy = seed.submissionPolicy ?? null;
-    if (canonicalJson(published.submissionPolicy) === canonicalJson(desiredPolicy)) {
-      results.push({ ...base, action: "policy_unchanged" });
-      continue;
-    }
-
     const seedDefinition = validateFormDefinition(seed.definition);
     const publishedStages = await listStages(organizationId, published.id);
+    const publishedShape = canonicalJson(publishedStages.map(stageShape));
     const seedStages = await validateStages(organizationId, seedDefinition, seed.stages);
-    const sameContent =
+    const seedShape = canonicalJson(seedStages.map(stageShape));
+    const knownPriorShapes: string[] = [];
+    for (const prior of seed.priorPublishedStages ?? []) {
+      knownPriorShapes.push(canonicalJson((await validateStages(organizationId, seedDefinition, prior)).map(stageShape)));
+    }
+
+    // FAIL CLOSED. The definition and signature policy must be exactly what the
+    // seed declares, and the published workflow must be either the current seed
+    // workflow or a frozen, known prior one. Anything else means the live
+    // version differs unexpectedly and nothing is prepared.
+    const sameFixedContent =
       definitionSha256(seedDefinition) === published.definitionSha256 &&
-      canonicalJson(seed.signaturePolicy ?? null) === canonicalJson(published.signaturePolicy) &&
-      canonicalJson(seedStages.map(stageShape)) === canonicalJson(publishedStages.map(stageShape));
-    if (!sameContent) {
+      canonicalJson(seed.signaturePolicy ?? null) === canonicalJson(published.signaturePolicy);
+    const stagesCurrent = publishedShape === seedShape;
+    if (!sameFixedContent || (!stagesCurrent && !knownPriorShapes.includes(publishedShape))) {
       results.push({ ...base, action: "blocked_content_changed" });
       continue;
     }
+    if (stagesCurrent && canonicalJson(published.submissionPolicy) === canonicalJson(desiredPolicy)) {
+      results.push({ ...base, action: "unchanged" });
+      continue;
+    }
+    const proposedChanges = describeVersionChanges(published.submissionPolicy, desiredPolicy, publishedStages, seedStages);
 
     const draft = (await listVersions(organizationId, templateId)).find((v) => v.status === "draft");
     if (draft) {
@@ -285,15 +330,17 @@ export async function prepareSubmissionPolicyVersions(params: {
         draft.definitionSha256 === published.definitionSha256 &&
         canonicalJson(draft.signaturePolicy) === canonicalJson(published.signaturePolicy) &&
         canonicalJson(draft.submissionPolicy) === canonicalJson(desiredPolicy) &&
-        canonicalJson((await listStages(organizationId, draft.id)).map(stageShape)) === canonicalJson(publishedStages.map(stageShape));
-      results.push({ ...base, action: matches ? "draft_already_prepared" : "blocked_existing_draft", draftVersionId: draft.id });
+        canonicalJson((await listStages(organizationId, draft.id)).map(stageShape)) === seedShape;
+      results.push({ ...base, action: matches ? "draft_already_prepared" : "blocked_existing_draft", draftVersionId: draft.id, proposedChanges });
       continue;
     }
 
     if (params.dryRun) {
-      results.push({ ...base, action: "would_prepare_draft" });
+      results.push({ ...base, action: "would_prepare_draft", proposedChanges });
       continue;
     }
+    // Content (definition, signature policy, render config) comes from the
+    // PUBLISHED version; only the approved workflow and policy come from the seed.
     const version = await createDraftVersion({
       organizationId,
       templateId,
@@ -301,21 +348,12 @@ export async function prepareSubmissionPolicyVersions(params: {
       signaturePolicy: published.signaturePolicy ?? undefined,
       submissionPolicy: desiredPolicy ?? undefined,
       renderConfig: published.renderConfig ?? undefined,
-      stages: publishedStages.map((s) => ({
-        stageOrder: s.stageOrder,
-        name: s.name,
-        participant: s.participant,
-        resolver: s.resolver,
-        resolverConfig: s.resolverConfig,
-        editableSectionKeys: s.editableSectionKeys,
-        allowedActions: s.allowedActions,
-        signatureSlotKey: s.signatureSlotKey,
-      })),
-      changeNote: `Submission policy only — content identical to published v${published.versionNumber}`,
+      stages: seedStages,
+      changeNote: `Prepared from published v${published.versionNumber}: ${proposedChanges.join("; ")}`,
       actorApplicationUserId: actor.applicationUserId,
       actorMembershipId: actor.membershipId,
     });
-    results.push({ ...base, action: "draft_prepared", draftVersionId: version.id });
+    results.push({ ...base, action: "draft_prepared", draftVersionId: version.id, proposedChanges });
   }
 
   if (!params.dryRun) {

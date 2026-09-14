@@ -22,7 +22,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import sharp from "sharp";
 import { WWM_LEAVE_APPLICATION_KEY } from "../formTemplates/wwm/leaveApplication";
-import { WWM_PERSONAL_INFORMATION_KEY } from "../formTemplates/wwm/personalInformation";
+import { WWM_PERSONAL_INFORMATION_KEY, wwmPersonalInformationV1Stages } from "../formTemplates/wwm/personalInformation";
 import { WWM_PROBATIONARY_ASSESSMENT_KEY } from "../formTemplates/wwm/probationaryAssessment";
 import { WWM_STAFF_EVALUATION_KEY } from "../formTemplates/wwm/staffEvaluation";
 import { resolveLiveDatabaseUrl } from "./liveDbGuard";
@@ -40,6 +40,7 @@ describe.skipIf(!LIVE_URL)("WS-26 assisted submissions, live", () => {
   let schema: typeof import("@workspace/db");
   let eq: typeof import("drizzle-orm").eq;
   let and: typeof import("drizzle-orm").and;
+  let sql: typeof import("drizzle-orm").sql;
   let templates: typeof import("../lib/formEngine/templates");
   let submissions: typeof import("../lib/formEngine/submissions");
   let signatures: typeof import("../lib/formEngine/signatures");
@@ -64,6 +65,8 @@ describe.skipIf(!LIVE_URL)("WS-26 assisted submissions, live", () => {
   let subject: Person;
   let foreignHr: Person;
   let foreignStaff: Person;
+  /** A second HR user: maker-checker means the assisting HR user cannot also review. */
+  let hr2: Person;
 
   const actor = (p: Person) => ({ userId: p.userId, membershipId: p.membershipId });
   const templateActor = (p: Person) => ({ actorApplicationUserId: p.userId, actorMembershipId: p.membershipId });
@@ -81,7 +84,7 @@ describe.skipIf(!LIVE_URL)("WS-26 assisted submissions, live", () => {
   ];
 
   beforeAll(async () => {
-    ({ eq, and } = await import("drizzle-orm"));
+    ({ eq, and, sql } = await import("drizzle-orm"));
     schema = await import("@workspace/db");
     db = schema.db;
     templates = await import("../lib/formEngine/templates");
@@ -130,6 +133,7 @@ describe.skipIf(!LIVE_URL)("WS-26 assisted submissions, live", () => {
     subject = await mkPerson("subject", orgId, employeeRole);
     foreignHr = await mkPerson("foreignhr", otherOrgId, foreignHrRole);
     foreignStaff = await mkPerson("foreignstaff", otherOrgId, foreignEmployeeRole);
+    hr2 = await mkPerson("hr2", orgId, hrRole);
   });
 
   // -------------------------------------------------------------------------
@@ -144,7 +148,13 @@ describe.skipIf(!LIVE_URL)("WS-26 assisted submissions, live", () => {
 
   it("PIF v1 installed without a policy stays untouched; a content-locked v2 draft is prepared; the other three stay closed", async () => {
     // The Production state: all four published BEFORE submission_policy existed.
-    const productionSeeds = wwm.WWM_FORM_TEMPLATES.map((s) => ({ ...s, submissionPolicy: undefined }));
+    // PIF v1 = HR review only, exactly the frozen v1 workflow.
+    const productionSeeds = wwm.WWM_FORM_TEMPLATES.map((s) => ({
+      ...s,
+      submissionPolicy: undefined,
+      priorPublishedStages: undefined,
+      stages: s.templateKey === WWM_PERSONAL_INFORMATION_KEY ? wwmPersonalInformationV1Stages : s.stages,
+    }));
     const installed = await installer.installTemplates({ organizationId: orgId, seeds: productionSeeds, ...templateActor(hr) });
     expect(installed.every((r) => r.action === "installed" && r.published)).toBe(true);
 
@@ -170,14 +180,23 @@ describe.skipIf(!LIVE_URL)("WS-26 assisted submissions, live", () => {
 
     // Dry run writes nothing.
     const dry = await installer.prepareSubmissionPolicyVersions({ organizationId: orgId, seeds: wwm.WWM_FORM_TEMPLATES, ...templateActor(hr), dryRun: true });
-    expect(dry.find((r) => r.templateKey === WWM_PERSONAL_INFORMATION_KEY)!.action).toBe("would_prepare_draft");
+    const EXPECTED_CHANGES = [
+      "submissionPolicy.allowOnBehalfSubmission = true",
+      'stage 1 added: "Employee Confirmation & Signature" (resolver subject_employee)',
+      '"HR review" moves from stage 1 to stage 2',
+    ];
+    expect(dry.find((r) => r.templateKey === WWM_PERSONAL_INFORMATION_KEY)).toMatchObject({
+      action: "would_prepare_draft",
+      publishedVersionNumber: 1,
+      proposedChanges: EXPECTED_CHANGES,
+    });
     expect((await templates.listVersions(orgId, pifTemplateId)).length).toBe(1);
 
     const prepared = await installer.prepareSubmissionPolicyVersions({ organizationId: orgId, seeds: wwm.WWM_FORM_TEMPLATES, ...templateActor(hr) });
     const byKey = Object.fromEntries(prepared.map((r) => [r.templateKey, r]));
     expect(byKey[WWM_PERSONAL_INFORMATION_KEY]!.action).toBe("draft_prepared");
     for (const key of [WWM_LEAVE_APPLICATION_KEY, WWM_STAFF_EVALUATION_KEY, WWM_PROBATIONARY_ASSESSMENT_KEY]) {
-      expect(byKey[key]!.action).toBe("policy_unchanged");
+      expect(byKey[key]!.action).toBe("unchanged");
       const versions = await templates.listVersions(orgId, byKey[key]!.templateId!);
       expect(versions).toHaveLength(1);
       expect(versions[0]!.submissionPolicy).toBeNull();
@@ -199,7 +218,14 @@ describe.skipIf(!LIVE_URL)("WS-26 assisted submissions, live", () => {
     expect(v2.submissionPolicy).toEqual({ allowOnBehalfSubmission: true });
     const strip = (s: { stageOrder: number; name: string; participant: string; resolver: string; resolverConfig: unknown; editableSectionKeys: unknown; allowedActions: unknown; signatureSlotKey: string | null }) =>
       ({ stageOrder: s.stageOrder, name: s.name, participant: s.participant, resolver: s.resolver, resolverConfig: s.resolverConfig, editableSectionKeys: s.editableSectionKeys, allowedActions: s.allowedActions, signatureSlotKey: s.signatureSlotKey });
-    expect((await templates.listStages(orgId, pifV2Id)).map(strip)).toEqual(v1StagesBefore.map(strip));
+    const HR_REVIEW = { name: "HR review", participant: "hr", resolver: "permission_holder", resolverConfig: { permissionKey: "form.approve" }, editableSectionKeys: [], allowedActions: ["approve", "return", "reject"], signatureSlotKey: null };
+    expect(v1StagesBefore.map(strip)).toEqual([{ stageOrder: 1, ...HR_REVIEW }]);
+    expect((await templates.listStages(orgId, pifV2Id)).map(strip)).toEqual([
+      { stageOrder: 1, name: "Employee Confirmation & Signature", participant: "employee", resolver: "subject_employee", resolverConfig: null, editableSectionKeys: [], allowedActions: ["complete"], signatureSlotKey: "employee_signature" },
+      { stageOrder: 2, ...HR_REVIEW },
+    ]);
+    expect(byKey[WWM_PERSONAL_INFORMATION_KEY]!.proposedChanges).toEqual(EXPECTED_CHANGES);
+    expect(v2.renderConfig).toEqual(v1Before.renderConfig);
 
     // Idempotent.
     const again = await installer.prepareSubmissionPolicyVersions({ organizationId: orgId, seeds: wwm.WWM_FORM_TEMPLATES, ...templateActor(hr) });
@@ -221,6 +247,22 @@ describe.skipIf(!LIVE_URL)("WS-26 assisted submissions, live", () => {
     );
     const results = await installer.prepareSubmissionPolicyVersions({ organizationId: orgId, seeds: tampered, ...templateActor(hr), dryRun: true });
     expect(results.find((r) => r.templateKey === WWM_STAFF_EVALUATION_KEY)!.action).toBe("blocked_content_changed");
+
+    // A live PIF whose workflow is neither the known v1 nor the v2 seed fails closed — nothing is prepared.
+    const unexpectedPif = wwm.WWM_FORM_TEMPLATES.filter((s) => s.templateKey === WWM_PERSONAL_INFORMATION_KEY).map((s) => ({
+      ...s,
+      submissionPolicy: undefined,
+      priorPublishedStages: undefined,
+      stages: wwmPersonalInformationV1Stages.map((st) => ({ ...st, name: "HR check" })),
+    }));
+    const [odd] = await installer.installTemplates({ organizationId: otherOrgId, seeds: unexpectedPif, ...templateActor(foreignHr) });
+    const oddResult = await installer.prepareSubmissionPolicyVersions({
+      organizationId: otherOrgId,
+      seeds: wwm.WWM_FORM_TEMPLATES.filter((s) => s.templateKey === WWM_PERSONAL_INFORMATION_KEY),
+      ...templateActor(foreignHr),
+    });
+    expect(oddResult[0]!.action).toBe("blocked_content_changed");
+    expect(await templates.listVersions(otherOrgId, odd!.templateId)).toHaveLength(1);
     await expect(installer.prepareSubmissionPolicyVersions({ organizationId: orgId, seeds: wwm.WWM_FORM_TEMPLATES, ...templateActor(staff) })).rejects.toThrow();
   });
 
@@ -331,6 +373,119 @@ describe.skipIf(!LIVE_URL)("WS-26 assisted submissions, live", () => {
     expect((await submissions.listEvents(orgId, v1Submission)).map((e) => e.eventType)).toEqual(["created", "submitted"]);
   });
 
+  it("PIF v2 assisted flow: only the subject employee can sign and confirm; HR review waits, then a different HR user reviews", async () => {
+    const hrViewer = await viewer(orgId, hr);
+    const hr2Viewer = await viewer(orgId, hr2);
+    const subjectViewer = await viewer(orgId, subject);
+    const staffViewer = await viewer(orgId, staff);
+    type Viewer = Awaited<ReturnType<typeof viewer>>;
+    const act = (p: Person, v: Viewer, action: "complete" | "approve") =>
+      submissions.stageAction({ organizationId: orgId, submissionId: assistedPifId, action, viewer: v, actor: actor(p) });
+    const signDrawn = async (p: Person, v: Viewer) =>
+      signatures.applySignature({ organizationId: orgId, actor: actor(p), viewer: v, submissionId: assistedPifId, slotKey: "employee_signature", method: "drawn", imageFile: file(await png()) });
+    const signWithAsset = (p: Person, v: Viewer, assetId: number) =>
+      signatures.applySignature({ organizationId: orgId, actor: actor(p), viewer: v, submissionId: assistedPifId, slotKey: "employee_signature", method: "uploaded", sourceAssetId: assetId });
+
+    // Awaiting the employee — visible as such to the employee, to HR and in lists.
+    const subjectDetail = (await submissions.getSubmissionDetail(orgId, assistedPifId, subjectViewer))!;
+    expect(subjectDetail.submission).toMatchObject({ status: "pending_approval", currentStageOrder: 1, currentStageName: "Employee Confirmation & Signature", templateVersionId: pifV2Id, assisted: true });
+    expect(subjectDetail.viewer.availableActions).toEqual(["complete"]);
+    expect((await submissions.getSubmissionDetail(orgId, assistedPifId, hrViewer))!.viewer.availableActions).toEqual([]);
+    expect((await submissions.listSubmissions(orgId, {})).find((s) => s.id === assistedPifId)!.currentStageName).toBe("Employee Confirmation & Signature");
+
+    // The assisting HR creator: no signature, no use of its own stored asset, no completion of the employee's stage.
+    await expect(signDrawn(hr, hrViewer)).rejects.toThrow(signatures.SignatureAuthorityError);
+    const hrAsset = await signatures.uploadSignatureAsset({ organizationId: orgId, actor: actor(hr), file: file(await png()) });
+    await expect(signWithAsset(hr, hrViewer, hrAsset.id)).rejects.toThrow(signatures.SignatureAuthorityError);
+    await expect(act(hr, hrViewer, "complete")).rejects.toThrow(submissions.FormStageAuthorityError);
+    // Another employee: neither signature nor completion.
+    await expect(signDrawn(staff, staffViewer)).rejects.toThrow(signatures.SignatureAuthorityError);
+    await expect(act(staff, staffViewer, "complete")).rejects.toThrow(submissions.FormStageAuthorityError);
+    // HR review cannot occur before the employee stage.
+    await expect(act(hr2, hr2Viewer, "approve")).rejects.toThrow(/not allowed at this stage/);
+    // The subject cannot bypass their own signature with a direct API call, nor sign with HR's asset.
+    await expect(act(subject, subjectViewer, "complete")).rejects.toThrow(/own signature/);
+    await expect(signWithAsset(subject, subjectViewer, hrAsset.id)).rejects.toThrow(/your own stored signature/);
+    expect(await signatures.listSubmissionSignatures(orgId, hrViewer, assistedPifId)).toHaveLength(0);
+
+    // The subject signs and confirms; the form advances to HR review.
+    const signed = await signDrawn(subject, subjectViewer);
+    expect(signed).toMatchObject({ slotKey: "employee_signature", signerUserId: subject.userId, signerMembershipId: subject.membershipId, representedEmployeeId: subject.employeeId, stageOrder: 1 });
+    expect(await act(subject, subjectViewer, "complete")).toMatchObject({ status: "pending_approval", currentStageOrder: 2 });
+
+    // Maker-checker: the assisting HR user cannot also review; the subject cannot; a different HR user can.
+    await expect(act(hr, hrViewer, "approve")).rejects.toThrow(/raised it or whom it concerns/);
+    await expect(act(subject, subjectViewer, "approve")).rejects.toThrow(submissions.FormStageAuthorityError);
+    expect((await act(hr2, hr2Viewer, "approve")).status).toBe("approved");
+
+    // History records every actor, stage and time; never the notes.
+    const events = await submissions.listEvents(orgId, assistedPifId);
+    expect(events.map((e) => e.eventType)).toEqual([
+      "created_on_behalf",
+      "draft_saved",
+      "submitted_on_behalf",
+      "signature_applied",
+      "stage_completed",
+      "stage_completed",
+      "approved",
+    ]);
+    const of = (type: string) => events.filter((e) => e.eventType === type);
+    expect(of("created_on_behalf")[0]).toMatchObject({ actorUserId: hr.userId, actorMembershipId: hr.membershipId });
+    expect(of("submitted_on_behalf")[0]).toMatchObject({ actorMembershipId: hr.membershipId });
+    expect(of("signature_applied")[0]).toMatchObject({ actorUserId: subject.userId, actorMembershipId: subject.membershipId });
+    expect(of("stage_completed")[0]).toMatchObject({ actorMembershipId: subject.membershipId, stageOrder: 1, stageName: "Employee Confirmation & Signature" });
+    expect(of("stage_completed")[1]).toMatchObject({ actorMembershipId: hr2.membershipId, stageOrder: 2, stageName: "HR review" });
+    expect(events.every((e) => e.occurredAt instanceof Date)).toBe(true);
+    expect(JSON.stringify(events)).not.toContain(NOTES);
+    const audits = await db
+      .select()
+      .from(schema.auditEventsTable)
+      .where(and(eq(schema.auditEventsTable.organizationId, orgId), eq(schema.auditEventsTable.targetId, String(assistedPifId))));
+    expect(audits.map((a) => a.eventType)).toEqual(expect.arrayContaining(["form.created_on_behalf", "form.submitted_on_behalf", "form.stage_completed", "form.approved"]));
+    expect(JSON.stringify(audits)).not.toContain(NOTES);
+    const [row] = await db.select().from(schema.formSubmissionsTable).where(eq(schema.formSubmissionsTable.id, assistedPifId));
+    expect(row).toMatchObject({ templateVersionId: pifV2Id, assisted: true, assistanceReason: "other", assistanceNotes: NOTES, createdByMembershipId: hr.membershipId, subjectEmployeeId: subject.employeeId });
+  });
+
+  it("PIF v2 normal flow: the employee signs and confirms through the same stage; changed content needs a fresh signature", async () => {
+    const hrViewer = await viewer(orgId, hr);
+    type Viewer = Awaited<ReturnType<typeof viewer>>;
+    const sign = async (p: Person, v: Viewer, submissionId: number) =>
+      signatures.applySignature({ organizationId: orgId, actor: actor(p), viewer: v, submissionId, slotKey: "employee_signature", method: "drawn", imageFile: file(await png()) });
+
+    // Sign the draft, submit it unchanged, confirm (the UI's "Submit & confirm").
+    const assessorViewer = await viewer(orgId, assessor);
+    const own = await submissions.createSubmission({ organizationId: orgId, templateId: pifTemplateId, subjectEmployeeId: assessor.employeeId, actor: actor(assessor) });
+    expect(own).toMatchObject({ templateVersionId: pifV2Id, assisted: false });
+    await submissions.saveDraft({ organizationId: orgId, submissionId: own.id, answers: { spouse_name: "C" }, viewer: assessorViewer, actor: actor(assessor) });
+    await sign(assessor, assessorViewer, own.id);
+    await submissions.submit({ organizationId: orgId, submissionId: own.id, viewer: assessorViewer, actor: actor(assessor) });
+    expect(await submissions.stageAction({ organizationId: orgId, submissionId: own.id, action: "complete", viewer: assessorViewer, actor: actor(assessor) })).toMatchObject({ currentStageOrder: 2 });
+    expect((await submissions.listEvents(orgId, own.id)).map((e) => e.eventType)).toEqual(["created", "draft_saved", "signature_applied", "submitted", "stage_completed"]);
+    expect((await submissions.stageAction({ organizationId: orgId, submissionId: own.id, action: "approve", viewer: hrViewer, actor: actor(hr) })).status).toBe("approved");
+
+    // Sign, then change the answers: the old signature no longer attests the content.
+    const staffViewer = await viewer(orgId, staff);
+    const changed = await submissions.createSubmission({ organizationId: orgId, templateId: pifTemplateId, subjectEmployeeId: staff.employeeId, actor: actor(staff) });
+    await submissions.saveDraft({ organizationId: orgId, submissionId: changed.id, answers: { spouse_name: "A" }, viewer: staffViewer, actor: actor(staff) });
+    const stale = await sign(staff, staffViewer, changed.id);
+    await submissions.saveDraft({ organizationId: orgId, submissionId: changed.id, answers: { spouse_name: "B" }, viewer: staffViewer, actor: actor(staff) });
+    await submissions.submit({ organizationId: orgId, submissionId: changed.id, viewer: staffViewer, actor: actor(staff) });
+    await expect(submissions.stageAction({ organizationId: orgId, submissionId: changed.id, action: "complete", viewer: staffViewer, actor: actor(staff) })).rejects.toThrow(/own signature/);
+    await signatures.revokeSignature({ organizationId: orgId, actor: actor(staff), viewer: staffViewer, submissionId: changed.id, signatureId: stale.id, reason: "Form changed after signing" });
+    await sign(staff, staffViewer, changed.id);
+    expect(await submissions.stageAction({ organizationId: orgId, submissionId: changed.id, action: "complete", viewer: staffViewer, actor: actor(staff) })).toMatchObject({ currentStageOrder: 2 });
+  });
+
+  it("offers no signature waiver anywhere", async () => {
+    for (const mod of [signatures, submissions, assisted, installer, templates]) {
+      expect(Object.keys(mod).filter((k) => /waiv|bypass|skipSignature/i.test(k))).toEqual([]);
+    }
+    const result = (await db.execute(sql`select enum_range(null::form_signature_method)::text as methods, enum_range(null::form_submission_event_type)::text as events`)) as unknown as { rows: { methods: string; events: string }[] };
+    expect(result.rows[0]!.methods).toBe("{drawn,uploaded,device}");
+    expect(result.rows[0]!.events).not.toMatch(/waiv/i);
+  });
+
   it("form.assess alone — every other HR form key, via real role grants — does not authorize assisted creation", async () => {
     const version = (await templates.getPublishedVersion(orgId, pifTemplateId))!;
     const assessorPermissions = await permissions.getEffectivePermissions(assessor.membershipId);
@@ -421,7 +576,10 @@ describe.skipIf(!LIVE_URL)("WS-26 assisted submissions, live", () => {
     await expect(
       signatures.applySignature({ organizationId: orgId, actor: actor(hr), viewer: await viewer(orgId, hr), submissionId: assistedPifId, slotKey: "employee_signature", method: "drawn", imageFile: file(await png()) }),
     ).rejects.toThrow();
-    expect(await signatures.listSubmissionSignatures(orgId, await viewer(orgId, hr), assistedPifId)).toHaveLength(0);
+    // The only signature on this form is the subject's own (applied in the v2 flow test).
+    const applied = await signatures.listSubmissionSignatures(orgId, await viewer(orgId, hr), assistedPifId);
+    expect(applied.filter((s) => s.signerUserId === hr.userId)).toHaveLength(0);
+    expect(applied.every((s) => s.signerUserId === subject.userId && s.representedEmployeeId === subject.employeeId)).toBe(true);
   });
 
   // -------------------------------------------------------------------------

@@ -48342,6 +48342,10 @@ components:
             - $ref: "#/components/schemas/FormAssistanceReason"
           nullable: true
           description: Category only. The operator's free-text notes are deliberately not part of any summary.
+        currentStageName:
+          type: string
+          nullable: true
+          description: Name of the workflow stage the submission is waiting at (e.g. "Employee Confirmation & Signature"); null unless pending approval.
         id:
           type: integer
         organizationId:

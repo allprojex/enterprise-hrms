@@ -15,7 +15,7 @@ import type { FormTemplateType } from "@workspace/db";
 // is still an explicit, stage-authorized, audited action — nothing auto-stamps.
 const WWM_SIGNATURE_METHODS: ("drawn" | "uploaded" | "device")[] = ["drawn", "uploaded", "device"];
 import { WWM_LEAVE_APPLICATION_KEY, wwmLeaveApplicationDefinition, wwmLeaveApplicationStages } from "./leaveApplication";
-import { WWM_PERSONAL_INFORMATION_KEY, wwmPersonalInformationDefinition, wwmPersonalInformationStages } from "./personalInformation";
+import { WWM_PERSONAL_INFORMATION_KEY, wwmPersonalInformationDefinition, wwmPersonalInformationStages, wwmPersonalInformationV1Stages } from "./personalInformation";
 import { WWM_STAFF_EVALUATION_KEY, wwmStaffEvaluationDefinition, wwmStaffEvaluationStages } from "./staffEvaluation";
 import { WWM_PROBATIONARY_ASSESSMENT_KEY, wwmProbationaryAssessmentDefinition, wwmProbationaryAssessmentStages } from "./probationaryAssessment";
 
@@ -41,6 +41,12 @@ export interface WwmTemplateSeed {
    * employee's behalf. Absent means fail-closed — assisted completion refused.
    */
   submissionPolicy?: Record<string, unknown>;
+  /**
+   * Workflows previously PUBLISHED from this seed (frozen history). The governed
+   * version preparer only acts when the live published workflow is the current
+   * seed workflow or one of these; anything else fails closed.
+   */
+  priorPublishedStages?: StageInput[][];
 }
 
 export const WWM_FORM_TEMPLATES: readonly WwmTemplateSeed[] = [
@@ -81,6 +87,9 @@ export const WWM_FORM_TEMPLATES: readonly WwmTemplateSeed[] = [
     // signature slot: that slot resolves to `subject_employee`, so the stage
     // resolver still requires the employee's own membership.
     submissionPolicy: { allowOnBehalfSubmission: true },
+    // v1 was published with HR review only; v2 adds the subject employee's
+    // confirmation & signature stage before it (owner decision).
+    priorPublishedStages: [wwmPersonalInformationV1Stages],
   },
   {
     templateKey: WWM_STAFF_EVALUATION_KEY,

@@ -11,7 +11,7 @@ import { Router, Route } from 'wouter';
 import { memoryLocation } from 'wouter/memory-location';
 
 const { state, spies } = vi.hoisted(() => ({
-  state: { detail: null as Record<string, unknown> | null, error: null as unknown },
+  state: { detail: null as Record<string, unknown> | null, error: null as unknown, signatures: [] as unknown[] },
   spies: {
     saveDraft: vi.fn(),
     submit: vi.fn(),
@@ -38,7 +38,7 @@ vi.mock('@workspace/api-client-react', () => ({
   useGetFormSubmission: () => ({ data: state.detail, isLoading: false, error: state.error }),
   getGetFormSubmissionQueryKey: (o: number, id: number) => ['formSubmission', o, id],
   getListFormSubmissionsQueryKey: (o: number) => ['formSubmissions', o],
-  useListFormSubmissionSignatures: () => ({ data: { items: [] }, isLoading: false }),
+  useListFormSubmissionSignatures: () => ({ data: { items: state.signatures }, isLoading: false }),
   getListFormSubmissionSignaturesQueryKey: (o: number, id: number) => ['formSignatures', o, id],
   useSaveFormSubmissionDraft: mutation(spies.saveDraft),
   useSubmitFormSubmission: mutation(spies.submit),
@@ -87,10 +87,94 @@ function renderPage() {
 beforeEach(() => {
   state.detail = detailFor();
   state.error = null;
+  state.signatures = [];
   Object.values(spies).forEach((s) => s.mockClear());
   if (typeof URL.createObjectURL !== 'function') {
     Object.assign(URL, { createObjectURL: () => 'blob:test', revokeObjectURL: () => undefined });
   }
+});
+
+const PIF_V2_STAGES = [
+  { id: 21, stageOrder: 1, name: 'Employee Confirmation & Signature', participant: 'employee', resolver: 'subject_employee', editableSectionKeys: [], allowedActions: ['complete'], signatureSlotKey: 'employee_signature' },
+  { id: 22, stageOrder: 2, name: 'HR review', participant: 'hr', resolver: 'permission_holder', editableSectionKeys: [], allowedActions: ['approve', 'return', 'reject'], signatureSlotKey: null },
+];
+
+function pifDetail(submission: Record<string, unknown>, viewer: Record<string, unknown>) {
+  const base = detailFor();
+  return detailFor({
+    submission: {
+      ...(base.submission as Record<string, unknown>),
+      templateKey: 'wwm_personal_information',
+      templateTitle: 'Staff Personal Information Form',
+      subjectName: 'Kwame Owusu',
+      assisted: true,
+      assistanceReason: 'accessibility_assistance',
+      ...submission,
+    },
+    template: { id: 1, templateKey: 'wwm_personal_information', title: 'Staff Personal Information Form', formType: 'personal_information' },
+    stages: PIF_V2_STAGES,
+    viewer: { canEdit: false, editableSectionKeys: [], canSubmit: false, availableActions: [], canFinalize: false, canArchive: false, isSubject: false, ...viewer },
+  });
+}
+
+const employeeSignature = {
+  id: 90, submissionId: 7, revisionId: 11, slotKey: 'employee_signature', signerUserId: 4, signerMembershipId: 6, representedEmployeeId: 3,
+  authority: 'subject_employee', stageOrder: 1, method: 'drawn', sourceAssetId: null, deviceProvider: null, sha256: 'x', mimeType: 'image/png',
+  widthPx: 10, heightPx: 5, signedAt: '2026-09-06T11:00:00Z', revokedAt: null, revokeReason: null,
+};
+
+describe('FormSubmissionPage — PIF employee confirmation & signature stage', () => {
+  it('shows HR an assisted PIF awaiting the employee, with no way for HR to confirm it', async () => {
+    state.detail = pifDetail({ status: 'pending_approval', currentStageOrder: 1, stageCountSnapshot: 2 }, {});
+    renderPage();
+    const panel = await screen.findByTestId('panel-awaiting-employee-signature');
+    expect(panel).toHaveTextContent('Awaiting Employee Confirmation & Signature');
+    expect(panel).toHaveTextContent('Kwame Owusu must review the form and apply their own signature before HR review');
+    expect(screen.getByTestId('panel-assisted')).toHaveTextContent('HR cannot sign for them');
+    expect(screen.queryByTestId('button-stage-complete')).not.toBeInTheDocument();
+  });
+
+  it('asks the subject employee to sign first, and enables confirmation only once their signature is applied', async () => {
+    const user = userEvent.setup();
+    state.detail = pifDetail({ status: 'pending_approval', currentStageOrder: 1, stageCountSnapshot: 2 }, { isSubject: true, availableActions: ['complete'] });
+    const first = renderPage();
+    expect(await screen.findByTestId('panel-awaiting-employee-signature')).toHaveTextContent('Awaiting your confirmation & signature');
+    expect(screen.getByTestId('form-actions')).toHaveTextContent('Apply your signature in the form above before confirming.');
+    expect(screen.getByTestId('button-stage-complete')).toHaveTextContent('Confirm & send to HR');
+    expect(screen.getByTestId('button-stage-complete')).toBeDisabled();
+    first.unmount();
+
+    state.signatures = [employeeSignature];
+    renderPage();
+    const confirm = await screen.findByTestId('button-stage-complete');
+    expect(confirm).toBeEnabled();
+    await user.click(confirm);
+    expect((spies.stage.mock.calls[0][0] as { data: { action: string } }).data.action).toBe('complete');
+  });
+
+  it('lets an employee who signed their own draft submit and confirm in one step — still two backend actions', async () => {
+    const user = userEvent.setup();
+    state.detail = pifDetail({ status: 'draft', assisted: false, assistanceReason: null }, { isSubject: true, canSubmit: true, canEdit: true, editableSectionKeys: ['leave_period'] });
+    state.signatures = [employeeSignature];
+    renderPage();
+    const submit = await screen.findByTestId('button-submit-form');
+    expect(submit).toHaveTextContent('Submit & confirm');
+    await user.click(submit);
+    expect(spies.submit).toHaveBeenCalledTimes(1);
+    expect(spies.stage).toHaveBeenCalledTimes(1);
+    expect((spies.stage.mock.calls[0][0] as { data: { action: string } }).data.action).toBe('complete');
+  });
+
+  it('submits without confirming while the employee has not signed', async () => {
+    const user = userEvent.setup();
+    state.detail = pifDetail({ status: 'draft', assisted: false, assistanceReason: null }, { isSubject: true, canSubmit: true, canEdit: true, editableSectionKeys: ['leave_period'] });
+    renderPage();
+    const submit = await screen.findByTestId('button-submit-form');
+    expect(submit).not.toHaveTextContent('confirm');
+    await user.click(submit);
+    expect(spies.submit).toHaveBeenCalledTimes(1);
+    expect(spies.stage).not.toHaveBeenCalled();
+  });
 });
 
 describe('FormSubmissionPage', () => {
