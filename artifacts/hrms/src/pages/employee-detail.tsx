@@ -243,7 +243,10 @@ export default function EmployeeDetail() {
     },
   });
 
-  const { data: exitProcesses } = useListEmployeeExitProcesses(organizationId, employeeId, {
+  // Exit processes are HR records (employee.write). A 403 hides the whole
+  // Exit Management card, the same reactive-to-403 pattern as
+  // disciplinaryRecordsError above, rather than implying "none started".
+  const { data: exitProcesses, error: exitProcessesError } = useListEmployeeExitProcesses(organizationId, employeeId, {
     query: {
       queryKey: getListEmployeeExitProcessesQueryKey(organizationId, employeeId),
       enabled: organizationId > 0 && !isNaN(employeeId),
@@ -398,7 +401,9 @@ export default function EmployeeDetail() {
           firstName: firstName.trim(),
           lastName: lastName.trim(),
           workEmail: workEmail.trim() || null,
-          phoneNumber: phoneNumber.trim() || null,
+          // A redacted phone number arrives as null. Sending the empty field
+          // back would erase the stored value, so it is omitted instead.
+          ...(employee?.sensitiveFieldsRedacted ? {} : { phoneNumber: phoneNumber.trim() || null }),
           employmentStatus: status,
         },
       },
@@ -1493,7 +1498,8 @@ export default function EmployeeDetail() {
                   type="tel"
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
-                  disabled={!isEditing || updateMutation.isPending}
+                  disabled={!isEditing || updateMutation.isPending || !!employee.sensitiveFieldsRedacted}
+                  placeholder={employee.sensitiveFieldsRedacted ? '—' : undefined}
                   data-testid="input-detail-phone"
                 />
               </div>
@@ -2407,7 +2413,8 @@ export default function EmployeeDetail() {
           </Card>
         )}
 
-        <Card className="lg:col-span-3">
+        {!exitProcessesError && (
+        <Card className="lg:col-span-3" data-testid="card-exit-management">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -2499,6 +2506,7 @@ export default function EmployeeDetail() {
             )}
           </CardContent>
         </Card>
+        )}
 
         {/* WS-15 P2/P3 (§31.29) — cross-module sections. Each is
             permission-filtered by its own module's provider, so a section the

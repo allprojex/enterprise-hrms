@@ -27,6 +27,8 @@ import {
   exitInterviewsTable,
   type CustomFieldScope,
 } from "@workspace/db";
+import { getVisibleCandidateById, resolveCandidateVisibilityContext } from "../candidates";
+import { isApplicationVisible, resolveApplicationVisibilityContext } from "../applicationPipeline";
 
 export class UnknownCustomFieldScopeError extends Error {
   constructor(scope: string) {
@@ -161,6 +163,32 @@ export async function assertEntityInOrganization(scope: string, entityId: number
     .where(and(eq(table.id, entityId), eq(table.organizationId, organizationId)))
     .limit(1);
   if (!row) throw new CustomFieldEntityNotFoundError();
+}
+
+/**
+ * Record-level visibility for the recruitment scopes. Their read permissions
+ * (`candidate.read`, `application.read`) are seeded to every employee because
+ * any employee may be an assigned recruiter or hiring manager, so the scope
+ * permission alone would expose every candidate's and application's values
+ * org-wide. This applies the recruitment service layer's own visibility
+ * (assigned via the requisition, or organization-wide) — never a second model.
+ *
+ * Throws the same not-found error as a cross-organization id, so visibility
+ * cannot be probed. Every other scope is unaffected.
+ */
+export async function assertRecruitmentEntityVisible(
+  scope: string,
+  entityId: number,
+  caller: { organizationId: number; membershipId: number; applicationUserId: number },
+): Promise<void> {
+  const spec = requireScopeSpec(scope);
+  if (spec.scope === "candidate") {
+    const visibility = await resolveCandidateVisibilityContext(caller);
+    if (!(await getVisibleCandidateById(caller.organizationId, entityId, visibility))) throw new CustomFieldEntityNotFoundError();
+  } else if (spec.scope === "application") {
+    const visibility = await resolveApplicationVisibilityContext(caller);
+    if (!(await isApplicationVisible(caller.organizationId, entityId, visibility))) throw new CustomFieldEntityNotFoundError();
+  }
 }
 
 /** Verifies an `employee_reference` value points at an employee in the same organization. */

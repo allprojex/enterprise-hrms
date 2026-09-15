@@ -20,6 +20,10 @@ import rateLimit from "express-rate-limit";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireMembership, type MembershipRequest } from "../middlewares/requireMembership";
 import { requirePermission } from "../middlewares/requirePermission";
+import { requireModuleEnabled } from "../middlewares/requireModuleEnabled";
+import { RECRUITMENT_MODULE_KEY } from "../lib/recruitmentAuthorization";
+import { isApplicationVisible, resolveApplicationVisibilityContext } from "../lib/applicationPipeline";
+import { getVisibleOfferVersionById, resolveOfferVisibilityContext, toPublicOfferVersion } from "../lib/offers";
 import { recordAuditEvent } from "../lib/auditLog";
 import {
   createApprovalStage,
@@ -31,6 +35,7 @@ import {
 import {
   decideHireAuthorizationStage,
   getHireAuthorizationDetail,
+  isHireAuthorizationStageApprover,
   requestHireAuthorization,
   HireAuthorizationNotFoundError,
   HireAuthorizationStateError,
@@ -204,14 +209,36 @@ router.delete(
 
 // --- hire authorization ------------------------------------------------------
 
+/**
+ * `application.read` is held by every employee, so it is only the coarse gate.
+ * Record-level reach is the application's own visibility (org-wide, or the
+ * requisition's recruiter/hiring manager) OR being a configured approver of
+ * this authorization's stages — nothing broader. Invisible reads 404, matching
+ * the application pipeline's non-probeable contract.
+ */
 // GET /organizations/:organizationId/applications/:applicationId/hire-authorization
 router.get(
   "/organizations/:organizationId/applications/:applicationId/hire-authorization",
   requireAuth as any,
   requireMembership("organizationId"),
+  requireModuleEnabled(RECRUITMENT_MODULE_KEY),
   requirePermission("application.read"),
   async (req: MembershipRequest, res): Promise<void> => {
-    res.json(await getHireAuthorizationDetail(req.membership!.organizationId, Number(req.params.applicationId)));
+    const organizationId = req.membership!.organizationId;
+    const applicationId = Number(req.params.applicationId);
+    const visibility = await resolveApplicationVisibilityContext({
+      organizationId,
+      applicationUserId: req.userId!,
+      membershipId: req.membership!.id,
+    });
+    const mayView =
+      (await isApplicationVisible(organizationId, applicationId, visibility)) ||
+      (await isHireAuthorizationStageApprover({ organizationId, applicationId, actorMembershipId: req.membership!.id }));
+    if (!mayView) {
+      res.status(404).json({ error: new HireAuthorizationNotFoundError().message });
+      return;
+    }
+    res.json(await getHireAuthorizationDetail(organizationId, applicationId));
   },
 );
 
@@ -338,19 +365,40 @@ router.post(
 
 // --- offer lifecycle ---------------------------------------------------------
 
+/**
+ * Offer-version reads resolve visibility through lib/offers.ts exactly as the
+ * pre-existing offer routes do — org-wide only via offer.approve/issue/withdraw,
+ * otherwise the requisition's recruiter/hiring manager — because `offer.read`
+ * is held by every employee. Invisible and missing versions both 404.
+ */
+async function isOfferVersionVisibleToCaller(req: MembershipRequest, versionId: number): Promise<boolean> {
+  const organizationId = req.membership!.organizationId;
+  const visibility = await resolveOfferVisibilityContext({
+    organizationId,
+    applicationUserId: req.userId!,
+    membershipId: req.membership!.id,
+  });
+  return (await getVisibleOfferVersionById(organizationId, versionId, visibility)) != null;
+}
+
 // GET /organizations/:organizationId/offer-versions/:versionId/state
 router.get(
   "/organizations/:organizationId/offer-versions/:versionId/state",
   requireAuth as any,
   requireMembership("organizationId"),
+  requireModuleEnabled(RECRUITMENT_MODULE_KEY),
   requirePermission("offer.read"),
   async (req: MembershipRequest, res): Promise<void> => {
-    const state = await getOfferVersionState(req.membership!.organizationId, Number(req.params.versionId));
+    const versionId = Number(req.params.versionId);
+    const state = (await isOfferVersionVisibleToCaller(req, versionId))
+      ? await getOfferVersionState(req.membership!.organizationId, versionId)
+      : null;
     if (!state) {
       res.status(404).json({ error: "Offer version not found" });
       return;
     }
-    res.json(state);
+    // Same DTO shaping as every other offer response: the internal storage key never leaves the server.
+    res.json({ ...state, version: toPublicOfferVersion(state.version) });
   },
 );
 
@@ -546,11 +594,16 @@ router.get(
   "/organizations/:organizationId/offer-versions/:versionId/particulars",
   requireAuth as any,
   requireMembership("organizationId"),
+  requireModuleEnabled(RECRUITMENT_MODULE_KEY),
   requirePermission("offer.read"),
   async (req: MembershipRequest, res): Promise<void> => {
     try {
       const organizationId = req.membership!.organizationId;
       const versionId = Number(req.params.versionId);
+      if (!(await isOfferVersionVisibleToCaller(req, versionId))) {
+        res.status(404).json({ error: new EmploymentParticularsNotFoundError().message });
+        return;
+      }
       const particulars = await getParticularsByOfferVersion(organizationId, versionId);
       // Suggestions are only meaningful for a draft; an issued record is shown as-is.
       const suggested = particulars?.issuedAt ? null : await suggestParticulars(organizationId, versionId);

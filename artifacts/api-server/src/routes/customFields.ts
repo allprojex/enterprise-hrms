@@ -301,8 +301,9 @@ router.get(
         res.status(403).json({ error: "You do not have permission to read this record" });
         return;
       }
-      const { assertEntityInOrganization } = await import("../lib/customFields/scopes");
+      const { assertEntityInOrganization, assertRecruitmentEntityVisible } = await import("../lib/customFields/scopes");
       await assertEntityInOrganization(scope, entityId, organizationId);
+      await assertRecruitmentEntityVisible(scope, entityId, { organizationId, membershipId: req.membership!.id, applicationUserId: req.userId! });
 
       // Revealing a sensitive custom value is a distinct, separately-granted
       // act — and a separately audited one (§24.14/§24.25), mirroring the
@@ -400,8 +401,9 @@ router.get(
         res.status(403).json({ error: "You do not have permission to read this record" });
         return;
       }
-      const { assertEntityInOrganization } = await import("../lib/customFields/scopes");
+      const { assertEntityInOrganization, assertRecruitmentEntityVisible } = await import("../lib/customFields/scopes");
       await assertEntityInOrganization(scope, entityId, organizationId);
+      await assertRecruitmentEntityVisible(scope, entityId, { organizationId, membershipId: req.membership!.id, applicationUserId: req.userId! });
 
       const { field, stored } = await getSingleValue(organizationId, definitionId, scope, entityId);
       if (field.definition.scope !== scope) {

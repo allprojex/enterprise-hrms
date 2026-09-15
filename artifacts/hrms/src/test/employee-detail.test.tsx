@@ -30,6 +30,9 @@ const { state } = vi.hoisted(() => ({
     employmentHistoryError: false,
     refetchEmploymentHistory: vi.fn(),
     disciplinaryRecordsError: undefined as unknown,
+    // 2026-09-15 authorization fix — exit process read is HR-only (403 otherwise).
+    exitProcessesError: undefined as unknown,
+    updateEmployeeMutate: vi.fn(),
     // Phase 3H, W115 — Personnel File / PIF card.
     personnelFile: undefined as PersonnelFile | undefined,
     personnelFileLoading: false,
@@ -87,7 +90,7 @@ vi.mock('@workspace/api-client-react', () => ({
     refetch: vi.fn(),
   }),
   getGetEmployeeQueryKey: (orgId: number, id: number) => ['employee', orgId, id],
-  useUpdateEmployee: () => ({ mutate: vi.fn(), isPending: false }),
+  useUpdateEmployee: () => ({ mutate: state.updateEmployeeMutate, isPending: false }),
   useUploadEmployeeProfilePicture: () => ({ mutate: vi.fn(), isPending: false }),
   useLinkEmployeeToUser: () => ({ mutate: vi.fn(), isPending: false }),
   useUnlinkEmployeeFromUser: () => ({ mutate: vi.fn(), isPending: false }),
@@ -169,7 +172,7 @@ vi.mock('@workspace/api-client-react', () => ({
   getListEmployeeDisciplinaryRecordsQueryKey: (orgId: number, empId: number) => ['employeeDisciplinaryRecords', orgId, empId],
   useAddEmployeeDisciplinaryRecord: () => ({ mutate: vi.fn(), isPending: false }),
 
-  useListEmployeeExitProcesses: () => ({ data: [] }),
+  useListEmployeeExitProcesses: () => ({ data: state.exitProcessesError ? undefined : [], error: state.exitProcessesError }),
   getListEmployeeExitProcessesQueryKey: (orgId: number, empId: number) => ['employeeExitProcesses', orgId, empId],
   useCreateEmployeeExitProcess: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdateEmployeeExitProcess: () => ({ mutate: vi.fn(), isPending: false }),
@@ -292,6 +295,8 @@ function resetState() {
   state.employmentHistoryError = false;
   state.refetchEmploymentHistory = vi.fn();
   state.disciplinaryRecordsError = undefined;
+  state.exitProcessesError = undefined;
+  state.updateEmployeeMutate = vi.fn();
   state.personnelFile = undefined;
   state.personnelFileLoading = false;
   state.personnelFileError = undefined;
@@ -742,6 +747,62 @@ describe('Employee detail page', () => {
       expect(screen.getByTestId('button-transfer-employee')).toBeInTheDocument();
       expect(screen.getByTestId('button-promote-employee')).toBeInTheDocument();
       expect(screen.getByTestId('button-separate-employee')).toBeInTheDocument();
+    });
+  });
+
+  describe('Authorization fix (2026-09-15): exit process and phone number', () => {
+    it('shows the Exit Management card when the exit-process read succeeds', () => {
+      resetState();
+      renderPage();
+
+      expect(screen.getByTestId('card-exit-management')).toBeInTheDocument();
+    });
+
+    it('hides the Exit Management card (no crash, no "none started") when the read is forbidden', () => {
+      resetState();
+      state.myOrgRoles = ['employee'];
+      state.exitProcessesError = { status: 403 };
+      renderPage();
+
+      expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
+      expect(screen.queryByTestId('card-exit-management')).not.toBeInTheDocument();
+      expect(screen.queryByText('No exit process started.')).not.toBeInTheDocument();
+    });
+
+    it('keeps a redacted phone number read-only and never sends it back on save', async () => {
+      resetState();
+      state.employee = baseEmployee({ phoneNumber: null, sensitiveFieldsRedacted: true });
+      renderPage();
+
+      const user = userEvent.setup();
+      await user.click(screen.getByTestId('button-edit-employee'));
+      expect(screen.getByTestId('input-detail-phone')).toBeDisabled();
+      // The page seeds form state only when the employee changes after mount;
+      // with data present at mount the required name fields start empty.
+      await user.type(screen.getByTestId('input-detail-first-name'), 'Ada');
+      await user.type(screen.getByTestId('input-detail-last-name'), 'Lovelace');
+      await user.click(screen.getByTestId('button-save-employee'));
+
+      expect(state.updateEmployeeMutate).toHaveBeenCalledTimes(1);
+      const payload = state.updateEmployeeMutate.mock.calls[0][0] as { data: Record<string, unknown> };
+      expect(payload.data).not.toHaveProperty('phoneNumber');
+    });
+
+    it('sends the phone number when the caller can see it', async () => {
+      resetState();
+      state.employee = baseEmployee({ phoneNumber: '+233200000000', sensitiveFieldsRedacted: false });
+      renderPage();
+
+      const user = userEvent.setup();
+      await user.click(screen.getByTestId('button-edit-employee'));
+      expect(screen.getByTestId('input-detail-phone')).toBeEnabled();
+      await user.type(screen.getByTestId('input-detail-first-name'), 'Ada');
+      await user.type(screen.getByTestId('input-detail-last-name'), 'Lovelace');
+      await user.type(screen.getByTestId('input-detail-phone'), '+233200000000');
+      await user.click(screen.getByTestId('button-save-employee'));
+
+      const payload = state.updateEmployeeMutate.mock.calls[0][0] as { data: Record<string, unknown> };
+      expect(payload.data.phoneNumber).toBe('+233200000000');
     });
   });
 });

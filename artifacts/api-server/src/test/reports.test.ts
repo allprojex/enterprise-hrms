@@ -7,6 +7,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import request from "supertest";
+import { ROLE_PERMISSIONS } from "@workspace/db/seed/roles-permissions-definitions";
 
 function mockTable(name: string, columns: string[]) {
   const table: Record<string, string> & { __name: string } = { __name: name } as never;
@@ -232,7 +233,7 @@ describe("GET /api/organizations/:organizationId/reports/:reportKey/run", () => 
   it("runs the headcount report grouped by branch, scoped to the caller's organization", async () => {
     mockSession();
     mockActiveMembership();
-    mockPermissions(["employee.read"]);
+    mockPermissions(["employee.write"]);
     fixtures.branchRows = [
       { id: 1, organizationId: 10, name: "HQ" },
       { id: 2, organizationId: 99, name: "Other Org Branch" },
@@ -262,7 +263,7 @@ describe("GET /api/organizations/:organizationId/reports/:reportKey/run", () => 
   it("runs the workforce_status report grouped by employment status", async () => {
     mockSession();
     mockActiveMembership();
-    mockPermissions(["employee.read"]);
+    mockPermissions(["employee.write"]);
     fixtures.employeeRows = [
       { organizationId: 10, employmentStatus: "active" },
       { organizationId: 10, employmentStatus: "active" },
@@ -302,7 +303,7 @@ describe("GET /api/organizations/:organizationId/reports/:reportKey/run", () => 
   it("returns CSV when format=csv is requested", async () => {
     mockSession();
     mockActiveMembership();
-    mockPermissions(["employee.read"]);
+    mockPermissions(["employee.write"]);
     fixtures.employeeRows = [{ organizationId: 10, employmentStatus: "active" }];
 
     const res = await request(app)
@@ -312,5 +313,128 @@ describe("GET /api/organizations/:organizationId/reports/:reportKey/run", () => 
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toMatch(/text\/csv/);
     expect(res.text).toBe("Status,Employees\nactive,1");
+  });
+});
+
+/**
+ * Authorization fix (2026-09-15). headcount and workforce_status aggregate the
+ * whole organization, so they require employee.write, not the employee.read
+ * directory grant every role holds. REPORT_ROWS above deliberately keeps the
+ * STALE employee.read key an already-seeded database still stores (seed-reports
+ * is insert-only): these tests prove the route authorizes from the code
+ * registry, never from that row. Roles use the real seeded grant lists.
+ */
+describe("workforce aggregate reports: authorization from the code registry", () => {
+  function seedOrganizationWorkforce() {
+    fixtures.branchRows = [{ id: 1, organizationId: 10, name: "HQ" }];
+    fixtures.employeeRows = [
+      { organizationId: 10, branchId: 1, employmentStatus: "active" },
+      { organizationId: 10, branchId: 1, employmentStatus: "probation" },
+    ];
+  }
+
+  it("keeps the stale employee.read key in the database rows under test", () => {
+    expect(REPORT_ROWS.find((r) => r.key === "headcount")?.requiredPermissionKey).toBe("employee.read");
+    expect(REPORT_ROWS.find((r) => r.key === "workforce_status")?.requiredPermissionKey).toBe("employee.read");
+    // The canonical employee role holds that stale key, so a row-based gate would admit it.
+    expect(ROLE_PERMISSIONS.employee).toContain("employee.read");
+    expect(ROLE_PERMISSIONS.employee).not.toContain("employee.write");
+  });
+
+  for (const reportKey of ["headcount", "workforce_status"]) {
+    describe(reportKey, () => {
+      const url = `/api/organizations/10/reports/${reportKey}/run`;
+
+      it("denies an ordinary employee (canonical employee role) with 403", async () => {
+        mockSession();
+        mockActiveMembership();
+        mockPermissions([...ROLE_PERMISSIONS.employee]);
+        seedOrganizationWorkforce();
+
+        const res = await request(app).get(url).set("Authorization", "Bearer valid-token");
+
+        expect(res.status).toBe(403);
+        expect(res.body).toEqual({ error: "Forbidden" });
+      });
+
+      it("denies the CSV export to an ordinary employee with 403", async () => {
+        mockSession();
+        mockActiveMembership();
+        mockPermissions([...ROLE_PERMISSIONS.employee]);
+        seedOrganizationWorkforce();
+
+        const res = await request(app).get(`${url}?format=csv`).set("Authorization", "Bearer valid-token");
+
+        expect(res.status).toBe(403);
+        expect(res.text).not.toContain("Employees");
+      });
+
+      it("denies a department head who holds only the employee role with 403", async () => {
+        // Department headship is organizational data (who heads a department,
+        // who reports to whom), not a permission grant, and this built-in
+        // runner has no team scope — so a head's effective keys are exactly
+        // the employee role's, and the organization-wide figure stays closed.
+        mockSession();
+        mockActiveMembership();
+        mockPermissions([...ROLE_PERMISSIONS.employee]);
+        seedOrganizationWorkforce();
+
+        const res = await request(app).get(url).set("Authorization", "Bearer valid-token");
+
+        expect(res.status).toBe(403);
+      });
+
+      it("allows the canonical HR role", async () => {
+        mockSession();
+        mockActiveMembership();
+        mockPermissions([...ROLE_PERMISSIONS.hr]);
+        seedOrganizationWorkforce();
+
+        const res = await request(app).get(url).set("Authorization", "Bearer valid-token");
+
+        expect(res.status).toBe(200);
+        expect(res.body.key).toBe(reportKey);
+        expect(res.body.rows.length).toBeGreaterThan(0);
+      });
+
+      it("allows org_admin, which holds employee.write", async () => {
+        mockSession();
+        mockActiveMembership();
+        mockPermissions([...ROLE_PERMISSIONS.org_admin]);
+        seedOrganizationWorkforce();
+
+        const res = await request(app).get(url).set("Authorization", "Bearer valid-token");
+
+        expect(res.status).toBe(200);
+      });
+
+      it("denies an HR caller whose membership belongs to a different organization with 403", async () => {
+        mockSession();
+        mockActiveMembership(5, 99);
+        mockPermissions([...ROLE_PERMISSIONS.hr]);
+        seedOrganizationWorkforce();
+
+        const res = await request(app).get(url).set("Authorization", "Bearer valid-token");
+
+        expect(res.status).toBe(403);
+        expect(res.body.rows).toBeUndefined();
+      });
+    });
+  }
+
+  it("fails closed with 403 for a stored report the code registry does not define", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions([...ROLE_PERMISSIONS.hr]);
+    fixtures.reportRows = [
+      ...REPORT_ROWS,
+      { id: 99, key: "unregistered_report", label: "Unregistered", description: "d", category: "workforce", requiredPermissionKey: "employee.read" },
+    ];
+
+    const res = await request(app)
+      .get("/api/organizations/10/reports/unregistered_report/run")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(403);
   });
 });

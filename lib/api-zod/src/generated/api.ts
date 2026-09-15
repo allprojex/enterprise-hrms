@@ -2278,7 +2278,7 @@ export const ListEmployeesResponse = zod.object({
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')),
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `phoneNumber`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `phoneNumber` joined this set on 2026-09-15 because the field is not constrained to a work line; `workEmail` remains the directory contact field. `notes` keeps its own employee.notes.read gate.')),
   "total": zod.number(),
   "page": zod.number(),
   "pageSize": zod.number()
@@ -2391,7 +2391,7 @@ export const CreateEmployeeResponse = zod.object({
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `phoneNumber`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `phoneNumber` joined this set on 2026-09-15 because the field is not constrained to a work line; `workEmail` remains the directory contact field. `notes` keeps its own employee.notes.read gate.')
 
 
 /**
@@ -2457,7 +2457,7 @@ export const GetEmployeeResponse = zod.object({
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `phoneNumber`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `phoneNumber` joined this set on 2026-09-15 because the field is not constrained to a work line; `workEmail` remains the directory contact field. `notes` keeps its own employee.notes.read gate.')
 
 
 /**
@@ -2566,7 +2566,7 @@ export const UpdateEmployeeResponse = zod.object({
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `phoneNumber`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `phoneNumber` joined this set on 2026-09-15 because the field is not constrained to a work line; `workEmail` remains the directory contact field. `notes` keeps its own employee.notes.read gate.')
 
 
 /**
@@ -2636,7 +2636,7 @@ export const UploadEmployeeProfilePictureResponse = zod.object({
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `phoneNumber`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `phoneNumber` joined this set on 2026-09-15 because the field is not constrained to a work line; `workEmail` remains the directory contact field. `notes` keeps its own employee.notes.read gate.')
 
 
 /**
@@ -2701,7 +2701,7 @@ export const RemoveEmployeeProfilePictureResponse = zod.object({
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `phoneNumber`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `phoneNumber` joined this set on 2026-09-15 because the field is not constrained to a work line; `workEmail` remains the directory contact field. `notes` keeps its own employee.notes.read gate.')
 
 
 /**
@@ -2803,7 +2803,7 @@ export const SeparateEmployeeResponse = zod.object({
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `phoneNumber`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `phoneNumber` joined this set on 2026-09-15 because the field is not constrained to a work line; `workEmail` remains the directory contact field. `notes` keeps its own employee.notes.read gate.')
 
 
 /**
@@ -2869,7 +2869,7 @@ export const RehireEmployeeResponse = zod.object({
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `phoneNumber`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `phoneNumber` joined this set on 2026-09-15 because the field is not constrained to a work line; `workEmail` remains the directory contact field. `notes` keeps its own employee.notes.read gate.')
 
 
 /**
@@ -2942,7 +2942,7 @@ export const TransferEmployeeResponse = zod.object({
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `phoneNumber`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `phoneNumber` joined this set on 2026-09-15 because the field is not constrained to a work line; `workEmail` remains the directory contact field. `notes` keeps its own employee.notes.read gate.')
 
 
 /**
@@ -3013,7 +3013,7 @@ export const PromoteEmployeeResponse = zod.object({
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `phoneNumber`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `phoneNumber` joined this set on 2026-09-15 because the field is not constrained to a work line; `workEmail` remains the directory contact field. `notes` keeps its own employee.notes.read gate.')
 
 
 /**
@@ -3084,7 +3084,7 @@ export const ConfirmEmployeeResponse = zod.object({
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `phoneNumber`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `phoneNumber` joined this set on 2026-09-15 because the field is not constrained to a work line; `workEmail` remains the directory contact field. `notes` keeps its own employee.notes.read gate.')
 
 
 /**
@@ -3137,7 +3137,7 @@ export const AddEmployeeDisciplinaryRecordResponse = zod.object({
 
 
 /**
- * One row per separation cycle — an employee separated, rehired, and separated again gets a new exit process each time, most recent first.
+ * One row per separation cycle — an employee separated, rehired, and separated again gets a new exit process each time, most recent first. Gated employee.write (the same key as creating/updating an exit process): exit records are HR data, so the directory grant employee.read is not sufficient (2026-09-15).
  * @summary List an employee's exit (off-boarding) processes
  */
 export const ListEmployeeExitProcessesParams = zod.object({
@@ -10149,7 +10149,7 @@ export const ListReportsResponse = zod.array(ListReportsResponseItem)
 
 
 /**
- * Computes a registered report scoped to this organization. Permission required varies by report (see GET /reports). Pass ?format=csv for a CSV download instead of JSON.
+ * Computes a registered report scoped to this organization. Permission required varies by report (see GET /reports). Pass ?format=csv for a CSV download instead of JSON. The required permission is resolved from the server code registry, not the stored report row, and a report the registry does not define is refused (403). The organization-wide workforce aggregates (headcount, workforce_status) require employee.write (2026-09-15).
  *
  * WS-15 P3 (§31.30) — consolidated execution. Every registered report is now executable here: the three organization-level aggregates run directly, and every module report DELEGATES to that module's own reporting service, resolving that module's own scope resolver first, so the generic path is scope-aware and enforces the same permission as the module route. Module routes are unchanged and remain authoritative for their own contracts.
  *

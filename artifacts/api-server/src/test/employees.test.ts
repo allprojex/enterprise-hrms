@@ -9,6 +9,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import request from "supertest";
+import { ROLE_PERMISSIONS } from "@workspace/db/seed/roles-permissions-definitions";
 
 const {
   fixtures,
@@ -406,6 +407,8 @@ describe("GET /api/organizations/:organizationId/employees/:employeeId (sensitiv
     "nationalId",
     "passportNumber",
     "personalEmail",
+    // 2026-09-15 owner decision: the field can hold a personal mobile.
+    "phoneNumber",
     "alternatePhoneNumber",
     "residentialAddress",
     "emergencyContacts",
@@ -435,7 +438,9 @@ describe("GET /api/organizations/:organizationId/employees/:employeeId (sensitiv
     // Directory identity stays visible — that is what employee.read is for.
     expect(res.body.firstName).toBe("Grace");
     expect(res.body.workEmail).toBe("grace@example.org");
-    expect(res.body.phoneNumber).toBe("+233200000000");
+    // phoneNumber is NOT directory data (2026-09-15): withheld like alternatePhoneNumber.
+    expect(res.body.phoneNumber).toBeNull();
+    expect(JSON.stringify(res.body)).not.toContain("+233200000000");
     expect(JSON.stringify(res.body)).not.toContain("GHA-123456789-0");
     expect(JSON.stringify(res.body)).not.toContain("Ridge Road");
   });
@@ -450,6 +455,7 @@ describe("GET /api/organizations/:organizationId/employees/:employeeId (sensitiv
     expect(res.status).toBe(200);
     expect(res.body.sensitiveFieldsRedacted).toBe(false);
     expect(res.body.nationalId).toBe("GHA-123456789-0");
+    expect(res.body.phoneNumber).toBe("+233200000000");
     expect(res.body.dateOfBirth).toBe("1990-05-01T00:00:00.000Z");
     expect(res.body.residentialAddress).toEqual({ line1: "1 Ridge Road", city: "Accra" });
     expect(res.body.emergencyContacts).toHaveLength(1);
@@ -469,6 +475,26 @@ describe("GET /api/organizations/:organizationId/employees/:employeeId (sensitiv
     expect(res.body.sensitiveFieldsRedacted).toBe(false);
     expect(res.body.nationalId).toBe("GHA-123456789-0");
     expect(res.body.passportNumber).toBe("G1234567");
+    expect(res.body.phoneNumber).toBe("+233200000000");
+  });
+
+  it("withholds phoneNumber from a department head (canonical employee role) reading a direct report", async () => {
+    mockSession({ id: 1 });
+    mockActiveMembership({ id: 5, organizationId: 10 });
+    mockPermissions([...ROLE_PERMISSIONS.employee]);
+    // Employee 42 sits in department 3 and reports to employee 7 (the
+    // department head). Neither relationship is a sensitive-data grant. The
+    // caller's own link is left unset: this file's db mock ignores WHERE, so a
+    // linked caller would resolve to row 42 itself (the own-record case above).
+    fixtures.employeeRows = [{ ...SENSITIVE_ROW, departmentId: 3, reportingManagerId: 7 }];
+    fixtures.linkRows = [];
+
+    const res = await request(app).get("/api/organizations/10/employees/42").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.sensitiveFieldsRedacted).toBe(true);
+    expect(res.body.phoneNumber).toBeNull();
+    expect(JSON.stringify(res.body)).not.toContain("+233200000000");
   });
 
   // The directory listing shares formatEmployee/resolveEmployeeVisibility

@@ -12,8 +12,24 @@
 import { and, eq, desc } from "drizzle-orm";
 import { db, candidateNotesTable, applicationsTable, type CandidateNote } from "@workspace/db";
 import { recordAuditEvent } from "./auditLog";
+import type { CandidateVisibilityContext } from "./candidates";
 
 export class InvalidCandidateNoteError extends Error {}
+
+/**
+ * Owner decision (2026-09-15): recruiter notes are HR/recruitment material.
+ * Being able to SEE a candidate — as a requisition's hiring manager or
+ * assigned recruiter — does not open their notes; only organization-wide
+ * recruitment authority over candidates (`candidate.manage`, the same signal
+ * resolveCandidateVisibilityContext uses) does. The assigned tier is
+ * deliberately not honoured here: this platform has no recruiter role, and
+ * visibility treats recruiter and hiring manager identically, so an
+ * assignment alone cannot distinguish recruitment staff from line managers.
+ * Applies to reads and writes alike, so nobody writes notes they cannot read.
+ */
+export function canAccessCandidateNotes(visibility: CandidateVisibilityContext): boolean {
+  return visibility.isOrgWide;
+}
 
 export async function listCandidateNotes(organizationId: number, candidateId: number): Promise<CandidateNote[]> {
   return db
