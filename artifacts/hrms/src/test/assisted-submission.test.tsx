@@ -8,7 +8,7 @@
  * proceed without classifying why assistance was needed.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const createMutate = vi.fn();
@@ -61,8 +61,19 @@ describe('HR-assisted submission', () => {
     vi.mocked(useListFormTemplates).mockReturnValue({ data: { templates: [PIF, LEAVE] }, isLoading: false, error: null } as never);
     vi.mocked(useListFormSubmissions).mockReturnValue({ data: { submissions: [] }, isLoading: false, error: null, refetch: vi.fn() } as never);
     vi.mocked(useListEmployees).mockReturnValue({
-      data: { items: [{ id: 445, firstName: 'Kwame', lastName: 'Owusu', employeeNumber: 'EMP-0050' }], total: 1, page: 1, pageSize: 200 },
+      data: {
+        items: [
+          { id: 445, firstName: 'Kwame', lastName: 'Owusu', employeeNumber: 'EMP-0050', linkedApplicationUserId: 900 },
+          { id: 446, firstName: 'Adwoa', lastName: 'Asante', employeeNumber: 'EMP-0051', linkedApplicationUserId: null },
+        ],
+        total: 2,
+        page: 1,
+        pageSize: 20,
+      },
       isLoading: false,
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
     } as never);
     setPermissions(['form_submission.create_on_behalf']);
   });
@@ -159,5 +170,82 @@ describe('assisted marker in the forms list', () => {
     const { container } = renderPage();
     // The API never sends notes in a summary; the UI must not invent a place for them.
     expect(container.textContent).not.toMatch(/assistanceNotes|notes:/i);
+  });
+});
+
+/**
+ * B2 — the confirmation step must repeat the account warning, because that is
+ * the last moment before a form is created for someone who cannot yet act on
+ * it. HR is warned, never blocked: preparing the form early is the point.
+ */
+describe('assisted confirmation step — unlinked employee (B2)', () => {
+  beforeEach(() => {
+    createMutate.mockReset();
+    vi.mocked(useGetMe).mockReturnValue({ data: { id: 434, organizationId: 3, firstName: 'Gloria', lastName: 'Dordunu' } } as never);
+    vi.mocked(useListFormTemplates).mockReturnValue({ data: { templates: [PIF] }, isLoading: false, error: null } as never);
+    vi.mocked(useListFormSubmissions).mockReturnValue({ data: { submissions: [] }, isLoading: false, error: null, refetch: vi.fn() } as never);
+    // One employee with a login, one without — the picker must tell them apart.
+    vi.mocked(useListEmployees).mockReturnValue({
+      data: {
+        items: [
+          { id: 445, firstName: 'Kwame', lastName: 'Owusu', employeeNumber: 'EMP-0050', linkedApplicationUserId: 900 },
+          { id: 446, firstName: 'Adwoa', lastName: 'Asante', employeeNumber: 'EMP-0051', linkedApplicationUserId: null },
+        ],
+        total: 2,
+        page: 1,
+        pageSize: 20,
+      },
+      isLoading: false,
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    } as never);
+    setPermissions(['form_submission.create_on_behalf']);
+  });
+
+  /** Drives the dialog as HR would: form, employee, reason, then Continue. */
+  async function fillTo(employeeTestId: string) {
+    renderPage();
+    fireEvent.click(screen.getByTestId('button-assisted-submission'));
+    await waitFor(() => expect(screen.getByTestId('select-assisted-template')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId('select-assisted-template'));
+    fireEvent.click(await screen.findByText('Staff Personal Information Form'));
+
+    fireEvent.click(screen.getByTestId('select-assisted-employee'));
+    fireEvent.click(await screen.findByTestId(employeeTestId));
+
+    fireEvent.click(screen.getByTestId('select-assisted-reason'));
+    fireEvent.click(await screen.findByText('Employee cannot access the system'));
+
+    await waitFor(() => expect(screen.getByTestId('button-assisted-continue')).toBeEnabled());
+    fireEvent.click(screen.getByTestId('button-assisted-continue'));
+    await waitFor(() => expect(screen.getByTestId('assisted-confirm-panel')).toBeInTheDocument());
+  }
+
+  it('warns at the confirmation step when the employee has no account', async () => {
+    await fillTo('option-assisted-employee-446');
+    expect(screen.getByTestId('panel-confirm-no-account')).toBeInTheDocument();
+  });
+
+  it('does not warn when the employee has an account', async () => {
+    await fillTo('option-assisted-employee-445');
+    expect(screen.queryByTestId('panel-confirm-no-account')).not.toBeInTheDocument();
+  });
+
+  it('still lets HR create the form for an employee with no account', async () => {
+    await fillTo('option-assisted-employee-446');
+    const confirm = screen.getByTestId('button-assisted-confirm');
+    expect(confirm).toBeEnabled();
+    fireEvent.click(confirm);
+    expect(createMutate).toHaveBeenCalledTimes(1);
+    expect(createMutate.mock.calls[0]![0].data.subjectEmployeeId).toBe(446);
+  });
+
+  it('offers HR no way to sign or confirm for the employee', async () => {
+    await fillTo('option-assisted-employee-446');
+    const text = document.body.textContent ?? '';
+    expect(text).toMatch(/applied by the employee from\s+their own account/);
+    expect(screen.queryByRole('button', { name: /sign (for|as)/i })).not.toBeInTheDocument();
   });
 });

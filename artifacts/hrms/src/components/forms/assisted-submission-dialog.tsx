@@ -1,8 +1,6 @@
 import { useMemo, useState } from 'react';
 import { UserRoundCog } from 'lucide-react';
 import {
-  useListEmployees,
-  getListEmployeesQueryKey,
   useCreateFormSubmission,
   type FormTemplateSummary,
   type FormAssistanceReason,
@@ -20,6 +18,8 @@ import {
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { AssistedEmployeePicker } from './assisted-employee-picker';
+import { employeeHasAccount, employeeLabel, NO_ACCOUNT_NOTICE } from '@/lib/employee-account';
 import { Textarea } from '@/components/ui/textarea';
 
 /**
@@ -59,42 +59,35 @@ export interface AssistedSubmissionDialogProps {
 export function AssistedSubmissionDialog({ organizationId, templates, actorName, onCreated, onError }: AssistedSubmissionDialogProps) {
   const [open, setOpen] = useState(false);
   const [templateId, setTemplateId] = useState('');
-  const [employeeId, setEmployeeId] = useState('');
+  const [employee, setEmployee] = useState<Employee | null>(null);
   const [reason, setReason] = useState<FormAssistanceReason | ''>('');
   const [notes, setNotes] = useState('');
   const [confirming, setConfirming] = useState(false);
 
   const createMutation = useCreateFormSubmission();
 
-  // Tenant-safe: the server scopes this list to the caller's organization.
-  const employeesQuery = useListEmployees(
-    organizationId,
-    { pageSize: 200 },
-    { query: { queryKey: getListEmployeesQueryKey(organizationId, { pageSize: 200 }), enabled: open && organizationId > 0 } },
-  );
-  const employees = useMemo(() => employeesQuery.data?.items ?? [], [employeesQuery.data]);
-  const employee = useMemo(() => employees.find((e: Employee) => String(e.id) === employeeId), [employees, employeeId]);
   const template = useMemo(() => templates.find((t) => String(t.id) === templateId), [templates, templateId]);
+  const subjectHasAccount = employee ? employeeHasAccount(employee) : true;
 
   const notesRequired = reason === 'other';
-  const ready = templateId !== '' && employeeId !== '' && reason !== '' && (!notesRequired || notes.trim().length > 0);
+  const ready = templateId !== '' && employee !== null && reason !== '' && (!notesRequired || notes.trim().length > 0);
 
   const reset = () => {
     setTemplateId('');
-    setEmployeeId('');
+    setEmployee(null);
     setReason('');
     setNotes('');
     setConfirming(false);
   };
 
   const submit = () => {
-    if (!ready || !reason) return;
+    if (!ready || !reason || !employee) return;
     createMutation.mutate(
       {
         organizationId,
         data: {
           templateId: Number(templateId),
-          subjectEmployeeId: Number(employeeId),
+          subjectEmployeeId: employee.id,
           assistanceReason: reason,
           assistanceNotes: notes.trim() || null,
         },
@@ -162,26 +155,12 @@ export function AssistedSubmissionDialog({ organizationId, templates, actorName,
 
             <div className="space-y-1.5">
               <Label htmlFor="assisted-employee">Employee this form is for</Label>
-              <Select value={employeeId} onValueChange={setEmployeeId} disabled={employeesQuery.isLoading}>
-                <SelectTrigger id="assisted-employee" data-testid="select-assisted-employee">
-                  <SelectValue placeholder={employeesQuery.isLoading ? 'Loading employees…' : 'Choose an employee'} />
-                </SelectTrigger>
-                <SelectContent>
-                  {employees.map((e: Employee) => (
-                    <SelectItem key={e.id} value={String(e.id)}>
-                      {e.firstName} {e.lastName}
-                      {e.employeeNumber ? ` · ${e.employeeNumber}` : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {employee && (
-                <p className="text-helper text-foreground-muted" data-testid="text-assisted-employee-context">
-                  {employee.firstName} {employee.lastName}
-                  {employee.employeeNumber ? ` · ${employee.employeeNumber}` : ''}
-                  
-                </p>
-              )}
+              <AssistedEmployeePicker
+                organizationId={organizationId}
+                value={employee}
+                onChange={setEmployee}
+                enabled={open}
+              />
             </div>
 
             <div className="space-y-1.5">
@@ -231,7 +210,7 @@ export function AssistedSubmissionDialog({ organizationId, templates, actorName,
                 <div className="flex justify-between gap-3">
                   <dt className="text-foreground-muted">Form for</dt>
                   <dd className="font-medium" data-testid="text-confirm-subject">
-                    {employee ? `${employee.firstName} ${employee.lastName}` : ''}
+                    {employee ? employeeLabel(employee) : ''}
                   </dd>
                 </div>
                 <div className="flex justify-between gap-3">
@@ -252,6 +231,19 @@ export function AssistedSubmissionDialog({ organizationId, templates, actorName,
               Where this form requires the employee's signature, that signature still has to be applied by the employee from
               their own account. Completing it for them does not sign it for them.
             </p>
+            {!subjectHasAccount && (
+              <div
+                className="rounded-lg border border-warning/25 bg-warning-soft p-3 text-body-sm text-warning-soft-foreground"
+                role="note"
+                data-testid="panel-confirm-no-account"
+              >
+                <p className="font-medium">{NO_ACCOUNT_NOTICE}</p>
+                <p className="mt-1">
+                  You can still prepare the form now — it will wait for them. Once their account is linked they will be asked
+                  to review and sign it, and it then goes to HR review as usual.
+                </p>
+              </div>
+            )}
           </div>
         )}
 

@@ -34,6 +34,7 @@ import {
 import { recordAuditEvent } from "../auditLog";
 import { getEffectivePermissions } from "../permissions";
 import { getCurrentDepartmentHead } from "../departmentHeads";
+import { activeAndUnexpired } from "../membership";
 import { validateFormDefinition, definitionSha256, type FormDefinition, FormDefinitionError } from "./definition";
 import { isKnownBinding } from "./bindings";
 import { walkItems } from "./definition";
@@ -575,6 +576,34 @@ export async function membershipSatisfiesFormStage(params: {
       return head?.headMembershipId === params.membershipId;
     }
   }
+}
+
+/**
+ * The employee's membership ONLY when that membership can actually act today.
+ *
+ * membershipOfEmployee deliberately answers a different question — "which
+ * membership is this employee linked to" — and does not look at status. The
+ * link row is created while the membership is active but outlives it being
+ * revoked, suspended or expired, so link existence is not capability. Anything
+ * that tells a user whether the employee CAN do something must use this, and
+ * must use the same predicate authentication uses (activeAndUnexpired), or it
+ * will confidently promise an action that requireMembership then refuses.
+ */
+export async function actionableMembershipOfEmployee(organizationId: number, employeeId: number): Promise<number | null> {
+  const [link] = await db
+    .select({ membershipId: employeeUserLinksTable.organizationMembershipId })
+    .from(employeeUserLinksTable)
+    .innerJoin(employeesTable, eq(employeesTable.id, employeeUserLinksTable.employeeId))
+    .innerJoin(organizationMembershipsTable, eq(organizationMembershipsTable.id, employeeUserLinksTable.organizationMembershipId))
+    .where(
+      and(
+        eq(employeeUserLinksTable.employeeId, employeeId),
+        eq(employeesTable.organizationId, organizationId),
+        activeAndUnexpired(),
+      ),
+    )
+    .limit(1);
+  return link?.membershipId ?? null;
 }
 
 export { membershipOfEmployee };
