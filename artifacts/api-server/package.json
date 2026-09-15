@@ -11,7 +11,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "activate:wwm": "tsx ./scripts/activate-wwm-templates.ts",
-    "migrate:hr-roles": "tsx ./scripts/migrate-hr-roles.ts"
+    "migrate:hr-roles": "tsx ./scripts/migrate-hr-roles.ts",
+    "prepare:form-policy-versions": "tsx ./scripts/prepare-form-policy-versions.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1121.0",
