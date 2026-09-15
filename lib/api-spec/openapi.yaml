@@ -18441,12 +18441,14 @@ paths:
     get:
       operationId: getCurrentDepartmentHead
       tags: [department-heads]
-      summary: Get the current Department Head, if any (Office Inventory Workstream 1)
+      summary: Get the current Department Head, if any — gated department.head.read
       description: >-
         General organizational-authority primitive
         (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §5) — not
         Inventory-specific. Returns 200 with a null body when the
         department is vacant; vacancy is never auto-resolved.
+        Requires department.head.read (department.head.manage also grants it). Reading an assignment is not Department Head authority;
+        assigning or revoking one still requires department.head.manage.
       parameters:
         - name: organizationId
           in: path
@@ -18562,7 +18564,9 @@ paths:
     get:
       operationId: listDepartmentHeadHistory
       tags: [department-heads]
-      summary: Full Department Head assignment history, oldest first
+      summary: Full Department Head assignment history, oldest first — gated department.head.read
+      description: >-
+        Requires department.head.read (department.head.manage also grants it).
       parameters:
         - name: organizationId
           in: path
@@ -18601,6 +18605,8 @@ paths:
       operationId: resolveDepartmentHeadAsOf
       tags: [department-heads]
       summary: "Who was the Department Head on a given date? (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §5.3)"
+      description: >-
+        Requires department.head.read (department.head.manage also grants it).
       parameters:
         - name: organizationId
           in: path

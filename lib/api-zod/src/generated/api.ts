@@ -15211,8 +15211,8 @@ export const ExportPaymentBatchResponse = zod.unknown()
 
 
 /**
- * General organizational-authority primitive (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §5) — not Inventory-specific. Returns 200 with a null body when the department is vacant; vacancy is never auto-resolved.
- * @summary Get the current Department Head, if any (Office Inventory Workstream 1)
+ * General organizational-authority primitive (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §5) — not Inventory-specific. Returns 200 with a null body when the department is vacant; vacancy is never auto-resolved. Requires department.head.read (department.head.manage also grants it). Reading an assignment is not Department Head authority; assigning or revoking one still requires department.head.manage.
+ * @summary Get the current Department Head, if any — gated department.head.read
  */
 export const GetCurrentDepartmentHeadParams = zod.object({
   "organizationId": zod.coerce.number(),
@@ -15280,7 +15280,8 @@ export const RevokeDepartmentHeadResponse = zod.object({
 
 
 /**
- * @summary Full Department Head assignment history, oldest first
+ * Requires department.head.read (department.head.manage also grants it).
+ * @summary Full Department Head assignment history, oldest first — gated department.head.read
  */
 export const ListDepartmentHeadHistoryParams = zod.object({
   "organizationId": zod.coerce.number(),
@@ -15302,6 +15303,7 @@ export const ListDepartmentHeadHistoryResponse = zod.array(ListDepartmentHeadHis
 
 
 /**
+ * Requires department.head.read (department.head.manage also grants it).
  * @summary Who was the Department Head on a given date? (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §5.3)
  */
 export const ResolveDepartmentHeadAsOfParams = zod.object({
