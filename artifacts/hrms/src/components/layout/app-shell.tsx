@@ -87,6 +87,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { useMyProfilePhoto } from '@/hooks/use-employee-photo';
 import { useIsOrgAdmin, useIsHrCapable, useAdministrationAccess } from '@/hooks/use-hr-capable';
+import { useCapabilities } from '@/hooks/use-capabilities';
 import { clearToken } from '@/lib/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -475,6 +476,9 @@ export function AppShell({ children }: AppShellProps) {
   // rather than re-deriving the roles lookup here a second time.
   const isOrgAdmin = useIsOrgAdmin(activeOrganizationId ?? 0);
   const isHrCapable = useIsHrCapable(activeOrganizationId ?? 0);
+  // Capability, not role name — and including the STRUCTURAL tier, without
+  // which a department head is indistinguishable from an ordinary employee.
+  const caps = useCapabilities(activeOrganizationId ?? 0);
   // Administration navigation permission gating (2026-09-07): the
   // Administration group is resolved from the caller's EFFECTIVE permission
   // keys for the active organization (MembershipSummary.permissions), never
@@ -703,10 +707,14 @@ export function AppShell({ children }: AppShellProps) {
     {
       label: 'Leave Management',
       items: [
-        { href: '/leave-approvals', label: 'Leave Approvals', icon: ClipboardCheck },
+        ...(caps.isDepartmentHead || caps.can('leave_request.manage')
+          ? [{ href: '/leave-approvals', label: 'Leave Approvals', icon: ClipboardCheck } satisfies NavItem]
+          : []),
         { href: '/leave-calendar', label: 'Leave Calendar', icon: CalendarRange },
         { href: '/public-holidays', label: 'Public Holidays', icon: CalendarHeart },
-        { href: '/leave-types', label: 'Leave Types', icon: CalendarDays },
+        ...(caps.can('leave_type.manage')
+          ? [{ href: '/leave-types', label: 'Leave Types', icon: CalendarDays } satisfies NavItem]
+          : []),
         ...(isHrCapable ? [{ href: '/leave-balances', label: 'Leave Balances', icon: Wallet } satisfies NavItem] : []),
       ],
     },

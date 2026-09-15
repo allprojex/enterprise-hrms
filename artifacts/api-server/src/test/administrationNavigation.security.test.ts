@@ -46,6 +46,9 @@ vi.mock("@workspace/db", async () => {
     permissionsTable: h.TABLES.permissions,
     rolesTable: h.TABLES.roles,
     primaryHrAssignmentsTable: h.TABLES.primaryHrAssignments,
+    // GET /me/organizations resolves the structural manager signal, which reads
+    // the employee link to find the caller own employee identity.
+    employeeUserLinksTable: h.mockTable("employee_user_links", ["id", "employeeId", "applicationUserId", "organizationMembershipId"]),
     modulesTable: h.TABLES.modules,
     organizationModulesTable: h.TABLES.organizationModules,
     breakGlassGrantsTable: h.TABLES.breakGlassGrants,

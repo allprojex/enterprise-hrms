@@ -2940,6 +2940,10 @@ export interface MembershipSummary {
   /** The caller's own EFFECTIVE permission keys for this membership — the union of every permission granted through the membership's roles, exactly what the server evaluates in requirePermission. Self-scoped (never another member's grants) and informational: it lets the client show an administrative entry only when the caller holds a permission its destination actually requires, rather than inferring authority from role names. The server remains authoritative on every request. */
   permissions: string[];
   isPrimaryHr: boolean;
+  /** True when this membership is the CURRENT head of at least one department. Structural authority, not a permission: a department head acts on their department because of a live department_heads row, while leave_request.approve is held by every employee and gates may-attempt, never may-act. Self-scoped and informational — it lets the client offer a manager surface only to someone who actually holds one. The server re-resolves the same primitive on every request and stays authoritative. */
+  isDepartmentHead?: boolean;
+  /** True when at least one employee currently reports to this membership's employee record. The same structural signal as isDepartmentHead, for the reporting-manager tier. No ids, counts or names are exposed — only whether the authority exists. */
+  hasDirectReports?: boolean;
 }
 
 export interface SwitchOrganizationInput {

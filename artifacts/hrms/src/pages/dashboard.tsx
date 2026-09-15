@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { useCapabilities } from '@/hooks/use-capabilities';
 import {
   Users,
   UserCheck,
@@ -89,6 +90,10 @@ export default function Dashboard() {
   });
 
   const leave = summary?.leaveMetrics ?? null;
+  // Responsibility, not role name. See hooks/use-capabilities.ts.
+  const capabilities = useCapabilities(organizationId);
+  const { isManager, isHrOperational } = capabilities;
+
   const tasks = commandCentre?.tasks ?? null;
   const attention = orderedAttention(commandCentre?.attention ?? []);
   const workspaceCards = resolveWorkspaceCards({ modules: orgModules, permissions, summary, commandCentre });
@@ -144,7 +149,7 @@ export default function Dashboard() {
       <DashboardMetricLink
         key="pending"
         testId="card-stat-pending-hr-actions"
-        label="Pending HR Actions"
+        label={isHrOperational ? 'Pending HR Actions' : isManager ? 'Pending Approvals' : 'My Pending Actions'}
         value={tasks.total}
         supporting={tasks.overdue > 0 ? `${tasks.overdue} overdue` : 'None overdue'}
         delta={tasks.overdue > 0 ? { text: 'Needs attention', tone: 'danger' } : undefined}
@@ -224,13 +229,20 @@ export default function Dashboard() {
 
       {workforceCards.length > 0 && (
         <section aria-labelledby="workforce-heading" className="space-y-3" data-testid="section-workforce-summary">
-          <SectionHeader title={<span id="workforce-heading">Workforce Summary</span>} />
+          <SectionHeader
+            title={
+              <span id="workforce-heading">
+                {isHrOperational ? 'Workforce Summary' : isManager ? 'My Team' : 'My Summary'}
+              </span>
+            }
+          />
           <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 lg:grid-cols-4">{workforceCards}</div>
         </section>
       )}
 
       {showTasks && (
         <MyHrTasks
+          heading={isHrOperational ? 'My HR Tasks' : isManager ? 'My Actions' : 'My Tasks'}
           tasks={tasks}
           isLoading={commandCentreQuery.isLoading}
           isError={commandCentreQuery.isError}
@@ -256,7 +268,14 @@ export default function Dashboard() {
           )}
           {attention.length > 0 && (
             <section aria-labelledby="attention-heading" className="space-y-3" data-testid="section-hr-attention">
-              <SectionHeader title={<span id="attention-heading">HR Attention</span>} description="Operational items to keep an eye on" />
+              <SectionHeader
+                title={
+                  <span id="attention-heading">
+                    {isHrOperational ? 'HR Attention' : isManager ? 'Team Attention' : 'Needs Your Attention'}
+                  </span>
+                }
+                description={isHrOperational ? 'Operational items to keep an eye on' : 'Items assigned to you'}
+              />
               <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2">
                 {attention.map((card) => (
                   <DashboardMetricLink
