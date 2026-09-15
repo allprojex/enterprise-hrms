@@ -48749,10 +48749,16 @@ components:
 
     FormSubmissionDetail:
       type: object
-      required: [submission, template, version, stages, currentRevision, revisions, events, viewer]
+      required: [submission, subjectHasAccount, template, version, stages, currentRevision, revisions, events, viewer]
       properties:
         submission:
           $ref: "#/components/schemas/FormSubmissionSummary"
+        subjectHasAccount:
+          type: boolean
+          description: >-
+            False when the subject employee has no linked login account. A stage that
+            resolves to the subject employee therefore has no actor until an account is
+            linked, and the form waits. Deliberately a boolean: no account identifier is exposed.
         template:
           type: object
           required: [id, templateKey, title, formType]

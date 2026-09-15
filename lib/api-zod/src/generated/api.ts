@@ -26360,6 +26360,7 @@ export const CreateFormSubmissionResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }),
+  "subjectHasAccount": zod.boolean().describe('False when the subject employee has no linked login account. A stage that resolves to the subject employee therefore has no actor until an account is linked, and the form waits. Deliberately a boolean: no account identifier is exposed.'),
   "template": zod.object({
   "id": zod.number(),
   "templateKey": zod.string(),
@@ -26464,6 +26465,7 @@ export const GetFormSubmissionResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }),
+  "subjectHasAccount": zod.boolean().describe('False when the subject employee has no linked login account. A stage that resolves to the subject employee therefore has no actor until an account is linked, and the form waits. Deliberately a boolean: no account identifier is exposed.'),
   "template": zod.object({
   "id": zod.number(),
   "templateKey": zod.string(),
@@ -26572,6 +26574,7 @@ export const SaveFormSubmissionDraftResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }),
+  "subjectHasAccount": zod.boolean().describe('False when the subject employee has no linked login account. A stage that resolves to the subject employee therefore has no actor until an account is linked, and the form waits. Deliberately a boolean: no account identifier is exposed.'),
   "template": zod.object({
   "id": zod.number(),
   "templateKey": zod.string(),
@@ -26680,6 +26683,7 @@ export const SubmitFormSubmissionResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }),
+  "subjectHasAccount": zod.boolean().describe('False when the subject employee has no linked login account. A stage that resolves to the subject employee therefore has no actor until an account is linked, and the form waits. Deliberately a boolean: no account identifier is exposed.'),
   "template": zod.object({
   "id": zod.number(),
   "templateKey": zod.string(),
@@ -26790,6 +26794,7 @@ export const ActOnFormSubmissionStageResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }),
+  "subjectHasAccount": zod.boolean().describe('False when the subject employee has no linked login account. A stage that resolves to the subject employee therefore has no actor until an account is linked, and the form waits. Deliberately a boolean: no account identifier is exposed.'),
   "template": zod.object({
   "id": zod.number(),
   "templateKey": zod.string(),
@@ -26894,6 +26899,7 @@ export const FinalizeFormSubmissionResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }),
+  "subjectHasAccount": zod.boolean().describe('False when the subject employee has no linked login account. A stage that resolves to the subject employee therefore has no actor until an account is linked, and the form waits. Deliberately a boolean: no account identifier is exposed.'),
   "template": zod.object({
   "id": zod.number(),
   "templateKey": zod.string(),
@@ -26998,6 +27004,7 @@ export const ArchiveFormSubmissionResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }),
+  "subjectHasAccount": zod.boolean().describe('False when the subject employee has no linked login account. A stage that resolves to the subject employee therefore has no actor until an account is linked, and the form waits. Deliberately a boolean: no account identifier is exposed.'),
   "template": zod.object({
   "id": zod.number(),
   "templateKey": zod.string(),

@@ -231,6 +231,10 @@ export default function FormSubmissionPage() {
   // stage 1). The server enforces the signature; the UI only guides.
   const isSignatureStage = (s: typeof currentStage) => !!s && s.resolver === 'subject_employee' && !!s.signatureSlotKey;
   const awaitingEmployeeSignature = status === 'pending_approval' && isSignatureStage(currentStage);
+  // The stage resolves to the subject employee, and that employee has no login
+  // yet — so there is currently no one who can act. The workflow is correct and
+  // waits; only the explanation was missing.
+  const subjectAwaitingAccount = awaitingEmployeeSignature && detail.subjectHasAccount === false;
   const myConfirmationStage = awaitingEmployeeSignature && viewer.availableActions.includes('complete') ? currentStage! : null;
   const myConfirmationSigned = myConfirmationStage ? signatureContext.applied(myConfirmationStage.signatureSlotKey!) != null : false;
   const firstStage = detail.stages.find((s) => s.stageOrder === minStageOrder);
@@ -306,6 +310,12 @@ export default function FormSubmissionPage() {
             <p>
               <span className="font-medium">Awaiting your confirmation &amp; signature.</span> Review the information below, apply
               your own signature, then confirm. HR reviews the form after you confirm.
+            </p>
+          ) : subjectAwaitingAccount ? (
+            <p data-testid="text-awaiting-account">
+              <span className="font-medium">Waiting for {submission.subjectName}&rsquo;s account to be linked.</span> Once their
+              account is available they can review and sign this form, and it then goes to HR review. Nobody else can sign in
+              their place.
             </p>
           ) : (
             <p>

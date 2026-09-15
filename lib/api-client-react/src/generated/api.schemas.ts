@@ -13908,6 +13908,8 @@ export type FormSubmissionDetailVersion = {
 
 export interface FormSubmissionDetail {
   submission: FormSubmissionSummary;
+  /** False when the subject employee has no linked login account. A stage that resolves to the subject employee therefore has no actor until an account is linked, and the form waits. Deliberately a boolean: no account identifier is exposed. */
+  subjectHasAccount: boolean;
   template: FormSubmissionDetailTemplate;
   version: FormSubmissionDetailVersion;
   stages: FormWorkflowStage[];
