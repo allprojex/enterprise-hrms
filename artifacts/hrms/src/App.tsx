@@ -215,7 +215,7 @@ function Router() {
         {() => <SecureRoute component={Offboarding} />}
       </Route>
       <Route path="/my-grievances">
-        {() => <SecureRoute component={MyGrievances} />}
+        {() => <SecureRoute component={MyGrievances} moduleKey="employee_self_service" />}
       </Route>
       {/*
         WS-13 — Requests and Approvals. No moduleKey: these are Core HR
@@ -226,7 +226,7 @@ function Router() {
         could withhold.
       */}
       <Route path="/my-requests">
-        {() => <SecureRoute component={MyRequests} />}
+        {() => <SecureRoute component={MyRequests} moduleKey="employee_self_service" />}
       </Route>
       <Route path="/requests">
         {() => <SecureRoute component={Requests} />}
@@ -253,7 +253,7 @@ function Router() {
         {() => <SecureRoute component={Capability} />}
       </Route>
       <Route path="/my-skills">
-        {() => <SecureRoute component={MySkills} />}
+        {() => <SecureRoute component={MySkills} moduleKey="employee_self_service" />}
       </Route>
       <Route path="/succession">
         {() => <SecureRoute component={SuccessionPage} />}
@@ -288,7 +288,7 @@ function Router() {
         {() => <SecureRoute component={ActionCentre} />}
       </Route>
       <Route path="/my-actions">
-        {() => <SecureRoute component={MyActions} />}
+        {() => <SecureRoute component={MyActions} moduleKey="employee_self_service" />}
       </Route>
       <Route path="/onboarding">
         {() => <SecureRoute component={Onboarding} moduleKey="onboarding" />}

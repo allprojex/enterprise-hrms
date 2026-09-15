@@ -86,7 +86,7 @@ import { resolveAdministrationNavEntries } from '@/lib/administration-access';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { useMyProfilePhoto } from '@/hooks/use-employee-photo';
-import { useIsOrgAdmin, useIsHrCapable, useAdministrationAccess } from '@/hooks/use-hr-capable';
+import { useIsOrgAdmin, useIsHrCapable, useAdministrationAccess, useMyMembership } from '@/hooks/use-hr-capable';
 import { clearToken } from '@/lib/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -180,6 +180,19 @@ function groupSlug(label: string): string {
  */
 const MODULE_BY_HREF: Record<string, string> = {
   '/self-service': 'employee_self_service',
+  // Super Admin control-plane boundary (2026-09-08): every "My …" entry is
+  // Employee Self Service functionality ("Employee-facing portal for
+  // self-managed requests and records"). They were unconditional, so an
+  // organization that enables no HR modules at all — the platform's own
+  // System Administration org — still advertised a Self-Service group to
+  // whoever operates there. Deriving them from the module, exactly like
+  // /self-service, removes the group when the operating context has not
+  // enabled self-service, and fails closed while modules are still loading.
+  // Their destination routes carry the same moduleKey (App.tsx).
+  '/my-grievances': 'employee_self_service',
+  '/my-requests': 'employee_self_service',
+  '/my-actions': 'employee_self_service',
+  '/my-skills': 'employee_self_service',
   '/my-onboarding': 'onboarding',
   '/manager': 'manager_portal',
   '/onboarding': 'onboarding',
@@ -483,6 +496,23 @@ export function AppShell({ children }: AppShellProps) {
   // preserves the existing Organisations control-plane entry; it adds no
   // console bypass.
   const administrationAccess = useAdministrationAccess(activeOrganizationId ?? 0, user?.role === 'super_admin');
+  // Super Admin control-plane boundary (2026-09-08): the Personnel directory
+  // entry is derived from the caller's EFFECTIVE permissions for the ACTIVE
+  // organization (MembershipSummary.permissions — the same server-computed
+  // set the Administration group already uses), never from membership alone,
+  // a role name, or the legacy users.role column. A caller with no membership
+  // in the active organization (the platform owner browsing a tenant from the
+  // control plane) and a summary without a permissions field both fail
+  // closed: nothing is advertised. requirePermission("employee.read") remains
+  // the server-side authority on every request.
+  const activeMembership = useMyMembership(activeOrganizationId ?? 0);
+  const hasActivePermission = (key: string): boolean => (activeMembership?.permissions ?? []).includes(key);
+  // Tenant standing in the operating context. Every "my own record" surface
+  // (Self-Service, Manager Portal, My Forms) is resolved server-side from the
+  // caller's own employee link behind requireMembership, so a caller with no
+  // membership in the active organization — the platform owner reaching a
+  // tenant from the control plane — has none of them and is advertised none.
+  const hasTenantStanding = activeMembership !== undefined;
   // Module enablement for the active organization, the same source ModuleGate
   // (frontend) and requireModuleEnabled (backend) use. A module-gated nav item
   // needs BOTH its module enabled here AND its existing role/permission below.
@@ -561,7 +591,10 @@ export function AppShell({ children }: AppShellProps) {
     {
       label: 'Personnel',
       items: [
-        { href: '/employees', label: 'Employees', icon: Users },
+        // GET /organizations/:id/employees is gated employee.read (the
+        // directory grant every tenant role template holds). Advertise the
+        // directory only where the caller's effective permissions include it.
+        ...(hasActivePermission('employee.read') ? [{ href: '/employees', label: 'Employees', icon: Users } satisfies NavItem] : []),
         // WS-26 — official forms. HR sees every submission and administers
         // templates; the backend gates both with form.read / form_template.manage.
         ...(isHrCapable ? [{ href: '/forms', label: 'Forms', icon: FileText } satisfies NavItem] : []),
@@ -628,9 +661,12 @@ export function AppShell({ children }: AppShellProps) {
         ...(isHrCapable ? [{ href: '/capability', label: 'Capability', icon: Target } satisfies NavItem] : []),
         ...(isHrCapable ? [{ href: '/succession', label: 'Succession', icon: Sparkles } satisfies NavItem] : []),
         ...(isHrCapable ? [{ href: '/skills-settings', label: 'Skills & Proficiency', icon: Library } satisfies NavItem] : []),
-        { href: '/branches', label: 'Branches', icon: MapPin },
-        { href: '/departments', label: 'Departments', icon: Network },
-        { href: '/positions', label: 'Positions', icon: Briefcase },
+        // Organizational structure: the same permission derivation as the
+        // directory above — GET branches/departments/positions are gated
+        // branch.read / department.read / position.read server-side.
+        ...(hasActivePermission('branch.read') ? [{ href: '/branches', label: 'Branches', icon: MapPin } satisfies NavItem] : []),
+        ...(hasActivePermission('department.read') ? [{ href: '/departments', label: 'Departments', icon: Network } satisfies NavItem] : []),
+        ...(hasActivePermission('position.read') ? [{ href: '/positions', label: 'Positions', icon: Briefcase } satisfies NavItem] : []),
         // WS-5 — Documents & Records Foundation. Same isHrCapable-only nav
         // precedent as the other records surfaces above; the backend remains
         // organization_document.*/document_template.*-gated, so a non-HR
@@ -643,12 +679,12 @@ export function AppShell({ children }: AppShellProps) {
     {
       label: 'Self-Service',
       items: [
-        { href: '/self-service', label: 'Employee Self-Service', icon: CalendarClock },
+        ...(hasTenantStanding ? [{ href: '/self-service', label: 'Employee Self-Service', icon: CalendarClock } satisfies NavItem] : []),
         // WS-10 — every employee reaches their OWN onboarding here. Unconditional
         // for the same reason the Manager Portal is: the page resolves the
         // caller's own employee record server-side and renders an empty state
         // when there is nothing to show, rather than hiding a nav entry.
-        { href: '/my-onboarding', label: 'My Onboarding', icon: ClipboardCheck },
+        ...(hasTenantStanding ? [{ href: '/my-onboarding', label: 'My Onboarding', icon: ClipboardCheck } satisfies NavItem] : []),
         // WS-12 (§28.5) — every employee reaches their OWN grievances here,
         // unconditionally, for the same reason as My Onboarding above: the page
         // resolves the caller's own employee record server-side and renders an
@@ -656,14 +692,14 @@ export function AppShell({ children }: AppShellProps) {
         // would be wrong twice over — no permission key exists for self-service
         // grievances, and hiding the entry would make raising one harder for
         // exactly the people it exists to serve.
-        { href: '/my-grievances', label: 'My Grievances', icon: MessageSquareWarning },
+        ...(hasTenantStanding ? [{ href: '/my-grievances', label: 'My Grievances', icon: MessageSquareWarning } satisfies NavItem] : []),
         // WS-13 (section 29.17) — every employee reaches their OWN requests
         // here, unconditionally, for the same reason as My Onboarding and My
         // Grievances above: the page resolves the caller's own employee record
         // server-side and renders an empty state when there is nothing to show.
         // Gating it would make raising a request harder for exactly the people
         // it exists to serve, and no permission key exists for self-service.
-        { href: '/my-requests', label: 'My Requests', icon: Inbox },
+        ...(hasTenantStanding ? [{ href: '/my-requests', label: 'My Requests', icon: Inbox } satisfies NavItem] : []),
         // WS-14 (§30.18) — every employee reaches their OWN skills here,
         // unconditionally, for the same reason as the Self-Service entries above:
         // the page resolves the caller's own employee record server-side. It
@@ -674,17 +710,17 @@ export function AppShell({ children }: AppShellProps) {
         // allow-listed sources only. Unconditional for the same reason as the
         // Self-Service entries above: the page resolves the caller's own
         // employee record server-side and renders an empty state otherwise.
-        { href: '/my-actions', label: 'My Actions', icon: CheckSquare },
-        { href: '/my-skills', label: 'My Skills', icon: GraduationCap },
+        ...(hasTenantStanding ? [{ href: '/my-actions', label: 'My Actions', icon: CheckSquare } satisfies NavItem] : []),
+        ...(hasTenantStanding ? [{ href: '/my-skills', label: 'My Skills', icon: GraduationCap } satisfies NavItem] : []),
         // WS-26 — an employee's own forms (draft, in approval, finalized).
-        ...(isHrCapable ? [] : [{ href: '/forms', label: 'My Forms', icon: FileText } satisfies NavItem]),
+        ...(hasTenantStanding && !isHrCapable ? [{ href: '/forms', label: 'My Forms', icon: FileText } satisfies NavItem] : []),
         // Phase 3G, W111 — unconditional nav visibility (frozen plan §25):
         // manager eligibility is a pure live reportingManagerId
         // relationship, never a role, so there is no role flag to gate this
         // on. The page itself resolves eligibility and renders the manager
         // view, the HR/admin view, or the "no direct reports" empty state
         // — never a hidden nav entry.
-        { href: '/manager', label: 'Manager Portal', icon: Compass },
+        ...(hasTenantStanding ? [{ href: '/manager', label: 'Manager Portal', icon: Compass } satisfies NavItem] : []),
       ],
     },
     {
