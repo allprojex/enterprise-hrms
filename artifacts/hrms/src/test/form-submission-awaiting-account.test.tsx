@@ -102,11 +102,13 @@ beforeEach(() => {
 describe('subject employee has no linked account', () => {
   beforeEach(() => detail.mockReturnValue(payload()));
 
-  it('explains that the form is waiting for the account, not for the person', () => {
+  it('explains that the form is waiting for an ACTIVE account, not merely a linked one', () => {
     renderPage();
     const note = screen.getByTestId('text-awaiting-account');
-    expect(note).toHaveTextContent(/waiting for adwoa asante/i);
-    expect(note).toHaveTextContent(/account to be linked/i);
+    expect(note).toHaveTextContent(/adwoa asante does not have an active account yet/i);
+    // "linked" alone would be wrong: a link can outlive the membership it points
+    // at, so the requirement the copy states must be the one the server checks.
+    expect(note.textContent ?? '').not.toMatch(/to be linked/i);
   });
 
   it('says plainly that nobody can sign in their place', () => {

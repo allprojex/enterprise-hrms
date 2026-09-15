@@ -56,7 +56,7 @@ import type { ResolvedAssistance } from "./assistedSubmission";
 import { validateAnswers, computeValues, sectionKeysEditableBy, type Answers, type ComputedValues } from "./answers";
 import { resolveAutofill, readonlyKeys, type AutofillSnapshot } from "./bindings";
 import { redactedSensitiveKeys, redactValues } from "./sensitivity";
-import { getTemplate, getPublishedVersion, getVersion, listStages, membershipOfEmployee, membershipSatisfiesFormStage, parseDefinition } from "./templates";
+import { getTemplate, getPublishedVersion, getVersion, listStages, actionableMembershipOfEmployee, membershipSatisfiesFormStage, parseDefinition } from "./templates";
 import { renderSubmissionDocument, type DocumentKind, type HistoryLine } from "./render";
 import { notifyFormTransition, type FormNotificationKind } from "./formNotifications";
 
@@ -368,12 +368,14 @@ export async function getSubmissionDetail(organizationId: number, submissionId: 
     .from(employeesTable)
     .where(eq(employeesTable.id, submission.subjectEmployeeId))
     .limit(1);
-  // B2. A stage that resolves to `subject_employee` has no actor at all until
-  // the employee's record is linked to a login — the ordinary state for a new
-  // starter whose form HR prepared for them. The UI needs to explain that
-  // rather than showing a form that silently waits forever, so the engine
-  // reports the fact as a plain boolean. No identifier is exposed.
-  const subjectHasAccount = (await membershipOfEmployee(organizationId, submission.subjectEmployeeId)) != null;
+  // B2. A stage that resolves to `subject_employee` has no actor at all
+  // unless the subject has an account that can actually sign in — the ordinary
+  // state for a new starter whose form HR prepared for them, and equally for
+  // someone whose membership was later revoked, suspended or let expire. The
+  // UI needs to explain that rather than showing a form that silently waits
+  // forever, so the engine reports it as a plain boolean. Capability, not mere
+  // linkage: see actionableMembershipOfEmployee. No identifier is exposed.
+  const subjectHasAccount = (await actionableMembershipOfEmployee(organizationId, submission.subjectEmployeeId)) != null;
   const revisions = await listRevisions(organizationId, submission.id);
   const events = await listEvents(organizationId, submission.id);
   const names = await actorNames(events.map((e) => e.actorUserId).filter((id): id is number => id != null));

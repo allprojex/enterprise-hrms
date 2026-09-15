@@ -59,7 +59,7 @@ vi.mock("../lib/notifications", () => ({
 vi.mock("../lib/departmentHeads", () => ({ getCurrentDepartmentHead: m.getCurrentDepartmentHead }));
 vi.mock("../lib/logger", () => ({ logger: { warn: m.warn, info: vi.fn(), error: vi.fn() } }));
 
-import { notifyFormTransition } from "../lib/formEngine/formNotifications";
+import { notifyFormTransition, DUPLICATE_WINDOW_MS } from "../lib/formEngine/formNotifications";
 
 const ORG = 3;
 
@@ -127,10 +127,31 @@ describe("subject-employee stage (A)", () => {
     expect(m.notifyUser).not.toHaveBeenCalled();
   });
 
-  it("does not notify twice while the first notification is still unread", async () => {
+  it("does not fire the same message twice for one transition", async () => {
     m.pendingRows = [{ id: 5 }];
     await expect(call()).resolves.toBe(0);
     expect(m.notifyUser).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The duplicate guard must stay narrow. It once suppressed while an identical
+   * notification was UNREAD, which also swallowed a genuine later event — a
+   * form returned, corrected and sent back to the same stage says the same
+   * sentence, and the earlier notification may still be unread. Being told
+   * twice is a much smaller harm than never being told.
+   */
+  it("suppresses only within a short window, never for the life of an unread notification", () => {
+    expect(DUPLICATE_WINDOW_MS).toBeLessThanOrEqual(5 * 60_000);
+    expect(DUPLICATE_WINDOW_MS).toBeGreaterThan(0);
+  });
+
+  it("delivers a different transition even when an earlier notification exists", async () => {
+    // A guard keyed on the message means a DIFFERENT message is never blocked
+    // by an earlier one: returning a form still reaches the employee.
+    m.pendingRows = [];
+    const sent = await call({ kind: "returned", submission: submission({ currentStageOrder: null, status: "returned" }) });
+    expect(sent).toBe(1);
+    expect(m.notifyUser.mock.calls[0]![0].title).toBe("A form was returned to you");
   });
 
   it("notifies the subject even though they raised the form themselves (a confirmation stage allows complete)", async () => {

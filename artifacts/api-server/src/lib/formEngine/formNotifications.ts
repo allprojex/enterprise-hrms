@@ -27,11 +27,12 @@
  *     never an internal identifier.
  *
  *  4. AN UNRESOLVABLE RECIPIENT IS NORMAL, NOT AN ERROR. An employee with no
- *     linked login has no user to notify. That is the documented assisted-form
- *     case, not a fault: nothing is created, nothing throws, and the workflow
- *     stays safely waiting for the account to be linked (the UI explains this).
+ *     account that can sign in — never linked, or linked to a membership since
+ *     revoked, suspended or expired — has no user to notify. That is the
+ *     documented assisted-form case, not a fault: nothing is created, nothing
+ *     throws, and the form waits safely (the UI explains why).
  */
-import { and, eq } from "drizzle-orm";
+import { and, eq, gte } from "drizzle-orm";
 import {
   db,
   notificationsTable,
@@ -110,13 +111,22 @@ async function makerUserIds(organizationId: number, submission: FormSubmission):
 }
 
 /**
- * True when this exact message is already sitting unread in the recipient's
- * bell for this submission. This is the duplicate guard: a retried or
- * re-entered transition does not stack identical rows on top of each other,
- * while a genuinely repeated event (returned, corrected, returned again) still
- * notifies once the previous one has been read.
+ * How recently an identical message must have been created for a second one to
+ * count as a duplicate rather than a new event.
+ *
+ * The guard is deliberately NARROW. A workflow transition cannot commit twice —
+ * every state change is a conditional UPDATE that throws when it matches
+ * nothing — so the only duplicate this can legitimately prevent is one request
+ * firing the notifier twice. A wider rule (for instance "suppress while an
+ * identical notification is unread") would also swallow a genuine later event:
+ * a form returned, corrected and sent back to the same stage produces the same
+ * sentence, and the earlier notification may well still be unread. Being told
+ * twice is a far smaller harm than not being told at all.
  */
-async function alreadyPending(userId: number, submissionId: number, title: string): Promise<boolean> {
+export const DUPLICATE_WINDOW_MS = 60_000;
+
+/** True when this exact message was created for this recipient moments ago. */
+async function justSent(userId: number, submissionId: number, title: string): Promise<boolean> {
   const [existing] = await db
     .select({ id: notificationsTable.id })
     .from(notificationsTable)
@@ -126,7 +136,7 @@ async function alreadyPending(userId: number, submissionId: number, title: strin
         eq(notificationsTable.sourceReferenceType, SOURCE_REFERENCE_TYPE),
         eq(notificationsTable.sourceReferenceId, submissionId),
         eq(notificationsTable.title, title),
-        eq(notificationsTable.read, false),
+        gte(notificationsTable.createdAt, new Date(Date.now() - DUPLICATE_WINDOW_MS)),
       ),
     )
     .limit(1);
@@ -179,7 +189,7 @@ async function deliver(params: {
   let sent = 0;
   for (const { userId } of resolved) {
     if (params.exclude.has(userId)) continue;
-    if (await alreadyPending(userId, params.submissionId, params.message.title)) continue;
+    if (await justSent(userId, params.submissionId, params.message.title)) continue;
     await notifyUser({
       recipient: { kind: "user", userId },
       organizationId: params.organizationId,

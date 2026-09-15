@@ -18,6 +18,14 @@ export function employeeLabel(employee: Pick<Employee, 'firstName' | 'lastName' 
   return employee.employeeNumber ? `${name} · ${employee.employeeNumber}` : name;
 }
 
-/** The one sentence HR must see before relying on an employee being able to sign. */
+/**
+ * The one sentence HR must see before relying on an employee being able to sign.
+ *
+ * Scope note: the employee list reports whether a login is LINKED, which is not
+ * quite the same as whether that login can still sign in — a membership can be
+ * revoked, suspended or expire while the link remains. So this is a reliable
+ * warning and not a guarantee of the opposite: the form itself reports the
+ * stronger fact (subjectHasAccount) once it exists, and says so there.
+ */
 export const NO_ACCOUNT_NOTICE =
   'No account yet — this employee cannot review or sign the form until an account is linked.';

@@ -313,9 +313,9 @@ export default function FormSubmissionPage() {
             </p>
           ) : subjectAwaitingAccount ? (
             <p data-testid="text-awaiting-account">
-              <span className="font-medium">Waiting for {submission.subjectName}&rsquo;s account to be linked.</span> Once their
-              account is available they can review and sign this form, and it then goes to HR review. Nobody else can sign in
-              their place.
+              <span className="font-medium">{submission.subjectName} does not have an active account yet.</span> This form is
+              waiting for one. As soon as their account is active they can review and sign it, and it then goes to HR review.
+              Nobody else can sign in their place.
             </p>
           ) : (
             <p>
