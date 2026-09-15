@@ -7609,7 +7609,7 @@ export const getListEmployeeExitProcessesUrl = (organizationId: number,
 }
 
 /**
- * One row per separation cycle — an employee separated, rehired, and separated again gets a new exit process each time, most recent first.
+ * One row per separation cycle — an employee separated, rehired, and separated again gets a new exit process each time, most recent first. Gated employee.write (the same key as creating/updating an exit process): exit records are HR data, so the directory grant employee.read is not sufficient (2026-09-15).
  * @summary List an employee's exit (off-boarding) processes
  */
 export const listEmployeeExitProcesses = async (organizationId: number,
@@ -24884,7 +24884,7 @@ export const getRunReportUrl = (organizationId: number,
 }
 
 /**
- * Computes a registered report scoped to this organization. Permission required varies by report (see GET /reports). Pass ?format=csv for a CSV download instead of JSON.
+ * Computes a registered report scoped to this organization. Permission required varies by report (see GET /reports). Pass ?format=csv for a CSV download instead of JSON. The required permission is resolved from the server code registry, not the stored report row, and a report the registry does not define is refused (403). The organization-wide workforce aggregates (headcount, workforce_status) require employee.write (2026-09-15).
  *
  * WS-15 P3 (§31.30) — consolidated execution. Every registered report is now executable here: the three organization-level aggregates run directly, and every module report DELEGATES to that module's own reporting service, resolving that module's own scope resolver first, so the generic path is scope-aware and enforces the same permission as the module route. Module routes are unchanged and remain authoritative for their own contracts.
  *

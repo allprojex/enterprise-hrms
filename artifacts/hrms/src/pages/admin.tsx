@@ -1306,6 +1306,10 @@ function AuditLogTab({ organizationId }: { organizationId: number }) {
   );
 }
 
+function isForbidden(error: unknown): boolean {
+  return !!error && typeof error === 'object' && 'status' in error && (error as { status?: number }).status === 403;
+}
+
 function ReportsTab({ organizationId }: { organizationId: number }) {
   const { toast } = useToast();
   const [reportKey, setReportKey] = useState('');
@@ -1457,6 +1461,13 @@ function ReportsTab({ organizationId }: { organizationId: number }) {
             <Skeleton key={i} className="h-12 w-full" />
           ))}
         </div>
+      ) : isForbidden(error) ? (
+        // The catalogue lists every report; running one is permission-gated
+        // server-side (e.g. workforce aggregates need employee.write). A 403 is
+        // an access answer, not a failure worth retrying.
+        <p className="text-sm text-muted-foreground py-8 text-center" data-testid="report-forbidden">
+          You do not have permission to run this report.
+        </p>
       ) : error ? (
         <QueryError title="Failed to run report" message="Could not compute this report." onRetry={() => refetch()} />
       ) : !result || typeof result === 'string' ? null : (

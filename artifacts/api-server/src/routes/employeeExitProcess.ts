@@ -33,11 +33,20 @@ async function requireEmployee(req: MembershipRequest, res: import("express").Re
 }
 
 // GET /organizations/:organizationId/employees/:employeeId/exit-process
+//
+// Authorization fix (2026-09-15): an exit process is an HR record (exit
+// interview notes, separation basis, clearance flags and actors). It was gated
+// by employee.read — the directory grant every role holds — so any employee
+// could read any colleague's. It now requires employee.write, the same key its
+// own POST/PATCH below use, so reading an exit process needs the authority
+// that runs one. There is no self-service or manager consumer of this route
+// (the employee-detail Exit Management card is the only caller), so no self
+// or reporting-line tier is added.
 router.get(
   "/organizations/:organizationId/employees/:employeeId/exit-process",
   requireAuth as any,
   requireMembership("organizationId"),
-  requirePermission("employee.read"),
+  requirePermission("employee.write"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeId = parseId(req.params.employeeId);
     if (!(await requireEmployee(req, res, employeeId))) return;

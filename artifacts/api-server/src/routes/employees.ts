@@ -144,6 +144,11 @@ async function resolveEmployeeVisibility(req: MembershipRequest): Promise<Employ
  * `sensitiveFieldsRedacted: true` tells the UI honestly that the values
  * are withheld rather than absent. Same shape as the pre-existing
  * `employee.notes.read` gate on `notes`.
+ *
+ * `phoneNumber` joined this set on 2026-09-15 (owner decision): the column is
+ * not constrained to a work line and in practice holds personal mobile
+ * numbers, so it is treated like `alternatePhoneNumber`, not as directory
+ * contact data. `workEmail` remains the directory contact field.
  */
 interface EmployeeVisibility {
   canReadNotes: boolean;
@@ -172,7 +177,7 @@ function formatEmployee(employee: Employee, labels: EmployeeLabels, visibility: 
     passportNumber: revealSensitive ? employee.passportNumber : null,
     personalEmail: revealSensitive ? employee.personalEmail : null,
     workEmail: employee.workEmail,
-    phoneNumber: employee.phoneNumber,
+    phoneNumber: revealSensitive ? employee.phoneNumber : null,
     alternatePhoneNumber: revealSensitive ? employee.alternatePhoneNumber : null,
     residentialAddress: revealSensitive ? employee.residentialAddress : null,
     emergencyContacts: revealSensitive ? employee.emergencyContacts : null,

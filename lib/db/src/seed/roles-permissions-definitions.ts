@@ -60,7 +60,7 @@ export const PERMISSIONS = [
   { key: "employee.notes.read", resource: "employee", action: "notes.read" },
   { key: "employee.disciplinary.read", resource: "employee", action: "disciplinary.read" },
   // WWM Employee Access Remediation (2026-09-07): `employee.read` is the
-  // organization's DIRECTORY grant (name, number, work contact, department,
+  // organization's DIRECTORY grant (name, number, work email, department,
   // position, manager, status) and every role — including the employee
   // template — holds it so colleagues can find each other. It never
   // implied the right to a colleague's personal identity data. These two
@@ -68,7 +68,8 @@ export const PERMISSIONS = [
   // employee.disciplinary.read) now gate what the directory grant alone
   // must not reveal. A caller always sees their OWN full record regardless.
   //   employee.sensitive.read  — date of birth, gender, marital status,
-  //     nationality, national ID, passport, personal email, alternate
+  //     nationality, national ID, passport, personal email, phone number
+  //     (added 2026-09-15: the field can hold a personal mobile), alternate
   //     phone, residential address, emergency contacts, separation reason.
   //   employee.documents.read  — another employee's personnel-document
   //     metadata (GET .../employees/:id/documents). Upload/delete stay on

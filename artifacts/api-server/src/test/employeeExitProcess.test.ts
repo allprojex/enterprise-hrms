@@ -7,6 +7,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import request from "supertest";
+import { ROLE_PERMISSIONS } from "@workspace/db/seed/roles-permissions-definitions";
 
 const {
   fixtures,
@@ -160,7 +161,7 @@ describe("GET /api/organizations/:organizationId/employees/:employeeId/exit-proc
   it("returns 404 when the employee does not exist", async () => {
     mockSession();
     mockActiveMembership();
-    mockPermissions(["employee.read"]);
+    mockPermissions(["employee.write"]);
     fixtures.employeeRows = [];
 
     const res = await request(app).get("/api/organizations/10/employees/42/exit-process").set("Authorization", "Bearer valid-token");
@@ -171,7 +172,7 @@ describe("GET /api/organizations/:organizationId/employees/:employeeId/exit-proc
   it("lists exit processes for the employee", async () => {
     mockSession();
     mockActiveMembership();
-    mockPermissions(["employee.read"]);
+    mockPermissions(["employee.write"]);
     fixtures.employeeRows = [{ id: 42, organizationId: 10, firstName: "Ada", lastName: "Lovelace", employmentStatus: "terminated" }];
     fixtures.processRows = [
       {
@@ -189,6 +190,104 @@ describe("GET /api/organizations/:organizationId/employees/:employeeId/exit-proc
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
+  });
+});
+
+/**
+ * Authorization fix (2026-09-15): the read was gated by employee.read, the
+ * directory grant every role holds, so any employee could read a colleague's
+ * exit interview notes. It now requires employee.write, like its own
+ * POST/PATCH. Roles use the real seeded grant lists.
+ */
+describe("GET exit-process: HR-only authorization", () => {
+  const URL = "/api/organizations/10/employees/42/exit-process";
+  const CONFIDENTIAL_NOTES = "Confidential: left after a complaint about their manager";
+
+  beforeEach(() => {
+    fixtures.employeeRows = [
+      { id: 42, organizationId: 10, firstName: "Ada", lastName: "Lovelace", employmentStatus: "terminated", departmentId: 3, reportingManagerId: 7 } as never,
+    ];
+    fixtures.processRows = [
+      {
+        id: 1,
+        organizationId: 10,
+        employeeId: 42,
+        separationDate: new Date("2026-01-01"),
+        separationBasis: "already_separated",
+        checklistCompleted: true,
+        clearanceCompleted: false,
+        exitInterviewCompleted: true,
+        exitInterviewNotes: CONFIDENTIAL_NOTES,
+      },
+    ];
+  });
+
+  it("denies an ordinary employee reading a colleague's exit process with 403", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions([...ROLE_PERMISSIONS.employee]);
+
+    const res = await request(app).get(URL).set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(403);
+    expect(JSON.stringify(res.body)).not.toContain(CONFIDENTIAL_NOTES);
+  });
+
+  it("denies a department head (employee role) reading their department member / direct report with 403", async () => {
+    // Employee 42 sits in department 3 and reports to employee 7, the caller.
+    // Neither relationship is an HR grant; the caller's keys are the employee role's.
+    mockSession();
+    mockActiveMembership();
+    mockPermissions([...ROLE_PERMISSIONS.employee]);
+
+    const res = await request(app).get(URL).set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(403);
+    expect(JSON.stringify(res.body)).not.toContain(CONFIDENTIAL_NOTES);
+  });
+
+  it("denies a caller holding only employee.read, even for their own record: there is no self-service tier", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions(["employee.read"]);
+
+    const res = await request(app).get(URL).set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(403);
+  });
+
+  it("allows the canonical HR role and returns the full record", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions([...ROLE_PERMISSIONS.hr]);
+
+    const res = await request(app).get(URL).set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].exitInterviewNotes).toBe(CONFIDENTIAL_NOTES);
+  });
+
+  it("allows org_admin, which holds employee.write", async () => {
+    mockSession();
+    mockActiveMembership();
+    mockPermissions([...ROLE_PERMISSIONS.org_admin]);
+
+    const res = await request(app).get(URL).set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+  });
+
+  it("denies an HR caller with no active membership in the target organization (cross-organization) with 403", async () => {
+    mockSession();
+    // No membership row for organization 10: the caller's HR role belongs elsewhere.
+    fixtures.membershipRows = [];
+    mockPermissions([...ROLE_PERMISSIONS.hr]);
+
+    const res = await request(app).get(URL).set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(403);
+    expect(JSON.stringify(res.body)).not.toContain(CONFIDENTIAL_NOTES);
   });
 });
 

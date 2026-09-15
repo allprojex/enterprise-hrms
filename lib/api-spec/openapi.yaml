@@ -3366,6 +3366,9 @@ paths:
       description: >-
         One row per separation cycle — an employee separated, rehired, and
         separated again gets a new exit process each time, most recent first.
+        Gated employee.write (the same key as creating/updating an exit
+        process): exit records are HR data, so the directory grant
+        employee.read is not sufficient (2026-09-15).
       parameters:
         - name: organizationId
           in: path
@@ -3386,6 +3389,12 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/EmployeeExitProcess"
+        "403":
+          description: Forbidden — requires employee.write
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "404":
           description: Employee not found
           content:
@@ -7435,6 +7444,15 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/CandidateNote"
+        "403":
+          description: >-
+            Forbidden — requires candidate.notes.read, and notes are restricted to
+            organization-wide recruitment authority (candidate.manage); a hiring
+            manager or assigned recruiter who can see the candidate cannot read them
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "404":
           description: Candidate not found (or not visible to this caller)
           content:
@@ -11892,7 +11910,11 @@ paths:
       description: >-
         Computes a registered report scoped to this organization. Permission
         required varies by report (see GET /reports). Pass ?format=csv for a
-        CSV download instead of JSON.
+        CSV download instead of JSON. The required permission is resolved from
+        the server code registry, not the stored report row, and a report the
+        registry does not define is refused (403). The organization-wide
+        workforce aggregates (headcount, workforce_status) require
+        employee.write (2026-09-15).
 
 
         WS-15 P3 (§31.30) — consolidated execution. Every registered report is
@@ -23039,7 +23061,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/HireAuthorizationDetail"
         "403":
-          description: Forbidden — requires application.read
+          description: Forbidden — requires application.read and the recruitment module
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: >-
+            Application not found, or not visible to this caller — visible only
+            with organization-wide application authority, as the requisition's
+            recruiter or hiring manager, or as a configured approver of a raised
+            hire authorization's stages
           content:
             application/json:
               schema:
@@ -23217,13 +23249,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/OfferVersionState"
         "403":
-          description: Forbidden — requires offer.read
+          description: Forbidden — requires offer.read and the recruitment module
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
         "404":
-          description: Not found
+          description: Not found, or not visible to this caller (org-wide offer authority or the requisition's recruiter/hiring manager only)
           content:
             application/json:
               schema:
@@ -23476,13 +23508,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/EmploymentParticularsDetail"
         "403":
-          description: Forbidden — requires offer.read
+          description: Forbidden — requires offer.read and the recruitment module
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
         "404":
-          description: Not found
+          description: Not found, or not visible to this caller (org-wide offer authority or the requisition's recruiter/hiring manager only)
           content:
             application/json:
               schema:
@@ -37863,11 +37895,13 @@ components:
       description: >-
         WWM Employee Access Remediation (2026-09-07): `gender`,
         `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`,
-        `passportNumber`, `personalEmail`, `alternatePhoneNumber`,
-        `residentialAddress`, `emergencyContacts` and `separationReason`
-        are returned only to a caller holding employee.sensitive.read or
-        viewing their own record; otherwise they are null and
-        `sensitiveFieldsRedacted` is true. `notes` keeps its own
+        `passportNumber`, `personalEmail`, `phoneNumber`,
+        `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts`
+        and `separationReason` are returned only to a caller holding
+        employee.sensitive.read or viewing their own record; otherwise they are
+        null and `sensitiveFieldsRedacted` is true. `phoneNumber` joined this
+        set on 2026-09-15 because the field is not constrained to a work line;
+        `workEmail` remains the directory contact field. `notes` keeps its own
         employee.notes.read gate.
       required: [id, organizationId, firstName, lastName, employmentStatus, createdAt, updatedAt]
       properties:

@@ -441,6 +441,50 @@ describe("GET/POST /api/organizations/:organizationId/candidates/:id/notes", () 
       .send({ note: "Mismatched application", applicationId: 999 });
     expect(res.status).toBe(400);
   });
+
+  // Owner decision (2026-09-15): notes are HR/recruitment-only, even for a caller who can see the candidate.
+  it("refuses (403) notes to the requisition's hiring manager, who can still see the candidate", async () => {
+    mockPermissions(["candidate.read", "candidate.notes.read"]);
+    mockLinkedEmployee(RECRUITER_EMPLOYEE_ID);
+    fixtures.employeeRows = [{ id: RECRUITER_EMPLOYEE_ID, organizationId: ORG_ID, departmentId: null, branchId: null }];
+    seedCandidateWithApplication({ hiringManagerEmployeeId: RECRUITER_EMPLOYEE_ID });
+    fixtures.candidateNoteRows = [{ id: 1, organizationId: ORG_ID, candidateId: CANDIDATE_ID, applicationId: null, authorMembershipId: 9, note: "Salary expectation too high", createdAt: new Date() }];
+
+    const candidate = await request(app).get(`/api/organizations/${ORG_ID}/candidates/${CANDIDATE_ID}`).set("Authorization", "Bearer valid-token");
+    expect(candidate.status).toBe(200);
+
+    const notes = await request(app).get(`/api/organizations/${ORG_ID}/candidates/${CANDIDATE_ID}/notes`).set("Authorization", "Bearer valid-token");
+    expect(notes.status).toBe(403);
+    expect(JSON.stringify(notes.body)).not.toContain("Salary expectation");
+  });
+
+  it("refuses (403) notes to an assigned recruiter without organization-wide candidate authority", async () => {
+    mockPermissions(["candidate.read", "candidate.notes.read"]);
+    mockLinkedEmployee(RECRUITER_EMPLOYEE_ID);
+    fixtures.employeeRows = [{ id: RECRUITER_EMPLOYEE_ID, organizationId: ORG_ID, departmentId: null, branchId: null }];
+    seedCandidateWithApplication({ recruiterEmployeeId: RECRUITER_EMPLOYEE_ID });
+    const res = await request(app).get(`/api/organizations/${ORG_ID}/candidates/${CANDIDATE_ID}/notes`).set("Authorization", "Bearer valid-token");
+    expect(res.status).toBe(403);
+  });
+
+  it("refuses (403) note writes to a hiring manager even when holding candidate.notes.write", async () => {
+    mockPermissions(["candidate.read", "candidate.notes.read", "candidate.notes.write"]);
+    mockLinkedEmployee(RECRUITER_EMPLOYEE_ID);
+    fixtures.employeeRows = [{ id: RECRUITER_EMPLOYEE_ID, organizationId: ORG_ID, departmentId: null, branchId: null }];
+    seedCandidateWithApplication({ hiringManagerEmployeeId: RECRUITER_EMPLOYEE_ID });
+    const res = await request(app).post(`/api/organizations/${ORG_ID}/candidates/${CANDIDATE_ID}/notes`).set("Authorization", "Bearer valid-token").send({ note: "Should not land" });
+    expect(res.status).toBe(403);
+    expect(fixtures.candidateNoteRows).toHaveLength(0);
+  });
+
+  it("allows a recruitment-authorized actor (candidate.manage) to read notes", async () => {
+    mockPermissions(["candidate.read", "candidate.manage", "candidate.notes.read"]);
+    seedCandidateWithApplication();
+    fixtures.candidateNoteRows = [{ id: 1, organizationId: ORG_ID, candidateId: CANDIDATE_ID, applicationId: null, authorMembershipId: 9, note: "Salary expectation too high", createdAt: new Date() }];
+    const res = await request(app).get(`/api/organizations/${ORG_ID}/candidates/${CANDIDATE_ID}/notes`).set("Authorization", "Bearer valid-token");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+  });
 });
 
 describe("GET/POST/DELETE /api/organizations/:organizationId/candidates/:id/tags", () => {

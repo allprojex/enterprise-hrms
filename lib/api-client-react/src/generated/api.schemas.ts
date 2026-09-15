@@ -6044,7 +6044,7 @@ export const EmployeeEmploymentStatus = {
 } as const;
 
 /**
- * WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.
+ * WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `phoneNumber`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `phoneNumber` joined this set on 2026-09-15 because the field is not constrained to a work line; `workEmail` remains the directory contact field. `notes` keeps its own employee.notes.read gate.
  */
 export interface Employee {
   id: number;
