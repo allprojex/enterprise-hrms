@@ -18,6 +18,13 @@ export interface MyHrTasksProps {
   onRetry?: () => void;
   /** Whether the caller may open the Action Centre (the full queue). */
   canOpenActionCentre: boolean;
+  /**
+   * Responsibility-aware heading. The section shows the same thing to everyone
+   * — work only THIS membership can act on — but calling an employee's own
+   * tasks "HR tasks" told them they were something they are not. Defaults to
+   * the HR wording so existing callers are unchanged.
+   */
+  heading?: string;
   now?: Date;
 }
 
@@ -26,14 +33,14 @@ export interface MyHrTasksProps {
  * ordered by the server (overdue → due soon → undated oldest). Each row is one
  * link into the owning module, which re-authorizes on arrival.
  */
-export function MyHrTasks({ tasks, isLoading, isError, onRetry, canOpenActionCentre, now = new Date() }: MyHrTasksProps) {
+export function MyHrTasks({ tasks, isLoading, isError, onRetry, canOpenActionCentre, heading = "My HR Tasks", now = new Date() }: MyHrTasksProps) {
   const [expanded, setExpanded] = React.useState(false);
 
   let body: React.ReactNode;
   if (isLoading) {
     body = <ListSkeleton lines={4} className="p-4" />;
   } else if (isError) {
-    body = <ErrorState size="sm" title="Tasks could not be loaded" message="Your HR tasks are temporarily unavailable." onRetry={onRetry} className="m-4" />;
+    body = <ErrorState size="sm" title="Tasks could not be loaded" message="Your tasks are temporarily unavailable." onRetry={onRetry} className="m-4" />;
   } else if (!tasks || tasks.items.length === 0) {
     body = (
       <EmptyState
@@ -110,7 +117,7 @@ export function MyHrTasks({ tasks, isLoading, isError, onRetry, canOpenActionCen
   return (
     <section id="my-hr-tasks" aria-labelledby="my-hr-tasks-heading" className="scroll-mt-20 space-y-3" data-testid="section-my-hr-tasks">
       <SectionHeader
-        title={<span id="my-hr-tasks-heading">My HR Tasks</span>}
+        title={<span id="my-hr-tasks-heading">{heading}</span>}
         description="Work waiting on you, most urgent first"
         actions={
           canOpenActionCentre ? (
