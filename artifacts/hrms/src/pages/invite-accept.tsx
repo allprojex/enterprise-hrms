@@ -3,6 +3,7 @@ import { useParams, Link, useLocation } from 'wouter';
 import { Building2, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/foundation';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useGetInvitation, getGetInvitationQueryKey, useAcceptInvitation } from '@workspace/api-client-react';
@@ -192,13 +193,13 @@ export default function InviteAccept() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
-                  <Input
+                  <PasswordInput
                     id="password"
-                    type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     minLength={8}
                     required
+                    autoComplete="new-password"
                     disabled={acceptMutation.isPending}
                     data-testid="input-password"
                   />

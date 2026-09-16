@@ -3,6 +3,7 @@ import { Link, useLocation } from 'wouter';
 import { Building2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/foundation';
 import { Label } from '@/components/ui/label';
 import { useLogin, useGetTenantContext, getGetTenantContextQueryKey } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
@@ -187,9 +188,8 @@ export default function Login() {
                     Forgot password?
                   </Link>
                 </div>
-                <Input
+                <PasswordInput
                   id="password"
-                  type="password"
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}

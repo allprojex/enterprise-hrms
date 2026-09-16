@@ -13,6 +13,20 @@
     <meta name="twitter:title" content="Enterprise HRMS" />
     <meta name="twitter:description" content="Secure, multi-tenant human resource management for authorised organisation members." />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!--
+      Installable application (PWA). The manifest carries the platform
+      identity — "Enterprise HRMS" — for every tenant; tenant branding is
+      applied inside the authenticated application through the existing
+      organisation-branding mechanism, not here. One manifest, one installed
+      app, all organisations.
+    -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#2A4074" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Enterprise HRMS" />
   </head>
   <body>
     <div id="root"></div>
