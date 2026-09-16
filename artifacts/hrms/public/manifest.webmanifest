@@ -1,0 +1,39 @@
+{
+  "name": "Enterprise HRMS",
+  "short_name": "HRMS",
+  "description": "Secure, multi-tenant human resource management for authorised organisation members.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#2A4074",
+  "background_color": "#FFFFFF",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/pwa-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/pwa-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/pwa-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/pwa-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
