@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useId, useRef } from 'react';
 import { Link, useLocation } from 'wouter';
 import {
   Building2,
@@ -234,25 +234,32 @@ function NavGroupList({
   onNavigate?: () => void;
 }) {
   const visibleGroups = groups.filter((g) => g.items.length > 0);
+  const activeGroupLabel = visibleGroups.find((g) => g.items.some((i) => i.href === location))?.label;
+  const panelIdPrefix = useId();
   const [expanded, setExpanded] = useState<Set<string>>(
     () => new Set(visibleGroups.filter((g) => g.items.some((i) => i.href === location)).map((g) => g.label)),
   );
 
-  useEffect(() => {
-    const activeGroup = visibleGroups.find((g) => g.items.some((i) => i.href === location));
-    if (activeGroup && !expanded.has(activeGroup.label)) {
-      setExpanded((prev) => new Set(prev).add(activeGroup.label));
+  // Expansion precedence: the active route's group starts expanded; after
+  // that the header click is the only authority, until the user navigates
+  // (or the active group first becomes visible, e.g. once modules load), at
+  // which point the new route's group is revealed again. This compares
+  // primitives rather than reacting to `visibleGroups` — a fresh array every
+  // render — which previously re-expanded, straight after each toggle, a group
+  // the user had just collapsed while on one of its routes.
+  const [revealedFor, setRevealedFor] = useState({ location, activeGroupLabel });
+  if (revealedFor.location !== location || revealedFor.activeGroupLabel !== activeGroupLabel) {
+    setRevealedFor({ location, activeGroupLabel });
+    if (activeGroupLabel && !expanded.has(activeGroupLabel)) {
+      setExpanded(new Set(expanded).add(activeGroupLabel));
     }
-    // Only ever grows the expanded set to include the active group — never
-    // reacts to `expanded` itself, so a user's manual collapse is preserved
-    // across unrelated re-renders.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location, visibleGroups]);
+  }
 
   return (
     <div className="space-y-1">
       {visibleGroups.map((group) => {
         const isExpanded = expanded.has(group.label);
+        const panelId = `${panelIdPrefix}-nav-group-${groupSlug(group.label)}`;
         return (
           <div key={group.label}>
             <button
@@ -265,8 +272,9 @@ function NavGroupList({
                   return next;
                 })
               }
-              className="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/60 transition-colors hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex w-full touch-manipulation select-none items-center justify-between rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/60 transition-colors hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               aria-expanded={isExpanded}
+              aria-controls={panelId}
               data-testid={`button-nav-group-${groupSlug(group.label)}`}
             >
               <span>{group.label}</span>
@@ -275,7 +283,9 @@ function NavGroupList({
                 aria-hidden="true"
               />
             </button>
-            {isExpanded && <NavLinks items={group.items} location={location} onNavigate={onNavigate} />}
+            <div id={panelId}>
+              {isExpanded && <NavLinks items={group.items} location={location} onNavigate={onNavigate} />}
+            </div>
           </div>
         );
       })}
