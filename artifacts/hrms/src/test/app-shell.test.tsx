@@ -7,7 +7,7 @@
  * org-scoped query (keyed by organizationId) refetches under the new org.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Router } from 'wouter';
@@ -124,10 +124,10 @@ vi.mock('@workspace/api-client-react', () => ({
   getListOrganizationModulesQueryKey: (id: number) => ['orgModules', id],
 }));
 
-function renderShell() {
+function renderShell(path = '/dashboard') {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const { hook } = memoryLocation({ path: '/dashboard', record: true });
-  return render(
+  const { hook, navigate } = memoryLocation({ path, record: true });
+  const result = render(
     <QueryClientProvider client={queryClient}>
       <Router hook={hook}>
         <AppShell>
@@ -136,6 +136,7 @@ function renderShell() {
       </Router>
     </QueryClientProvider>,
   );
+  return { ...result, navigate };
 }
 
 beforeEach(() => {
@@ -635,5 +636,147 @@ describe('AppShell — Administration group permission gating', () => {
     renderShell();
     const links = await administrationLinks(user);
     expect(links.map((a) => a.textContent?.trim())).toEqual(['Organisations', 'Organization Administration']);
+  });
+});
+
+describe('AppShell — sidebar group expand/collapse reliability', () => {
+  const header = (slug: string) => screen.getByTestId(`button-nav-group-${slug}`);
+  const chevron = (slug: string) => header(slug).querySelector('svg') as SVGElement;
+  /** Header state, chevron rotation and rendered links must always agree. */
+  const expectGroup = (slug: string, link: string, open: boolean) => {
+    expect(header(slug)).toHaveAttribute('aria-expanded', String(open));
+    if (open) {
+      expect(chevron(slug).getAttribute('class')).not.toContain('-rotate-90');
+      expect(screen.getByTestId(link)).toBeInTheDocument();
+    } else {
+      expect(chevron(slug).getAttribute('class')).toContain('-rotate-90');
+      expect(screen.queryByTestId(link)).not.toBeInTheDocument();
+    }
+  };
+
+  beforeEach(() => {
+    useListMyOrganizationsMock.mockReturnValue({ data: MULTI_ORG_MEMBERSHIPS });
+    useGetMeMock.mockReturnValue({ ...DEFAULT_ME, data: { ...DEFAULT_ME.data, activeOrganizationId: 10 } });
+    modulesMock.mockReturnValue({
+      data: ['leave', 'performance'].map((key) => ({ key, enabled: true, requiredModuleKeys: [] as string[] })),
+    });
+  });
+
+  it('A/B: a module row opens when collapsed and closes immediately when expanded', async () => {
+    const user = userEvent.setup();
+    renderShell();
+    expectGroup('personnel', 'link-nav-employees', false);
+    await user.click(header('personnel'));
+    expectGroup('personnel', 'link-nav-employees', true);
+    await user.click(header('personnel'));
+    expectGroup('personnel', 'link-nav-employees', false);
+  });
+
+  it('C/D: clicking the chevron itself opens and closes the module (no dead zone)', async () => {
+    const user = userEvent.setup();
+    renderShell();
+    await user.click(chevron('personnel'));
+    expectGroup('personnel', 'link-nav-employees', true);
+    await user.click(chevron('personnel'));
+    expectGroup('personnel', 'link-nav-employees', false);
+  });
+
+  it('E: groups stay independently toggleable (existing multi-open design) — closing one never needs another', async () => {
+    const user = userEvent.setup();
+    renderShell();
+    await user.click(header('personnel'));
+    await user.click(header('performance'));
+    expectGroup('performance', 'link-nav-performance dashboard', true);
+    expectGroup('personnel', 'link-nav-employees', true);
+    await user.click(header('personnel'));
+    expectGroup('personnel', 'link-nav-employees', false);
+    expectGroup('performance', 'link-nav-performance dashboard', true);
+  });
+
+  it('F: the group holding the active route collapses on a deliberate click and stays collapsed', async () => {
+    const user = userEvent.setup();
+    renderShell('/leave-calendar');
+    expectGroup('leave-management', 'link-nav-leave calendar', true);
+    expect(screen.getByTestId('link-nav-leave calendar')).toHaveAttribute('aria-current', 'page');
+
+    await user.click(chevron('leave-management'));
+    expectGroup('leave-management', 'link-nav-leave calendar', false);
+
+    // Further sidebar re-renders on the same route must not re-open it.
+    await user.click(header('personnel'));
+    await user.click(header('personnel'));
+    expectGroup('leave-management', 'link-nav-leave calendar', false);
+
+    await user.click(header('leave-management'));
+    expectGroup('leave-management', 'link-nav-leave calendar', true);
+  });
+
+  it("G: navigating to another module's child reveals that module and leaves the others as the user set them", async () => {
+    const user = userEvent.setup();
+    const { navigate } = renderShell('/leave-calendar');
+    await user.click(header('leave-management'));
+    expectGroup('performance', 'link-nav-performance dashboard', false);
+
+    act(() => navigate('/performance'));
+    expectGroup('performance', 'link-nav-performance dashboard', true);
+    expect(screen.getByTestId('link-nav-performance dashboard')).toHaveAttribute('aria-current', 'page');
+    expectGroup('leave-management', 'link-nav-leave calendar', false);
+
+    // Navigating back into Leave reveals it again: navigation outranks an earlier collapse.
+    act(() => navigate('/leave-balances'));
+    expectGroup('leave-management', 'link-nav-leave balances', true);
+    expect(screen.getByTestId('link-nav-leave balances')).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('H: rapid repeated clicks always leave header, chevron and panel in agreement', async () => {
+    const user = userEvent.setup();
+    renderShell('/leave-calendar');
+    for (let i = 1; i <= 7; i++) {
+      await user.click(i % 2 ? header('leave-management') : chevron('leave-management'));
+      expectGroup('leave-management', 'link-nav-leave calendar', i % 2 === 0);
+    }
+    await user.dblClick(header('personnel'));
+    expectGroup('personnel', 'link-nav-employees', false);
+  });
+
+  it('I: permission/module filtering still decides which groups exist', async () => {
+    const user = userEvent.setup();
+    modulesMock.mockReturnValue({ data: [{ key: 'leave', enabled: true, requiredModuleKeys: [] as string[] }] });
+    renderShell('/leave-calendar');
+    expect(screen.queryByTestId('button-nav-group-performance')).not.toBeInTheDocument();
+    await user.click(header('leave-management'));
+    expectGroup('leave-management', 'link-nav-leave calendar', false);
+  });
+
+  it('J: Enter and Space toggle the focused header, which points aria-controls at its panel', async () => {
+    const user = userEvent.setup();
+    renderShell('/leave-calendar');
+    const leave = header('leave-management');
+    const panelId = leave.getAttribute('aria-controls');
+    expect(panelId).toBeTruthy();
+    expect(document.getElementById(panelId as string)).toContainElement(screen.getByTestId('link-nav-leave calendar'));
+
+    leave.focus();
+    await user.keyboard('{Enter}');
+    expectGroup('leave-management', 'link-nav-leave calendar', false);
+    await user.keyboard(' ');
+    expectGroup('leave-management', 'link-nav-leave calendar', true);
+  });
+
+  it('K: touch taps toggle the active group inside the mobile navigation drawer', async () => {
+    const user = userEvent.setup();
+    renderShell('/leave-calendar');
+    await user.click(screen.getByTestId('button-open-menu'));
+    const drawer = within(screen.getByRole('dialog', { name: 'Navigation menu' }));
+    const leave = drawer.getByTestId('button-nav-group-leave-management');
+    expect(leave).toHaveAttribute('aria-expanded', 'true');
+
+    await user.pointer({ keys: '[TouchA]', target: leave });
+    expect(leave).toHaveAttribute('aria-expanded', 'false');
+    expect(drawer.queryByTestId('link-nav-leave calendar')).not.toBeInTheDocument();
+
+    await user.pointer({ keys: '[TouchA]', target: leave });
+    expect(leave).toHaveAttribute('aria-expanded', 'true');
+    expect(drawer.getByTestId('link-nav-leave calendar')).toBeInTheDocument();
   });
 });
