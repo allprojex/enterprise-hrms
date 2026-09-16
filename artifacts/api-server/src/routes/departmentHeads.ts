@@ -2,15 +2,41 @@
  * Office Inventory, Workstream 1 — Department Head routes
  * (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §5). Deliberately NOT gated
  * by requireModuleEnabled("office_inventory") — Department Headship is a
- * general organizational-authority relationship, not an Inventory feature,
- * mirroring primaryHr.ts's own precedent (single `manage` permission gates
- * both reads and writes, no separate read permission, no module gate).
+ * general organizational-authority relationship, not an Inventory feature.
+ *
+ * READ AND MANAGE ARE SEPARATE CAPABILITIES (ROLE-02, 2026-09-15). The
+ * original design followed primaryHr.ts in letting one `manage` key gate
+ * both, which left the role that owns organizational structure — org_admin,
+ * holder of department.manage, branch.manage, position.manage and
+ * membership.manage — unable to find out who leads a department it can
+ * itself create and rename. In Production that surfaced as a burst of 403s
+ * from the departments page, one per department, for an org_admin caller.
+ *
+ * Knowing who currently heads a department is not Department Head authority,
+ * so the reads below take a narrower `department.head.read`. The writes are
+ * unchanged and still require `department.head.manage`: this fixes a read
+ * requirement without widening anyone's ability to assign or revoke a Head.
+ *
+ * The reads accept EITHER key. `department.head.manage` has been assignable
+ * since Office Inventory W1 and organizations may have granted it to roles
+ * this codebase cannot see; gating the reads on the new key alone would have
+ * revoked read access from those existing holders. Manage keeps implying its
+ * own read.
+ *
+ * The three reads resolve their organization through `resolveOrganizationId`
+ * rather than `req.membership!`. Both keys are read-only and so may legitimately
+ * appear in a WS-4 break-glass grant's scope, and under such a grant there is no
+ * membership row — dereferencing it would have thrown a 500 on exactly the path
+ * the grant exists to serve. The writes keep `req.membership!`: a grant's scope
+ * is validated to contain only read-only keys, so `department.head.manage` can
+ * never reach them.
  */
 import { Router } from "express";
 import { AssignDepartmentHeadBody } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
-import { requireMembership, type MembershipRequest } from "../middlewares/requireMembership";
+import { requireMembership, resolveOrganizationId, type MembershipRequest } from "../middlewares/requireMembership";
 import { requirePermission } from "../middlewares/requirePermission";
+import { requireAnyPermission } from "../middlewares/requireAnyPermission";
 import {
   assignDepartmentHead,
   revokeDepartmentHead,
@@ -23,6 +49,13 @@ import {
 
 const router = Router();
 
+/**
+ * Either key may read a Department Head assignment: the dedicated read
+ * capability, or the manage capability that implies it. Writes below stay
+ * manage-only.
+ */
+const DEPARTMENT_HEAD_READ_KEYS = ["department.head.read", "department.head.manage"] as const;
+
 function parseId(raw: string | string[] | undefined): number {
   const value = Array.isArray(raw) ? raw[0] : raw;
   return parseInt(value ?? "", 10);
@@ -33,14 +66,14 @@ router.get(
   "/organizations/:organizationId/departments/:departmentId/head",
   requireAuth as any,
   requireMembership("organizationId"),
-  requirePermission("department.head.manage"),
+  requireAnyPermission(DEPARTMENT_HEAD_READ_KEYS),
   async (req: MembershipRequest, res): Promise<void> => {
     const departmentId = parseId(req.params.departmentId);
     if (isNaN(departmentId)) {
       res.status(400).json({ error: "Invalid department ID" });
       return;
     }
-    const current = await getCurrentDepartmentHead(req.membership!.organizationId, departmentId);
+    const current = await getCurrentDepartmentHead(resolveOrganizationId(req), departmentId);
     res.json(current);
   },
 );
@@ -116,14 +149,14 @@ router.get(
   "/organizations/:organizationId/departments/:departmentId/head/history",
   requireAuth as any,
   requireMembership("organizationId"),
-  requirePermission("department.head.manage"),
+  requireAnyPermission(DEPARTMENT_HEAD_READ_KEYS),
   async (req: MembershipRequest, res): Promise<void> => {
     const departmentId = parseId(req.params.departmentId);
     if (isNaN(departmentId)) {
       res.status(400).json({ error: "Invalid department ID" });
       return;
     }
-    const history = await listDepartmentHeadHistory(req.membership!.organizationId, departmentId);
+    const history = await listDepartmentHeadHistory(resolveOrganizationId(req), departmentId);
     res.json(history);
   },
 );
@@ -133,7 +166,7 @@ router.get(
   "/organizations/:organizationId/departments/:departmentId/head/as-of",
   requireAuth as any,
   requireMembership("organizationId"),
-  requirePermission("department.head.manage"),
+  requireAnyPermission(DEPARTMENT_HEAD_READ_KEYS),
   async (req: MembershipRequest, res): Promise<void> => {
     const departmentId = parseId(req.params.departmentId);
     if (isNaN(departmentId)) {
@@ -146,7 +179,7 @@ router.get(
       res.status(400).json({ error: "Invalid or missing 'date' query parameter" });
       return;
     }
-    const head = await resolveDepartmentHeadAsOf(req.membership!.organizationId, departmentId, asOfDate);
+    const head = await resolveDepartmentHeadAsOf(resolveOrganizationId(req), departmentId, asOfDate);
     res.json(head);
   },
 );

@@ -38,7 +38,7 @@ import {
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
-import { useIsHrCapable } from '@/hooks/use-hr-capable';
+import { useIsHrCapable, useHasAnyPermission } from '@/hooks/use-hr-capable';
 import { QueryError } from '@/components/query-error';
 
 const NONE = '__none__';
@@ -51,16 +51,28 @@ function errorMessage(err: unknown): string | undefined {
 // organizational-authority primitive (docs/OFFICE_INVENTORY_IMPLEMENTATION_
 // PLAN.md §5), deliberately NOT namespaced under office_inventory and NOT
 // gated by that module — it lives here on the existing Departments page,
-// gated only by department.head.manage, independent of Office Inventory's
-// own enablement state for the organization.
+// independent of Office Inventory's own enablement state.
+//
+// ROLE-02 (2026-09-15): reading and managing are separate capabilities, and
+// both are resolved from the caller's EFFECTIVE permission keys, never from a
+// role name. Previously this cell fetched unconditionally and rendered the
+// assign/revoke controls for anyone who reached the page, so an org_admin — who
+// may now read but still may not manage — produced one 403 per department and
+// was offered controls the server refuses. We fetch only with read capability
+// and render the controls only with manage capability. The server stays
+// authoritative; this only decides which affordances to show.
 function DepartmentHeadCell({ organizationId, departmentId }: { organizationId: number; departmentId: number }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [selectedMembershipId, setSelectedMembershipId] = useState('');
 
+  // department.head.manage implies its own read, matching the route gate.
+  const canRead = useHasAnyPermission(organizationId, ['department.head.read', 'department.head.manage']);
+  const canManage = useHasAnyPermission(organizationId, ['department.head.manage']);
+
   const { data: currentHead, isLoading } = useGetCurrentDepartmentHead(organizationId, departmentId, {
-    query: { queryKey: getGetCurrentDepartmentHeadQueryKey(organizationId, departmentId), enabled: organizationId > 0 },
+    query: { queryKey: getGetCurrentDepartmentHeadQueryKey(organizationId, departmentId), enabled: organizationId > 0 && canRead },
   });
   const { data: members } = useListMembers(organizationId, {
     query: { queryKey: getListMembersQueryKey(organizationId), enabled: organizationId > 0 && pickerOpen },
@@ -100,6 +112,16 @@ function DepartmentHeadCell({ organizationId, departmentId }: { organizationId: 
     );
   };
 
+  // Without read capability the request is never issued, so there is nothing
+  // to wait for and nothing to show.
+  if (!canRead) {
+    return (
+      <span className="text-sm text-muted-foreground" data-testid={`text-department-head-hidden-${departmentId}`}>
+        —
+      </span>
+    );
+  }
+
   if (isLoading) return <Skeleton className="h-6 w-32" />;
 
   return (
@@ -109,22 +131,25 @@ function DepartmentHeadCell({ organizationId, departmentId }: { organizationId: 
           <span className="text-sm text-foreground" data-testid={`text-department-head-${departmentId}`}>
             {currentHeadMember ? `${currentHeadMember.firstName} ${currentHeadMember.lastName}` : `Membership #${currentHead.headMembershipId}`}
           </span>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-6 w-6"
-            onClick={handleRevoke}
-            disabled={revokeMutation.isPending}
-            aria-label="Revoke Department Head"
-            data-testid={`button-revoke-head-${departmentId}`}
-          >
-            <X className="h-3.5 w-3.5" aria-hidden="true" />
-          </Button>
+          {canManage ? (
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-6 w-6"
+              onClick={handleRevoke}
+              disabled={revokeMutation.isPending}
+              aria-label="Revoke Department Head"
+              data-testid={`button-revoke-head-${departmentId}`}
+            >
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
+            </Button>
+          ) : null}
         </>
       ) : (
         <span className="text-sm text-muted-foreground" data-testid={`text-department-head-vacant-${departmentId}`}>Vacant</span>
       )}
 
+      {canManage ? (
       <Dialog open={pickerOpen} onOpenChange={(o) => { setPickerOpen(o); if (!o) setSelectedMembershipId(''); }}>
         <DialogTrigger asChild>
           <Button size="icon" variant="ghost" className="h-6 w-6" aria-label={currentHead ? 'Replace Department Head' : 'Assign Department Head'} data-testid={`button-open-assign-head-${departmentId}`}>
@@ -156,6 +181,7 @@ function DepartmentHeadCell({ organizationId, departmentId }: { organizationId: 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      ) : null}
     </div>
   );
 }

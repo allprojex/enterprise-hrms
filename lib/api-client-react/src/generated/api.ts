@@ -35919,8 +35919,8 @@ export const getGetCurrentDepartmentHeadUrl = (organizationId: number,
 }
 
 /**
- * General organizational-authority primitive (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §5) — not Inventory-specific. Returns 200 with a null body when the department is vacant; vacancy is never auto-resolved.
- * @summary Get the current Department Head, if any (Office Inventory Workstream 1)
+ * General organizational-authority primitive (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §5) — not Inventory-specific. Returns 200 with a null body when the department is vacant; vacancy is never auto-resolved. Requires department.head.read (department.head.manage also grants it). Reading an assignment is not Department Head authority; assigning or revoking one still requires department.head.manage.
+ * @summary Get the current Department Head, if any — gated department.head.read
  */
 export const getCurrentDepartmentHead = async (organizationId: number,
     departmentId: number, options?: RequestInit): Promise<DepartmentHead | null> => {
@@ -35970,7 +35970,7 @@ export type GetCurrentDepartmentHeadQueryError = ErrorType<ApiError>
 
 
 /**
- * @summary Get the current Department Head, if any (Office Inventory Workstream 1)
+ * @summary Get the current Department Head, if any — gated department.head.read
  */
 
 export function useGetCurrentDepartmentHead<TData = Awaited<ReturnType<typeof getCurrentDepartmentHead>>, TError = ErrorType<ApiError>>(
@@ -36150,7 +36150,8 @@ export const getListDepartmentHeadHistoryUrl = (organizationId: number,
 }
 
 /**
- * @summary Full Department Head assignment history, oldest first
+ * Requires department.head.read (department.head.manage also grants it).
+ * @summary Full Department Head assignment history, oldest first — gated department.head.read
  */
 export const listDepartmentHeadHistory = async (organizationId: number,
     departmentId: number, options?: RequestInit): Promise<DepartmentHead[]> => {
@@ -36200,7 +36201,7 @@ export type ListDepartmentHeadHistoryQueryError = ErrorType<ApiError>
 
 
 /**
- * @summary Full Department Head assignment history, oldest first
+ * @summary Full Department Head assignment history, oldest first — gated department.head.read
  */
 
 export function useListDepartmentHeadHistory<TData = Awaited<ReturnType<typeof listDepartmentHeadHistory>>, TError = ErrorType<ApiError>>(
@@ -36240,6 +36241,7 @@ export const getResolveDepartmentHeadAsOfUrl = (organizationId: number,
 }
 
 /**
+ * Requires department.head.read (department.head.manage also grants it).
  * @summary Who was the Department Head on a given date? (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §5.3)
  */
 export const resolveDepartmentHeadAsOf = async (organizationId: number,

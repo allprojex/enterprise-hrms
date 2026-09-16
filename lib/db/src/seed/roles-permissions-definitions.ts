@@ -449,6 +449,13 @@ export const PERMISSIONS = [
   // explicitly created and assigned these keys per organization before
   // anyone can use them — no such assignment is made by this workstream,
   // for any organization, including WWM.
+  // ROLE-02 (2026-09-15): the read half of Department Headship, split out
+  // from `head.manage` so the organizational-structure role can see who
+  // leads a department without also being able to appoint one. Reading an
+  // assignment is not Department Head authority, so this does NOT contradict
+  // the rule above that HR/org-admin authority must not imply Department
+  // Head authority — `head.manage` remains withheld and unchanged.
+  { key: "department.head.read", resource: "department", action: "head.read" },
   { key: "department.head.manage", resource: "department", action: "head.manage" },
   { key: "office_inventory.configure", resource: "office_inventory", action: "configure" },
   { key: "office_inventory.item.manage", resource: "office_inventory", action: "item.manage" },
@@ -689,6 +696,10 @@ export const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "branch.manage",
     "department.read",
     "department.manage",
+    // ROLE-02: org_admin creates, renames and deletes departments and manages
+    // memberships, so it must be able to see who heads one. Read only —
+    // department.head.manage stays withheld from this role.
+    "department.head.read",
     "position.read",
     "position.manage",
     "audit.read",
@@ -1088,6 +1099,9 @@ const HR_ADMINISTRATOR_ADDITIONS: readonly string[] = [
   "master_data.manage",
   "document.retention.manage",
   "department.head.manage",
+  // ROLE-02: held explicitly as well as implied by head.manage above, so HR's
+  // read does not depend on the manage grant it happens to also carry.
+  "department.head.read",
   "audit.read.hr",
   "audit.read.documents",
   "audit.read.assets_inventory",
