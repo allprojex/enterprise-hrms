@@ -201,16 +201,25 @@ describe("organizationDomains service", () => {
     await expect(resolveTenantByHostname("not a hostname!!")).resolves.toBeNull();
   });
 
-  it("resolveTenantByHostname returns null when the organization is suspended", async () => {
+  it("resolveTenantByHostname still resolves a suspended organization's identity, reporting its status (pinning must not switch off)", async () => {
     fixtures.domainRows = [{ organizationId: 3, orgStatus: "suspended" }];
     const result = await resolveTenantByHostname("wwm.localhost");
-    expect(result).toBeNull();
+    // Identity, not availability: a null here would make the suspended
+    // tenant's hostname indistinguishable from the platform's tenant-neutral
+    // host and disable hostnameOrganizationMismatch on it.
+    expect(result).toEqual({ organizationId: 3, status: "suspended" });
   });
 
-  it("resolveTenantByHostname resolves when active domain + non-suspended org", async () => {
+  it("resolveTenantByHostname resolves an active organization with its status", async () => {
     fixtures.domainRows = [{ organizationId: 3, orgStatus: "active" }];
     const result = await resolveTenantByHostname("wwm.localhost");
-    expect(result).toEqual({ organizationId: 3 });
+    expect(result).toEqual({ organizationId: 3, status: "active" });
+  });
+
+  it("resolveTenantByHostname resolves a trial organization with its status", async () => {
+    fixtures.domainRows = [{ organizationId: 3, orgStatus: "trial" }];
+    const result = await resolveTenantByHostname("wwm.localhost");
+    expect(result).toEqual({ organizationId: 3, status: "trial" });
   });
 
   it("activateDomain 404s (DomainNotFoundError) when the domain doesn't belong to the organization", async () => {

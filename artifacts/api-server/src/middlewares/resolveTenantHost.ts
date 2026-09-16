@@ -1,5 +1,5 @@
 import type { Response, NextFunction } from "express";
-import { resolveTenantByHostname } from "../lib/organizationDomains";
+import { resolveTenantByHostname, type ResolvedTenantHost } from "../lib/organizationDomains";
 import { logger } from "../lib/logger";
 import { setCurrentHostTenant } from "../lib/requestContext";
 import type { AuthenticatedRequest } from "./requireAuth";
@@ -10,8 +10,15 @@ export interface TenantAwareRequest extends AuthenticatedRequest {
   // base domain, an unmapped host, a plain API-only call — a definite,
   // trustworthy negative). Never treat a non-null value here as
   // authorization by itself — see organizationDomains.ts's module doc
-  // comment.
+  // comment. A suspended organization's hostname still resolves here: this
+  // is the tenant IDENTITY hostname pinning is keyed on, not a statement that
+  // the tenant is operational.
   resolvedTenantOrganizationId?: number | null;
+  // The resolved organization's lifecycle status (null when nothing
+  // resolved). Anything that serves or brands the tenant must consult this —
+  // or re-check the organization itself — rather than inferring availability
+  // from resolvedTenantOrganizationId being set.
+  resolvedTenantStatus?: ResolvedTenantHost["status"] | null;
   // True only when resolution itself could not complete (a thrown error —
   // most realistically a database failure) — this is NOT the same as "no
   // tenant found" above, and must never be treated as such. Consumers that
@@ -115,6 +122,7 @@ export async function resolveTenantHost(req: TenantAwareRequest, _res: Response,
   const candidates = tenantHostnameCandidates(req);
 
   let resolvedOrganizationId: number | null = null;
+  let resolvedStatus: ResolvedTenantHost["status"] | null = null;
   let resolutionFailed = false;
 
   for (const candidate of candidates) {
@@ -122,6 +130,7 @@ export async function resolveTenantHost(req: TenantAwareRequest, _res: Response,
       const resolved = await resolveTenantByHostname(candidate);
       if (resolved) {
         resolvedOrganizationId = resolved.organizationId;
+        resolvedStatus = resolved.status;
         resolutionFailed = false;
         break;
       }
@@ -132,6 +141,7 @@ export async function resolveTenantHost(req: TenantAwareRequest, _res: Response,
   }
 
   req.resolvedTenantOrganizationId = resolvedOrganizationId;
+  req.resolvedTenantStatus = resolvedStatus;
   req.tenantResolutionFailed = resolutionFailed;
   // Tenant identity hardening: record the connection-derived tenant on the
   // request context so even an unauthenticated failure on a tenant hostname

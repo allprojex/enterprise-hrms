@@ -181,8 +181,8 @@ function mockMembership(applicationUserId: number, organizationId: number, permi
   fixtures.permissionRows = permissionKeys.map((key) => ({ roleId, key }));
 }
 
-function mockDomain(hostname: string, organizationId: number) {
-  fixtures.domainRows = [{ hostname, status: "active", organizationId }];
+function mockDomain(hostname: string, organizationId: number, orgStatus: string = "active") {
+  fixtures.domainRows = [{ hostname, status: "active", organizationId, orgStatus }];
 }
 
 beforeEach(() => {
@@ -350,6 +350,46 @@ describe("Organization-route tenant-hostname consistency", () => {
     mockDomain("wwm.localhost", 3); // super_admin is on WWM's hostname, acting on org 4
 
     const res = await request(app).get("/api/organizations/4").set("Authorization", "Bearer valid-token").set("X-Tenant-Hostname", "wwm.localhost");
+    expect(res.status).toBe(403);
+  });
+
+  // Suspended tenant hostnames stay pinned to their organization (identity,
+  // not availability). The domain join below genuinely reports the tenant as
+  // suspended, unlike test 7, whose fixture never exercised that branch.
+  it("12c. super_admin reactivates a suspended organization from that organization's own hostname", async () => {
+    mockSession({ id: 1, role: "super_admin", organizationId: 3 });
+    mockOrganization(3, "suspended");
+    mockDomain("wwm.localhost", 3, "suspended");
+
+    const res = await request(app)
+      .post("/api/organizations/3/reactivate")
+      .set("Authorization", "Bearer valid-token")
+      .set("X-Tenant-Hostname", "wwm.localhost")
+      .send({ confirmSlug: "org-3" });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("active");
+  });
+
+  it("12d. a suspended tenant's hostname does not become tenant-neutral: super_admin acting on a different org from it is denied exactly as on an active tenant's hostname (12b)", async () => {
+    mockSession({ id: 1, role: "super_admin", organizationId: 3 });
+    mockOrganization(4);
+    mockDomain("wwm.localhost", 3, "suspended");
+
+    const res = await request(app).get("/api/organizations/4").set("Authorization", "Bearer valid-token").set("X-Tenant-Hostname", "wwm.localhost");
+    expect(res.status).toBe(403);
+  });
+
+  it("12e. an org member cannot act on another organization through a suspended tenant's hostname", async () => {
+    mockSession({ id: 1, role: "org_admin", organizationId: 4 });
+    mockOrganization(4);
+    mockMembership(1, 4, ["organization.update"]);
+    mockDomain("wwm.localhost", 3, "suspended");
+
+    const res = await request(app)
+      .patch("/api/organizations/4")
+      .set("Authorization", "Bearer valid-token")
+      .set("X-Tenant-Hostname", "wwm.localhost")
+      .send({ name: "Renamed Through Suspended Host" });
     expect(res.status).toBe(403);
   });
 
